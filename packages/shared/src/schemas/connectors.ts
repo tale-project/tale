@@ -90,6 +90,14 @@ const optionLabelsSchema = z.record(
  *                URL names `{tenantId}`); the platform fetches the access
  *                token from `tokenUrl` for `scopes` and keeps it until it
  *                expires.
+ *  - `github-app` — a GitHub App the organization registers from Tale's
+ *                connector settings (GitHub's manifest flow) and installs on
+ *                the repositories it chooses. The credential stores the
+ *                app's identity and private key; the platform signs a JWT
+ *                with the key and mints a short-lived installation token for
+ *                each call, narrowed to `permissions`, which the app's
+ *                manifest declares exactly. What it writes shows the app's
+ *                bot, not a person's account.
  *  - `platform` — the platform itself is the identity: no stored credential,
  *                no connect flow. Only native-backed platform capabilities
  *                (sandbox scripts, task/document actions) declare it, it
@@ -150,11 +158,34 @@ const connectorAuthMethodSchema = z.discriminatedUnion('method', [
       scopes: z.array(z.string().min(1)).default([]),
     })
     .strict(),
+  z
+    .object({
+      method: z.literal('github-app'),
+      /**
+       * The repository permissions the app asks for, by GitHub's own names
+       * (`contents`, `pull_requests`, …): its manifest declares exactly
+       * these, and every installation token is narrowed to them. A
+       * connector names what its actions need, and nothing more.
+       */
+      permissions: z
+        .record(
+          z.string().regex(/^[a-z][a-z_]*$/, 'a GitHub permission name'),
+          z.enum(['read', 'write']),
+        )
+        .refine(
+          (permissions) => Object.keys(permissions).length > 0,
+          'a GitHub App asks for at least one permission',
+        ),
+    })
+    .strict(),
 ]);
 
 /** The placeholder a `client-credentials` token URL carries where the
  * credential's directory (tenant) id goes. */
 export const CLIENT_CREDENTIALS_TENANT_PLACEHOLDER = '{tenantId}';
+/** The API host a `github-app` credential's tokens come from and its calls
+ * go to. */
+export const GITHUB_API_HOST = 'api.github.com';
 export type ConnectorAuthMethod = z.infer<typeof connectorAuthMethodSchema>;
 export type ConnectorAuthMethodName = ConnectorAuthMethod['method'];
 /** Auth methods a credential row can store — every method but `platform`,
@@ -248,7 +279,14 @@ const configFieldSchema = z
      */
     requiredFor: z
       .array(
-        z.enum(['api-key', 'bearer', 'basic', 'oauth2', 'client-credentials']),
+        z.enum([
+          'api-key',
+          'bearer',
+          'basic',
+          'oauth2',
+          'client-credentials',
+          'github-app',
+        ]),
       )
       .min(1)
       .optional(),
@@ -558,6 +596,15 @@ export const connectorSchema = z
       message:
         'a connector that is the platform itself holds no token to open a git remote with',
       path: ['git'],
+    },
+  )
+  .refine(
+    (connector) =>
+      !connector.auth.some((method) => method.method === 'github-app') ||
+      connector.allowedHosts.includes(GITHUB_API_HOST),
+    {
+      message: `a GitHub App connector reaches ${GITHUB_API_HOST}, where its tokens are minted and its calls go`,
+      path: ['allowedHosts'],
     },
   )
   .refine(

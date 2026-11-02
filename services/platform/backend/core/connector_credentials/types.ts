@@ -35,4 +35,5 @@ export type ConnectorAuthMethod =
   | 'bearer'
   | 'basic'
   | 'oauth2'
-  | 'client-credentials';
+  | 'client-credentials'
+  | 'github-app';

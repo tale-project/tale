@@ -191,6 +191,137 @@ describe('an app that signs in as itself (client-credentials)', () => {
   });
 });
 
+describe('a GitHub App the organization registered (github-app)', () => {
+  // The shape of a PEM key, not a key: these tests never sign anything.
+  const KEY_BODY = 'MIIEowIBAAKCAQEAsecretkeymaterial0123456789abcdef';
+  const app = {
+    appId: 42,
+    clientId: 'Iv23liExample',
+    slug: 'tale-acme',
+    privateKey: `-----BEGIN RSA PRIVATE KEY-----\n${KEY_BODY}\n-----END RSA PRIVATE KEY-----\n`,
+  };
+  const installation = {
+    id: 7,
+    account: 'acme',
+    accountType: 'Organization',
+    repositorySelection: 'selected',
+  } as const;
+
+  it('parses the registration, before and after it is installed and a token is minted', () => {
+    expect(parseSecretPayload('github-app', app)).toEqual({
+      authMethod: 'github-app',
+      ...app,
+    });
+    expect(
+      parseSecretPayload('github-app', {
+        ...app,
+        privateKey: `-----BEGIN PRIVATE KEY-----\r\n${KEY_BODY}\r\n-----END PRIVATE KEY-----`,
+        owner: 'acme',
+        botId: 99,
+        installation,
+        accessToken: 'ghs_minted',
+        expiresAt: 5,
+      }),
+    ).toMatchObject({
+      owner: 'acme',
+      botId: 99,
+      installation,
+      accessToken: 'ghs_minted',
+      expiresAt: 5,
+    });
+  });
+
+  it('[CCRED-R15] refuses a payload that is not one, naming the field and never echoing the key', () => {
+    for (const [raw, field] of [
+      [{ ...app, privateKey: `${KEY_BODY}-not-pem` }, 'privateKey'],
+      [
+        {
+          ...app,
+          privateKey: `-----BEGIN PUBLIC KEY-----\n${KEY_BODY}\n-----END PUBLIC KEY-----`,
+        },
+        'privateKey',
+      ],
+      [{ ...app, slug: 'Tale Acme' }, 'slug'],
+      [{ ...app, appId: 0 }, 'appId'],
+      [
+        { ...app, installation: { ...installation, accountType: 'Team' } },
+        'installation',
+      ],
+      [
+        { ...app, installation: { ...installation, token: KEY_BODY } },
+        'installation',
+      ],
+      [{ ...app, webhookSecret: KEY_BODY }, undefined],
+    ] as const) {
+      const error = (() => {
+        try {
+          parseSecretPayload('github-app', raw);
+        } catch (thrown) {
+          return thrown;
+        }
+        return null;
+      })();
+      expect(error).toBeInstanceOf(SecretPayloadError);
+      expect((error as SecretPayloadError).field).toBe(field);
+      expect((error as SecretPayloadError).message).not.toContain(KEY_BODY);
+    }
+  });
+
+  it('[CCRED-R15] sends the minted token, never the key, and publishes nothing to a body or a sandbox', () => {
+    expect(
+      buildAuthHeader({
+        authMethod: 'github-app',
+        ...app,
+        installation,
+        accessToken: 'ghs_minted',
+        expiresAt: Date.now() + 3_600_000,
+      }),
+    ).toBe('Bearer ghs_minted');
+    expect(
+      buildAuthHeader({ authMethod: 'github-app', ...app, installation }),
+    ).toBeUndefined();
+    expect(
+      buildSecretBindings({
+        authMethod: 'github-app',
+        ...app,
+        installation,
+        accessToken: 'ghs_minted',
+        expiresAt: 5,
+      }),
+    ).toEqual({});
+  });
+
+  it('[CCRED-R18] refuses to send a token that is expired or expires within the minute, never echoing it', () => {
+    const now = Date.UTC(2026, 10, 2, 9, 0, 0);
+    const minted = {
+      authMethod: 'github-app',
+      ...app,
+      installation,
+      accessToken: 'ghs_minted',
+    } as const;
+    for (const expiresAt of [now - 1, now, now + 30_000, now + 60_000, null]) {
+      const error = (() => {
+        try {
+          buildAuthHeader(
+            expiresAt === null ? minted : { ...minted, expiresAt },
+            undefined,
+            now,
+          );
+        } catch (thrown) {
+          return thrown;
+        }
+        return null;
+      })();
+      expect(error).toBeInstanceOf(SecretPayloadError);
+      expect((error as SecretPayloadError).field).toBe('expiresAt');
+      expect((error as SecretPayloadError).message).not.toContain('ghs_minted');
+    }
+    expect(
+      buildAuthHeader({ ...minted, expiresAt: now + 60_001 }, undefined, now),
+    ).toBe('Bearer ghs_minted');
+  });
+});
+
 describe('buildSecretBindings', () => {
   it('publishes an api key under every name the shipped bodies read', () => {
     // tavily reads `apiKey`; shopify reads `accessToken` — both api-key.

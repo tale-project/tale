@@ -406,6 +406,31 @@ describe('mock mode', () => {
   });
 });
 
+/** A connector whose one action reports the auth method its body was handed,
+ * so both live paths can be checked to carry it. */
+const AUTH_PROBE: Connector = connectorSchema.parse({
+  name: 'auth-probe',
+  displayName: 'Auth probe',
+  description: 'Reports the auth method of the credential a call resolved.',
+  endpointMode: 'fixed',
+  allowedHosts: ['api.demo.test'],
+  auth: [{ method: 'bearer' }],
+  actions: [
+    {
+      name: 'which',
+      description: 'Return ctx.authMethod.',
+      effects: 'read',
+      input: { type: 'object', properties: {} },
+      output: '{ method: string }',
+      mock: 'return { method: "mock" };',
+      backend: {
+        kind: 'yaml-js',
+        live: 'return { method: ctx.authMethod === undefined ? "<absent>" : ctx.authMethod };',
+      },
+    },
+  ],
+});
+
 describe('live yaml-js under the sandbox-exec runner (portable convention)', () => {
   /** The production shape: the composed program runs in a real `node -e`
    * child, and its `ctx.http` round-trips to a local server standing in for
@@ -518,9 +543,50 @@ describe('live yaml-js under the sandbox-exec runner (portable convention)', () 
       }),
     ).rejects.toMatchObject({ code: 'LIVE_RUNNER_UNAVAILABLE' });
   });
+
+  it("hands the body the resolved credential's auth method", async () => {
+    installConnectorCatalog([...shipped, DEMO, AUTH_PROBE]);
+    const result = await executeConnectorAction({
+      connector: 'auth-probe',
+      action: 'which',
+      input: {},
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver({ authMethod: 'github-app' }),
+        codeRunner: createSandboxExecRunner(
+          createSessionTransport(nodeProgramRunner),
+        ),
+        // The body makes no host call, so the endpoint is never reached.
+        portableHost: { url: 'http://127.0.0.1:9/hostcall', token: 't' },
+      },
+    });
+    expect(result.status === 'ok' && result.output).toEqual({
+      method: 'github-app',
+    });
+  });
 });
 
 describe('live yaml-js backend', () => {
+  it("hands the body the resolved credential's auth method", async () => {
+    installConnectorCatalog([...shipped, DEMO, AUTH_PROBE]);
+    const run = (credentials: CredentialResolver) =>
+      executeConnectorAction({
+        connector: 'auth-probe',
+        action: 'which',
+        input: {},
+        caller: { kind: 'user', userId: 'u1' },
+        ctx: { organizationId: ORG, mode: 'live', credentials },
+      });
+
+    const app = await run(resolver({ authMethod: 'github-app' }));
+    const pat = await run(resolver());
+
+    expect(app.status === 'ok' && app.output).toEqual({ method: 'github-app' });
+    expect(pat.status === 'ok' && pat.output).toEqual({ method: 'bearer' });
+  });
+
   it("stops a live body's host calls at its time limit [CONN-R14]", async () => {
     // A body that pages through a vendor without bound, like a recursive
     // listing over a large account. In this process nothing can stop the body
@@ -1655,5 +1721,352 @@ describe('the credential seam', () => {
       }),
     ).rejects.toMatchObject({ code: 'HOST_NOT_ALLOWED' });
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+});
+
+describe('the GitHub connector under a GitHub App', () => {
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  const call = (
+    action: string,
+    input: Record<string, unknown>,
+    authMethod: 'bearer' | 'github-app',
+  ) =>
+    executeConnectorAction({
+      connector: 'github',
+      action,
+      input,
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'node_1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver({ authMethod }),
+      },
+    });
+  const urlOf = (index: number) => String(fetchStub.mock.calls[index]?.[0]);
+
+  describe('list_repos', () => {
+    const REPOS = [
+      { id: 1, name: 'api', full_name: 'acme/api', private: true },
+      { id: 2, name: 'site', full_name: 'acme/site', private: false },
+    ];
+    const input = { per_page: 20, sort: 'updated', visibility: 'private' };
+
+    it('lists the repositories the app is installed on, filtering their visibility itself', async () => {
+      fetchStub.mockImplementation(async () =>
+        json({ total_count: 2, repositories: REPOS }),
+      );
+
+      const result = await call('list_repos', input, 'github-app');
+
+      // GitHub's installation listing takes neither a sort nor a visibility.
+      expect(urlOf(0)).toBe(
+        'https://api.github.com/installation/repositories?per_page=20',
+      );
+      const [, init] = fetchStub.mock.calls[0];
+      expect(init.headers.Authorization).toBe('Bearer resolved-token');
+      expect(result.status === 'ok' && result.output).toEqual({
+        repos: [REPOS[0]],
+      });
+    });
+
+    it('answers every installed repository when no visibility is asked for', async () => {
+      fetchStub.mockImplementation(async () =>
+        json({ total_count: 2, repositories: REPOS }),
+      );
+      const result = await call(
+        'list_repos',
+        { visibility: 'all' },
+        'github-app',
+      );
+      expect(urlOf(0)).toBe('https://api.github.com/installation/repositories');
+      expect(result.status === 'ok' && result.output).toEqual({
+        repos: REPOS,
+      });
+    });
+
+    it('refuses an installation answer that lists no repositories', async () => {
+      fetchStub.mockImplementation(async () => json({ total_count: 0 }));
+      await expect(
+        call('list_repos', input, 'github-app'),
+      ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
+    });
+
+    it("keeps a personal token on the user's own listing", async () => {
+      fetchStub.mockImplementation(async () => json(REPOS));
+      const result = await call('list_repos', input, 'bearer');
+      expect(urlOf(0)).toBe(
+        'https://api.github.com/user/repos?per_page=20&sort=updated&visibility=private',
+      );
+      expect(result.status === 'ok' && result.output).toEqual({
+        repos: REPOS,
+      });
+    });
+
+    it('[CCRED-R18] renews a token GitHub turned away once and sends the call again with it', async () => {
+      fetchStub.mockImplementation(async (_url: unknown, init: RequestInit) =>
+        new Headers(init.headers).get('authorization') ===
+        'Bearer resolved-token'
+          ? new Response(JSON.stringify({ message: 'Bad credentials' }), {
+              status: 401,
+              headers: { 'content-type': 'application/json' },
+            })
+          : json({ total_count: 2, repositories: REPOS }),
+      );
+      const renew = vi.fn(async () => 'Bearer ghs_renewed');
+
+      const result = await executeConnectorAction({
+        connector: 'github',
+        action: 'list_repos',
+        input: { visibility: 'all' },
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'node_1' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver({
+            authMethod: 'github-app',
+            reauthorize: { hosts: ['api.github.com'], renew },
+          }),
+        },
+      });
+
+      expect(renew).toHaveBeenCalledTimes(1);
+      expect(
+        fetchStub.mock.calls.map((sent) =>
+          new Headers((sent[1] as RequestInit).headers).get('authorization'),
+        ),
+      ).toEqual(['Bearer resolved-token', 'Bearer ghs_renewed']);
+      expect(result.status === 'ok' && result.output).toEqual({
+        repos: REPOS,
+      });
+    });
+
+    it('[CCRED-R18] refuses the call with why no token could be renewed', async () => {
+      fetchStub.mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ message: 'Bad credentials' }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' },
+          }),
+      );
+      const reason =
+        'the GitHub App is no longer installed on acme — install it again from Settings → Connectors';
+      const renew = vi.fn(async (): Promise<string> => {
+        throw new Error(reason);
+      });
+
+      await expect(
+        executeConnectorAction({
+          connector: 'github',
+          action: 'list_repos',
+          input: { visibility: 'all' },
+          caller: { kind: 'workflow', runId: 'run_1', nodeId: 'node_1' },
+          ctx: {
+            organizationId: ORG,
+            mode: 'live',
+            credentials: resolver({
+              authMethod: 'github-app',
+              reauthorize: { hosts: ['api.github.com'], renew },
+            }),
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: 'CREDENTIAL_UNRESOLVED',
+        message: `no usable credential for github: ${reason}`,
+      });
+      expect(renew).toHaveBeenCalledTimes(1);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('list_pull_requests_to_review', () => {
+    interface Seen {
+      query: string;
+      variables: Record<string, unknown>;
+    }
+    /** A GraphQL actor: a personal token's query reads its login alone, an
+     * app's its type too. */
+    interface Actor {
+      __typename?: 'Bot' | 'User';
+      login: string;
+    }
+    const bot = (login: string): Actor => ({ __typename: 'Bot', login });
+    const person = (login: string): Actor => ({ __typename: 'User', login });
+    const pull = (
+      number: number,
+      author: string | Actor,
+      headRefOid: string,
+      reviews: Array<{ author?: Actor; commit: { oid: string } }>,
+    ) => ({
+      number,
+      title: `Pull ${number}`,
+      url: `https://github.com/acme/api/pull/${number}`,
+      isDraft: false,
+      headRefOid,
+      updatedAt: `2026-10-0${number}T08:00:00Z`,
+      author: typeof author === 'string' ? { login: author } : author,
+      reviews: { nodes: reviews },
+    });
+
+    /** GitHub's GraphQL API as the bodies see it: the viewer, then one page
+     * of open pull requests. */
+    function answerGraphql(viewer: string, nodes: unknown[]): Seen[] {
+      const seen: Seen[] = [];
+      fetchStub.mockImplementation(async (_url: unknown, init: RequestInit) => {
+        const sent = JSON.parse(String(init.body)) as Seen;
+        seen.push(sent);
+        return json({
+          data: sent.query.includes('viewer { login }')
+            ? { viewer: { login: viewer } }
+            : {
+                repository: {
+                  pullRequests: {
+                    totalCount: nodes.length,
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                    nodes,
+                  },
+                },
+              },
+        });
+      });
+      return seen;
+    }
+
+    it("skips the app bot's own pull requests and the ones it reviewed at their head", async () => {
+      // GraphQL names the bot `<slug>[bot]` as the viewer and `<slug>` as an
+      // author.
+      const seen = answerGraphql('tale-acme[bot]', [
+        pull(1, bot('tale-acme'), 'h1', []),
+        pull(2, person('ada'), 'h2', [
+          { author: bot('tale-acme'), commit: { oid: 'h2' } },
+          // A busy pull request: later reviews by others leave the app's in
+          // the window.
+          ...Array.from({ length: 30 }, () => ({
+            author: person('bob'),
+            commit: { oid: 'h1' },
+          })),
+        ]),
+        pull(3, person('bob'), 'h3', [
+          { author: person('ada'), commit: { oid: 'h3' } },
+        ]),
+        pull(4, person('cy'), 'h4', [
+          { author: bot('tale-acme'), commit: { oid: 'h0' } },
+        ]),
+      ]);
+
+      const result = await call(
+        'list_pull_requests_to_review',
+        { owner: 'acme', repo: 'api' },
+        'github-app',
+      );
+
+      expect(result.status === 'ok' && result.output).toMatchObject({
+        viewer: 'tale-acme[bot]',
+        open: 4,
+        scanned: 4,
+        pulls: [
+          { number: 3, author: 'bob', headSha: 'h3' },
+          { number: 4, author: 'cy', headSha: 'h4' },
+        ],
+        skipped: { drafts: 0, own: 1, reviewed: 1 },
+      });
+      // The pulls query reads each pull request's last 100 reviews by anyone
+      // with their author's type, and names no viewer to filter them by: the
+      // reviews' author filter takes no bot.
+      const pulls = seen[1];
+      expect(pulls?.query).not.toContain('$viewer');
+      expect(pulls?.query).toContain(
+        'query($owner: String!, $repo: String!, $first: Int!, $after: String) {',
+      );
+      expect(pulls?.query).toContain(
+        'nodes { number title url isDraft headRefOid updatedAt author { __typename login } reviews(last: 100) { nodes { author { __typename login } commit { oid } } } }',
+      );
+      expect(pulls?.variables).toEqual({
+        owner: 'acme',
+        repo: 'api',
+        first: 100,
+        after: null,
+      });
+    });
+
+    it("does not take a person whose login is the app's slug for the app", async () => {
+      answerGraphql('tale-acme[bot]', [
+        pull(1, person('tale-acme'), 'h1', []),
+        pull(2, person('ada'), 'h2', [
+          { author: person('tale-acme'), commit: { oid: 'h2' } },
+        ]),
+        // Another app's bot reviewing at the head is not this app either.
+        pull(3, person('bob'), 'h3', [
+          { author: bot('dependabot'), commit: { oid: 'h3' } },
+        ]),
+      ]);
+
+      const result = await call(
+        'list_pull_requests_to_review',
+        { owner: 'acme', repo: 'api' },
+        'github-app',
+      );
+
+      expect(result.status === 'ok' && result.output).toMatchObject({
+        viewer: 'tale-acme[bot]',
+        pulls: [
+          { number: 1, author: 'tale-acme' },
+          { number: 2, author: 'ada' },
+          { number: 3, author: 'bob' },
+        ],
+        skipped: { drafts: 0, own: 0, reviewed: 0 },
+      });
+    });
+
+    it('keeps filtering the reviews by the viewer under a personal token', async () => {
+      const seen = answerGraphql('ada', [
+        pull(1, 'ada', 'h1', []),
+        pull(2, 'bob', 'h2', [{ commit: { oid: 'h2' } }]),
+        pull(3, 'cy', 'h3', []),
+      ]);
+
+      const result = await call(
+        'list_pull_requests_to_review',
+        { owner: 'acme', repo: 'api' },
+        'bearer',
+      );
+
+      expect(result.status === 'ok' && result.output).toEqual({
+        viewer: 'ada',
+        open: 3,
+        scanned: 3,
+        pulls: [
+          {
+            number: 3,
+            title: 'Pull 3',
+            url: 'https://github.com/acme/api/pull/3',
+            headSha: 'h3',
+            author: 'cy',
+            updatedAt: '2026-10-03T08:00:00Z',
+          },
+        ],
+        waiting: 0,
+        skipped: { drafts: 0, own: 1, reviewed: 1 },
+      });
+      // The query a personal token has always sent: the viewer's own reviews,
+      // no author type.
+      expect(seen[1]?.query).toContain(
+        'query($owner: String!, $repo: String!, $first: Int!, $after: String, $viewer: String!) {',
+      );
+      expect(seen[1]?.query).toContain(
+        'nodes { number title url isDraft headRefOid updatedAt author { login } reviews(author: $viewer, last: 20) { nodes { commit { oid } } } }',
+      );
+      expect(seen[1]?.query).not.toContain('__typename');
+      expect(seen[1]?.variables).toEqual({
+        owner: 'acme',
+        repo: 'api',
+        first: 100,
+        after: null,
+        viewer: 'ada',
+      });
+    });
   });
 });

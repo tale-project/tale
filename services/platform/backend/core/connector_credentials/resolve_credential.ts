@@ -13,7 +13,9 @@
  *  - `authHeader` — what the platform injects on the caller's behalf
  *    (`<scheme> <token>` for bearer, HTTP Basic for basic, `Bearer` for an
  *    oauth2 access token). Absent for `api-key`: those vendors want the
- *    secret somewhere of their own choosing, so the body places it.
+ *    secret somewhere of their own choosing, so the body places it. Absent
+ *    for `github-app` too: its token is only handed out by the credentials
+ *    domain's resolver, which mints and renews it.
  *  - `secrets` — the named values a live body reads through
  *    `ctx.secrets.get(<name>)`.
  *  - `endpoint` — the credential's own API origin, for connectors declaring
@@ -181,10 +183,17 @@ export async function resolveConnectorCredential(
   // `Bot` for Discord), never the row's — a credential moved between
   // connectors would otherwise keep sending the wrong scheme.
   const connector = findConnector(row.connectorSlug);
-  const authHeader = buildAuthHeader(
-    payload,
-    connector ? connectorBearerScheme(connector) : undefined,
-  );
+  // A GitHub App's token is minted and renewed by the credentials domain's
+  // resolver only; this seam never freshens one, so it hands out no app
+  // token at all — no header, and the app publishes no secret binding
+  // [CCRED-R18].
+  const authHeader =
+    payload.authMethod === 'github-app'
+      ? undefined
+      : buildAuthHeader(
+          payload,
+          connector ? connectorBearerScheme(connector) : undefined,
+        );
   return {
     credentialId: row._id,
     connectorSlug: row.connectorSlug,

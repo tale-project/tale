@@ -515,6 +515,7 @@ connectors:
     basic: Username & password
     oauth2: OAuth
     clientCredentials: App sign-in
+    githubApp: GitHub App
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connect
@@ -623,6 +624,48 @@ connectors:
         Enter the client ID.
       clientSecretRequired: >-
         Enter the client secret.
+  githubApp:
+    registerGroup: Register a GitHub App
+    intro: >-
+      Let Tale act as this organization's own GitHub App instead of with a
+      person's token: register the app on GitHub, then install it on the
+      repositories it should reach.
+    credentialName: Credential name
+    appName: App name on GitHub
+    appNameInvalid: Enter the app's name, at most {max} characters.
+    owner: GitHub organization
+    ownerHint: >-
+      Leave empty to register the app on your personal GitHub account. To
+      register it for a GitHub organization, enter its login — you must be an
+      owner of it.
+    ownerInvalid: >-
+      Enter the organization's login as it appears in its GitHub URL: letters,
+      digits and single hyphens.
+    permissionsIntro: 'The app asks GitHub for:'
+    permissionRead: Read-only
+    permissionWrite: Read and write
+    register: Register on GitHub
+    adminOnly: >-
+      Only organization admins can register and install a GitHub App. Ask an
+      admin to set one up.
+    notInstalled: Registered on GitHub, not installed yet.
+    installedOn: Installed on {account}
+    uninstalled: No longer installed on {account}.
+    statusNotInstalled: Not installed
+    statusUninstalled: No longer installed
+    appLink: App {slug}
+    install: Install on GitHub
+    changeRepositories: Change repositories
+    showRepositories: Show repositories
+    repositoriesTitle: Repositories this app reaches
+    private: Private
+    more: '{count, plural, one {and # more} other {and # more}}'
+    allRepositoriesWarning: >-
+      This app reaches every repository of {account}, including ones added
+      later. Choose “Only select repositories” on GitHub to narrow it.
+    openOnGitHub: Open on GitHub
+    repositoriesLoadFailed: Couldn't load the repositories.
+    noRepositories: The app reaches no repositories.
   dialog:
     apiKey: API key
     token: Token

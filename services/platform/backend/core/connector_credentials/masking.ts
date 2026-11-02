@@ -29,7 +29,9 @@ export function maskSecret(plaintext: string): string | undefined {
  * not secret and shows in full elsewhere), the ACCESS token for `oauth2`
  * (what the platform actually sends), and the CLIENT SECRET for
  * `client-credentials` (what the person typed and will rotate — the access
- * token fetched from it changes every hour).
+ * token fetched from it changes every hour). A `github-app` credential has
+ * none: no person typed its private key, and the end of a key says nothing;
+ * the app's name and installation identify it instead.
  */
 export function maskPayload(
   payload: ConnectorSecretPayload,
@@ -44,6 +46,8 @@ export function maskPayload(
       return maskSecret(payload.accessToken);
     case 'client-credentials':
       return maskSecret(payload.clientSecret);
+    case 'github-app':
+      return undefined;
     default: {
       const _exhaustive: never = payload;
       return _exhaustive;

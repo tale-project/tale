@@ -11,9 +11,10 @@
  *
  * Two rules encode how the platform and the connector bodies split the work:
  *
- *  - The platform injects the header for `bearer`, `basic`, `oauth2`, and
+ *  - The platform injects the header for `bearer`, `basic`, `oauth2`,
  *    `client-credentials` (the access token the platform fetched for the
- *    app, never the app's client secret). An
+ *    app, never the app's client secret), and `github-app` (the installation
+ *    token the platform minted, never the app's private key). An
  *    `api-key` credential gets NO header — those vendors place the secret
  *    themselves (Tavily in the JSON body, Shopify in `X-Shopify-Access-Token`),
  *    so the body reads it from `secrets` instead.
@@ -73,7 +74,41 @@ export type ConnectorSecretPayload =
       readonly clientSecret: string;
       readonly accessToken?: string;
       readonly expiresAt?: number;
+    }
+  | {
+      /**
+       * A GitHub App the organization registered from Tale's settings. Its
+       * private key (`privateKey`, PEM) signs the JWT the platform trades
+       * for an installation token; everything else is the app's public
+       * identity, kept with the key so the one envelope says which app and
+       * which installation the key is for. The last installation token
+       * rides along with its expiry, as for `client-credentials`.
+       */
+      readonly authMethod: 'github-app';
+      readonly appId: number;
+      readonly clientId: string;
+      readonly slug: string;
+      readonly privateKey: string;
+      /** The account (person or organization) that owns the app. */
+      readonly owner?: string;
+      /** The id of the app's bot user, `<slug>[bot]`, when GitHub told it. */
+      readonly botId?: number;
+      /** Where the app is installed; absent until someone installs it. */
+      readonly installation?: GithubAppInstallation;
+      readonly accessToken?: string;
+      readonly expiresAt?: number;
     };
+
+/** Where a GitHub App is installed, as GitHub reported it when it was
+ * installed or its repositories last changed. */
+export interface GithubAppInstallation {
+  readonly id: number;
+  /** The account the app is installed on. */
+  readonly account: string;
+  readonly accountType: 'User' | 'Organization';
+  /** Every repository of the account, or the ones the installer chose. */
+  readonly repositorySelection: 'all' | 'selected';
+}
 
 const tokenPayloadSchema = z.object({ token: z.string().min(1) }).strict();
 
@@ -125,6 +160,37 @@ const clientCredentialsPayloadSchema = z
   })
   .strict();
 
+/** A GitHub App's slug: the lowercase name GitHub derived from the one the
+ * admin chose, as it appears in `github.com/apps/<slug>`. */
+export const GITHUB_APP_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/;
+
+/** A private key as GitHub hands it out: one PEM block (PKCS#1 `RSA PRIVATE
+ * KEY`, or PKCS#8 `PRIVATE KEY` once converted). */
+const PRIVATE_KEY_PEM_RE =
+  /^-----BEGIN (RSA )?PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]+-----END \1PRIVATE KEY-----\s*$/;
+
+const githubAppPayloadSchema = z
+  .object({
+    appId: z.number().int().positive(),
+    clientId: z.string().min(1).max(256),
+    slug: z.string().regex(GITHUB_APP_SLUG_RE, 'is a GitHub App slug'),
+    privateKey: z.string().regex(PRIVATE_KEY_PEM_RE, 'is a PEM private key'),
+    owner: z.string().min(1).max(100).optional(),
+    botId: z.number().int().positive().optional(),
+    installation: z
+      .object({
+        id: z.number().int().positive(),
+        account: z.string().min(1).max(100),
+        accountType: z.enum(['User', 'Organization']),
+        repositorySelection: z.enum(['all', 'selected']),
+      })
+      .strict()
+      .optional(),
+    accessToken: z.string().min(1).optional(),
+    expiresAt: z.number().optional(),
+  })
+  .strict();
+
 /** Thrown for a payload that does not match its method — a row written by a
  * bad caller, or one whose method was changed under it. */
 export class SecretPayloadError extends Error {
@@ -144,7 +210,13 @@ export class SecretPayloadError extends Error {
  * callers map that onto their own actionable refusal.
  */
 export function parseSecretPayload(
-  authMethod: 'api-key' | 'bearer' | 'basic' | 'oauth2' | 'client-credentials',
+  authMethod:
+    | 'api-key'
+    | 'bearer'
+    | 'basic'
+    | 'oauth2'
+    | 'client-credentials'
+    | 'github-app',
   raw: unknown,
 ): ConnectorSecretPayload {
   switch (authMethod) {
@@ -189,6 +261,18 @@ export function parseSecretPayload(
       }
       return { authMethod, ...parsed.data };
     }
+    case 'github-app': {
+      const parsed = githubAppPayloadSchema.safeParse(raw);
+      if (!parsed.success) {
+        // Never the issue's text: a key that fails its pattern would be
+        // echoed into the message, and from there into a log.
+        throw new SecretPayloadError(
+          `A github-app credential stores { appId, clientId, slug, privateKey, owner?, botId?, installation?, accessToken?, expiresAt? }: ${fieldOf(parsed.error) ?? 'payload'} is invalid`,
+          fieldOf(parsed.error),
+        );
+      }
+      return { authMethod, ...parsed.data };
+    }
     default: {
       const _exhaustive: never = authMethod;
       return _exhaustive;
@@ -222,15 +306,25 @@ function base64Utf8(value: string): string {
   return btoa(binary);
 }
 
+/** How long before its expiry a GitHub App's installation token is no longer
+ * sent: one with less left would die mid-call. */
+const GITHUB_APP_TOKEN_SKEW_MS = 60_000;
+
 /**
  * The `Authorization` header value the platform injects, or undefined when
  * the method carries no header. `bearerScheme` comes from the CONNECTOR's
  * `bearer` auth entry — `Bearer` for a PAT, `Bot` for a Discord bot token,
  * which rejects `Bearer` outright.
+ *
+ * A GitHub App's token is only ever minted and renewed by the credentials
+ * domain's freshen seam, so one that is expired or expires within the
+ * minute (at `nowMs`) was not freshened: it is refused with a
+ * `SecretPayloadError` on `expiresAt` instead of being sent [CCRED-R18].
  */
 export function buildAuthHeader(
   payload: ConnectorSecretPayload,
   bearerScheme: string = DEFAULT_BEARER_SCHEME,
+  nowMs: number = Date.now(),
 ): string | undefined {
   switch (payload.authMethod) {
     // The vendor decides where an api key goes (query parameter, custom
@@ -249,6 +343,18 @@ export function buildAuthHeader(
       return payload.accessToken === undefined
         ? undefined
         : `Bearer ${payload.accessToken}`;
+    case 'github-app':
+      if (payload.accessToken === undefined) return undefined;
+      if (
+        payload.expiresAt === undefined ||
+        payload.expiresAt - GITHUB_APP_TOKEN_SKEW_MS <= nowMs
+      ) {
+        throw new SecretPayloadError(
+          'the GitHub App installation token is expired or expires within the minute — mint a new one before sending a call',
+          'expiresAt',
+        );
+      }
+      return `Bearer ${payload.accessToken}`;
     default: {
       const _exhaustive: never = payload;
       return _exhaustive;
@@ -264,7 +370,10 @@ export function buildAuthHeader(
  * `smtpUsername`/`smtpPassword` when an IMAP/SMTP credential relays through a
  * separate SMTP provider. An app signing in as itself publishes only the
  * access token fetched for it: its client secret signs nothing but the
- * token request, which the platform makes.
+ * token request, which the platform makes. A GitHub App publishes nothing:
+ * the platform signs each call with its installation token, and neither a
+ * body nor a sandbox that reads these bindings ever holds that token or the
+ * key that mints it.
  */
 export function buildSecretBindings(
   payload: ConnectorSecretPayload,
@@ -302,6 +411,8 @@ export function buildSecretBindings(
       return payload.accessToken === undefined
         ? {}
         : { token: payload.accessToken, accessToken: payload.accessToken };
+    case 'github-app':
+      return {};
     default: {
       const _exhaustive: never = payload;
       return _exhaustive;

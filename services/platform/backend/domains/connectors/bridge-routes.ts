@@ -493,6 +493,11 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
         ...(credential?.authHeader !== undefined
           ? { authHeader: credential.authHeader }
           : {}),
+        // A GitHub App's token GitHub turned away is renewed once, as on the
+        // in-process path [CCRED-R18].
+        ...(credential?.reauthorize !== undefined
+          ? { reauthorize: credential.reauthorize }
+          : {}),
       });
       const response = await host.http[HTTP_VERBS[body.method]](body.url, {
         ...(headers !== undefined ? { headers } : {}),

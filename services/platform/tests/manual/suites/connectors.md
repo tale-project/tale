@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 49 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 50 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -312,6 +312,35 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the shared address. Then **Connect** with **Mailbox** empty as the second
   account → the consent asks for its own mailbox only, and the row reads that
   account's own mail.
+- [ ] `CONN-F26` · **A GitHub App acts as its own bot** — Mode B, a GitHub test
+  organization you own with one test repository; CI never runs this box, since
+  it needs a real GitHub (a loopback `SITE_URL` works, because GitHub never
+  calls Tale). Picker → **GitHub** → the box above the token form, a group
+  named **Register a GitHub App**
+  (`settings.connectors.githubApp.registerGroup`), lists the permissions the
+  app asks for. Enter the organization's login in **GitHub organization** →
+  **Register on GitHub** → on GitHub **Create GitHub App**, then leave the
+  install page without installing → on `/dashboard/{org}/settings/connectors`
+  the new row shows the **Not installed** badge and **Registered on GitHub, not
+  installed yet.** → **Install on GitHub** in the row's menu → **Only select
+  repositories** with the test repository → **Install** → back in Tale the row
+  reads **Installed on** the organization without a badge, and **Show
+  repositories** (`settings.connectors.githubApp.showRepositories`) lists that
+  repository alone. Upload `services/platform/public/assets/pwa-512x512.png` as
+  the app's logo on GitHub, and **Make default** if another GitHub credential
+  holds it. Start an agent equipped with GitHub on a task asking it to comment
+  on an issue (`create_issue_comment`), open a pull request from a branch you
+  pushed (`create_pull_request`) and merge it (`merge_pull_request`) → on
+  GitHub the comment, the pull request and the merge show `<app-slug>[bot]`
+  with the logo, never your account. **Change repositories** → **All
+  repositories** on GitHub → back in Tale, **Show repositories** warns that the
+  app reaches every repository of the organization, with **Open on GitHub**.
+  Delete the row → **Audit logs** on
+  `/dashboard/{org}/settings/governance/logs` shows **Connector credential
+  created**, **Connector credential updated** (the installation and the change
+  of repositories) and **Connector credential deleted** for it, each with the
+  app ID in its detail and none with the private key. Then delete the app on
+  GitHub (**Advanced** → **Delete GitHub App**).
 
 ## Boundary & error tests
 

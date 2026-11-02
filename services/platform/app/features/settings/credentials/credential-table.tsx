@@ -240,7 +240,7 @@ export function CredentialTable<
         header: t('credentials.columns.name'),
         cell: ({ row }) => {
           const { credential } = row.original;
-          const status = adapter.statusLabel(t, credential.status);
+          const status = adapter.statusLabel(t, credential);
           const detail = adapter.detailLine?.(
             t,
             credential,
@@ -259,7 +259,7 @@ export function CredentialTable<
                 )}
                 {status !== null && (
                   <Badge
-                    variant={adapter.statusTone(credential.status)}
+                    variant={adapter.statusTone(credential)}
                     className="shrink-0"
                   >
                     {status}

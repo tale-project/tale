@@ -7,7 +7,15 @@
  * something honest.
  */
 
+import type { MaskedConnectorCredential } from './hooks/backend';
+
 type Translator = (key: string, options?: Record<string, unknown>) => string;
+
+/** What a credential's badge reads. */
+type CredentialState = Pick<
+  MaskedConnectorCredential,
+  'status' | 'authMethod' | 'githubApp'
+>;
 
 export function authMethodLabel(t: Translator, method: string): string {
   switch (method) {
@@ -21,6 +29,8 @@ export function authMethodLabel(t: Translator, method: string): string {
       return t('connectors.authMethod.oauth2');
     case 'client-credentials':
       return t('connectors.authMethod.clientCredentials');
+    case 'github-app':
+      return t('connectors.authMethod.githubApp');
     default:
       return method;
   }
@@ -31,17 +41,47 @@ export function authMethodLabel(t: Translator, method: string): string {
  * (an active credential needs no marker). `disabled` and `needs-reauth` stay
  * separate on purpose: the first is an operator's decision and is undone by
  * enabling the credential again, the second is the system reporting a grant
- * it could no longer refresh, which only re-consenting fixes.
+ * it could no longer refresh, which only re-consenting fixes. A GitHub App
+ * has no grant to renew: its `needs-reauth` reports the app not installed —
+ * not yet, a step of its setup, or no longer, as its installation was
+ * removed on GitHub — and installing it is what fixes either.
  */
-export function statusLabel(t: Translator, status: string): string | null {
-  switch (status) {
+export function statusLabel(
+  t: Translator,
+  credential: CredentialState,
+): string | null {
+  switch (credential.status) {
     case 'disabled':
       return t('connectors.credential.disabled');
     case 'needs-reauth':
-      return t('connectors.credential.needsReauth');
+      if (credential.authMethod !== 'github-app') {
+        return t('connectors.credential.needsReauth');
+      }
+      return isAwaitingInstall(credential)
+        ? t('connectors.githubApp.statusNotInstalled')
+        : t('connectors.githubApp.statusUninstalled');
     default:
       return null;
   }
+}
+
+/**
+ * The badge's tone: attention where a human has to act on what broke — a
+ * lost grant, an app's installation removed — and neutral for an operator's
+ * decision or a GitHub App that is not installed yet.
+ */
+export function statusTone(credential: CredentialState): 'slate' | 'orange' {
+  return credential.status === 'needs-reauth' && !isAwaitingInstall(credential)
+    ? 'orange'
+    : 'slate';
+}
+
+/** A GitHub App registered and never installed: no installation recorded. */
+function isAwaitingInstall(credential: CredentialState): boolean {
+  return (
+    credential.authMethod === 'github-app' &&
+    credential.githubApp?.installation === undefined
+  );
 }
 
 /**

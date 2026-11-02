@@ -1,8 +1,14 @@
-# Connector — GitHub REST API. A personal access token (bearer)
-# authorizes every action; the platform injects it as the Authorization header,
-# so the live bodies below only carry GitHub's functional headers. Reads return
-# the resource(s) under a named key; writes return the identifiers a caller
-# routes on. Every mock is deterministic — same input, same output, no IO.
+# Connector — GitHub REST API. Every action is authorized by a personal access
+# token (bearer) or by a GitHub App the organization registers from Settings →
+# Connectors and installs on the repositories it chooses (github-app): the
+# platform mints a short-lived installation token for each call, so what the
+# actions write shows the app's bot. Either way the platform injects the token
+# as the Authorization header, so the live bodies below only carry GitHub's
+# functional headers, and branch on ctx.authMethod only where GitHub answers
+# one kind of token alone (an installation token cannot list /user/repos).
+# Reads return the resource(s) under a named key; writes return the
+# identifiers a caller routes on. Every mock is deterministic — same input,
+# same output, no IO.
 name: github
 displayName: GitHub
 description: Manage repositories, issues, and pull requests on GitHub, and read their code scanning, Dependabot and secret scanning alerts.
@@ -12,12 +18,43 @@ allowedHosts:
   - api.github.com
 # The token also opens github.com's git remotes over HTTPS: an agent equipped
 # with this connector clones and pushes with it (GitHub takes any username
-# beside a token; x-access-token is the one it documents for app tokens).
+# beside a token; x-access-token is the one it documents for app tokens). A
+# GitHub App's token does not reach the sandbox yet (#5295), so its remotes
+# stay closed to an agent until then.
 git:
   host: github.com
   username: x-access-token
 auth:
   - method: bearer
+  # The organization's own GitHub App. Its installation tokens ask for these
+  # repository permissions, each as far as the installation grants it. The
+  # app asks for nothing more: not workflows (merge_pull_request is refused
+  # for a pull request that changes a workflow file), not administration, and
+  # no organization or account permission.
+  - method: github-app
+    permissions:
+      # get_repo, list_repos and the repository lookups of the issue and
+      # alert imports; GitHub grants it to every app.
+      metadata: read
+      # list_commits and search_code read the code; merge_pull_request writes
+      # the merge commit.
+      contents: write
+      # list_issues, get_issue, list_issue_comments and list_import_issues,
+      # get_import_issue and refresh_import_issues read; create_issue,
+      # update_issue, add_labels_to_issue and create_issue_comment write.
+      issues: write
+      # list_pull_requests, get_pull_request, get_pull_request_files,
+      # get_pull_request_diff, list_pull_requests_to_review and the pull
+      # request import read; create_pull_request, create_pull_request_review
+      # and create_pull_request_review_comment write.
+      pull_requests: write
+      # list_import_alerts, get_import_alert and refresh_import_alerts read
+      # code scanning alerts,
+      security_events: read
+      # Dependabot alerts,
+      vulnerability_alerts: read
+      # and secret scanning alerts (never the secret itself).
+      secret_scanning_alerts: read
 actions:
   - name: list_repos
     title: List repositories
@@ -26,7 +63,10 @@ actions:
         title: Repositories auflisten
       fr:
         title: Lister les dépôts
-    description: List repositories for the authenticated user.
+    description: >-
+      List the repositories the credential reaches: the authenticated user's
+      with a personal access token, the ones a GitHub App is installed on with
+      a GitHub App.
     effects: read
     input:
       type: object
@@ -36,12 +76,12 @@ actions:
         sort:
           {
             type: string,
-            description: 'Sort field: created, updated, pushed, or full_name.',
+            description: 'Sort field: created, updated, pushed, or full_name. A GitHub App lists in GitHub''s own order.',
           }
         visibility:
           {
             type: string,
-            description: 'Filter by visibility: all, public, or private.',
+            description: 'Filter by visibility: all, public, or private. A GitHub App filters each page, which may then hold fewer.',
           }
     output: '{ repos: Array<{ id: number, name: string, full_name: string, private: boolean }> }'
     mock: |
@@ -50,12 +90,18 @@ actions:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
+        // An installation token has no user: it lists the repositories the app is installed on, in GitHub's order, and visibility is filtered here.
+        const app = ctx.authMethod === 'github-app';
         const q = [];
-        for (const k of ['per_page', 'page', 'sort', 'visibility']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        for (const k of app ? ['per_page', 'page'] : ['per_page', 'page', 'sort', 'visibility']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
-        const r = await ctx.http.get(`https://api.github.com/user/repos${qs}`, { headers: h });
+        const r = await ctx.http.get(`https://api.github.com/${app ? 'installation/repositories' : 'user/repos'}${qs}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_repos failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { repos: r.json() };
+        if (!app) return { repos: r.json() };
+        const repos = r.json().repositories;
+        if (!Array.isArray(repos)) throw new Error('GitHub list_repos failed: the answer lists no repositories');
+        const visibility = input.visibility;
+        return { repos: visibility === 'public' || visibility === 'private' ? repos.filter((repo) => repo.private === (visibility === 'private')) : repos };
     exampleInput: { visibility: 'all', per_page: 20 }
   - name: get_repo
     title: Get repository
@@ -553,14 +599,21 @@ actions:
           return body.data;
         };
         const viewer = (await graphql('query { viewer { login } }', {})).viewer.login;
+        // A GitHub App acts as its bot, which GraphQL names <slug>[bot] as the viewer and <slug> as an author, and the reviews' author filter takes no
+        // bot: the app's own pull requests and reviews are a Bot author's with the viewer's login less its [bot] (a person named like the app is not the
+        // app), read among each pull request's last 100 reviews by anyone, so a busy pull request does not push the app's own out of reach.
+        const app = ctx.authMethod === 'github-app';
+        const bare = (login) => login.replace(/\[bot\]$/, '');
+        const isViewer = (actor) => Boolean(actor) && typeof actor.login === 'string' && (app ? actor.__typename === 'Bot' && bare(actor.login) === bare(viewer) : actor.login === viewer);
+        const actor = app ? 'author { __typename login }' : 'author { login }';
         const limit = Math.max(0, Math.min(20, typeof input.limit === 'number' ? Math.floor(input.limit) : 5));
         const scan = Math.max(1, Math.min(300, typeof input.scan === 'number' ? Math.floor(input.scan) : 100));
-        const query = `query($owner: String!, $repo: String!, $first: Int!, $after: String, $viewer: String!) {
+        const query = `query($owner: String!, $repo: String!, $first: Int!, $after: String${app ? '' : ', $viewer: String!'}) {
           repository(owner: $owner, name: $repo) {
             pullRequests(states: [OPEN], first: $first, after: $after, orderBy: { field: UPDATED_AT, direction: DESC }) {
               totalCount
               pageInfo { hasNextPage endCursor }
-              nodes { number title url isDraft headRefOid updatedAt author { login } reviews(author: $viewer, last: 20) { nodes { commit { oid } } } }
+              nodes { number title url isDraft headRefOid updatedAt ${actor} ${app ? `reviews(last: 100) { nodes { ${actor} commit { oid } } }` : 'reviews(author: $viewer, last: 20) { nodes { commit { oid } } }'} }
             }
           }
         }`;
@@ -568,7 +621,7 @@ actions:
         let open = 0;
         let after = null;
         while (read.length < scan) {
-          const data = await graphql(query, { owner: input.owner, repo: input.repo, first: Math.min(100, scan - read.length), after, viewer });
+          const data = await graphql(query, { owner: input.owner, repo: input.repo, first: Math.min(100, scan - read.length), after, ...(app ? {} : { viewer }) });
           if (!data.repository) throw new Error(`GitHub list_pull_requests_to_review failed: this account cannot read ${input.owner}/${input.repo}`);
           const page = data.repository.pullRequests;
           open = page.totalCount;
@@ -581,9 +634,9 @@ actions:
         for (const pull of read) {
           const author = pull.author ? pull.author.login : null;
           if (pull.isDraft && input.includeDrafts !== true) { skipped.drafts += 1; continue; }
-          if (author !== null && author === viewer) { skipped.own += 1; continue; }
+          if (isViewer(pull.author)) { skipped.own += 1; continue; }
           const reviews = pull.reviews && Array.isArray(pull.reviews.nodes) ? pull.reviews.nodes : [];
-          if (reviews.some((review) => review.commit && review.commit.oid === pull.headRefOid)) { skipped.reviewed += 1; continue; }
+          if (reviews.some((review) => review.commit && review.commit.oid === pull.headRefOid && (!app || isViewer(review.author)))) { skipped.reviewed += 1; continue; }
           due.push({ number: pull.number, title: pull.title, url: pull.url, headSha: pull.headRefOid, author, updatedAt: pull.updatedAt });
         }
         // Oldest change first: a pull request nobody touched since it came due is never starved by busier ones.

@@ -16,7 +16,7 @@ Utilise un connector lorsque Tale doit lire ou modifier les données d’un serv
 | Confluence | Importer des pages Confluence Cloud dans les connaissances. | Nom d’utilisateur avec mot de passe ou jeton. |
 | Discord | Travailler avec les messages et canaux. | Jeton. |
 | Forgejo | Lire ou gérer les dépôts, issues et pull requests d’une instance Forgejo, et en faire des tâches. | Jeton et URL de l’instance. |
-| GitHub | Lire ou gérer dépôts, issues et pull requests, et lire les alertes de sécurité pour que la synchronisation des issues en fasse des tâches. | Jeton. |
+| GitHub | Lire ou gérer dépôts, issues et pull requests, et lire les alertes de sécurité pour que la synchronisation des issues en fasse des tâches. | Jeton, ou une [GitHub App](/fr/platform/admin/connectors#connecter-github-avec-une-github-app) qui agit sous l’identité de son propre bot. |
 | GlitchTip | Lire les issues d’un projet pour que l’import GlitchTip en fasse des tâches. | Jeton et URL de l’instance. |
 | Gmail | Lire, envoyer et organiser le courrier. | OAuth. |
 | Google Drive | Importer des fichiers dans les connaissances. | OAuth. |

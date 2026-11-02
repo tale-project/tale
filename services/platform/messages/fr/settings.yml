@@ -543,6 +543,7 @@ connectors:
     basic: Nom d'utilisateur et mot de passe
     oauth2: OAuth
     clientCredentials: Connexion de l'app
+    githubApp: GitHub App
   card:
     actionCount: '{count, plural, one {# action} other {# actions}}'
     connect: Connecter
@@ -661,6 +662,49 @@ connectors:
         Saisis l’ID client.
       clientSecretRequired: >-
         Saisis le secret client.
+  githubApp:
+    registerGroup: Enregistrer une GitHub App
+    intro: >-
+      Fais agir Tale en tant que GitHub App propre à cette organisation plutôt
+      qu’avec le jeton d’une personne : enregistre l’app sur GitHub, puis
+      installe-la sur les dépôts auxquels elle doit accéder.
+    credentialName: Nom des identifiants
+    appName: Nom de l’app sur GitHub
+    appNameInvalid: Saisis le nom de l’app, {max} caractères au plus.
+    owner: Organisation GitHub
+    ownerHint: >-
+      Laisse ce champ vide pour enregistrer l’app sur ton compte GitHub
+      personnel. Pour l’enregistrer au nom d’une organisation GitHub, saisis son
+      login — tu dois en être propriétaire.
+    ownerInvalid: >-
+      Saisis le login de l’organisation tel qu’il figure dans son URL GitHub :
+      lettres, chiffres et traits d’union isolés.
+    permissionsIntro: 'L’app demande à GitHub :'
+    permissionRead: Lecture seule
+    permissionWrite: Lecture et écriture
+    register: Enregistrer sur GitHub
+    adminOnly: >-
+      Seuls les admins de l’organisation peuvent enregistrer et installer une
+      GitHub App. Demande à un admin de la configurer.
+    notInstalled: Enregistrée sur GitHub, pas encore installée.
+    installedOn: Installée sur {account}
+    uninstalled: Plus installée sur {account}.
+    statusNotInstalled: Non installée
+    statusUninstalled: Plus installée
+    appLink: App {slug}
+    install: Installer sur GitHub
+    changeRepositories: Modifier les dépôts
+    showRepositories: Afficher les dépôts
+    repositoriesTitle: Dépôts accessibles à cette app
+    private: Privé
+    more: '{count, plural, one {et # autre} other {et # autres}}'
+    allRepositoriesWarning: >-
+      Cette app accède à tous les dépôts de {account}, y compris ceux ajoutés
+      plus tard. Choisis « Only select repositories » sur GitHub pour la
+      restreindre.
+    openOnGitHub: Ouvrir sur GitHub
+    repositoriesLoadFailed: Impossible de charger les dépôts.
+    noRepositories: L’app n’accède à aucun dépôt.
   dialog:
     apiKey: Clé API
     token: Jeton

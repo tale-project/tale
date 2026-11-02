@@ -536,8 +536,10 @@ export const providerCredentialAdapter: CredentialAdapter<
         }
       : {},
 
-  statusLabel: (t, status) =>
-    status === 'disabled' ? t('providers.credential.disabled') : null,
+  statusLabel: (t, credential) =>
+    credential.status === 'disabled'
+      ? t('providers.credential.disabled')
+      : null,
   statusTone: () => 'slate',
 
   // A provider with two working keys and no model list still cannot serve a

@@ -6,7 +6,7 @@ import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
-import { Link2, RefreshCw } from 'lucide-react';
+import { Download, FolderGit2, Link2, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 
 import {
@@ -18,6 +18,8 @@ import {
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
+import { GithubAppDetail } from './components/github-app-detail';
+import { GithubAppRegister } from './components/github-app-register';
 import {
   connectorConfigComplete,
   ConnectorConfigFields,
@@ -26,6 +28,7 @@ import {
   type ConnectorConfigValue,
 } from './config-fields';
 import { mapConnectorError } from './connector-error';
+import { githubAppInstallUrl, leavePageFor } from './connector-github-app';
 import { goToAuthorization } from './connector-oauth';
 import type {
   ConnectorSummary,
@@ -42,6 +45,7 @@ import {
   endpointHelp,
   endpointPlaceholder,
   statusLabel,
+  statusTone,
 } from './labels';
 import {
   oauthAppMissingExplainer,
@@ -55,7 +59,9 @@ import {
  * own registration (directory, client ID and secret — the app signs in as
  * itself), or nothing at all — an OAuth grant arrives from the consent flow,
  * never from a form, which is why `hasFields` is false for it and the row
- * offers Reconnect instead of Replace secret.
+ * offers Reconnect instead of Replace secret. A GitHub App's key arrives the
+ * same way, from GitHub, so it has no fields and no Replace either: the row
+ * installs the app, or changes the repositories it reaches, instead.
  */
 
 export interface SecretDraft {
@@ -82,6 +88,7 @@ const STORABLE_METHODS: readonly StorableAuthMethodName[] = [
   'basic',
   'oauth2',
   'client-credentials',
+  'github-app',
 ];
 
 const emptySecretDraft = (): SecretDraft => ({
@@ -134,7 +141,9 @@ function SecretFields({
 }) {
   const { t } = useT('settings');
 
-  if (method === 'oauth2') return null;
+  // Neither is typed in: a grant comes from consent, a GitHub App's key from
+  // GitHub.
+  if (method === 'oauth2' || method === 'github-app') return null;
 
   if (method === 'client-credentials') {
     return (
@@ -274,7 +283,7 @@ function SecretFields({
  * OAuth grant and a token gets both affordances, in the order an operator
  * should prefer them.
  */
-function ConnectorConsent({
+function OauthConsent({
   organizationId,
   vendor,
 }: CredentialConsentProps<ConnectorVendor>) {
@@ -356,6 +365,26 @@ function ConnectorConsent({
   );
 }
 
+/**
+ * Everything a connector is joined through from Tale's pages instead of the
+ * credential form: OAuth's Connect, and the registration of the
+ * organization's own GitHub App. Each renders nothing for a connector that
+ * does not offer it.
+ */
+function ConnectorConsent(props: CredentialConsentProps<ConnectorVendor>) {
+  return (
+    <>
+      <OauthConsent {...props} />
+      {props.vendor.summary.authMethods.includes('github-app') && (
+        <GithubAppRegister
+          organizationId={props.organizationId}
+          vendor={props.vendor}
+        />
+      )}
+    </>
+  );
+}
+
 export const connectorCredentialAdapter: CredentialAdapter<
   ConnectorVendor,
   MaskedConnectorCredential,
@@ -367,11 +396,14 @@ export const connectorCredentialAdapter: CredentialAdapter<
   mapError: (err, _t, vendor) => mapConnectorError(err, vendor),
   methodLabel: authMethodLabel,
 
-  // OAuth leaves the page for consent rather than filling in a form, so it is
-  // not a pickable method here. (`platform` never reaches the client at all —
-  // the catalog action drops those connectors from the listing.)
+  // OAuth leaves the page for consent, and a GitHub App for its registration
+  // on GitHub, rather than filling in a form, so neither is a pickable method
+  // here. (`platform` never reaches the client at all — the catalog action
+  // drops those connectors from the listing.)
   formMethods: (vendor) =>
-    vendor.summary.authMethods.filter((method) => method !== 'oauth2'),
+    vendor.summary.authMethods.filter(
+      (method) => method !== 'oauth2' && method !== 'github-app',
+    ),
 
   methodOf: (credential) =>
     STORABLE_METHODS.find((method) => method === credential.authMethod) ?? null,
@@ -388,13 +420,29 @@ export const connectorCredentialAdapter: CredentialAdapter<
     return tags.length > 0 ? `${tags} · ${actions}` : actions;
   },
 
-  offersConsent: (vendor) => vendor.summary.authMethods.includes('oauth2'),
+  offersConsent: (vendor) =>
+    vendor.summary.authMethods.includes('oauth2') ||
+    vendor.summary.authMethods.includes('github-app'),
   Consent: ConnectorConsent,
 
   statusLabel,
-  statusTone: (status) => (status === 'needs-reauth' ? 'orange' : 'slate'),
+  statusTone,
 
-  detailLine: (t, credential) => {
+  detailLine: (t, credential, vendor) => {
+    // A GitHub App's line says where it is installed: its `needs-reauth`
+    // means not installed (yet, or any more), which no re-consent fixes.
+    if (
+      credential.authMethod === 'github-app' &&
+      credential.githubApp !== undefined
+    ) {
+      return (
+        <GithubAppDetail
+          credential={credential}
+          app={credential.githubApp}
+          vendor={vendor}
+        />
+      );
+    }
     if (credential.status === 'needs-reauth') {
       return credential.statusDetail !== undefined
         ? t('connectors.credential.needsReauthDetail', {
@@ -442,22 +490,55 @@ export const connectorCredentialAdapter: CredentialAdapter<
   // Nothing resolves its key through a connector credential by reference.
   useDeleteWarning: () => undefined,
 
-  useExtraActions: ({ t, credential, organizationId, busy }) => [
-    {
-      key: 'reconnect',
-      label: t('connectors.credential.reconnect'),
-      icon: RefreshCw,
-      // Re-consent names THIS credential: the callback renews exactly it —
-      // name, default and references kept — or saves nothing.
-      onClick: () =>
-        goToAuthorization(organizationId, credential.connectorSlug, {
-          kind: 'reconnect',
-          credentialId: credential.id,
-        }),
-      visible: credential.authMethod === 'oauth2',
-      disabled: busy,
-    },
-  ],
+  useExtraActions: ({ t, credential, organizationId, busy }) => {
+    const ability = useAbility();
+    // Installing the organization's GitHub App, and choosing what it
+    // reaches, are an admin's: the install route refuses everyone else.
+    const githubApp =
+      credential.authMethod === 'github-app' &&
+      ability.can('write', 'orgSettings')
+        ? credential.githubApp
+        : undefined;
+    const installed =
+      githubApp?.installation !== undefined &&
+      credential.status !== 'needs-reauth';
+    const toGithub = () =>
+      leavePageFor(githubAppInstallUrl(organizationId, credential.id));
+    return [
+      {
+        key: 'reconnect',
+        label: t('connectors.credential.reconnect'),
+        icon: RefreshCw,
+        // Re-consent names THIS credential: the callback renews exactly it —
+        // name, default and references kept — or saves nothing.
+        onClick: () =>
+          goToAuthorization(organizationId, credential.connectorSlug, {
+            kind: 'reconnect',
+            credentialId: credential.id,
+          }),
+        visible: credential.authMethod === 'oauth2',
+        disabled: busy,
+      },
+      {
+        key: 'github-app-install',
+        label: t('connectors.githubApp.install'),
+        icon: Download,
+        onClick: toGithub,
+        visible: githubApp !== undefined && !installed,
+        disabled: busy,
+      },
+      {
+        // GitHub's installation page configures an existing installation
+        // too, so the same route changes the repositories.
+        key: 'github-app-repositories',
+        label: t('connectors.githubApp.changeRepositories'),
+        icon: FolderGit2,
+        onClick: toGithub,
+        visible: githubApp !== undefined && installed,
+        disabled: busy,
+      },
+    ];
+  },
 
   endpointField: (t, vendor) => ({
     label: t('connectors.dialog.endpointUrl'),
@@ -497,9 +578,13 @@ export const connectorCredentialAdapter: CredentialAdapter<
           draft.smtpPassword.trim().length > 0
         );
       }
-      // An OAuth credential is complete by construction: there is nothing to
-      // fill in.
-      return method === 'oauth2' || draft.token.trim().length > 0;
+      // An OAuth or GitHub App credential is complete by construction: there
+      // is nothing to fill in.
+      return (
+        method === 'oauth2' ||
+        method === 'github-app' ||
+        draft.token.trim().length > 0
+      );
     },
     // Fields the method doesn't use are omitted rather than sent empty, so the
     // server validates one clean shape. Omitting the SMTP pair on replace also
@@ -518,7 +603,9 @@ export const connectorCredentialAdapter: CredentialAdapter<
           },
         };
       }
-      if (method === 'oauth2') return { ok: true, args: {} };
+      if (method === 'oauth2' || method === 'github-app') {
+        return { ok: true, args: {} };
+      }
       if (method === 'client-credentials') {
         return {
           ok: true,
@@ -533,7 +620,7 @@ export const connectorCredentialAdapter: CredentialAdapter<
       }
       return { ok: true, args: { token: draft.token.trim() } };
     },
-    hasFields: (method) => method !== 'oauth2',
+    hasFields: (method) => method !== 'oauth2' && method !== 'github-app',
     replaceTitle: (t, method) => {
       switch (method) {
         case 'api-key':

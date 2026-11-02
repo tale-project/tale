@@ -5,9 +5,9 @@
 A connector lets an agent or an automation act in an outside system: read a mailbox, file a
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
 account is connected by signing in at the outside system, what importing tasks through a
-connector may write, where an agent's call runs, and which mailbox an Outlook credential
-reaches. The catalog of connectors and what each one can do are not covered, beyond the
-scenarios its actions ship for tests; see Not yet.
+connector may write, where an agent's call runs, which mailbox an Outlook credential
+reaches, and how a GitHub App is registered and installed. The catalog of connectors and what
+each one can do are not covered, beyond the scenarios its actions ship for tests; see Not yet.
 
 ## Whom a connector call acts for
 
@@ -114,6 +114,95 @@ goes ahead. The return from the outside system is never refused for coming from 
   link that would connect the `hr@example.com` mailbox. Ada opens it from her mail → Tale
   refuses it and nothing is connected; to connect a mailbox, Ada uses **Connect** in her
   connector settings.
+
+## Registering a GitHub App
+
+The github connector can also act as a GitHub App the organization registers for itself, so
+that what Tale writes in a repository shows the app's bot instead of a person. An admin
+registers the app from Tale: Tale hands GitHub a description of it, the app manifest, and
+GitHub creates the app and sends the browser back. The admin then installs the app on the
+repositories it may reach, and GitHub sends the browser back once more.
+
+### CONN-R34 · The app manifest asks for exactly the connector's permissions, its webhook off
+
+The app is private, asks for the permissions the github connector lists for a GitHub App and
+nothing more, and has its webhook switched off. GitHub sends the browser back to the domain the
+registration started on, under Tale's base path. Nothing is sent to GitHub while the deployment
+has no public address (`not_configured`), for details GitHub would refuse, such as an app name
+longer than 34 characters (`invalid_details`), or for a credential Tale could not store, such
+as one named like another credential of the connector (`cannot_register`).
+
+- **Example**: Ada registers "Acme Tale" → GitHub shows a private app that may write contents,
+  issues and pull requests and read metadata and the code scanning, Dependabot and secret
+  scanning alerts, with no workflow permission and no webhook.
+
+### CONN-R35 · Only an admin, from Tale's own pages, registers or installs a GitHub App
+
+Only an owner or an admin of the organization can open the links that register or install an
+app; anyone else is refused before anything is kept, read from GitHub or opened there, and so is
+a session confined to another organization. A link opened from another website is refused
+(`cross_site`), as in `CONN-R32`. An admin who stops being one while on GitHub is refused when
+the browser comes back (`forbidden`), and nothing is stored; when GitHub already created the
+app, the page says to delete it there.
+
+- **Example**: Ada, an admin, is made a member while GitHub shows her the new app. She creates
+  it → Tale stores nothing, and the page tells her to delete the app on GitHub.
+
+### CONN-R36 · A registration or installation completes once, for the member who began it
+
+The organization, the member and, for an installation, the credential are fixed when the link
+is opened; nothing in the address GitHub sends the browser back to can change them. The return
+completes within fifteen minutes, once, in a session of the member who started it. Any other
+return is refused (`register_expired`, `install_expired`) and spends the attempt. Tale cannot
+tell such a registration return from a replay of one that completed, so its page says to delete
+the app on GitHub only when the connector settings show no GitHub App credential for it.
+An installation that waits for an owner's approval on GitHub spends the attempt too and stores
+nothing (`install_requested`); once the owner approves it, the admin selects Install on GitHub
+again and Tale takes the installation over (`CONN-R37`).
+
+- **Example**: Ada starts installing the app and sends the GitHub page she reached to Noah,
+  also an admin. Noah installs the app there → Tale refuses his return and stores nothing, and
+  Ada starts again.
+- **Example**: Ada reopens the address GitHub sent her back to after her registration
+  completed → Tale refuses it, and the page says to delete the app on GitHub only if her
+  connector settings show no GitHub App credential for it.
+
+### CONN-R37 · An installation is stored only after the app's own JWT reads it from GitHub
+
+When GitHub sends the browser back with an installation, Tale first reads that installation
+from GitHub as the app itself, signed with the app's own key, and stores only what that read
+answers. An installation of another app (`installation_wrong_app`), one GitHub does not know
+(`installation_not_found`) and a suspended one (`installation_suspended`) are refused, and
+nothing is stored.
+
+The install link first lists the app's installations the same way. An app installed already,
+after an owner's approval or from GitHub's own pages, has nothing left to install on GitHub:
+when the app has exactly one installation and the credential is not installed there yet, Tale
+reads and stores that one at once, for the admin who opened the link, and sends no one to
+GitHub. A credential installed there already goes on to GitHub, where its repositories change,
+and so does an app with several installations, for GitHub's page to choose.
+
+A change made later on GitHub comes back without an attempt Tale started, and a link on any
+website can open that return: it refreshes only the credentials holding that installation in
+organizations the member administers, writes only where the read differs from what a credential
+holds, and stores nothing when none holds it (`installation_unknown`).
+
+- **Example**: Someone edits the address GitHub sends Ada back to so that it names an
+  installation of another app → Tale refuses it, and the credential stays as it was.
+- **Example**: Ada installs the app on acme-labs, whose owner must approve it first. Once the
+  owner has, Ada selects Install on GitHub again → Tale stores the installation without
+  sending her to GitHub, and the credential shows as installed.
+- **Example**: A page on another website opens the installation return in Ada's browser →
+  GitHub's answer matches what her credential holds, and Tale writes nothing.
+
+### CONN-R38 · A GitHub App credential shows its repositories, and warns when it covers all
+
+The connector settings show the repositories an installed app reaches, as GitHub lists them.
+When the app reaches every repository of the account, including ones added later, a warning
+says so and links to the place on GitHub where the selection is narrowed.
+
+- **Example**: Ada installs the app on all of acme-labs' repositories → its credential warns
+  that the app reaches every repository of acme-labs, with a link to narrow it on GitHub.
 
 ## Scenarios for tests
 
@@ -409,3 +498,6 @@ blanks names none.
 - **Documents a connector reads and writes** (`document-store.ts`, `document-listing.ts`,
   `blob-sink.ts`), and events Slack sends (`slack-events.ts`).
 - **The size of the limit** in `CONN-R6`.
+- **A GitHub App installed from another domain** of the deployment: GitHub sends the browser
+  back to the domain the app was registered from (`CONN-R34`), so a member installing it from
+  another domain must be signed in on that one too.

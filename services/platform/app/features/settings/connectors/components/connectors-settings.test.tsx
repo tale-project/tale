@@ -919,7 +919,11 @@ describe('ConnectorsSettings', () => {
       ];
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
 
-      expect(screen.getByText('Reconnect needed')).toBeInTheDocument();
+      expect(
+        screen
+          .getByText('Reconnect needed')
+          .closest('[title="Reconnect needed"]'),
+      ).toHaveClass('bg-orange-100');
       expect(screen.getByText(/refresh_token expired/)).toBeInTheDocument();
       await user.click(
         screen.getByRole('button', { name: 'Actions for Workspace grant' }),

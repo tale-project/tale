@@ -85,6 +85,11 @@ interface ConnectorSummary {
    * whether that sign-in names the app's directory (tenant) — its token URL
    * carries `{tenantId}`. Absent for a connector without that method. */
   clientCredentialsTenant?: boolean;
+  /** A connector a GitHub App can act for (`github-app`): the permissions
+   * its entry asks of the app — what the app is registered with and what
+   * each installation token is narrowed to. Absent for a connector without
+   * that method. */
+  githubAppPermissions?: Record<string, 'read' | 'write'>;
   /** Present when a credential of the connector also opens the vendor's
    * git remotes: `host` is the fixed git host, or `endpoint` for the host of
    * each credential's own endpoint. */
@@ -189,6 +194,12 @@ export function listConnectorSummaries(): ConnectorSummary[] {
       summary.clientCredentialsTenant = appSignIn.tokenUrl.includes(
         CLIENT_CREDENTIALS_TENANT_PLACEHOLDER,
       );
+    }
+    const githubApp = connector.auth.find(
+      (method) => method.method === 'github-app',
+    );
+    if (githubApp !== undefined) {
+      summary.githubAppPermissions = { ...githubApp.permissions };
     }
     const iconUrl = readConnectorIcon(connectorsDir, connector.name);
     if (iconUrl !== undefined) summary.iconUrl = iconUrl;

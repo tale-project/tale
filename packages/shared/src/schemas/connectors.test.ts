@@ -579,6 +579,97 @@ describe('connectorSchema', () => {
     });
   });
 
+  describe('a GitHub App the organization registers (github-app)', () => {
+    const githubApp = {
+      method: 'github-app',
+      permissions: { metadata: 'read', pull_requests: 'write' },
+    };
+    const withAuth = (auth: unknown[], extra: object = {}) => ({
+      ...connectorSchema.parse(GITHUB),
+      auth,
+      ...extra,
+    });
+
+    it('accepts the permissions the app asks for, beside a personal token', () => {
+      const parsed = connectorSchema.parse(
+        withAuth([{ method: 'bearer' }, githubApp], {
+          configFields: [
+            {
+              key: 'owner',
+              label: 'Owner',
+              type: 'string',
+              requiredFor: ['github-app'],
+            },
+          ],
+        }),
+      );
+      expect(parsed.auth[1]).toEqual(githubApp);
+      expect(parsed.configFields[0]?.requiredFor).toEqual(['github-app']);
+    });
+
+    it('refuses an app that asks for no permission, an unknown level or a name GitHub does not use', () => {
+      for (const permissions of [
+        {},
+        { contents: 'admin' },
+        { Contents: 'read' },
+        { 'pull-requests': 'write' },
+      ])
+        expect({
+          permissions,
+          ok: connectorSchema.safeParse(
+            withAuth([{ ...githubApp, permissions }]),
+          ).success,
+        }).toEqual({ permissions, ok: false });
+    });
+
+    it('refuses an entry with fields the method does not take (strict)', () => {
+      expect(
+        connectorSchema.safeParse(
+          withAuth([{ ...githubApp, scopes: ['repo'] }]),
+        ).success,
+      ).toBe(false);
+      expect(
+        connectorSchema.safeParse(withAuth([{ method: 'github-app' }])).success,
+      ).toBe(false);
+    });
+
+    it('refuses an app connector that cannot reach the GitHub API', () => {
+      const result = connectorSchema.safeParse(
+        withAuth([githubApp], { allowedHosts: ['github.example.com'] }),
+      );
+      expect(result.success).toBe(false);
+      expect(result.error?.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['allowedHosts'],
+          message: expect.stringContaining('api.github.com'),
+        }),
+      );
+      expect(
+        connectorSchema.safeParse(
+          withAuth([githubApp], {
+            allowedHosts: ['github.example.com', 'api.github.com'],
+          }),
+        ).success,
+      ).toBe(true);
+    });
+
+    it('refuses a setting required for the app on a connector that offers none', () => {
+      expect(
+        connectorSchema.safeParse({
+          ...connectorSchema.parse(GITHUB),
+          configFields: [
+            {
+              key: 'owner',
+              label: 'Owner',
+              type: 'string',
+              requiredFor: ['github-app'],
+            },
+          ],
+        }).success,
+      ).toBe(false);
+    });
+  });
+
   it('accepts one live prelude for the whole connector', () => {
     const parsed = connectorSchema.parse({
       ...connectorSchema.parse(GITHUB),

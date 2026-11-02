@@ -138,8 +138,13 @@ Ein Connector kann mehrere Verfahren unterstützen; ein gespeicherter Zugang ver
 | `basic`   | Benutzername & Passwort       | Benutzername und Passwort als HTTP Basic — dieselbe Form, die auch ein Postfach-Login annimmt.                             |
 | `oauth2`  | OAuth                         | Ein Authorization-Code-Grant: Access Token, Refresh Token, Ablauf und die erteilten Scopes.                                |
 | `client-credentials` | App-Anmeldung | Die eigene App-Registrierung der Organisation: Client-ID und Client-Secret, dazu die Verzeichnis-ID (Tenant), wenn die Token-URL `{tenantId}` enthält. Tale fordert das Access Token für die deklarierten `scopes` an und erneuert es, bevor es abläuft. |
+| `github-app` | GitHub App | Die eigene GitHub App der Organisation, registriert unter **Einstellungen > Connectors** über GitHubs Manifest-Ablauf: ihre App-ID, Client-ID, ihr Slug und privater Schlüssel sowie die Installation, die sie erhalten hat. Tale signiert mit dem Schlüssel ein JWT, erzeugt ein Installationstoken und sendet es als Authorization-Header. |
 
 Eine `oauth2`-Methode kann `configScopes` deklarieren: zusätzliche Scopes, nach denen die Freigabe nur fragt, wenn die Zugangsdaten den genannten Schlüssel aus `configFields` gesetzt haben: bei neuen Zugangsdaten die neben **Verbinden** eingegebenen Einstellungen, beim erneuten Verbinden die gespeicherten. So fragt Outlook nach seinen Berechtigungen für freigegebene Postfächer, denn ein privates Microsoft-Konto kann sie nicht erteilen.
+
+Eine `github-app`-Methode deklariert `permissions`: GitHubs Namen für Repository-Berechtigungen, jeweils mit `read` oder `write`, etwa `contents: write` oder `metadata: read`. Das Manifest der App fragt genau diese an, und jedes Installationstoken ist auf sie beschränkt und auf das, was die Installation gewährt. Ein solcher Connector muss `api.github.com` in `allowedHosts` aufführen. Ein Token gilt eine Stunde, und Tale verwendet es so lange wieder, bis es nur noch eine Minute gilt. Weist `api.github.com` ein Token vorher ab (401), etwa nach einer Deinstallation, erzeugt der Host ein neues und sendet die Anfrage noch einmal; der Body erhält diese zweite Antwort, wie auch immer sie ausfällt. Kann Tale keines erzeugen, scheitert der Aufruf; Tale weicht nie auf andere Zugangsdaten aus. Der Host besitzt den Authorization-Header und verwirft einen, den ein Body setzt. So hält weder ein Body noch eine Agenten-Sandbox das Token oder den privaten Schlüssel.
+
+Ein Live-Body liest das aufgelöste Verfahren aus `ctx.authMethod`: `bearer`, `oauth2`, `github-app` und so weiter, oder `none`, wenn der Aufruf keine Zugangsdaten trägt. Verzweige nur dort danach, wo ein Endpunkt nur eine Art von Token beantwortet. Ein Installationstoken hat keinen Benutzer, deshalb liest GitHubs `list_repos` `/installation/repositories` statt `/user/repos`. Im Fake-Kontext eines Tests kann `ctx.authMethod` fehlen.
 
 Das interne Verfahren `platform` hat keine gespeicherten Zugangsdaten und lässt sich nicht mit Anbieter-Verfahren kombinieren. Es ist nativen Plattformfunktionen wie Aufgaben- und Dokumentaktionen vorbehalten.
 
@@ -173,6 +178,19 @@ Persönliche OneDrive-/Google-Drive-Importe für Wissen sind ein eigener Ablauf.
 Die Slack-App wird ausschließlich für das Deployment konfiguriert: `CONNECTOR_OAUTH_SLACK_*` und `CONNECTOR_SLACK_SIGNING_SECRET`. Eingehende Ereignisse müssen geprüft werden, bevor Tale die Organisation kennt; eine Organisations-App kann dieses Geheimnis daher nicht bereitstellen.
 
 Registriere `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` als Events Request URL. Ohne Signaturgeheimnis erhält schon die Registrierung `503`. Mit gültiger Konfiguration prüft Tale Signaturen und ordnet den Slack-Workspace einer Organisation zu. Der Endpunkt bestätigt Ereignisse derzeit nur. Er macht aus eingehenden Slack-Nachrichten keine Konversationen und startet nicht automatisch eine Automatisierung.
+
+## Eine GitHub App registrieren
+
+Eine GitHub App für das ganze Deployment gibt es nicht: Jede Organisation registriert ihre eigene unter **Einstellungen > Connectors**, und GitHub schickt den Browser des Admins an diese zwei Adressen zurück:
+
+```text
+${SITE_URL}${BASE_PATH}/api/connectors/github-app/registered
+${SITE_URL}${BASE_PATH}/api/connectors/github-app/installed
+```
+
+Die erste empfängt die neue App, sobald GitHub sie angelegt hat; die zweite folgt auf jede Installation und jede Änderung ihrer Repositorys. Tale trägt beide in das Manifest der App ein, von Hand ist nichts zu registrieren. Nur der Browser folgt ihnen: Die App hat keinen aktiven Webhook, GitHub ruft Tale also nie auf, aber der Browser des Admins muss Tale unter `SITE_URL` erreichen. Ohne `SITE_URL` startet Tale keine Registrierung. Auf einer Loopback-Adresse lässt das Manifest den inaktiven Webhook-Eintrag weg, weil GitHub eine Loopback-URL für Webhooks ablehnt. Ändert sich die Adresse des Deployments später, passe die **Setup URL** in den Einstellungen der App auf GitHub an.
+
+Die [Zugangsdaten-Anleitung](/de/platform/admin/connectors#github-mit-einer-github-app-verbinden) beschreibt, wie du die App registrierst, installierst und trennst.
 
 ## Die passende Oberfläche wählen
 

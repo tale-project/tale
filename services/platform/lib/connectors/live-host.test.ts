@@ -246,6 +246,223 @@ describe('credential injection', () => {
   });
 });
 
+describe('a token the vendor turned away', () => {
+  const ISSUES = 'https://api.github.com/repos/acme/api/issues';
+  const refused = () =>
+    jsonResponse({ message: 'Bad credentials' }, { status: 401 });
+
+  /** A renewal for api.github.com answering `renewed`, counting its calls. */
+  function renewal(renewed: () => Promise<string>) {
+    return { hosts: ['api.github.com'], renew: vi.fn(renewed) };
+  }
+
+  /** What each request carried, in the order sent. */
+  function sent() {
+    return fetchStub.mock.calls.map((call) => {
+      const init: RequestInit = call[1] ?? {};
+      return {
+        url: String(call[0]),
+        method: init.method,
+        body: init.body,
+        authorization: headersOf(init).Authorization,
+      };
+    });
+  }
+
+  it('[CCRED-R18] renews it once and sends the refused request again, a write included', async () => {
+    fetchStub
+      .mockResolvedValueOnce(refused())
+      .mockResolvedValueOnce(jsonResponse({ number: 7 }, { status: 201 }));
+    const reauthorize = renewal(async () => 'Bearer ghs_renewed');
+    const host = createLiveHost({
+      connector: GITHUB,
+      authHeader: 'Bearer ghs_refused',
+      reauthorize,
+      action: 'create_issue',
+    });
+
+    const response = await host.http.post(ISSUES, {
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"title":"Flaky test"}',
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.json()).toEqual({ number: 7 });
+    const write = {
+      url: ISSUES,
+      method: 'POST',
+      body: '{"title":"Flaky test"}',
+    };
+    expect(sent()).toEqual([
+      { ...write, authorization: 'Bearer ghs_refused' },
+      { ...write, authorization: 'Bearer ghs_renewed' },
+    ]);
+    expect(headersOf(lastRequest().init)['Content-Type']).toBe(
+      'application/json',
+    );
+    // The invocation's later requests carry the renewed token.
+    await host.http.get('https://api.github.com/user');
+    expect(headersOf(lastRequest().init).Authorization).toBe(
+      'Bearer ghs_renewed',
+    );
+    expect(reauthorize.renew).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CCRED-R18] hands a refusal of the renewed token to the body as it is, sending nothing a third time', async () => {
+    fetchStub.mockImplementation(async () => refused());
+    const reauthorize = renewal(async () => 'Bearer ghs_renewed');
+    const host = createLiveHost({
+      connector: GITHUB,
+      authHeader: 'Bearer ghs_refused',
+      reauthorize,
+    });
+
+    const response = await host.http.get('https://api.github.com/user');
+    expect(response.status).toBe(401);
+    expect(response.json()).toEqual({ message: 'Bad credentials' });
+    expect(sent().map((request) => request.authorization)).toEqual([
+      'Bearer ghs_refused',
+      'Bearer ghs_renewed',
+    ]);
+
+    // Nor is the renewed token renewed again by a later request.
+    const later = await host.http.get('https://api.github.com/user/repos');
+    expect(later.status).toBe(401);
+    expect(fetchStub).toHaveBeenCalledTimes(3);
+    expect(reauthorize.renew).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CCRED-R18] refuses the request with why no token could be renewed, sending nothing else', async () => {
+    fetchStub.mockImplementation(async () => refused());
+    const reason =
+      'Credential "Tale bot" lost its authorization (the GitHub App is no longer installed on GitHub) — reconnect "github" in Settings → Connectors to restore access.';
+    const reauthorize = renewal(async () => {
+      throw new Error(reason);
+    });
+    const host = createLiveHost({
+      connector: GITHUB,
+      authHeader: 'Bearer ghs_refused',
+      reauthorize,
+      action: 'create_issue',
+    });
+
+    await expect(
+      host.http.post(ISSUES, { body: '{"title":"Flaky test"}' }),
+    ).rejects.toMatchObject({
+      code: 'CREDENTIAL_UNRESOLVED',
+      message: `no usable credential for github: ${reason}`,
+    });
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    // Every later request that GitHub turns away hears the same refusal.
+    await expect(
+      host.http.get('https://api.github.com/user'),
+    ).rejects.toMatchObject({ code: 'CREDENTIAL_UNRESOLVED' });
+    expect(reauthorize.renew).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CCRED-R18] renews once for the requests GitHub turned away together', async () => {
+    fetchStub.mockImplementation(async (_url: unknown, init: RequestInit) =>
+      headersOf(init).Authorization === 'Bearer ghs_refused'
+        ? refused()
+        : jsonResponse({ ok: true }),
+    );
+    let release: (value: string) => void = () => {};
+    const reauthorize = renewal(
+      () =>
+        new Promise<string>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const host = createLiveHost({
+      connector: GITHUB,
+      authHeader: 'Bearer ghs_refused',
+      reauthorize,
+    });
+
+    const both = Promise.all([
+      host.http.get('https://api.github.com/user'),
+      host.http.get('https://api.github.com/user/repos'),
+    ]);
+    await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(reauthorize.renew).toHaveBeenCalled());
+    release('Bearer ghs_renewed');
+    const answers = await both;
+
+    expect(answers.map((answer) => answer.status)).toEqual([200, 200]);
+    expect(reauthorize.renew).toHaveBeenCalledTimes(1);
+    expect(sent().map((request) => request.authorization)).toEqual([
+      'Bearer ghs_refused',
+      'Bearer ghs_refused',
+      'Bearer ghs_renewed',
+      'Bearer ghs_renewed',
+    ]);
+  });
+
+  it('[CCRED-R18] renews a download GitHub turned away the same way', async () => {
+    fetchStub.mockResolvedValueOnce(refused()).mockResolvedValueOnce(
+      new Response('file-bytes', {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      }),
+    );
+    const reauthorize = renewal(async () => 'Bearer ghs_renewed');
+    const stored: string[] = [];
+    const host = createLiveHost({
+      connector: GITHUB,
+      authHeader: 'Bearer ghs_refused',
+      reauthorize,
+      blobs: {
+        store: async (args) => {
+          stored.push(args.data);
+          return {
+            id: 'blob-1',
+            fileName: args.fileName,
+            contentType: args.contentType,
+            size: args.data.length,
+          };
+        },
+      },
+    });
+
+    await expect(
+      host.files?.download('https://api.github.com/assets/1', {
+        fileName: 'report.pdf',
+      }),
+    ).resolves.toMatchObject({ fileName: 'report.pdf' });
+    expect(stored).toEqual([Buffer.from('file-bytes').toString('base64')]);
+    expect(sent().map((request) => request.authorization)).toEqual([
+      'Bearer ghs_refused',
+      'Bearer ghs_renewed',
+    ]);
+  });
+
+  it.each([
+    ['without a renewal, as a personal token', undefined, 401],
+    ['on a host the renewal does not name', ['uploads.github.com'], 401],
+    ['other than a 401', ['api.github.com'], 403],
+  ])(
+    'hands a refusal %s to the body after one request',
+    async (_case, hosts, status) => {
+      fetchStub.mockImplementation(async () =>
+        jsonResponse({ message: 'No' }, { status }),
+      );
+      const renew = vi.fn(async () => 'Bearer ghs_renewed');
+      const host = createLiveHost({
+        connector: GITHUB,
+        authHeader: 'Bearer ghp_personal',
+        ...(hosts !== undefined && { reauthorize: { hosts, renew } }),
+      });
+      const response = await host.http.get(ISSUES);
+      expect(response.status).toBe(status);
+      expect(headersOf(lastRequest().init).Authorization).toBe(
+        'Bearer ghp_personal',
+      );
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      expect(renew).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('responses', () => {
   it('hands a non-2xx response to the body instead of throwing', async () => {
     fetchStub.mockResolvedValueOnce(

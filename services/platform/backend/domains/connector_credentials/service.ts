@@ -1,6 +1,7 @@
 import { CLIENT_CREDENTIALS_TENANT_PLACEHOLDER } from '@tale/shared/schemas/connectors';
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { LiveHostReauthorization } from '../../../lib/connectors/live-host.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { CONNECTOR_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { looksLikeEmailAddress } from '../../../lib/shared/utils/email-address';
@@ -15,6 +16,18 @@ import {
   connectorBearerScheme,
   loadConnectorDefinitions,
 } from '../../core/connector_credentials/connector_catalog.ts';
+import {
+  getInstallation,
+  listAppInstallations,
+  listInstallationRepositories,
+  mintInstallationToken,
+  narrowPermissions,
+  signGithubAppJwt,
+  type GithubAppFailure,
+  type GithubAppInstallationInfo,
+  type GithubAppResult,
+  type MintedInstallationToken,
+} from '../../core/connector_credentials/github_app.ts';
 import {
   withImapFromAddress,
   withMailboxFromAddress,
@@ -177,8 +190,10 @@ export interface CredentialRow {
   endpointUrl: string | null;
   config: Record<string, string | number | boolean> | null;
   maskedPreview: string | null;
-  /** `client-credentials`: the app it signs in as ({@link ClientApp}). */
-  clientApp: ClientApp | null;
+  /** `client-credentials`: the app it signs in as ({@link ClientApp});
+   * `github-app`: the GitHub App it is and where it is installed
+   * ({@link GithubAppSummary}). */
+  clientApp: ClientApp | GithubAppSummary | null;
   isDefault: boolean;
   mailSyncInboundSince: number | null;
   mailSyncOutboundSince: number | null;
@@ -573,6 +588,16 @@ function buildPayload(
                   authMethod,
                 ),
         };
+      // GitHub hands the platform the app and its private key when the app
+      // is registered; nobody types either, and no form or edit stores them
+      // [CCRED-R14].
+      case 'github-app':
+        throw new ConnectorCredentialError(
+          'AUTH_METHOD_NOT_SUPPORTED',
+          'A GitHub App credential is created by registering the app from Settings → Connectors — its private key is never typed or replaced by hand.',
+          400,
+          { authMethod, reason: 'registration' },
+        );
       default: {
         const _exhaustive: never = authMethod;
         return _exhaustive;
@@ -674,12 +699,85 @@ interface ClientApp {
   clientId: string;
 }
 
+/** Where a GitHub App is installed, as GitHub reported it when it was
+ * installed, changed or last minted for. */
+export interface GithubAppInstallationRecord {
+  id: number;
+  account: string;
+  accountType: 'User' | 'Organization';
+  repositorySelection: 'all' | 'selected';
+}
+
+/**
+ * Which GitHub App a `github-app` credential is and where it is installed —
+ * the app's public identity, none of it secret. The envelope keeps the same
+ * fields beside the private key that signs for the app; the row shows this
+ * copy, written from the same payload in the same statement, so a listing
+ * can name the app and its installation without the key ever leaving the
+ * envelope [CCRED-R15].
+ */
+export interface GithubAppSummary {
+  appId: number;
+  clientId: string;
+  slug: string;
+  /** The account (person or organization) that owns the app. */
+  owner?: string;
+  /** The id of the app's bot user, `<slug>[bot]`. */
+  botId?: number;
+  /** Absent until someone installs the app. */
+  installation?: GithubAppInstallationRecord;
+}
+
+/** What GitHub's registration of a new app hands over — the private key
+ * included, which only the envelope keeps. */
+export interface GithubAppRegistrationInput {
+  appId: number;
+  clientId: string;
+  slug: string;
+  privateKey: string;
+  owner?: string;
+  botId?: number;
+}
+
+type GithubAppPayload = Extract<
+  ConnectorSecretPayload,
+  { authMethod: 'github-app' }
+>;
+
+/** An installation, field by field — never more than the record names. */
+function installationRecord(
+  installation: GithubAppInstallationRecord,
+): GithubAppInstallationRecord {
+  return {
+    id: installation.id,
+    account: installation.account,
+    accountType: installation.accountType,
+    repositorySelection: installation.repositorySelection,
+  };
+}
+
+/** A `github-app` payload's public identity: everything but the private key
+ * and the token, field by field [CCRED-R15]. */
+function githubAppSummary(app: GithubAppSummary): GithubAppSummary {
+  return {
+    appId: app.appId,
+    clientId: app.clientId,
+    slug: app.slug,
+    ...(app.owner !== undefined && { owner: app.owner }),
+    ...(app.botId !== undefined && { botId: app.botId }),
+    ...(app.installation !== undefined && {
+      installation: installationRecord(app.installation),
+    }),
+  };
+}
+
 /** Encrypt a validated payload and compute its non-secret preview, and for
- * an app that signs in as itself, the app it is ({@link ClientApp}). */
+ * an app that signs in as itself, the app it is ({@link ClientApp}; a GitHub
+ * App's {@link GithubAppSummary}). */
 function sealPayload(payload: ConnectorSecretPayload): {
   encryptedData: EncryptedSecret;
   maskedPreview?: string;
-  clientApp?: ClientApp;
+  clientApp?: ClientApp | GithubAppSummary;
 } {
   const { authMethod: _method, ...document } = payload;
   const maskedPreview = maskPayload(payload);
@@ -691,6 +789,9 @@ function sealPayload(payload: ConnectorSecretPayload): {
         ...(payload.tenantId !== undefined && { tenantId: payload.tenantId }),
         clientId: payload.clientId,
       },
+    }),
+    ...(payload.authMethod === 'github-app' && {
+      clientApp: githubAppSummary(payload),
     }),
   };
 }
@@ -802,6 +903,9 @@ export interface MaskedCredential {
   maskedPreview?: string;
   /** `client-credentials`: the app it signs in as — not secret. */
   clientApp?: ClientApp;
+  /** `github-app`: the GitHub App it is and where it is installed — not
+   * secret; the private key is never here [CCRED-R15]. */
+  githubApp?: GithubAppSummary;
   isDefault: boolean;
   status: CredentialStatus;
   statusDetail?: string;
@@ -815,7 +919,27 @@ export interface MaskedCredential {
   defaultSuccessor?: { id: string; name: string } | null;
 }
 
+/** The row's `client_app` projection as the app a `client-credentials`
+ * credential signs in as. */
+function clientAppOf(row: CredentialRow): ClientApp | undefined {
+  const app = row.clientApp;
+  if (row.authMethod !== 'client-credentials' || app == null || 'appId' in app)
+    return undefined;
+  return app;
+}
+
+/** The row's `client_app` projection as the GitHub App a `github-app`
+ * credential is. */
+function githubAppOf(row: CredentialRow): GithubAppSummary | undefined {
+  const app = row.clientApp;
+  if (row.authMethod !== 'github-app' || app == null || !('appId' in app))
+    return undefined;
+  return githubAppSummary(app);
+}
+
 function toMasked(row: CredentialRow): MaskedCredential {
+  const clientApp = clientAppOf(row);
+  const githubApp = githubAppOf(row);
   return {
     id: row.id,
     connectorSlug: row.connectorSlug,
@@ -824,7 +948,8 @@ function toMasked(row: CredentialRow): MaskedCredential {
     ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
     ...(row.config !== null ? { config: row.config } : {}),
     ...(row.maskedPreview !== null ? { maskedPreview: row.maskedPreview } : {}),
-    ...(row.clientApp != null ? { clientApp: row.clientApp } : {}),
+    ...(clientApp !== undefined ? { clientApp } : {}),
+    ...(githubApp !== undefined ? { githubApp } : {}),
     isDefault: row.isDefault,
     status: row.status,
     ...(row.statusDetail !== null ? { statusDetail: row.statusDetail } : {}),
@@ -950,6 +1075,11 @@ interface PreparedCredential {
   config: Record<string, string | number | boolean> | undefined;
   name: string;
   sealed: ReturnType<typeof sealPayload>;
+  /** A credential that cannot serve yet starts out of service and says
+   * why — a GitHub App nobody has installed. Absent: `active`. */
+  initialStatus?: { status: CredentialStatus; statusDetail: string };
+  /** What the `created` audit row names beside the connector and method. */
+  auditMetadata?: Record<string, string | number>;
 }
 
 /** Everything that can refuse a new credential, before any statement. */
@@ -1007,7 +1137,15 @@ export function checkCredentialTarget(args: {
 
 async function insertPreparedCredential(
   tx: TransactionSql,
-  args: CreateCredentialArgs,
+  args: Pick<
+    CreateCredentialArgs,
+    | 'organizationId'
+    | 'connectorSlug'
+    | 'authMethod'
+    | 'isDefault'
+    | 'createdBy'
+    | 'actor'
+  >,
   prepared: PreparedCredential,
 ): Promise<{ credentialId: string }> {
   await lockCredentialPair(tx, args.organizationId, args.connectorSlug);
@@ -1022,11 +1160,12 @@ async function insertPreparedCredential(
     await clearOtherDefaults(tx, args.organizationId, args.connectorSlug, null);
   }
   const now = Date.now();
+  const status = prepared.initialStatus?.status ?? 'active';
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.connector_credentials (
       org_id, connector_slug, auth_method, name, encrypted_data,
       endpoint_url, config, masked_preview, client_app, is_default, status,
-      created_by, created_at_ms, updated_at_ms
+      status_detail, created_by, created_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.connectorSlug}, ${args.authMethod},
       ${prepared.name}, ${tx.json(toJson(prepared.sealed.encryptedData))},
@@ -1034,7 +1173,7 @@ async function insertPreparedCredential(
       ${prepared.config === undefined ? null : tx.json(toJson(prepared.config))},
       ${prepared.sealed.maskedPreview ?? null},
       ${prepared.sealed.clientApp === undefined ? null : tx.json(toJson(prepared.sealed.clientApp))},
-      ${isDefault}, 'active',
+      ${isDefault}, ${status}, ${prepared.initialStatus?.statusDetail ?? null},
       ${args.createdBy}, ${now}, ${now}
     )
     RETURNING id
@@ -1049,14 +1188,11 @@ async function insertPreparedCredential(
     resourceType: 'connector_credential',
     resourceId: credentialId,
     resourceName: prepared.name,
-    newState: credentialState({
-      name: prepared.name,
-      status: 'active',
-      isDefault,
-    }),
+    newState: credentialState({ name: prepared.name, status, isDefault }),
     metadata: {
       connectorSlug: args.connectorSlug,
       authMethod: args.authMethod,
+      ...prepared.auditMetadata,
     },
     status: 'success',
   });
@@ -1258,6 +1394,9 @@ export async function deleteCredential(
       siblings.find((sibling) => sibling.id === found.id) ??
       (await requireOwnRow(tx, organizationId, credentialId));
     await tx`DELETE FROM app.connector_credentials WHERE id = ${row.id}`;
+    // A GitHub App disconnected: which app and installation, so the trail
+    // says what to uninstall or delete on GitHub [CCRED-R19].
+    const githubApp = githubAppOf(row);
     let promotedId: string | null = null;
     const successor = row.isDefault ? defaultSuccessor(siblings, row.id) : null;
     if (successor !== null) {
@@ -1281,6 +1420,11 @@ export async function deleteCredential(
         connectorSlug: row.connectorSlug,
         authMethod: row.authMethod,
         ...(promotedId !== null ? { promotedDefaultId: promotedId } : {}),
+        ...(githubApp !== undefined && { appId: githubApp.appId }),
+        ...(githubApp?.installation !== undefined && {
+          installationId: githubApp.installation.id,
+          repositorySelection: githubApp.installation.repositorySelection,
+        }),
       },
       status: 'success',
     });
@@ -1338,6 +1482,539 @@ export async function setDefaultCredential(
   });
 }
 
+// ------------------------------------------------------------- GitHub Apps
+
+/** Why a GitHub App credential nobody has installed yet cannot serve. */
+const GITHUB_APP_NOT_INSTALLED =
+  'the GitHub App is not installed on GitHub yet';
+/** Why one GitHub no longer finds an installation of cannot serve. */
+const GITHUB_APP_UNINSTALLED =
+  'the GitHub App is no longer installed on GitHub';
+
+/** The permissions a connector's `github-app` entry asks of the app: what
+ * the app is registered with, and the most an installation token gets. */
+function githubAppPermissionsOf(
+  connector: Connector,
+): Record<string, 'read' | 'write'> {
+  const entry = connector.auth.find((method) => method.method === 'github-app');
+  if (entry === undefined) {
+    const accepted = connector.auth.map((method) => method.method);
+    throw new ConnectorCredentialError(
+      'AUTH_METHOD_NOT_SUPPORTED',
+      `Connector "${connector.name}" does not accept github-app credentials — it accepts: ${accepted.join(', ')}.`,
+      400,
+      { connector: connector.name, authMethod: 'github-app', accepted },
+    );
+  }
+  return { ...entry.permissions };
+}
+
+/** What refuses a new GitHub App credential, by the rules
+ * {@link prepareCredential} applies to any new one: the connector takes a
+ * GitHub App, needs no endpoint and no setting a registration cannot give,
+ * and the name is valid. */
+function checkGithubAppTarget(args: { connectorSlug: string; name: string }) {
+  const connector = requireConnectorAuthMethod(
+    args.connectorSlug,
+    'github-app',
+  );
+  return {
+    endpointUrl: normalizeEndpointUrl(connector, undefined),
+    config: normalizeConfig(connector, undefined, 'github-app'),
+    name: normalizeName(args.name),
+    permissions: githubAppPermissionsOf(connector),
+  };
+}
+
+/**
+ * Whether a GitHub App credential could be created — asked before the admin
+ * is sent to GitHub to register the app, so a name the pair already holds
+ * is refused before an app exists on GitHub for nothing. Answers the
+ * permissions the app's manifest asks for.
+ */
+export async function assertGithubAppCredentialCreatable(
+  sql: Db,
+  args: { organizationId: string; connectorSlug: string; name: string },
+): Promise<{ permissions: Record<string, 'read' | 'write'> }> {
+  const target = checkGithubAppTarget(args);
+  assertNameFree(
+    await rowsForConnector(sql, args.organizationId, args.connectorSlug),
+    target.name,
+  );
+  return { permissions: target.permissions };
+}
+
+/**
+ * Store the GitHub App an admin just registered, on the caller's
+ * transaction — the one door a GitHub App credential has [CCRED-R14]. The
+ * private key is sealed in the envelope and nowhere else [CCRED-R15]; the
+ * credential waits, `needs-reauth`, until the app is installed. The pair's
+ * first credential becomes its default, as {@link createCredential} decides.
+ */
+export async function createGithubAppCredentialInTransaction(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    name: string;
+    app: GithubAppRegistrationInput;
+    createdBy: string;
+    actor?: CredentialActor;
+  },
+): Promise<{ credentialId: string }> {
+  const target = checkGithubAppTarget(args);
+  const { app } = args;
+  const payload = parseGithubAppPayload({
+    appId: app.appId,
+    clientId: app.clientId,
+    slug: app.slug,
+    privateKey: app.privateKey,
+    ...(app.owner !== undefined && { owner: app.owner }),
+    ...(app.botId !== undefined && { botId: app.botId }),
+  });
+  return insertPreparedCredential(
+    tx,
+    {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      authMethod: 'github-app',
+      createdBy: args.createdBy,
+      ...(args.actor !== undefined && { actor: args.actor }),
+    },
+    {
+      endpointUrl: target.endpointUrl,
+      config: target.config,
+      name: target.name,
+      sealed: sealPayload(payload),
+      initialStatus: {
+        status: 'needs-reauth',
+        statusDetail: GITHUB_APP_NOT_INSTALLED,
+      },
+      auditMetadata: {
+        appId: app.appId,
+        appSlug: app.slug,
+        ...(app.owner !== undefined && { appOwner: app.owner }),
+      },
+    },
+  );
+}
+
+/** A GitHub App envelope's contents, validated; a refusal names the field
+ * at fault and never its value, so the key stays out of it [CCRED-R15]. */
+function parseGithubAppPayload(raw: Record<string, unknown>): GithubAppPayload {
+  let payload: ConnectorSecretPayload;
+  try {
+    payload = parseSecretPayload('github-app', raw);
+  } catch (error) {
+    if (error instanceof SecretPayloadError) {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_SECRET_INVALID',
+        error.message,
+        400,
+        {
+          authMethod: 'github-app',
+          reason: 'shape',
+          ...(error.field !== undefined && { field: error.field }),
+        },
+      );
+    }
+    throw error;
+  }
+  if (payload.authMethod !== 'github-app') {
+    throw new Error('a github-app payload parsed as another method');
+  }
+  return payload;
+}
+
+/** The organization's GitHub App credential, or not found — a credential
+ * of another method answers the same, so these doors say nothing about it.
+ * `forUpdate` locks the row for the caller's transaction. */
+async function requireGithubAppRow(
+  db: Db,
+  organizationId: string,
+  credentialId: string,
+  forUpdate = false,
+): Promise<CredentialRow> {
+  const rows = await db<CredentialRow[]>`
+    SELECT ${db.unsafe(CREDENTIAL_COLUMNS)} FROM app.connector_credentials
+    WHERE id = ${credentialId} AND org_id = ${organizationId}
+      AND auth_method = 'github-app'
+    LIMIT 1 ${forUpdate ? db`FOR UPDATE` : db``}
+  `;
+  const row = rows[0];
+  if (row === undefined) {
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_NOT_FOUND',
+      'Credential not found.',
+      404,
+    );
+  }
+  return row;
+}
+
+/** A GitHub App row's envelope, opened as {@link openRowEnvelope} opens
+ * any. */
+function openGithubAppEnvelope(row: CredentialRow): GithubAppPayload {
+  const payload = openRowEnvelope(row);
+  if (payload.authMethod !== 'github-app') {
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_SHAPE_INVALID',
+      `Credential "${row.name}" does not carry a usable github-app payload — remove it and register the app again in Settings → Connectors.`,
+    );
+  }
+  return payload;
+}
+
+/**
+ * The JWT the credential's app signs to speak for itself [CCRED-R17]. A key
+ * that does not load is refused like any unusable envelope; the log names
+ * the error, never its text or the key [CCRED-R15].
+ */
+async function signForGithubApp(
+  row: CredentialRow,
+  app: GithubAppPayload,
+  nowMs: number,
+): Promise<string> {
+  try {
+    return await signGithubAppJwt({
+      clientId: app.clientId,
+      privateKey: app.privateKey,
+      nowMs,
+    });
+  } catch (error) {
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential ${row.id} could not sign as GitHub App ${app.appId} for organization ${row.organizationId}:`,
+      error instanceof Error ? error.name : 'unknown error',
+    );
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_SHAPE_INVALID',
+      `Credential "${row.name}" holds a GitHub App private key that does not load — remove it and register the app again in Settings → Connectors.`,
+    );
+  }
+}
+
+/**
+ * Prove that an installation id a browser brought back from GitHub belongs
+ * to this credential's app: the app reads it with its own JWT — GitHub
+ * shows an app only its own installations — and its app id must match.
+ * For an installation on chosen repositories, also the first hundred of
+ * them, read with a token that may read metadata only; a failure there is
+ * logged and leaves them out. Nothing is stored.
+ */
+export async function readGithubAppInstallation(
+  sql: Db,
+  args: {
+    organizationId: string;
+    credentialId: string;
+    installationId: number;
+    fetchImpl?: FetchLike;
+    nowMs?: number;
+  },
+): Promise<
+  | {
+      ok: true;
+      appId: number;
+      installation: GithubAppInstallationRecord;
+      repositories?: string[];
+      repositoryCount?: number;
+    }
+  | {
+      ok: false;
+      reason:
+        | 'not_found'
+        | 'rejected'
+        | 'unreachable'
+        | 'malformed'
+        | 'suspended'
+        | 'wrong_app';
+      message: string;
+    }
+> {
+  const row = await requireGithubAppRow(
+    sql,
+    args.organizationId,
+    args.credentialId,
+  );
+  const app = openGithubAppEnvelope(row);
+  const fetchImpl = args.fetchImpl ?? fetch;
+  const jwt = await signForGithubApp(row, app, args.nowMs ?? Date.now());
+  const read = await getInstallation(jwt, args.installationId, fetchImpl);
+  if (!read.ok) {
+    console.warn(
+      `[connector-credentials] GitHub App ${app.appId} could not read installation ${args.installationId} for credential ${row.id}: ${read.reason}${read.status !== undefined ? ` (${read.status})` : ''}`,
+    );
+    return { ok: false, reason: read.reason, message: read.message };
+  }
+  const info = read.value;
+  if (info.appId !== app.appId) {
+    return {
+      ok: false,
+      reason: 'wrong_app',
+      message: `installation ${info.id} belongs to another GitHub App, not "${app.slug}"`,
+    };
+  }
+  if (info.suspended) {
+    return {
+      ok: false,
+      reason: 'suspended',
+      message: `the installation of "${app.slug}" on ${info.account} is suspended`,
+    };
+  }
+  const installation: GithubAppInstallationRecord = {
+    id: info.id,
+    account: info.account,
+    accountType: info.accountType,
+    repositorySelection: info.repositorySelection,
+  };
+  if (installation.repositorySelection !== 'selected') {
+    return { ok: true, appId: app.appId, installation };
+  }
+  const listed = await listChosenRepositories(
+    row.id,
+    app.appId,
+    installation.id,
+    jwt,
+    fetchImpl,
+  );
+  if (!listed.ok) {
+    console.warn(
+      `[connector-credentials] GitHub App ${app.appId} could not list the repositories of installation ${installation.id} for credential ${row.id}: ${listed.reason}${listed.status !== undefined ? ` (${listed.status})` : ''}`,
+    );
+    return { ok: true, appId: app.appId, installation };
+  }
+  return {
+    ok: true,
+    appId: app.appId,
+    installation,
+    repositories: listed.value.repositories.map((repo) => repo.fullName),
+    repositoryCount: listed.value.totalCount,
+  };
+}
+
+/** The installations of a GitHub App credential's app, as GitHub lists them
+ * to the app's own JWT. Nothing is stored. */
+export async function listGithubAppInstallations(
+  sql: Db,
+  args: {
+    organizationId: string;
+    credentialId: string;
+    fetchImpl?: FetchLike;
+    nowMs?: number;
+  },
+): Promise<GithubAppResult<GithubAppInstallationInfo[]>> {
+  const row = await requireGithubAppRow(
+    sql,
+    args.organizationId,
+    args.credentialId,
+  );
+  const app = openGithubAppEnvelope(row);
+  const jwt = await signForGithubApp(row, app, args.nowMs ?? Date.now());
+  const listed = await listAppInstallations(jwt, args.fetchImpl ?? fetch);
+  if (!listed.ok) {
+    console.warn(
+      `[connector-credentials] GitHub App ${app.appId} could not list its installations for credential ${row.id}: ${listed.reason}${listed.status !== undefined ? ` (${listed.status})` : ''}`,
+    );
+  }
+  return listed;
+}
+
+/** The first page of the repositories an installation was given, read with
+ * a token that may read their metadata and nothing else — a mint logged
+ * like any other [CCRED-R20]. */
+async function listChosenRepositories(
+  credentialId: string,
+  appId: number,
+  installationId: number,
+  jwt: string,
+  fetchImpl: FetchLike,
+): ReturnType<typeof listInstallationRepositories> {
+  const minted = await mintInstallationToken(
+    { jwt, installationId, permissions: { metadata: 'read' } },
+    fetchImpl,
+  );
+  if (!minted.ok) return minted;
+  logGithubAppMint({
+    credentialId,
+    appId,
+    installationId,
+    purpose: 'repository list',
+    token: minted.value,
+  });
+  return listInstallationRepositories(minted.value.token, fetchImpl);
+}
+
+/** Why a GitHub App token was minted, as its log line says [CCRED-R20]. */
+type GithubAppMintPurpose = 'connector call' | 'repository list';
+
+/** The most repositories a mint's log line names; the rest are counted. */
+const MINT_LOG_REPOSITORIES_MAX = 20;
+
+/**
+ * The one line each GitHub App token Tale gets leaves in the server log
+ * [CCRED-R20]: the credential, why it was minted, the app, the
+ * installation, whether the token covers all or chosen repositories — with
+ * their count and the first twenty of their full names whenever GitHub's
+ * answer lists them, as it does for a mint that names them — and its
+ * expiry. Never the token, the JWT that asked for it or the key.
+ */
+function logGithubAppMint(args: {
+  credentialId: string;
+  appId: number;
+  installationId: number;
+  purpose: GithubAppMintPurpose;
+  token: MintedInstallationToken;
+}): void {
+  const named = args.token.repositories;
+  const listed =
+    named === undefined
+      ? ''
+      : ` (${named.length}: ${[
+          ...named.slice(0, MINT_LOG_REPOSITORIES_MAX),
+          ...(named.length > MINT_LOG_REPOSITORIES_MAX
+            ? [`and ${named.length - MINT_LOG_REPOSITORIES_MAX} more`]
+            : []),
+        ].join(', ')})`;
+  console.info(
+    `[connector-credentials] minted a GitHub App token for credential ${args.credentialId} (${args.purpose}): app ${args.appId}, installation ${args.installationId}, repositories ${args.token.repositorySelection}${listed}, expires ${new Date(args.token.expiresAt).toISOString()}`,
+  );
+}
+
+/** What an installation's audit trail records of it. */
+function installationTrail(
+  installation: GithubAppInstallationRecord,
+): Record<string, unknown> {
+  return {
+    id: installation.id,
+    account: installation.account,
+    repositorySelection: installation.repositorySelection,
+  };
+}
+
+/** Whether two installation records say the same thing. */
+function sameInstallation(
+  a: GithubAppInstallationRecord | undefined,
+  b: GithubAppInstallationRecord,
+): boolean {
+  return (
+    a !== undefined &&
+    a.id === b.id &&
+    a.account === b.account &&
+    a.accountType === b.accountType &&
+    a.repositorySelection === b.repositorySelection
+  );
+}
+
+/**
+ * Record where the credential's app is installed, on the caller's
+ * transaction, once {@link readGithubAppInstallation} proved it: the
+ * envelope is sealed again with the installation and without the cached
+ * token — the next call mints one for the repositories as they are now —
+ * and the credential goes into service, unless an operator disabled it.
+ * Every return from GitHub is audited, a change or not, with what GitHub
+ * reported [CCRED-R19]; `changed` says whether the stored installation
+ * differed.
+ */
+export async function recordGithubAppInstallationInTransaction(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    credentialId: string;
+    installation: GithubAppInstallationRecord;
+    repositories?: readonly string[];
+    repositoryCount?: number;
+    actor: CredentialActor;
+  },
+): Promise<{ changed: boolean }> {
+  const row = await requireGithubAppRow(
+    tx,
+    args.organizationId,
+    args.credentialId,
+    true,
+  );
+  const app = openGithubAppEnvelope(row);
+  const installation = installationRecord(args.installation);
+  const previous = app.installation;
+  const changed = !sameInstallation(previous, installation);
+  const {
+    authMethod: _method,
+    accessToken: _token,
+    expiresAt: _expiresAt,
+    ...identity
+  } = app;
+  const sealed = sealPayload(
+    parseGithubAppPayload({ ...identity, installation }),
+  );
+  // An operator's Disable outlasts a change on GitHub; anything else is
+  // served again now that the app is installed.
+  const status: CredentialStatus =
+    row.status === 'disabled' ? 'disabled' : 'active';
+  const statusDetail = status === 'active' ? null : row.statusDetail;
+  await tx`
+    UPDATE app.connector_credentials SET
+      encrypted_data = ${tx.json(toJson(sealed.encryptedData))},
+      masked_preview = ${sealed.maskedPreview ?? null},
+      client_app = ${sealed.clientApp === undefined ? null : tx.json(toJson(sealed.clientApp))},
+      status = ${status},
+      status_detail = ${statusDetail},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${row.id}
+  `;
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    ...actorFields(args.actor),
+    action: 'connector_credential.updated',
+    category: 'connector',
+    resourceType: 'connector_credential',
+    resourceId: row.id,
+    resourceName: row.name,
+    previousState: credentialState(row),
+    newState: credentialState({ ...row, status }),
+    changedFields: [
+      ...(changed ? ['installation'] : []),
+      ...(status !== row.status ? ['status'] : []),
+    ],
+    metadata: {
+      connectorSlug: row.connectorSlug,
+      authMethod: row.authMethod,
+      appId: app.appId,
+      installationId: installation.id,
+      account: installation.account,
+      accountType: installation.accountType,
+      repositorySelection: installation.repositorySelection,
+      ...(args.repositories !== undefined && {
+        repositories: [...args.repositories],
+      }),
+      ...(args.repositoryCount !== undefined && {
+        repositoryCount: args.repositoryCount,
+      }),
+      ...(previous !== undefined &&
+        previous.id !== installation.id && {
+          previousInstallationId: previous.id,
+        }),
+    },
+    status: 'success',
+  });
+  await hintCredential(tx, args.organizationId, row.id);
+  return { changed };
+}
+
+/** The GitHub App credentials whose stored installation is `installationId`,
+ * among the given organizations only. */
+export async function findGithubAppCredentialsByInstallation(
+  sql: Db,
+  args: { installationId: number; organizationIds: readonly string[] },
+): Promise<{ id: string; organizationId: string; connectorSlug: string }[]> {
+  if (args.organizationIds.length === 0) return [];
+  return sql<{ id: string; organizationId: string; connectorSlug: string }[]>`
+    SELECT id, org_id AS "organizationId", connector_slug AS "connectorSlug"
+    FROM app.connector_credentials
+    WHERE auth_method = 'github-app'
+      AND org_id = ANY(${[...args.organizationIds]}::text[])
+      AND client_app -> 'installation' ->> 'id' = ${String(args.installationId)}
+    ORDER BY org_id ASC, created_at_ms ASC
+  `;
+}
+
 // -------------------------------------------------------------- resolution
 
 export interface ResolvedConnectorCredential {
@@ -1348,6 +2025,9 @@ export interface ResolvedConnectorCredential {
   endpoint?: string;
   config: Record<string, string | number | boolean>;
   authHeader?: string;
+  /** A GitHub App's: how the live host renews `authHeader` once GitHub
+   * turns it away before its expiry [CCRED-R18]. */
+  reauthorize?: LiveHostReauthorization;
 }
 
 /** The addressed row (explicit id-or-name ref, else the pair's default), or
@@ -1408,6 +2088,9 @@ export async function resolveCredentialRowForShim(
   // fetched on the way and lost its compare-and-swap — then a copy sealed
   // around the token in hand, so the reused resolver still sends one.
   let encryptedData = row.encryptedData;
+  // Never a GitHub App: what reads this answer gets no binding from one
+  // (#5295), so minting its token here would spend a call to GitHub on
+  // nothing.
   if (
     row.status === 'active' &&
     (row.authMethod === 'oauth2' || row.authMethod === 'client-credentials')
@@ -1572,6 +2255,12 @@ export interface ResolveCredentialOptions {
   readonly fetchImpl?: FetchLike;
 }
 
+/** A freshen's options: the injected seams, and what a GitHub App's mint
+ * is for, as its log line says (a connector call unless named). */
+interface FreshenOptions extends ResolveCredentialOptions {
+  readonly mintFor?: GithubAppMintPurpose;
+}
+
 /**
  * Persist that the grant is dead: only a new consent brings the row back,
  * and every listing stops offering it meanwhile. Guarded by the same
@@ -1622,16 +2311,40 @@ async function markNeedsReauth(
 async function resolveAfterLostCas(
   sql: Sql,
   row: CredentialRow,
-  options: ResolveCredentialOptions,
+  options: FreshenOptions,
   attempt: number,
 ): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
   const current = await requireOwnRow(sql, row.organizationId, row.id);
   assertRowUsable(current);
   const currentPayload = openRowEnvelope(current);
   if (attempt >= OAUTH2_REFRESH_MAX_ATTEMPTS) {
+    // A GitHub App's call never goes out without a live token, so with the
+    // retries spent it is refused instead [CCRED-R18].
+    if (
+      currentPayload.authMethod === 'github-app' &&
+      !holdsLiveToken(currentPayload, Date.now())
+    ) {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_REFRESH_FAILED',
+        `Credential "${current.name}" changed while its GitHub App token was being minted — try again shortly.`,
+      );
+    }
     return { row: current, payload: currentPayload };
   }
-  return freshenOauth2Row(sql, current, currentPayload, options, attempt + 1);
+  return freshenRow(sql, current, currentPayload, options, attempt + 1);
+}
+
+/** Whether the envelope's cached token outlives the skew, so a call can
+ * still use it. */
+function holdsLiveToken(
+  payload: { readonly accessToken?: string; readonly expiresAt?: number },
+  nowMs: number,
+): boolean {
+  return (
+    payload.accessToken !== undefined &&
+    payload.expiresAt !== undefined &&
+    payload.expiresAt - OAUTH2_REFRESH_SKEW_MS > nowMs
+  );
 }
 
 /**
@@ -1866,26 +2579,383 @@ async function freshenClientCredentialsRow(
   return { row: current, payload: next };
 }
 
+/**
+ * The GitHub App seam: an app holds no grant to renew, only the private key
+ * that signs for it, so the platform mints an installation token whenever
+ * the stored one is missing, expired or about to be, and keeps it in the
+ * envelope under the same compare-and-swap as an oauth2 refresh — the next
+ * call within the hour reuses it, whichever process makes it.
+ *
+ * Each mint first reads the installation with the app's JWT: what it
+ * grants, whether it is suspended, which repositories it covers. The token
+ * asks for the connector's permissions as far as the installation grants
+ * them and never more, for every repository the installation was given
+ * [CCRED-R16]; the installation as GitHub reported it is stored with the
+ * token, so the listing shows where the app acts now. Each mint is logged
+ * with its installation, repositories and expiry — never the token, the JWT
+ * or the key [CCRED-R20].
+ *
+ * A call whose token cannot be minted is refused, and nothing takes its
+ * place — no person's token, no unsigned call [CCRED-R18]: an app not
+ * installed, or no longer, is marked `needs-reauth` before or after GitHub
+ * says so (installing it brings the credential back); a suspension or a
+ * refusal says GitHub's reason (`CREDENTIAL_APP_REFUSED`); GitHub out of
+ * reach is retryable (`CREDENTIAL_REFRESH_FAILED`).
+ */
+async function freshenGithubAppRow(
+  sql: Sql,
+  row: CredentialRow,
+  payload: GithubAppPayload,
+  options: FreshenOptions,
+  attempt = 1,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  if (holdsLiveToken(payload, Date.now())) return { row, payload };
+  const installed = payload.installation;
+  if (installed === undefined) {
+    return refuseUninstalledGithubApp(
+      sql,
+      row,
+      options,
+      attempt,
+      GITHUB_APP_NOT_INSTALLED,
+    );
+  }
+  const connector = loadConnectorDefinitions().find(
+    (entry) => entry.name === row.connectorSlug,
+  );
+  if (connector === undefined) {
+    throw new ConnectorCredentialError(
+      'CONNECTOR_UNKNOWN',
+      `Credential "${row.name}" belongs to "${row.connectorSlug}", which this deployment does not ship.`,
+      404,
+      { connector: row.connectorSlug },
+    );
+  }
+  const declared = githubAppPermissionsOf(connector);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const jwt = await signForGithubApp(row, payload, Date.now());
+  const read = await getInstallation(jwt, installed.id, fetchImpl);
+  if (!read.ok) {
+    if (read.reason === 'not_found') {
+      return refuseUninstalledGithubApp(
+        sql,
+        row,
+        options,
+        attempt,
+        GITHUB_APP_UNINSTALLED,
+      );
+    }
+    throw githubAppRefusal(row, payload, read);
+  }
+  const info = read.value;
+  if (info.suspended) {
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential ${row.id} got no GitHub App token for organization ${row.organizationId}: installation ${info.id} is suspended`,
+    );
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_APP_REFUSED',
+      `Credential "${row.name}": GitHub has suspended the installation of "${payload.slug}" on ${info.account} — unsuspend it in the installation's settings on GitHub to restore access.`,
+    );
+  }
+  const permissions = narrowPermissions(declared, info.permissions);
+  if (Object.keys(permissions).length === 0) {
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential ${row.id} got no GitHub App token for organization ${row.organizationId}: installation ${info.id} grants none of the connector's permissions`,
+    );
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_APP_REFUSED',
+      `Credential "${row.name}": the installation of "${payload.slug}" on ${info.account} grants none of the permissions "${row.connectorSlug}" asks for — accept the app's requested permissions in the installation's settings on GitHub.`,
+    );
+  }
+  const minted = await mintInstallationToken(
+    { jwt, installationId: info.id, permissions },
+    fetchImpl,
+  );
+  if (!minted.ok) {
+    if (minted.reason === 'not_found') {
+      return refuseUninstalledGithubApp(
+        sql,
+        row,
+        options,
+        attempt,
+        GITHUB_APP_UNINSTALLED,
+      );
+    }
+    throw githubAppRefusal(row, payload, minted);
+  }
+  const token = minted.value;
+  logGithubAppMint({
+    credentialId: row.id,
+    appId: payload.appId,
+    installationId: info.id,
+    purpose: options.mintFor ?? 'connector call',
+    token,
+  });
+
+  const {
+    authMethod: _method,
+    accessToken: _token,
+    expiresAt: _expiresAt,
+    ...identity
+  } = payload;
+  const reported: GithubAppInstallationRecord = {
+    id: info.id,
+    account: info.account,
+    accountType: info.accountType,
+    repositorySelection: info.repositorySelection,
+  };
+  const next = parseGithubAppPayload({
+    ...identity,
+    installation: reported,
+    accessToken: token.token,
+    expiresAt: token.expiresAt,
+  });
+  const sealed = sealPayload(next);
+  // A new token alone changes nothing a listing shows; an installation
+  // GitHub now reports differently does — its account renamed, or the
+  // repositories it covers changed on GitHub — so that write is audited as
+  // the system's doing, with the installation before and after [CCRED-R19],
+  // and tells the open pages.
+  const moved = !sameInstallation(installed, reported);
+  const stored = await sql.begin(async (tx) => {
+    const written = await storeGithubAppEnvelope(tx, row, sealed);
+    if (written !== null && moved) {
+      await createAuditLog(tx, {
+        organizationId: row.organizationId,
+        ...actorFields(undefined),
+        action: 'connector_credential.updated',
+        category: 'connector',
+        resourceType: 'connector_credential',
+        resourceId: row.id,
+        resourceName: row.name,
+        previousState: credentialState(row),
+        newState: credentialState(written),
+        changedFields: ['installation'],
+        metadata: {
+          connectorSlug: row.connectorSlug,
+          authMethod: row.authMethod,
+          appId: payload.appId,
+          previousInstallation: installationTrail(installed),
+          installation: installationTrail(reported),
+        },
+        status: 'success',
+      });
+      await hintCredential(tx, row.organizationId, row.id);
+    }
+    return written;
+  });
+  if (stored !== null) return { row: stored, payload: next };
+  // Someone wrote the row first — another call's token, a new
+  // installation, an admin's edit: the row as it is now decides.
+  return resolveAfterLostCas(sql, row, options, attempt);
+}
+
+/** Store a GitHub App's re-sealed envelope under the compare-and-swap on
+ * `updated_at_ms` every token write takes: the row as stored, or null when
+ * someone wrote it first. */
+async function storeGithubAppEnvelope(
+  db: Db,
+  row: CredentialRow,
+  sealed: ReturnType<typeof sealPayload>,
+): Promise<CredentialRow | null> {
+  const rows = await db<CredentialRow[]>`
+    UPDATE app.connector_credentials
+    SET encrypted_data = ${db.json(toJson(sealed.encryptedData))},
+        masked_preview = ${sealed.maskedPreview ?? null},
+        client_app = ${sealed.clientApp === undefined ? null : db.json(toJson(sealed.clientApp))},
+        updated_at_ms = ${Date.now()}
+    WHERE id = ${row.id} AND org_id = ${row.organizationId}
+      AND updated_at_ms = ${row.updatedAt}
+    RETURNING ${db.unsafe(CREDENTIAL_COLUMNS)}
+  `;
+  return rows[0] ?? null;
+}
+
+/** The host GitHub's API answers on: its 401 to a call is GitHub turning
+ * the app's token away. */
+const GITHUB_API_HOST = 'api.github.com';
+
+/**
+ * GitHub turned a call's installation token away (401) before its expiry:
+ * the app was uninstalled, its installation suspended, or the token
+ * revoked. The token leaves the store — only if it is still the one the
+ * call used, under the compare-and-swap every token write takes — and the
+ * row is freshened once more, so the new mint refuses an uninstalled or
+ * suspended app the way it refuses any call, or brings a token GitHub
+ * accepts [CCRED-R18]. The row as it is now decides: a token another call
+ * stored meanwhile is used as it is.
+ */
+async function renewGithubAppToken(
+  sql: Sql,
+  credential: CredentialRow,
+  refused: string,
+  options: FreshenOptions,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  console.warn(
+    `[connector-credentials] GitHub turned away the GitHub App token of "${credential.connectorSlug}" credential ${credential.id} for organization ${credential.organizationId} (401); minting a new one`,
+  );
+  let row = credential;
+  for (let attempt = 1; ; attempt += 1) {
+    row = await requireGithubAppRow(sql, row.organizationId, row.id);
+    assertRowUsable(row);
+    const stored = openGithubAppEnvelope(row);
+    if (stored.accessToken !== refused) break;
+    const {
+      accessToken: _token,
+      expiresAt: _expiresAt,
+      ...withoutToken
+    } = stored;
+    const dropped = await storeGithubAppEnvelope(
+      sql,
+      row,
+      sealPayload(withoutToken),
+    );
+    if (dropped !== null) {
+      row = dropped;
+      break;
+    }
+    if (attempt >= OAUTH2_REFRESH_MAX_ATTEMPTS) {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_REFRESH_FAILED',
+        `Credential "${row.name}" changed while its GitHub App token was being minted — try again shortly.`,
+      );
+    }
+  }
+  return freshenRow(sql, row, openRowEnvelope(row), options);
+}
+
+/** How the live host renews a call's GitHub App token GitHub turned away:
+ * once, through {@link renewGithubAppToken} [CCRED-R18]. */
+function githubAppReauthorization(
+  sql: Sql,
+  row: CredentialRow,
+  refused: string,
+  options: FreshenOptions,
+): LiveHostReauthorization {
+  return {
+    hosts: [GITHUB_API_HOST],
+    renew: async () => {
+      const nowMs = Date.now();
+      const renewed = await renewGithubAppToken(sql, row, refused, options);
+      return githubAppAccess(renewed.row, renewed.payload, nowMs).authHeader;
+    },
+  };
+}
+
+/** A freshened GitHub App envelope's live token, its header and its
+ * installation — or the refusal of an envelope that holds none. */
+function githubAppAccess(
+  row: CredentialRow,
+  payload: ConnectorSecretPayload,
+  nowMs: number,
+): {
+  app: GithubAppPayload;
+  token: string;
+  authHeader: string;
+  installation: GithubAppInstallationRecord;
+} {
+  const authHeader =
+    payload.authMethod === 'github-app'
+      ? buildAuthHeader(payload, undefined, nowMs)
+      : undefined;
+  if (
+    payload.authMethod !== 'github-app' ||
+    payload.accessToken === undefined ||
+    payload.installation === undefined ||
+    authHeader === undefined
+  ) {
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_SHAPE_INVALID',
+      `Credential "${row.name}" does not carry a usable github-app payload — remove it and register the app again in Settings → Connectors.`,
+    );
+  }
+  return {
+    app: payload,
+    token: payload.accessToken,
+    authHeader,
+    installation: payload.installation,
+  };
+}
+
+/** An app with no installation to mint for: the credential is marked
+ * `needs-reauth` and the call refused — or, when the row changed under
+ * the verdict, the row as it is now decides. */
+async function refuseUninstalledGithubApp(
+  sql: Sql,
+  row: CredentialRow,
+  options: FreshenOptions,
+  attempt: number,
+  statusDetail: string,
+): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
+  if (!(await markNeedsReauth(sql, row, statusDetail))) {
+    return resolveAfterLostCas(sql, row, options, attempt);
+  }
+  throw needsReauthError(row.name, row.connectorSlug, statusDetail);
+}
+
+/** GitHub's refusal of an app's token, as the call's: a refusal the admin
+ * can act on says GitHub's reason; GitHub out of reach, or answering
+ * nonsense, is worth a retry. Logged without the token or the JWT. */
+function githubAppRefusal(
+  row: CredentialRow,
+  app: GithubAppPayload,
+  failure: GithubAppFailure,
+): ConnectorCredentialError {
+  console.warn(
+    `[connector-credentials] "${row.connectorSlug}" credential ${row.id} got no GitHub App token for organization ${row.organizationId}: ${failure.reason}${failure.status !== undefined ? ` (${failure.status})` : ''}`,
+  );
+  if (failure.reason === 'rejected') {
+    return new ConnectorCredentialError(
+      'CREDENTIAL_APP_REFUSED',
+      `Credential "${row.name}": GitHub refused the app "${app.slug}" a token (${failure.message}) — check the app's installation on GitHub, or register the app again in Settings → Connectors.`,
+    );
+  }
+  return new ConnectorCredentialError(
+    'CREDENTIAL_REFRESH_FAILED',
+    `Credential "${row.name}" needs a new GitHub App token and GitHub ${
+      failure.reason === 'unreachable'
+        ? 'could not be reached'
+        : 'answered without a usable one'
+    } — try again shortly.`,
+  );
+}
+
 /** Bring an active credential's access up to date before it is handed out:
  * an oauth2 grant is renewed, an app signing in as itself fetches its
- * token. Anything else passes through. */
+ * token, a GitHub App mints one. A typed secret passes through. */
 async function freshenRow(
   sql: Sql,
   row: CredentialRow,
   payload: ConnectorSecretPayload,
-  options: ResolveCredentialOptions,
+  options: FreshenOptions,
+  attempt = 1,
 ): Promise<{ row: CredentialRow; payload: ConnectorSecretPayload }> {
-  return payload.authMethod === 'client-credentials'
-    ? freshenClientCredentialsRow(sql, row, payload, options)
-    : freshenOauth2Row(sql, row, payload, options);
+  switch (payload.authMethod) {
+    case 'oauth2':
+      return freshenOauth2Row(sql, row, payload, options, attempt);
+    case 'client-credentials':
+      return freshenClientCredentialsRow(sql, row, payload, options);
+    case 'github-app':
+      return freshenGithubAppRow(sql, row, payload, options, attempt);
+    case 'api-key':
+    case 'bearer':
+    case 'basic':
+      return { row, payload };
+    default: {
+      const _exhaustive: never = payload;
+      return _exhaustive;
+    }
+  }
 }
 
 /**
  * Resolve one (org, connector[, credential]) selection to the material an
  * invocation runs with — the ONE decrypt seam. An expired oauth2 grant is
- * renewed on the way through ({@link freshenOauth2Row}), so what comes back
- * is always a live token or a coded refusal. Internal-only by contract:
- * callers keep the result out of logs and client responses.
+ * renewed on the way through ({@link freshenOauth2Row}), an app signing in
+ * as itself fetches its token and a GitHub App mints one
+ * ({@link freshenGithubAppRow}), so what comes back is always a live token
+ * or a coded refusal. Internal-only by contract: callers keep the result out
+ * of logs and client responses.
  */
 export async function resolveConnectorCredential(
   sql: Sql,
@@ -1898,6 +2968,9 @@ export async function resolveConnectorCredential(
 ): Promise<ResolvedConnectorCredential> {
   const loaded = await loadRowForResolve(sql, args);
   assertRowUsable(loaded);
+  // Taken before the freshen: a token it hands out outlives the skew from
+  // then on, so the header below never refuses it as due [CCRED-R18].
+  const nowMs = Date.now();
   const { row, payload } = await freshenRow(
     sql,
     loaded,
@@ -1911,6 +2984,7 @@ export async function resolveConnectorCredential(
   const authHeader = buildAuthHeader(
     payload,
     connector ? connectorBearerScheme(connector) : undefined,
+    nowMs,
   );
   return {
     credentialId: row.id,
@@ -1920,6 +2994,119 @@ export async function resolveConnectorCredential(
     config: row.config ?? {},
     ...(row.endpointUrl !== null ? { endpoint: row.endpointUrl } : {}),
     ...(authHeader !== undefined ? { authHeader } : {}),
+    // GitHub can turn an app's token away before its expiry — the app
+    // uninstalled or suspended, the token revoked: the live host renews it
+    // once instead of sending GitHub's 401 on for the hour [CCRED-R18].
+    ...(payload.authMethod === 'github-app' && payload.accessToken !== undefined
+      ? {
+          reauthorize: githubAppReauthorization(
+            sql,
+            row,
+            payload.accessToken,
+            options,
+          ),
+        }
+      : {}),
+  };
+}
+
+/** Where a GitHub App credential's app may act, as GitHub lists it now. */
+export interface GithubAppRepositoryListing {
+  account: string;
+  accountType: 'User' | 'Organization';
+  repositorySelection: 'all' | 'selected';
+  /** How many repositories the installation covers. */
+  totalCount: number;
+  /** The first hundred of them. */
+  repositories: { fullName: string; private: boolean; htmlUrl: string }[];
+  /** Whether the installation covers more than `repositories` lists. */
+  truncated: boolean;
+  /** The installation's settings page on GitHub, where repositories are
+   * added and removed. */
+  configureUrl: string;
+}
+
+/**
+ * The repositories a GitHub App credential's installation reaches, for the
+ * settings page: read with the installation token its calls use — reused,
+ * or minted through the same seam and refused the same way
+ * ({@link freshenGithubAppRow}) — so the page shows exactly what a call can
+ * reach. A credential of another method is not found; one not installed is
+ * refused as needing re-authorization.
+ */
+export async function listGithubAppRepositories(
+  sql: Sql,
+  args: { organizationId: string; credentialId: string; fetchImpl?: FetchLike },
+): Promise<GithubAppRepositoryListing> {
+  const loaded = await requireGithubAppRow(
+    sql,
+    args.organizationId,
+    args.credentialId,
+  );
+  assertRowUsable(loaded);
+  const options: FreshenOptions = {
+    ...(args.fetchImpl !== undefined && { fetchImpl: args.fetchImpl }),
+    mintFor: 'repository list',
+  };
+  const fetchImpl = args.fetchImpl ?? fetch;
+  let nowMs = Date.now();
+  let { row, payload } = await freshenRow(
+    sql,
+    loaded,
+    openGithubAppEnvelope(loaded),
+    options,
+  );
+  let access = githubAppAccess(row, payload, nowMs);
+  let listed = await listInstallationRepositories(access.token, fetchImpl);
+  if (!listed.ok && listed.status === 401) {
+    // GitHub turned the token away before its expiry: renewed once, as a
+    // call's is, so an uninstalled app shows as one [CCRED-R18].
+    nowMs = Date.now();
+    ({ row, payload } = await renewGithubAppToken(
+      sql,
+      row,
+      access.token,
+      options,
+    ));
+    access = githubAppAccess(row, payload, nowMs);
+    listed = await listInstallationRepositories(access.token, fetchImpl);
+  }
+  const { app, installation } = access;
+  if (!listed.ok) {
+    console.warn(
+      `[connector-credentials] "${row.connectorSlug}" credential ${row.id} could not list the repositories of GitHub App ${app.appId} for organization ${row.organizationId}: ${listed.reason}${listed.status !== undefined ? ` (${listed.status})` : ''}`,
+    );
+    if (listed.reason === 'rejected' || listed.reason === 'not_found') {
+      throw new ConnectorCredentialError(
+        'CREDENTIAL_APP_REFUSED',
+        `Credential "${row.name}": GitHub refused to list the repositories of "${app.slug}" (${listed.message}) — check the app's installation on GitHub.`,
+      );
+    }
+    throw new ConnectorCredentialError(
+      'CREDENTIAL_REFRESH_FAILED',
+      `Credential "${row.name}": GitHub ${
+        listed.reason === 'unreachable'
+          ? 'could not be reached'
+          : 'answered without a usable list'
+      } for the repositories of "${app.slug}" — try again shortly.`,
+    );
+  }
+  const repositories = listed.value.repositories.map((repo) => ({
+    fullName: repo.fullName,
+    private: repo.private,
+    htmlUrl: repo.htmlUrl,
+  }));
+  return {
+    account: installation.account,
+    accountType: installation.accountType,
+    repositorySelection: installation.repositorySelection,
+    totalCount: listed.value.totalCount,
+    repositories,
+    truncated: listed.value.totalCount > repositories.length,
+    configureUrl:
+      installation.accountType === 'Organization'
+        ? `https://github.com/organizations/${encodeURIComponent(installation.account)}/settings/installations/${installation.id}`
+        : `https://github.com/settings/installations/${installation.id}`,
   };
 }
 

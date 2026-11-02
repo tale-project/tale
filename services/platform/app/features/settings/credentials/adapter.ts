@@ -270,12 +270,15 @@ export interface CredentialAdapter<
   Consent?: ComponentType<CredentialConsentProps<V>>;
   /**
    * Badge label for a credential's state, or `null` for the healthy one. A
-   * healthy credential needs no marker.
+   * healthy credential needs no marker. Given the whole credential, as what
+   * a state means can hang on more than the state: a GitHub App not
+   * installed yet reports the same `needs-reauth` as one whose installation
+   * was removed.
    */
-  statusLabel: (t: Translator, status: string) => string | null;
+  statusLabel: (t: Translator, credential: Cred) => string | null;
   /** Badge tone for a non-healthy state — attention colour only where a
    *  human has to act. */
-  statusTone: (status: string) => 'slate' | 'orange';
+  statusTone: (credential: Cred) => 'slate' | 'orange';
   /**
    * A second line under the row's name explaining an unhealthy state and what
    * fixes it.

@@ -16,7 +16,7 @@ Nutze einen Connector, wenn Tale Daten in einem externen Dienst lesen oder ände
 | Confluence | Confluence-Cloud-Seiten ins Wissen importieren. | Benutzername mit Passwort oder Token. |
 | Discord | Mit Nachrichten und Kanälen arbeiten. | Token. |
 | Forgejo | Repositorys, Issues und Pull Requests einer Forgejo-Instanz lesen oder verwalten und daraus Aufgaben machen. | Token und eine Instanz-URL. |
-| GitHub | Repositorys, Issues und Pull Requests lesen oder verwalten und Sicherheitswarnungen lesen, damit die Issue-Synchronisierung daraus Aufgaben macht. | Token. |
+| GitHub | Repositorys, Issues und Pull Requests lesen oder verwalten und Sicherheitswarnungen lesen, damit die Issue-Synchronisierung daraus Aufgaben macht. | Token oder eine [GitHub App](/de/platform/admin/connectors#github-mit-einer-github-app-verbinden), die als eigener Bot handelt. |
 | GlitchTip | Issues eines Projekts lesen, damit der GlitchTip-Import daraus Aufgaben anlegt. | Token und eine Instanz-URL. |
 | Gmail | E-Mails lesen, senden und organisieren. | OAuth. |
 | Google Drive | Dateien ins Wissen importieren. | OAuth. |

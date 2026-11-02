@@ -138,8 +138,13 @@ A connector can support several methods; a stored credential uses exactly one.
 | `basic`   | Username & password | A username and password sent as HTTP Basic, which is also the shape a mailbox login takes.       |
 | `oauth2`  | OAuth               | An authorization-code grant: access token, refresh token, expiry, and the granted scopes.        |
 | `client-credentials` | App sign-in | The organization's own app registration: client ID and secret, plus the directory (tenant) ID when the token URL names `{tenantId}`. Tale requests the access token for the declared `scopes` and renews it before it expires. |
+| `github-app` | GitHub App | The organization's own GitHub App, registered from **Settings > Connectors** through GitHub's manifest flow: its app ID, client ID, slug and private key, and the installation it was given. Tale signs a JWT with the key, mints an installation token and sends it as the Authorization header. |
 
 An `oauth2` method can declare `configScopes`: extra scopes the consent asks for only when the credential sets the named `configFields` key: the settings entered beside **Connect** for a new credential, or the stored ones of a credential being reconnected. Outlook asks for its shared-mailbox permissions this way, because a personal Microsoft account cannot grant them.
+
+A `github-app` method declares `permissions`: GitHub's names for repository permissions, each mapped to `read` or `write`, such as `contents: write` or `metadata: read`. The app's manifest asks for exactly these, and each installation token is narrowed to them and to what the installation grants. Such a connector must list `api.github.com` in `allowedHosts`. A token lasts an hour, and Tale reuses it until a minute before it expires. If `api.github.com` turns a token away before then (401), as after an uninstall, the host mints a new one and sends the request once more; the body gets that second answer, whatever it is. If Tale can't mint one, the call fails; it never falls back to another credential. The host owns the Authorization header and drops one an action body sets, so neither a body nor an agent sandbox holds the token or the private key.
+
+A live body reads the resolved method from `ctx.authMethod`: `bearer`, `oauth2`, `github-app` and so on, or `none` when the call carries no credential. Branch on it only where an endpoint answers one kind of token. An installation token has no user, so GitHub's `list_repos` reads `/installation/repositories` instead of `/user/repos`. A test's fake context may leave `ctx.authMethod` unset.
 
 The internal `platform` method has no stored credential and cannot be combined with vendor methods. It is reserved for native platform capabilities such as task and document actions.
 
@@ -173,6 +178,19 @@ Personal OneDrive/Google Drive knowledge imports are a separate flow. Google Dri
 Slack's app is deployment-only: `CONNECTOR_OAUTH_SLACK_*` and `CONNECTOR_SLACK_SIGNING_SECRET`. Its incoming event must be verified before Tale knows the organization, so an organization app cannot supply this secret.
 
 Register `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` as the Events Request URL. Without the signing secret, even the registration handshake returns `503`. With valid configuration, Tale verifies signatures and identifies the organization from the Slack workspace. The endpoint currently acknowledges events; it does not turn inbound Slack messages into conversations or automatically run an automation.
+
+## Registering a GitHub App
+
+There is no deployment-wide GitHub App: each organization registers its own from **Settings > Connectors**, and GitHub returns the admin's browser to these two addresses:
+
+```text
+${SITE_URL}${BASE_PATH}/api/connectors/github-app/registered
+${SITE_URL}${BASE_PATH}/api/connectors/github-app/installed
+```
+
+The first receives the new app once GitHub has created it; the second follows each installation and each change of its repositories. Tale puts both into the app's manifest, so nothing needs to be registered by hand. Only the browser follows them: the app has no active webhook, so GitHub never calls Tale, but the admin's browser must reach Tale at `SITE_URL`. Tale refuses to start a registration when `SITE_URL` is missing. On a loopback address, the manifest leaves out the inactive webhook entry, because GitHub refuses a loopback hook URL. If the deployment's address changes later, update the app's **Setup URL** in its settings on GitHub.
+
+The [credential guide](/platform/admin/connectors#connect-github-with-a-github-app) walks through registering, installing and disconnecting the app.
 
 ## Choosing a surface
 

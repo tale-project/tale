@@ -47,7 +47,11 @@ import { codeRunner, type CodeRunner } from '../engine/core/runner';
 import type { ConnectorContext } from '../engine/core/slots';
 import { closestName } from '../engine/core/validate/similar';
 import { ConnectorError } from './errors';
-import { createLiveHost, type ConnectorBlobSink } from './live-host';
+import {
+  createLiveHost,
+  type ConnectorBlobSink,
+  type LiveHostReauthorization,
+} from './live-host';
 import {
   buildPortableLiveCode,
   type PortableHostCall,
@@ -177,6 +181,9 @@ export interface ResolvedCredential {
   config?: Record<string, string | number | boolean>;
   /** Pre-built Authorization header; absent for `api-key` connectors. */
   authHeader?: string;
+  /** How the host renews `authHeader` when the vendor turns it away before
+   * its expiry — a GitHub App's token; absent for every other method. */
+  reauthorize?: LiveHostReauthorization;
 }
 
 export type ApprovalDecision =
@@ -876,6 +883,7 @@ export async function executeConnectorAction(
       const portableCtx: PortableLiveCtxData = {
         secrets: credential.secrets,
         config: credential.config ?? {},
+        authMethod: credential.authMethod,
         ...(credential.endpoint !== undefined && {
           endpoint: credential.endpoint,
         }),
@@ -924,6 +932,9 @@ export async function executeConnectorAction(
         ...(credential.authHeader !== undefined && {
           authHeader: credential.authHeader,
         }),
+        ...(credential.reauthorize !== undefined && {
+          reauthorize: credential.reauthorize,
+        }),
         ...(ctx.blobs !== undefined && { blobs: ctx.blobs }),
         ...(hostSignal !== undefined && { signal: hostSignal }),
       });
@@ -931,6 +942,7 @@ export async function executeConnectorAction(
       const connectorCtx: ConnectorContext = {
         secrets: { get: (name: string) => credential.secrets[name] ?? '' },
         idempotencyKey,
+        authMethod: credential.authMethod,
         ...host,
       };
 

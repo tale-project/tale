@@ -22,7 +22,10 @@
  *    resolves it; a body can neither read it nor override it, so a body cannot
  *    aim the org's token at a host of its choosing or swap in one of its own.
  *    `api-key` connectors get no header at all — their secret arrives through
- *    `ctx.secrets` and the body places it where the vendor expects.
+ *    `ctx.secrets` and the body places it where the vendor expects. A token
+ *    the vendor can revoke before its expiry (a GitHub App's) comes with a
+ *    renewal: a 401 from the vendor renews it once and resends the request
+ *    once ({@link LiveHostReauthorization}).
  *
  * The wire call goes through `safeFetch`, the platform's audited outbound
  * client: it caps the body size, bounds the whole exchange with one timeout,
@@ -83,6 +86,20 @@ export interface ConnectorBlobSink {
   }>;
 }
 
+/**
+ * How the host renews a token the vendor turned away before its expiry — a
+ * GitHub App's installation token, once the app was uninstalled or
+ * suspended or the token revoked. The credentials domain supplies it with
+ * the header it resolved.
+ */
+export interface LiveHostReauthorization {
+  /** The hosts whose 401 means the injected token was refused. */
+  readonly hosts: readonly string[];
+  /** The Authorization value to send the refused request again with, or a
+   * refusal saying why there is none. */
+  renew(): Promise<string>;
+}
+
 export interface LiveHostOptions {
   connector: LiveHostConnector;
   /**
@@ -96,6 +113,17 @@ export interface LiveHostOptions {
    * verbatim. Absent for `api-key` connectors.
    */
   authHeader?: string;
+  /**
+   * Renews `authHeader` when one of its hosts answers 401: the refused
+   * request is sent once more with the renewed value — a 401 means the
+   * vendor did nothing, so a write is as safe to resend as a read — and that
+   * answer is the body's, whatever it is. The host renews at most once:
+   * requests that went out with the refused value share the renewal, and a
+   * 401 to the renewed value reaches the body as it is. A renewal that
+   * fails refuses the request with its reason (`CREDENTIAL_UNRESOLVED`);
+   * nothing else is sent, with another credential or with none.
+   */
+  reauthorize?: LiveHostReauthorization;
   /** The connector's non-secret per-credential settings, already defaulted
    * and type-coerced. Passed through to the body as `ctx.config`. */
   config?: Record<string, string | number | boolean>;
@@ -305,6 +333,7 @@ export function createLiveHost(
   const {
     connector,
     authHeader,
+    reauthorize,
     blobs,
     action,
     timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -323,10 +352,16 @@ export function createLiveHost(
     endpoint = checked.origin;
   }
 
+  /** The Authorization requests carry: the resolved one, until a renewal
+   * replaces it. */
+  let authorization = authHeader;
+  /** The one renewal this host makes, started by the first refusal. */
+  let renewal: Promise<void> | undefined;
+
   /**
-   * Merge the body's headers with the host's. The Authorization header is
-   * host-owned: a body-supplied one is dropped (and noted) rather than merged,
-   * so no body can substitute or strip the org's credential.
+   * The body's headers, without an Authorization of its own: that header is
+   * host-owned, so a body-supplied one is dropped (and noted) rather than
+   * merged, and no body can substitute or strip the org's credential.
    */
   function buildHeaders(
     supplied: Record<string, string> | undefined,
@@ -341,10 +376,62 @@ export function createLiveHost(
       }
       headers[name] = value;
     }
-    if (authHeader !== undefined && authHeader !== '') {
-      headers.Authorization = authHeader;
-    }
     return headers;
+  }
+
+  /** `headers` with the host's Authorization as it stands now. */
+  function authorize(headers: Record<string, string>): Record<string, string> {
+    return authorization !== undefined && authorization !== ''
+      ? { ...headers, Authorization: authorization }
+      : headers;
+  }
+
+  /** Renew the refused Authorization, or refuse the request with why it
+   * cannot be. */
+  async function renewAuthorization(
+    hook: LiveHostReauthorization,
+  ): Promise<void> {
+    try {
+      authorization = await hook.renew();
+    } catch (cause) {
+      if (cause instanceof ConnectorError) throw cause;
+      throw new ConnectorError(
+        'CREDENTIAL_UNRESOLVED',
+        `no usable credential for ${connector.name}: ${cause instanceof Error ? cause.message : String(cause)}`,
+        { connector: connector.name, action, cause },
+      );
+    }
+  }
+
+  /**
+   * Send one request with the current Authorization; when a host the
+   * renewal names answers 401, renew it — once for every request, see
+   * {@link LiveHostOptions.reauthorize} — and send the request once more.
+   */
+  async function sendAuthorized<
+    T extends { readonly status: number; readonly finalUrl: string },
+  >(
+    headers: Record<string, string>,
+    send: (sent: Record<string, string>) => Promise<T>,
+  ): Promise<T> {
+    const used = authorization;
+    const answer = await send(authorize(headers));
+    if (
+      reauthorize === undefined ||
+      answer.status !== 401 ||
+      !reauthorize.hosts.some(
+        (host) =>
+          normalizeHost(host) ===
+          normalizeHost(new URL(answer.finalUrl).hostname),
+      )
+    ) {
+      return answer;
+    }
+    renewal ??= renewAuthorization(reauthorize);
+    await renewal;
+    // Already sent with the renewed value: no third try.
+    if (authorization === used) return answer;
+    return send(authorize(headers));
   }
 
   /** Every hop of a redirect chain is confined to the connector's allowlist
@@ -365,16 +452,19 @@ export function createLiveHost(
 
     try {
       if (wantsBase64) {
-        const response = await safeFetchBinary(target.toString(), {
-          method,
-          headers,
-          body: req?.body,
-          timeoutMs,
-          maxResponseBytes: maxDownloadBytes,
-          allowedHosts: [...connector.allowedHosts],
-          ...stop,
+        const response = await sendAuthorized(headers, async (sent) => {
+          const answer = await safeFetchBinary(target.toString(), {
+            method,
+            headers: sent,
+            body: req?.body,
+            timeoutMs,
+            maxResponseBytes: maxDownloadBytes,
+            allowedHosts: [...connector.allowedHosts],
+            ...stop,
+          });
+          checkFinalUrl(answer.finalUrl);
+          return answer;
         });
-        checkFinalUrl(response.finalUrl);
         const bytes = Buffer.from(await response.body.arrayBuffer());
         return toConnectorResponse(
           response.status,
@@ -382,16 +472,19 @@ export function createLiveHost(
           bytes.toString('base64'),
         );
       }
-      const response = await safeFetch(target.toString(), {
-        method,
-        headers,
-        body: req?.body,
-        timeoutMs,
-        maxResponseBytes,
-        allowedHosts: [...connector.allowedHosts],
-        ...stop,
+      const response = await sendAuthorized(headers, async (sent) => {
+        const answer = await safeFetch(target.toString(), {
+          method,
+          headers: sent,
+          body: req?.body,
+          timeoutMs,
+          maxResponseBytes,
+          allowedHosts: [...connector.allowedHosts],
+          ...stop,
+        });
+        checkFinalUrl(answer.finalUrl);
+        return answer;
       });
-      checkFinalUrl(response.finalUrl);
       return toConnectorResponse(
         response.status,
         headerRecord(response.headers),
@@ -422,19 +515,22 @@ export function createLiveHost(
           const headers = buildHeaders(opts.headers);
           let response;
           try {
-            response = await safeFetchBinary(target.toString(), {
-              method: 'GET',
-              headers,
-              timeoutMs,
-              maxResponseBytes: maxDownloadBytes,
-              allowedHosts: [...connector.allowedHosts],
-              ...stop,
+            response = await sendAuthorized(headers, async (sent) => {
+              const answer = await safeFetchBinary(target.toString(), {
+                method: 'GET',
+                headers: sent,
+                timeoutMs,
+                maxResponseBytes: maxDownloadBytes,
+                allowedHosts: [...connector.allowedHosts],
+                ...stop,
+              });
+              checkFinalUrl(answer.finalUrl);
+              return answer;
             });
           } catch (error) {
             if (error instanceof ConnectorError) throw error;
             throw asConnectorError(error, connector, action, target);
           }
-          checkFinalUrl(response.finalUrl);
           if (response.status < 200 || response.status >= 300) {
             throw new ConnectorError(
               'REQUEST_FAILED',

@@ -28,6 +28,7 @@ import {
   deleteCredential,
   getCredential,
   listCredentials,
+  listGithubAppRepositories,
   setDefaultCredential,
   updateCredential,
 } from './service.ts';
@@ -259,6 +260,22 @@ export function createConnectorCredentialRoutes(deps: {
     try {
       return c.json(
         await getCredential(deps.sql, c.get('orgId'), c.req.param('id')),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Where a GitHub App credential's app acts: its installation's account and
+  // repositories as GitHub lists them now, read with the token its calls
+  // use. Readable by every member, as the credential is.
+  app.get('/:id/github-app/repositories', async (c) => {
+    try {
+      return c.json(
+        await listGithubAppRepositories(deps.sql, {
+          organizationId: c.get('orgId'),
+          credentialId: c.req.param('id'),
+        }),
       );
     } catch (error) {
       return handleError(c, error);

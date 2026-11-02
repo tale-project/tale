@@ -7,6 +7,47 @@
  * actually serve them.
  */
 
+/** Where a `github-app` credential's app is installed, as GitHub reported it
+ * when it was installed or its repositories last changed. */
+export interface GithubAppInstallation {
+  id: number;
+  /** The account (person or organization) the app is installed on. */
+  account: string;
+  accountType: 'User' | 'Organization';
+  /** Every repository of the account, or the ones the installer chose. */
+  repositorySelection: 'all' | 'selected';
+}
+
+/** A `github-app` credential's app: its public identity, never its key. */
+export interface GithubAppSummary {
+  appId: number;
+  clientId: string;
+  /** The app's page is `https://github.com/apps/<slug>`. */
+  slug: string;
+  /** The account (person or organization) that owns the app, when GitHub
+   * named it. */
+  owner?: string;
+  /** The id of the app's bot user, when GitHub told it. */
+  botId?: number;
+  /** Absent until someone installs the app. */
+  installation?: GithubAppInstallation;
+}
+
+/** `GET /api/app/connector-credentials/:id/github-app/repositories`: what a
+ * `github-app` credential's installation reaches, read live from GitHub. */
+export interface GithubAppRepositories {
+  account: string;
+  accountType: 'User' | 'Organization';
+  repositorySelection: 'all' | 'selected';
+  /** Every repository the installation reaches, listed or not. */
+  totalCount: number;
+  repositories: Array<{ fullName: string; private: boolean; htmlUrl: string }>;
+  /** Set when `repositories` lists fewer than `totalCount`. */
+  truncated: boolean;
+  /** The installation's settings page on GitHub. */
+  configureUrl: string;
+}
+
 export interface ConnectorCredentialsContract {
   'connector_credentials/actions:createCredential': {
     kind: 'action';
@@ -86,7 +127,12 @@ export interface ConnectorCredentialsContract {
         required: boolean;
         /** Required only for a credential of these sign-in methods. */
         requiredFor?: Array<
-          'oauth2' | 'api-key' | 'bearer' | 'basic' | 'client-credentials'
+          | 'oauth2'
+          | 'api-key'
+          | 'bearer'
+          | 'basic'
+          | 'client-credentials'
+          | 'github-app'
         >;
         /** Set when the credential is added; an edit cannot change it. */
         fixed?: boolean;
@@ -107,12 +153,20 @@ export interface ConnectorCredentialsContract {
         >;
       }>;
       authMethods: Array<
-        'oauth2' | 'api-key' | 'bearer' | 'basic' | 'client-credentials'
+        | 'oauth2'
+        | 'api-key'
+        | 'bearer'
+        | 'basic'
+        | 'client-credentials'
+        | 'github-app'
       >;
       actionCount: number;
       /** Connectors an app can sign in to as itself only: whether that
        * sign-in names the app's directory (tenant) ID. */
       clientCredentialsTenant?: boolean;
+      /** Connectors offering `github-app` only: the repository permissions
+       * the organization's GitHub App asks for, by GitHub's own names. */
+      githubAppPermissions?: Record<string, 'read' | 'write'>;
       /** OAuth2 connectors only: whether an app is available to consent
        * against, where it comes from (org row beats deployment env), and
        * whether this organization could register one itself — a
@@ -207,6 +261,8 @@ export interface ConnectorCredentialsContract {
       maskedPreview?: string;
       /** `client-credentials`: the app it signs in as — not secret. */
       clientApp?: { tenantId?: string; clientId: string };
+      /** `github-app`: the organization's app and where it is installed. */
+      githubApp?: GithubAppSummary;
       config?: Record<string, string | number | boolean>;
       endpointUrl?: string;
       id: string;
@@ -216,7 +272,8 @@ export interface ConnectorCredentialsContract {
         | 'api-key'
         | 'bearer'
         | 'basic'
-        | 'client-credentials';
+        | 'client-credentials'
+        | 'github-app';
       name: string;
       /** On the default only: who deleting it makes the default, or null. */
       defaultSuccessor?: { id: string; name: string } | null;

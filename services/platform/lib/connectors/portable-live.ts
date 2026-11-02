@@ -8,10 +8,10 @@
  * PLAIN DATA ({@link PortableLiveCtxData}) and the code ships with a PRELUDE
  * that rebuilds the body-facing façade inside the sandbox:
  *
- *  - `secrets.get` / `config` / `endpoint` / `idempotencyKey` come straight
- *    from the data (the dispatcher resolved them server-side; a body places
- *    secret values itself, so they were always going to be present in the
- *    run's memory);
+ *  - `secrets.get` / `config` / `authMethod` / `endpoint` / `idempotencyKey`
+ *    come straight from the data (the dispatcher resolved them server-side; a
+ *    body places secret values itself, so they were always going to be
+ *    present in the run's memory);
  *  - `http.*` stays PLATFORM-MEDIATED: each verb round-trips to the
  *    `/api/connectors/hostcall` endpoint (bearer: a one-run capability
  *    token), where the real live host enforces the connector allowlist,
@@ -37,6 +37,8 @@ export interface PortableHostCall {
 export interface PortableLiveCtxData {
   secrets: Record<string, string>;
   config: Record<string, string | number | boolean>;
+  /** The resolved credential's auth method (see `ConnectorContext`). */
+  authMethod?: string;
   endpoint?: string;
   idempotencyKey?: string;
   hostCall: PortableHostCall;
@@ -93,6 +95,7 @@ const PORTABLE_CTX_PRELUDE = `ctx = (function (d) {
       },
     },
     config: d.config || {},
+    authMethod: d.authMethod,
     endpoint: d.endpoint,
     idempotencyKey: d.idempotencyKey,
     http: {

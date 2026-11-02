@@ -25,6 +25,7 @@ Le connector détermine les champs. Utilise les identifiants du compte externe, 
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 | Connexion de l'app | L’enregistrement d’application propre à ton organisation chez le fournisseur : son ID d’annuaire (tenant), son ID d’application (client) et son secret client. L’application se connecte elle-même, sans personne ; Tale obtient et renouvelle son jeton d’accès. Outlook s’en sert pour accéder à une [boîte aux lettres partagée](#connecter-une-boite-aux-lettres-outlook-partagee). |
+| GitHub App | Un nom pour les identifiants et un pour l’application, et, si tu le souhaites, l’organisation GitHub à laquelle elle appartient. Tale enregistre la GitHub App propre à ton organisation et conserve sa clé privée ; ce que Tale crée sur GitHub apparaît ensuite sous le bot de l’application. Voir [Connecter GitHub avec une GitHub App](#connecter-github-avec-une-github-app). |
 
 Certains connectors demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour Forgejo, utilise l’origine de l’instance sans chemin, par exemple `https://codeberg.org`, et pour GlitchTip l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance Forgejo ou GlitchTip auto-hébergée doit aussi être autorisée par la politique des hôtes du connector. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
@@ -84,6 +85,93 @@ Pour une boîte d’équipe, la connexion de l’app convient mieux : elle ne d�
 Quand le secret client expire, remplace-le avec **Remplacer les identifiants de l'app** dans le menu de la ligne. Le formulaire s’ouvre avec l’ID d’annuaire et l’ID d’application déjà remplis : tu ne saisis que le nouveau secret client. Les identifiants gardent leur nom, leur boîte et leurs références.
 
 Si c’est une personne qui gère la boîte, sélectionne **Ajouter des identifiants**, puis **Microsoft Outlook**. Dans l’encadré au-dessus du formulaire, saisis l’adresse partagée sous **Boîte aux lettres**, puis sélectionne **Connecter** et connecte-toi en tant que cette personne. Comme une boîte est indiquée, l’écran de consentement demande aussi l’accès aux boîtes que ce compte peut ouvrir, et les nouveaux identifiants travaillent dans la boîte partagée dès la première synchronisation. La personne a besoin d’un accès complet à la boîte et, pour envoyer, de l’autorisation « Envoyer en tant que ». Laisse **Boîte aux lettres** vide pour connecter la boîte de la personne elle-même.
+
+## Connecter GitHub avec une GitHub App
+
+Avec un token d’accès personnel, tout ce que Tale crée sur GitHub apparaît sous le compte de la personne à qui appartient le token. Une GitHub App donne à Tale sa propre identité : ton organisation enregistre son application depuis Tale et l’installe sur les dépôts où Tale doit travailler. Les actions GitHub de Tale pour les issues, les pull requests, les revues, les commentaires, les fusions et les imports s’authentifient alors avec des jetons d’installation que Tale génère au besoin. Chacun est valable une heure et ne porte que les permissions listées plus bas. Ce que Tale crée apparaît sous le bot de l’application, `<app-slug>[bot]`, avec le nom et le logo de l’application, et non sous le compte d’une personne.
+
+L’application est facultative, et les identifiants à token continuent de fonctionner sans changement. Seuls les propriétaires et les admins l’enregistrent, l’installent ou la modifient.
+
+<Note>
+
+Les exécutions d’agent ne reçoivent pas encore le jeton de l’application. `git` et `gh` dans la sandbox d’une exécution utilisent toujours des identifiants à token : les commits qu’un agent pousse depuis sa sandbox apparaissent donc sous le compte de ce token, et non sous le bot de l’application. L’issue [#5295](https://github.com/tale-project/tale/issues/5295) suit le travail qui donnera aux exécutions un jeton d’installation à chaque tour et l’identité du bot de l’application.
+
+</Note>
+
+### Enregistrer l’application
+
+1. Sélectionne **Ajouter des identifiants**, puis **GitHub**. Au-dessus du formulaire de jeton, un encadré à part enregistre l’application et liste les permissions qu’elle demande à GitHub. Un membre qui n’est ni propriétaire ni admin n’y voit qu’une note l’invitant à s’adresser à un admin.
+2. Vérifie **Nom des identifiants** et **Nom de l’app sur GitHub**. Le nom des identifiants est prérempli avec le nom du connector, numéroté comme les autres : `GitHub`, puis `GitHub 2`. Le nom de l’application est prérempli avec Tale suivi du nom de ton organisation. Il compte au plus 34 caractères et doit être unique sur GitHub ; le nom du bot en découle.
+3. Sous **Organisation GitHub**, saisis le login de l’organisation GitHub dont Tale doit atteindre les dépôts. Tu dois être propriétaire de cette organisation. Laisse le champ vide pour enregistrer plutôt l’application sur ton compte GitHub personnel. L’application est privée, et GitHub n’installe une application privée que sur le compte qui la possède : enregistre-la donc sur le compte auquel appartiennent les dépôts.
+4. Sélectionne **Enregistrer sur GitHub**. GitHub affiche l’application qu’il va créer et les permissions qu’elle demande ; si le nom est déjà pris, tu peux le modifier à cet endroit. Sélectionne **Create GitHub App** : GitHub ouvre alors la page d’installation de l’application, décrite dans la section suivante.
+
+Termine les étapes sur GitHub en moins de 15 minutes. Tale ne finalise un enregistrement qu’une fois, et seulement pour l’admin qui l’a commencé ; passé 15 minutes, recommence l’enregistrement.
+
+L’application n’a pas de webhook et ne demande aucune autorisation OAuth lors de son installation. GitHub crée avec elle une clé privée, que Tale stocke chiffrée et n’affiche jamais : la clé n’apparaît ni dans un journal, ni dans une réponse d’API, ni dans une sandbox d’agent. Tale ne conserve ni le secret client ni le secret de webhook que GitHub délivre aussi.
+
+Il n’existe pas d’application Tale partagée : chaque organisation enregistre la sienne, sur chaque déploiement. GitHub renvoie ton navigateur vers l’adresse publique de Tale : ouvre donc Tale à cette adresse quand tu enregistres et installes l’application. GitHub lui-même n’appelle jamais Tale. Le [guide développeur des connectors](/fr/develop/connectors#enregistrer-une-github-app) indique les adresses vers lesquelles GitHub revient.
+
+### L’installer sur des dépôts choisis
+
+Sur la page d’installation de GitHub, choisis le compte, sélectionne **Only select repositories**, choisis les dépôts où Tale doit travailler, puis sélectionne **Install**. GitHub te ramène dans Tale, où la ligne des identifiants renvoie vers l’application sur GitHub et affiche **Installée sur** suivi du compte. Sélectionne **Afficher les dépôts** dans cette ligne pour ouvrir **Dépôts accessibles à cette app**, qui liste les dépôts et signale les dépôts privés par **Privé**. Comme toute GitHub App, l’application peut aussi lire les dépôts publics.
+
+Tant que l’application n’est pas installée, la ligne porte le badge **Non installée** et affiche **Enregistrée sur GitHub, pas encore installée.**, et les actions GitHub de Tale ne peuvent pas utiliser les identifiants. Si tu as quitté GitHub avant l’installation, ou si tu as mis plus de 15 minutes, sélectionne **Installer sur GitHub** dans le menu de la ligne pour continuer. Si GitHub demande plutôt à un propriétaire de l’organisation d’approuver l’installation, sélectionne de nouveau **Installer sur GitHub** une fois qu’il l’a approuvée. Tale trouve alors l’installation sur GitHub et la reprend sans t’y envoyer. Il fait de même quand quelqu’un, par exemple un propriétaire, a installé l’application directement sur GitHub.
+
+Si l’application est désinstallée sur GitHub, Tale s’en aperçoit la prochaine fois qu’il l’utilise. La ligne porte alors le badge **Plus installée** et affiche **Plus installée sur** suivi du compte, et les actions GitHub de Tale ne peuvent plus utiliser les identifiants tant que tu n’as pas sélectionné **Installer sur GitHub** et réinstallé l’application.
+
+Si tu choisis **All repositories**, l’application atteint chaque dépôt du compte, y compris ceux ajoutés plus tard, et **Dépôts accessibles à cette app** le signale par un avertissement. Pour restreindre l’accès, sélectionne **Ouvrir sur GitHub** dans l’avertissement, puis **Only select repositories**.
+
+Si le connector a déjà des identifiants par défaut, sélectionne **Définir par défaut** dans le menu des identifiants de l’application, pour que les actions qui n’en nomment pas utilisent l’application.
+
+### Téléverser le logo
+
+GitHub ne peut pas reprendre de logo lors de l’enregistrement : une nouvelle application affiche donc un motif généré. Pour que le logo de Tale apparaisse à côté de ce que l’application crée, téléverse-le sur GitHub :
+
+1. Télécharge le logo de Tale depuis ton adresse Tale, à `/assets/pwa-512x512.png`, ou prends `services/platform/public/assets/pwa-512x512.png` dans le code source de Tale.
+2. Sur GitHub, sélectionne ta photo de profil, puis **Settings**. Pour une application qui appartient à une organisation, sélectionne plutôt **Your organizations**, puis les **Settings** de l’organisation. Sélectionne ensuite **Developer settings**, **GitHub Apps** et **Edit** à côté de l’application.
+3. Sous « Display information », sélectionne **Upload a logo** et choisis le fichier. Recadre-le si besoin, puis sélectionne **Set new avatar**.
+
+GitHub accepte un PNG, un JPG ou un GIF de moins de 1 Mo et recommande 200 × 200 pixels. Le logo de Tale est un PNG de 512 × 512 pixels d’environ 3 Ko.
+
+### Les permissions de l’application
+
+L’application ne demande que des permissions de dépôt, chacune pour ce que font les actions GitHub de Tale :
+
+| Permission | Niveau | À quoi elle sert |
+| --- | --- | --- |
+| Metadata | Lecture seule | Exigée par GitHub ; lister et lire les dépôts |
+| Contents | Lecture et écriture | Fusionner des pull requests, lire des commits, chercher dans le code |
+| Issues | Lecture et écriture | Créer, modifier, étiqueter et commenter des issues ; les lire et les importer |
+| Pull requests | Lecture et écriture | Créer des pull requests, en faire la revue et les commenter ; les lire avec leurs fichiers et leurs diffs |
+| Code scanning alerts (`security_events`) | Lecture seule | Importer les alertes de sécurité |
+| Dependabot alerts (`vulnerability_alerts`) | Lecture seule | Importer les alertes de sécurité |
+| Secret scanning alerts (`secret_scanning_alerts`) | Lecture seule | Importer les alertes de sécurité |
+
+Elle ne demande aucune permission d’administration ni de workflows, et aucune permission d’organisation ou de compte.
+
+<Warning>
+
+Sans la permission workflows, l’application ne peut pas modifier les fichiers sous `.github/workflows/`, et GitHub refuse de fusionner par l’application une pull request qui en modifie un. L’accorder sur GitHub permettrait à tout ce qui détient un jeton de l’application de modifier ta CI : ne l’ajoute que délibérément.
+
+</Warning>
+
+### Modifier les dépôts
+
+Sélectionne **Modifier les dépôts** dans le menu des identifiants, ou en bas de **Dépôts accessibles à cette app**, pour ouvrir les paramètres d’installation de l’application sur GitHub. Sous « Repository access », ajoute ou retire des dépôts, puis sélectionne **Save**. GitHub te ramène dans Tale, et **Dépôts accessibles à cette app** liste les dépôts que l’application atteint désormais.
+
+Tu peux aussi ouvrir les paramètres d’installation directement sur GitHub. Pour une organisation, ouvre ses **Settings**, sélectionne **GitHub Apps** sous « Third-party Access », puis **Configure** à côté de l’application. Pour ton compte personnel, ouvre **Settings**, puis **Applications**, **Installed GitHub Apps** et **Configure**. Après une modification faite là, GitHub te ramène aussi dans Tale. Si ce navigateur est connecté à Tale en tant que propriétaire ou admin de ton organisation, Tale enregistre un passage entre tous les dépôts et des dépôts choisis, mais pas une modification qui ne change que les dépôts choisis.
+
+### Déconnecter ou revenir à un jeton
+
+Pour déconnecter, sélectionne **Supprimer** dans le menu des identifiants ; le journal d’audit enregistre la suppression. Tale laisse l’application sur GitHub : retire-la donc aussi là-bas. **Uninstall**, dans ses paramètres d’installation, la retire du compte, et **Delete GitHub App**, sous **Advanced** dans les paramètres de l’application, la supprime avec toutes ses installations.
+
+Les identifiants d’une GitHub App n’ont ni action de remplacement ni **Reconnecter**. Pour repartir de zéro, par exemple avec une nouvelle clé privée, supprime les identifiants et l’application, puis enregistres-en une nouvelle.
+
+Pour revenir à un jeton, ajoute des identifiants GitHub avec la méthode **Jeton**, puis sélectionne **Définir par défaut** dans leur menu.
+
+### Ce que le journal d’audit enregistre
+
+Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre qui a connecté, modifié et déconnecté l’application, et quand, avec l’ID de l’application. L’entrée de chaque installation, et de chaque modification que Tale enregistre quand GitHub te ramène dans Tale, indique aussi l’ID de l’installation, le compte et la sélection de dépôts, et liste les dépôts choisis quand l’application n’en atteint que certains. Une modification que Tale ne remarque qu’en générant le jeton suivant, comme un compte renommé ou un passage entre tous les dépôts et des dépôts choisis fait sur GitHub, est enregistrée avec **Système** comme acteur. L’entrée d’une déconnexion indique aussi l’ID de l’installation et la sélection de dépôts. Tale n’a pas de webhook : le journal d’audit peut donc manquer une modification qui ne change que les dépôts choisis, et **Dépôts accessibles à cette app** les liste toujours tels que GitHub les a maintenant. Le journal du serveur consigne chaque jeton que Tale génère, y compris ceux de **Dépôts accessibles à cette app**, avec l’application, l’installation, la sélection de dépôts et l’expiration, mais jamais le jeton lui-même.
 
 ## Rétablir une connexion
 

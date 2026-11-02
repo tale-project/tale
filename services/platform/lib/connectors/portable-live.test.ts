@@ -168,6 +168,22 @@ describe('the portable live convention, end to end in a real node child', () => 
     ).rejects.toThrow(/evil\.test is not on the connector allowlist/);
   });
 
+  it("carries the credential's auth method, absent when none was sent", async () => {
+    const body = `return { method: ctx.authMethod === undefined ? '<absent>' : ctx.authMethod };`;
+    const run = (ctx: PortableLiveCtxData) =>
+      runner.runBody(
+        buildPortableLiveCode(body),
+        { input: {}, ctx },
+        { timeoutMs: 15_000 },
+        { async: true },
+      );
+
+    await expect(
+      run({ ...ctxData(), authMethod: 'github-app' }),
+    ).resolves.toEqual({ method: 'github-app' });
+    await expect(run(ctxData())).resolves.toEqual({ method: '<absent>' });
+  });
+
   it('leaves ctx.files undefined so a feature-detecting body degrades', async () => {
     // The out-of-process lane has no blob sink. Bodies that can work without
     // one branch on `ctx.files` (gmail/outlook get_message), so it must be

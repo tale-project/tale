@@ -529,6 +529,7 @@ connectors:
     basic: Benutzername & Passwort
     oauth2: OAuth
     clientCredentials: App-Anmeldung
+    githubApp: GitHub App
   card:
     actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
     connect: Verbinden
@@ -646,6 +647,49 @@ connectors:
         Gib die Client-ID ein.
       clientSecretRequired: >-
         Gib das Client-Secret ein.
+  githubApp:
+    registerGroup: GitHub App registrieren
+    intro: >-
+      Lass Tale als eigene GitHub App dieser Organisation arbeiten statt mit dem
+      Token einer Person: Registriere die App auf GitHub und installiere sie
+      danach in den Repositorys, die sie erreichen soll.
+    credentialName: Name der Zugangsdaten
+    appName: App-Name auf GitHub
+    appNameInvalid: Gib den Namen der App ein, höchstens {max} Zeichen.
+    owner: GitHub-Organisation
+    ownerHint: >-
+      Lass das Feld leer, um die App in deinem persönlichen GitHub-Konto zu
+      registrieren. Um sie für eine GitHub-Organisation zu registrieren, gib
+      deren Login ein — du musst Inhaber dieser Organisation sein.
+    ownerInvalid: >-
+      Gib den Login der Organisation so ein, wie er in ihrer GitHub-URL steht:
+      Buchstaben, Ziffern und einzelne Bindestriche.
+    permissionsIntro: 'Die App fordert bei GitHub an:'
+    permissionRead: Nur lesen
+    permissionWrite: Lesen und schreiben
+    register: Auf GitHub registrieren
+    adminOnly: >-
+      Nur Admins der Organisation können eine GitHub App registrieren und
+      installieren. Bitte einen Admin, sie einzurichten.
+    notInstalled: Auf GitHub registriert, noch nicht installiert.
+    installedOn: Installiert auf {account}
+    uninstalled: Nicht mehr auf {account} installiert.
+    statusNotInstalled: Nicht installiert
+    statusUninstalled: Nicht mehr installiert
+    appLink: App {slug}
+    install: Auf GitHub installieren
+    changeRepositories: Repositorys ändern
+    showRepositories: Repositorys anzeigen
+    repositoriesTitle: Repositorys, die diese App erreicht
+    private: Privat
+    more: '{count, plural, one {und # weiteres} other {und # weitere}}'
+    allRepositoriesWarning: >-
+      Diese App erreicht jedes Repository von {account}, auch später
+      hinzugefügte. Wähle auf GitHub „Only select repositories“, um sie
+      einzuschränken.
+    openOnGitHub: Auf GitHub öffnen
+    repositoriesLoadFailed: Die Repositorys konnten nicht geladen werden.
+    noRepositories: Die App erreicht keine Repositorys.
   dialog:
     apiKey: API-Schlüssel
     token: Token

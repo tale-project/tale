@@ -142,6 +142,14 @@ export interface ConnectorContext {
    * never here (they arrive through `secrets`).
    */
   config: Record<string, string | number | boolean>;
+  /**
+   * How the resolved credential authenticates (`bearer`, `oauth2`,
+   * `github-app`, …; `none` when the call carries no credential). A body
+   * branches on it where a vendor endpoint only answers one kind of token —
+   * a GitHub App's installation token cannot list `/user/repos`. Absent where
+   * the host knows no credential (an engine test's fake context).
+   */
+  authMethod?: string;
   http: {
     get(
       url: string,

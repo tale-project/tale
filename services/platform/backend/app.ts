@@ -48,6 +48,10 @@ import {
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
 import { createConnectorBridgeRoutes } from './domains/connectors/bridge-routes.ts';
+import {
+  createConnectorGithubAppRoutes,
+  GITHUB_APP_ROUTES_PATH,
+} from './domains/connectors/github-app-routes.ts';
 import { createConnectorOauthAppRoutes } from './domains/connectors/oauth-app-routes.ts';
 import { createConnectorOauthRoutes } from './domains/connectors/oauth-routes.ts';
 import { createSlackEventRoutes } from './domains/connectors/slack-events.ts';
@@ -394,6 +398,14 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route(
     '/api/connectors/oauth2',
     createConnectorOauthRoutes({ sql: deps.sql, auth: deps.auth }),
+  );
+  // An organization's own GitHub App — browser-facing: `register` and
+  // `install` are session-gated admin doors, and GitHub sends the browser
+  // back to `registered` and `installed`, authorized by single-use state
+  // rows bound to the member who began them.
+  app.route(
+    GITHUB_APP_ROUTES_PATH,
+    createConnectorGithubAppRoutes({ sql: deps.sql, auth: deps.auth }),
   );
 
   // Slack Events API — one deployment-wide Request URL for every connected

@@ -16,7 +16,7 @@
  */
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
@@ -733,5 +733,90 @@ describe('POST /api/connectors/status — whom a call acts for', () => {
 
     expect(await res.json()).toMatchObject({ connectors: [] });
     expect(queries).toEqual([]);
+  });
+});
+
+describe('POST /api/connectors/hostcall — a GitHub App token GitHub turned away [CCRED-R18]', () => {
+  const REPOSITORIES = 'https://api.github.com/installation/repositories';
+  const fetchStub =
+    vi.fn<(input: string, init: RequestInit) => Promise<Response>>();
+  const renew = vi.fn<() => Promise<string>>();
+  const answer = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  /** The Authorization each request reached GitHub with, in order. */
+  const authorizations = () =>
+    fetchStub.mock.calls.map(([, init]) =>
+      new Headers(init.headers).get('authorization'),
+    );
+  const listRepositories = () =>
+    post(
+      '/hostcall',
+      JSON.stringify({ kind: 'http', method: 'GET', url: REPOSITORIES }),
+    );
+
+  beforeEach(() => {
+    verifyHostcallToken.mockResolvedValue({
+      ok: true,
+      payload: { org: 'org_1', connector: 'github', action: 'list_repos' },
+    });
+    resolveConnectorCredential.mockResolvedValue({
+      credentialId: 'cred_app',
+      connectorSlug: 'github',
+      authMethod: 'github-app',
+      secrets: {},
+      config: {},
+      authHeader: 'Bearer ghs_refused',
+      reauthorize: { hosts: ['api.github.com'], renew },
+    });
+    fetchStub.mockReset();
+    renew.mockReset();
+    vi.stubGlobal('fetch', fetchStub);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('renews the token once and answers with the request sent again with it', async () => {
+    fetchStub
+      .mockResolvedValueOnce(answer(401, { message: 'Bad credentials' }))
+      .mockResolvedValueOnce(answer(200, { total_count: 0, repositories: [] }));
+    renew.mockResolvedValue('Bearer ghs_renewed');
+
+    const res = await listRepositories();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      status: 200,
+      bodyText: JSON.stringify({ total_count: 0, repositories: [] }),
+    });
+    expect(renew).toHaveBeenCalledTimes(1);
+    expect(authorizations()).toEqual([
+      'Bearer ghs_refused',
+      'Bearer ghs_renewed',
+    ]);
+  });
+
+  it('refuses the request with why no token could be renewed, sending nothing else', async () => {
+    fetchStub.mockResolvedValue(answer(401, { message: 'Bad credentials' }));
+    renew.mockRejectedValue(
+      new Error('the GitHub App is no longer installed on acme'),
+    );
+
+    const res = await listRepositories();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'CREDENTIAL_UNRESOLVED',
+        message:
+          'no usable credential for github: the GitHub App is no longer installed on acme',
+      },
+    });
+    expect(renew).toHaveBeenCalledTimes(1);
+    expect(authorizations()).toEqual(['Bearer ghs_refused']);
   });
 });

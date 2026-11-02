@@ -67,6 +67,27 @@ describe('maskPayload [CCRED-R1]', () => {
     expect(preview).not.toContain('eyJ');
   });
 
+  it('[CCRED-R15] previews nothing of a GitHub App, neither its private key nor a token minted with it', () => {
+    expect(
+      maskPayload({
+        authMethod: 'github-app',
+        appId: 42,
+        clientId: 'Iv23liExample',
+        slug: 'tale-acme',
+        privateKey:
+          '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAsecretkey\n-----END RSA PRIVATE KEY-----\n',
+        installation: {
+          id: 7,
+          account: 'acme',
+          accountType: 'Organization',
+          repositorySelection: 'all',
+        },
+        accessToken: 'ghs_installation-token-0123456789',
+        expiresAt: 1,
+      }),
+    ).toBeUndefined();
+  });
+
   it('omits the preview when the method secret is too short', () => {
     expect(
       maskPayload({ authMethod: 'basic', username: 'bot', password: 'pw' }),

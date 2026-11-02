@@ -16,7 +16,7 @@ Use a connector when Tale needs to read or change data in an external service. T
 | Confluence | Import Confluence Cloud pages into knowledge. | Username and password/token pair. |
 | Discord | Work with messages and channels. | Token. |
 | Forgejo | Read or manage a Forgejo instance's repositories, issues and pull requests, and turn them into tasks. | Token and an Instance URL. |
-| GitHub | Read or manage repositories, issues and pull requests, and read security alerts so the issue sync can turn them into tasks. | Token. |
+| GitHub | Read or manage repositories, issues and pull requests, and read security alerts so the issue sync can turn them into tasks. | Token, or a [GitHub App](/platform/admin/connectors#connect-github-with-a-github-app) that acts as its own bot. |
 | GlitchTip | Read a project's issues so the GlitchTip importer can turn them into tasks. | Token and an Instance URL. |
 | Gmail | Read, send and organize mail. | OAuth. |
 | Google Drive | Import files into knowledge. | OAuth. |
