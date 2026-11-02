@@ -34,6 +34,16 @@ describe('normalizeToolGrants', () => {
     );
     expect(WRITE_EFFECT_TOOLS).toContain('task_update_metadata');
   });
+  it('grants labels only explicitly to project agents, never as a baseline or automation tool [TASK-R96]', () => {
+    expect(normalizeToolGrants(['task_set_labels'])).toEqual([
+      'task_set_labels',
+    ]);
+    expect(normalizeToolGrants(['task_set_labels'], 'automation')).toEqual([]);
+    expect(normalizeToolGrants([...KNOWLEDGE_READ_TOOLS])).not.toContain(
+      'task_set_labels',
+    );
+    expect(WRITE_EFFECT_TOOLS).toContain('task_set_labels');
+  });
   it('drops unknown names and dedupes to catalog order', () => {
     const result = normalizeToolGrants([
       'task_create',
