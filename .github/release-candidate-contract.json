@@ -2363,7 +2363,7 @@
           "path": ["jobs", "typecheck", "env"],
           "kind": "value",
           "expected": {
-            "NODE_OPTIONS": "--max-old-space-size=6144"
+            "NODE_OPTIONS": "--max-old-space-size=8192"
           }
         },
         {
