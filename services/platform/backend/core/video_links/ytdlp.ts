@@ -32,12 +32,15 @@ import { existsSync, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 
+import { outboundProxyRotation } from '../../../lib/net/outbound-proxy';
+import type {
+  ProxyRotation,
+  RotatedProxy,
+} from '../../../lib/net/proxy-rotation';
 import {
-  nextOutboundProxy,
-  outboundProxyEntry,
-  setOutboundProxyAside,
-  type OutboundProxy,
-} from '../../../lib/net/outbound-proxy';
+  isVideoProxyScheme,
+  videoIngestProxyRotation,
+} from '../../../lib/net/video-ingest-proxies';
 
 const YTDLP_BIN = 'yt-dlp';
 
@@ -175,16 +178,6 @@ const OPTIONAL_FLAGS: ReadonlyArray<OptionalFlag> = [
 // covered by the stderr sanitizer below.
 // ---------------------------------------------------------------------------
 
-/** Proxy schemes yt-dlp understands (`utils/networking.py`). */
-const SUPPORTED_PROXY_SCHEMES = new Set([
-  'http:',
-  'https:',
-  'socks4:',
-  'socks4a:',
-  'socks5:',
-  'socks5h:',
-]);
-
 /**
  * `VIDEO_INGEST_PROXY_URL`, checked: the proxy video ingestion uses instead
  * of the deployment's outbound proxies. Any scheme yt-dlp speaks; prefer
@@ -201,7 +194,7 @@ function videoIngestProxyOverride(env: NodeJS.ProcessEnv): string | null {
     console.warn('[ytdlp] VIDEO_INGEST_PROXY_URL is not a valid URL; ignoring');
     return null;
   }
-  if (!SUPPORTED_PROXY_SCHEMES.has(url.protocol)) {
+  if (!isVideoProxyScheme(url.protocol)) {
     console.warn(
       `[ytdlp] VIDEO_INGEST_PROXY_URL scheme "${url.protocol}" is unsupported; ignoring`,
     );
@@ -214,22 +207,69 @@ function videoIngestProxyOverride(env: NodeJS.ProcessEnv): string | null {
 export interface YtdlpProxy {
   /** What `--proxy` is given. */
   url: string;
-  /** The outbound proxy the run took, or null for `VIDEO_INGEST_PROXY_URL`. */
-  pooled: OutboundProxy | null;
+  /** The listed proxy the run took (video ingestion's own or an outbound
+   * one), or null for `VIDEO_INGEST_PROXY_URL`. */
+  pooled: RotatedProxy | null;
+}
+
+/**
+ * A list of proxies a video moves along when the platform refuses it: video
+ * ingestion's own (`VIDEO_INGEST_PROXY_URLS`) or the deployment's outbound
+ * proxies (`OUTBOUND_PROXY_URLS`). Each has its own rotation, and its own
+ * memory of where each platform last served a video.
+ */
+interface YtdlpProxyList {
+  /** What a log line calls one of its entries. */
+  readonly name: string;
+  readonly rotation: ProxyRotation<RotatedProxy>;
+  /**
+   * The proxy each platform last served a video through, where its next
+   * video starts. A platform that blocks some of the proxies' addresses
+   * (YouTube refused about two thirds of a 100-address datacenter list on
+   * 2026-10-28) then keeps serving its videos through one it accepts,
+   * instead of each video meeting the blocked ones again in turn. Per
+   * process, like the rotation, and per platform: Vimeo serving an address
+   * says nothing about YouTube.
+   */
+  readonly serving: Map<string, RotatedProxy>;
+}
+
+const VIDEO_PROXIES: YtdlpProxyList = {
+  name: 'video proxy',
+  rotation: videoIngestProxyRotation,
+  serving: new Map(),
+};
+
+const OUTBOUND_PROXIES: YtdlpProxyList = {
+  name: 'outbound proxy',
+  rotation: outboundProxyRotation,
+  serving: new Map(),
+};
+
+/** The list video ingestion takes its proxies from: its own when
+ * `VIDEO_INGEST_PROXY_URLS` lists any — never falling back to the outbound
+ * proxies — else the outbound proxies. */
+function ytdlpProxyList(env: NodeJS.ProcessEnv): YtdlpProxyList {
+  return VIDEO_PROXIES.rotation.proxies(env).length > 0
+    ? VIDEO_PROXIES
+    : OUTBOUND_PROXIES;
 }
 
 /**
  * The proxy a video's yt-dlp runs start on — the single highest-leverage
  * mitigation: routing extraction through a residential/ISP egress moves it
- * off the deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins;
- * without it `nextPooled` picks one of the deployment's outbound proxies
- * (`OUTBOUND_PROXY_URLS`, by default the next in turn with every other
- * request to a website); with neither, none. {@link YtdlpRoute} keeps it for
- * the video.
+ * off the deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins
+ * (the backend refuses to boot with it next to `VIDEO_INGEST_PROXY_URLS`);
+ * without it `nextPooled` picks one of video ingestion's own proxies
+ * (`VIDEO_INGEST_PROXY_URLS`, by default the next in turn), else one of the
+ * deployment's outbound proxies (`OUTBOUND_PROXY_URLS`, by default the next
+ * in turn with every other request to a website); with none, none.
+ * {@link YtdlpRoute} keeps it for the video.
  */
 export function ytdlpProxyFromEnv(
   env: NodeJS.ProcessEnv,
-  nextPooled: () => OutboundProxy | null = () => nextOutboundProxy(env),
+  nextPooled: () => RotatedProxy | null = () =>
+    ytdlpProxyList(env).rotation.next(env),
 ): YtdlpProxy | null {
   const override = videoIngestProxyOverride(env);
   if (override !== null) return { url: override, pooled: null };
@@ -270,7 +310,7 @@ export function proxyFailedRun(stderr: string): boolean {
 /**
  * What a platform answers an address it will not serve: a bot check, a rate
  * limit, a refused request. The same video may well come through from
- * another address, so a run that ends this way through the outbound proxies
+ * another address, so a run that ends this way through a list of proxies
  * goes on through another one (see {@link YtdlpRoute}).
  */
 const TURNED_AWAY: ReadonlySet<YtDlpErrorReason> = new Set([
@@ -280,7 +320,7 @@ const TURNED_AWAY: ReadonlySet<YtDlpErrorReason> = new Set([
 ]);
 
 /**
- * The most runs one yt-dlp call makes through the outbound proxies, each
+ * The most runs one yt-dlp call makes through a list of proxies, each
  * through another one, when the platform turns them away or a proxy cannot
  * carry them. No further run starts once the video's step — its metadata
  * (the Vimeo embed fallback included), its captions or its sound — has spent
@@ -292,17 +332,6 @@ export const MAX_PROXY_RUNS = 5;
 const PROXY_FAILOVER_WINDOW_MS = 90_000;
 
 /**
- * The outbound proxy each platform last served a video through, where its
- * next video starts. A platform that blocks some of the proxies' addresses
- * (YouTube refused about two thirds of a 100-address datacenter list on
- * 2026-10-28) then keeps serving its videos through one it accepts, instead
- * of each video meeting the blocked ones again in turn. Per process, like
- * the rotation, and per platform: Vimeo serving an address says nothing about
- * YouTube.
- */
-const servingProxies = new Map<string, OutboundProxy>();
-
-/**
  * The proxy one video's yt-dlp runs go out through. A video keeps it for
  * every run — metadata, captions, sound — because the proxy its platform has
  * just served is the likeliest to serve it again. Within one run the address
@@ -311,20 +340,23 @@ const servingProxies = new Map<string, OutboundProxy>();
  * connection a new address (a provider's rotating endpoint) cannot be relied
  * on for video.
  *
- * `VIDEO_INGEST_PROXY_URL` is a route of one proxy. Through the outbound
- * proxies a video starts on the one its platform last served, else the next
- * in turn; a run the platform turns away there, or that its proxy cannot
- * carry, moves the route on to the next proxy in turn that has not failed
- * the video (see `runYtdlp`).
+ * `VIDEO_INGEST_PROXY_URL` is a route of one proxy. Through a list of
+ * proxies — video ingestion's own, else the outbound ones — a video starts on
+ * the one its platform last served, else the next in turn; a run the platform
+ * turns away there, or that its proxy cannot carry, moves the route on to the
+ * next proxy of that list that has not failed the video (see `runYtdlp`).
+ * When every one has, the video ends with the platform's reason: its own
+ * list never hands it to the outbound proxies or a direct connection.
  */
 export class YtdlpRoute {
-  /** The outbound proxies (by URL) that failed this video. */
+  /** The listed proxies (by URL) that failed this video. */
   private readonly failed = new Set<string>();
   /** When the video's current step began: the start of its failover window. */
   private stepStartedAt: number | null = null;
 
   private constructor(
     private readonly platform: string,
+    private readonly list: YtdlpProxyList,
     private current: YtdlpProxy | null,
   ) {}
 
@@ -333,11 +365,13 @@ export class YtdlpRoute {
     platform = '',
     env: NodeJS.ProcessEnv = process.env,
   ): YtdlpRoute {
+    const list = ytdlpProxyList(env);
     return new YtdlpRoute(
       platform,
+      list,
       ytdlpProxyFromEnv(env, () =>
-        nextOutboundProxy(env, Date.now(), {
-          prefer: servingProxies.get(platform) ?? null,
+        list.rotation.next(env, Date.now(), {
+          prefer: list.serving.get(platform) ?? null,
         }),
       ),
     );
@@ -376,24 +410,25 @@ export class YtdlpRoute {
   /** A run through this route succeeded. */
   served(): void {
     if (this.current?.pooled) {
-      servingProxies.set(this.platform, this.current.pooled);
+      this.list.serving.set(this.platform, this.current.pooled);
     }
   }
 
   /**
-   * Whether the address of an outbound proxy explains `error`, a failed run
+   * Whether the address of a listed proxy explains `error`, a failed run
    * through this route: the proxy could not carry the run (passed over for a
-   * while, as for any request), or the platform turned the address away (no
-   * longer where the platform's next video starts).
+   * while by its list's rotation, as for any request), or the platform
+   * turned the address away (no longer where the platform's next video
+   * starts).
    */
   blame(error: YtDlpError): boolean {
     const pooled = this.current?.pooled;
     if (!pooled) return false;
     if (proxyFailedRun(error.sanitizedStderr)) {
-      setOutboundProxyAside(pooled, 'yt-dlp could not get through');
+      this.list.rotation.setAside(pooled, 'yt-dlp could not get through');
     } else if (TURNED_AWAY.has(error.reason)) {
-      if (servingProxies.get(this.platform)?.url === pooled.url) {
-        servingProxies.delete(this.platform);
+      if (this.list.serving.get(this.platform)?.url === pooled.url) {
+        this.list.serving.delete(this.platform);
       }
     } else {
       return false;
@@ -402,28 +437,30 @@ export class YtdlpRoute {
     return true;
   }
 
-  /** Move on to the next outbound proxy in turn that has not failed this
-   * video, after the one it is on `failed` (logged by list entry and label,
-   * never credentials); false when every proxy has. */
+  /** Move on to the next proxy of the route's list, in turn, that has not
+   * failed this video, after the one it is on `failed` (logged by list entry
+   * and label, never credentials); false when every proxy has. */
   moveOn(failed: string, env: NodeJS.ProcessEnv = process.env): boolean {
     const from = this.current?.pooled;
     if (!from) return false;
     this.failed.add(from.url);
-    const next = nextOutboundProxy(env, Date.now(), { skip: this.failed });
+    const { rotation } = this.list;
+    const next = rotation.next(env, Date.now(), { skip: this.failed });
     if (next === null) return false;
     this.current = { url: next.url, pooled: next };
-    const entry = (proxy: OutboundProxy): string =>
-      `entry ${outboundProxyEntry(proxy, env)} (${proxy.label})`;
+    const entry = (proxy: RotatedProxy): string =>
+      `entry ${rotation.entry(proxy, env)} (${proxy.label})`;
     console.warn(
-      `[ytdlp] outbound proxy ${entry(from)} ${failed}; the video goes on through ${entry(next)}`,
+      `[ytdlp] ${this.list.name} ${entry(from)} ${failed}; the video goes on through ${entry(next)}`,
     );
     return true;
   }
 }
 
-/** Test seam: forget the outbound proxy each platform last served. */
+/** Test seam: forget the proxy each platform last served, in every list. */
 export function resetServingProxiesForTests(): void {
-  servingProxies.clear();
+  VIDEO_PROXIES.serving.clear();
+  OUTBOUND_PROXIES.serving.clear();
 }
 
 /** Default YouTube player clients when no PO-token provider is wired.
