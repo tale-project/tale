@@ -13,22 +13,15 @@ import {
 } from '@/app/features/settings/agent-connections/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
-/** Where a finish-step CTA sends the user (after marking onboarding complete). */
+/** Where a finish-step CTA sends the user. */
 export type FinishTarget = 'providers' | 'members';
 
 interface FinishStepProps {
   /**
-   * Completes onboarding, then routes to the chosen destination. Provided by
-   * the wizard so the CTAs and the footer's "Go to Home" share the same
-   * mark-complete logic. When absent (e.g. a story), CTAs render disabled.
+   * Routes to the chosen destination; provided by the wizard. When absent
+   * (e.g. a story), CTAs render disabled.
    */
   onFinishTo?: (target: FinishTarget) => void;
-  /**
-   * When true, the "connect a provider" row renders as already-done (a check,
-   * not a CTA) — the user connected one during onboarding, so listing it as a
-   * pending next step would be confusing.
-   */
-  providerConnected?: boolean;
   /**
    * The workspace the wizard has just made. With it, a row offers to connect a
    * coding agent to that workspace; without it (a story), there is no row.
@@ -38,21 +31,16 @@ interface FinishStepProps {
 
 /**
  * Closing step: instead of a static checklist, each "what's next" item is an
- * actionable CTA that marks onboarding complete and lands the user exactly
- * where the task gets done — so a fresh workspace never dead-ends on "now
- * what?". An item the user already finished (e.g. a connected AI provider)
- * renders as done instead of a redundant CTA. The footer's "Go to Home"
- * remains the skip-everything exit.
+ * actionable CTA that lands the user exactly where the task gets done — so a
+ * fresh workspace never dead-ends on "now what?". An item the user already
+ * finished (a connected coding agent) renders as done instead of a redundant
+ * CTA. The footer's "Go to Home" remains the skip-everything exit.
  *
  * Connecting a coding agent is the one item that does not leave: its guided
  * setup opens in place, so the wizard is still here when the agent has signed
  * in and the row turns to done.
  */
-export function FinishStep({
-  onFinishTo,
-  providerConnected,
-  organizationId,
-}: FinishStepProps) {
+export function FinishStep({ onFinishTo, organizationId }: FinishStepProps) {
   const { t } = useT('onboarding');
 
   const items: {
@@ -60,24 +48,18 @@ export function FinishStep({
     icon: typeof KeyRound;
     text: string;
     cta: string;
-    done: boolean;
-    doneText: string;
   }[] = [
     {
       target: 'providers',
       icon: KeyRound,
       text: t('finish.providerItem'),
       cta: t('finish.providerCta'),
-      done: Boolean(providerConnected),
-      doneText: t('finish.providerConnected'),
     },
     {
       target: 'members',
       icon: Users,
       text: t('finish.inviteItem'),
       cta: t('finish.inviteCta'),
-      done: false,
-      doneText: '',
     },
   ];
 
@@ -90,13 +72,11 @@ export function FinishStep({
         role="list"
         className="divide-border border-border divide-y overflow-hidden rounded-lg border"
       >
-        {items.map(({ target, icon, text, cta, done, doneText }) => (
+        {items.map(({ target, icon, text, cta }) => (
           <NextStepRow
             key={target}
             icon={icon}
             text={text}
-            done={done}
-            doneText={doneText}
             action={
               <Button
                 type="button"
@@ -122,15 +102,17 @@ export function FinishStep({
 function NextStepRow({
   icon: Icon,
   text,
-  done,
+  done = false,
   doneText,
   action,
   rowRef,
 }: {
   icon: typeof KeyRound;
   text: string;
-  done: boolean;
-  doneText: string;
+  /** The step is taken already: `doneText` stands in for `text`, and the
+   * way to do it is gone. */
+  done?: boolean;
+  doneText?: string;
   action: ReactNode;
   /** Makes the row a place focus can be sent to: where a dialog opened from
    * its button returns when the button has turned into the done marker. */

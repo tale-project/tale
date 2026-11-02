@@ -31,11 +31,12 @@ type AccountFormData = {
 };
 
 /**
- * First-run owner-account creation, inlined as a wizard step. Mirrors the
- * standalone sign-up form (`routes/_auth/sign-up.tsx`) but advances the wizard
- * on success instead of navigating — the user becomes authenticated in place
- * and continues to the workspace step. Sign-up here is only ever the very
- * first user; all later users are added by an admin in Settings.
+ * First-run owner-account creation, inlined as a wizard step: the only
+ * sign-up form Tale has (`routes/_auth/sign-up.tsx` just forwards to `/setup`
+ * or `/log-in`). On success it advances the wizard instead of navigating —
+ * the user becomes authenticated in place and continues to the workspace
+ * step. Sign-up here is only ever the very first user; all later users are
+ * added by an admin in Settings.
  */
 export function AccountStep() {
   const { t } = useT('auth');

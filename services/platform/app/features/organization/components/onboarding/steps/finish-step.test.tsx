@@ -32,7 +32,7 @@ vi.mock('@/app/features/coding-agent/components/connect-agent-dialog', () => ({
     ) : null,
 }));
 
-import { FinishStep } from './finish-step';
+import { FinishStep, type FinishTarget } from './finish-step';
 
 beforeEach(() => {
   h.access = undefined;
@@ -43,8 +43,7 @@ const fmt = (current: number, total: number, label: string) =>
   `Step ${current} of ${total}: ${label}`;
 
 function renderFinish(
-  onFinishTo?: (t: 'providers' | 'agents' | 'members') => void,
-  providerConnected?: boolean,
+  onFinishTo?: (target: FinishTarget) => void,
   organizationId?: string,
 ) {
   return render(
@@ -53,17 +52,13 @@ function renderFinish(
       onFinish={() => {}}
       formatProgress={fmt}
     >
-      <FinishStep
-        onFinishTo={onFinishTo}
-        providerConnected={providerConnected}
-        organizationId={organizationId}
-      />
+      <FinishStep onFinishTo={onFinishTo} organizationId={organizationId} />
     </Wizard>,
   );
 }
 
 describe('FinishStep CTAs', () => {
-  it('each CTA marks-and-routes via onFinishTo with its target', async () => {
+  it('each CTA routes via onFinishTo with its target', async () => {
     const onFinishTo = vi.fn();
     const { user } = renderFinish(onFinishTo);
 
@@ -82,19 +77,6 @@ describe('FinishStep CTAs', () => {
       screen.getByRole('button', { name: 'Connect a provider' }),
     ).toBeDisabled();
   });
-
-  it('renders the provider row as done (no CTA) when one is connected', () => {
-    renderFinish(vi.fn(), true);
-    // The pending "Connect a provider" CTA is replaced by a done marker...
-    expect(
-      screen.queryByRole('button', { name: 'Connect a provider' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText('AI provider connected.')).toBeInTheDocument();
-    // ...while the other next-step CTAs still render.
-    expect(
-      screen.getByRole('button', { name: 'Invite teammates' }),
-    ).toBeInTheDocument();
-  });
 });
 
 /**
@@ -109,7 +91,7 @@ describe('FinishStep coding agent row', () => {
   it('offers the guided setup in place, without finishing the wizard', async () => {
     h.access = { mayConnect: true };
     const onFinishTo = vi.fn();
-    const { user } = renderFinish(onFinishTo, false, 'org-1');
+    const { user } = renderFinish(onFinishTo, 'org-1');
 
     expect(
       screen.getByText(
@@ -122,7 +104,7 @@ describe('FinishStep coding agent row', () => {
     const dialog = await screen.findByRole('dialog', {
       name: 'Connect a coding agent',
     });
-    // Onboarding is not marked complete, and nothing was navigated to.
+    // The wizard is not left: nothing was navigated to.
     expect(onFinishTo).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(dialog).not.toBeInTheDocument();
@@ -130,12 +112,12 @@ describe('FinishStep coding agent row', () => {
 
   it('makes no promise it cannot keep: no row while access is unknown or refused', () => {
     h.access = undefined;
-    const { unmount } = renderFinish(vi.fn(), false, 'org-1');
+    const { unmount } = renderFinish(vi.fn(), 'org-1');
     expect(connectButton()).not.toBeInTheDocument();
     unmount();
 
     h.access = { mayConnect: false };
-    renderFinish(vi.fn(), false, 'org-1');
+    renderFinish(vi.fn(), 'org-1');
     expect(connectButton()).not.toBeInTheDocument();
     // The other next steps stand as before.
     expect(
@@ -145,14 +127,14 @@ describe('FinishStep coding agent row', () => {
 
   it('has no row without a workspace to connect to', () => {
     h.access = { mayConnect: true };
-    renderFinish(vi.fn(), false, undefined);
+    renderFinish(vi.fn());
     expect(connectButton()).not.toBeInTheDocument();
   });
 
   it('turns to done, naming the agent, once one is connected', () => {
     h.access = { mayConnect: true };
     h.connections = [{ clientName: 'Claude Code' }];
-    renderFinish(vi.fn(), false, 'org-1');
+    renderFinish(vi.fn(), 'org-1');
     expect(
       screen.getByText('Coding agent connected: Claude Code.'),
     ).toBeInTheDocument();
@@ -162,7 +144,7 @@ describe('FinishStep coding agent row', () => {
   it('still shows an agent that is connected when sign-in was switched off since', () => {
     h.access = { mayConnect: false };
     h.connections = [{ clientName: 'Codex' }];
-    renderFinish(vi.fn(), false, 'org-1');
+    renderFinish(vi.fn(), 'org-1');
     expect(
       screen.getByText('Coding agent connected: Codex.'),
     ).toBeInTheDocument();

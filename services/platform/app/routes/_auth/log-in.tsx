@@ -88,7 +88,8 @@ const SSO_ORG_LIST_ID = 'sso-org-list';
 
 // Tale is offline-first — there is no self-service sign-up or forgot-password flow.
 // Users are created by admins (Settings → Members). To enable self-service login,
-// configure SSO or trusted headers (see docs/authentication.md).
+// configure SSO or trusted headers (see
+// docs/en/self-hosted/configuration/authentication.md).
 // If no users exist yet, the page forwards to /setup for first-run owner setup;
 // `/` already sends such an install there before this page renders.
 export function LogInPage() {

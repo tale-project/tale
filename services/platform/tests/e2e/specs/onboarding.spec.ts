@@ -5,9 +5,9 @@ import { ORG_DASHBOARD_URL, TIMEOUT } from '../helpers/env';
 import { t } from '../helpers/i18n';
 
 /**
- * Create-organization wizard, run unauthenticated with a throwaway account.
- * Covers workspace-name validation, the slug preview, idempotent Back-nav, the
- * skippable provider step, and Finish landing on the new org dashboard.
+ * Create-organization wizard (workspace → finish), run unauthenticated with a
+ * throwaway account. Covers workspace-name validation, idempotent Back-nav,
+ * the finish step's checklist, and Finish landing on the new org dashboard.
  *
  * The genuine first-run `/setup` walk (zero global users → in-place account
  * creation) is unreachable here: the shared hermetic backend always already has
@@ -105,13 +105,9 @@ test.describe('onboarding wizard', () => {
     await expect(
       page.getByRole('heading', { name: t('onboarding.finish.heading') }),
     ).toBeVisible();
-    // Assert the checklist body rendered (not just the hero heading) via a
-    // state-independent item. The provider row is not asserted: the wizard
-    // does not read the org's provider state today (`providerConnected` is
-    // fixed false in onboarding-wizard.tsx), and nothing seeds a provider into
-    // an e2e org. The invite row always renders as a pending next step. (The
-    // provider-connected vs CTA branching is unit-tested in
-    // finish-step.test.tsx.)
+    // Assert the checklist body rendered (not just the hero heading) via one
+    // of its rows: the invite row, a pending next step on every new org. The
+    // rows and their CTAs are unit-tested in finish-step.test.tsx.
     await expect(
       page.getByText(t('onboarding.finish.inviteItem')),
     ).toBeVisible();

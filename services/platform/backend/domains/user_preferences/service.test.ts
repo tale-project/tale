@@ -95,7 +95,6 @@ function row(overrides: {
     voiceOutput: null,
     chatModelId: null,
     chatModelProviderSlug: null,
-    onboardingCompleted: null,
     updatedAt: 1,
   };
 }

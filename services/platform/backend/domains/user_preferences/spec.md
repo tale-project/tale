@@ -46,5 +46,5 @@ switch is on. Spaces around the text are dropped.
   person's. No test holds it yet (`getMyPreferences` in `service.ts`).
 - **Characters custom instructions cannot contain**: angle brackets, backticks and control
   characters are refused (`invalid`). No test holds it yet (`upsertCustomInstructions`).
-- **The other preferences**: voice output, the chat model a person last picked, and whether
-  they finished onboarding (`service.ts`).
+- **The other preferences**: voice output and the chat model a person last picked
+  (`service.ts`).

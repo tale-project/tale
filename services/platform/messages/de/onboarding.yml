@@ -21,7 +21,6 @@ finish:
   heading: Bereit
   subtitle: 'Das kannst du als Nächstes tun:'
   providerItem: Verbinde einen KI-Anbieter für Agenten und Chat.
-  providerConnected: KI-Anbieter verbunden.
   inviteItem: Lade Teammitglieder zur Zusammenarbeit ein.
   providerCta: Anbieter verbinden
   inviteCta: Teammitglieder einladen
