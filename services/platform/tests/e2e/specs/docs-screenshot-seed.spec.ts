@@ -6,7 +6,7 @@ import {
   DEMO_PROJECTS,
 } from '../../docs-screenshots/demo-content';
 import { withCaptureLocale } from '../../docs-screenshots/i18n';
-import { SHOTS } from '../../docs-screenshots/manifest';
+import { SHOTS, type ShotContext } from '../../docs-screenshots/manifest';
 import {
   projectFileRow,
   settleList,
@@ -29,8 +29,9 @@ for (const locale of CAPTURE_LOCALES) {
       const shot = SHOTS.find(({ name }) => name === 'project-task-detail');
       if (!shot) throw new Error('Task detail capture is not registered');
       const comment = DEMO_LAUNCH_TASK_DETAIL.comment;
-      const context = {
+      const context: ShotContext = {
         orgId: 'synthetic-capture',
+        device: 'desktop',
         threads: new Map<string, string>(),
         projects: new Map<string, string>(),
       };
