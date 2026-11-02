@@ -231,7 +231,9 @@ async function bindOrg(
   const wanted = new Set<string>(corporaFor(org.corpus ?? 'all'));
   const readers: CorpusReader[] = [];
   if (wanted.has('documents')) {
-    readers.push(new DocumentCorpusReader(sql, org.orgSlug));
+    readers.push(
+      new DocumentCorpusReader(sql, org.orgSlug, embedder.model.model),
+    );
   }
   if (wanted.has('web')) readers.push(new WebCorpusReader(sql, org.orgSlug));
   return { readers, embedder };

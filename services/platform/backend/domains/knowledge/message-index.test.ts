@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   isMessageCorpusLive: vi.fn(),
   directCallBlocked: vi.fn(),
   addJobInTx: vi.fn(),
+  embeddingMovedSince: vi.fn(),
 }));
 
 vi.mock('../../core/knowledge/connection.ts', () => ({
@@ -51,7 +52,10 @@ vi.mock('../../lib/org-config.ts', () => ({
 vi.mock('./liveness.ts', () => ({
   isMessageCorpusLive: mocks.isMessageCorpusLive,
 }));
-vi.mock('./service.ts', () => ({ knowledgeShimHandlers: () => ({}) }));
+vi.mock('./service.ts', () => ({
+  knowledgeShimHandlers: () => ({}),
+  embeddingMovedSince: mocks.embeddingMovedSince,
+}));
 vi.mock('../governance/direct-calls.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../governance/direct-calls.ts')>()),
   directCallBlocked: mocks.directCallBlocked,
@@ -65,6 +69,12 @@ const { EmbeddingDimensionMismatch, UnsupportedVectorWidth } =
   await import('../../core/knowledge/dimensions.ts');
 
 const MESSAGE_ID = '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a';
+/** The model the embedder was built from. */
+const EMBEDDING_MODEL = {
+  providerSlug: 'openai',
+  model: 'embed',
+  dimensions: 3,
+};
 const SENT_AT = Date.UTC(2026, 8, 20, 9, 30);
 const HTML =
   '<html><body><p>Applying for the <b>field sales agent</b> role.</p></body></html>';
@@ -133,7 +143,11 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.resolveOrgSlug.mockResolvedValue('acme');
   mocks.readOrgEmbeddingConfig.mockResolvedValue({ model: 'embed' });
-  mocks.embedderForOrg.mockResolvedValue({ dimensions: 3 });
+  mocks.embedderForOrg.mockResolvedValue({
+    dimensions: 3,
+    model: EMBEDDING_MODEL,
+  });
+  mocks.embeddingMovedSince.mockResolvedValue(false);
   mocks.getKnowledgePoolForOrg.mockResolvedValue('pool');
   mocks.resolveOrgUrl.mockResolvedValue('postgres://corpus');
   mocks.readGovernancePolicy.mockResolvedValue(null);
@@ -433,6 +447,46 @@ describe('indexConversationMessage', () => {
     ).resolves.toBeUndefined();
 
     expect(mocks.embedderForOrg).not.toHaveBeenCalled();
+    expect(mocks.addJobInTx).not.toHaveBeenCalled();
+  });
+
+  // A save that moved the settings while the body was embedded left it to
+  // its run: the run's vectors are the old model's.
+  it('queues the body again when the settings moved to another model while it was embedded [KNOW-R17]', async () => {
+    mocks.embeddingMovedSince.mockResolvedValue(true);
+    const { sql } = fakeSql(row());
+    await indexConversationMessage(sql, MESSAGE_ID);
+
+    expect(mocks.embeddingMovedSince).toHaveBeenCalledWith(
+      'acme',
+      EMBEDDING_MODEL,
+    );
+    expect(mocks.addJobInTx).toHaveBeenCalledWith(sql, 'rag.index_message', {
+      messageId: MESSAGE_ID,
+    });
+  });
+
+  it('queues nothing more while the settings state the model it was embedded with', async () => {
+    const { sql } = fakeSql(row());
+    await indexConversationMessage(sql, MESSAGE_ID);
+
+    expect(mocks.embeddingMovedSince).toHaveBeenCalledTimes(1);
+    expect(mocks.addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('leaves a refused body to its refusal, whatever the settings state now', async () => {
+    mocks.embeddingMovedSince.mockResolvedValue(true);
+    mocks.indexWholeDocument.mockResolvedValue({
+      fileId: `msg:${MESSAGE_ID}`,
+      chunksWritten: 0,
+      chunksTotal: 0,
+      chunksStored: 0,
+      partial: false,
+      skipped: 'pii-blocked',
+    });
+    const { sql } = fakeSql(row());
+    await indexConversationMessage(sql, MESSAGE_ID);
+
     expect(mocks.addJobInTx).not.toHaveBeenCalled();
   });
 

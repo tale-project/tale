@@ -17,8 +17,8 @@
  * that image's statement, and writes as that image writes — and holds that
  * each image finds what the other indexes at that width.
  *
- * The file row the follow-up moves is held by no document, so the job it
- * queues ends at its liveness check and writes nothing more.
+ * The file row the follow-up moves is trashed, so the job it queues ends at
+ * its liveness check (`isCorpusRefLive`) and writes nothing more.
  */
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -36,7 +36,7 @@ import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   resolveOrgUrl,
 } from '../../core/knowledge/pool.ts';
-import { requeueDocumentsWithoutVectors } from './service.ts';
+import { requeueDocumentsNotEmbeddedByModel } from './service.ts';
 
 const NARROW = 256;
 const WIDE = 384;
@@ -152,7 +152,11 @@ export async function checkVectorWidths(
     query: string,
   ) => {
     const embedding = await embedderOf(org, dimensions).embed(query);
-    const hits = await new DocumentCorpusReader(pool, org.slug).dense({
+    const hits = await new DocumentCorpusReader(
+      pool,
+      org.slug,
+      'itest-embed',
+    ).dense({
       query,
       limit: 5,
       embedding,
@@ -327,10 +331,10 @@ export async function checkVectorWidths(
     const [file] = await sql<{ id: string }[]>`
       INSERT INTO app.file_metadata (
         org_id, storage_ref, file_name, content_type, size, rag_status,
-        created_at_ms
+        lifecycle_status, created_at_ms
       ) VALUES (
         ${acme.id}, ${acmeRef}, 'handbook.txt', 'text/plain', 1, 'completed',
-        ${Date.now()}
+        'trashed', ${Date.now()}
       )
       RETURNING id
     `;
@@ -345,14 +349,14 @@ export async function checkVectorWidths(
       )[0]?.status ?? null;
 
     await stateWidth(acme, WIDE);
-    const atHeldWidth = await requeueDocumentsWithoutVectors(sql, {
+    const atHeldWidth = await requeueDocumentsNotEmbeddedByModel(sql, {
       organizationId: acme.id,
       orgSlug: acme.slug,
     });
     const statusAtHeldWidth = await statusOf();
 
     await stateWidth(acme, OTHER);
-    const atOtherWidth = await requeueDocumentsWithoutVectors(sql, {
+    const atOtherWidth = await requeueDocumentsNotEmbeddedByModel(sql, {
       organizationId: acme.id,
       orgSlug: acme.slug,
     });
@@ -362,7 +366,7 @@ export async function checkVectorWidths(
       WHERE name = 'rag.index_file' AND data->>'fileId' = ${fileId}
     `;
     // Queued already: a second save moves it no further.
-    const repeated = await requeueDocumentsWithoutVectors(sql, {
+    const repeated = await requeueDocumentsNotEmbeddedByModel(sql, {
       organizationId: acme.id,
       orgSlug: acme.slug,
     });

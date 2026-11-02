@@ -7,7 +7,10 @@ import {
   MESSAGE_REF_LIKE_PATTERN,
   parseMessageRef,
 } from '../../../lib/knowledge/message-ref.ts';
-import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
+import {
+  PRIVATE_KNOWLEDGE_SCHEMA,
+  type EmbeddingModel,
+} from '../../../lib/knowledge/types.ts';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import {
   isAudioOrVideo,
@@ -839,6 +842,69 @@ async function writeRagStatus(
 }
 
 /**
+ * The settings were read before the text was embedded. A save that moved them
+ * to another model since found the file in flight and left it, so what the
+ * run stored is the old model's: the file goes back in the queue
+ * (`KNOW-R17`). Asked once the file reads indexed, so a save that lands in
+ * between finds it as one and puts it back itself. Never fails the run: what
+ * a failure here leaves, the daily corpus reconcile puts back.
+ */
+async function requeueIfModelMoved(
+  sql: Sql,
+  args: { fileId: string; orgSlug: string; embedded: EmbeddingModel },
+): Promise<void> {
+  const log = { fileId: args.fileId, orgSlug: args.orgSlug };
+  try {
+    if (
+      (await embeddingMovedSince(args.orgSlug, args.embedded)) &&
+      (await requeueFileAfterModelMove(sql, args.fileId))
+    ) {
+      console.info(
+        '[knowledge] indexed under a model the settings no longer state; queued again',
+        log,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      '[knowledge] indexed under a model the settings no longer state, and could not be queued again; the daily corpus reconcile puts it back',
+      { ...log, error: error instanceof Error ? error.message : error },
+    );
+  }
+}
+
+/**
+ * Put a file back in the queue whose run embedded it under a model the
+ * settings no longer state: its status and its job in ONE transaction, as
+ * the re-queues write them, and the lists told. Only while it reads indexed:
+ * false when a save has put it back already, and when its uploader has since
+ * chosen not to index it.
+ */
+async function requeueFileAfterModelMove(
+  sql: Sql,
+  fileId: string,
+): Promise<boolean> {
+  return await sql.begin(async (tx) => {
+    const rows = await tx<MovedStatusRow[]>`
+      UPDATE app.file_metadata fm SET
+        rag_status = 'queued',
+        rag_queued_at_ms = ${Date.now()},
+        rag_progress = NULL,
+        rag_error = NULL,
+        rag_error_code = NULL
+      WHERE fm.id = ${fileId}
+        AND fm.rag_status = 'completed'
+        AND fm.skip_rag_indexing IS DISTINCT FROM true
+      RETURNING fm.org_id AS "orgId",
+                ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+    `;
+    if (rows.length === 0) return false;
+    await addJobInTx(tx, 'rag.index_file', { fileId });
+    await hintDocumentLists(tx, rows);
+    return true;
+  });
+}
+
+/**
  * Land a file no text extractor reads on its terminal state: `unsupported`
  * with `unsupported_type`. The indexer writes it when such a file reaches the
  * job (`unsupportedByName`); a lane that can tell from the name alone (a sync
@@ -1372,6 +1438,11 @@ export async function indexUploadedFile(
       ragStatus: 'completed',
       ragIndexedAt: Date.now(),
     });
+    await requeueIfModelMoved(sql, {
+      fileId,
+      orgSlug,
+      embedded: embedder.model,
+    });
   } catch (error) {
     if (options.signal?.aborted) {
       // pg-boss cancelled the job — it ran past its time budget, or the
@@ -1582,31 +1653,42 @@ export async function requeueEmbeddingBlockedDocuments(
 }
 
 /** Refs per transaction of the corpus re-queues
- * ({@link requeueDocumentsWithoutVectors},
- * {@link requeuePiiScanFailedDocuments}) — bounded work per lock hold. */
+ * ({@link requeueDocumentsNotEmbeddedByModel},
+ * {@link requeuePiiScanFailedDocuments}) and document rows per statement of
+ * {@link stampUnrecordedEmbeddingModel} — bounded work per lock hold. */
 const REQUEUE_BATCH = 200;
 
 /**
- * Re-queue everything the organization has indexed that has no vector of the
- * width its embedding model now states. After a move to a model of another
- * width that is every document and every email body: each stays findable by
- * its words, and would be missing from search by meaning until someone
- * indexed it again, one at a time. Run by the embedding save — the
+ * Re-queue everything the organization has indexed that the model its
+ * embedding settings now state has not embedded: a document with no vector
+ * of that model's width, or one whose vectors another model made — the model
+ * its row records (`embedding_model`). After a move to another model, of
+ * another width or under another name at the same width, that is every
+ * document and every email body: each stays findable by its words, and
+ * would be missing from search by meaning until someone indexed it again,
+ * one at a time. The same model reached through another provider makes the
+ * same vectors, and moves nothing. Run by the embedding save — the
  * documents' half of what `websitesAfterEmbeddingChange` does for the
  * organization's websites.
  *
  * Decided by what the corpus holds, never by comparing the old settings
- * with the new: a save that leaves the width alone finds nothing here, and a
- * document without vectors for any other reason is picked up as well.
- * Indexing one embeds it again from its first chunk (`readStoredState`
- * counts the chunks that have a vector of this width).
+ * with the new: a save that leaves the model alone finds nothing here, and a
+ * document without vectors for any other reason is picked up as well. A row
+ * indexed before the corpus recorded the model passes for the model stated;
+ * the save stamps such rows with the model they were embedded with before it
+ * changes the settings ({@link stampUnrecordedEmbeddingModel}). Indexing one
+ * embeds it again from its first chunk (`planIngest` reuses stored chunks
+ * only under the model that embedded them, and `readStoredState` counts only
+ * the chunks that have a vector of this width).
  *
- * Only a file whose indexing reads `completed` is moved: one in flight, one
- * that failed and one whose uploader chose not to index it are left as they
- * are. Each batch's flips and enqueues share ONE transaction, and the jobs
- * run at DEFAULT priority, as in {@link requeueEmbeddingBlockedDocuments}.
+ * Only a file whose indexing reads `completed` is moved: one that failed and
+ * one whose uploader chose not to index it are left as they are, and so is
+ * one in flight, whose run puts it back itself when the model moved under it
+ * ({@link embeddingMovedSince}). Each batch's flips and enqueues share ONE
+ * transaction, and the jobs run at DEFAULT priority, as in
+ * {@link requeueEmbeddingBlockedDocuments}.
  */
-export async function requeueDocumentsWithoutVectors(
+export async function requeueDocumentsNotEmbeddedByModel(
   sql: Sql,
   args: { organizationId: string; orgSlug: string },
 ): Promise<{ requeued: number }> {
@@ -1618,18 +1700,21 @@ export async function requeueDocumentsWithoutVectors(
     `organization "${args.orgSlug}"`,
   );
   const pool = await getKnowledgePoolForOrg(args.orgSlug);
+  // A row that records no model is never picked by `<>` (NULL compares as
+  // unknown): it passes for the model stated.
   const lacking = await pool.unsafe<{ ref: string }[]>(
     `SELECT d.file_id AS ref
        FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
       WHERE d.org_slug = $1 AND d.status = 'completed'
-        AND EXISTS (
-          SELECT 1 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
-           WHERE c.document_id = d.id AND c.org_slug = d.org_slug
-             AND NOT c.passage_repeat
-             AND NOT EXISTS (SELECT 1 FROM ${vectors} v
-                              WHERE v.chunk_id = c.id))
+        AND (d.embedding_model <> $2
+          OR EXISTS (
+            SELECT 1 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+             WHERE c.document_id = d.id AND c.org_slug = d.org_slug
+               AND NOT c.passage_repeat
+               AND NOT EXISTS (SELECT 1 FROM ${vectors} v
+                                WHERE v.chunk_id = c.id)))
       ORDER BY d.file_id`,
-    [args.orgSlug],
+    [args.orgSlug, config.model],
   );
 
   let requeued = 0;
@@ -1673,6 +1758,93 @@ export async function requeueDocumentsWithoutVectors(
 }
 
 /**
+ * Stamp the organization's documents that record no embedding model — indexed
+ * before the corpus recorded it — with the model its settings state now: the
+ * model that embedded them, as far as anything knows. Run by the embedding
+ * save and the removal BEFORE either changes the settings. Once they state
+ * another model, an unstamped document passes for that one
+ * ({@link requeueDocumentsNotEmbeddedByModel}) and keeps the old model's
+ * vectors. Without a stated model, or with settings that no longer read, the
+ * stamp is an empty name: vectors of a model no longer known, which no model
+ * the settings can state matches.
+ *
+ * A corpus indexed before the record existed is stamped once, the first
+ * time its settings change. It is read a page at a time along its refs, and
+ * each page is stamped in a statement of its own: a row another run claimed
+ * or released meanwhile is passed over, never taken for the end of the
+ * corpus, and no row is read twice.
+ */
+export async function stampUnrecordedEmbeddingModel(
+  orgSlug: string,
+): Promise<{ stamped: number }> {
+  let model = '';
+  try {
+    model = (await readOrgEmbeddingConfig(orgSlug))?.model ?? '';
+  } catch (error) {
+    console.warn(
+      `[knowledge] the embedding settings of ${orgSlug} do not read; its documents indexed before the model was recorded are stamped as embedded by a model no longer known:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const pool = await getKnowledgePoolForOrg(orgSlug);
+  let stamped = 0;
+  let after = '';
+  for (;;) {
+    const page = await pool.unsafe<{ ref: string }[]>(
+      `SELECT file_id AS ref
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+        WHERE org_slug = $1 AND embedding_model IS NULL AND file_id > $2
+        ORDER BY file_id
+        LIMIT ${REQUEUE_BATCH}`,
+      [orgSlug, after],
+    );
+    const refs = page.map((row) => row.ref);
+    if (refs.length > 0) {
+      const rows = await pool.unsafe<{ ref: string }[]>(
+        `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents SET embedding_model = $2
+          WHERE org_slug = $1 AND file_id = ANY($3) AND embedding_model IS NULL
+        RETURNING file_id AS ref`,
+        [orgSlug, model, refs],
+      );
+      stamped += rows.length;
+      after = refs[refs.length - 1] ?? after;
+    }
+    if (refs.length < REQUEUE_BATCH) return { stamped };
+  }
+}
+
+/**
+ * Whether the organization's embedding settings moved off the model an
+ * indexing run embedded with — to another name or another width — since the
+ * run read them. The save that moved them re-queued what was indexed and
+ * left the documents in flight alone
+ * ({@link requeueDocumentsNotEmbeddedByModel}), so such a run has stored the
+ * old model's vectors and puts its document back in the queue itself.
+ * Settings that were removed, or that no longer read, are no move: nothing is
+ * indexed until a model is saved, and that save re-queues what the old model
+ * embedded.
+ */
+export async function embeddingMovedSince(
+  orgSlug: string,
+  embedded: EmbeddingModel,
+): Promise<boolean> {
+  try {
+    const stated = await readOrgEmbeddingConfig(orgSlug);
+    return (
+      stated !== null &&
+      (stated.model !== embedded.model ||
+        stated.dimensions !== embedded.dimensions)
+    );
+  } catch (error) {
+    console.warn(
+      `[knowledge] the embedding settings of ${orgSlug} do not read; whether they moved while a document was indexed is not known:`,
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
+
+/**
  * Re-queue every document the organization's PII policy could not scan — its
  * scrubber could not be built, or a part of the text could not be scanned
  * whole (`pii_scan_failed`). Run by every save of the PII policy, an
@@ -1684,7 +1856,7 @@ export async function requeueDocumentsWithoutVectors(
  * {@link requeueEmbeddingBlockedDocuments}. An email body has no file row to
  * carry one: its corpus row is found by the fixed sentence its refusal
  * stored (`PII_SCAN_FAILED_REASONS`), and its own job is queued, as in
- * {@link requeueDocumentsWithoutVectors}. A document the policy refused for
+ * {@link requeueDocumentsNotEmbeddedByModel}. A document the policy refused for
  * what it detected (`pii_blocked`), or one that failed for any other reason,
  * is left alone.
  *

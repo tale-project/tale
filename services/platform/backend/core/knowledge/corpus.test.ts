@@ -47,6 +47,8 @@ function recorder(rows: unknown[] = []): {
 }
 
 const LEG = { query: 'parental leave', limit: 30 };
+/** The model the queries are embedded with, by the name the settings state. */
+const MODEL = 'text-embedding-3-small';
 /** A query vector 1024 wide — the width decides which table the dense leg
  * reads. */
 const EMBEDDING = new Array<number>(1024).fill(0.1);
@@ -139,7 +141,7 @@ function partitionedCorpus(rows: {
 describe('the dense leg runs exactly for a small scope', () => {
   it('counts the scoped rows, then disables the index scan for the vector statement', async () => {
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -156,7 +158,7 @@ describe('the dense leg runs exactly for a small scope', () => {
 
   it('skips repeated passages on both legs', async () => {
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     await reader.keyword(LEG);
     await reader.dense({ ...LEG, embedding: EMBEDDING });
     for (const statement of corpusStatements(sent)) {
@@ -170,7 +172,7 @@ describe('the dense leg searches the vectors of the query’s own width [KNOW-R1
 
   it('reads the documents’ vectors from the table of that width, count and ranking alike', async () => {
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: ofWidth(1024),
     });
@@ -191,11 +193,11 @@ describe('the dense leg searches the vectors of the query’s own width [KNOW-R1
   it('keeps organizations of different widths apart in one database', async () => {
     const acme = recorder();
     const globex = recorder();
-    await new DocumentCorpusReader(acme.sql, 'acme').dense({
+    await new DocumentCorpusReader(acme.sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: ofWidth(1536),
     });
-    await new DocumentCorpusReader(globex.sql, 'globex').dense({
+    await new DocumentCorpusReader(globex.sql, 'globex', MODEL).dense({
       ...LEG,
       embedding: ofWidth(1024),
     });
@@ -226,7 +228,7 @@ describe('the dense leg searches the vectors of the query’s own width [KNOW-R1
   it('sends nothing for a width no table stores', async () => {
     const { sql, sent } = recorder();
     await expect(
-      new DocumentCorpusReader(sql, 'acme').dense({
+      new DocumentCorpusReader(sql, 'acme', MODEL).dense({
         ...LEG,
         embedding: ofWidth(3),
       }),
@@ -241,10 +243,67 @@ describe('the dense leg searches the vectors of the query’s own width [KNOW-R1
   });
 });
 
+describe('the dense leg reads only the vectors of the query’s model [KNOW-R17]', () => {
+  /** The model the statement binds, by the placeholder that names it. */
+  const boundModel = (statement: Recorded) => {
+    const at = /d\.embedding_model = \$(\d+)/.exec(statement.text)?.[1];
+    return at === undefined ? undefined : statement.params[Number(at) - 1];
+  };
+
+  it('skips a document another model embedded, count and ranking alike', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const dense = sent.filter((entry) => entry.text.includes('.chunks'));
+    expect(dense.length).toBe(2);
+    for (const statement of dense) {
+      // A document indexed before the corpus recorded its model passes.
+      expect(statement.text).toContain(
+        '(d.embedding_model IS NULL OR d.embedding_model = $',
+      );
+      expect(boundModel(statement)).toBe(MODEL);
+    }
+  });
+
+  it('binds the model after the scope, which keeps the keyword leg’s numbers', async () => {
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
+    const access = {
+      teamIds: ['team-a'],
+      projectIds: ['proj-1'],
+      includeHub: true,
+    };
+    await reader.dense({
+      ...LEG,
+      access,
+      refs: ['handbook.pdf'],
+      embedding: EMBEDDING,
+    });
+    const dense = sent.filter((entry) => entry.text.includes('.chunks'));
+    expect(dense.length).toBe(2);
+    for (const statement of dense) {
+      expect(boundModel(statement)).toBe(MODEL);
+    }
+    const ranking = corpusStatements(sent)[0];
+    // The query's limit stays the last parameter.
+    expect(ranking?.params.at(-1)).toBe(LEG.limit);
+  });
+
+  it('leaves the keyword leg to every document, whichever model embedded it', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme', MODEL).keyword(LEG);
+    const keyword = corpusStatements(sent);
+    expect(keyword.length).toBe(1);
+    expect(keyword[0]?.text).not.toContain('embedding_model');
+  });
+});
+
 describe('the documents corpus is scoped to one organization', () => {
   it('filters both legs by the organization it was constructed for [KNOW-R1]', async () => {
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     await reader.keyword(LEG);
     await reader.dense({ ...LEG, embedding: EMBEDDING });
 
@@ -261,7 +320,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // The composite join is what stops a chunk of one organization from being
     // attributed to another organization's document.
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -275,11 +334,11 @@ describe('the documents corpus is scoped to one organization', () => {
     // and nothing in the query could change that.
     const acme = recorder();
     const globex = recorder();
-    await new DocumentCorpusReader(acme.sql, 'acme').dense({
+    await new DocumentCorpusReader(acme.sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
-    await new DocumentCorpusReader(globex.sql, 'globex').dense({
+    await new DocumentCorpusReader(globex.sql, 'globex', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -292,7 +351,7 @@ describe('the documents corpus is scoped to one organization', () => {
 
   it('keeps the organization filter when narrowing by document or folder', async () => {
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       refs: ['handbook.pdf'],
       folder: '/hr',
@@ -311,7 +370,7 @@ describe('the documents corpus is scoped to one organization', () => {
   it('matches a folder prefix only at a separator', async () => {
     // Otherwise "/reports" would also match "/reports-archive".
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       folder: '/reports',
       embedding: EMBEDDING,
@@ -323,7 +382,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // Team/project scoping is what stops a scoped document from leaking
     // org-wide; a leg without the clause would leak on exactly that leg.
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     const access = {
       teamIds: ['team-a', 'team-b'],
       projectIds: ['proj-1'],
@@ -360,7 +419,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // matched only the first team and silently hid the rest. `&&` is array
     // overlap: one common team suffices.
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     const access = {
       teamIds: ['team-support'],
       projectIds: [],
@@ -392,7 +451,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // but ONLY when the array is absent — a stamped array is the truth and
     // the stale mirror must not widen it.
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       access: { teamIds: ['team-a'], projectIds: [], includeHub: false },
       embedding: EMBEDDING,
@@ -410,7 +469,7 @@ describe('the documents corpus is scoped to one organization', () => {
       '((d.team_ids IS NOT NULL OR d.team_id IS NOT NULL) AND d.project_id IS NULL)';
     for (const isAdmin of [true, false]) {
       const { sql, sent } = recorder();
-      const reader = new DocumentCorpusReader(sql, 'acme');
+      const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
       const access = {
         teamIds: [],
         isAdmin,
@@ -430,7 +489,7 @@ describe('the documents corpus is scoped to one organization', () => {
 
   it('drops the hub disjunct when the scope excludes it', async () => {
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       access: { teamIds: ['team-a'], projectIds: [], includeHub: false },
       embedding: EMBEDDING,
@@ -446,7 +505,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // emailed attachment carries no team and no project, so without the
     // exclusion it would read as an org-wide hub row there.
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     const access = {
       teamIds: [],
       projectIds: [],
@@ -466,7 +525,7 @@ describe('the documents corpus is scoped to one organization', () => {
 
   it('omits the conversation disjunct for a scope that excludes them', async () => {
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       access: { teamIds: ['team-a'], projectIds: [], includeHub: true },
       embedding: EMBEDDING,
@@ -480,7 +539,7 @@ describe('the documents corpus is scoped to one organization', () => {
 
   it('selects the conversation id so a hit can name where it arrived', async () => {
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     await reader.keyword({ ...LEG });
     await reader.dense({ ...LEG, embedding: EMBEDDING });
     for (const statement of corpusStatements(sent)) {
@@ -505,7 +564,7 @@ describe('the documents corpus is scoped to one organization', () => {
     ];
     for (const access of scopes) {
       const { sql, sent } = recorder();
-      const reader = new DocumentCorpusReader(sql, 'acme');
+      const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
       await reader.keyword({ ...LEG, ...(access ? { access } : {}) });
       await reader.dense({
         ...LEG,
@@ -533,7 +592,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // attachments a member may not read would take a leg's every candidate
     // slot.
     const { sql, sent } = recorder();
-    const reader = new DocumentCorpusReader(sql, 'acme');
+    const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
     await reader.keyword({ ...LEG, access: BODIES_ACCESS });
     await reader.dense({ ...LEG, access: BODIES_ACCESS, embedding: EMBEDDING });
     const statements = corpusStatements(sent);
@@ -567,7 +626,7 @@ describe('the documents corpus is scoped to one organization', () => {
       ['bodies', 'LIKE'],
     ] as const) {
       const { sql, sent } = recorder();
-      const reader = new DocumentCorpusReader(sql, 'acme');
+      const reader = new DocumentCorpusReader(sql, 'acme', MODEL);
       await reader.keyword({ ...LEG, access: BODIES_ACCESS, mailOnly });
       await reader.dense({
         ...LEG,
@@ -591,7 +650,7 @@ describe('the documents corpus is scoped to one organization', () => {
 
   it('searches bodies alone for a conversation narrow, and never under a folder', async () => {
     const only = recorder();
-    const reader = new DocumentCorpusReader(only.sql, 'acme');
+    const reader = new DocumentCorpusReader(only.sql, 'acme', MODEL);
     await reader.keyword({
       ...LEG,
       access: BODIES_ACCESS,
@@ -620,7 +679,7 @@ describe('the documents corpus is scoped to one organization', () => {
       },
     ]) {
       const { sql, sent } = recorder();
-      await new DocumentCorpusReader(sql, 'acme').keyword(query);
+      await new DocumentCorpusReader(sql, 'acme', MODEL).keyword(query);
       const statements = corpusStatements(sent);
       expect(statements.length).toBe(1);
       expect(statements[0]?.text).not.toContain(
@@ -632,7 +691,7 @@ describe('the documents corpus is scoped to one organization', () => {
     for (const mailOnly of ['bodies', 'attachments'] as const) {
       const none = recorder();
       expect(
-        await new DocumentCorpusReader(none.sql, 'acme').keyword({
+        await new DocumentCorpusReader(none.sql, 'acme', MODEL).keyword({
           ...LEG,
           mailOnly,
         }),
@@ -649,7 +708,7 @@ describe('the documents corpus is scoped to one organization', () => {
         corpusRow('body-2', 'msg:m2', 0.2, 'conv-2'),
       ],
     });
-    const hits = await new DocumentCorpusReader(sql, 'acme').dense({
+    const hits = await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       access: BODIES_ACCESS,
       embedding: EMBEDDING,
@@ -661,7 +720,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // Absent access = the admin-keyed surfaces (org REST key, MCP lane):
     // exactly the pre-scoping statement, so nothing changes for them.
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -676,7 +735,7 @@ describe('the documents corpus is scoped to one organization', () => {
 
   it('passes the query vector as a parameter, never as interpolated text', async () => {
     const { sql, sent } = recorder();
-    await new DocumentCorpusReader(sql, 'acme').dense({
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -735,7 +794,7 @@ describe('the keyword leg degrades instead of failing', () => {
         () => Promise.resolve([{ '?column?': 1 }]),
         failing,
       ) as unknown as Sql;
-      const reader = new DocumentCorpusReader(probeOk, 'acme');
+      const reader = new DocumentCorpusReader(probeOk, 'acme', MODEL);
       // `null`, not `[]`: a caller must be able to tell "could not run" from
       // "ran and matched nothing".
       expect(await reader.keyword(LEG)).toBeNull();
@@ -768,11 +827,11 @@ describe('the keyword leg degrades instead of failing', () => {
         failing,
       ) as unknown as Sql;
 
-      expect(await new DocumentCorpusReader(probeOk, 'acme').keyword(LEG)).toBe(
-        null,
-      );
       expect(
-        await new DocumentCorpusReader(probeOk, 'acme').dense({
+        await new DocumentCorpusReader(probeOk, 'acme', MODEL).keyword(LEG),
+      ).toBe(null);
+      expect(
+        await new DocumentCorpusReader(probeOk, 'acme', MODEL).dense({
           ...LEG,
           embedding: EMBEDDING,
         }),
@@ -793,7 +852,9 @@ describe('the keyword leg degrades instead of failing', () => {
   it('skips the leg entirely on a database known to have no index', async () => {
     const { sql, sent } = recorder();
     markBm25Unavailable(sql);
-    expect(await new DocumentCorpusReader(sql, 'acme').keyword(LEG)).toBeNull();
+    expect(
+      await new DocumentCorpusReader(sql, 'acme', MODEL).keyword(LEG),
+    ).toBeNull();
     expect(corpusStatements(sent)).toEqual([]);
   });
 
@@ -805,7 +866,7 @@ describe('the keyword leg degrades instead of failing', () => {
         ),
     }) as unknown as Sql;
     await expect(
-      new DocumentCorpusReader(failing, 'acme').keyword(LEG),
+      new DocumentCorpusReader(failing, 'acme', MODEL).keyword(LEG),
     ).rejects.toThrow(/permission denied/);
   });
 
@@ -817,7 +878,7 @@ describe('the keyword leg degrades instead of failing', () => {
     // "Could not run" is `null` — the diagnostics name it `dense: false` —
     // never an empty list a caller would read as "ran, found nothing".
     expect(
-      await new DocumentCorpusReader(missing, 'acme').dense({
+      await new DocumentCorpusReader(missing, 'acme', MODEL).dense({
         ...LEG,
         embedding: EMBEDDING,
       }),
@@ -840,7 +901,7 @@ describe('rows become hits', () => {
         score: 0.87,
       },
     ]);
-    const hits = await new DocumentCorpusReader(sql, 'acme').dense({
+    const hits = await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -875,7 +936,7 @@ describe('rows become hits', () => {
         score: 0.9,
       },
     ]);
-    const hits = await new DocumentCorpusReader(sql, 'acme').dense({
+    const hits = await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
       ...LEG,
       embedding: EMBEDDING,
     });
@@ -907,7 +968,7 @@ describe('mail a member may not read never displaces a document', () => {
     });
     const result = await retrieve(
       {
-        readers: [new DocumentCorpusReader(sql, 'acme')],
+        readers: [new DocumentCorpusReader(sql, 'acme', MODEL)],
         embedder: { embed: () => Promise.resolve(EMBEDDING) },
         // The re-check for a plain member: no conversation is theirs.
         admit: (hits) =>

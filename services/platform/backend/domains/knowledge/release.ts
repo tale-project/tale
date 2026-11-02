@@ -18,6 +18,7 @@ import { queueRefRelease } from './release-queue.ts';
 import {
   reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
+  requeueDocumentsNotEmbeddedByModel,
 } from './service.ts';
 
 /**
@@ -550,6 +551,19 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
         // counts are of attachment rows.
         console.info(
           `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} restamped=${mail.restamped} released=${mail.unbackedReleased} failures=${mail.unbackedFailures} recheckReleased=${mail.recheckReleased} recheckFailures=${mail.recheckFailures} (of stamped=${mail.stampsScanned}) — rows no emailed attachment backed when the walk read them, not a failed sync`,
+        );
+      }
+      // The embedding model's pass: what the model the settings state has
+      // not embedded goes back in the queue, as the save that changed the
+      // model puts it (`KNOW-R17`). The backstop for what that save could
+      // not reach: a document a run in flight indexed under the model before
+      // it whose run could not put it back, one the previous image indexed
+      // while a deployment rolled, a follow-up of the save that failed, and
+      // settings changed outside Tale.
+      const reembed = await requeueDocumentsNotEmbeddedByModel(sql, orgRef);
+      if (reembed.requeued > 0) {
+        console.info(
+          `[knowledge] corpus reconcile for ${org.slug}: re-queued ${reembed.requeued} indexed document(s) the embedding model has not embedded`,
         );
       }
     } catch (error) {

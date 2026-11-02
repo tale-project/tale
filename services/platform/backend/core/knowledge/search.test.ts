@@ -22,15 +22,23 @@ vi.mock('./connection', () => ({
   readOrgEmbeddingConfig: (orgSlug: string) => readOrgEmbeddingConfig(orgSlug),
 }));
 vi.mock('./embedding', () => ({
-  embedderForOrg: vi.fn(async () => ({ dimensions: 1024 })),
+  embedderForOrg: vi.fn(async () => ({
+    dimensions: 1024,
+    model: { providerSlug: 'openai', model: 'text-embedding-3-small' },
+  })),
 }));
 vi.mock('./pool', () => ({
   getKnowledgePoolForOrg: vi.fn(async () => ({})),
   resolveOrgUrl: vi.fn(async () => 'postgresql://fake'),
 }));
+/** What each documents reader was bound to: pool, organization, model. */
+const documentReaders: unknown[][] = [];
 vi.mock('./corpus', () => ({
   DocumentCorpusReader: class {
     readonly corpus = 'documents';
+    constructor(...args: unknown[]) {
+      documentReaders.push(args);
+    }
   },
   WebCorpusReader: class {
     readonly corpus = 'web';
@@ -255,5 +263,26 @@ describe('the assistant’s similarity floor', () => {
     });
     const query = retrieveMock.mock.calls[0]?.[1] as Record<string, unknown>;
     expect('minSimilarity' in query).toBe(false);
+  });
+});
+
+describe('the documents searched by meaning', () => {
+  beforeEach(() => {
+    retrieveMock.mockReset();
+    documentReaders.length = 0;
+  });
+
+  it('are the vectors of the model the query is embedded with [KNOW-R17]', async () => {
+    retrieveMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+      corpus: 'documents',
+    });
+    // The embedder's own model: the one its query vector is of.
+    expect(documentReaders).toEqual([
+      [expect.anything(), 'acme', 'text-embedding-3-small'],
+    ]);
   });
 });

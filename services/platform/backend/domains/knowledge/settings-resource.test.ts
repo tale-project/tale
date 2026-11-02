@@ -29,7 +29,8 @@ vi.mock('../websites/service.ts', () => ({
 }));
 vi.mock('./service.ts', () => ({
   requeueEmbeddingBlockedDocuments: vi.fn(async () => ({ requeued: 0 })),
-  requeueDocumentsWithoutVectors: vi.fn(async () => ({ requeued: 0 })),
+  requeueDocumentsNotEmbeddedByModel: vi.fn(async () => ({ requeued: 0 })),
+  stampUnrecordedEmbeddingModel: vi.fn(async () => ({ stamped: 0 })),
 }));
 
 import type { McpCaller } from '../mcp/caller.ts';

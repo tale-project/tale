@@ -24,8 +24,11 @@ const {
   writeKnowledgeEmbedding,
   fetchKnowledgeDocument,
   searchKnowledgeForOrg,
-  requeueDocumentsWithoutVectors,
+  requeueDocumentsNotEmbeddedByModel,
   requeueEmbeddingBlockedDocuments,
+  stampUnrecordedEmbeddingModel,
+  deleteKnowledgeEmbedding,
+  readOrgEmbeddingConfig,
   listEmbeddingRecommendationsForOrg,
   listCredentials,
   orgMember,
@@ -35,8 +38,12 @@ const {
   writeKnowledgeEmbedding: vi.fn(),
   fetchKnowledgeDocument: vi.fn(),
   searchKnowledgeForOrg: vi.fn(),
-  requeueDocumentsWithoutVectors: vi.fn(async () => ({ requeued: 0 })),
+  requeueDocumentsNotEmbeddedByModel: vi.fn(async () => ({ requeued: 0 })),
   requeueEmbeddingBlockedDocuments: vi.fn(),
+  stampUnrecordedEmbeddingModel: vi.fn(async () => ({ stamped: 0 })),
+  deleteKnowledgeEmbedding: vi.fn(),
+  // The settings a save replaces: none unless a case states some.
+  readOrgEmbeddingConfig: vi.fn(async (): Promise<unknown> => null),
   listEmbeddingRecommendationsForOrg: vi.fn(),
   listCredentials: vi.fn(async (): Promise<unknown[]> => []),
   // The role the mocked org gate grants — `admin` unless a case says not.
@@ -60,12 +67,19 @@ vi.mock('./admin.ts', () => {
     probeKnowledgeConnection,
     writeKnowledgeEmbedding,
     deleteKnowledgeConnection: vi.fn(),
-    deleteKnowledgeEmbedding: vi.fn(),
+    deleteKnowledgeEmbedding,
     readKnowledgeConnectionView: vi.fn(),
     readKnowledgeEmbeddingView,
     listEmbeddingRecommendationsForOrg,
   };
 });
+
+vi.mock('../../core/knowledge/connection.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../core/knowledge/connection.ts')
+  >()),
+  readOrgEmbeddingConfig,
+}));
 
 vi.mock('./service.ts', () => {
   class KnowledgeError extends Error {
@@ -82,8 +96,9 @@ vi.mock('./service.ts', () => {
     KnowledgeError,
     fetchKnowledgeDocument,
     searchKnowledgeForOrg,
-    requeueDocumentsWithoutVectors,
+    requeueDocumentsNotEmbeddedByModel,
     requeueEmbeddingBlockedDocuments,
+    stampUnrecordedEmbeddingModel,
   };
 });
 
@@ -188,13 +203,13 @@ describe('reviewed embedding HTTP updates', () => {
     );
   });
 
-  // A model of another width finds no vector of its own on the documents
-  // already indexed: the save puts them back in the queue too, and reports
-  // them with the ones that had failed.
-  it('re-queues the indexed documents that have no vector of the saved width, and counts them [KNOW-R17]', async () => {
+  // A model of another width, or another model of the same width, finds no
+  // vector of its own on the documents already indexed: the save puts them
+  // back in the queue too, and reports them with the ones that had failed.
+  it('re-queues the indexed documents the saved model has not embedded, and counts them [KNOW-R17]', async () => {
     writeKnowledgeEmbedding.mockResolvedValue(undefined);
     requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 1 });
-    requeueDocumentsWithoutVectors.mockResolvedValueOnce({ requeued: 40 });
+    requeueDocumentsNotEmbeddedByModel.mockResolvedValueOnce({ requeued: 40 });
     const response = await post('/embedding?orgId=o1', {
       providerSlug: 'local',
       model: 'embedding',
@@ -202,7 +217,7 @@ describe('reviewed embedding HTTP updates', () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, requeued: 41 });
-    expect(requeueDocumentsWithoutVectors).toHaveBeenLastCalledWith(
+    expect(requeueDocumentsNotEmbeddedByModel).toHaveBeenLastCalledWith(
       expect.anything(),
       { organizationId: 'o1', orgSlug: 'acme' },
     );
@@ -214,7 +229,7 @@ describe('reviewed embedding HTTP updates', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     writeKnowledgeEmbedding.mockResolvedValue(undefined);
     requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 2 });
-    requeueDocumentsWithoutVectors.mockRejectedValueOnce(
+    requeueDocumentsNotEmbeddedByModel.mockRejectedValueOnce(
       new Error('the knowledge database is unreachable'),
     );
     const response = await post('/embedding?orgId=o1', {
@@ -225,6 +240,104 @@ describe('reviewed embedding HTTP updates', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, requeued: 2 });
     warn.mockRestore();
+  });
+
+  // Once the settings name the new model, nothing tells which model embedded
+  // a document indexed before the corpus recorded it: it is stamped first.
+  it('records the model the indexed documents were embedded with before the settings change [KNOW-R17]', async () => {
+    writeKnowledgeEmbedding.mockResolvedValue(undefined);
+    requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 0 });
+    stampUnrecordedEmbeddingModel.mockClear();
+    const response = await post('/embedding?orgId=o1', {
+      providerSlug: 'local',
+      model: 'embedding',
+      dimensions: 1024,
+    });
+    expect(response.status).toBe(200);
+    expect(stampUnrecordedEmbeddingModel).toHaveBeenCalledWith('acme');
+    expect(
+      stampUnrecordedEmbeddingModel.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      writeKnowledgeEmbedding.mock.invocationCallOrder.at(-1) ?? 0,
+    );
+  });
+
+  it('keeps the save when the indexed documents cannot record their model [KNOW-R17]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    writeKnowledgeEmbedding.mockClear();
+    writeKnowledgeEmbedding.mockResolvedValue(undefined);
+    requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 0 });
+    stampUnrecordedEmbeddingModel.mockRejectedValueOnce(
+      new Error('the knowledge database is unreachable'),
+    );
+    const response = await post('/embedding?orgId=o1', {
+      providerSlug: 'local',
+      model: 'embedding',
+      dimensions: 1024,
+    });
+    expect(response.status).toBe(200);
+    expect(writeKnowledgeEmbedding).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  // Once the settings name the other model, documents that record no model
+  // would pass for it with the old one's vectors, and no later save could
+  // tell them apart: such a save waits for a corpus that answers.
+  it('refuses a save that names another model while the indexed documents cannot record theirs [KNOW-R17]', async () => {
+    writeKnowledgeEmbedding.mockClear();
+    readOrgEmbeddingConfig.mockResolvedValueOnce({
+      providerSlug: 'local',
+      model: 'embedding-a',
+      dimensions: 1024,
+    });
+    stampUnrecordedEmbeddingModel.mockRejectedValueOnce(
+      new Error('the knowledge database is unreachable'),
+    );
+    const response = await post('/embedding?orgId=o1', {
+      providerSlug: 'local',
+      model: 'embedding-b',
+      dimensions: 1024,
+    });
+    expect(response.status).toBe(500);
+    expect(writeKnowledgeEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('keeps a save that keeps the model’s name when the documents cannot record theirs [KNOW-R17]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    writeKnowledgeEmbedding.mockClear();
+    writeKnowledgeEmbedding.mockResolvedValue(undefined);
+    requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 0 });
+    readOrgEmbeddingConfig.mockResolvedValueOnce({
+      providerSlug: 'local',
+      model: 'embedding',
+      dimensions: 1024,
+    });
+    stampUnrecordedEmbeddingModel.mockRejectedValueOnce(
+      new Error('the knowledge database is unreachable'),
+    );
+    const response = await post('/embedding?orgId=o1', {
+      providerSlug: 'gateway',
+      model: 'embedding',
+      dimensions: 1024,
+    });
+    expect(response.status).toBe(200);
+    expect(writeKnowledgeEmbedding).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('records the model the indexed documents were embedded with before the model is removed [KNOW-R17]', async () => {
+    stampUnrecordedEmbeddingModel.mockClear();
+    deleteKnowledgeEmbedding.mockClear();
+    deleteKnowledgeEmbedding.mockResolvedValue(undefined);
+    const response = await makeApp().request('/embedding?orgId=o1', {
+      method: 'DELETE',
+    });
+    expect(response.status).toBe(200);
+    expect(stampUnrecordedEmbeddingModel).toHaveBeenCalledWith('acme');
+    expect(
+      stampUnrecordedEmbeddingModel.mock.invocationCallOrder[0],
+    ).toBeLessThan(deleteKnowledgeEmbedding.mock.invocationCallOrder[0] ?? 0);
   });
 
   it('names the body when it is not a JSON object', async () => {

@@ -58,9 +58,11 @@ vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
 }));
 
 const {
-  requeueDocumentsWithoutVectors,
+  embeddingMovedSince,
+  requeueDocumentsNotEmbeddedByModel,
   requeueEmbeddingBlockedDocuments,
   requeuePiiScanFailedDocuments,
+  stampUnrecordedEmbeddingModel,
 } = await import('./service.ts');
 const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
 
@@ -240,7 +242,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
  * document would stay findable by its words and be missing from search by
  * meaning until someone indexed it again, one at a time. The save does it.
  */
-describe('requeueDocumentsWithoutVectors', () => {
+describe('requeueDocumentsNotEmbeddedByModel', () => {
   const ORG = { organizationId: 'org-1', orgSlug: 'acme' };
   const lacking = (...refs: string[]) =>
     corpus.unsafe.mockResolvedValue(refs.map((ref) => ({ ref })));
@@ -260,21 +262,34 @@ describe('requeueDocumentsWithoutVectors', () => {
   it('asks the corpus for the indexed documents that have no vector of the stated width [KNOW-R17]', async () => {
     const { sql } = fakeSql([]);
 
-    await requeueDocumentsWithoutVectors(sql, ORG);
+    await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
     expect(text).toContain("d.status = 'completed'");
     expect(text).toContain('FROM private_knowledge.chunk_vectors_1024 v');
     // A repeated passage has no vector at any width and is not a gap.
     expect(text).toContain('NOT c.passage_repeat');
-    expect(params).toEqual(['acme']);
+    expect(params).toEqual(['acme', 'embed']);
+  });
+
+  // Another model of the same width: every chunk has a vector, and only the
+  // model the row records tells them apart. A row that records none passes
+  // for the model stated (`<>` never picks NULL).
+  it('asks for the indexed documents another model embedded, too [KNOW-R17]', async () => {
+    const { sql } = fakeSql([]);
+
+    await requeueDocumentsNotEmbeddedByModel(sql, ORG);
+
+    const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(text).toMatch(/\(d\.embedding_model <> \$2\s+OR EXISTS \(/);
+    expect(params?.[1]).toBe('embed');
   });
 
   it('re-queues each such file and reports the count [KNOW-R17]', async () => {
     lacking('s3:a', 's3:b');
     const { sql, statements, values } = fakeSql([doc('f1'), doc('f2')]);
 
-    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+    const out = await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     expect(out).toEqual({ requeued: 2 });
     expect(
@@ -298,7 +313,7 @@ describe('requeueDocumentsWithoutVectors', () => {
     lacking('msg:9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a', 's3:a');
     const { sql, values } = fakeSql([attachment('f1')]);
 
-    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+    const out = await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     expect(out).toEqual({ requeued: 2 });
     expect(values[0]).toContainEqual(['s3:a']);
@@ -317,7 +332,7 @@ describe('requeueDocumentsWithoutVectors', () => {
     lacking('msg:9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a');
     const { sql, statements } = fakeSql([]);
 
-    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+    const out = await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     expect(out).toEqual({ requeued: 1 });
     expect(statements).toEqual([]);
@@ -328,7 +343,7 @@ describe('requeueDocumentsWithoutVectors', () => {
   it('moves nothing when every indexed document has its vectors', async () => {
     const { sql, statements } = fakeSql([]);
 
-    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+    const out = await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     expect(out).toEqual({ requeued: 0 });
     expect(statements).toEqual([]);
@@ -339,7 +354,7 @@ describe('requeueDocumentsWithoutVectors', () => {
     readOrgEmbeddingConfig.mockResolvedValue(null);
     const { sql } = fakeSql([]);
 
-    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+    const out = await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     expect(out).toEqual({ requeued: 0 });
     expect(corpus.unsafe).not.toHaveBeenCalled();
@@ -349,13 +364,177 @@ describe('requeueDocumentsWithoutVectors', () => {
     lacking(...Array.from({ length: 450 }, (_value, index) => `s3:${index}`));
     const { sql, statements, values } = fakeSql([]);
 
-    await requeueDocumentsWithoutVectors(sql, ORG);
+    await requeueDocumentsNotEmbeddedByModel(sql, ORG);
 
     expect(statements.length).toBe(3);
     const batches = values.map((args) =>
       args.find((arg): arg is string[] => Array.isArray(arg)),
     );
     expect(batches.map((batch) => batch?.length)).toEqual([200, 200, 50]);
+  });
+});
+
+describe('stampUnrecordedEmbeddingModel', () => {
+  /**
+   * The organization's corpus rows by ref, and the model each records
+   * (`null`: none). Answers the page read and the stamp the way the corpus
+   * does; a ref in `gone` is claimed or released by another run between the
+   * read of its page and the stamp, so the stamp passes it over.
+   */
+  function unrecorded(refs: string[], gone: ReadonlySet<string> = new Set()) {
+    const recorded = new Map<string, string | null>(
+      refs.map((ref) => [ref, null]),
+    );
+    corpus.unsafe.mockImplementation(
+      async (text: string, params: unknown[] = []) => {
+        if (text.includes('SELECT file_id AS ref')) {
+          const after = String(params[1]);
+          return [...recorded]
+            .filter(([ref, model]) => model === null && ref > after)
+            .map(([ref]) => ref)
+            .sort()
+            .slice(0, 200)
+            .map((ref) => ({ ref }));
+        }
+        if (text.includes('SET embedding_model')) {
+          const stamped: { ref: string }[] = [];
+          for (const ref of params[2] as string[]) {
+            if (gone.has(ref) || recorded.get(ref) !== null) continue;
+            recorded.set(ref, String(params[1]));
+            stamped.push({ ref });
+          }
+          return stamped;
+        }
+        return [];
+      },
+    );
+    return recorded;
+  }
+  const refs = (n: number) =>
+    Array.from({ length: n }, (_value, index) => `s3:${1000 + index}`);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    readOrgEmbeddingConfig.mockResolvedValue({
+      providerSlug: 'local',
+      model: 'embed',
+      dimensions: 1024,
+    });
+  });
+
+  it('stamps the documents that record no model with the model stated now [KNOW-R17]', async () => {
+    const recorded = unrecorded(['s3:a', 's3:b']);
+
+    const out = await stampUnrecordedEmbeddingModel('acme');
+
+    expect(out).toEqual({ stamped: 2 });
+    expect([...recorded.values()]).toEqual(['embed', 'embed']);
+    const statements = corpus.unsafe.mock.calls.map(([text]) => String(text));
+    // Only this organization's rows, and only those that record nothing:
+    // a stamped row keeps the model that embedded it.
+    for (const text of statements) {
+      expect(text).toContain('org_slug = $1');
+      expect(text).toContain('embedding_model IS NULL');
+    }
+  });
+
+  it('stamps a model no longer known when none is stated [KNOW-R17]', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue(null);
+    const recorded = unrecorded(['s3:a']);
+
+    await stampUnrecordedEmbeddingModel('acme');
+
+    expect(recorded.get('s3:a')).toBe('');
+  });
+
+  it('stamps a model no longer known when the settings do not read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    readOrgEmbeddingConfig.mockRejectedValue(new Error('not valid JSON'));
+    const recorded = unrecorded(['s3:a']);
+
+    await stampUnrecordedEmbeddingModel('acme');
+
+    expect(recorded.get('s3:a')).toBe('');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('works through a large corpus a page at a time, reading no row twice', async () => {
+    const recorded = unrecorded(refs(407));
+
+    const out = await stampUnrecordedEmbeddingModel('acme');
+
+    expect(out).toEqual({ stamped: 407 });
+    expect([...recorded.values()].every((model) => model === 'embed')).toBe(
+      true,
+    );
+    const reads = corpus.unsafe.mock.calls.filter(([text]) =>
+      String(text).includes('SELECT file_id AS ref'),
+    );
+    expect(reads.map(([, params]) => (params as unknown[])[1])).toEqual([
+      '',
+      's3:1199',
+      's3:1399',
+    ]);
+    expect(String(reads[0]?.[0])).toContain('LIMIT 200');
+  });
+
+  // Rows another run claimed or released while the page was read are no
+  // sign that the corpus ends there: the walk goes on to the next page.
+  it('goes on past a page whose rows changed meanwhile', async () => {
+    const recorded = unrecorded(
+      refs(450),
+      new Set(['s3:1003', 's3:1050', 's3:1150']),
+    );
+
+    const out = await stampUnrecordedEmbeddingModel('acme');
+
+    expect(out).toEqual({ stamped: 447 });
+    expect(recorded.get('s3:1449')).toBe('embed');
+  });
+});
+
+describe('embeddingMovedSince', () => {
+  const EMBEDDED = {
+    providerSlug: 'local',
+    model: 'embed',
+    dimensions: 1024,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('is a move when the settings name another model or another width [KNOW-R17]', async () => {
+    readOrgEmbeddingConfig.mockResolvedValueOnce({
+      ...EMBEDDED,
+      model: 'embed-2',
+    });
+    expect(await embeddingMovedSince('acme', EMBEDDED)).toBe(true);
+    readOrgEmbeddingConfig.mockResolvedValueOnce({
+      ...EMBEDDED,
+      dimensions: 1536,
+    });
+    expect(await embeddingMovedSince('acme', EMBEDDED)).toBe(true);
+  });
+
+  // The same model through another provider makes the same vectors.
+  it('is no move when only the provider changed [KNOW-R17]', async () => {
+    readOrgEmbeddingConfig.mockResolvedValueOnce({
+      ...EMBEDDED,
+      providerSlug: 'gateway',
+    });
+    expect(await embeddingMovedSince('acme', EMBEDDED)).toBe(false);
+  });
+
+  it('is no move when the model was removed or its settings do not read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    readOrgEmbeddingConfig.mockResolvedValueOnce(null);
+    expect(await embeddingMovedSince('acme', EMBEDDED)).toBe(false);
+    readOrgEmbeddingConfig.mockRejectedValueOnce(new Error('not valid JSON'));
+    expect(await embeddingMovedSince('acme', EMBEDDED)).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

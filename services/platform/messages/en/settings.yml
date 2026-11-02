@@ -1893,8 +1893,8 @@ dataResidency:
     dimensions: Vector width
     dimensionsHint:
       'Stated, never guessed: the exact dimension count this model produces,
-      one of {widths}. After a change, the indexed documents and website
-      pages are embedded again at the new width.'
+      one of {widths}. Saving another model or width embeds the indexed
+      documents again, and the website pages too when the width changes.'
     baseUrl: Base URL
     baseUrlHint: OpenAI-compatible endpoint; leave blank for the provider's own.
     removed:

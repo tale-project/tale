@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 30 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -223,6 +223,18 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   and switch back to the gateway → each switch empties **Model** and
   **Vector width** with nothing flagged and turns the header **Save** off;
   each pick of the curated model fills `1536` again and turns it back on.
+- [ ] `DATA-F15` · **Embedding model: another model of the same width** — On
+  a stack whose indexing is live, with an embedding model saved and at least
+  two documents **Indexed** (`documents.rag.status.indexed`) under it, pick
+  another model that states the same **Vector width**
+  (`settings.dataResidency.orgEmbedding.dimensions`) — after
+  `text-embedding-3-small`, a gateway's `openrouter/qwen/qwen3-embedding-8b`,
+  both `1536` — and **Save** → on `/dashboard/{org}/documents` the indexed
+  documents turn **Queued** (`documents.rag.status.queued`) by themselves and
+  return to **Indexed**, and asking the assistant for a passage of one of them
+  finds it again. Then save the same model through another provider that
+  routes it under the same name, and save once more without a change → no
+  document leaves **Indexed** either time.
 
 ## Boundary / error
 

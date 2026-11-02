@@ -20,7 +20,10 @@
  *    content is skipped; content already embedded elsewhere in the SAME
  *    organization is copied rather than re-embedded — except mail (an email
  *    body, an emailed attachment), whose chunks carry what its conversation
- *    says about it and so are never copied to or from another row.
+ *    says about it and so are never copied to or from another row. Both
+ *    hold only under the model that embedded the content: the document row
+ *    records it (`embedding_model`), and what another model embedded is
+ *    embedded again, however unchanged.
  *  - **Slices resume.** A large document is committed in slices, and the
  *    committed prefix is the checkpoint: a crash resumes after it instead of
  *    starting over. Preparing the text — the secret scan, the PII policy,
@@ -467,6 +470,9 @@ export async function indexDocument(
     args.embedder.dimensions,
     `organization "${args.orgSlug}"`,
   );
+  // The model by the name the organization's settings state — what the
+  // document row records, and what a stored document is reused under.
+  const embeddingModel = args.embedder.model.model;
   const stored = await readStoredState(
     args.sql,
     args.orgSlug,
@@ -497,10 +503,12 @@ export async function indexDocument(
           contentHash,
           args.fileId,
           vectorsTable,
+          embeddingModel,
         );
   const plan = planIngest({
     contentHash,
     totalChunks: chunks.length,
+    embeddingModel,
     stored: stored?.state ?? null,
     duplicateOf: duplicate,
   });
@@ -556,6 +564,7 @@ export async function indexDocument(
     filename: prepared.filename,
     contentHash,
     chunksTotal: chunks.length,
+    embeddingModel,
     folderPath: args.folderPath ?? null,
     teamIds: args.teamIds ?? null,
     projectId: args.projectId ?? null,
@@ -583,14 +592,21 @@ export async function indexDocument(
       plan.sourceDocumentId,
       documentId,
       vectorsTable,
+      embeddingModel,
     );
     if (copied === null) {
       logger.info(
-        `document "${args.fileId}" was released while its chunks were being copied; stopping`,
+        `document "${args.fileId}" was released, or claimed for another embedding model, while its chunks were being copied; stopping`,
       );
       return released(args.fileId, chunks.length);
     }
-    await markCompleted(args.sql, args.orgSlug, documentId, copied);
+    await markCompleted(
+      args.sql,
+      args.orgSlug,
+      documentId,
+      copied,
+      embeddingModel,
+    );
     logger.info(
       `document "${args.fileId}" matched content already indexed for this organization; copied ${copied} chunks instead of re-embedding`,
     );
@@ -645,17 +661,24 @@ export async function indexDocument(
       vectors,
       vectorsTable,
       legacyColumn,
+      embeddingModel,
     });
     if (outcome === 'released') {
       logger.info(
-        `document "${args.fileId}" was released while its slice was being embedded; stopping`,
+        `document "${args.fileId}" was released, or claimed for another embedding model, while its slice was being embedded; stopping`,
       );
       return released(args.fileId, chunks.length);
     }
   }
 
   if (slice.done) {
-    await markCompleted(args.sql, args.orgSlug, documentId, chunks.length);
+    await markCompleted(
+      args.sql,
+      args.orgSlug,
+      documentId,
+      chunks.length,
+      embeddingModel,
+    );
   }
 
   return {
@@ -739,7 +762,10 @@ export async function indexWholeDocument(
  * which has no vector — with their vector in `vectorsTable`. A document
  * indexed under a model of another width therefore counts none, and is
  * embedded again from its first chunk when it is next indexed; one that
- * stopped mid-way resumes after its last vector, as before.
+ * stopped mid-way resumes after its last vector, as before. One indexed
+ * under another model of this width counts its vectors, and the model the
+ * row records (`embeddingModel`) is what tells the plan they are not this
+ * model's.
  */
 async function readStoredState(
   sql: Sql,
@@ -755,10 +781,11 @@ async function readStoredState(
       id: string;
       content_hash: string | null;
       status: string;
+      embedding_model: string | null;
       stored: number;
     }[]
   >(
-    `SELECT d.id, d.content_hash, d.status,
+    `SELECT d.id, d.content_hash, d.status, d.embedding_model,
             COALESCE((SELECT MIN(c.chunk_index)
                       FROM ${SCHEMA}.chunks c
                       WHERE c.document_id = d.id AND c.org_slug = d.org_slug
@@ -781,6 +808,7 @@ async function readStoredState(
       contentHash: row.content_hash,
       status: asStatus(row.status),
       storedChunks: row.stored,
+      embeddingModel: row.embedding_model,
     },
   };
 }
@@ -800,9 +828,12 @@ async function readStoredState(
  * to see. Nor does mail clone from anything (the caller's check): two
  * identical attachments in two conversations each carry their own mail.
  *
- * And only a document embedded at this width: one indexed under a model of
+ * And only a document this model embedded: one indexed under a model of
  * another width has no vector in `vectorsTable` to copy, and its copy would
- * be complete on paper and missing from every search by meaning.
+ * be complete on paper and missing from every search by meaning; one another
+ * model of this width embedded has vectors no query of this model can be
+ * compared with. A document indexed before the corpus recorded the model
+ * passes for this one, as it does for its own row (`planIngest`).
  */
 async function findDuplicate(
   sql: Sql,
@@ -810,12 +841,14 @@ async function findDuplicate(
   contentHash: string,
   exceptFileId: string,
   vectorsTable: string,
+  embeddingModel: string,
 ): Promise<string | null> {
   const rows = await sql.unsafe<{ id: string }[]>(
     `SELECT d.id FROM ${SCHEMA}.documents d
      WHERE d.org_slug = $1 AND d.content_hash = $2 AND d.status = 'completed'
        AND d.file_id <> $3 AND d.file_id NOT LIKE $4
        AND d.conversation_id IS NULL
+       AND (d.embedding_model IS NULL OR d.embedding_model = $5)
        AND NOT EXISTS (
          SELECT 1 FROM ${SCHEMA}.chunks c
           WHERE c.document_id = d.id AND c.org_slug = d.org_slug
@@ -823,7 +856,13 @@ async function findDuplicate(
             AND NOT EXISTS (SELECT 1 FROM ${vectorsTable} v
                              WHERE v.chunk_id = c.id))
      LIMIT 1`,
-    [orgSlug, contentHash, exceptFileId, MESSAGE_REF_LIKE_PATTERN],
+    [
+      orgSlug,
+      contentHash,
+      exceptFileId,
+      MESSAGE_REF_LIKE_PATTERN,
+      embeddingModel,
+    ],
   );
   return rows[0]?.id ?? null;
 }
@@ -836,6 +875,11 @@ async function findDuplicate(
  * the content is unchanged, and are discarded when it is not — new content has
  * different chunk boundaries, so keeping the old prefix would splice two
  * documents together.
+ *
+ * The row records the model the chunks are embedded with from here on. Kept
+ * chunks are this model's already (`planIngest` resumes only under the model
+ * that embedded them), and every other claim starts from no chunks, or from
+ * the copy of a document this model embedded.
  */
 async function claimDocumentRow(args: {
   sql: Sql;
@@ -844,6 +888,7 @@ async function claimDocumentRow(args: {
   filename: string;
   contentHash: string;
   chunksTotal: number;
+  embeddingModel: string;
   folderPath: string | null;
   teamIds: readonly string[] | null;
   projectId: string | null;
@@ -862,14 +907,15 @@ async function claimDocumentRow(args: {
       `INSERT INTO ${SCHEMA}.documents
           (org_slug, file_id, filename, content_hash, status, chunks_count,
            folder_path, team_ids, team_id, project_id, conversation_id,
-           source_created_at, source_modified_at)
+           source_created_at, source_modified_at, embedding_model)
        VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7::text[], $8, $9, $10,
-               $11, $12)
+               $11, $12, $13)
        ON CONFLICT (org_slug, file_id) DO UPDATE SET
            filename = EXCLUDED.filename,
            content_hash = EXCLUDED.content_hash,
            status = 'processing',
            chunks_count = EXCLUDED.chunks_count,
+           embedding_model = EXCLUDED.embedding_model,
            folder_path = EXCLUDED.folder_path,
            team_ids = EXCLUDED.team_ids,
            team_id = EXCLUDED.team_id,
@@ -893,6 +939,7 @@ async function claimDocumentRow(args: {
         args.conversationId,
         args.sourceCreatedAt,
         args.sourceModifiedAt,
+        args.embeddingModel,
       ],
     );
     const documentId = rows[0].id;
@@ -914,17 +961,24 @@ async function claimDocumentRow(args: {
  * no row, and the write stops; one that arrives now waits for this commit
  * and then cascades the chunks away — a consistent end state, never the FK
  * violation the bare insert raised.
+ *
+ * A row that records another model than this run's was claimed since by a
+ * run of that model, which dropped this run's chunks: it is that run's row
+ * now, and this run stops as it would for a release, rather than add the
+ * vectors of a model the row no longer stands for.
  */
 async function lockClaimedRow(
   tx: TransactionSql,
   orgSlug: string,
   documentId: string,
+  embeddingModel: string,
 ): Promise<boolean> {
   const rows = await tx.unsafe<{ id: string }[]>(
     `SELECT id FROM ${SCHEMA}.documents
      WHERE id = $1 AND org_slug = $2
+       AND embedding_model IS NOT DISTINCT FROM $3
      FOR KEY SHARE`,
-    [documentId, orgSlug],
+    [documentId, orgSlug, embeddingModel],
   );
   return rows.length > 0;
 }
@@ -980,9 +1034,18 @@ async function writeChunks(args: {
   vectorsTable: string;
   /** Whether the previous release's column is declared at this width. */
   legacyColumn: boolean;
+  /** The model the vectors are of — what the row must still record. */
+  embeddingModel: string;
 }): Promise<'written' | 'released'> {
   return args.sql.begin(async (tx) => {
-    if (!(await lockClaimedRow(tx, args.orgSlug, args.documentId))) {
+    if (
+      !(await lockClaimedRow(
+        tx,
+        args.orgSlug,
+        args.documentId,
+        args.embeddingModel,
+      ))
+    ) {
       return 'released';
     }
     for (const [position, chunk] of args.chunks.entries()) {
@@ -1052,9 +1115,14 @@ async function cloneChunks(
   sourceDocumentId: string,
   targetDocumentId: string,
   vectorsTable: string,
+  embeddingModel: string,
 ): Promise<number | null> {
   return sql.begin(async (tx) => {
-    if (!(await lockClaimedRow(tx, orgSlug, targetDocumentId))) return null;
+    if (
+      !(await lockClaimedRow(tx, orgSlug, targetDocumentId, embeddingModel))
+    ) {
+      return null;
+    }
     const rows = await tx.unsafe<{ count: number }[]>(
       `WITH copied AS (
          INSERT INTO ${SCHEMA}.chunks
@@ -1088,18 +1156,22 @@ async function cloneChunks(
   });
 }
 
+/** Stamp the row complete — unless a run of another model claimed it since
+ * (see `lockClaimedRow`): that run completes it. */
 async function markCompleted(
   sql: Sql,
   orgSlug: string,
   documentId: string,
   chunksTotal: number,
+  embeddingModel: string,
 ): Promise<void> {
   await sql.unsafe(
     `UPDATE ${SCHEMA}.documents
      SET status = 'completed', chunks_count = $3, error = NULL,
          progress_phase = NULL, progress_detail = NULL, updated_at = NOW()
-     WHERE id = $1 AND org_slug = $2`,
-    [documentId, orgSlug, chunksTotal],
+     WHERE id = $1 AND org_slug = $2
+       AND embedding_model IS NOT DISTINCT FROM $4`,
+    [documentId, orgSlug, chunksTotal, embeddingModel],
   );
 }
 
