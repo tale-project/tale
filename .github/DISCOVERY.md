@@ -14,7 +14,8 @@ credentials, data flows, licensing and professional services aligned with their 
 - Topics describe actual capabilities and intended users. Review the existing 20 topics when
   positioning changes; do not add unrelated brands or treat the limit as a quota.
 - Pin the main repository on the organization overview. The repository social preview reuses
-  `services/web/public/og.png`; upload a replacement in repository Settings when that brand asset changes.
+  `services/web/public/og.png` (`bun run --filter @tale/web og-card` writes it); upload a replacement in
+  repository Settings when that brand asset changes.
 - Use Discussions for the [maintainer welcome](https://github.com/tale-project/tale/discussions/4130),
   [starter evaluation task](https://github.com/tale-project/tale/discussions/4131), real questions and answers.
   Mark answers when they resolve a question. Keep bug reports in Issues and vulnerability reports private.
