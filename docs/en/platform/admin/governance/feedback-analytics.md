@@ -16,7 +16,7 @@ Use **Comments only** to focus on written explanations. If no feedback appears, 
 | Signal | What it tells you |
 | --- | --- |
 | Thumbs up/down | Whether a member found a particular reply helpful. An optional comment provides context. |
-| Arena verdict | Which answer a member preferred in a specific pair, or whether the pair tied or both were bad. A verdict cast on two copies of the same model is counted under **Same model**, apart from the verdicts and the matchup table. |
+| Arena verdict | Which answer a member preferred in a specific pair, or whether the pair tied or both were bad. A verdict cast on the same model through the same provider is counted under **Same model**, apart from the verdicts and the matchup table. The same model through two providers is a pairing of its own: where the table holds a model through more than one provider, it names each side with its provider, as in **openrouter · openai/gpt-5.6-luna**. Older verdicts, which name no provider, are paired by their models alone. |
 
 Members can change or withdraw a rating. The dashboard reflects the current state, not a permanent count of every click. [Arena mode](/platform/chat/arena-mode) explains how members compare two answers.
 
