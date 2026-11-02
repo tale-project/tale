@@ -118,6 +118,29 @@ function validateGitIdentity(
   };
 }
 
+/** Whether the pins name the same credential for each connector as the
+ * loaded ones, in any order — the server's own test of a change. */
+function samePins(
+  pins: Readonly<Record<string, string>>,
+  loaded: Readonly<Record<string, string>>,
+): boolean {
+  const entries = Object.entries(pins);
+  return (
+    entries.length === Object.keys(loaded).length &&
+    entries.every(([slug, credential]) => loaded[slug] === credential)
+  );
+}
+
+/** Whether two commit identities are the same; `null` is none. */
+function sameGitIdentity(
+  identity: { name: string; email: string } | null,
+  loaded: { name: string; email: string } | null,
+): boolean {
+  return identity === null || loaded === null
+    ? identity === loaded
+    : identity.name === loaded.name && identity.email === loaded.email;
+}
+
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
   connectors: [],
@@ -171,9 +194,15 @@ export function ProjectAgentDialog({
   // Whether this opening of a create dialog already ticked the document
   // skills — once, so unticking one sticks while the catalog refetches.
   const documentSkillsSeeded = useRef(false);
-  const snapshot = useRef<{ agentId?: string; updatedAt?: number } | null>(
-    null,
-  );
+  // What this opening loaded: the version a save names as
+  // `expectedUpdatedAt`, and the pins and the commit identity a save sends
+  // only when they changed.
+  const snapshot = useRef<{
+    agentId?: string;
+    updatedAt?: number;
+    pins: Record<string, string>;
+    gitIdentity: { name: string; email: string } | null;
+  } | null>(null);
 
   // Re-seed from the row each time the dialog opens; create mode seeds blank.
   useEffect(() => {
@@ -182,7 +211,12 @@ export function ProjectAgentDialog({
       return;
     }
     if (snapshot.current && snapshot.current.agentId === agent?._id) return;
-    snapshot.current = { agentId: agent?._id, updatedAt: agent?.updatedAt };
+    snapshot.current = {
+      agentId: agent?._id,
+      updatedAt: agent?.updatedAt,
+      pins: { ...agent?.connectorCredentials },
+      gitIdentity: agent?.gitIdentity ?? null,
+    };
     setName(agent?.name ?? '');
     setHarness(agent?.harness ?? '');
     setModel(agent?.model ?? '');
@@ -354,10 +388,23 @@ export function ProjectAgentDialog({
           : {}),
       };
       if (agent) {
+        // A save keeps what it does not change [PROJ-R23]: the pins and the
+        // commit identity go only when they differ from what this opening
+        // loaded, so an edit of anything else can neither clear them nor be
+        // refused for them [PROJ-R24].
+        const { connectorCredentials, gitIdentity, ...fields } = payload;
+        const loaded = snapshot.current;
         await updateAgent({
           agentId: agent._id,
-          expectedUpdatedAt: snapshot.current?.updatedAt,
-          ...payload,
+          expectedUpdatedAt: loaded?.updatedAt,
+          ...fields,
+          ...(loaded !== null && samePins(connectorCredentials, loaded.pins)
+            ? {}
+            : { connectorCredentials }),
+          ...(loaded !== null &&
+          sameGitIdentity(gitIdentity, loaded.gitIdentity)
+            ? {}
+            : { gitIdentity }),
         });
       } else {
         const agentId = await createAgent({ projectId, ...payload });

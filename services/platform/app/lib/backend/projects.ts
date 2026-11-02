@@ -138,6 +138,12 @@ interface ProjectAgentWire {
   instructions: string | null;
   /** Absent on a row an older backend sent, which knew no managed agents. */
   managed?: boolean;
+  /** The credential it acts as per connector, by name; absent from an older
+   * backend. */
+  connectorCredentials?: Record<string, string>;
+  /** The name and email its commits carry, `null` for none; absent from an
+   * older backend. */
+  gitIdentity?: { name: string; email: string } | null;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -163,6 +169,10 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
     secrets: row.secrets,
     ...(row.instructions !== null ? { instructions: row.instructions } : {}),
     managed: row.managed === true,
+    ...(row.connectorCredentials !== undefined
+      ? { connectorCredentials: row.connectorCredentials }
+      : {}),
+    ...(row.gitIdentity !== undefined ? { gitIdentity: row.gitIdentity } : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
