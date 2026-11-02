@@ -1,0 +1,95 @@
+# The Settings section: its pages, the start page, how this device shows the
+# app, and AI access. Values with a colon followed by a space are quoted: a
+# plain one would be read as a mapping.
+nav:
+  label: Settings pages
+pages:
+  general:
+    title: General
+    documentTitle: General settings
+    summary: Start page and version.
+  appearance:
+    title: Appearance
+    summary: Theme and language.
+  aiAccess:
+    title: AI access
+    summary: Let AI assistants use Session Manager.
+loadFailed: Couldn't load the settings.
+general:
+  sessions:
+    title: New sessions
+  startPage:
+    label: Start page
+    description: New sessions open this page, and so does a session whose last tab you closed. A session you stop keeps its tabs.
+    hint: Leave blank to use the default.
+    useDefault: Use default start page ({url})
+    remote:
+      message: The start page was changed somewhere else, for example by an AI assistant.
+      showSaved: Show the saved address
+      keepEditing: Keep editing
+  about:
+    title: About
+    version: Version
+    browser: Browser
+    browserBuild: Camoufox {version}
+    installed: Browser installed
+    installedYes: "Yes"
+    installedNo: "No"
+    installing: Installing
+    unavailable: Unavailable
+appearance:
+  browser:
+    title: This device
+    description: These preferences are saved on this device and apply at once.
+  theme:
+    label: Theme
+    description: Light, dark, or the same as your system.
+  language:
+    label: Language
+    description: The language Session Manager is shown in.
+aiAccess:
+  assistants:
+    title: AI assistants
+    description: Let an AI assistant such as Claude use Session Manager through MCP. It can run sessions, browse in them, and manage proxies, secrets and settings for you.
+  switch:
+    label: Allow AI assistants to connect
+    description: Takes effect at once. Only you can switch this on or off, not an assistant.
+    changeFailed: Couldn't change AI access
+  warning:
+    lead: A connected assistant can use every session and read every secret, including passwords and card numbers.
+    detail: Connect only assistants you trust. The address only works on this computer, but any program running here can use it while AI access is on.
+  off:
+    description: Switch AI access on to see how to add Session Manager to an assistant.
+  connect:
+    title: Connect an assistant
+    description: Add Session Manager to your assistant as an MCP server.
+    address: Address
+    addressHint: MCP over Streamable HTTP. It works on this computer only.
+    clients: Assistant
+    clientClaudeCode: Claude Code
+    clientCursor: Cursor and other assistants
+    clientClaudeDesktop: Claude Desktop
+    copyCommand: Copy command
+    copyConfig: Copy configuration
+    claudeCode: Add Session Manager to Claude Code. Run this in your terminal.
+    cursor: Add this server to the MCP configuration of Cursor, Windsurf and most other assistants.
+    claudeDesktop: Add this to the configuration of Claude Desktop. This setup needs Node.js.
+  tools:
+    title: What assistants can do
+    description: An assistant can do everything you can do in Session Manager, except switch AI access on or off. You can watch it work in a session's page and take over at any time.
+    count: "{count, plural, one {# tool} other {# tools}}"
+    overview:
+      title: Overview and settings
+      description: Read the overview and the settings, and change the start page.
+    sessions:
+      title: Sessions
+      description: Add, start, stop, restart, rename and delete sessions, rotate or check their exit IP, and export their proxies.
+    proxies:
+      title: Proxies
+      description: List, add, check and delete proxies.
+    browser:
+      title: A running session's browser
+      description: "Work in a running session: manage tabs, navigate, read the page, click, type, scroll and answer the page's own dialogs."
+    secrets:
+      title: Secrets and notes
+      description: List, read, add, change and delete secrets. An assistant can also type one value into a page without seeing it.

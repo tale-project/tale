@@ -1,0 +1,8 @@
+@import '@tale/ui/globals.css';
+
+/*
+ * The app rail's width: 8px inset + 36px tile + 8px inset = 3.25rem (52px).
+ */
+:root {
+  --sidebar-width-collapsed: 3.25rem;
+}

@@ -1,0 +1,46 @@
+{
+  "name": "@tale/session-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local manager for isolated Camoufox browser sessions, each with its own profile, fingerprint and proxy",
+  "type": "module",
+  "scripts": {
+    "setup": "echo 'Dependencies managed by root workspace'",
+    "dev": "bun scripts/dev.ts",
+    "build": "bun --bun ../../packages/ui/bin/build-client.ts",
+    "start": "bun server.ts",
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx --bun vitest --run --passWithNoTests",
+    "test:watch": "bunx --bun vitest",
+    "test:coverage": "bunx --bun vitest --coverage --passWithNoTests",
+    "test:ui": "bunx vitest --run --config vitest.ui.config.ts",
+    "test:camoufox": "SESSION_MANAGER_CAMOUFOX_TESTS=1 bunx --bun vitest --run --config vitest.camoufox.config.ts",
+    "test:e2e": "bunx playwright test",
+    "test:e2e:ui": "bunx playwright test --ui"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.2.2",
+    "@tale/ui": "workspace:*",
+    "@tanstack/react-query": "5.97.0",
+    "@tanstack/react-table": "8.21.3",
+    "camoufox-js": "0.13.0",
+    "fast-xml-parser": "5.8.0",
+    "fingerprint-generator": "2.1.89",
+    "hono": "4.13.7",
+    "playwright-core": "1.62.1",
+    "react-hook-form": "7.72.1",
+    "socks": "2.8.9",
+    "undici": "7.30.1",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@peculiar/x509": "1.14.3",
+    "@playwright/test": "1.62.1",
+    "@tale/e2e": "workspace:*",
+    "@types/bun": "1.3.11",
+    "axe-core": "4.13.0",
+    "vitest-axe": "1.0.0-pre.5"
+  }
+}

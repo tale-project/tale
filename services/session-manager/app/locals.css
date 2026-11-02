@@ -1,0 +1,54 @@
+/*
+ * Service-local stylesheet. Loaded after globals.css in main.tsx.
+ */
+
+/* Fullscreen SPA layout: lock viewport scroll so the app shell controls its
+   own scrollable regions. */
+html,
+body,
+#root {
+  width: 100%;
+  margin: 0;
+  overflow: clip;
+}
+
+/* The shared 100vh height fills the home-indicator area in installed iOS
+   apps. In a browser tab it also includes space behind Safari's expanded
+   toolbar, leaving the document scrollable after an input loses focus. Fit the
+   browser's current viewport so the title cannot stay scrolled off screen.
+   Mirrors services/platform/app/locals.css. */
+@media (display-mode: browser) {
+  html,
+  body {
+    height: 100dvh;
+  }
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Indeterminate sweep for the top-of-page navigation progress bar. */
+@keyframes route-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(150%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-route-progress {
+  animation: route-progress 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-route-progress {
+    animation: none;
+    transform: none;
+  }
+}

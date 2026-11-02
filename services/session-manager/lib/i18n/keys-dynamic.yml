@@ -1,0 +1,5 @@
+# Keys built at runtime from a value the scanner cannot follow.
+
+entries:
+  # `errors.<code>`: one sentence per error code of the backend (app/lib/api/failure.ts).
+  - errors

@@ -1,0 +1,95 @@
+# The Settings section: its pages, the start page, how this device shows the
+# app, and AI access. Values with a colon followed by a space are quoted: a
+# plain one would be read as a mapping.
+nav:
+  label: Pages des paramètres
+pages:
+  general:
+    title: Général
+    documentTitle: Paramètres généraux
+    summary: Page de démarrage et version.
+  appearance:
+    title: Apparence
+    summary: Thème et langue.
+  aiAccess:
+    title: Accès IA
+    summary: Autoriser les assistants IA à utiliser Session Manager.
+loadFailed: Impossible de charger les paramètres.
+general:
+  sessions:
+    title: Nouvelles sessions
+  startPage:
+    label: Page de démarrage
+    description: S'ouvre dans les nouvelles sessions et dans une session dont tu as fermé le dernier onglet. Une session que tu arrêtes garde ses onglets.
+    hint: Laisse vide pour utiliser la page par défaut.
+    useDefault: Utiliser la page de démarrage par défaut ({url})
+    remote:
+      message: La page de démarrage a été modifiée ailleurs, par exemple par un assistant IA.
+      showSaved: Afficher l'adresse enregistrée
+      keepEditing: Continuer à modifier
+  about:
+    title: À propos
+    version: Version
+    browser: Navigateur
+    browserBuild: Camoufox {version}
+    installed: Navigateur installé
+    installedYes: Oui
+    installedNo: Non
+    installing: Installation en cours
+    unavailable: Indisponible
+appearance:
+  browser:
+    title: Cet appareil
+    description: Ces préférences sont enregistrées sur cet appareil et s'appliquent immédiatement.
+  theme:
+    label: Thème
+    description: Clair, sombre ou celui de ton système.
+  language:
+    label: Langue
+    description: La langue d'affichage de Session Manager.
+aiAccess:
+  assistants:
+    title: Assistants IA
+    description: Autorise un assistant IA comme Claude à utiliser Session Manager via MCP. Il peut lancer des sessions, y naviguer et gérer les proxys, les secrets et les paramètres à ta place.
+  switch:
+    label: Autoriser les assistants IA à se connecter
+    description: Prend effet immédiatement. Toi seul peux l'activer ou le désactiver, pas un assistant.
+    changeFailed: Impossible de modifier l'accès IA
+  warning:
+    lead: Un assistant connecté peut utiliser toutes les sessions et lire tous les secrets, y compris les mots de passe et les numéros de carte.
+    detail: Ne connecte que des assistants de confiance. L'adresse ne fonctionne que sur cet ordinateur, mais tous les programmes qui y tournent peuvent l'utiliser tant que l'accès est activé.
+  off:
+    description: Active l'accès IA pour voir comment ajouter Session Manager à un assistant.
+  connect:
+    title: Connecter un assistant
+    description: Ajoute Session Manager à ton assistant comme serveur MCP.
+    address: Adresse
+    addressHint: MCP via Streamable HTTP. L'adresse ne fonctionne que sur cet ordinateur.
+    clients: Assistant
+    clientClaudeCode: Claude Code
+    clientCursor: Cursor et autres assistants
+    clientClaudeDesktop: Claude Desktop
+    copyCommand: Copier la commande
+    copyConfig: Copier la configuration
+    claudeCode: Ajoute Session Manager à Claude Code. Exécute ceci dans ton terminal.
+    cursor: Ajoute ce serveur à la configuration MCP de Cursor, de Windsurf et de la plupart des autres assistants.
+    claudeDesktop: Ajoute ceci à la configuration de Claude Desktop. Node.js est nécessaire.
+  tools:
+    title: Ce que les assistants peuvent faire
+    description: Un assistant peut faire tout ce que tu peux faire dans Session Manager, sauf activer ou désactiver l'accès IA. Tu peux le regarder travailler sur la page d'une session et reprendre la main à tout moment.
+    count: "{count, plural, one {# outil} other {# outils}}"
+    overview:
+      title: Aperçu et paramètres
+      description: Lire l'aperçu et les paramètres, et modifier la page de démarrage.
+    sessions:
+      title: Sessions
+      description: Ajouter, démarrer, arrêter, redémarrer, renommer et supprimer des sessions, changer ou vérifier leur IP de sortie et exporter leurs proxys.
+    proxies:
+      title: Proxys
+      description: Lister, ajouter, vérifier et supprimer des proxys.
+    browser:
+      title: Navigateur d'une session en cours
+      description: "Travailler dans une session en cours : gérer les onglets, naviguer, lire la page, cliquer, saisir du texte, faire défiler et répondre aux boîtes de dialogue de la page."
+    secrets:
+      title: Secrets et notes
+      description: Lister, lire, ajouter, modifier et supprimer des secrets. Un assistant peut aussi saisir dans une page une valeur qu'il ne voit pas.
