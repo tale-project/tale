@@ -13,6 +13,7 @@ import {
   itemFailureNote,
 } from '../../../lib/engine/core/execute/item-errors';
 import {
+  asPromptText,
   cloneData,
   makeScope,
   mockAgentText,
@@ -34,6 +35,10 @@ import {
   type UnitKey,
 } from '../../../lib/engine/core/record/types';
 import { recordBudget } from '../../../lib/engine/core/record/value';
+import {
+  type AgentTurnRequest,
+  CORE_NODE_KINDS,
+} from '../../../lib/engine/core/slots';
 import {
   evalTemplates,
   evalTemplatesRendered,
@@ -78,11 +83,7 @@ import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
-import {
-  automationAgentHost,
-  type AutomationAgentHost,
-  type WorkflowAgentRequest,
-} from './agent_host';
+import { automationAgentHost, type AutomationAgentHost } from './agent_host';
 import {
   MODEL_CAPACITY_REKICK_DELAY_MS,
   SANDBOX_ROOM_MAX_WAIT_MS,
@@ -160,7 +161,7 @@ const AGENT_POLL_MS = 30_000;
 
 /** The four node types the engine implements itself; everything else is a
  * connector action addressed as `<connector>.<action>`. */
-const CORE_TYPES = new Set(['transform', 'llm', 'agent', 'subautomation']);
+const CORE_TYPES: ReadonlySet<string> = new Set(CORE_NODE_KINDS);
 
 // -------------------------------------------------------------- approvals
 
@@ -403,14 +404,6 @@ function yieldNote(
   where: Omit<HandOffNote, 'reason'> = {},
 ): HandOffNote | undefined {
   return run.yielding() ? { reason: 'shutdown', ...where } : undefined;
-}
-
-/** A resolved template destined for prompt text: strings pass through,
- * structured values render as JSON, absent values become empty text. */
-function asPromptText(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value === null || value === undefined) return '';
-  return JSON.stringify(value);
 }
 
 // --------------------------------------------------------------- node bodies
@@ -1855,7 +1848,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       node.input === undefined
         ? undefined
         : await evalTemplates(node.input, scope, `${at}/input`);
-    const request: WorkflowAgentRequest = {
+    const request: AgentTurnRequest = {
       model,
       ...(node.modelProvider !== undefined && {
         modelProvider: node.modelProvider,
@@ -2144,8 +2137,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         nodeId: node.id,
         // The reverse of the kick-time cast: the request was stored as
         // plain JSON, and the start action re-validates it anyway.
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recorded verbatim from a WorkflowAgentRequest at kick time
-        request: parked.input as unknown as WorkflowAgentRequest,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recorded verbatim from an AgentTurnRequest at kick time
+        request: parked.input as unknown as AgentTurnRequest,
         ...(burned.length > 0 ? { excludeBrokerTokenHashes: burned } : {}),
         ...(resume !== undefined ? { resume } : {}),
         // A start refused while every broker account cooled down: the
