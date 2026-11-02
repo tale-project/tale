@@ -9841,8 +9841,8 @@ async function checkKnowledge(
 
     // Round h, h4 (S2): a document of one repeated passage is embedded once
     // per DISTINCT passage — its repeats are stored without a vector and
-    // flagged, out of both legs — so it neither crowds the shared vector
-    // index nor ranks its copies one by one, and the earlier document
+    // flagged, out of both legs — so it neither crowds the vector index
+    // nor ranks its copies one by one, and the earlier document
     // stays reachable with the vector leg reporting itself in the
     // diagnostics (the identical-vector island used to starve the HNSW
     // post-filter into an empty dense leg).
