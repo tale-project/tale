@@ -5,9 +5,9 @@
 A document is a file or a text in the organization's library or in a project. Some documents
 are kept as records: they go through a review, and an approved version cannot be changed or
 deleted. These rules cover who can change documents, what a review requires, what protects a
-record, moving a document between folders, and what an edit and a delete do. Reading,
-listing and searching documents, and replacing a document's file, are not covered; see Not
-yet.
+record, moving a document between folders, what an edit and a delete do, and the list of a
+person's files that count toward their storage limit. Reading, listing and searching
+documents otherwise, and replacing a document's file, are not covered; see Not yet.
 
 ## Who can change documents
 
@@ -126,6 +126,23 @@ with a sentence that says so, and nothing is queued.
 
 - **Example**: Mia uploaded a file with indexing off and later selects **Retry indexing** →
   the file is queued for indexing.
+
+## What counts toward the storage limit
+
+### DOC-R14 · The storage list holds exactly the files the storage limit counts
+
+**Settings › Usage › Storage** lists, largest first, every file a person uploaded to the
+organization: the files the upload limit counts and the meter adds up, whatever holds them
+now, those in Trash too. Each file is named by the part of the meter it counts in. Where it
+lives is named and linked only as far as the person may open it: a library document their
+teams can see, a project they may read, their own chat. A file another person uploaded, or one
+uploaded to another organization, is never listed. A document's title and state travel with a
+file only where its place is open to the person, and Delete is offered as Knowledge and the
+project's Files offer it, on the document's current file alone.
+
+- **Example**: Ada uploaded a 9 MB report to a project she can no longer read and a 2 MB image
+  in one of her chats → her list shows the report first, in a project it does not name, then
+  the image in her chat, and the two add up to what her meter counts for them.
 
 ## Not yet
 
