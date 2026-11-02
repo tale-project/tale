@@ -132,7 +132,7 @@ function fakeSql(
     // The queue, asked whether a job for the message already waits.
     if (strings.join('?').includes('FROM pgboss.job')) {
       return Promise.resolve(
-        options.waitingJob === true ? [{ id: 'j-1' }] : [],
+        options.waitingJob === true ? [{ messageId: MESSAGE_ID }] : [],
       );
     }
     return Promise.resolve(message === null ? [] : [message]);

@@ -48,7 +48,10 @@ import {
   markCorpusIndexingFailed,
   PII_SCAN_FAILED_REASONS,
 } from '../../core/knowledge/indexing.ts';
-import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
+import {
+  parsePiiConfig,
+  type PiiScanFailure,
+} from '../../core/knowledge/pii_gate.ts';
 import {
   getKnowledgePool,
   getKnowledgePoolForOrg,
@@ -127,6 +130,7 @@ import {
   refusedEmbeddingCap,
 } from './embedding-meter.ts';
 import { isCorpusRefLive } from './liveness.ts';
+import { messagesWithIndexJob } from './message-jobs.ts';
 import type { ReleaseOutcome } from './release.ts';
 import {
   decideMessageRetrievable,
@@ -1428,7 +1432,8 @@ export async function indexUploadedFile(
       // A policy refusal, not a fault: `failed` with its code, so a retry
       // after the policy or the file changes is meaningful. A scan the PII
       // policy could not run is refused the same way — never indexed
-      // unscanned — and saving the policy queues it again.
+      // unscanned — and saving the policy queues it again (the pass in
+      // `pii-scan-resume.ts` too, when the protection could not start).
       await writeRagStatus(sql, fileId, {
         ragStatus: 'failed',
         ragError: result.refusal ?? `Indexing refused (${result.skipped}).`,
@@ -1885,23 +1890,54 @@ export async function embeddingMovedSince(
  * could still scan with the policy from before the save and refuse the
  * document again. Each batch's flips and enqueues share ONE transaction, and
  * the jobs run at DEFAULT priority, as in the embedding re-queue.
+ *
+ * The pass that resumes these scans on its own (`pii-scan-resume.ts`) runs
+ * the same selection with `options`: `cause` keeps the documents refused for
+ * that cause alone, by the fixed sentence each refusal stored; `limit` bounds
+ * what one call queues, files first (their status shows on the document
+ * list) and email bodies in what is left; `skipQueuedBodies` leaves out the
+ * bodies whose job still waits or runs. A file needs no such skip: the flip to
+ * `queued` takes it out of the selection. The save keeps none of them: it
+ * queues everything the policy could not scan, and a body's new job must
+ * start after the new policy, whatever older job still waits.
  */
 export async function requeuePiiScanFailedDocuments(
   sql: Sql,
   args: { organizationId: string; orgSlug: string },
+  options: {
+    cause?: PiiScanFailure;
+    limit?: number;
+    skipQueuedBodies?: boolean;
+  } = {},
 ): Promise<{ requeued: number }> {
   const startAfter = new Date(Date.now() + ORG_CONFIG_CACHE_TTL_MS);
+  const reasons =
+    options.cause === undefined
+      ? null
+      : [PII_SCAN_FAILED_REASONS[options.cause]];
   const files = await sql.begin(async (tx) => {
+    // Picked in id order and locked, so a save and a pass that overlap take
+    // their rows in one order; a row the other one flipped meanwhile fails
+    // the re-checked condition and is left to it.
     const rows = await tx<({ id: string } & MovedStatusRow)[]>`
+      WITH picked AS (
+        SELECT fm.id FROM app.file_metadata fm
+        WHERE fm.org_id = ${args.organizationId}
+          AND fm.rag_status = 'failed'
+          AND fm.rag_error_code = ${RAG_ERROR_PII_SCAN_FAILED}
+          AND fm.skip_rag_indexing IS DISTINCT FROM true
+          AND (${reasons}::text[] IS NULL OR fm.rag_error = ANY(${reasons}::text[]))
+        ORDER BY fm.id
+        LIMIT ${options.limit ?? null}
+        FOR UPDATE
+      )
       UPDATE app.file_metadata fm SET
         rag_status = 'queued',
         rag_queued_at_ms = ${Date.now()},
         rag_error = NULL,
         rag_error_code = NULL
-      WHERE fm.org_id = ${args.organizationId}
-        AND fm.rag_status = 'failed'
-        AND fm.rag_error_code = ${RAG_ERROR_PII_SCAN_FAILED}
-        AND fm.skip_rag_indexing IS DISTINCT FROM true
+      FROM picked
+      WHERE fm.id = picked.id
       RETURNING fm.id, fm.org_id AS "orgId",
                 ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
     `;
@@ -1917,6 +1953,8 @@ export async function requeuePiiScanFailedDocuments(
     return rows.length;
   });
 
+  const share = options.limit === undefined ? null : options.limit - files;
+  if (share !== null && share <= 0) return { requeued: files };
   const pool = await getKnowledgePoolForOrg(args.orgSlug);
   const bodies = await pool.unsafe<{ ref: string }[]>(
     `SELECT file_id AS ref
@@ -1924,14 +1962,24 @@ export async function requeuePiiScanFailedDocuments(
       WHERE org_slug = $1 AND status = 'failed'
         AND file_id LIKE $2
         AND error = ANY($3::text[])
-      ORDER BY file_id`,
+      ORDER BY file_id
+      LIMIT $4`,
     [
       args.orgSlug,
       MESSAGE_REF_LIKE_PATTERN,
-      Object.values(PII_SCAN_FAILED_REASONS),
+      reasons ?? Object.values(PII_SCAN_FAILED_REASONS),
+      share,
     ],
   );
-  const messageIds = bodies.flatMap(({ ref }) => parseMessageRef(ref) ?? []);
+  const refused = bodies.flatMap(({ ref }) => parseMessageRef(ref) ?? []);
+  // A body has no status row to flip: its corpus row reads Failed until its
+  // job claims it. A body still waiting holds its place in the share, so a
+  // pass queues no more than one share of jobs behind the ones it queued.
+  const waiting =
+    options.skipQueuedBodies === true
+      ? await messagesWithIndexJob(sql, refused, { running: true })
+      : new Set<string>();
+  const messageIds = refused.filter((messageId) => !waiting.has(messageId));
   for (let start = 0; start < messageIds.length; start += REQUEUE_BATCH) {
     const batch = messageIds.slice(start, start + REQUEUE_BATCH);
     await sql.begin(async (tx) => {
