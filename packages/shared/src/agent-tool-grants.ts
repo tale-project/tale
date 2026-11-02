@@ -22,6 +22,7 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'task_comment', effect: 'write', module: 'tasks' },
   { name: 'task_update_status', effect: 'write', module: 'tasks' },
   { name: 'task_update_metadata', effect: 'write', module: 'tasks' },
+  { name: 'task_set_labels', effect: 'write', module: 'tasks' },
   { name: 'task_review', effect: 'write', module: 'tasks' },
   { name: 'task_delegate_review', effect: 'write', module: 'tasks' },
   { name: 'task_start_agent', effect: 'write', module: 'tasks' },
@@ -40,7 +41,8 @@ export const AGENT_TOOL_CATALOG = [
  * puts another agent of the project to work on behalf of whoever the run
  * answers to (`domains/tasks/delegated-start.ts`). An automation starts
  * agents with its `task.start_agent` step instead. `task_update_metadata`
- * triages existing tasks without starting work; `task_review` decides an
+ * triages existing tasks without starting work; `task_set_labels` adds and
+ * removes the labels its agent's grant names on them; `task_review` decides an
  * independent native task review. `task_delegate_review` moves only one captured
  * agent gate to another eligible reviewer without starting work. The automation agent node
  * neither offers nor grants these project-only tools.
@@ -48,6 +50,7 @@ export const AGENT_TOOL_CATALOG = [
 export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = [
   'task_start_agent',
   'task_update_metadata',
+  'task_set_labels',
   'task_review',
   'task_delegate_review',
 ];

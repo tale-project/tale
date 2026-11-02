@@ -213,7 +213,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "fixed to the run's own project, plus the projects its project's " +
     'dispatch serves when it is one of that dispatch’s agents: projectId ' +
     'then names one of them, and task_get, task_comment, ' +
-    'task_update_status, task_update_metadata and task_review work their ' +
+    'task_update_status, task_update_metadata, task_set_labels and ' +
+    'task_review work their ' +
     'tasks too. reviewerAgentId matches the captured ' +
     'pending native reviewer, not a future default or implementation owner. ' +
     'Each task includes labels — its label names as the project spells ' +
@@ -374,6 +375,17 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'and no pending review or question. Priority alone preserves those ' +
     'handoffs. Answers {taskId, priority, assigneeType, assigneeId, changed}. ' +
     'Does not change status, reviewer, questions, budgets, or start any run.',
+  task_set_labels:
+    'Add or remove labels on an existing task. Args: {taskId: string, ' +
+    'add?: string[], remove?: string[], expected: {labels: string[]}}. ' +
+    'Only the labels your grant names, and only labels the task’s project ' +
+    'already has: this tool never creates a label. Read the task first and ' +
+    'pass every label it wears now in expected.labels ([] for none); a ' +
+    'stale list refuses the whole request: read again before deciding. ' +
+    'Names match without regard to case. Name at least one label to add or ' +
+    'remove, never one label in both. Answers {taskId, labels, changed}; the ' +
+    'task’s timeline names you as the agent that changed them. Changes ' +
+    'nothing else and starts no run.',
   task_delegate_review:
     'Delegate one captured pending agent review to another eligible agent of the task’s project, ' +
     'or one the dispatch that serves that project puts to work there. ' +

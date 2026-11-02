@@ -16,7 +16,10 @@ import {
   automationRunKnowledgeScope,
   projectsKnowledgeScope,
 } from '../knowledge/automation-scope.ts';
-import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
+import {
+  setAgentTaskLabels,
+  updateAgentTaskMetadata,
+} from '../tasks/agent-metadata.ts';
 import {
   authorizeAgentReviewFile,
   stageAgentReviewFile,
@@ -306,7 +309,10 @@ async function requireProjectTaskRun(
     sessionId: string;
     taskRunExecId?: string;
   },
-  code: 'TASK_METADATA_FORBIDDEN' | 'TASK_REVIEW_FORBIDDEN',
+  code:
+    | 'TASK_LABELS_FORBIDDEN'
+    | 'TASK_METADATA_FORBIDDEN'
+    | 'TASK_REVIEW_FORBIDDEN',
 ): Promise<{
   projectId: string;
   reachedProjectIds: string[];
@@ -666,6 +672,32 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             'TASK_METADATA_FORBIDDEN',
           );
           return updateAgentTaskMetadata(tx, {
+            organizationId: args.organizationId,
+            projectId: authority.projectId,
+            reachedProjectIds: authority.reachedProjectIds,
+            actorId: authority.agentId,
+            patch: args.patch,
+          });
+        }),
+      );
+    },
+
+    'tasks/internal_mutations:agentSetTaskLabels': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the labels are validated again by the domain
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        patch: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_LABELS_FORBIDDEN',
+          );
+          return setAgentTaskLabels(tx, {
             organizationId: args.organizationId,
             projectId: authority.projectId,
             reachedProjectIds: authority.reachedProjectIds,

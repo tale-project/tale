@@ -1,7 +1,10 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
+import {
+  setAgentTaskLabels,
+  updateAgentTaskMetadata,
+} from '../tasks/agent-metadata.ts';
 import { reviewAgentTask } from '../tasks/agent-review.ts';
 import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
@@ -17,6 +20,7 @@ vi.mock('../tasks/agent-review.ts', () => ({
 
 vi.mock('../tasks/agent-metadata.ts', () => ({
   updateAgentTaskMetadata: vi.fn().mockResolvedValue({ changed: true }),
+  setAgentTaskLabels: vi.fn().mockResolvedValue({ changed: true }),
 }));
 
 /** Authority runs unchanged inside a real serializable-wrapper callback;
@@ -34,7 +38,7 @@ function fixture(
     starter?: string;
     revokedSchedule?: boolean;
   } = {},
-  lane: 'metadata' | 'review' | 'delegation' = 'metadata',
+  lane: 'metadata' | 'labels' | 'review' | 'delegation' = 'metadata',
 ) {
   let inTransaction = false;
   const reads: { text: string; values: unknown[]; inTransaction: boolean }[] =
@@ -100,9 +104,11 @@ function fixture(
   const handler = sandboxToolShimHandlers(runner as unknown as Sql)[
     lane === 'metadata'
       ? 'tasks/internal_mutations:agentUpdateTaskMetadata'
-      : lane === 'review'
-        ? 'tasks/internal_mutations:agentReviewTask'
-        : 'tasks/internal_mutations:agentDelegateTaskReview'
+      : lane === 'labels'
+        ? 'tasks/internal_mutations:agentSetTaskLabels'
+        : lane === 'review'
+          ? 'tasks/internal_mutations:agentReviewTask'
+          : 'tasks/internal_mutations:agentDelegateTaskReview'
   ];
   if (handler === undefined) throw new Error('Missing metadata handler');
   const patch = {
@@ -119,7 +125,9 @@ function fixture(
         organizationId: 'org',
         sessionId,
         ...(exec === undefined ? {} : { taskRunExecId: exec }),
-        ...(lane === 'metadata' ? { patch } : { review: patch }),
+        ...(lane === 'metadata' || lane === 'labels'
+          ? { patch }
+          : { review: patch }),
       }),
   };
 }
@@ -192,6 +200,38 @@ describe('metadata session authority', () => {
     ).rejects.toMatchObject({ data: { code: 'TASK_METADATA_FORBIDDEN' } });
     expect(updateAgentTaskMetadata).not.toHaveBeenCalled();
   });
+});
+
+describe('label session authority', () => {
+  it('a live manager sets labels with token-derived identity inside the transaction [TASK-R96]', async () => {
+    const f = fixture({}, 'labels');
+    expect(await f.call()).toEqual({ changed: true });
+    expect(setAgentTaskLabels).toHaveBeenCalledWith(f.tx, {
+      organizationId: 'org',
+      projectId: 'project',
+      reachedProjectIds: [],
+      actorId: 'manager',
+      patch: f.patch,
+    });
+    expect(f.reads.every((row) => row.inTransaction)).toBe(true);
+    expect(updateAgentTaskMetadata).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { memberWorkspace: true },
+    { role: 'member' },
+    { ended: true },
+    { ownerType: 'workflow_run' },
+    { runProject: 'other-project' },
+  ])(
+    'refuses a run a member started, or one without project-wide authority, before any label write (%j) [TASK-R96]',
+    async (options) => {
+      await expect(fixture(options, 'labels').call()).rejects.toMatchObject({
+        data: { code: 'TASK_LABELS_FORBIDDEN' },
+      });
+      expect(setAgentTaskLabels).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('review session authority', () => {

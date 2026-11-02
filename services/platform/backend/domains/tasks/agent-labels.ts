@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 /** What the label read needs of a task: the ids it wears, and the project
  * whose catalog those ids must belong to. */
@@ -22,7 +22,7 @@ interface AgentLabelledTask {
  * here.
  */
 export async function readAgentTaskLabels(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   tasks: readonly AgentLabelledTask[],
 ): Promise<Map<string, string[]>> {
@@ -51,7 +51,7 @@ export async function readAgentTaskLabels(
 
 /** Case-folded first, so `blocked` comes before `Hold`; the spelling breaks a
  * tie. Code-unit order, the same whatever the database's collation. */
-function compareLabelNames(a: string, b: string): number {
+export function compareLabelNames(a: string, b: string): number {
   const left = a.toLowerCase();
   const right = b.toLowerCase();
   if (left !== right) return left < right ? -1 : 1;

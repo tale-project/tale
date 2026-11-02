@@ -62,6 +62,22 @@ vi.mock('./agent-secrets-field', () => ({
   AgentSecretsField: () => null,
 }));
 
+// The project's labels, which the label grant picker offers.
+const { projectLabels, readTaskLabels } = vi.hoisted(() => {
+  const catalog = { names: [] as string[] };
+  return {
+    projectLabels: catalog,
+    readTaskLabels: vi.fn(() => ({
+      labels: catalog.names.map((name) => ({ _id: `label-${name}`, name })),
+      isLoading: false,
+    })),
+  };
+});
+
+vi.mock('@/app/features/tasks/hooks/queries', () => ({
+  useTaskLabels: readTaskLabels,
+}));
+
 // The same model id served twice — the constellation where a pinless row
 // used to LOOK like the subscription entry while a run billed the other lane.
 const MODELS = [
@@ -130,6 +146,8 @@ beforeEach(() => {
   previewState.data = undefined;
   access.credentials = [];
   access.admin = true;
+  projectLabels.names = ['bug', 'docs', 'needs-triage'];
+  readTaskLabels.mockClear();
 });
 
 describe('ProjectAgentDialog mention handle', () => {
@@ -630,6 +648,141 @@ describe('ProjectAgentDialog platform tools', () => {
     await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
     expect(updateAgent).toHaveBeenCalledWith(
       expect.objectContaining({ tools: ['task_create'] }),
+    );
+  });
+});
+
+describe('ProjectAgentDialog label grants', () => {
+  // An agent that may set two labels, one of which the project has renamed
+  // or deleted since.
+  const LABELLER = {
+    ...LEGACY_AGENT,
+    tools: ['task_set_labels'],
+    labelGrants: ['bug', 'retired'],
+  } as unknown as ProjectAgentRow;
+
+  async function toggleLabelTool(
+    user: ReturnType<typeof renderDialog>['user'],
+  ) {
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    await user.click(
+      await screen.findByRole('menuitemcheckbox', {
+        name: 'Add and remove task labels',
+      }),
+    );
+    await user.keyboard('{Escape}');
+  }
+
+  it('asks for the labels only once the agent holds the tool that sets them', async () => {
+    const { user } = renderDialog(LEGACY_AGENT);
+    expect(
+      screen.queryByRole('combobox', { name: 'Allowed labels' }),
+    ).not.toBeInTheDocument();
+    // An agent that cannot set labels never reads the project's.
+    expect(readTaskLabels).not.toHaveBeenCalled();
+
+    await toggleLabelTool(user);
+
+    expect(
+      await screen.findByRole('combobox', { name: 'Allowed labels' }),
+    ).toHaveAccessibleDescription(
+      'The only labels this agent can add to tasks or remove from them. It never creates a label.',
+    );
+    expect(readTaskLabels).toHaveBeenCalledWith('p1');
+  });
+
+  it('saves the labels picked for the tool', async () => {
+    const { user } = renderDialog(LEGACY_AGENT);
+    await toggleLabelTool(user);
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Allowed labels' }),
+    );
+    await user.click(await screen.findByRole('option', { name: 'bug' }));
+    await user.click(screen.getByRole('option', { name: 'docs' }));
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: ['task_set_labels'],
+        labelGrants: ['bug', 'docs'],
+      }),
+    );
+  });
+
+  it('lists a granted label the project no longer has, so it can be removed', async () => {
+    const { user } = renderDialog(LABELLER);
+    const picker = await screen.findByRole('combobox', {
+      name: 'Allowed labels',
+    });
+    expect(picker).toHaveTextContent('retired');
+
+    await user.click(
+      within(picker).getByRole('button', { name: 'Remove retired' }),
+    );
+    expect(picker).not.toHaveTextContent('retired');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ labelGrants: ['bug'] }),
+    );
+  });
+
+  it('grants no labels once the tool is unticked', async () => {
+    const { user } = renderDialog(LABELLER);
+    await screen.findByRole('combobox', { name: 'Allowed labels' });
+
+    await toggleLabelTool(user);
+    expect(
+      screen.queryByRole('combobox', { name: 'Allowed labels' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: [], labelGrants: [] }),
+    );
+  });
+
+  it('says where labels come from when the project has none', async () => {
+    projectLabels.names = [];
+    const { user } = renderDialog(LEGACY_AGENT);
+    await toggleLabelTool(user);
+
+    const picker = await screen.findByRole('combobox', {
+      name: 'Allowed labels',
+    });
+    expect(picker).toHaveAccessibleDescription(
+      'This project has no labels yet. Create one from the task picker, then allow it here.',
+    );
+    expect(picker).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('asks to remove a label deleted meanwhile when the save is refused with PROJECT_AGENT_LABEL_UNKNOWN', async () => {
+    updateAgent.mockRejectedValueOnce(
+      new AppError({
+        code: 'PROJECT_AGENT_LABEL_UNKNOWN',
+        message: 'Unknown project labels: docs',
+      }),
+    );
+    const { user } = renderDialog(LABELLER);
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Allowed labels' }),
+    );
+    await user.click(await screen.findByRole('option', { name: 'docs' }));
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title:
+            'One of the allowed labels is no longer in this project. Remove it from Allowed labels, then save again.',
+          variant: 'destructive',
+        }),
+      ),
     );
   });
 });

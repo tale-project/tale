@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 
+import { TASK_LABEL_CHARS_MAX, TASK_LABELS_MAX } from '../task-limits';
 import { epochMsSchema } from './epoch-ms';
 
 /**
@@ -177,6 +178,12 @@ export const projectAgentInputSchema = z.object({
   tools: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
   secrets: z.array(z.string()).max(PROJECT_AGENT_BINDINGS_MAX).optional(),
   connectorCredentials: projectAgentConnectorCredentialsSchema.optional(),
+  /** The project labels its `task_set_labels` grant may add and remove, by
+   * name; omitted keeps what is stored. */
+  labelGrants: z
+    .array(z.string().trim().min(1).max(TASK_LABEL_CHARS_MAX))
+    .max(TASK_LABELS_MAX)
+    .optional(),
   gitIdentity: projectAgentGitIdentitySchema.nullable().optional(),
   instructions: z.string().max(PROJECT_AGENT_INSTRUCTIONS_MAX).optional(),
 });
