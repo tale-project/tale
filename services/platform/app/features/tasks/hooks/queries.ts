@@ -304,8 +304,11 @@ export function useTaskDiscussion(taskId: string | undefined) {
  * Start a task's own reads together with the task. Its discussion,
  * dependencies, reviewer and watch state are read by sections that mount only
  * once the task has arrived and rendered, so they used to wait a whole round
- * trip and a render behind it. They need nothing but the task's id, and land
- * in the cache under the keys those sections read.
+ * trip and a render behind it. Its activity and agent runs feed the
+ * conversation and the agent cost the same way; the refusal banner's read at
+ * the body's top starts them with the task today, and listing them here keeps
+ * that head start wherever that read moves. They need nothing but the task's
+ * id, and land in the cache under the keys those sections read.
  */
 export function usePrefetchTaskReads(taskId: string) {
   // A head start, never a requirement: with no cache in scope there is
@@ -327,6 +330,8 @@ export function usePrefetchTaskReads(taskId: string) {
       args,
     );
     prefetchAdaptedQuery(queryClient, 'tasks/queries:getTaskReviewer', args);
+    prefetchAdaptedQuery(queryClient, 'tasks/queries:listTaskActivity', args);
+    prefetchAdaptedQuery(queryClient, 'tasks/queries:listTaskAgentRuns', args);
     prefetchAdaptedQuery(
       queryClient,
       'collab/subscriptions:isSubscribedToTask',
