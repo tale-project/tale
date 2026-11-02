@@ -1,10 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { createRef } from 'react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { Input } from './input';
 import { useForm } from './use-form';
+
+// A test that mocks console.error or the clipboard hands the next one the real
+// ones back.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('Input', () => {
   describe('rendering', () => {
@@ -236,6 +243,71 @@ describe('Input', () => {
       expect(input).toHaveAttribute('data-form-type', 'other');
       expect(input).toHaveAttribute('data-bwignore', 'true');
     });
+
+    // A text input drawn as dots is still a text input to the browser: it
+    // would spell-check the secret (and, with enhanced spell checking, send it
+    // off), capitalise it and correct it. A real password field gets none of
+    // that, so a sensitive one asks for none of it either.
+    it.each([
+      ['an explicit sensitive field', <Input key="a" sensitive label="Key" />],
+      ['a bare password field', <Input key="b" type="password" label="Key" />],
+    ])(
+      'keeps the browser from spell-checking, capitalising or correcting %s',
+      (_name, field) => {
+        render(field);
+        const input = screen.getByLabelText(/^Key\b/);
+        expect(input).toHaveAttribute('spellcheck', 'false');
+        expect(input).toHaveAttribute('autocapitalize', 'off');
+        expect(input).toHaveAttribute('autocorrect', 'off');
+      },
+    );
+
+    it('keeps them on while the field is revealed, with its copy button too', async () => {
+      const { user } = render(<Input sensitive copyable label="Key" />);
+      await user.click(screen.getByRole('button', { name: 'Show password' }));
+      const input = screen.getByLabelText(/^Key\b/);
+      expect(input).toHaveAttribute('spellcheck', 'false');
+      expect(input).toHaveAttribute('autocapitalize', 'off');
+      expect(input).toHaveAttribute('autocorrect', 'off');
+    });
+
+    it('lets the caller decide, as it does for every other attribute', () => {
+      render(
+        <Input
+          sensitive
+          label="Key"
+          spellCheck
+          autoCapitalize="words"
+          autoCorrect="on"
+        />,
+      );
+      const input = screen.getByLabelText(/^Key\b/);
+      expect(input).toHaveAttribute('spellcheck', 'true');
+      expect(input).toHaveAttribute('autocapitalize', 'words');
+      expect(input).toHaveAttribute('autocorrect', 'on');
+    });
+
+    it('leaves a plain field and an account password field as they were', () => {
+      const { unmount } = render(<Input label="Name" />);
+      const plain = screen.getByLabelText('Name');
+      for (const name of ['spellcheck', 'autocapitalize', 'autocorrect']) {
+        expect(plain).not.toHaveAttribute(name);
+      }
+      unmount();
+
+      render(
+        <Input
+          type="password"
+          label="Password"
+          autoComplete="current-password"
+        />,
+      );
+      const account = screen.getByLabelText('Password');
+      expect(account).toHaveAttribute('type', 'password');
+      for (const name of ['spellcheck', 'autocapitalize', 'autocorrect']) {
+        expect(account).not.toHaveAttribute(name);
+      }
+    });
   });
 
   describe('interactions', () => {
@@ -455,6 +527,382 @@ describe('Input', () => {
       expect(screen.getByText('pre-')).toBeInTheDocument();
       expect(screen.getByText('-post')).toBeInTheDocument();
       expect(screen.getByLabelText('Bounded')).toBeInTheDocument();
+    });
+  });
+  describe('copy and reveal inside the field', () => {
+    // A secret value in a form (a card number, a token): masked, shown on
+    // request, copied without being shown. Both controls sit INSIDE the
+    // field's border, so every field of a form ends on the same edge.
+    it('has no copy button unless asked', () => {
+      render(<Input label="Website" defaultValue="https://shop.example" />);
+      expect(
+        screen.queryByRole('button', { name: /copy/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('copies what the field holds, with a button named "Copy" by default', async () => {
+      const { user } = render(
+        <Input label="Website" copyable defaultValue="https://shop.example" />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('https://shop.example');
+    });
+
+    it('names the button for what it copies when asked to', async () => {
+      render(
+        <Input label="Card number" copyable copyLabel="Copy Card number" />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Copy Card number' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('copies a typed value, and a controlled one', async () => {
+      const { user, rerender } = render(<Input label="Token" copyable />);
+      await user.type(screen.getByLabelText('Token'), 'abc 123');
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('abc 123');
+
+      rerender(
+        <Input
+          label="Token"
+          copyable
+          value="from the parent"
+          onChange={vi.fn()}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('from the parent');
+    });
+
+    it('copies the value a form library registered, as typed', async () => {
+      function Registered() {
+        const { register } = useForm({ defaultValues: { token: 'tok-1' } });
+        return <Input label="Token" copyable {...register('token')} />;
+      }
+      const { user } = render(<Registered />);
+      await user.type(screen.getByLabelText('Token'), '2');
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('tok-12');
+    });
+
+    it('copies a masked value without showing it', async () => {
+      const { user } = render(
+        <Input
+          label="Password"
+          type="password"
+          sensitive
+          copyable
+          defaultValue="hunter2"
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('hunter2');
+      expect(
+        screen.getByRole('button', { name: 'Show password' }),
+      ).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('copies nothing from an empty field', async () => {
+      const { user } = render(<Input label="Token" copyable />);
+      const write = vi.spyOn(navigator.clipboard, 'writeText');
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('says it copied, to everyone, in words the caller can choose', async () => {
+      const { user, rerender } = render(
+        <Input label="Token" copyable defaultValue="abc" />,
+      );
+      expect(screen.getByRole('status')).toBeEmptyDOMElement();
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(screen.getByRole('status')).toHaveTextContent('Copied');
+
+      rerender(
+        <Input
+          label="Token"
+          copyable
+          copiedLabel="Token copied"
+          defaultValue="abc"
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(screen.getByRole('status')).toHaveTextContent('Token copied');
+    });
+
+    it('does not say it copied when the browser refused', async () => {
+      const { user } = render(
+        <Input label="Token" copyable defaultValue="abc" />,
+      );
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(
+        new Error('denied'),
+      );
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    });
+
+    it('sits beside the reveal toggle: copy first, then show, after the value', async () => {
+      const { user } = render(
+        <Input label="Password" type="password" sensitive copyable />,
+      );
+      const field = screen.getByLabelText('Password');
+      const copy = screen.getByRole('button', { name: 'Copy' });
+      const show = screen.getByRole('button', { name: 'Show password' });
+      field.focus();
+      await user.tab();
+      expect(copy).toHaveFocus();
+      await user.tab();
+      expect(show).toHaveFocus();
+      // Both are drawn inside the field's own box, and the text keeps clear of them.
+      expect(copy.parentElement).toBe(show.parentElement);
+      expect(field.parentElement).toContainElement(copy);
+      expect(field).toHaveClass('pr-16');
+    });
+
+    it('keeps the room the reveal toggle alone had, and gives a lone copy button the same', () => {
+      const { rerender } = render(
+        <Input label="Password" type="password" sensitive />,
+      );
+      expect(screen.getByLabelText('Password')).toHaveClass('pr-10');
+      rerender(<Input label="Website" copyable />);
+      expect(screen.getByLabelText('Website')).toHaveClass('pr-10');
+    });
+
+    it('works on a read-only field', async () => {
+      const { user } = render(
+        <Input label="Plan" readOnly copyable defaultValue="Enterprise" />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('Enterprise');
+    });
+
+    it('is not combined with a fixed prefix or suffix', () => {
+      render(<Input label="Domain" suffix="@acme.com" copyable />);
+      expect(screen.getByText('@acme.com')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
+    });
+
+    // The toggle's frame takes the place of the addon's: beside it a prefix or
+    // suffix is not drawn (it never was), and the copy button works.
+    it('works on a masked field, whose toggle takes the place of a fixed prefix or suffix', async () => {
+      const { user } = render(
+        <Input
+          label="Key"
+          type="password"
+          sensitive
+          copyable
+          prefix="TALE_"
+          suffix="@acme.com"
+          defaultValue="abc"
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('abc');
+      expect(screen.queryByText('TALE_')).not.toBeInTheDocument();
+      expect(screen.queryByText('@acme.com')).not.toBeInTheDocument();
+    });
+
+    it('names the reveal toggle for what it reveals when asked to', async () => {
+      const { user } = render(
+        <Input
+          label="Card number"
+          type="password"
+          sensitive
+          revealLabels={{ show: 'Show Card number', hide: 'Hide Card number' }}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: /password/i }),
+      ).not.toBeInTheDocument();
+      const toggle = screen.getByRole('button', { name: 'Show Card number' });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      await user.click(toggle);
+      expect(
+        screen.getByRole('button', { name: 'Hide Card number' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('passes axe audit with both controls, masked and shown', async () => {
+      const { container, user } = render(
+        <Input
+          label="Password"
+          type="password"
+          sensitive
+          copyable
+          copyLabel="Copy Password"
+          revealLabels={{ show: 'Show Password', hide: 'Hide Password' }}
+          defaultValue="hunter2"
+        />,
+      );
+      await checkAccessibility(container);
+      await user.click(screen.getByRole('button', { name: 'Show Password' }));
+      await checkAccessibility(container);
+    });
+
+    it('leaves console.error as it found it after the refused copy', () => {
+      // The refused copy above silences it for its own sake; no later test may
+      // inherit the silence.
+      expect(vi.isMockFunction(console.error)).toBe(false);
+    });
+  });
+
+  describe('the ref of the field', () => {
+    // React 19 lets a callback ref return a cleanup, and then calls it instead
+    // of calling the ref with null. The field must hand its element to the
+    // caller's ref as it is, in every frame it can be drawn in, or that cleanup
+    // never runs.
+    const frames = [
+      ['a plain field', {}],
+      ['a masked field with its toggle', { type: 'password' as const }],
+      ['a field with a copy button', { copyable: true }],
+      ['a field with a fixed addon', { prefix: 'TALE_' }],
+    ] as const;
+
+    it.each(frames)(
+      'gives %s to a callback ref that returns a cleanup, and runs that cleanup once on unmount',
+      (_name, props) => {
+        const calls: Array<HTMLInputElement | null> = [];
+        const cleanup = vi.fn();
+        const ref = (node: HTMLInputElement | null) => {
+          calls.push(node);
+          return node === null ? undefined : cleanup;
+        };
+        const { unmount } = render(
+          <Input label="Token" ref={ref} {...props} />,
+        );
+        expect(calls).toHaveLength(1);
+        expect(calls[0]).toBe(screen.getByLabelText(/^Token\b/));
+        unmount();
+        expect(cleanup).toHaveBeenCalledTimes(1);
+        // Never called with null: the cleanup stands in for that call.
+        expect(calls).toHaveLength(1);
+      },
+    );
+
+    it.each(frames)(
+      'gives %s to an object ref, and takes it back',
+      (_name, props) => {
+        const ref = createRef<HTMLInputElement>();
+        const { unmount } = render(
+          <Input label="Token" ref={ref} {...props} />,
+        );
+        expect(ref.current).toBe(screen.getByLabelText(/^Token\b/));
+        unmount();
+        expect(ref.current).toBeNull();
+      },
+    );
+
+    it('still copies what a form library registered through that ref', async () => {
+      function Registered() {
+        const { register } = useForm({ defaultValues: { token: 'tok-1' } });
+        return <Input label="Token" copyable {...register('token')} />;
+      }
+      const { user } = render(<Registered />);
+      await user.type(screen.getByLabelText('Token'), '2');
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await navigator.clipboard.readText()).toBe('tok-12');
+    });
+  });
+
+  describe('masking that goes and comes back', () => {
+    // What was shown while a field was masked is not shown again when the mask
+    // returns: the reveal belongs to the masking that gave it.
+    it('masks a real password field again after it was a plain text field', async () => {
+      const { user, rerender } = render(
+        <Input
+          label="Pw"
+          type="password"
+          autoComplete="off"
+          defaultValue="secret"
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Show password' }));
+      expect(screen.getByLabelText('Pw')).toHaveAttribute('type', 'text');
+
+      rerender(
+        <Input
+          label="Pw"
+          type="text"
+          autoComplete="off"
+          defaultValue="secret"
+        />,
+      );
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+
+      rerender(
+        <Input
+          label="Pw"
+          type="password"
+          autoComplete="off"
+          defaultValue="secret"
+        />,
+      );
+      expect(screen.getByLabelText('Pw')).toHaveAttribute('type', 'password');
+      expect(
+        screen.getByRole('button', { name: 'Show password' }),
+      ).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('asks to show a sensitive value again after it stopped being sensitive', async () => {
+      const { user, rerender } = render(
+        <Input label="Key" sensitive defaultValue="k-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Show password' }));
+      expect(
+        screen.getByRole('button', { name: 'Hide password' }),
+      ).toHaveAttribute('aria-pressed', 'true');
+
+      rerender(<Input label="Key" sensitive={false} defaultValue="k-1" />);
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+
+      rerender(<Input label="Key" sensitive defaultValue="k-1" />);
+      expect(
+        screen.getByRole('button', { name: 'Show password' }),
+      ).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('masks a shown value for good once its toggle is taken away', async () => {
+      const { user, rerender } = render(
+        <Input
+          label="Pw"
+          type="password"
+          autoComplete="off"
+          defaultValue="secret"
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Show password' }));
+      expect(screen.getByLabelText('Pw')).toHaveAttribute('type', 'text');
+
+      rerender(
+        <Input
+          label="Pw"
+          type="password"
+          autoComplete="off"
+          passwordToggle={false}
+          defaultValue="secret"
+        />,
+      );
+      expect(screen.getByLabelText('Pw')).toHaveAttribute('type', 'password');
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('keeps what the person chose while the masking stays', async () => {
+      const { user, rerender } = render(
+        <Input label="Key" sensitive defaultValue="k-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Show password' }));
+      rerender(
+        <Input label="Key" sensitive defaultValue="k-1" errorMessage="Nope." />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Hide password' }),
+      ).toHaveAttribute('aria-pressed', 'true');
     });
   });
 });

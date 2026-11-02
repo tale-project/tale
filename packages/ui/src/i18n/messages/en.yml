@@ -134,7 +134,9 @@ common:
     collapseRow: Collapse row
     expandRow: Expand row
     goToPage: Go to page
+    hiddenValue: Hidden
     hidePassword: Hide password
+    hideValue: Hide value
     invalid: invalid
     moreInfo: More information
     moreTabs: More tabs
@@ -147,6 +149,7 @@ common:
     selectAll: Select all
     selectRow: Select row
     showPassword: Show password
+    showValue: Show value
     unsavedChanges: Unsaved changes
     valid: valid
     validationRequirements: Validation requirements

@@ -40,28 +40,105 @@ For a controlled field, pass `value` and update it from `event.target.value` in 
 
 For an account sign-in field, use `type="password"` with `autoComplete="current-password"`. For a new account password, use `autoComplete="new-password"`. Explicit autocomplete lets these fields retain normal password-manager behavior.
 
-For an API key or token, use `sensitive`. A password field with no explicit `autoComplete` is also treated as sensitive. This branch uses a text input masked with CSS, `autocomplete="off"`, and password-manager opt-out hints. These reduce unwanted autofill; they do not encrypt the value or guarantee that every browser extension ignores it. Never use a real secret in a demonstration.
+For an API key or token, use `sensitive`. A password field with no explicit `autoComplete` is also treated as sensitive. This branch uses a text input masked with CSS, `autocomplete="off"`, and password-manager opt-out hints, and it asks the browser not to spell-check, capitalize or correct the value, which a real password input never gets either. These reduce unwanted autofill; they do not encrypt the value or guarantee that every browser extension ignores it. Never use a real secret in a demonstration.
+
+Masking here is visual only. A `sensitive` field is a text input drawn as dots, so assistive technology reads its value as it reads any text field's. A single-line secret that must stay out of the accessibility tree needs a real password input: `type="password"` with an explicit `autoComplete` (`"off"` for a secret that is not an account password), plus the opt-out hints `data-1p-ignore`, `data-lpignore="true"`, `data-form-type="other"` and `data-bwignore="true"`. The browser then treats the field as a password, so it may still offer to fill or save one; the hints reduce that and cannot promise to stop it.
 
 The reveal toggle is enabled by default for password or sensitive fields. Set `passwordToggle={false}` to hide it. In the example, enter a sample value and use **Show password** and **Hide password** to inspect the two states.
 
+## Reveal and copy a secret value inside the field
+
+<Demo name="input/secret" />
+
+A value someone may need to check or hand on (a card number, a token, a recovery code) is a masked field with its tools inside its border, so a column of fields still ends on one edge. Add `copyable` for a copy button beside the reveal toggle: it copies what the field holds at that moment, shown or not, and never shows it. An empty field copies nothing, and a browser that refuses the clipboard raises the shared "Couldn't copy to clipboard" toast instead of claiming success.
+
+Name the buttons for what they act on when several values stand together. `revealLabels` replaces "Show password" and "Hide password" (`{ show: 'Show card number', hide: 'Hide card number' }`), `copyLabel` names the copy button, and `copiedLabel` is what a screen reader hears once the value is on the clipboard. On a touch screen each button takes a 44px target. The box the buttons sit in takes no clicks of its own, so a click beside a button still focuses the field.
+
+The first field of the example is the recipe for a single-line secret that must stay out of the accessibility tree: a real password input, as described above. The second is a `Textarea`, which takes the same props (`sensitive`, `passwordToggle`, `revealLabels`, `copyable`, `copyLabel`, `copiedLabel`) for a secret of several lines: the browser masks the text until it is shown, and the buttons sit in the field's corner. A text area has no password form, so its masking is visual only and a screen reader still reads every line.
+
+A fixed `prefix` or `suffix` has a frame of its own. Beside one, a lone `copyable` gives way: the addon keeps its frame and no copy button is drawn. On a masked field the reveal toggle's frame takes the addon's place (an addon is never drawn beside the toggle), so `copyable` works there and the `prefix` or `suffix` is not drawn.
+
+A reveal belongs to the masking that gave it. When a field stops being masked (its `type` or `sensitive` changes, or `passwordToggle` turns off), whatever was shown is hidden again once the mask returns. Turning `copyable` on or off, or masking a field, after it mounted changes the frame the input is drawn in and remounts it: an uncontrolled field loses what was typed and its focus. Give the field a `key` that changes with them, or keep them constant.
+
 ## Props
 
-| Prop                  | Type or default                   | Purpose                                                                              |
-| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------ |
-| `label`               | Optional string                   | Visible field name; supply another accessible name if omitted.                       |
-| `description`, `hint` | Optional React content            | Context above and below the control.                                                 |
-| `errorMessage`        | Optional string                   | Error text and invalid state.                                                        |
-| `isInvalid`           | Optional boolean                  | Additional way to mark invalid.                                                      |
-| `variant`             | `default`, `unstyled`, `readOnly` | Appearance; native `readOnly` automatically selects the last when no variant is set. |
-| `passwordToggle`      | `true`                            | Reveal control for a password or sensitive value.                                    |
-| `sensitive`           | Optional boolean                  | Secret-entry behavior described above.                                               |
-| `disabledReason`      | Optional React content            | Explanation while `disabled`.                                                        |
-| `prefix`, `suffix`    | Optional React content            | Fixed text inside the outlined field; do not combine with the password toggle.       |
-| `labelInfo`           | Optional React content            | Additional label tooltip.                                                            |
-| `wideControl`         | `false`                           | Lets the control fill a layout-owned frame instead of the settings control column.   |
-| `wrapperClassName`    | Optional string                   | Classes on `FieldShell`.                                                             |
+| Prop                  | Type or default                   | Purpose                                                                                                        |
+| --------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `label`               | Optional string                   | Visible field name; supply another accessible name if omitted.                                                 |
+| `description`, `hint` | Optional React content            | Context above and below the control.                                                                           |
+| `errorMessage`        | Optional string                   | Error text and invalid state.                                                                                  |
+| `isInvalid`           | Optional boolean                  | Additional way to mark invalid.                                                                                |
+| `variant`             | `default`, `unstyled`, `readOnly` | Appearance; native `readOnly` automatically selects the last when no variant is set.                           |
+| `type`                | Native input type                 | `password` without an explicit `autoComplete` is treated as `sensitive`; with one it is a real password input. |
+| `passwordToggle`      | `true`                            | Reveal control for a password or sensitive value; `false` leaves the value masked for good.                    |
+| `sensitive`           | Optional boolean                  | Secret-entry behavior described above: masked on screen only, readable to assistive technology.                |
+| `revealLabels`        | Optional `{ show, hide }`         | Names of the reveal toggle, for when "Show password" does not say what is revealed.                            |
+| `copyable`            | `false`                           | A copy button inside the field, beside the reveal toggle; a lone one gives way to a `prefix` or `suffix`.      |
+| `copyLabel`           | Optional string                   | Name of the copy button (default "Copy").                                                                      |
+| `copiedLabel`         | Optional string                   | What a screen reader hears after copying (default "Copied").                                                   |
+| `disabledReason`      | Optional React content            | Explanation while `disabled`.                                                                                  |
+| `prefix`, `suffix`    | Optional React content            | Fixed text inside the outlined field; do not combine with the password toggle.                                 |
+| `labelInfo`           | Optional React content            | Additional label tooltip.                                                                                      |
+| `wideControl`         | `false`                           | Lets the control fill a layout-owned frame instead of the settings control column.                             |
+| `wrapperClassName`    | Optional string                   | Classes on `FieldShell`.                                                                                       |
 
 Other native input attributes pass through, except native `size`; `prefix` is reserved for the component's fixed addon. A prefix or suffix is visual context, not part of the submitted input value. Your host must construct and validate any combined value.
+
+## Textarea
+
+`Textarea` is the multi-line field. It has the label, description and error of `Input`, and the secret props described above.
+
+```tsx
+import { Textarea } from '@tale/ui/textarea';
+```
+
+| Prop                       | Type or default                         | Purpose                                                                                                                                                                                                                  |
+| -------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `label`, `description`     | Optional string, optional React content | Visible field name and context above the control.                                                                                                                                                                        |
+| `errorMessage`             | Optional string                         | Error text and invalid state.                                                                                                                                                                                            |
+| `counterMax`               | Optional number                         | A `used / max` counter under the control, in the UI language's number format. Display only: it does not cap the input, and the count turns destructive past the max. It describes the field without being a live region. |
+| `counterValue`             | Optional number                         | The length the counter shows when you measure it differently, for example trimmed as the save sends it.                                                                                                                  |
+| `wideControl`              | `false`                                 | Spans the full row in the settings row layout instead of the standard control column.                                                                                                                                    |
+| `fillHeight`               | `false`                                 | Fills the height a flex parent grants and scrolls inside, for an editor-style body rather than a form field.                                                                                                             |
+| `wrapperClassName`         | Optional string                         | Classes on the outer frame.                                                                                                                                                                                              |
+| `disabledReason`           | Optional React content                  | Explanation while `disabled`; as on `Input`, the field then stays focusable and read-only with `aria-disabled`.                                                                                                          |
+| `overlay`                  | Optional React content                  | Drawn over the control's own box, for highlights that follow its text. It never takes the pointer.                                                                                                                       |
+| `sensitive`                | `false`                                 | The text is a secret: masked by the browser until shown, no autofill, save prompt, spell check, capitalization or correction. Masking is visual only: a screen reader still reads every line.                            |
+| `passwordToggle`           | `true`                                  | The reveal toggle of a `sensitive` text; `false` leaves it masked for good.                                                                                                                                              |
+| `revealLabels`             | Optional `{ show, hide }`               | Names of the reveal toggle (default "Show value" and "Hide value").                                                                                                                                                      |
+| `copyable`                 | `false`                                 | A copy button in the field's corner; it copies all the text, shown or not, and never shows it.                                                                                                                           |
+| `copyLabel`, `copiedLabel` | Optional string                         | Name of the copy button (default "Copy") and what a screen reader hears after copying (default "Copied").                                                                                                                |
+
+Other native `textarea` attributes pass through. Adding or removing the buttons or an `overlay` after the field mounted remounts the text area, as described for `Input`: key the field when they change.
+
+## Show a value that is read, not typed
+
+<Demo name="input/copyable-field" />
+
+`CopyableField` is a read-only pill with a copy button, for a value people mostly copy: an ID, a URL, a token.
+
+```tsx
+import { CopyableField } from '@tale/ui/copyable-field';
+```
+
+A plain value is the pill itself: one button, named by its label and value, that copies on press. It shows one line and cuts a longer value short.
+
+Two props change what the pill is. `masked` is for a secret: dots stand for the value until the eye shows it, the copy button copies it without showing it, and while it is masked the value is nowhere in the page, not in the text, a name or a tooltip. A screen reader hears "Hidden" for the dots. `wrap` shows the whole value, wrapped at the pill's edge with its line breaks kept, for a note or a long answer. Either one makes the pill hold real buttons beside the text, so it is no longer one button: name the copy button with `copyAriaLabel`, and the eye with `revealLabels` when "Show value" does not say which value. A value that stops being masked and is masked again starts hidden. Masking keeps a value off the page; it does not encrypt it.
+
+| Prop                          | Type or default                         | Purpose                                                                                             |
+| ----------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `value`                       | String                                  | The value to show and copy.                                                                         |
+| `label`, `description`        | Optional string, optional React content | The name of the field and context under the pill.                                                   |
+| `mono`                        | `true`                                  | Monospace text; pass `false` for prose.                                                             |
+| `masked`                      | `false`                                 | Keeps the value off the page until the eye shows it.                                                |
+| `wrap`                        | `false`                                 | Shows the whole value, wrapped, with its line breaks.                                               |
+| `revealLabels`                | Optional `{ show, hide }`               | Names of the eye (default "Show value" and "Hide value").                                           |
+| `hiddenLabel`                 | Optional string                         | What a screen reader hears for the dots (default "Hidden").                                         |
+| `copyAriaLabel`               | Optional string                         | Name of the copy button of a `masked` or `wrap` pill; a plain pill is named by its label and value. |
+| `copiedLabel`                 | Optional string                         | What a screen reader hears once the value is copied (default "Copied").                             |
+| `copiedDuration`              | `2000`                                  | How long the copied mark stays, in milliseconds.                                                    |
+| `onCopy`, `onCopyError`       | Optional callbacks                      | Called when the copy succeeded, or when the browser refused it.                                     |
+| `inputClassName`, `className` | Optional string                         | Classes on the pill and on the outer wrapper.                                                       |
 
 ## Layout and related controls
 

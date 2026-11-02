@@ -134,7 +134,9 @@ common:
     collapseRow: Zeile einklappen
     expandRow: Zeile ausklappen
     goToPage: Zur Seite
+    hiddenValue: Verborgen
     hidePassword: Passwort ausblenden
+    hideValue: Wert ausblenden
     invalid: ungültig
     moreInfo: Weitere Informationen
     moreTabs: Weitere Tabs
@@ -147,6 +149,7 @@ common:
     selectAll: Alle auswählen
     selectRow: Zeile auswählen
     showPassword: Passwort anzeigen
+    showValue: Wert anzeigen
     unsavedChanges: Nicht gespeicherte Änderungen
     valid: gültig
     validationRequirements: Validierungsanforderungen

@@ -1,10 +1,15 @@
-import { screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import { cleanup, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
 import { FormDialog } from './form-dialog';
+
+import '../../globals.css';
+
+afterEach(cleanup);
 
 vi.mock('@tale/ui/error-boundaries/error-scope', () => ({
   useErrorScope: () => ({ organizationId: 'org_test' }),
@@ -91,5 +96,66 @@ describe('FormDialog focus trap (real browser)', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+  });
+});
+
+/** A form far taller than the window: forty labelled fields. */
+function TallForm({ stickyFooter }: { stickyFooter?: boolean }) {
+  return (
+    <FormDialog
+      open
+      onOpenChange={() => {}}
+      title="Forty fields"
+      submitText="Add secret"
+      stickyFooter={stickyFooter}
+      onSubmit={(e) => e.preventDefault()}
+    >
+      {Array.from({ length: 40 }, (_, index) => (
+        <label key={index} className="flex flex-col gap-1">
+          Field {index + 1}
+          <input type="text" />
+        </label>
+      ))}
+    </FormDialog>
+  );
+}
+
+/** Whether `element` is drawn inside the window, not scrolled out of it. */
+function inView(element: HTMLElement) {
+  const box = element.getBoundingClientRect();
+  return box.top >= 0 && box.bottom <= window.innerHeight;
+}
+
+describe('FormDialog stickyFooter (real browser)', () => {
+  it('keeps Cancel and the submit button in view while the fields scroll', async () => {
+    render(<TallForm stickyFooter />);
+    const submit = await screen.findByRole('button', { name: 'Add secret' });
+    const last = screen.getByLabelText('Field 40');
+    expect(inView(submit)).toBe(true);
+    expect(inView(last)).toBe(false);
+
+    last.scrollIntoView({ block: 'center' });
+    await waitFor(() => expect(inView(last)).toBe(true));
+    // The buttons did not move: only the fields did.
+    expect(inView(submit)).toBe(true);
+    expect(inView(screen.getByRole('button', { name: 'Cancel' }))).toBe(true);
+  });
+
+  it('keeps the whole dialog inside the window', async () => {
+    render(<TallForm stickyFooter />);
+    await screen.findByRole('button', { name: 'Add secret' });
+    const dialog = screen.getByRole('dialog');
+    // The dialog slides in: it is where it stays once the motion is over.
+    await waitFor(() => {
+      const box = dialog.getBoundingClientRect();
+      expect(box.top).toBeGreaterThanOrEqual(0);
+      expect(box.bottom).toBeLessThanOrEqual(window.innerHeight);
+    });
+  });
+
+  it('without it the buttons wait at the end of the form', async () => {
+    render(<TallForm />);
+    const submit = await screen.findByRole('button', { name: 'Add secret' });
+    expect(inView(submit)).toBe(false);
   });
 });

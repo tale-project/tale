@@ -4,11 +4,14 @@ import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
 import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { Tooltip } from '@tale/ui/tooltip';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { Eye, EyeOff, XCircle } from 'lucide-react';
-import type { InputHTMLAttributes, ReactNode } from 'react';
-import { forwardRef, useState, useId, useEffect } from 'react';
+import { XCircle } from 'lucide-react';
+import type {
+  HTMLInputTypeAttribute,
+  InputHTMLAttributes,
+  ReactNode,
+} from 'react';
+import { forwardRef, useState, useId, useEffect, useRef } from 'react';
 
 import {
   DisabledReasonTooltip,
@@ -21,6 +24,13 @@ import {
   FIELD_INVALID_WITHIN,
 } from './field-focus';
 import { FieldShell } from './field-shell';
+import {
+  CopyValueButton,
+  FIELD_ACTIONS_END,
+  fieldActionsRoom,
+  RevealToggle,
+  type RevealLabels,
+} from './field-value-actions';
 import { Label } from './label';
 
 const inputVariants = cva(
@@ -51,7 +61,50 @@ export type InputProps = Omit<
   'size' | 'prefix'
 > &
   VariantProps<typeof inputVariants> & {
+    /**
+     * The input type. `password` WITHOUT an explicit `autoComplete` is treated
+     * as `sensitive`: a text input masked with CSS, which dodges the browser's
+     * saved-password dropdown but leaves the value readable to assistive
+     * technology. `password` WITH an explicit `autoComplete` is a real
+     * password input (what an account form wants, and the way to keep a
+     * single-line secret out of the accessibility tree); its reveal toggle
+     * switches the type.
+     */
+    type?: HTMLInputTypeAttribute;
+    /**
+     * Whether a masked field (a password, or a `sensitive` one) shows the reveal
+     * toggle. `false` leaves the value masked for good: a value that was shown
+     * is masked again when the toggle goes.
+     */
     passwordToggle?: boolean;
+    /**
+     * The words of the reveal toggle, when "Show password" does not say what
+     * is revealed (a card number, a token). The label names what the button
+     * does now, so the two swap as it is pressed. Defaults to the shared
+     * "Show password" / "Hide password".
+     */
+    revealLabels?: RevealLabels;
+    /**
+     * A copy button INSIDE the field, on its right edge beside the reveal
+     * toggle (copy first, then the eye). It copies what the field holds at
+     * that moment, a masked value included, without showing it; nothing is
+     * copied from an empty field.
+     *
+     * Beside a fixed `prefix` / `suffix` a lone copy button gives way and the
+     * addon keeps its frame. On a masked field the reveal toggle's frame takes
+     * the addon's place (an addon is never drawn beside the toggle), so there
+     * `copyable` works and the addon is not drawn.
+     *
+     * Turning `copyable` (or the masking) on or off after the field mounted
+     * changes the frame the input is drawn in, which remounts it: an
+     * uncontrolled field loses what was typed and its focus. Give the field a
+     * `key` that changes with it, or keep it constant.
+     */
+    copyable?: boolean;
+    /** The copy button's name (default "Copy"): in a form of several values, "Copy Password" says which. */
+    copyLabel?: string;
+    /** What a screen reader hears once the value is copied (default "Copied"). */
+    copiedLabel?: string;
     /**
      * Explains *why* the field is disabled, surfaced in a tooltip on hover AND
      * focus and to screen readers. Only takes effect while the field is
@@ -69,6 +122,14 @@ export type InputProps = Omit<
      * the browser's "save password" prompt and password-manager autofill overlays
      * so the value is never cached in the credential store. `type="password"`
      * fields are treated as sensitive automatically.
+     *
+     * Masking is visual only. A sensitive field is a text input drawn as dots,
+     * so assistive technology reads its value as it reads any text field's.
+     * For a single-line secret that must stay out of the accessibility tree,
+     * pass `type="password"` with an explicit `autoComplete` (a real password
+     * input, see `type`) and the password-manager opt-out hints yourself:
+     * `data-1p-ignore`, `data-lpignore="true"`, `data-form-type="other"`,
+     * `data-bwignore="true"`.
      */
     sensitive?: boolean;
     errorMessage?: string;
@@ -110,6 +171,10 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
       className,
       type,
       passwordToggle = true,
+      revealLabels,
+      copyable = false,
+      copyLabel,
+      copiedLabel,
       sensitive,
       autoComplete,
       disabled,
@@ -157,6 +222,11 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
     };
     const [show, setShow] = useState(false);
     const [showShake, setShowShake] = useState(false);
+    // The frame the field and its buttons are drawn in, for what Copy has to
+    // read: the value of an uncontrolled field is not the caller's state, and
+    // the caller's `ref` (a form library registers its field there) stays the
+    // caller's, handed to the input untouched.
+    const frameRef = useRef<HTMLDivElement>(null);
 
     // A field is "sensitive" when it holds a secret that is NOT an account
     // password — API keys, tokens, connector credentials. The caller opts in
@@ -167,6 +237,15 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
     // the password manager to fill and save. Every credential-config field
     // passes no autoComplete, so it's protected automatically.
     const isSensitive = sensitive || (isPassword && autoComplete == null);
+    // Whether to render the eye reveal button: any masked field that opts into
+    // the toggle (sensitive secrets or genuine passwords).
+    const showToggle = (isSensitive || isPassword) && passwordToggle;
+    // A reveal belongs to the masking that gave it. When the field stops being
+    // masked (its type or `sensitive` changed) or loses its toggle, the reveal
+    // is forgotten, so masking that comes back starts hidden instead of showing
+    // a value the person last saw masked.
+    if (show && !showToggle) setShow(false);
+    const revealed = show && showToggle;
 
     // The crux of the fix: Chrome treats ANY `type="password"` as an account
     // password and shows its saved-password dropdown / "Suggest strong
@@ -180,7 +259,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
     const inputType = isSensitive
       ? 'text'
       : isPassword
-        ? show
+        ? revealed
           ? 'text'
           : 'password'
         : type;
@@ -189,13 +268,15 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
     // the value is revealed (it persists even after `type` flips to "text").
     const securityStyle: { WebkitTextSecurity?: 'disc' | 'none' } | undefined =
       isSensitive
-        ? { WebkitTextSecurity: show ? 'none' : 'disc' }
-        : isPassword && show
+        ? { WebkitTextSecurity: revealed ? 'none' : 'disc' }
+        : isPassword && revealed
           ? { WebkitTextSecurity: 'none' }
           : undefined;
-    // Whether to render the eye reveal button: any masked field that opts into
-    // the toggle (sensitive secrets or genuine passwords).
-    const showToggle = (isSensitive || isPassword) && passwordToggle;
+    // The buttons the field carries inside its border. A fixed prefix or
+    // suffix has its own frame (below), which a button does not share: the
+    // toggle keeps the field it always had, a lone copy button gives way.
+    const showCopy = copyable && (showToggle || !(suffix || prefix));
+    const actionCount = (showToggle ? 1 : 0) + (showCopy ? 1 : 0);
 
     const resolvedAutoComplete =
       autoComplete ?? (isSensitive ? 'off' : undefined);
@@ -206,6 +287,13 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
     const sensitiveAttrs = isSensitive
       ? {
           autoComplete: resolvedAutoComplete,
+          // A text input drawn as dots is still a text input to the browser:
+          // it would spell-check the secret (enhanced spell checking sends the
+          // text to a server), capitalise it and correct it. A real password
+          // field gets none of that, so this stand-in asks for none of it.
+          spellCheck: false,
+          autoCapitalize: 'off',
+          autoCorrect: 'off',
           'data-1p-ignore': true,
           'data-lpignore': 'true',
           'data-form-type': 'other',
@@ -237,7 +325,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
       return undefined;
     }, [showInvalid, errorMessage]);
 
-    if (showToggle) {
+    if (actionCount > 0) {
       return (
         <FieldShell
           {...(label !== undefined
@@ -287,7 +375,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
           wideControl={wideControl}
         >
           <SkeletonBox asChild>
-            <div className="relative rounded-lg">
+            <div ref={frameRef} className="relative rounded-lg">
               <DisabledReasonTooltip
                 reason={disabledReason}
                 active={softDisabled}
@@ -302,7 +390,7 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
                     showInvalid &&
                       'border-destructive focus-visible:ring-destructive',
                     showShake && 'animate-shake',
-                    'pr-10',
+                    fieldActionsRoom(actionCount),
                     className,
                   )}
                   ref={ref}
@@ -314,25 +402,29 @@ const InputBase = forwardRef<HTMLInputElement, InputProps>(
                   style={{ ...style, ...securityStyle }}
                 />
               </DisabledReasonTooltip>
-              <Tooltip
-                content={show ? t('aria.hidePassword') : t('aria.showPassword')}
-              >
-                <button
-                  type="button"
-                  aria-label={
-                    show ? t('aria.hidePassword') : t('aria.showPassword')
-                  }
-                  aria-pressed={show}
-                  className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150"
-                  onClick={() => setShow((v) => !v)}
-                >
-                  {show ? (
-                    <EyeOff className="size-4" aria-hidden="true" />
-                  ) : (
-                    <Eye className="size-4" aria-hidden="true" />
-                  )}
-                </button>
-              </Tooltip>
+              <div className={FIELD_ACTIONS_END}>
+                {showCopy && (
+                  <CopyValueButton
+                    getValue={() =>
+                      frameRef.current?.querySelector('input')?.value ?? ''
+                    }
+                    label={copyLabel}
+                    copiedLabel={copiedLabel}
+                  />
+                )}
+                {showToggle && (
+                  <RevealToggle
+                    revealed={revealed}
+                    onToggle={() => setShow((v) => !v)}
+                    labels={
+                      revealLabels ?? {
+                        show: t('aria.showPassword'),
+                        hide: t('aria.hidePassword'),
+                      }
+                    }
+                  />
+                )}
+              </div>
             </div>
           </SkeletonBox>
         </FieldShell>

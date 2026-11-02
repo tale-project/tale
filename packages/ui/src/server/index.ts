@@ -66,7 +66,31 @@ export {
   type SecurityHeadersConfig,
 };
 
-export interface ReactServerOptions {
+/**
+ * What a service decides about a request that asks to become a WebSocket:
+ * `{ data }` upgrades it (the data is every handler's `ws.data`), a `Response`
+ * refuses it and is answered as is, and `null` says this address is no socket
+ * here, so the request goes through the normal pipeline.
+ */
+export type ReactServerUpgrade<Data extends object> =
+  | { data: Data }
+  | Response
+  | null;
+
+/**
+ * WebSockets for a service that streams (a live view, a feed). `upgrade` runs
+ * before any other route, so a socket is judged (origin, host, session) before
+ * it exists; `handler` is Bun's own `websocket` handler.
+ */
+export interface ReactServerWebSocket<Data extends object> {
+  upgrade: (
+    request: Request,
+    url: URL,
+  ) => ReactServerUpgrade<Data> | Promise<ReactServerUpgrade<Data>>;
+  handler: Bun.WebSocketHandler<Data>;
+}
+
+export interface ReactServerOptions<WebSocketData extends object = object> {
   /** Port to listen on. */
   port: number;
   /** Bind hostname. Defaults to `0.0.0.0`. */
@@ -162,6 +186,37 @@ export interface ReactServerOptions {
   monitoring?: SiteMonitoringConfig;
   /** Reports handled server failures without exposing the request to an SDK. */
   reportError?: (error: unknown) => void;
+  /**
+   * WebSocket endpoints of the service. Without it a request that asks for an
+   * upgrade is answered like any other request.
+   */
+  websocket?: ReactServerWebSocket<WebSocketData>;
+  /**
+   * Seconds a connection may stay silent before Bun closes it (Bun's own
+   * default is 10, 0 turns the timeout off, 255 is the most it allows). Raise
+   * it for a route whose answer takes longer than that to start.
+   */
+  idleTimeout?: number;
+  /**
+   * Whether the server follows `UMAMI_*` from the environment: the analytics
+   * script in the page and its same-origin proxy under `/_a/`. On by default.
+   * A service that must never send anything anywhere passes `false`, so a
+   * shell that happens to export the variables cannot turn it on.
+   */
+  analytics?: boolean;
+}
+
+/**
+ * `Server.upgrade` for a payload whose type is a parameter: Bun types its
+ * options by a conditional on the payload, which TypeScript cannot resolve
+ * until the payload is concrete.
+ */
+function upgradeWith<Data extends object>(
+  server: Bun.Server<Data>,
+  request: Request,
+  data: Data,
+): boolean {
+  return (server as Bun.Server<object>).upgrade(request, { data });
 }
 
 function contentTypeFor(path: string): string | null {
@@ -243,7 +298,9 @@ function computeEffectiveSecurityHeaders(
   }
 }
 
-export function startReactServer(opts: ReactServerOptions) {
+export function startReactServer<WebSocketData extends object = object>(
+  opts: ReactServerOptions<WebSocketData>,
+) {
   const {
     port,
     hostname = '0.0.0.0',
@@ -259,12 +316,18 @@ export function startReactServer(opts: ReactServerOptions) {
     resolveNotFound,
     artifacts,
     reportError,
+    websocket,
+    idleTimeout,
+    analytics: followAnalytics = true,
   } = opts;
   const servingIdentity = opts.servingService
     ? createServingIdentity(opts.servingService)
     : undefined;
   const monitoring = monitoringConfig(opts.monitoring);
-  const analytics = createAnalytics(process.env, redirectPrefix);
+  const analytics = createAnalytics(
+    followAnalytics ? process.env : {},
+    redirectPrefix,
+  );
   const monitoringScript = monitoring
     ? `<script id="${MONITORING_CONFIG_ID}" type="application/json">${monitoringJson(monitoring)}</script>`
     : undefined;
@@ -446,8 +509,12 @@ export function startReactServer(opts: ReactServerOptions) {
     return notFoundOrShell();
   }
 
-  const server = Bun.serve({
+  const server = Bun.serve<WebSocketData>({
     port,
+    ...(idleTimeout === undefined ? {} : { idleTimeout }),
+    // Bun wants a handler once the payload type is not `undefined`; with no
+    // `websocket` option nothing is ever upgraded, so this one never runs.
+    websocket: websocket?.handler ?? { message() {} },
     error(error) {
       reportError?.(error);
       console.error(`[${logPrefix}] request failed`, error);
@@ -457,8 +524,7 @@ export function startReactServer(opts: ReactServerOptions) {
         : response;
     },
     hostname,
-    async fetch(request) {
-      const url = new URL(request.url);
+    async fetch(request, bunServer) {
       const secure = isSecureRequest(request);
       const finalize = async (response: Response) => {
         const withConfig =
@@ -484,6 +550,39 @@ export function startReactServer(opts: ReactServerOptions) {
           ? applySecurityHeaders(materialized, effectiveSecurityHeaders, secure)
           : materialized;
       };
+
+      // Bun builds `request.url` from the Host header: one that is no host name
+      // leaves no URL to route, and is a protocol error, not a server failure.
+      // The refusal is an answer like any other, security headers included.
+      let url: URL;
+      try {
+        url = new URL(request.url);
+      } catch {
+        return finalize(
+          new Response('Bad Request', {
+            status: 400,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+          }),
+        );
+      }
+
+      // A socket is judged before it exists, ahead of every other route.
+      if (
+        websocket &&
+        request.headers.get('upgrade')?.toLowerCase() === 'websocket'
+      ) {
+        const verdict = await websocket.upgrade(request, url);
+        if (verdict instanceof Response) return finalize(verdict);
+        if (verdict) {
+          if (upgradeWith(bunServer, request, verdict.data)) {
+            // Bun answers an upgraded request itself: nothing is returned.
+            return undefined;
+          }
+          return finalize(
+            new Response('WebSocket upgrade failed', { status: 400 }),
+          );
+        }
+      }
 
       const analyticsResponse = await analytics.handle(request);
       if (analyticsResponse) return finalize(analyticsResponse);

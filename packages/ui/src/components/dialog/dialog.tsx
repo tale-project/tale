@@ -205,6 +205,16 @@ export interface DialogProps {
    * would otherwise look like a hover the pointer never asked for.
    */
   openAutoFocus?: 'default' | 'container';
+  /**
+   * The element focus lands on when the dialog opens, for a form whose first
+   * field is not where a person starts. By default that is the first text
+   * field in the body, which in a form that begins with a Radix `Select` is
+   * the hidden native twin the `Select` draws beside its trigger; name the
+   * field instead. Like the default, only on a fine pointer, so a touch screen
+   * keeps its keyboard down until asked. The default still applies while the
+   * ref is empty, and `openAutoFocus="container"` wins over it.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -255,6 +265,7 @@ export function Dialog({
   restoreFocusRef,
   onCloseAutoFocus,
   openAutoFocus = 'default',
+  initialFocusRef,
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
   const isNested = parentDepth > 0;
@@ -305,7 +316,8 @@ export function Dialog({
               // focus ring on it. The dialog element itself is the fallback:
               // it announces the title and draws no ring.
               const field = prefersFieldFocus()
-                ? firstVisibleField(bodyRef.current)
+                ? (initialFocusRef?.current ??
+                  firstVisibleField(bodyRef.current))
                 : null;
               field?.focus({ preventScroll: true });
               if (field === null || document.activeElement !== field) {
