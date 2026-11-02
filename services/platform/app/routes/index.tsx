@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import { hasAnyUsersQuery } from '@/app/lib/backend/account';
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -11,6 +12,19 @@ export const Route = createFileRoute('/')({
       .catch(() => null);
     if (session?.data?.user) {
       throw redirect({ to: '/dashboard' });
+    }
+    // An install without any account goes straight to first-run setup, so the
+    // sign-in page never renders on its way there. Only an answer says so: a
+    // read that failed knows nothing of the install and falls back to
+    // `/log-in`, which reads it again. The cached answer serves `/setup` too.
+    const hasUsers = await context.queryClient
+      .fetchQuery(hasAnyUsersQuery())
+      .catch((error: unknown) => {
+        console.warn('Failed to read whether any account exists:', error);
+        return null;
+      });
+    if (hasUsers === false) {
+      throw redirect({ to: '/setup' });
     }
     throw redirect({ to: '/log-in' });
   },
