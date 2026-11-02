@@ -521,7 +521,7 @@ compute codes from the enrollment secret.
   again, open an organization whose shell shows a banner with no notice above
   it — **Two-factor authentication required in … days**
   (`twoFactor.grace.titleOther`, inside a 2FA policy's grace window) or
-  **Knowledge search is off** (`settings.dataResidency.orgEmbedding.banner.title`,
+  **Knowledge search is off** (`embeddingSetup.title`,
   a provider but no embedding model) → the banner's words sit below the
   notch, and the shell's header (a chat's own header on a chat) directly
   below the banner, with no blank band between them, and the band under the
