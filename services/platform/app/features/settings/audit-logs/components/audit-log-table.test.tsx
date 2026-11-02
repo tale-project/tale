@@ -1,15 +1,32 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { AuditLogTable } from './audit-log-table';
 
-vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: undefined, isLoading: false }),
+/** The entry the by-id read answers, for a reveal off the loaded page. */
+const revealRead = vi.hoisted(() => ({
+  log: undefined as AuditLogDoc | undefined,
 }));
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: revealRead.log, isLoading: false }),
+}));
+/** The members the lookup knows, and whom the table asked it for. */
+const lookup = vi.hoisted(() => ({
+  members: [] as StandInMember[],
+  asked: [] as MemberLookupTarget[],
+}));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => lookup.members,
+    lookup.asked,
+  ),
+);
 
 const pauseMetadata = {
   consecutiveFailures: 3,
@@ -449,3 +466,85 @@ describe.each([
     });
   },
 );
+
+// An API row never carries its key maker's address, and a row can keep one
+// only hashed: the table looks up the people its rows name without one,
+// instead of reading every member (MEMBER-R11).
+describe('AuditLogTable actors without an e-mail [MEMBER-R11]', () => {
+  afterEach(() => {
+    lookup.members = [];
+    lookup.asked.length = 0;
+    revealRead.log = undefined;
+  });
+
+  // Noah's API key saved a version.
+  const keyRow: AuditLogDoc = {
+    _id: 'log-key',
+    _creationTime: 1_700_000_000_000,
+    organizationId: 'org-1',
+    actorId: 'user-noah',
+    actorType: 'api',
+    action: 'automation.version.saved',
+    category: 'workflow',
+    resourceType: 'automation',
+    timestamp: 1_700_000_000_000,
+    status: 'success',
+  };
+  const systemRow: AuditLogDoc = {
+    ...keyRow,
+    _id: 'log-system',
+    actorId: 'system',
+    actorType: 'system',
+  };
+
+  /** The user ids the table asked the lookup for. */
+  function askedFor() {
+    return new Set(
+      lookup.asked.map((target) =>
+        'userId' in target ? target.userId : target.handle,
+      ),
+    );
+  }
+
+  it('shows the e-mail the lookup finds for a person named without one, and asks for nobody else', () => {
+    lookup.members = [{ userId: 'user-noah', email: 'noah@example.com' }];
+    render(
+      <AuditLogTable
+        organizationId="org-1"
+        paginatedResult={listing({ results: [loggedRow, keyRow, systemRow] })}
+      />,
+    );
+    expect(screen.getByText('noah@example.com')).toBeInTheDocument();
+    // The id stays under the e-mail, as for a row that records one.
+    expect(screen.getByText('user-noah')).toBeInTheDocument();
+    expect(askedFor()).toEqual(new Set(['user-noah']));
+  });
+
+  it('keeps the id of a person the lookup does not find', () => {
+    render(
+      <AuditLogTable
+        organizationId="org-1"
+        paginatedResult={listing({ results: [keyRow] })}
+      />,
+    );
+    expect(screen.getByText('user-noah')).toBeInTheDocument();
+    expect(screen.queryByText('noah@example.com')).not.toBeInTheDocument();
+  });
+
+  it('looks up the person an entry revealed off the loaded page names', async () => {
+    lookup.members = [{ userId: 'user-noah', email: 'noah@example.com' }];
+    revealRead.log = keyRow;
+    render(
+      <AuditLogTable
+        organizationId="org-1"
+        paginatedResult={listing({ results: [loggedRow] })}
+        revealLogId={keyRow._id}
+        revealNonce={1}
+      />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    expect(detailValue(dialog, 'User')).toBe('noah@example.com');
+    expect(detailValue(dialog, 'User ID')).toBe('user-noah');
+    expect(askedFor()).toEqual(new Set(['user-noah']));
+  });
+});

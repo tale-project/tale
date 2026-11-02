@@ -20,6 +20,12 @@ import '@/app/globals.css';
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({ data: undefined, isLoading: false }),
 }));
+const noMembers = vi.hoisted(() => []);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => noMembers,
+  ),
+);
 
 // Ada saved version 7 of invoice-intake from Claude Code; the version's
 // settings are long enough to scroll.

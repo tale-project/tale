@@ -17,8 +17,10 @@ export interface RunStarterFacts {
  * (`user:<id>`, `api-key:<id>`, `trigger:<id>`), which is addressing, never
  * a label: a person as {@link useActorLabel} names them, with "(API)"
  * beside one who started it with a key, and the trigger's kind for a
- * binding. A starter this reader cannot name — the directory has not
- * answered yet, or the value names nobody — reads as not recorded.
+ * binding. A starter this reader cannot name — the member lookup has not
+ * answered for them yet, or the value names nobody — reads as not recorded.
+ * Call the label while rendering what shows it: that is when the person is
+ * looked up.
  */
 export function useRunStarterLabel(
   organizationId: string,
