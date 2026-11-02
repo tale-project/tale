@@ -97,5 +97,3 @@ export const taskLabelsPatchSchema = z
       });
     }
   });
-
-export type TaskLabelsPatch = z.infer<typeof taskLabelsPatchSchema>;
