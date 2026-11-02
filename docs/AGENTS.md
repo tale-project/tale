@@ -110,6 +110,17 @@ sparingly, with a comment.
   variants too: run `bun run docs:images` and commit its output with the page. Enforced by
   `services/docs/tests/image-manifest.test.ts`, and on the built site by
   `services/docs/tests/prerender/images.test.ts`.
+- Phone captures: below Tale's `md` breakpoint (767 px, `MOBILE_MAX_WIDTH`) Tale lays every page
+  out for a phone, so every shot captured at 768 px or wider is also captured in the phone layout
+  as `<shot>.phone.webp` (390 × 844, DPR 2, touch), recorded with `"device": "phone"`. A page
+  still names only the desktop file: `DocsImage` shows the phone capture in its place below the
+  breakpoint, and the lightbox opens the capture shown. A shot declares it with the `phone` field
+  in `manifest.ts`: leave it out for the default, set `{ viewport: { width, height } }` (at most
+  767 px wide) for a long page, or `{ none: '<why>' }` to opt out with the reason; a step that
+  differs on a phone reads `ctx.device`. Retake one with
+  `bun run docs:screenshots -- --devices phone --only <shot>`. Alt text and captions must hold for
+  both captures: name the state the reader sees, not where it sits on the screen. Enforced by
+  `services/platform/tests/docs-screenshots/manifest.test.ts` and the two docs tests above.
 - CLI output: `tools/cli/scripts/cli-sample-outputs.sh` (sanitized) — but prefer fenced code.
 - Docs share EN captures by default; alt text and captions translate per locale. The same
   pipeline supports `--locales en,de,fr` for native UI captures used by marketing or a
