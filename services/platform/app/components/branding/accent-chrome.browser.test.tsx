@@ -9,7 +9,12 @@ import { HomeViewSwitcher } from '@/app/features/home/components/home-view-switc
 import { NotificationRow } from '@/app/features/notifications/components/notification-row';
 import { CitationLink } from '@/app/features/shared/markdown/citation-link';
 import type { CitationInfo } from '@/app/features/shared/markdown/use-citations';
-import { contrastRatio, deriveAccentPalette } from '@/lib/utils/color';
+import {
+  contrastRatio,
+  deriveAccentPalette,
+  THEME_BACKGROUND,
+  THEME_SIDEBAR,
+} from '@/lib/utils/color';
 import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen } from '@/tests/utils/render';
 
@@ -22,8 +27,8 @@ import '@/app/globals.css';
  * real browser into the chrome that carries it, for picks that each broke
  * something — a near-white, a near-black navy and a mid-tone magenta — in
  * both themes. Unread and active-filter dots wear the accent rather than a
- * fixed blue, and where the accent is the ink itself (a citation, the open
- * row) it reads at 4.5:1 on the tint behind it.
+ * fixed blue, and where the accent is the ink itself (a citation on the
+ * page, the open row on the sidebar) it reads at 4.5:1 on the tint behind it.
  */
 
 const org = vi.hoisted(() => ({ accent: '#FF00FF' }));
@@ -80,7 +85,8 @@ function Chrome({ theme }: { theme: 'light' | 'dark' }) {
   return (
     <ThemeContext.Provider value={THEME[theme]}>
       <BrandingProvider>
-        <div data-testid="page" className="bg-background w-80 p-3">
+        {/* The section panels' pieces, on the sidebar surface they stand on. */}
+        <div data-testid="sidebar" className="bg-sidebar w-80 p-3">
           <HomeViewSwitcher
             value="all"
             onChange={() => {}}
@@ -90,6 +96,15 @@ function Chrome({ theme }: { theme: 'light' | 'dark' }) {
             ]}
           />
           <FilterButton hasActiveFilters onClick={() => {}} />
+          <ul>
+            <li>
+              <SubPanelRowLink to="/open" active>
+                Open row
+              </SubPanelRowLink>
+            </li>
+          </ul>
+        </div>
+        <div data-testid="page" className="bg-background w-80 p-3">
           <NotificationRow
             title="Review requested"
             body="Ada asked you to review a task."
@@ -103,13 +118,6 @@ function Chrome({ theme }: { theme: 'light' | 'dark' }) {
           <p>
             A cited reply <CitationLink citation={CITATION} />
           </p>
-          <ul>
-            <li>
-              <SubPanelRowLink to="/open" active>
-                Open row
-              </SubPanelRowLink>
-            </li>
-          </ul>
         </div>
       </BrandingProvider>
     </ThemeContext.Provider>
@@ -127,6 +135,12 @@ describe.each(['#F5F5F0', '#0B0B2A', '#FF00FF'])('accent %s', (accent) => {
       const page = painted(
         getComputedStyle(screen.getByTestId('page')).backgroundColor,
       );
+      const sidebar = painted(
+        getComputedStyle(screen.getByTestId('sidebar')).backgroundColor,
+      );
+      // Each ink is judged on the surface the stylesheet really paints.
+      expect(page).toBe(THEME_BACKGROUND[theme].toLowerCase());
+      expect(sidebar).toBe(THEME_SIDEBAR[theme].toLowerCase());
 
       // Accent dots: the Home switcher's attention mark, a notification's
       // unread mark and the filter button's active-filter mark.
@@ -143,14 +157,14 @@ describe.each(['#F5F5F0', '#0B0B2A', '#FF00FF'])('accent %s', (accent) => {
         ).toBe(text);
       }
 
-      // Where the accent is the ink: a citation on `bg-primary/10`, the open
-      // row on its own `…26` tint.
-      for (const ink of [
-        screen.getByRole('button', { name: /Source 1/ }),
-        screen.getByRole('link', { name: 'Open row' }),
-      ]) {
+      // Where the accent is the ink: a citation on `bg-primary/10` on the
+      // page, the open row on its own `…26` tint on the sidebar.
+      for (const [ink, under] of [
+        [screen.getByRole('button', { name: /Source 1/ }), page],
+        [screen.getByRole('link', { name: 'Open row' }), sidebar],
+      ] as const) {
         const style = getComputedStyle(ink);
-        const surface = painted(style.backgroundColor, page);
+        const surface = painted(style.backgroundColor, under);
         expect(
           contrastRatio(painted(style.color, surface), surface),
           ink.textContent ?? '',

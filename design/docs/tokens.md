@@ -32,6 +32,7 @@ utilities.
 | Token                                                            | Utilities                                 |
 | ---------------------------------------------------------------- | ----------------------------------------- |
 | `--background` / `--foreground`                                  | `bg-background`, `text-foreground`        |
+| `--sidebar`                                                      | `bg-sidebar`, `ring-sidebar`              |
 | `--card` / `--card-foreground`                                   | `bg-card`, `text-card-foreground`         |
 | `--muted` / `--muted-foreground`                                 | `bg-muted`, `text-muted-foreground`       |
 | `--primary` / `--primary-foreground`                             | `bg-primary`, `text-primary-foreground`   |
@@ -44,6 +45,11 @@ utilities.
 Anchor values (light → dark, read `globals.css` for the rest): `bg-base` `#ffffff → #0a0a0a`, `fg-base`
 `#030712 → #f5f5f5`, `fg-subtle` `#6b7280 → #a3a3a3`, `border-base` `#e5e7eb → #404040`, `accent-base`
 `#030712 → #ffffff`. Dark mode is **true neutral gray**, not blue-tinted.
+
+`--sidebar` is the navigation's own surface, one step off the page (`--background`, `#fcfcfc →
+#0a0a0a`): `#f9fafb → #0f0f0f`, the rail and every section panel. Both values are
+`--color-bg-elevated`'s; a deeper grey would swallow the rows' `bg-muted` hover and open fills. The
+platform judges the accent's text shade on it too (`THEME_SIDEBAR` in `lib/utils/color.ts`).
 
 `--destructive` is red-700 in light (`#B91C1C`, the intent's `error.700` and `feedback.error.text`)
 since #3689: the one token colours error text, invalid borders and destructive fills alike, so it must
