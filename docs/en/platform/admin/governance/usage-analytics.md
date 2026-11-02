@@ -16,7 +16,7 @@ Open **Settings > Metrics > Usage** as an Admin or Owner to understand which wor
 1. Open **Filter** and choose a **Period** of 7, 30, or 90 days. The initial view covers 30 days.
 2. Compare total requests, total tokens, total cost, and active users. More requests and larger replies have different causes.
 3. Choose the chart's metric and granularity in the filter menu to see when the change happened.
-4. Inspect **Top assistants**, **Top models**, and **Per-user usage**. Select an assistant or model breakdown to narrow the view; remove its filter chip to return to the wider view.
+4. Inspect **Top assistants**, **Top models**, and **Per-user usage**. Select an assistant or model breakdown to narrow the view; remove its filter chip to return to the wider view. Selecting a model narrows the view to that model as the provider in its row serves it, and its filter chip names both, as in **openrouter · openai/gpt-5.6-luna**. Where two providers serve the same model, **Top models** names each row with its provider the same way.
 
 Assistant names can include supporting work such as chat-title generation. A request count therefore does not always equal the number of messages members sent. Voice synthesis has its own **Top voice models** table.
 

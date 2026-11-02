@@ -179,6 +179,10 @@ rollups**, so figures may legitimately lag same-day activity.
   verdicts, not under **Same model**, and **Top Model Matchups** names each
   side `provider · model`. **Decisive + Tie + Both bad** equals the row sum
   of **Top Model Matchups**.
+  Through those two providers, usage's **Top Models**, **Top Models by
+  feedback** and chat-health's **By model** name each row `provider · model`
+  as well; selecting one of them on usage leaves one chip naming both
+  (`analytics.usage.filterChips.model`), with that provider's figures alone.
 - [ ] `MET-F13` · **Harness turns add up and are named** — After one
   sandboxed agent run per harness you can start (a task agent on
   `claude-code`, an automation agent on `codex`), open `external-turns` → the

@@ -31,6 +31,7 @@ import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 import { UNATTRIBUTED_AGENT_SLUG } from '@/lib/shared/constants/usage';
 
+import { modelRowNames, providedModelName } from '../components/model-row-name';
 import { type ChatHealthPeriod, periodToDays } from './chat-health-period';
 
 export type { ChatHealthPeriod } from './chat-health-period';
@@ -96,8 +97,8 @@ function BreakdownList({
       ) : (
         <Stack gap={2}>
           {rows.map((item, i) => (
-            // Key includes the index because dropping the provider from the
-            // model label lets two providers' same-named models collide.
+            // Key includes the index: a label is a display name, which
+            // nothing keeps unique within a list.
             <HStack
               key={`${item.label}-${i}`}
               align="center"
@@ -137,6 +138,8 @@ interface RecentErrorRow {
   time: string;
   typeLabel: string;
   model: string;
+  /** The model with its provider, where the turn stored one. */
+  modelTitle: string;
   agentSlug: string;
 }
 
@@ -154,6 +157,7 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
         time: '00:00',
         typeLabel: '\u00a0'.repeat(12),
         model: '\u00a0'.repeat(20),
+        modelTitle: '\u00a0'.repeat(20),
         agentSlug: '\u00a0'.repeat(16),
       }))
     : items;
@@ -194,7 +198,10 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
                     {item.typeLabel}
                   </Badge>
                 </span>
-                <Text className="min-w-0 truncate text-sm" title={item.model}>
+                <Text
+                  className="min-w-0 truncate text-sm"
+                  title={item.modelTitle}
+                >
                   <SkeletonBox>{item.model}</SkeletonBox>
                 </Text>
                 <Text
@@ -363,13 +370,23 @@ function ChatHealthMetricsPageView({
     label: agentLabel(entry.agentSlug),
     count: entry.count,
   }));
-  // Lead with the MODEL, not the provider: providers are often identical across
-  // rows, so a provider-first label truncates to the same useless prefix and
-  // hides the only part that differs. The full `provider / model` rides in the
+  // A model is named by the shared rule over every model row on the page:
+  // `provider · model` where the page holds its id through two providers,
+  // the model alone otherwise, so one id reads the same in both lists. Most
+  // rows share their provider, and a label that always led with it would
+  // truncate to that same prefix. The full `provider · model` rides in the
   // hover title.
+  const nameOf = modelRowNames([
+    ...(health?.byModel ?? []),
+    ...(health?.recentErrors ?? []).flatMap((entry) =>
+      entry.model === undefined
+        ? []
+        : [{ model: entry.model, provider: entry.provider ?? null }],
+    ),
+  ]);
   const modelItems: BreakdownItem[] = (health?.byModel ?? []).map((entry) => ({
-    label: entry.model,
-    title: entry.provider ? `${entry.provider} / ${entry.model}` : entry.model,
+    label: nameOf(entry),
+    title: providedModelName(entry.model, entry.provider),
     count: entry.count,
   }));
 
@@ -389,7 +406,14 @@ function ChatHealthMetricsPageView({
       key: `${entry.at}-${i}`,
       time: formatDateSmart(new Date(entry.at)),
       typeLabel: errorTypeLabel(entry.type),
-      model: entry.model ?? '—',
+      model:
+        entry.model === undefined
+          ? '—'
+          : nameOf({ model: entry.model, provider: entry.provider ?? null }),
+      modelTitle:
+        entry.model === undefined
+          ? '—'
+          : providedModelName(entry.model, entry.provider),
       agentSlug: entry.agentSlug ?? '—',
     }),
   );
