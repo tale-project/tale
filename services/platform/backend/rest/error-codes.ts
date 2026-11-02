@@ -46,12 +46,12 @@ export const REST_ERROR_CODES = [
   'AUTOMATION_VERSION_UNKNOWN',
   'BLOB_NOT_FOUND',
   // An edge code, never a handler's: an HTTP/1.1 chunked body whose
-  // framing is malformed. The Traefik edge answers its own 500 instead
-  // until #5292 restores the code or retires it.
+  // framing is malformed, answered by the proxy's body-faults plugin
+  // (services/proxy/bodyfaults).
   'BODY_CHUNK_MALFORMED',
   // An edge code, never a handler's: an HTTP/2 body that ended before its
-  // declared length. The Traefik edge answers its own 502 instead until
-  // #5292 restores the code or retires it.
+  // declared length, answered by the proxy's body-faults plugin
+  // (services/proxy/bodyfaults).
   'BODY_LENGTH_MISMATCH',
   'BODY_TOO_LARGE',
   'BROWSER_SESSION_NOT_FOUND',

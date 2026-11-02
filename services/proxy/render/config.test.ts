@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
 
 import {
   BACKEND_LANES as LABELLED_BACKEND_LANES,
@@ -246,7 +247,10 @@ describe('renderStatic', () => {
     expect(entryPoints.websecure.address).toBe(':443');
     expect(entryPoints.websecure.asDefault).toBe(true);
     expect(entryPoints.websecure.http.tls).toEqual({});
-    expect(entryPoints.websecure.http.middlewares).toEqual(['tale-edge@file']);
+    expect(entryPoints.websecure.http.middlewares).toEqual([
+      'tale-edge@file',
+      'tale-body-faults@file',
+    ]);
     expect(entryPoints.websecure.http.sanitizePath).toBe(false);
     expect(entryPoints.websecure.http.maxHeaderBytes).toBe(65536);
     expect(entryPoints.websecure.transport.respondingTimeouts.readTimeout).toBe(
@@ -275,6 +279,13 @@ describe('renderStatic', () => {
     expect(renderAcmeHosts(s)).toBe('tale.example.com\ntale.example.org\n');
   });
 
+  it('loads the body-faults plugin from the image, and stops when it does not load', () => {
+    expect(renderStatic(readSettings(base), paths).experimental).toEqual({
+      abortOnPluginFailure: true,
+      localPlugins: { bodyfaults: { moduleName: 'tale/bodyfaults' } },
+    });
+  });
+
   it('serves HTTP on 80 behind an external terminator, trusting its headers only', () => {
     const config = renderStatic(
       readSettings({
@@ -285,6 +296,10 @@ describe('renderStatic', () => {
       paths,
     );
     expect(config.entryPoints.web.asDefault).toBe(true);
+    expect(config.entryPoints.web.http.middlewares).toEqual([
+      'tale-edge@file',
+      'tale-body-faults@file',
+    ]);
     expect(config.entryPoints.web.forwardedHeaders).toEqual({
       trustedIPs: ['10.1.0.0/16'],
     });
@@ -546,6 +561,78 @@ describe('renderEdge', () => {
     });
     expect(headers.customResponseHeaders).toEqual({ Server: '', Via: '' });
   });
+
+  it("answers a body the client framed wrongly with the client's 400 codes", () => {
+    const faults = (env: Record<string, string>) =>
+      renderEdge(readSettings(env)).http.middlewares['tale-body-faults'].plugin
+        .bodyfaults;
+    const https = faults(base);
+    expect(https.chunkMalformed.code).toBe('BODY_CHUNK_MALFORMED');
+    expect(https.chunkMalformed.error).toContain('chunked encoding');
+    expect(https.lengthMismatch.code).toBe('BODY_LENGTH_MISMATCH');
+    expect(https.lengthMismatch.error).toContain('declared Content-Length');
+    expect(https.headers).toEqual({
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Strict-Transport-Security': 'max-age=31536000',
+    });
+    const http = faults({
+      ...base,
+      SITE_URL: 'http://tale.example.com',
+      TLS_MODE: 'external',
+    });
+    expect(http.headers).not.toHaveProperty('Strict-Transport-Security');
+  });
+});
+
+describe('the body-faults plugin', () => {
+  const read = (file: string) =>
+    readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  // A Go struct's fields, lowercased: Traefik matches the configuration's
+  // keys to them regardless of case.
+  const fields = (source: string, type: string) =>
+    (
+      new RegExp(`\\ntype ${type} struct \\{\\n([^}]*)\\}`).exec(source)?.[1] ??
+      ''
+    )
+      .split('\n')
+      .flatMap((line) => /^\t([A-Za-z]+) /.exec(line)?.[1]?.toLowerCase() ?? [])
+      .sort();
+
+  it('ships where Traefik looks for the module the static configuration names', () => {
+    const { moduleName } = renderStatic(readSettings(base), paths).experimental
+      .localPlugins.bodyfaults;
+    expect(read('bodyfaults/.traefik.yml')).toContain(
+      `\nimport: ${moduleName}\n`,
+    );
+    expect(read('bodyfaults/bodyfaults.go')).toContain(
+      `\npackage ${moduleName.split('/').pop()}\n`,
+    );
+    expect(read('Dockerfile')).toContain(
+      'COPY services/proxy/bodyfaults/bodyfaults.go services/proxy/bodyfaults/.traefik.yml \\\n' +
+        `     /usr/share/tale-proxy/plugins-local/src/${moduleName}/\n`,
+    );
+    expect(read('tale-proxy')).toContain(
+      '(cd "$SHARE" && exec traefik --configFile="$RUN/traefik.yml") &',
+    );
+  });
+
+  it('reads every key the edge renders for it', () => {
+    const go = read('bodyfaults/bodyfaults.go');
+    const config = renderEdge(readSettings(base)).http.middlewares[
+      'tale-body-faults'
+    ].plugin.bodyfaults;
+    expect(
+      Object.keys(config)
+        .map((key) => key.toLowerCase())
+        .sort(),
+    ).toEqual(fields(go, 'Config'));
+    for (const answer of [config.chunkMalformed, config.lengthMismatch]) {
+      expect(Object.keys(answer).sort()).toEqual(fields(go, 'Answer'));
+    }
+  });
 });
 
 describe('renderTls', () => {
@@ -575,6 +662,13 @@ describe('renderResponder', () => {
     expect(https).toContain(`'{"error":"Not found","code":"NOT_FOUND"}'`);
     expect(https).toContain('Strict-Transport-Security "max-age=31536000"');
     expect(https).toContain('add_header Retry-After 5 always;');
+    // The same headers as the edge's answers to a body framed wrongly.
+    const { headers } = renderEdge(readSettings(base)).http.middlewares[
+      'tale-body-faults'
+    ].plugin.bodyfaults;
+    for (const [name, value] of Object.entries(headers)) {
+      expect(https).toContain(`add_header ${name} "${value}" always;`);
+    }
     const http = renderResponder(
       readSettings({
         ...base,
