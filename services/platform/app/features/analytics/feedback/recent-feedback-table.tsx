@@ -16,7 +16,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
-import { type ArenaSide, arenaSideNames } from './arena-side-name';
+import { type ModelRow, modelRowNames } from '../components/model-row-name';
 import type { ArenaVerdict, RecentFeedbackItem } from './types';
 
 function ExpandedComment({
@@ -62,7 +62,7 @@ const VERDICT_I18N_KEY: Record<ArenaVerdict, string> = {
 /** An arena row's sides A and B; `null` for a side that names no model. */
 function arenaSidesOf(
   row: RecentFeedbackItem,
-): [ArenaSide | null, ArenaSide | null] {
+): [ModelRow | null, ModelRow | null] {
   return [
     row.arenaModelA
       ? { model: row.arenaModelA, provider: row.arenaProviderA }
@@ -103,7 +103,7 @@ export function RecentFeedbackTable({
   // each.
   const nameOf = useMemo(
     () =>
-      arenaSideNames(
+      modelRowNames(
         rows.flatMap((row) =>
           arenaSidesOf(row).flatMap((side) => (side === null ? [] : [side])),
         ),
