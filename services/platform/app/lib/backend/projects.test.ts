@@ -496,6 +496,43 @@ describe('project read adapters', () => {
     });
   });
 
+  it('lists project agents with their label grants, none from an older backend', async () => {
+    const agent = {
+      id: 'a1',
+      organizationId: 'org-1',
+      projectId: 'p1',
+      name: 'Triage',
+      harness: 'claude-code',
+      model: 'claude-fable-5',
+      modelProvider: null,
+      skills: [],
+      connectors: [],
+      tools: ['task_set_labels'],
+      secrets: [],
+      instructions: null,
+      createdBy: 'u1',
+      createdAt: 1000,
+      updatedAt: 2000,
+    };
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        agents: [
+          { ...agent, labelGrants: ['Bug', 'needs-triage'] },
+          { ...agent, id: 'a2' },
+        ],
+      }),
+    );
+
+    const row = projectReadAdapters['projects/queries:listProjectAgents']?.(
+      { organizationId: 'org-1', projectId: 'p1' },
+      {},
+    );
+    const agents = (await row?.queryFn()) as Record<string, unknown>[];
+    expect(agents[0]?._id).toBe('a1');
+    expect(agents[0]?.labelGrants).toEqual(['Bug', 'needs-triage']);
+    expect(agents[1]?.labelGrants).toEqual([]);
+  });
+
   it('serves the serving previews from their lane routes', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

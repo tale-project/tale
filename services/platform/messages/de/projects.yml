@@ -278,6 +278,7 @@ agents:
     task_comment: Aufgaben kommentieren
     task_update_status: Aufgaben zwischen Spalten verschieben
     task_update_metadata: Aufgabenpriorität und Agentenzuweisung ändern
+    task_set_labels: Labels an Aufgaben setzen und entfernen
     task_review: "Aufgabenergebnisse anderer Agenten prüfen"
     task_delegate_review: "Offene Agentenreviews weitergeben"
     task_start_agent: Andere Agenten auf Aufgaben starten
@@ -291,6 +292,14 @@ agents:
     product_find: Produkte finden
     website_find: Websites auflisten
     document_create: Dokumente erstellen
+  labelGrants:
+    label: Erlaubte Labels
+    hint: Nur diese Labels kann der Agent an Aufgaben setzen oder von ihnen entfernen. Neue Labels legt er nie an.
+    empty: Dieses Projekt hat noch keine Labels. Lege eines im Aufgaben-Picker an und erlaube es dann hier.
+    placeholder: Keine Labels
+    search: Labels suchen
+    searchEmpty: Keine passenden Labels.
+    remove: '{label} entfernen'
   secrets:
     label: Secrets
     hint: Umgebungsvariablen, die der Agent lesen kann — hinterlege nur ein
@@ -450,6 +459,7 @@ errors:
   PROJECT_AGENT_LIMIT: Dieses Projekt hat sein Agenten-Limit erreicht.
   PROJECT_AGENT_NOT_FOUND: Wir konnten diesen Agenten nicht finden. Er wurde möglicherweise gelöscht.
   PROJECT_AGENT_CREDENTIAL_UNKNOWN: Diese Zugangsdaten sind nicht mehr verbunden. Wähle andere oder den Standard der Organisation.
+  PROJECT_AGENT_LABEL_UNKNOWN: Eines der erlaubten Labels gibt es im Projekt nicht mehr. Entferne es unter Erlaubte Labels und speichere erneut.
   PROJECT_AGENT_CREDENTIALS_FORBIDDEN: Nur Inhaber und Admins können ändern, welche Zugangsdaten ein Agent verwendet.
   PROJECT_AGENT_GIT_IDENTITY_INVALID: Gib einen Namen für Commits ohne < oder > und eine gültige E-Mail-Adresse ein.
   PROJECT_LEGAL_HOLD: Dieses Projekt unterliegt einem Legal Hold und kann nicht gelöscht werden.

@@ -851,6 +851,57 @@ declaration stays, and so does every task wearing it.
 - **Example**: The Fleet project holds the label `release`; its declaration names `Release` →
   the label is respelled `Release`, and its tasks keep it.
 
+## Labels an agent sets
+
+A dispatch's gates and label filters route work by label. A project agent granted
+`task_set_labels` puts the labels its grant names on tasks it did not create, and takes them off;
+which labels those are is the agent's setting (`PROJ-R25`).
+
+### TASK-R94 · An agent sets only the labels its grant names, and never creates one
+
+`task_set_labels` adds and removes labels on a task the agent's run reaches, only those its grant
+names, whatever their case: any other is refused (`TASK_LABEL_NOT_GRANTED`), and so is a granted
+name the task's board has no label for (`TASK_LABEL_UNKNOWN`) — the tool never creates a label.
+On a board its project's dispatch reaches, the name is that board's label. A refusal changes
+nothing and names the labels in its data, never in its sentence.
+
+- **Example**: The Manager's grant names `optional-ci`. It adds `Optional-CI` to TALE-7 → TALE-7
+  wears `optional-ci`. It adds `hold` → refused, `TASK_LABEL_NOT_GRANTED`.
+- **Example**: A board the dispatch reaches has no `optional-ci` label; the Manager adds it to a
+  task there → refused, `TASK_LABEL_UNKNOWN`, and the board still has no such label.
+
+### TASK-R95 · An agent's label change answers to the whole label list it read
+
+The agent names every label the task wears now (`expected.labels`, as `task_get` lists them); a
+list that differs, a label added or removed since it read the task, refuses the whole request
+(`TASK_METADATA_STALE`), as `task_update_metadata` does. A request that changes nothing — adding
+a label the task wears, removing one it does not — answers `changed: false` and writes nothing.
+
+- **Example**: The Manager reads TALE-7 wearing `bug` and adds `optional-ci`; meanwhile Mia added
+  `hold` → refused; it reads `bug, hold` and decides again.
+
+### TASK-R96 · Only a project agent granted task_set_labels sets labels, checked at each call
+
+The tool is no automation's and no project agent's until an admin grants it; the grant and its
+labels are read in the same transaction as the change, so unticking the tool stops the next call
+(`TASK_LABELS_FORBIDDEN`) and unticking a label stops the next change of it. A run a Member started
+keeps to its task and cannot use the tool at all, and neither can a run without project-wide
+task authority (`TASK_LABELS_FORBIDDEN`).
+
+- **Example**: Ada unticks the Manager's `task_set_labels` while its run works → its next label
+  change is refused.
+- **Example**: Mia, a Member, starts the Manager on TALE-7 → it can set labels on no task, TALE-7
+  included.
+
+### TASK-R97 · An agent's label change is the agent's on the timeline and in the audit log
+
+A change is a task edit under the same rule as a person's (`assertTaskWorkable`): the task's
+timeline gets a `labels.changed` entry that names the agent as its actor, and the audit log
+records the label change marked as an agent's (`viaAgent`).
+
+- **Example**: The Manager adds `optional-ci` to TALE-7 → TALE-7's timeline shows the label change
+  by the Manager, and the audit log holds it with `viaAgent`.
+
 ## Dispatch across projects
 
 One project's dispatch may serve the boards of other projects of the same organization: a

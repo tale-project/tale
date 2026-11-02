@@ -50,6 +50,9 @@ export interface ProjectsContract {
       secrets?: string[];
       /** The credential the agent acts as per connector, by name. */
       connectorCredentials?: Record<string, string>;
+      /** The project labels its `task_set_labels` grant may add to and
+       * remove from tasks, by name. */
+      labelGrants?: string[];
       /** The name and email its commits carry; `null` for none. */
       gitIdentity?: { name: string; email: string } | null;
       modelProvider?: string;
@@ -111,6 +114,7 @@ export interface ProjectsContract {
       expectedUpdatedAt?: number;
       secrets?: string[];
       connectorCredentials?: Record<string, string>;
+      labelGrants?: string[];
       gitIdentity?: { name: string; email: string } | null;
       modelProvider?: string;
       tools?: string[];
@@ -205,6 +209,9 @@ export interface ProjectsContract {
       /** The credential the agent acts as per connector, by name; absent
        * from an older backend. */
       connectorCredentials?: Record<string, string>;
+      /** The project labels its `task_set_labels` grant may add to and
+       * remove from tasks, by name; none from an older backend. */
+      labelGrants: string[];
       /** The name and email its commits carry; absent from an older
        * backend. */
       gitIdentity?: { name: string; email: string } | null;

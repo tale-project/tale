@@ -364,6 +364,7 @@ interface HandlerNames {
       agentRecordTaskOutputs: FunctionRef;
       agentReviewTask: FunctionRef;
       agentReviewBatch: FunctionRef;
+      agentSetTaskLabels: FunctionRef;
       agentStartTaskAgent: FunctionRef;
       agentUpdateTaskMetadata: FunctionRef;
       agentUpdateTaskStatus: FunctionRef;

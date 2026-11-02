@@ -1129,6 +1129,7 @@ describe('handler statuses and bodies match the documented operation', () => {
         tools: [],
         secrets: [],
         connectorCredentials: { forgejo: 'Client A' },
+        labelGrants: ['optional-ci'],
         gitIdentity: { name: 'Reviewer', email: 'reviewer@tale.dev' },
         managed: false,
         createdBy: 'user-1',

@@ -2,7 +2,8 @@
 
 /**
  * Create/edit form for a project agent: a name, the harness it runs on, the
- * skills/connectors/tools it comes pre-equipped with, the org secrets it
+ * skills/connectors/tools it comes pre-equipped with, the project labels its
+ * `task_set_labels` tool may set, the org secrets it
  * receives as env vars, the credential it acts as for each connector that
  * opens git remotes and the identity its commits carry, and an
  * instructions addendum the run lane delivers
@@ -55,6 +56,7 @@ import {
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useAgentToolOptions } from '../hooks/use-agent-tool-options';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
+import { AgentLabelGrantsField } from './agent-label-grants-field';
 import {
   AgentRepositoryAccessField,
   type RepositoryConnectorOption,
@@ -162,6 +164,7 @@ export function ProjectAgentDialog({
   const [modelProvider, setModelProvider] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
+  const [labelGrants, setLabelGrants] = useState<readonly string[]>([]);
   const [pins, setPins] = useState<Record<string, string>>({});
   const [gitName, setGitName] = useState('');
   const [gitEmail, setGitEmail] = useState('');
@@ -203,6 +206,7 @@ export function ProjectAgentDialog({
         : EMPTY_BINDING,
     );
     setSecretNames(agent?.secrets ?? []);
+    setLabelGrants(agent?.labelGrants ?? []);
     setPins({ ...agent?.connectorCredentials });
     setGitName(agent?.gitIdentity?.name ?? '');
     setGitEmail(agent?.gitIdentity?.email ?? '');
@@ -249,6 +253,10 @@ export function ProjectAgentDialog({
       ?.focus();
 
   const secrets: readonly AgentSecretSummary[] = orgSecrets ?? [];
+
+  // Which labels it may set counts only while it holds the tool that sets
+  // them: the field shows with the tool, and a save without it grants none.
+  const setsLabels = binding.tools.includes('task_set_labels');
 
   const canSubmit = name.trim().length > 0 && harness !== '' && model !== '';
 
@@ -352,6 +360,7 @@ export function ProjectAgentDialog({
         connectors: [...binding.connectors],
         tools: [...binding.tools],
         secrets: [...secretNames],
+        labelGrants: setsLabels ? [...labelGrants] : [],
         connectorCredentials: { ...pins },
         gitIdentity:
           commitName === '' ? null : { name: commitName, email: commitEmail },
@@ -392,6 +401,7 @@ export function ProjectAgentDialog({
         code === 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' ||
         code === 'PROJECT_AGENT_LIMIT' ||
         code === 'PROJECT_AGENT_CREDENTIAL_UNKNOWN' ||
+        code === 'PROJECT_AGENT_LABEL_UNKNOWN' ||
         code === 'PROJECT_AGENT_CREDENTIALS_FORBIDDEN' ||
         code === 'PROJECT_ARCHIVED' ||
         code === 'RBAC_FORBIDDEN'
@@ -545,6 +555,14 @@ export function ProjectAgentDialog({
           />
         )}
       </Stack>
+      {setsLabels && (
+        <AgentLabelGrantsField
+          projectId={projectId}
+          selected={labelGrants}
+          onChange={setLabelGrants}
+          disabled={isSubmitting}
+        />
+      )}
       <AgentSecretsField
         organizationId={organizationId}
         secrets={secrets}

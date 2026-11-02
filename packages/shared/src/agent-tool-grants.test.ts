@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AGENT_TOOL_CATALOG,
   normalizeToolGrants,
+  PROJECT_AGENT_ONLY_TOOLS,
   WRITE_EFFECT_TOOLS,
 } from './agent-tool-grants';
 
@@ -40,5 +41,32 @@ describe('the knowledge-entry write grant', () => {
     expect(
       normalizeToolGrants(['knowledge_entry_write'], 'automation'),
     ).toEqual(['knowledge_entry_write']);
+  });
+});
+
+describe('the task label grant', () => {
+  it('is a tasks write after the metadata grant, for project agents alone, and off by default', () => {
+    const tasks = AGENT_TOOL_CATALOG.filter((tool) => tool.module === 'tasks');
+    const names = tasks.map((tool) => tool.name);
+    expect(names.indexOf('task_set_labels')).toBe(
+      names.indexOf('task_update_metadata') + 1,
+    );
+    expect(WRITE_EFFECT_TOOLS).toContain('task_set_labels');
+    expect(PROJECT_AGENT_ONLY_TOOLS).toContain('task_set_labels');
+    expect(normalizeToolGrants(['task_set_labels', 'task_get'])).toEqual([
+      'task_get',
+      'task_set_labels',
+    ]);
+    expect(
+      normalizeToolGrants(['task_set_labels', 'task_get'], 'automation'),
+    ).toEqual(['task_get']);
+    // Every grant that names the other task writes still leaves it out.
+    expect(
+      normalizeToolGrants(
+        AGENT_TOOL_CATALOG.map((tool) => tool.name).filter(
+          (name) => name !== 'task_set_labels',
+        ),
+      ),
+    ).not.toContain('task_set_labels');
   });
 });

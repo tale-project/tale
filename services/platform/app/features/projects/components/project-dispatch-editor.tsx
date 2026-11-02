@@ -83,6 +83,7 @@ import {
   toDispatch,
   toFormValues,
 } from '../lib/dispatch-form';
+import { withStored } from '../lib/label-options';
 
 export interface ProjectDispatchEditorProps {
   open: boolean;
@@ -820,20 +821,6 @@ function DispatchFields({
       />
     </>
   );
-}
-
-/** The options of a label picker with every label the document names, so
- * a label the project no longer has stays visible and removable. */
-function withStored(
-  options: MultiSelectOption[],
-  selected: readonly string[],
-): MultiSelectOption[] {
-  const missing = selected.filter(
-    (name) => !options.some((option) => option.value === name),
-  );
-  return missing.length === 0
-    ? options
-    : [...options, ...missing.map((name) => ({ value: name, label: name }))];
 }
 
 function StandingRoles({

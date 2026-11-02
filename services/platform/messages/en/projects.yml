@@ -270,6 +270,7 @@ agents:
     task_comment: Comment on tasks
     task_update_status: Move tasks between columns
     task_update_metadata: Change task priority and agent assignment
+    task_set_labels: Add and remove task labels
     task_review: "Review other agents’ task results"
     task_delegate_review: "Delegate pending agent reviews"
     task_start_agent: Start other agents on tasks
@@ -283,6 +284,14 @@ agents:
     product_find: Find products
     website_find: List websites
     document_create: Create documents
+  labelGrants:
+    label: Allowed labels
+    hint: The only labels this agent can add to tasks or remove from them. It never creates a label.
+    empty: This project has no labels yet. Create one from the task picker, then allow it here.
+    placeholder: No labels
+    search: Search labels
+    searchEmpty: No labels match.
+    remove: Remove {label}
   secrets:
     label: Secrets
     hint: Environment variables this agent can read — use a scoped,
@@ -426,6 +435,7 @@ errors:
   PROJECT_AGENT_LIMIT: This project has reached its agent limit.
   PROJECT_AGENT_NOT_FOUND: We couldn't find that agent. It may have been deleted.
   PROJECT_AGENT_CREDENTIAL_UNKNOWN: That credential is no longer connected. Choose another one or the organization default.
+  PROJECT_AGENT_LABEL_UNKNOWN: One of the allowed labels is no longer in this project. Remove it from Allowed labels, then save again.
   PROJECT_AGENT_CREDENTIALS_FORBIDDEN: Only Owners and Admins can change which credential an agent uses.
   PROJECT_AGENT_GIT_IDENTITY_INVALID: Enter a commit name without < or > and a valid email address.
   PROJECT_LEGAL_HOLD: This project is under legal hold and cannot be deleted.

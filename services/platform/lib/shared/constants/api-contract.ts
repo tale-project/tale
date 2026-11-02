@@ -944,5 +944,25 @@
  * as `BENCH_INVALID` (`data.issue.code` `BENCH_UNKNOWN_SCENARIO`), and
  * `validate_automation` warns about such a test (`TESTS_SCENARIO_UNKNOWN`,
  * `TESTS_SCENARIO_CONFLICT`). Additive.
+ *
+ * 3.57.0 — 2026-11-02: the project-agent tools vocabulary gains
+ * `task_set_labels`, which no grant holds until an admin ticks it: a run of
+ * a project agent adds and removes labels on an existing task (`{taskId,
+ * add?, remove?, expected: {labels}}`, answering `{taskId, labels,
+ * changed}`), only the labels its agent's grant names and only labels the
+ * task's project already has — it never creates one. `ProjectAgent` answers
+ * `labelGrants` (those labels' names in the project's spelling, sorted
+ * without regard to case; `[]` for none), and `POST`/`PUT
+ * /api/v1/projects/{id}/agents…` take it: at most 50 names, each a label of
+ * the agent's own project matched without regard to case (400
+ * `PROJECT_AGENT_LABEL_UNKNOWN`, the names under `data.labels`). A `PUT`
+ * that omits it keeps what is stored, `[]` clears it, and a granted name
+ * whose label is renamed or deleted stays until it is removed. The tool
+ * answers to the whole label list the agent read (`TASK_METADATA_STALE`),
+ * refuses a label its grant does not name (`TASK_LABEL_NOT_GRANTED`) or the
+ * task's project does not have (`TASK_LABEL_UNKNOWN`), and is refused to a
+ * run a Member started; a change is on the task's timeline and in the audit
+ * log under the agent's name. Additive: no existing agent holds the tool or
+ * any label.
  */
-export const API_CONTRACT_VERSION = '3.56.0';
+export const API_CONTRACT_VERSION = '3.57.0';

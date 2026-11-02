@@ -143,6 +143,9 @@ interface ProjectAgentWire {
   connectors: string[];
   tools: string[];
   secrets: string[];
+  /** The labels its `task_set_labels` grant names; absent from an older
+   * backend. */
+  labelGrants?: string[];
   instructions: string | null;
   /** Absent on a row an older backend sent, which knew no managed agents. */
   managed?: boolean;
@@ -169,6 +172,7 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
     connectors: row.connectors,
     tools: row.tools,
     secrets: row.secrets,
+    labelGrants: row.labelGrants ?? [],
     ...(row.instructions !== null ? { instructions: row.instructions } : {}),
     managed: row.managed === true,
     createdBy: row.createdBy,

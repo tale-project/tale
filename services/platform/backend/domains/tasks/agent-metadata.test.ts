@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { notifyTaskAssigned } from '../collab/service.ts';
-import { updateAgentTaskMetadata } from './agent-metadata.ts';
+import {
+  setAgentTaskLabels,
+  updateAgentTaskMetadata,
+} from './agent-metadata.ts';
 import type { TaskRow } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
@@ -75,6 +78,8 @@ function fixture(
     pendingReview?: boolean;
     live?: 'agent' | 'automation';
     invalidAgent?: boolean;
+    /** The acting agent's grant as its row stores it; `null` for no row. */
+    grant?: { tools: string[]; labelGrants: string[] } | null;
   } = {},
 ) {
   const task = taskRow(options.task);
@@ -105,8 +110,35 @@ function fixture(
             },
           ]
         : [];
+    if (text.includes('label_grants AS "labelGrants" FROM app.project_agents'))
+      return options.grant === null
+        ? []
+        : [
+            options.grant ?? {
+              tools: ['task_update_metadata', 'task_set_labels'],
+              labelGrants: ['Bug', 'optional-ci'],
+            },
+          ];
     if (text.includes('FROM app.project_agents'))
       return options.invalidAgent ? [] : [{ id: values[0] }];
+    if (text.startsWith('SELECT name FROM app.task_labels')) {
+      const keys = values[2] as string[];
+      return CATALOG.filter(
+        (label) =>
+          label.projectId === values[1] &&
+          keys.includes(label.name.toLowerCase()),
+      ).map(({ name }) => ({ name }));
+    }
+    if (text.startsWith('SELECT id, project_id AS "projectId", name FROM'))
+      return CATALOG.filter((label) =>
+        (values[1] as string[]).includes(label.id),
+      );
+    if (text.startsWith('SELECT id FROM app.task_labels'))
+      return CATALOG.filter(
+        (label) =>
+          label.projectId === values[0] &&
+          label.name.toLowerCase() === String(values[1]).toLowerCase(),
+      ).map(({ id }) => ({ id }));
     if (text.includes('FROM app.project_agent_runs'))
       return options.live === 'agent' ? [{ id: 'live-agent' }] : [];
     if (text.includes('FROM app.automation_runs'))
@@ -115,8 +147,10 @@ function fixture(
       task.assigneeType = values[0] as TaskRow['assigneeType'];
       task.assigneeId = values[1] as string | null;
     }
-    if (text.startsWith('UPDATE app.tasks SET title'))
+    if (text.startsWith('UPDATE app.tasks SET title')) {
       task.priority = values[2] as TaskRow['priority'];
+      task.labelIds = values[3] as string[];
+    }
     return [];
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- statement-recording postgres.js stand-in, no live effects
@@ -136,8 +170,28 @@ function fixture(
         actorId: 'manager',
         patch,
       }),
+    labels: (patch: unknown, reachedProjectIds?: string[]) =>
+      setAgentTaskLabels(tx, {
+        organizationId: 'org',
+        projectId: 'project',
+        ...(reachedProjectIds !== undefined ? { reachedProjectIds } : {}),
+        actorId: 'manager',
+        patch,
+      }),
   };
 }
+
+/** The labels of the boards the label tool reaches. */
+const CATALOG = [
+  { id: 'label-bug', projectId: 'project', name: 'Bug' },
+  { id: 'label-ci', projectId: 'project', name: 'optional-ci' },
+  { id: 'label-hold', projectId: 'project', name: 'hold' },
+  { id: 'label-other-bug', projectId: 'other', name: 'Bug' },
+];
+
+/** Every statement that writes, the run-start lock's included. */
+const writes = (statements: { text: string; values: unknown[] }[]) =>
+  statements.filter(({ text }) => /^(UPDATE|INSERT|DELETE)\b/.test(text));
 
 const combined = {
   taskId: 'task',
@@ -404,4 +458,163 @@ describe('the agents of a dispatch work the boards it serves like their own [TAS
       ),
     ).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
   });
+});
+
+describe('agent label domain', () => {
+  it("adds and removes only labels its grant names, whatever their case, in the board's spelling [TASK-R94]", async () => {
+    const f = fixture({ task: { labelIds: ['label-bug'] } });
+    expect(
+      await f.labels({
+        taskId: 'task',
+        add: ['OPTIONAL-CI'],
+        remove: ['bug'],
+        expected: { labels: ['bug'] },
+      }),
+    ).toEqual({ taskId: 'task', labels: ['optional-ci'], changed: true });
+    expect(f.task.labelIds).toEqual(['label-ci']);
+  });
+
+  it.each([
+    [{ add: ['hold'] }, ['hold']],
+    [{ remove: ['Hold'] }, ['Hold']],
+    [{ add: ['optional-ci', 'hold'] }, ['hold']],
+  ])(
+    'refuses a label its grant does not name before any write, naming it only in data (%j) [TASK-R94]',
+    async (change, labels) => {
+      const f = fixture({ task: { labelIds: ['label-hold'] } });
+      await expect(
+        f.labels({ taskId: 'task', ...change, expected: { labels: ['hold'] } }),
+      ).rejects.toMatchObject({
+        code: 'TASK_LABEL_NOT_GRANTED',
+        status: 403,
+        data: { labels },
+        message: expect.not.stringMatching(/hold/i),
+      });
+      expect(writes(f.statements)).toEqual([]);
+    },
+  );
+
+  it("refuses a granted label the task's board does not have, and never creates it [TASK-R94]", async () => {
+    const f = fixture({ task: { projectId: 'other' } });
+    await expect(
+      f.labels(
+        { taskId: 'task', add: ['optional-ci'], expected: { labels: [] } },
+        ['other'],
+      ),
+    ).rejects.toMatchObject({
+      code: 'TASK_LABEL_UNKNOWN',
+      status: 400,
+      data: { labels: ['optional-ci'] },
+      message: expect.not.stringMatching(/optional/i),
+    });
+    expect(
+      writes(f.statements).filter(
+        ({ text }) => !text.startsWith('UPDATE app.tasks SET updated_at_ms'),
+      ),
+    ).toEqual([]);
+  });
+
+  it("sets a label on a board its dispatch reaches by that board's own label [TASK-R94]", async () => {
+    const f = fixture({ task: { projectId: 'other' } });
+    expect(
+      await f.labels(
+        { taskId: 'task', add: ['bug'], expected: { labels: [] } },
+        ['other'],
+      ),
+    ).toEqual({ taskId: 'task', labels: ['Bug'], changed: true });
+    expect(f.task.labelIds).toEqual(['label-other-bug']);
+  });
+
+  it.each([[[]], [['Bug']], [['Bug', 'hold', 'optional-ci']]])(
+    'refuses a label list that is not the one the task wears now (%j) [TASK-R95]',
+    async (expectedLabels) => {
+      const f = fixture({ task: { labelIds: ['label-bug', 'label-hold'] } });
+      await expect(
+        f.labels({
+          taskId: 'task',
+          add: ['optional-ci'],
+          expected: { labels: expectedLabels },
+        }),
+      ).rejects.toMatchObject({ code: 'TASK_METADATA_STALE', status: 409 });
+      expect(
+        f.statements.some(({ text }) =>
+          /^UPDATE app\.tasks SET title|^INSERT/.test(text),
+        ),
+      ).toBe(false);
+      expect(f.task.labelIds).toEqual(['label-bug', 'label-hold']);
+    },
+  );
+
+  it('answers a request that changes nothing without writing a row [TASK-R95]', async () => {
+    const f = fixture({ task: { labelIds: ['label-bug'] } });
+    expect(
+      await f.labels({
+        taskId: 'task',
+        add: ['bug'],
+        remove: ['optional-ci'],
+        expected: { labels: ['BUG'] },
+      }),
+    ).toEqual({ taskId: 'task', labels: ['Bug'], changed: false });
+    expect(
+      f.statements.some(({ text }) =>
+        /^UPDATE app\.tasks SET title|^INSERT/.test(text),
+      ),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    null,
+    { tools: ['task_update_metadata'], labelGrants: ['Bug', 'optional-ci'] },
+  ])(
+    'reads the grant live: an agent no longer granted the tool is refused before any write (%j) [TASK-R96]',
+    async (grant) => {
+      const f = fixture({ grant });
+      await expect(
+        f.labels({ taskId: 'task', add: ['bug'], expected: { labels: [] } }),
+      ).rejects.toMatchObject({ code: 'TASK_LABELS_FORBIDDEN', status: 403 });
+      expect(writes(f.statements)).toEqual([]);
+    },
+  );
+
+  it("records the change as the agent's on the timeline and in the audit log [TASK-R97]", async () => {
+    const f = fixture({ task: { labelIds: ['label-bug'] } });
+    await f.labels({
+      taskId: 'task',
+      add: ['optional-ci'],
+      expected: { labels: ['Bug'] },
+    });
+    expect(activity(f.statements).map((row) => row.values.slice(3, 6))).toEqual(
+      [['agent', 'manager', 'labels.changed']],
+    );
+    expect(vi.mocked(createAuditLog).mock.calls.map((call) => call[1])).toEqual(
+      [
+        expect.objectContaining({
+          actorType: 'api',
+          actorId: 'manager',
+          metadata: { viaAgent: true, projectId: 'project' },
+          previousState: { labelIds: ['label-bug'] },
+          newState: { labelIds: ['label-bug', 'label-ci'] },
+        }),
+      ],
+    );
+    expect(emitHintInTx).toHaveBeenCalled();
+  });
+
+  it.each([
+    { taskId: 'task', expected: { labels: [] } },
+    { taskId: 'task', add: ['bug'], remove: ['BUG'], expected: { labels: [] } },
+    { taskId: 'task', add: ['bug'] },
+    { taskId: 'task', add: ['bug'], expected: { labels: [] }, priority: 'p1' },
+  ])(
+    'refuses a malformed label request before reading the task (%j)',
+    async (patch) => {
+      const f = fixture();
+      await expect(f.labels(patch)).rejects.toMatchObject({
+        code: 'TASK_LABELS_INVALID',
+        status: 400,
+      });
+      expect(f.statements).toEqual([]);
+    },
+  );
 });

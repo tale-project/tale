@@ -84,6 +84,7 @@ const manager = {
   skills: ['pdf'],
   connectors: [],
   tools: ['task_get'],
+  labelGrants: [],
   secrets: ['B', 'A'],
   connectorCredentials: { github: 'Central', forgejo: 'Client A' },
   gitIdentity: { name: 'Manager', email: 'manager@tale.dev' },

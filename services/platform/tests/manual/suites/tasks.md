@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 179 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 182 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -780,6 +780,8 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   **ENVIRONMENT** without a runnable harness.
 
 - [ ] `TASK-F62` · **Let a manager triage without starting work** — As an editor, enable **Change task priority and agent assignment** (`projects.agents.tool.task_update_metadata`) on a project agent, using the keyboard in **Skills, connectors & tools**; save and reopen it → the named option remains checked with its **Writes data** badge and visible focus, fits at desktop and phone widths in EN/DE/FR, and an automation agent node never offers it. Let that manager change an idle task’s priority and agent assignment, then watch the task from a second browser session → both values refresh, the activity names the manager, status and run history stay unchanged, and a reload keeps the values.
+
+- [ ] `TASK-F99` · **Let an agent route work by label** — On a project with the labels `optional-ci` and `urgent`, as an editor tick **Add and remove task labels** (`projects.agents.tool.task_set_labels`) on a project agent using the keyboard in **Skills, connectors & tools**, then pick `optional-ci` under **Allowed labels** (`projects.agents.labelGrants.label`); save and reopen it → the tool stays checked with its **Writes data** badge, **Allowed labels** shows only while the tool is ticked and keeps `optional-ci`, both fit at desktop and phone widths in EN/DE/FR, an automation agent node never offers the tool, and unticking the tool clears the pick. Start that agent on a task that asks it to add `optional-ci` to a second task of the project and then remove it, and watch the second task from another browser session → the label appears and then goes without a reload, the task’s history shows **Labels changed** (`tasks.activity.labelsChanged`) naming the agent each time, the **Audit logs** tab (`settings.logs.auditLogs`) lists both changes with the actor type **API** (`settings.logs.audit.actorTypeLabels.api`) and the agent’s ID as the actor, and a reload keeps the result. Ask it to add `urgent` → the run’s **Details** shows `task_set_labels` refused as `TASK_LABEL_NOT_GRANTED` and the task keeps its labels; the same request in a run a Member started is refused as `member_run`.
 
 - [ ] `TASK-F66` · **Create from the keyboard** — **Create task** → the caret
   is in the title (placeholder **Task title**, `tasks.fields.titlePlaceholder`)
