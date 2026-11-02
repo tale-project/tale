@@ -287,7 +287,7 @@ export function renderStatic(s, paths) {
     // refusals see the path as sent: Traefik must not clean it first.
     asDefault: true,
     http: {
-      middlewares: ['tale-edge@file'],
+      middlewares: ['tale-edge@file', 'tale-body-faults@file'],
       sanitizePath: false,
       maxHeaderBytes: 65536,
       encodedCharacters: {
@@ -366,6 +366,14 @@ export function renderStatic(s, paths) {
       },
       file: { directory: paths.dynamic, watch: true },
     },
+    // The middleware that answers a body the client framed wrongly
+    // (services/proxy/bodyfaults), shipped in the image: Traefik reads it from
+    // ./plugins-local, so tale-proxy starts Traefik in the share directory.
+    // A plugin that does not load stops the edge: every route names it.
+    experimental: {
+      abortOnPluginFailure: true,
+      localPlugins: { bodyfaults: { moduleName: 'tale/bodyfaults' } },
+    },
   };
   if (s.mode === 'letsencrypt') {
     config.certificatesResolvers = {
@@ -399,6 +407,22 @@ export const PLATFORM_HEALTH = '(?i)^/api/health$';
 // client sends one; refused before any route, so a path never means one
 // thing to the router and another to the service that folds the dots.
 const DOT_SEGMENT = '(?i)(^|/)(%2e|[.]){1,2}(/|$)';
+
+/**
+ * The headers the edge's JSON answers carry beside their request id, as the
+ * platform's own errors do: the responder's (renderResponder) and the answers
+ * to a body the client framed wrongly (renderEdge).
+ */
+function jsonHeaders(s) {
+  const headers = {
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  };
+  if (s.https) headers['Strict-Transport-Security'] = 'max-age=31536000';
+  return headers;
+}
 
 /** One of the responder's answers (renderResponder), as a router's target. */
 function answer(name) {
@@ -571,6 +595,26 @@ export function renderEdge(s) {
         customResponseHeaders: { Server: '', Via: '' },
       },
     },
+    // A body the client framed wrongly cannot be read, and Traefik answers
+    // as for a failing service: 500, or a 502 that the errors middlewares
+    // below show as an outage. The plugin answers the client's 400 instead.
+    'tale-body-faults': {
+      plugin: {
+        bodyfaults: {
+          headers: jsonHeaders(s),
+          chunkMalformed: {
+            code: 'BODY_CHUNK_MALFORMED',
+            error:
+              "The request body's chunked encoding is malformed — each chunk is a hexadecimal size line, its bytes and CRLF, ended by a zero-size chunk; send a well-formed body or declare a Content-Length",
+          },
+          lengthMismatch: {
+            code: 'BODY_LENGTH_MISMATCH',
+            error:
+              "The request body ended before the declared Content-Length was reached — send exactly the bytes the header declares (a length past the route's cap is refused by the platform's 413 instead)",
+          },
+        },
+      },
+    },
     'tale-compress': {
       compress: {
         encodings: ['zstd', 'gzip'],
@@ -665,17 +709,18 @@ export function leafHosts(s) {
  * errors middleware); an absent one answers 503.
  */
 export function renderResponder(s, paths) {
-  const hsts = s.https
-    ? '\n      add_header Strict-Transport-Security "max-age=31536000" always;'
-    : '';
   // The JSON refusals carry the headers the platform's own errors do, and a
   // request id to quote.
-  const json = `default_type application/json;
-      add_header X-Request-Id $tale_request_id always;
-      add_header Cache-Control no-store always;
-      add_header X-Content-Type-Options nosniff always;
-      add_header X-Frame-Options DENY always;
-      add_header Referrer-Policy strict-origin-when-cross-origin always;${hsts}`;
+  const json = [
+    'default_type application/json;',
+    'add_header X-Request-Id $tale_request_id always;',
+  ]
+    .concat(
+      Object.entries(jsonHeaders(s)).map(
+        ([name, value]) => `add_header ${name} "${value}" always;`,
+      ),
+    )
+    .join('\n      ');
   const unavailable = `'{"error":"The platform is not answering right now — a deployment may be rolling; retry with backoff","code":"UPSTREAM_UNAVAILABLE","requestId":"$tale_request_id"}'`;
   return `# Rendered by services/proxy/render at boot; edit the renderer, not this file.
 worker_processes 1;

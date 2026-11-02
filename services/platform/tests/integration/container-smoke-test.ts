@@ -16,6 +16,7 @@
 // =============================================================================
 import { createHash, createHmac } from 'node:crypto';
 import { copyFileSync, existsSync, rmSync } from 'node:fs';
+import { connect } from 'node:tls';
 
 import {
   Compose,
@@ -406,6 +407,65 @@ async function main(): Promise<number> {
     }
   }
 
+  // A body the client framed wrongly is the client's fault, answered at the
+  // edge whatever the path routes to (services/proxy/bodyfaults). Traefik
+  // alone answered 500, or a 502 that read as an outage with retry advice.
+  const proxyRoot = await capture([
+    'docker',
+    'exec',
+    proxyContainer,
+    'cat',
+    '/data/pki/root.crt',
+  ]);
+  for (const path of ['/', '/api/v1/contacts']) {
+    const short = await capture([
+      'docker',
+      'exec',
+      platformContainer,
+      // nosemgrep: tools.opengrep.rules.trailofbits.generic.curl-insecure.curl-insecure -- Isolated smoke network and self-signed proxy; no credentials or external traffic.
+      'curl',
+      '--insecure',
+      '--silent',
+      '--show-error',
+      '--max-time',
+      '10',
+      '--http2',
+      '--connect-to',
+      'localhost:443:proxy:443',
+      '--header',
+      'Content-Length: 100',
+      '--data-binary',
+      '0123456789',
+      '--write-out',
+      '\n%{http_code}',
+      `https://localhost${path}`,
+    ]);
+    const shortLabel = `Proxy answers an HTTP/2 body short of its length with 400 BODY_LENGTH_MISMATCH (${path})`;
+    if (
+      short.exitCode === 0 &&
+      short.stdout.endsWith('\n400') &&
+      short.stdout.includes('"code":"BODY_LENGTH_MISMATCH"')
+    ) {
+      r.pass(shortLabel);
+    } else {
+      r.fail(`${shortLabel}: got ${short.stdout.split('\n').pop()}`);
+    }
+
+    const chunked = await rawProxyRequest(
+      `POST ${path} HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\nZZ\r\ngarbage\r\n0\r\n\r\n`,
+      proxyRoot.stdout,
+    );
+    const chunkedLabel = `Proxy answers a malformed chunked body with 400 BODY_CHUNK_MALFORMED (${path})`;
+    if (
+      chunked.startsWith('HTTP/1.1 400 ') &&
+      chunked.includes('"code":"BODY_CHUNK_MALFORMED"')
+    ) {
+      r.pass(chunkedLabel);
+    } else {
+      r.fail(`${chunkedLabel}: got ${chunked.split('\r\n')[0]}`);
+    }
+  }
+
   const viteCode = await httpStatus('http://localhost:13000/api/health', 10);
   if (viteCode === '200') {
     r.pass(`Platform /api/health: HTTP ${viteCode}`);
@@ -484,6 +544,37 @@ async function main(): Promise<number> {
   await egressLifecycleProbe(egressContainer);
 
   return r.failed === 0 ? 0 : 1;
+}
+
+/**
+ * Sends bytes as written to the proxy's published HTTPS port, past any HTTP
+ * client that would frame them itself, and returns what came back. The
+ * proxy's own root (its self-signed mode) verifies the edge.
+ */
+function rawProxyRequest(request: string, ca: string): Promise<string> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const socket = connect({
+      host: '127.0.0.1',
+      port: 10443,
+      servername: 'localhost',
+      ca,
+      ALPNProtocols: ['http/1.1'],
+    });
+    const done = () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    };
+    const timer = setTimeout(done, 10_000);
+    socket.on('secureConnect', () => socket.write(request));
+    socket.on('data', (chunk: Buffer) => chunks.push(chunk));
+    socket.on('end', done);
+    socket.on('error', (error: Error) => {
+      console.warn(`Raw proxy request failed: ${error.message}`);
+      done();
+    });
+  });
 }
 
 async function egressLifecycleProbe(container: string): Promise<void> {
