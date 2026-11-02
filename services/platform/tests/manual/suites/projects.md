@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 73 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -838,6 +838,19 @@ a few To do tasks.
   **Open** (`projects.dispatch.gates.open`) → **Open**
   (`projects.dispatch.gates.states.open`), and the `ci` task starts within the
   minute.
+- [ ] `PROJ-F77` · **An automation reports on a gate** — With the gate `ci` of
+  `PROJ-F70` declared, save and deploy an automation installed in this project
+  whose only node has `type: task.report_gate`, this project's id, `key: ci`,
+  `state: hold` and a `reason`, then choose **Run now** → the run succeeds and
+  its output reads `held: true` and a `reportedBy` of `run:` followed by the
+  run's id; the gate's row reads **Held**
+  (`projects.dispatch.gates.states.held`), and **Last report**
+  (`projects.dispatch.gates.lastReport`) shows just now and the reason. Change
+  the node to `state: open` and run it again → **Open**
+  (`projects.dispatch.gates.states.open`), and the `ci` task starts within the
+  minute. Install the automation in another project only and run it once more
+  → the run fails on that node, saying it cannot report on the gates of this
+  project, and the row still reads **Open** with the earlier report.
 - [ ] `PROJ-F71` · **A dispatch serves another project's board** — In a
   second project of the organization (say Billing) that you can edit, put a
   To do task with no assignee; in this project, declare through the settings
