@@ -73,7 +73,7 @@ If the work needs **Secrets**, an Owner or Admin grants named organization crede
 
 For a private repository, give the agent [its own repository access](#repository-access) through the GitHub or Forgejo connector, or use a key restricted to that repository, and state the allowed Git operations in the agent's instructions. Commits carry the agent's **Commit identity**. Keep SSH host verification enabled; a self-hosted sandbox routes repository SSH through its existing proxy as described in [SSH repository access](/self-hosted/configuration/environment-reference#ssh-repository-access).
 
-Select **Create agent**. Check the new row’s runtime, provider and model, then reopen it if you need to inspect the saved equipment or instructions.
+Select **Create agent**. Check the new row’s runtime, provider and model, then select the agent’s name to inspect the saved equipment and instructions.
 
 </Step>
 
@@ -134,7 +134,7 @@ A project without agents of its own can still take on agent work. Unless an admi
 
 <Frame caption="The Agents tab of a project whose tasks go to the standard agent.">
 
-![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row has a delete button and no edit button.](/images/platform/project-agents-standard.webp)
+![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row ends in its actions menu.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 
@@ -158,6 +158,6 @@ Everything else works in a worker from the start: a run an automation, a schedul
 
 When you edit an existing agent, saving checks that its settings have not changed since you opened it. If someone else saved first, your save is refused and your unsaved edits stay in the dialog. Copy the changes you want to keep before closing it, then reopen the agent to load the latest settings and merge your changes before saving again.
 
-Use the agent’s row actions to edit or delete it. The standard agent has only **Delete agent**. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. It also deletes the [workspaces of all its workers](/platform/admin/sandboxes#explain-why-a-workspace-disappeared) and their files, including each Member's. Review current work and preserve outputs you still need before removing the agent.
+Choose **Edit** or **Delete** in the agent’s row menu. The standard agent’s menu has no **Edit**. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. It also deletes the [workspaces of all its workers](/platform/admin/sandboxes#explain-why-a-workspace-disappeared) and their files, including each Member's. Review current work and preserve outputs you still need before removing the agent.
 
 If creation fails, use the displayed reason to distinguish a duplicate name, missing project access, an unavailable provider/model or a skill visibility issue. A run that fails for good says at the top of its task what went wrong and who can fix it; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) lists the cases. Changing instructions does not fix those dependencies.

@@ -126,13 +126,25 @@ describe('ProjectAgentsTab', () => {
       },
     ];
     const { user } = renderTab();
-    await user.click(
-      screen.getByRole('button', { name: 'projects.agents.rowView' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Writer' }));
     expect(
       await screen.findByText('projects.agents.detailsTitle'),
     ).toBeInTheDocument();
     expect(screen.getByText('Drafts copy.')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(
+      screen.queryByText('projects.agents.detailsTitle'),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'projects.agents.rowActionsLabel' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'common.actions.view' }),
+    );
+    expect(
+      await screen.findByText('projects.agents.detailsTitle'),
+    ).toBeInTheDocument();
   });
 
   it('shows how each agent is mentioned', () => {
@@ -155,7 +167,7 @@ describe('ProjectAgentsTab', () => {
     expect(screen.getByText(/^@my-opus-agent-3 · /)).toBeInTheDocument();
   });
 
-  it('marks the standard agent and offers no edit for it, while it stays removable', () => {
+  it('marks the standard agent and offers no edit for it, while it stays removable', async () => {
     state.agents = [
       {
         _id: 'agent-standard',
@@ -167,7 +179,7 @@ describe('ProjectAgentsTab', () => {
         managed: true,
       },
     ];
-    renderTab();
+    const { user } = renderTab();
 
     expect(
       screen.getByText('projects.agents.standard.badge'),
@@ -175,11 +187,11 @@ describe('ProjectAgentsTab', () => {
     expect(
       screen.getByText('projects.agents.standard.managedNote'),
     ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'projects.agents.rowActionsLabel' }),
+    );
     expect(
-      screen.queryByRole('button', { name: 'projects.agents.rowEdit' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'projects.agents.rowDelete' }),
-    ).toBeInTheDocument();
+      (await screen.findAllByRole('menuitem')).map((item) => item.textContent),
+    ).toEqual(['common.actions.view', 'common.actions.delete']);
   });
 });

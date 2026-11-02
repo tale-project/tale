@@ -93,11 +93,14 @@ describe('project agent form scope', () => {
       });
       const { user } = render(<RouterProvider router={router} />);
       await screen.findByText('Saved agent');
+      // An agent's Edit sits in its row menu.
       await user.click(
         await screen.findByRole('button', {
-          name: mode === 'create' ? 'New agent' : 'Edit agent',
+          name: mode === 'create' ? 'New agent' : 'Actions for Saved agent',
         }),
       );
+      if (mode === 'edit')
+        await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
       if (mode === 'create')
         await user.type(screen.getByLabelText('Name'), 'Old project draft');
       else expect(screen.getByLabelText('Name')).toHaveValue('Saved agent');

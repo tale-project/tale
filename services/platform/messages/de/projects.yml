@@ -224,7 +224,7 @@ agents:
   emptyReaderTitle: Noch keine Agenten in diesem Projekt
   emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
   equippedCount: '{count} ausgerüstet'
-  rowView: "Agentdetails ansehen"
+  rowActionsLabel: Aktionen für {name}
   detailsTitle: "Agentdetails"
   providerLabel: "Anbieter"
   providerUnpinned: "Nicht festgelegt"
@@ -235,9 +235,7 @@ agents:
   detailsNone: "Keine"
   detailsMoreCount: "+{count} weitere"
   detailsProviderCurrently: "Der Anbieter wird für künftige Durchläufe ermittelt und kann sich ändern."
-  detailsStandardSnapshot: "Gespeicherte Konfiguration. Der Standardagent ermittelt sein Modell, seine Skills und seine Anweisungen bei jedem Start neu."
-  rowEdit: Agent bearbeiten
-  rowDelete: Agent löschen
+  detailsStandardSnapshot: "Gespeicherte Konfiguration. Der Standard-Agent ermittelt sein Modell, seine Skills und seine Anweisungen bei jedem Start neu."
   dialogCreateTitle: Neuer Agent
   dialogEditTitle: Agent bearbeiten
   nameLabel: Name
@@ -341,7 +339,7 @@ agents:
   instructionsPlaceholder:
     Was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er
     einhalten muss.
-  instructionsHint: Läuft bei jedem Einsatz dieses Agenten als feste Anweisung mit.
+  instructionsHint: Was dieser Agent bei jedem Einsatz immer beachten soll.
   createSubmit: Agent erstellen
   createSubmitting: Erstellt…
   editSubmit: Änderungen speichern

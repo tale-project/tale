@@ -73,7 +73,7 @@ Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des ide
 
 Pour un repository privé, donne à l’agent [son propre accès](#repository-access) par le connector GitHub ou Forgejo, ou utilise une clé limitée à ce repository, et précise les opérations Git autorisées dans les instructions de l’agent. Les commits portent l’**Identité des commits** de l’agent. Garde la vérification de l’hôte SSH activée. Un sandbox auto-hébergé fait passer le SSH du repository par son proxy existant ; [Accès SSH aux repositories](/fr/self-hosted/configuration/environment-reference#ssh-repository-access) décrit la configuration.
 
-Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le modèle de la nouvelle ligne. Rouvre l’agent pour examiner l’équipement et les instructions enregistrés.
+Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le modèle de la nouvelle ligne. Choisis le nom de l’agent pour examiner l’équipement et les instructions enregistrés.
 
 </Step>
 
@@ -134,7 +134,7 @@ Un projet sans agents propres peut quand même confier du travail à un agent. S
 
 <Frame caption="L’onglet Agents d’un projet dont les tâches vont à l’agent standard.">
 
-![L’onglet Agents du projet Customer onboarding portal avec une seule ligne : l’agent standard avec le badge Standard, Claude Code, OpenRouter, le modèle anthropic/claude-haiku-4.5 et quatre équipements. Une note indique que Tale l’a mis en place pour ce projet et que son environnement d’agent, son modèle et ses instructions suivent les réglages de l’organisation. La ligne a un bouton de suppression, mais aucun bouton de modification.](/images/platform/project-agents-standard.webp)
+![L’onglet Agents du projet Customer onboarding portal avec une seule ligne : l’agent standard avec le badge Standard, Claude Code, OpenRouter, le modèle anthropic/claude-haiku-4.5 et quatre équipements. Une note indique que Tale l’a mis en place pour ce projet et que son environnement d’agent, son modèle et ses instructions suivent les réglages de l’organisation. La ligne se termine par son menu d’actions.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 
@@ -158,6 +158,6 @@ Tout le reste travaille dans un worker dès le départ : une exécution lancée
 
 Quand tu modifies un agent existant, Tale vérifie à l’enregistrement que ses paramètres n’ont pas changé depuis son ouverture. Si quelqu’un a enregistré avant toi, ton enregistrement est refusé et tes modifications non enregistrées restent dans le dialogue. Copie celles que tu veux garder avant de le fermer, puis rouvre l’agent pour charger les paramètres actuels et y intégrer tes modifications avant d’enregistrer à nouveau.
 
-Utilise le menu de sa ligne pour le modifier ou le supprimer. L’agent standard n’a que **Supprimer l'agent**. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Elle efface aussi les [espaces de travail de tous ses workers](/fr/platform/admin/sandboxes#explain-why-a-workspace-disappeared) avec leurs fichiers, y compris ceux des Membres. Examine le travail en cours et conserve les résultats nécessaires avant de retirer l’agent.
+Choisis **Modifier** ou **Supprimer** dans le menu de sa ligne. Celui de l’agent standard ne propose pas **Modifier**. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Elle efface aussi les [espaces de travail de tous ses workers](/fr/platform/admin/sandboxes#explain-why-a-workspace-disappeared) avec leurs fichiers, y compris ceux des Membres. Examine le travail en cours et conserve les résultats nécessaires avant de retirer l’agent.
 
 Si la création échoue, lis la cause affichée : un nom déjà utilisé, un accès au projet manquant, un modèle indisponible et un skill invisible sont des problèmes distincts. Une exécution qui échoue définitivement indique en haut de sa tâche ce qui s’est passé et qui peut y remédier ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) détaille les cas. Modifier les instructions ne résout pas ces prérequis.

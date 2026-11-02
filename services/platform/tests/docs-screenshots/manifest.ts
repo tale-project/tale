@@ -908,7 +908,7 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // The Agents tab — the project's crew, one row per agent with its harness,
-    // provider, and model. Gate on a row's action button: the tab strip and
+    // provider, and model. Gate on a row's menu button: the tab strip and
     // the section title both read "Agents" long before the list query
     // answers, so a text gate froze the skeleton.
     name: 'project-agents-models',
@@ -920,7 +920,12 @@ export const SHOTS: readonly Shot[] = [
       });
     },
     readyWhen: (page) =>
-      page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
+      page.getByRole('button', {
+        name: t('projects.agents.rowActionsLabel').replace(
+          '{name}',
+          DEMO_PROJECT_AGENTS[0].name,
+        ),
+      }),
     localizedReadyWhen: (page) =>
       page.getByRole('button', {
         name: t('projects.agents.newAgent'),
@@ -1063,7 +1068,7 @@ export const SHOTS: readonly Shot[] = [
   {
     // The standard agent on the Agents tab of the project that had none:
     // the Standard badge, the note that the organization's settings run it,
-    // and Delete as its only action. Set up through the door the Assignee
+    // and a row menu without Edit. Set up through the door the Assignee
     // option uses; `restore` deletes it again, so the project is back
     // without agents for the shot above.
     name: 'project-agents-standard',

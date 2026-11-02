@@ -73,7 +73,7 @@ Braucht die Arbeit **Secrets**, ordnet ein Inhaber oder Admin benannte Zugangsda
 
 Gib dem Agenten für ein privates Repository [eigenen Zugriff](#repository-access) über den GitHub- oder Forgejo-Connector oder nutze einen auf dieses Repository beschränkten Schlüssel, und lege die erlaubten Git-Operationen in den Anweisungen fest. Commits tragen die **Commit-Identität** des Agenten. Lass die SSH-Hostprüfung eingeschaltet. Eine selbst gehostete Sandbox leitet Repository-SSH über ihren bestehenden Proxy weiter; [SSH-Zugang zu Repositories](/de/self-hosted/configuration/environment-reference#ssh-repository-access) beschreibt die Einrichtung.
 
-Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile. Öffne den Agenten erneut, um gespeicherte Ausstattung und Anweisungen zu kontrollieren.
+Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile. Wähle den Namen des Agenten, um gespeicherte Ausstattung und Anweisungen zu kontrollieren.
 
 </Step>
 
@@ -134,7 +134,7 @@ Auch ein Projekt ohne eigene Agenten kann Arbeit an einen Agenten übergeben. So
 
 <Frame caption="Der Tab Agenten eines Projekts, dessen Aufgaben an den Standard-Agenten gehen.">
 
-![Der Tab Agenten des Projekts Customer onboarding portal mit einer Zeile: der Standard-Agent mit dem Abzeichen Standard, Claude Code, OpenRouter, dem Modell anthropic/claude-haiku-4.5 und vier Ausstattungen. Ein Hinweis sagt, dass Tale ihn für dieses Projekt eingerichtet hat und Agent-Laufzeit, Modell und Anweisungen den Einstellungen der Organisation folgen. Die Zeile hat eine Schaltfläche zum Löschen, aber keine zum Bearbeiten.](/images/platform/project-agents-standard.webp)
+![Der Tab Agenten des Projekts Customer onboarding portal mit einer Zeile: der Standard-Agent mit dem Abzeichen Standard, Claude Code, OpenRouter, dem Modell anthropic/claude-haiku-4.5 und vier Ausstattungen. Ein Hinweis sagt, dass Tale ihn für dieses Projekt eingerichtet hat und Agent-Laufzeit, Modell und Anweisungen den Einstellungen der Organisation folgen. Die Zeile endet mit ihrem Aktionsmenü.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 
@@ -158,6 +158,6 @@ Alles andere arbeitet von Anfang an in einem Worker: ein Lauf, den eine Automati
 
 Wenn du einen bestehenden Agenten bearbeitest, prüft Tale beim Speichern, ob seine Einstellungen seit dem Öffnen geändert wurden. Hat jemand anderes zuerst gespeichert, wird dein Speichern abgelehnt und deine ungespeicherten Änderungen bleiben im Dialog. Kopiere die Änderungen, die du behalten möchtest, bevor du ihn schließt. Öffne den Agenten dann erneut, um die aktuellen Einstellungen zu laden, und füge deine Änderungen ein, bevor du wieder speicherst.
 
-Bearbeite oder lösche den Agenten über sein Zeilenmenü. Der Standard-Agent hat nur **Agent löschen**. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Sie löscht außerdem die [Arbeitsbereiche aller seiner Worker](/de/platform/admin/sandboxes#explain-why-a-workspace-disappeared) samt Dateien, auch die der Mitglieder. Prüfe laufende Arbeit und sichere benötigte Ergebnisse, bevor du den Agenten entfernst.
+Wähle im Zeilenmenü des Agenten **Bearbeiten** oder **Löschen**. Das Menü des Standard-Agenten bietet kein **Bearbeiten**. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Sie löscht außerdem die [Arbeitsbereiche aller seiner Worker](/de/platform/admin/sandboxes#explain-why-a-workspace-disappeared) samt Dateien, auch die der Mitglieder. Prüfe laufende Arbeit und sichere benötigte Ergebnisse, bevor du den Agenten entfernst.
 
 Scheitert das Erstellen, lies die Begründung: Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell und unsichtbare Skills sind unterschiedliche Ursachen. Ein Lauf, der endgültig scheitert, sagt oben in seiner Aufgabe, was schiefging und wer es beheben kann; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Neue Anweisungen beheben diese Voraussetzungen nicht.
