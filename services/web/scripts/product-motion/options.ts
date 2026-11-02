@@ -7,6 +7,10 @@ import {
 /** Motion uses every shipped native locale by default; docs retain English. */
 export function productMotionArgs(argv: readonly string[]) {
   const args = parseCaptureArgs(argv);
+  if (args.devices)
+    throw new Error(
+      'Product motion records every scene in both layouts; --devices only picks docs screenshot captures',
+    );
   if (!argv.includes('--locales'))
     args.locales = [...PRODUCT_SCREENSHOT_LOCALES];
   const unknown = args.only.filter((page) => !(page in PRODUCT_SCREENSHOTS));
