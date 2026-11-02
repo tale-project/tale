@@ -289,6 +289,7 @@ actions:
         if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/IncomingPhoneNumbers.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio list_phone_numbers failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
+        // Twilio's IncomingPhoneNumber carries the number's webhook URLs, which can hold credentials for the owner's server: hand on only the declared members of each number.
         const j = r.json();
-        return { phone_numbers: j.incoming_phone_numbers || [], next_page_uri: j.next_page_uri || null };
+        return { phone_numbers: (j.incoming_phone_numbers || []).map((n) => ({ sid: n.sid, phone_number: n.phone_number, friendly_name: n.friendly_name })), next_page_uri: j.next_page_uri || null };
     exampleInput: { pageSize: 20 }
