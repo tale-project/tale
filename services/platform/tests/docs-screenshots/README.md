@@ -1,10 +1,11 @@
 # Capture documentation screenshots
 
 The screenshot runner drives the real platform with synthetic demo content and a mock model gateway.
-It produces the WebP files under `services/docs/public/images/` and their generated manifest, then
-the responsive variants the docs pages serve (see [Responsive variants](#responsive-variants)). Add
-or change a shot in [`manifest.ts`](manifest.ts); never hand-edit a screenshot to imply product
-behavior.
+It produces the WebP files under `services/docs/public/images/` (each wide shot in Tale's desktop
+and phone layouts, see [Capture the phone layout](#capture-the-phone-layout)) and their generated
+manifest, then the responsive variants the docs pages serve (see
+[Responsive variants](#responsive-variants)). Add or change a shot in [`manifest.ts`](manifest.ts);
+never hand-edit a screenshot to imply product behavior.
 
 Read the [screenshot guide](../../../../.agents/skills/write-docs/SCREENSHOTS.md) for framing and
 [docs contract](../../../../docs/AGENTS.md) for embedding images and translating captions.
@@ -79,6 +80,7 @@ bun run docs:screenshots -- --only chat-composer
 bun run docs:screenshots -- --skip-seed --only chat-document-attachment,project-task-detail
 bun run docs:screenshots -- --grep '^governance-'
 bun run docs:screenshots -- --locales en,de,fr --only home-inbox
+bun run docs:screenshots -- --devices phone --only chat-composer
 bun run docs:screenshots
 ```
 
@@ -106,6 +108,32 @@ Each browser context starts in the requested language and the preparation locato
 catalog, so opening a task dialog or run detail does not require a locale-changing reload.
 Synthetic workspace content is shared between languages; user-written task and conversation text
 remains the seeded content. UI labels and locale formatting come from the real application.
+
+### Capture the phone layout
+
+Below Tale's `md` breakpoint (767 px and narrower, `MOBILE_MAX_WIDTH` in
+`packages/ui/src/hooks/use-is-mobile.ts`) every surface is laid out anew, so a desktop capture
+scaled down to a phone shows the reader a page they will not see. Every shot captured at 768 px or
+wider is therefore taken twice: in the desktop layout as `images/<section>/<shot>.webp`, and in
+the phone layout beside it as `images/<section>/<shot>.phone.webp`, at 390 × 844 and DPR 2 with a
+touch pointer. The manifest records the phone capture with `"device": "phone"`. A docs page still
+names the desktop file; below the breakpoint it shows the phone capture in its place, and its
+lightbox opens that capture full size.
+
+Declare a shot's phone capture with its `phone` field in [`manifest.ts`](manifest.ts):
+
+- Leave it out for the default 390 × 844 viewport.
+- `phone: { viewport: { width: 390, height: 1400 } }` gives a long page a taller viewport. It stays
+  at most 767 px wide, or the docs tests reject the capture.
+- `phone: { none: '<why>' }` opts out, with the reason, when the page shows this shot as the
+  desktop layout beside a phone shot of its own (`automation-editor-canvas`).
+
+A shot whose own viewport is narrower than 768 px already shows the phone layout and gets no
+second capture. A step that differs on a phone, such as a control the phone layout moves into a
+menu or the bottom navigation, reads `ctx.device` (`desktop` or `phone`). Phone captures are
+English, as the docs pages show English captures; a page that shows a localized capture gets its
+phone capture with `--devices desktop,phone --locales …`. `--devices phone` retakes the phone
+captures alone, and `--list` names every capture with its viewport.
 
 To regenerate all localized marketing product screens and their responsive derivatives in order:
 
@@ -174,14 +202,16 @@ keep this visual review evidence outside the checkout.
 
 For each changed image:
 
-1. Open the WebP and verify that the intended controls, data, and state are visible.
-2. Preview the page at normal reading width and on a narrow screen. An image that is technically
-   sharp may still be unreadable inside a page.
+1. Open the WebP, and its phone capture where the shot has one, and verify that the intended
+   controls, data, and state are visible in each.
+2. Preview the page at normal reading width and on a narrow screen: below 768 px the page shows the
+   phone capture, and its lightbox opens that capture. An image that is technically sharp may
+   still be unreadable inside a page.
 3. Check the surrounding steps against the image. Docs pages normally use English captures with
    native captions and alt text; the prose names the actual localized UI controls.
-4. Commit the shot definition, generated WebP, its variants under `images/optimized/`,
-   `images/manifest.json`, `app/content/image-dimensions.ts`, and all affected locale pages
-   together.
+4. Commit the shot definition, generated WebP and its phone capture, their variants under
+   `images/optimized/`, `images/manifest.json`, `app/content/image-dimensions.ts`, and all
+   affected locale pages together.
 
 ```bash
 bun run --filter @tale/docs test
@@ -192,10 +222,11 @@ bun run --filter @tale/docs dev
 
 After every capture the runner runs `bun run docs:images`
 ([`services/docs/scripts/optimize-images.ts`](../../../docs/scripts/optimize-images.ts)). It
-encodes each image a docs page shows along the responsive ladder, formats, qualities and byte
-budget the marketing site shares (`@tale/ui/images/responsive`): an AVIF and a WebP at every
-ladder width up to 1600 px, which covers the 48rem article column at DPR 2, plus the image's own
-width when it is narrower. The variants mirror the original's path under
+encodes each image a docs page shows, and the phone capture beside it, along the responsive
+ladder, formats, qualities and byte budget the marketing site shares
+(`@tale/ui/images/responsive`): an AVIF and a WebP at every ladder width up to 1600 px, which
+covers the 48rem article column at DPR 2, plus the image's own width when it is narrower. The
+variants mirror the original's path under
 `services/docs/public/images/optimized/`, the image's size goes to
 `services/docs/app/content/image-dimensions.ts`, and the capture's SHA-256 to the manifest entry,
 so an image whose capture did not change is skipped. Pages serve the variants through `srcset`
@@ -293,10 +324,13 @@ irrelevant state; capture success alone is not visual approval.
   be replaced by the file size; a screenshot must not hide a failed state.
 - Each marketing scene also waits for a translated control from its own route topic, after its
   data gate. A matching HTML language alone cannot admit a temporarily English table or dialog.
-- Images are encoded as WebP below the pipeline's 190 KB budget. The generated manifest records
-  provenance, locale, and dimensions. The docs tests check that every published screenshot is
-  registered and referenced by docs or the marketing screenshot registry, and that every image a
-  page shows ships fresh responsive variants.
+- Each capture is encoded as WebP through the shared encoder (`@tale/ui/images/encode`) within the
+  byte budget of one variant (`IMAGE_MAX_BYTES`, 200 KiB): it lowers the quality step by step and
+  fails a capture still over the budget at the quality floor, which a tighter crop fixes. The
+  generated manifest records provenance, locale, layout (`device`), and dimensions. The docs tests
+  check that every published screenshot is registered and referenced by docs or the marketing
+  screenshot registry (a phone capture through the desktop capture it sits beside), and that
+  every image a page shows ships fresh responsive variants.
 
 The mock gateway supplies deterministic answers for visual examples. A successful mock conversation
 proves the interaction and rendering, not a real model's answer quality or a provider's production

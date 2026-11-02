@@ -12,6 +12,9 @@
  *     hardcoded English literal.
  *   - `readyWhen` waits on authoritative state (a locator), never on time.
  *   - `capture.element` crops to a region; omit for the full viewport.
+ *   - Every shot captured at 768 px or wider also gets a phone capture
+ *     (`<name>.phone.webp`, see `Shot.phone`): below Tale's `md` breakpoint
+ *     every surface is laid out anew, and docs pages show it there.
  */
 
 import { expect, type Locator, type Page } from '@playwright/test';
@@ -20,6 +23,7 @@ import {
   DEFAULT_SANDBOX_WORKSPACES,
   sandboxQuotaTotal,
 } from '@tale/shared/schemas/governance';
+import { MOBILE_MAX_WIDTH } from '@tale/ui/use-is-mobile';
 
 import {
   composer as chatComposer,
@@ -29,6 +33,7 @@ import {
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
 import { ensureDemoAgents, openConsentPage } from './agent-demo';
+import type { CaptureDevice } from './capture-options';
 import {
   DEMO_AGENTS,
   DEMO_APPROVAL_ALLOWANCE,
@@ -79,6 +84,9 @@ const labelPrefix = (key: string): string => t(key).split('{')[0].trim();
 
 export interface ShotContext {
   readonly orgId: string;
+  /** The layout being captured, for a step that differs on a phone (a link
+   * the phone layout moves into its bottom navigation). */
+  readonly device: CaptureDevice;
   /** Thread ids recorded by the seeder, keyed by their prompt. */
   readonly threads: ReadonlyMap<string, string>;
   /** Project ids recorded by the seeder, keyed by project name. */
@@ -121,7 +129,39 @@ export interface Shot {
    */
   readonly restore?: (page: Page, ctx: ShotContext) => Promise<void>;
   /** Viewport override (default 1440×900). */
-  readonly viewport?: { width: number; height: number };
+  readonly viewport?: Viewport;
+  /**
+   * The phone capture, `<name>.phone.webp`, which docs pages show below
+   * Tale's `md` breakpoint. A shot whose viewport is 768 px or wider gets one
+   * at `PHONE_VIEWPORT`; `viewport` gives a long page a taller one. `none`
+   * opts out and says why (a page that shows this shot as the desktop
+   * layout beside a phone shot). A narrower shot already is the phone layout.
+   */
+  readonly phone?: { readonly viewport: Viewport } | { readonly none: string };
+}
+
+interface Viewport {
+  readonly width: number;
+  readonly height: number;
+}
+
+/** The desktop capture's viewport unless a shot sets its own. */
+export const DEFAULT_VIEWPORT: Viewport = { width: 1440, height: 900 };
+
+/** A phone in portrait, below Tale's `md` breakpoint: 780 px wide at DPR 2. */
+export const PHONE_VIEWPORT: Viewport = { width: 390, height: 844 };
+
+/** The viewport `shot` is captured at in `device`'s layout, or null when it
+ * has no capture there. */
+export function shotViewport(
+  shot: Shot,
+  device: CaptureDevice,
+): Viewport | null {
+  const desktop = shot.viewport ?? DEFAULT_VIEWPORT;
+  if (device === 'desktop') return desktop;
+  if (desktop.width <= MOBILE_MAX_WIDTH) return null;
+  if (shot.phone && 'none' in shot.phone) return null;
+  return shot.phone?.viewport ?? PHONE_VIEWPORT;
 }
 
 const chatThreadRoute = (ctx: ShotContext, prompt: string): string => {
@@ -1888,6 +1928,11 @@ export const SHOTS: readonly Shot[] = [
         name: t('automations.editor.fields.input'),
         exact: true,
       }),
+    // The editor page shows this frame as the wide-screen layout, beside
+    // `automation-editor-canvas-mobile`, its phone layout.
+    phone: {
+      none: 'shown beside automation-editor-canvas-mobile as the wide layout',
+    },
   },
   {
     // The pull-request review pack's General tab: its one write to an

@@ -348,7 +348,10 @@ async function main(): Promise<void> {
                 variant,
                 stateDir,
                 runtime.authState,
-                runtime.toContext(state),
+                runtime.toContext(
+                  state,
+                  variant === 'mobile' ? 'phone' : 'desktop',
+                ),
               );
               captures.push(result.capture);
               posters.push(result.poster);
