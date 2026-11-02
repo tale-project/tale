@@ -8,9 +8,19 @@
  * bucket is unambiguous.
  */
 
+import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { foldModelCounts } from './health.ts';
+import { foldModelCounts, getOrgChatHealth } from './health.ts';
+
+/** Answers `getOrgChatHealth`'s three reads in order: one message of the
+ * organization, the window's messages, and the threads' agents. */
+function cannedSql(...answers: unknown[][]): Sql {
+  const queue = [...answers];
+  const sql = () => Promise.resolve(queue.shift() ?? []);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return sql as unknown as Sql;
+}
 
 describe('foldModelCounts', () => {
   it('merges a provider-less count into the one provider known for the model', () => {
@@ -50,5 +60,40 @@ describe('foldModelCounts', () => {
     ];
     foldModelCounts(input);
     expect(input[0]?.count).toBe(1);
+  });
+});
+
+// #5270: two providers can serve one model id, so a recent error names the
+// provider its turn stored, for the page to name the model by.
+describe('getOrgChatHealth recent errors', () => {
+  it('carry the provider their turn stored, and none where it stored none', async () => {
+    const turn = (
+      providerSlug: string | null,
+      createdAt: number,
+    ): Record<string, unknown> => ({
+      threadId: 'thread-1',
+      role: 'assistant',
+      model: 'deepseek-x',
+      providerSlug,
+      usage: null,
+      blockedReason: null,
+      error: 'boom',
+      createdAt,
+    });
+    const now = Date.now();
+    const health = await getOrgChatHealth(
+      cannedSql(
+        [{ id: 'message-1' }],
+        [turn('deepinfra', now - 1000), turn(null, now - 2000)],
+        [{ id: 'thread-1', agentSlug: 'helper' }],
+      ),
+      'org-1',
+      { periodDays: 7 },
+    );
+
+    expect(health.recentErrors).toEqual([
+      expect.objectContaining({ model: 'deepseek-x', provider: 'deepinfra' }),
+      expect.not.objectContaining({ provider: expect.anything() }),
+    ]);
   });
 });
