@@ -16,7 +16,7 @@ L’assistant choisit la voie la plus légère qui fait l’affaire et ne démar
 | Une réponse, un tableau comparatif, un court bloc de code | Répond directement | Rien |
 | Un fichier Markdown, CSV, JSON, HTML ou SVG, une entrée d’agenda (`.ics`) ou une fiche de contact (`.vcf`) | Rédige le fichier lui-même | Rien |
 | Une image : une illustration, une scène réaliste, un logo | Génère une image | Le modèle d’images de ton organisation, si la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) est activée |
-| Un fichier Word, Excel, PowerPoint ou PDF, un graphique, un calcul sur des données, une modification d’un fichier joint | Exécute du code dans une sandbox légère | Une sandbox légère, en une seconde environ |
+| Un fichier Word, Excel, PowerPoint ou PDF, un graphique, un calcul sur des données, une modification d’un fichier joint ou lié | Exécute du code dans une sandbox légère | Une sandbox légère, en une seconde environ |
 | Un travail sur un dépôt, dans une session de navigateur ou qui dure des heures | Propose une [tâche de projet](/fr/platform/projects/tasks) | Rien dans le chat ; l’agent de la tâche travaille dans sa propre sandbox |
 
 Un fichier qui doit être relu, conservé avec d’autres travaux ou créé plus tard a sa place dans une tâche : l’[agent standard](/fr/platform/projects/project-agents#standard-agent-runs) du projet y utilise les mêmes outils, et les fichiers qu’il crée deviennent les fichiers produits de la tâche.
@@ -43,7 +43,7 @@ Les fichiers appartiennent à la conversation : quiconque peut ouvrir la conver
 
 [Joins le fichier](/fr/platform/chat/attachments) et indique ce qui doit changer : « Ajoute un graphique des totaux au tableur joint » ou « Convertis le document Word joint en PDF ». L’assistant copie le fichier dans la sandbox légère et renvoie le résultat sous forme de nouveau fichier. Le fichier joint reste tel quel.
 
-Un document vers lequel tu donnes seulement un lien est lu comme texte. Il n’est pas copié dans la sandbox, et l’assistant ne peut pas le modifier depuis le lien : télécharge le fichier et joins-le.
+Un fichier PDF, `.docx`, `.xlsx`, `.pptx` ou `.odt` vers lequel tu donnes un lien se modifie de la même façon : l’assistant lit le document depuis le lien, garde le fichier lu dans la conversation et le copie dans la sandbox légère. Il travaille sur le fichier tel qu’il l’a lu, et une modification ultérieure derrière le lien ne l’atteint pas ; demande-lui de relire le lien pour obtenir la version plus récente. Le fichier gardé compte dans le stockage de ton organisation comme une pièce jointe, et son contenu est traité comme du contenu du web, jamais comme tes instructions. Il faut pour cela que **Code** soit activé sous [Outils du chat](/fr/platform/admin/governance/policies-and-limits#chat-tools) ; sans lui, ou quand le fichier n’a pas pu être gardé, l’assistant n’a que le texte du document : télécharge le fichier et joins-le.
 
 Une image jointe peut aussi servir de point de départ à une nouvelle image quand ton organisation autorise la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images). Demande par exemple : « Transforme la photo jointe en aquarelle ». L’assistant transmet la photo au modèle d’images, et la nouvelle image apparaît sous la réponse.
 

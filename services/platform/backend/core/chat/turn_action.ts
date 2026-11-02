@@ -98,6 +98,7 @@ import { resolveProviderCredential } from '../provider_credentials/resolve_crede
 import {
   createChatToolExecutor,
   type ChatToolContext,
+  type FetchedDocumentKeeper,
 } from './assistant_tools';
 import { readCustomInstructions } from './custom_instructions';
 import {
@@ -967,6 +968,9 @@ export interface TurnWorkTools {
    * reads them before the model answers, as it does the skills a message
    * names (`lib/skills/slash.ts`). */
   readonly conversationSkills?: readonly string[];
+  /** Keeps a document web_fetch reads as a file of the conversation, where
+   * `run_code` is offered to take it. */
+  readonly keepFetchedDocument?: FetchedDocumentKeeper;
 }
 
 /** Auto-resolution refusals, verbatim in the user's face — same voice as
@@ -1288,6 +1292,7 @@ export function chatToolContextForTurn(args: {
   projectId: string | null;
   apiKeyId?: string;
   embeddingMeter?: EmbeddingMeter;
+  keepFetchedDocument?: FetchedDocumentKeeper;
 }): ChatToolContext {
   return {
     organizationId: args.organizationId,
@@ -1297,6 +1302,9 @@ export function chatToolContextForTurn(args: {
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     ...(args.embeddingMeter !== undefined
       ? { embeddingMeter: args.embeddingMeter }
+      : {}),
+    ...(args.keepFetchedDocument !== undefined
+      ? { keepFetchedDocument: args.keepFetchedDocument }
       : {}),
   };
 }
@@ -1700,6 +1708,10 @@ export async function executeTurn(
                 : {}),
             }),
           }
+        : {}),
+      // A document web_fetch reads is kept where run_code can take it.
+      ...(workTools?.keepFetchedDocument !== undefined
+        ? { keepFetchedDocument: workTools.keepFetchedDocument }
         : {}),
     }),
   );

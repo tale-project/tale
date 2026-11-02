@@ -239,8 +239,9 @@ const RUN_CODE_SCHEMA = object(
         'file the user should receive to /agent/output/.',
     },
     files: refList(
-      'Refs of files from this conversation (uploads, or files created ' +
-        'earlier) to copy to /agent/inputs/ before the program runs.',
+      'Refs of files from this conversation (uploads, documents read from ' +
+        'a link, or files created earlier) to copy to /agent/inputs/ before ' +
+        'the program runs.',
       RUN_CODE_MAX_INPUT_FILES,
     ),
     skills: refList(
