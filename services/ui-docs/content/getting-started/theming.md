@@ -57,7 +57,7 @@ When extending the token set, define the light and dark values together. Check t
 
 ## Apply a host accent
 
-`AccentColorProvider` supplies a runtime accent to components that opt into it, including route-tab indicators and selected sub-panel rows. They set it as the open item's text and icon color over a tint of itself (about 15%), so pass a shade that reads as text there: 4.5:1 on the page and on that tint, in each theme. A raw brand pick often falls short. `#056CFF`, for example, reads 4.45:1 on the light page and 3.6:1 on its tint, while the same hue at `#0057d1` on light and `#3388ff` on dark reads on both:
+`AccentColorProvider` supplies a runtime accent to components that opt into it, including route-tab indicators and selected sub-panel rows. They set it as the open item's text and icon color over a tint of itself (about 15%), so pass a shade that reads as text there: 4.5:1 on the surface under it (the page under a tab, `bg-sidebar` under a sub-panel row) and on that tint, in each theme. A raw brand pick often falls short. `#056CFF`, for example, reads 4.45:1 on the light page and 3.6:1 on its tint, while the same hue at `#0057d1` on light and `#3388ff` on dark reads on both:
 
 ```tsx
 import { AccentColorProvider } from '@tale/ui/accent-color';
