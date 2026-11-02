@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
 import { encodeImage } from './encode';
-import { IMAGE_MAX_BYTES } from './responsive';
+import { IMAGE_MAX_BYTES, PNG_QUALITY } from './responsive';
 
 describe('encodeImage', () => {
   it.each([
@@ -64,6 +64,44 @@ describe('encodeImage', () => {
     expect(higher.byteLength).toBeGreaterThan(budget);
   });
 
+  it('writes flat artwork as a palette PNG that keeps its colours exact', async () => {
+    // Two flat halves, as in brand art: ink on white.
+    const source = await sharp({
+      create: { width: 32, height: 16, channels: 3, background: '#ffffff' },
+    })
+      .composite([
+        {
+          input: {
+            create: {
+              width: 16,
+              height: 16,
+              channels: 3,
+              background: '#060809',
+            },
+          },
+          left: 0,
+          top: 0,
+        },
+      ])
+      .png()
+      .toBuffer();
+    const encoded = await encodeImage(sharp(source), {
+      format: 'png',
+      quality: PNG_QUALITY,
+      label: 'card.png',
+    });
+    expect(encoded.quality).toBe(PNG_QUALITY);
+    expect(await sharp(encoded.bytes).metadata()).toMatchObject({
+      format: 'png',
+      width: 32,
+      height: 16,
+      isPalette: true,
+    });
+    const pixels = await sharp(encoded.bytes).removeAlpha().raw().toBuffer();
+    expect([...pixels.subarray(0, 3)]).toEqual([0x06, 0x08, 0x09]);
+    expect([...pixels.subarray(-3)]).toEqual([0xff, 0xff, 0xff]);
+  });
+
   it('fails clearly at the quality floor when an image cannot fit', async () => {
     const image = sharp({
       create: { width: 16, height: 16, channels: 3, background: '#f7f7f7' },
@@ -78,5 +116,19 @@ describe('encodeImage', () => {
     ).rejects.toThrow(
       /unfit\.webp.*webp.*quality 60.*1-byte budget.*dimensions were preserved/,
     );
+  });
+
+  it('fails a PNG at the quality floor the same way', async () => {
+    const image = sharp({
+      create: { width: 16, height: 16, channels: 3, background: '#f7f7f7' },
+    });
+    await expect(
+      encodeImage(image, {
+        format: 'png',
+        quality: PNG_QUALITY,
+        label: 'unfit.png',
+        maxBytes: 1,
+      }),
+    ).rejects.toThrow(/unfit\.png.*png.*quality 60.*1-byte budget/);
   });
 });

@@ -262,12 +262,15 @@ source. After starting the platform and successfully seeding it, retake those so
 
 ```bash
 bun run docs:screenshots -- --skip-seed --only chat-arena-split,projects-task-board,project-agents-models,automation-editor-canvas,connectors-add-credential,governance-guardrails
-bun run readme:assets --gallery-only
+bun run readme:assets
 ```
 
-`--gallery-only` rebuilds the six WebP thumbnails under `.github/assets/` without regenerating the
-animated tour. The thumbnails preserve the entire frame and use a higher quality setting for
-small UI text. The source images remain governed by the docs pipeline's size budget.
+`readme:assets` rebuilds the six WebP thumbnails under `.github/assets/`. Each keeps the entire
+frame, scaled to the README tile width of the shared image policy (`FIXED_IMAGE_WIDTHS.readmeTile`
+in `packages/ui/src/images/responsive.ts`: two tiles per row, sharp at DPR 2), at the policy's
+screen quality for small UI text, through the shared encoder and its byte budget. The docs test
+`services/docs/tests/readme-assets.test.ts` rejects a tile of another width, an oversized tile, and
+a tile a README does not show.
 
 Inspect all six sources and thumbnails, then preview each README at a normal repository reading
 width and a narrow viewport. Check the captions, image links, and [visual guide](../../../../SCREENSHOTS.md)
