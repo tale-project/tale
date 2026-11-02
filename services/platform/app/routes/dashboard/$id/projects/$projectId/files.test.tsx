@@ -85,10 +85,6 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useUploadPolicy: () => ({}),
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
-}));
-
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));

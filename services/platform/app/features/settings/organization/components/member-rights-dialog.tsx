@@ -2,14 +2,16 @@
 
 import { Badge } from '@tale/ui/badge';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
+import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { ViewDialog } from '@tale/ui/dialog/view-dialog';
+import { SKELETON_PULSE } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
-import { useId, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 
 import { mapCompetenceError } from '@/app/features/settings/governance/competences/competence-errors';
 import { capabilityMessageKey } from '@/app/features/settings/governance/competences/competence-labels';
@@ -25,7 +27,7 @@ import {
   type PlatformCapability,
 } from '@/lib/shared/competences';
 
-import { useMembers } from '../hooks/queries';
+import { useMemberLookup } from '../hooks/member-lookup';
 import { useRoleLabel } from './role-badge';
 
 const MODEL_API_STATES = {
@@ -83,7 +85,8 @@ interface MemberRightsDialogProps {
 interface RightRowProps {
   right: MemberRight;
   role: string;
-  nameOf: (userId: string) => string;
+  /** Who granted a grant, by name; null while the lookup runs. */
+  nameOf: (userId: string) => string | null;
   disabled: boolean;
   onSwitch: (right: MemberRight, granted: boolean) => void;
 }
@@ -96,7 +99,8 @@ function RightRow({ right, role, nameOf, disabled, onSwitch }: RightRowProps) {
   const id = useId();
   const date = (ms: number) => formatDate(new Date(ms), 'short');
 
-  const say = (reason: MemberRightReason): string => {
+  /** A reason in words; null while the name it gives is on its way. */
+  const say = (reason: MemberRightReason): string | null => {
     switch (reason.kind) {
       case 'organization':
         return t(MODEL_API_STATES[reason.state]);
@@ -109,8 +113,10 @@ function RightRow({ right, role, nameOf, disabled, onSwitch }: RightRowProps) {
       case 'grant':
       case 'team': {
         const messages = GRANT_STATES[reason.kind];
+        const name = nameOf(reason.grantedBy);
+        if (name === null) return null;
         const values = {
-          name: nameOf(reason.grantedBy),
+          name,
           // The register calls a team that is gone a deleted team.
           team:
             reason.kind === 'team'
@@ -155,18 +161,30 @@ function RightRow({ right, role, nameOf, disabled, onSwitch }: RightRowProps) {
           </Badge>
         </div>
         <div id={`${id}-reasons`} className="flex flex-col gap-0.5">
-          {right.reasons.map((reason) => (
-            <Text
-              key={
-                reason.kind === 'grant' || reason.kind === 'team'
-                  ? reason.recordId
-                  : reason.kind
-              }
-              variant="muted"
-            >
-              {say(reason)}
-            </Text>
-          ))}
+          {right.reasons.map((reason) => {
+            const key =
+              reason.kind === 'grant' || reason.kind === 'team'
+                ? reason.recordId
+                : reason.kind;
+            const words = say(reason);
+            // A placeholder while the granter's name is on its way, never
+            // their raw id.
+            return words === null ? (
+              <span
+                key={key}
+                aria-hidden="true"
+                data-slot="reason-pending"
+                className={cn(
+                  SKELETON_PULSE,
+                  'my-0.5 block h-4 w-56 max-w-full rounded',
+                )}
+              />
+            ) : (
+              <Text key={key} variant="muted">
+                {words}
+              </Text>
+            );
+          })}
         </div>
       </div>
       {/* On while the member's own grant is live: the switch is that grant
@@ -205,7 +223,20 @@ export function MemberRightsDialog({
     enabled: open,
   });
   const read = readStateOf(rights);
-  const { members } = useMembers(organizationId, { enabled: open });
+  // The admins who granted what the rights name, looked up while the dialog
+  // is open: not every member read.
+  const granters = useMemo(
+    () =>
+      (rights.data?.rights ?? []).flatMap((right) =>
+        right.reasons.flatMap((reason) =>
+          reason.kind === 'grant' || reason.kind === 'team'
+            ? [{ userId: reason.grantedBy }]
+            : [],
+        ),
+      ),
+    [rights.data],
+  );
+  const granterLookup = useMemberLookup(organizationId, open ? granters : []);
   const revokeMutation = useRevokeCompetence();
   const [grantTarget, setGrantTarget] = useState<PlatformCapability | null>(
     null,
@@ -216,14 +247,17 @@ export function MemberRightsDialog({
   const listRef = useRef<HTMLUListElement>(null);
 
   const memberName = member.displayName || member.email || member.userId;
-  // Someone missing from a loaded directory has left the organization;
-  // without a directory (it failed to load) the id is all there is.
-  const nameOf = (userId: string): string => {
-    const person = members?.find((entry) => entry.userId === userId);
+  // Someone the lookup answered without has left the organization; when
+  // their lookup failed the id is all there is.
+  const nameOf = (userId: string): string | null => {
+    const person = granterLookup.members.find(
+      (entry) => entry.userId === userId,
+    );
     if (person !== undefined) {
       return person.displayName || person.email || person.userId;
     }
-    return members === undefined ? userId : tCommon('formerMember');
+    if (granterLookup.failed({ userId })) return userId;
+    return granterLookup.answered({ userId }) ? tCommon('formerMember') : null;
   };
   const rightLabel = (capability: PlatformCapability) =>
     tGovernance(

@@ -71,7 +71,9 @@ function trail(listing: Listing, args: TrailArgs) {
     retry: vi.fn(),
   };
 }
+const noEmails = vi.hoisted(() => new Map<string, string>());
 vi.mock('@/app/features/settings/audit-logs/hooks/queries', () => ({
+  useActorEmails: () => noEmails,
   useListAuditLogsPaginated: (args: TrailArgs) => trail('audit', args),
   useListErrorLogsPaginated: (args: TrailArgs) => trail('errors', args),
   useActivitySummary: () => ({
@@ -111,9 +113,14 @@ const LOG_ROW = {
   status: 'success',
 };
 
-// Members list (email map) + block-counters list both go through this hook.
+// The block-counters list goes through this hook; every read it serves is
+// recorded by name.
+const backendReads = vi.hoisted(() => [] as string[]);
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: [], isLoading: false }),
+  useBackendQuery: (name: string) => {
+    backendReads.push(name);
+    return { data: [], isLoading: false };
+  },
 }));
 
 const exportMutate = vi.hoisted(() => vi.fn());
@@ -170,6 +177,7 @@ afterEach(() => {
   trails.failed = false;
   trails.reads = [];
   ability.denied = false;
+  backendReads.length = 0;
 });
 
 // The DataTable reads the org id from the router; outside a RouterProvider that
@@ -230,6 +238,20 @@ describe('AuditLogsPage', () => {
     await user.click(auditTab);
     expect(auditTab).toHaveAttribute('aria-selected', 'true');
     expect(activityTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  // Each table looks up the people it names (MEMBER-R11): no tab reads every
+  // member for their e-mails.
+  it('reads no member list on any tab', async () => {
+    const { user } = renderPage();
+    for (const name of ['Activity logs', 'Error logs', 'Audit logs']) {
+      await user.click(screen.getByRole('tab', { name }));
+      expect(screen.getByRole('tab', { name })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    }
+    expect(backendReads).not.toContain('members/queries:listByOrganization');
   });
 
   it('shows the category filter only on the Audit and Errors tabs', async () => {
