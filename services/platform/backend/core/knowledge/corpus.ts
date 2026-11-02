@@ -241,6 +241,11 @@ export class DocumentCorpusReader implements CorpusReader {
       query.embedding.length,
       `organization "${this.orgSlug}"`,
     );
+    // `v.org_slug` names the organization on the vectors themselves: what
+    // lets Postgres scan the organization's own approximate index, and no
+    // other tenant's vectors (knowledge-db migration 18). The statement goes
+    // unprepared, so it is planned with the slug, which the index's
+    // predicate needs.
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
@@ -252,7 +257,8 @@ export class DocumentCorpusReader implements CorpusReader {
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         ON d.id = c.document_id AND d.org_slug = c.org_slug
-      WHERE c.org_slug = $2
+      WHERE v.org_slug = $2
+        AND c.org_slug = $2
         AND d.status = 'completed'
         AND (d.embedding_model IS NULL OR d.embedding_model = ${model})
         AND NOT c.passage_repeat
@@ -641,14 +647,19 @@ async function runKeywordLeg(
 /**
  * Chunks in scope at or under which the dense leg runs as an EXACT scan — a
  * sort over the scoped rows (about 13 ms at 4,500 rows of 1,536 dimensions)
- * instead of the approximate index. The index is shared by every
- * organization's rows and filtered AFTER it is scanned, so for a small scope
- * its candidate list is spent on rows the filters reject — down to none —
- * and a cluster of identical vectors (an 8 MiB file of one repeated line)
- * crowds out strictly nearer passages (2026-09-14 evaluation, h4). Below this
- * bound the index is not worth its failure mode.
+ * instead of the approximate index. The index is filtered AFTER it is
+ * scanned (an organization's own by the scope's projects, folders and
+ * access; the web corpus's, which the organizations share, by its domains),
+ * so for a small scope its candidate list is spent on rows the filters
+ * reject — down to none — and a cluster of identical vectors (an 8 MiB file
+ * of one repeated line) crowds out strictly nearer passages (2026-09-14
+ * evaluation, h4). Below this bound the index is not worth its failure mode.
+ *
+ * The same bound decides when an organization gets that index of its own, one
+ * per vector width (knowledge-db migration 18 states the number too; a guard
+ * holds the two equal): a smaller organization's search never reaches one.
  */
-const EXACT_DENSE_SCAN_MAX_CHUNKS = 5_000;
+export const EXACT_DENSE_SCAN_MAX_CHUNKS = 5_000;
 
 /** pgvector's ceiling for `hnsw.ef_search`. */
 const HNSW_EF_SEARCH_MAX = 1_000;
