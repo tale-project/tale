@@ -669,6 +669,8 @@ editor:
     readBy: Gelesen von
     readByOutput: Die Ausgabe der Automatisierung
     notRead: Nichts liest ihre Ausgabe.
+    scenarios: Szenarien
+    scenariosHint: Ein Test kann in seiner Einrichtung eines davon für diese Node wählen. Die Node antwortet dann wie beschrieben, statt aufzurufen.
     checking: Wird aktualisiert…
     unavailable: Die Strukturen konnten nicht ermittelt werden. Sie erscheinen nach der nächsten erfolgreichen Prüfung.
     origin:
@@ -1310,6 +1312,9 @@ tests:
     failureDefault: simulierter Fehler
     failuresAdd: Fehler simulieren
     scenarios: Szenarien
+    scenariosHint: Die Node antwortet wie in einem Szenario, das ihre Aktion mitliefert, statt aufzurufen.
+    scenariosAdd: Szenario für eine Node wählen
+    scenarioFor: 'Szenario für {node}'
     expect: Erwartungen
     outputModeLabel: Wie die Ausgabe geprüft wird
     outputMode:
@@ -1382,6 +1387,15 @@ tests:
     refused: '{count, plural, one {Der Test konnte nicht laufen: Die Automatisierung hat # Problem, das zuerst behoben werden muss.} other {Der Test konnte nicht laufen: Die Automatisierung hat # Probleme, die zuerst behoben werden müssen.}}'
     timeout: '{seconds, plural, one {Der Test hat länger als # Sekunde gedauert und wurde gestoppt.} other {Der Test hat länger als # Sekunden gedauert und wurde gestoppt.}}'
     unknown: Der Test ist nicht bestanden.
+connectorScenario:
+  kind:
+    success: Erfolg
+    empty: Leer
+    error: Fehler
+    refusal: Ablehnung
+    duplicate: Duplikat
+  summary: '{kind}: {description}'
+  when: 'Nur für Aufrufe, deren Eingabe {members} enthält. Jeder andere Aufruf erhält die übliche simulierte Antwort.'
 condition:
   group: '({parts})'
   gt: '{a} größer als {b} ist'

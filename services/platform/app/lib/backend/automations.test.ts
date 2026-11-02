@@ -342,6 +342,41 @@ describe('node-type catalog adapter', () => {
     expect(warn).toHaveBeenCalled();
   });
 
+  it('reads the scenarios an action ships, and refuses one in a shape it does not read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const row = {
+      ...ROW,
+      type: 'slack.get_channel',
+      scenarios: [
+        {
+          name: 'channel_not_found',
+          kind: 'error',
+          description: 'Slack answers that no channel has this id.',
+          when: { channel: 'C0000000009' },
+        },
+      ],
+    };
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(200, { nodeTypes: [row] }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          nodeTypes: [{ ...row, scenarios: [{ name: 'channel_not_found' }] }],
+        }),
+      );
+    const fetchCatalog = automationActionQueryAdapters[
+      'automations/catalog:listNodeTypes'
+    ]?.({ organizationId: 'org1' }, {});
+    await expect(fetchCatalog?.()).resolves.toEqual({
+      nodeTypes: [row],
+      connectors: [],
+    });
+    // A scenario without its kind and description is no scenario to offer.
+    await expect(fetchCatalog?.()).rejects.toThrow(/unreadable shape/);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalled();
+  });
+
   it('reads an answer without connectors as none', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(200, { nodeTypes: [ROW] }),
