@@ -89,7 +89,7 @@ const DOCKER_MIN_RESERVATION_MIB = 6;
  * `compose up` (under 6 MiB, or above the service's memory limit) fails the
  * compose generation instead, before any container is recreated.
  */
-export function memoryReservationMib(service: ReservedService): number {
+function memoryReservationMib(service: ReservedService): number {
   const name = MEMORY_RESERVATION_ENV[service];
   const mib = memorySizeEnvMib(name, 0) ?? MEMORY_RESERVATION_MIB[service];
   const got = JSON.stringify(process.env[name]?.trim());
