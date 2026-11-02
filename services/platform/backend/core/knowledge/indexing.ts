@@ -62,6 +62,8 @@ import {
 import { sanitizeExtractedText } from '../../../lib/knowledge/sanitize-text';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
+import { describeDatabaseError } from '../../db/unavailable';
+import { EXACT_DENSE_SCAN_MAX_CHUNKS } from './corpus';
 import {
   assertVectorWidth,
   chunkVectorsTable,
@@ -593,6 +595,11 @@ export async function indexDocument(
       return released(args.fileId, chunks.length);
     }
     await markCompleted(args.sql, args.orgSlug, documentId, copied);
+    await ensureOrgVectorIndex(
+      args.sql,
+      args.orgSlug,
+      args.embedder.dimensions,
+    );
     logger.info(
       `document "${args.fileId}" matched content already indexed for this organization; copied ${copied} chunks instead of re-embedding`,
     );
@@ -658,6 +665,11 @@ export async function indexDocument(
 
   if (slice.done) {
     await markCompleted(args.sql, args.orgSlug, documentId, chunks.length);
+    await ensureOrgVectorIndex(
+      args.sql,
+      args.orgSlug,
+      args.embedder.dimensions,
+    );
   }
 
   return {
@@ -1118,6 +1130,38 @@ async function markCompleted(
      WHERE id = $1 AND org_slug = $2`,
     [documentId, orgSlug, chunksTotal],
   );
+}
+
+/**
+ * Give the organization its own approximate index on its vectors of `width`
+ * once it holds more of them than a search scans exactly
+ * (`EXACT_DENSE_SCAN_MAX_CHUNKS`, knowledge-db migration 18) — asked when a
+ * document completes, the moment its vectors become searchable, and one
+ * catalog lookup once the index exists. Without it the organization's
+ * searches past the bound scan exactly: slower, never wrong. So a failure
+ * here is logged and leaves the document indexed; the next document that
+ * completes asks again.
+ */
+async function ensureOrgVectorIndex(
+  sql: Sql,
+  orgSlug: string,
+  width: number,
+): Promise<void> {
+  try {
+    const rows = await sql.unsafe<{ built: boolean }[]>(
+      `SELECT ${SCHEMA}.ensure_chunk_vectors_org_index($1, $2, $3) AS built`,
+      [width, orgSlug, EXACT_DENSE_SCAN_MAX_CHUNKS],
+    );
+    if (rows[0]?.built) {
+      logger.info(
+        `organization "${orgSlug}" holds more than ${EXACT_DENSE_SCAN_MAX_CHUNKS} vectors of width ${width}; built its own approximate index`,
+      );
+    }
+  } catch (err) {
+    logger.warn(
+      `could not build the approximate index of organization "${orgSlug}" for width ${width}; its searches past ${EXACT_DENSE_SCAN_MAX_CHUNKS} chunks scan exactly until a later document builds it: ${describeDatabaseError(err)}`,
+    );
+  }
 }
 
 /**
