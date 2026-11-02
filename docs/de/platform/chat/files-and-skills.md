@@ -65,6 +65,8 @@ Für eine einzelne Nachricht tippst du `/` an den Anfang des Nachrichtenfelds od
 
 Für ein ganzes Gespräch öffnest du die Modellauswahl, gehst zu **Skills** und hakst bis zu vier an. Jede Antwort in diesem Gespräch liest sie, bevor sie antwortet. Ein neuer Chat beginnt ohne.
 
+Beide Listen nennen vor der Beschreibung, wer den Skill erstellt hat: ein Mitglied, **Mitgeliefert** für die Skills, mit denen deine Organisation startet, oder **Konfigurations-Release** mit dem Mitglied, dessen Upload ihn installiert hat. Hat der Ersteller die Organisation verlassen, steht dort **Von einem ehemaligen Mitglied**. Prüfe bei einem unbekannten Skill, woher er stammt, bevor du ihn nutzt.
+
 Der Assistent liest einen Skill auch von sich aus, wenn einer zu deiner Anfrage passt oder du ihn in deinen Worten nennst. Er sieht Name und Beschreibung jedes Skills deiner Bibliothek; umfasst sie mehr als 40 Skills, sieht er die ersten 40 in alphabetischer Reihenfolge; jeden weiteren wählst du mit `/`. Einen Skill, den sein Autor nur für den ausdrücklichen Aufruf vorgesehen hat, solltest du selbst wählen: Der Assistent wird gebeten, ihn sonst nicht zu nutzen.
 
 Ein Skill kann auch festlegen, wie der Assistent schreibt: einen Ton, ein Format, eine Schlusszeile für jede Antwort. Der Assistent folgt einem Skill in der ganzen Antwort, die ihn liest, im Schreiben genauso wie im Tun. Einen Skill, den der Assistent von sich aus liest, liest er für diese Antwort; spätere Antworten lesen ihn nur, wenn er ihn wieder wählt. Soll ein Skill jede Antwort prägen, hak ihn unter **Skills** an: Dann liest ihn jede Antwort vollständig, bevor sie antwortet.
