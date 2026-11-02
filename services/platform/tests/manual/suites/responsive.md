@@ -251,7 +251,7 @@ if you want to keep a write.
   its end loads the next entries (the count footer grows), and nothing loads
   before you scroll. With the embedding banner up it reads one line, its
   title and **Choose an embedding model**
-  (`settings.dataResidency.orgEmbedding.banner.link`).
+  (`embeddingSetup.link`).
 - [ ] `RESP-B7` · **Composers on a short viewport** — At **844×390**, then
   at 1280×720 zoomed to 200 %, open a conversation and click into its reply
   box; then open a chat → The reply box grows to about a third of the
