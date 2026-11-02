@@ -30,6 +30,7 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
+import { providedModelName } from '../components/model-row-name';
 import { ArenaSummary } from './arena-summary';
 import { periodToDays, type FeedbackPeriod } from './feedback-period';
 import { FeedbackSummaryCards } from './feedback-summary-cards';
@@ -164,10 +165,13 @@ function FeedbackMetricsPageView({
       label: t('feedback.filterChips.agent', { value: agentSlug }),
       onClear: () => onSelectAgent(null),
     });
+  // A model filter carries its provider: the chip names both.
   if (model)
     filterChips.push({
       key: 'model',
-      label: t('feedback.filterChips.model', { value: model }),
+      label: t('feedback.filterChips.model', {
+        value: providedModelName(model, provider),
+      }),
       onClear: () => onSelectModel(null, null),
     });
   else if (provider)

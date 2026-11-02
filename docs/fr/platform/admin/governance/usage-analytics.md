@@ -16,7 +16,7 @@ En tant qu’admin ou propriétaire, ouvre **Paramètres > Métriques > Utilisat
 1. Ouvre **Filtre** et choisis une **Période** de 7, 30 ou 90 jours. La vue initiale couvre 30 jours.
 2. Compare les requêtes, les tokens, le coût total et les utilisateurs actifs. Une hausse du nombre de requêtes et des réponses plus longues ont des causes différentes.
 3. Choisis la mesure et la granularité du graphique dans le menu de filtre pour repérer le début du changement.
-4. Examine les tableaux par assistant, par modèle et par personne. Sélectionne un assistant ou un modèle pour réduire la vue ; retire sa pastille de filtre pour revenir à la vue plus large.
+4. Examine les tableaux par assistant, par modèle et par personne. Sélectionne un assistant ou un modèle pour réduire la vue ; retire sa pastille de filtre pour revenir à la vue plus large. Sélectionner un modèle réduit la vue à ce modèle chez le fournisseur de sa ligne, et la pastille de filtre nomme les deux, comme **openrouter · openai/gpt-5.6-luna**. Lorsque deux fournisseurs proposent le même modèle, le tableau par modèle nomme ainsi chaque ligne avec son fournisseur.
 
 Les noms d’assistants peuvent inclure des tâches auxiliaires, comme la création des titres de chat. Le nombre de requêtes ne correspond donc pas toujours au nombre de messages envoyés. La synthèse vocale possède son propre tableau de modèles vocaux.
 
