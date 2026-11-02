@@ -28,12 +28,24 @@ The pipeline also derives the smaller variants a page serves to each screen from
 Commit them with it, regenerate them with the repository's command when a page starts showing an
 image, and never resize, re-encode or crop a shipped image by hand.
 
+## Capture each layout the reader sees
+
+Where the product lays a page out anew on a phone, a phone reader should see that layout, not a
+shrunken desktop page. The pipeline captures a shot that is wider than the product's phone
+breakpoint twice, in the desktop and the phone layout, and the page serves the capture that
+matches the reader's screen and opens it in the lightbox; `docs/AGENTS.md` says how a shot
+declares, sizes or opts out of its phone capture. The page names only the desktop file, so one
+alt text and one caption describe both captures: name the state and the controls that matter,
+not where they sit on the screen. Inspect both captures. Opt a shot out only with its reason,
+such as a page that already shows the phone layout beside it.
+
 ## Frame and crop
 
 Use the smallest region that explains the point while keeping enough orientation to recognize
 where it is. A panel title or active navigation item often supplies that context. Keep a consistent
-viewport and device-pixel ratio. Capture a settled state without browser chrome, pointer, loading
-placeholders, clipped menus, or partially finished animations unless that state is the subject.
+viewport and device-pixel ratio for each layout. Capture a settled state without browser chrome,
+pointer, loading placeholders, clipped menus, or partially finished animations unless that state
+is the subject.
 
 Follow the repository's image format and byte/dimension budgets. Check legibility at actual docs
 content width and on a narrow screen. Reconsider a full-window image before reducing it until all
@@ -54,7 +66,8 @@ task documentation.
 
 ## Review evidence
 
-Before handing off an asset, confirm the manifest entry, successful regeneration, truthful state,
-readable crop, safe fixture data, translated alt/caption, and rendered placement. Include any
+Before handing off an asset, confirm the manifest entry, successful regeneration, truthful state in
+every layout captured, readable crop, safe fixture data, translated alt/caption true of each
+layout, and rendered placement on a narrow and a wide screen. Include any
 capture limitations in the task note. Retain video assets unchanged when the user excludes videos
 from the assignment.
