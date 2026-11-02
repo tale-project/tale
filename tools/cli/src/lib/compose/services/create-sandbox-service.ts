@@ -3,6 +3,7 @@ import { isAbsolute } from 'node:path';
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
+import { sandboxLabels } from './traefik-labels';
 
 /**
  * Sandbox spawner — thin stateless docker-run service.
@@ -61,6 +62,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
   return {
     image: imageRef(config, 'sandbox'),
     container_name: `${getProjectId()}-sandbox`,
+    labels: sandboxLabels(),
     // Graceful drain on stop: the spawner's SIGTERM handler stops accepting new
     // executions, cancels in-flight ones, and waits up to ~20s for them to tear
     // down (services/sandbox/src/cleanup.ts installSignalHandlers). Give Docker

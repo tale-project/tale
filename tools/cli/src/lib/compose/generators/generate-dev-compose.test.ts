@@ -109,7 +109,7 @@ describe('generateDevCompose — the stack is self-consistent', () => {
         expect(services[name]?.environment?.HOST).toBe('tale.localhost');
         expect(services[name]?.environment?.TLS_MODE).toBe('selfsigned');
       }
-      // The public port must not alter Caddy's internal listeners.
+      // The public port must not alter the edge's internal listeners.
       expect(services.proxy?.environment?.SITE_URL).toBe(
         'https://tale.localhost',
       );
