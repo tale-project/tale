@@ -1,4 +1,8 @@
-import { TASK_PRIORITIES } from '@tale/shared/task-limits';
+import {
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+  TASK_PRIORITIES,
+} from '@tale/shared/task-limits';
 import { z } from 'zod';
 
 export { TASK_PRIORITIES } from '@tale/shared/task-limits';
@@ -54,3 +58,44 @@ export const taskMetadataPatchSchema = z
       });
     }
   });
+
+const labelName = z.string().trim().min(1).max(TASK_LABEL_CHARS_MAX);
+
+/** Labels to add to and remove from one task, each by name and without
+ * regard to case, against the task's whole label list as the caller read it
+ * (`expected.labels`): a label another writer added or removed since makes
+ * the change stale, so it is never decided on an old view. A label the
+ * request does not name stays as it is. */
+export const taskLabelsPatchSchema = z
+  .object({
+    taskId: id,
+    add: z.array(labelName).max(TASK_LABELS_MAX).optional(),
+    remove: z.array(labelName).max(TASK_LABELS_MAX).optional(),
+    expected: z
+      .object({
+        labels: z
+          .array(z.string().trim().max(TASK_LABEL_CHARS_MAX))
+          .max(TASK_LABELS_MAX),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const added = new Set((value.add ?? []).map((name) => name.toLowerCase()));
+    const removed = (value.remove ?? []).map((name) => name.toLowerCase());
+    if (added.size === 0 && removed.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Name a label to add or to remove.',
+      });
+    }
+    if (removed.some((name) => added.has(name))) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['remove'],
+        message: 'A label is added or removed, never both.',
+      });
+    }
+  });
+
+export type TaskLabelsPatch = z.infer<typeof taskLabelsPatchSchema>;
