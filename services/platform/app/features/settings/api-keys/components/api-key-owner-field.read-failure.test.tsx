@@ -125,8 +125,12 @@ const TARGETS = [
   {
     choice: 'project',
     picker: 'api-key-project',
-    door: /^GET \/api\/app\/projects\?includeArchived=false&summary=true&orgId=org-1$/,
-    answer: () => Response.json({ projects: [projectRow('launch', 'Launch')] }),
+    door: /^GET \/api\/app\/projects\/sidebar\?summary=true&limit=100&orgId=org-1$/,
+    answer: () =>
+      Response.json({
+        projects: [projectRow('launch', 'Launch')],
+        isDone: true,
+      }),
     candidate: /Launch/,
     emptyKey: 'apiKeys.form.projectEmpty',
     failed: {
