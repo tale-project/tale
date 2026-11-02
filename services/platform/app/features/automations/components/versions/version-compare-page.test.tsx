@@ -232,9 +232,16 @@ describe('VersionComparePage', () => {
       name: 'Changes of the node',
     });
     // The panel settles on one entry for the node: while it loads under a
-    // busy machine its content can be drawn twice for a moment.
+    // busy machine its content can be drawn twice for a moment. Once the lazy
+    // diff view has loaded, the open entry's diff names the node in its
+    // screen-reader caption as well: the entry's title is the one meant.
     await waitFor(
-      () => expect(within(panel).getByText('Summarize')).toBeVisible(),
+      () =>
+        expect(
+          within(panel).getByText('Summarize', {
+            ignore: 'caption, script, style',
+          }),
+        ).toBeVisible(),
       // The suite runs beside other heavy ones: the settling can take longer
       // than the default second, and the test's 15s ceiling leaves it room
       // (the 5s default ended the test while the panel was still settling).
