@@ -817,11 +817,17 @@ its labels, or all ready work when it names none — and dispatch starts the res
 are never held by a gate. A gate nobody reports on for its stale window (ten minutes unless
 declared) opens, or holds when it declares so. A gate with start spacing lets one start of its
 work through, then the next only after the spacing. A report that opens a gate asks for a pass
-at once. Who may edit the project reports through the API; who may administer it, in the app.
+at once. Who may edit the project reports through the API; who may administer it, in the app. An
+automation installed in the active project reports with a step, as its run: a run a person or an
+API key started only while that person may edit the project, a scheduled or event run as its
+installation. The gate names the run as its reporter, and its report counts as any other.
 
 - **Example**: The CI watcher reports 23 queued jobs on the gate `ci` (hold at 20) → "Changelog",
   labelled `ci`, waits and "Press kit" starts. It reports 14 → `ci` still holds; 9 → it opens, and
   "Changelog" starts within the minute.
+- **Example**: A scheduled automation installed in the project reads the CI queue every five
+  minutes and reports 31 on `ci` → the gate holds, names the run, and its stale window starts
+  again; an automation not installed in the project reports nothing.
 
 ## Managed tasks and labels
 
