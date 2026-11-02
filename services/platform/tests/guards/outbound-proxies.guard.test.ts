@@ -17,7 +17,9 @@ import { describe, expect, it } from 'vitest';
  * different proxies, or let one start where the other refuses — so both run
  * here over the same entries and must agree on every verdict, every refusal
  * and every proxy, under whichever awk this machine has (CI's is mawk; the
- * image's is busybox).
+ * image's is busybox). Video ingestion's own proxies, `VIDEO_INGEST_PROXY_URLS`
+ * and `VIDEO_INGEST_PROXY_URL`, take its videos out of that list: the documents
+ * name them next to it.
  */
 
 const REPO_ROOT = path.resolve(
@@ -175,21 +177,28 @@ describe('the documents that name OUTBOUND_PROXY_URLS', () => {
   const read = (relative: string) =>
     readFileSync(path.join(REPO_ROOT, relative), 'utf8');
 
-  it('.env.example shows it, commented out', () => {
-    expect(read('.env.example')).toMatch(/^# OUTBOUND_PROXY_URLS=/m);
+  it('.env.example shows it and the video list, commented out', () => {
+    const example = read('.env.example');
+    expect(example).toMatch(/^# OUTBOUND_PROXY_URLS=/m);
+    expect(example).toMatch(/^#\s+VIDEO_INGEST_PROXY_URLS=/m);
   });
 
   it.each(['en', 'de', 'fr'])(
-    'the %s environment reference has a row for it and for the video override',
+    'the %s environment reference has a row for it and for each video proxy setting',
     (locale) => {
       const reference = read(
         `docs/${locale}/self-hosted/configuration/environment-reference.md`,
       );
       expect(reference).toMatch(/^\| `OUTBOUND_PROXY_URLS` \|/m);
-      const video = reference
-        .split('\n')
-        .find((line) => line.startsWith('| `VIDEO_INGEST_PROXY_URL` |'));
-      expect(video).toContain('`OUTBOUND_PROXY_URLS`');
+      for (const name of [
+        'VIDEO_INGEST_PROXY_URL',
+        'VIDEO_INGEST_PROXY_URLS',
+      ]) {
+        const video = reference
+          .split('\n')
+          .find((line) => line.startsWith(`| \`${name}\` |`));
+        expect(video, name).toContain('`OUTBOUND_PROXY_URLS`');
+      }
     },
   );
 });
