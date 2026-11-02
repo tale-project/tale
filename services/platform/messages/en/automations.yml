@@ -84,10 +84,6 @@ blank:
   stepWebhook: Copy the webhook URL — it is shown only now.
   copyWebhookUrl: Copy the webhook URL
   openAutomation: Open the automation
-  enableNow: Enable now
-  enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
-  deployNow: Deploy v1 now
-  deployNowHint: v1 goes live at once, so its trigger starts runs while it is enabled. Off keeps v1 a draft you deploy from the editor.
   deployFailed: 'The automation was created, but v1 could not go live: {error}. Deploy it from the editor.'
   triggerFailed: 'The automation was created, but its trigger could not be
     set: {error}. Set it from the Trigger card.'
@@ -371,6 +367,7 @@ trigger:
     wouldRun: 'Would run at'
     paused: 'Paused: turn on Enabled and save to start these runs.'
     notDeployed: 'Nothing starts until a version is deployed.'
+    startNowOff: 'Start it now is off: none of these runs start yet.'
     unavailable: 'Fix the schedule above to see the next runs.'
   health:
     lastRun: 'Last run {at}'
