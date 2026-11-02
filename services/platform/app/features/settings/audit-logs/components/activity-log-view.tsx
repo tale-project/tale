@@ -19,13 +19,14 @@ import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
-import { useActivitySummary } from '../hooks/queries';
+import { useActivitySummary, useActorEmails } from '../hooks/queries';
 
 type ActivitySummary = ReturnsOf<'audit_logs/queries:getActivitySummary'>;
 
+const NO_ACTORS: ActivitySummary['topActors'] = [];
+
 interface ActivityLogViewProps {
   organizationId: string;
-  userEmailMap?: Map<string, string>;
   /** Page-level controls (the export menu) rendered in the filter bar's
    *  actions slot so they share the filter button's baseline. */
   actions?: ReactNode;
@@ -36,7 +37,8 @@ interface ActivityLogViewInnerProps {
   isLoading: boolean;
   periodDays: 7 | 30 | 90;
   onPeriod: (value: string) => void;
-  userEmailMap?: Map<string, string>;
+  /** The e-mail of each top actor the roll-up names without one. */
+  actorEmails: ReadonlyMap<string, string>;
   actions?: ReactNode;
 }
 
@@ -121,7 +123,7 @@ function ActivityLogViewInner({
   isLoading,
   periodDays,
   onPeriod,
-  userEmailMap,
+  actorEmails,
   actions,
 }: ActivityLogViewInnerProps) {
   const { locale } = useLocale();
@@ -247,7 +249,7 @@ function ActivityLogViewInner({
                   key={actor.actorId}
                   label={
                     actor.actorEmail ??
-                    userEmailMap?.get(actor.actorId) ??
+                    actorEmails.get(actor.actorId) ??
                     actor.actorId
                   }
                   count={actor.count}
@@ -269,7 +271,6 @@ function ActivityLogViewInner({
  */
 export function ActivityLogView({
   organizationId,
-  userEmailMap,
   actions,
 }: ActivityLogViewProps) {
   const { t } = useT('settings');
@@ -278,6 +279,10 @@ export function ActivityLogView({
   const { data, isLoading, isError, refetch } = useActivitySummary(
     organizationId,
     periodDays,
+  );
+  const actorEmails = useActorEmails(
+    organizationId,
+    data?.topActors ?? NO_ACTORS,
   );
 
   const handlePeriod = useCallback((value: string) => {
@@ -308,7 +313,7 @@ export function ActivityLogView({
             periodDays={periodDays}
             onPeriod={handlePeriod}
             actions={actions}
-            userEmailMap={userEmailMap}
+            actorEmails={actorEmails}
           />
         ) : null}
       </Skeletonize>
