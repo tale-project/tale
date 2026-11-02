@@ -73,6 +73,50 @@ describe('loadEnv', () => {
       loadEnv({ ...BASE, OUTBOUND_PROXY_URLS: 'socks5://alice:s3cret@q:1080' }),
     ).toThrow(/^(?![\s\S]*s3cret)/);
   });
+  it('refuses a video proxy list with a malformed entry, or next to VIDEO_INGEST_PROXY_URL, without repeating a password', () => {
+    const list = 'socks5h://alice:s3cret@203.0.113.7:1080, http://p.example';
+    expect(
+      loadEnv({ ...BASE, VIDEO_INGEST_PROXY_URLS: list })
+        .VIDEO_INGEST_PROXY_URLS,
+    ).toBe(list);
+    expect(() =>
+      loadEnv({
+        ...BASE,
+        VIDEO_INGEST_PROXY_URLS:
+          'socks5h://p.example, ftp://alice:s3cret@q.example',
+      }),
+    ).toThrow(
+      /VIDEO_INGEST_PROXY_URLS entry 2 has a scheme yt-dlp cannot take a proxy in/,
+    );
+    expect(() =>
+      loadEnv({
+        ...BASE,
+        VIDEO_INGEST_PROXY_URLS: 'alice:s3cret@q.example:1080',
+      }),
+    ).toThrow(/^(?![\s\S]*s3cret)/);
+    expect(() =>
+      loadEnv({
+        ...BASE,
+        VIDEO_INGEST_PROXY_URL: 'socks5h://v.example:1080',
+        VIDEO_INGEST_PROXY_URLS: list,
+      }),
+    ).toThrow(
+      /VIDEO_INGEST_PROXY_URL and VIDEO_INGEST_PROXY_URLS are both set/,
+    );
+    // The single proxy boots as before, even an invalid one, which the
+    // runner ignores with a warning; a blank list next to it is no list.
+    expect(
+      loadEnv({ ...BASE, VIDEO_INGEST_PROXY_URL: 'not a url' })
+        .VIDEO_INGEST_PROXY_URL,
+    ).toBe('not a url');
+    expect(
+      loadEnv({
+        ...BASE,
+        VIDEO_INGEST_PROXY_URL: 'socks5h://v.example:1080',
+        VIDEO_INGEST_PROXY_URLS: ' ',
+      }).VIDEO_INGEST_PROXY_URL,
+    ).toBe('socks5h://v.example:1080');
+  });
   it('refuses a coding-agent sign-in host list that holds something other than host names', () => {
     const env = loadEnv({
       ...BASE,

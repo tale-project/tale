@@ -17,6 +17,7 @@ import {
   nextOutboundProxy,
   resetOutboundProxiesForTests,
 } from '../../../lib/net/outbound-proxy';
+import { resetVideoIngestProxiesForTests } from '../../../lib/net/video-ingest-proxies';
 import {
   buildAntiBotFlags,
   buildSpawnPath,
@@ -267,7 +268,7 @@ describe('proxyFailedRun', () => {
   });
 });
 
-describe('a video through the outbound proxies [VID-R7]', () => {
+describe('a video through a list of proxies [VID-R7]', () => {
   // A stand-in yt-dlp on VIDEO_INGEST_BIN_DIR: it answers the version and
   // help probes, then adds the `--proxy` of each run to `proxies` in its HOME
   // (the job dir — the spawn env carries nothing else). A host listed in
@@ -286,7 +287,7 @@ describe('a video through the outbound proxies [VID-R7]', () => {
       'for arg in "$@"; do [ "$prev" = --proxy ] && proxy=$arg; prev=$arg; done',
       'echo "$proxy" >> "$HOME/proxies"',
       'printf "%s\\n" "$@" > "$HOME/args"',
-      'host=${proxy##*@}; host=${host#http://}; host=${host%%:*}',
+      'host=${proxy##*@}; host=${host#*://}; host=${host%%:*}',
       'case "$*" in *v=private*)',
       `  echo "ERROR: [youtube] private: Private video. Sign in if you've been granted access to this video" >&2`,
       '  exit 1 ;;',
@@ -309,6 +310,7 @@ describe('a video through the outbound proxies [VID-R7]', () => {
     bin: process.env.VIDEO_INGEST_BIN_DIR,
     pool: process.env.OUTBOUND_PROXY_URLS,
     override: process.env.VIDEO_INGEST_PROXY_URL,
+    own: process.env.VIDEO_INGEST_PROXY_URLS,
   };
 
   afterEach(() => {
@@ -316,6 +318,7 @@ describe('a video through the outbound proxies [VID-R7]', () => {
       ['VIDEO_INGEST_BIN_DIR', saved.bin],
       ['OUTBOUND_PROXY_URLS', saved.pool],
       ['VIDEO_INGEST_PROXY_URL', saved.override],
+      ['VIDEO_INGEST_PROXY_URLS', saved.own],
     ] as const) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
@@ -323,12 +326,13 @@ describe('a video through the outbound proxies [VID-R7]', () => {
     rmSync(join(root, 'refused'), { force: true });
     rmSync(join(root, 'walled'), { force: true });
     resetOutboundProxiesForTests();
+    resetVideoIngestProxiesForTests();
     resetServingProxiesForTests();
     vi.restoreAllMocks();
   });
 
-  /** Proxies from `urls`, the hosts in `walled` meeting the bot check and
-   * those in `refused` refusing the connection. */
+  /** Outbound proxies from `urls`, the hosts in `walled` meeting the bot
+   * check and those in `refused` refusing the connection. */
   function deployment(
     urls: string,
     { walled = [], refused = [] }: { walled?: string[]; refused?: string[] },
@@ -336,10 +340,22 @@ describe('a video through the outbound proxies [VID-R7]', () => {
     process.env.VIDEO_INGEST_BIN_DIR = bin;
     process.env.OUTBOUND_PROXY_URLS = urls;
     delete process.env.VIDEO_INGEST_PROXY_URL;
+    delete process.env.VIDEO_INGEST_PROXY_URLS;
     writeFileSync(join(root, 'walled'), walled.map((h) => `${h}\n`).join(''));
     writeFileSync(join(root, 'refused'), refused.map((h) => `${h}\n`).join(''));
     resetOutboundProxiesForTests();
+    resetVideoIngestProxiesForTests();
     resetServingProxiesForTests();
+  }
+
+  /** {@link deployment}, with video ingestion's own proxies from `own`. */
+  function videoDeployment(
+    own: string,
+    outbound: string,
+    hosts: { walled?: string[]; refused?: string[] },
+  ): void {
+    deployment(outbound, hosts);
+    process.env.VIDEO_INGEST_PROXY_URLS = own;
   }
 
   /** A video's metadata through `route`: how the call ended, and the
@@ -607,6 +623,128 @@ describe('a video through the outbound proxies [VID-R7]', () => {
     expect(warnings(warn)).toContain(
       'entry 1 (http://a.example:3128) failed this video earlier; the video goes on through entry 2 (http://b.example:3128)',
     );
+  });
+
+  it('keeps a video on one of its own proxies, and moves it along its own list', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    videoDeployment(
+      'socks5h://u:p@a.example:1080, http://b.example:3128, socks5://c.example',
+      'http://o.example:3128, http://p.example:3128',
+      { walled: ['a.example'] },
+    );
+    const route = YtdlpRoute.forVideo();
+    const jobDir = mkdtempSync(join(root, 'job-'));
+
+    await expect(
+      ytdlpJson(
+        'https://www.youtube.com/watch?v=x',
+        jobDir,
+        10_000,
+        undefined,
+        route,
+      ),
+    ).resolves.toEqual({ id: 'x' });
+    await expect(
+      ytdlpExtractAudio(
+        'https://www.youtube.com/watch?v=x',
+        jobDir,
+        10_000,
+        undefined,
+        route,
+      ),
+    ).rejects.toMatchObject({ reason: 'outputValidationFailed' });
+
+    expect(runProxies(jobDir)).toEqual([
+      'socks5h://u:p@a.example:1080',
+      'http://b.example:3128',
+      'http://b.example:3128',
+    ]);
+    expect(warnings(warn)).toContain(
+      '[ytdlp] video proxy entry 1 (socks5h://a.example:1080) failed (botDetection); the video goes on through entry 2 (http://b.example:3128)',
+    );
+    expect(warnings(warn)).not.toContain('u:p@');
+    // The outbound proxies' turn never moved for the video.
+    expect(nextOutboundProxy()?.label).toBe('http://o.example:3128');
+  });
+
+  it('starts the next video on the one of its own proxies the platform last served', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    videoDeployment(
+      'http://a.example:3128, http://b.example:3128, http://c.example:3128',
+      'http://o.example:3128',
+      {},
+    );
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128'],
+    });
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128'],
+    });
+    writeFileSync(join(root, 'walled'), 'a.example\n');
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128', 'http://b.example:3128'],
+    });
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://b.example:3128'],
+    });
+    // Where the video list served a platform says nothing to the outbound
+    // proxies, once a deployment goes back to them.
+    delete process.env.VIDEO_INGEST_PROXY_URLS;
+    expect(YtdlpRoute.forVideo().proxy?.url).toBe('http://o.example:3128');
+  });
+
+  it("ends with the platform's reason once its own proxies have all failed the video, never going out through the outbound proxies or directly", async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    videoDeployment(
+      'http://a.example:3128, http://b.example:3128',
+      'http://o.example:3128',
+      { walled: ['a.example', 'b.example'] },
+    );
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://a.example:3128', 'http://b.example:3128'],
+    });
+  });
+
+  it('passes over one of its own proxies that cannot carry a run, apart from the outbound proxies', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    videoDeployment(
+      'http://u:p@a.example:8080, http://b.example:3128',
+      'http://u:p@a.example:8080, http://c.example:3128',
+      { refused: ['a.example'] },
+    );
+    expect(await metadata()).toEqual({
+      outcome: 'served',
+      proxies: ['http://u:p@a.example:8080', 'http://b.example:3128'],
+    });
+    expect(warnings(warn)).toContain(
+      '[video-proxy] http://a.example:8080 failed (yt-dlp could not get through); passing over it for 60 s',
+    );
+    expect(warnings(warn)).not.toContain('u:p@');
+    // The outbound proxies still take a.example in its turn.
+    expect(nextOutboundProxy()?.label).toBe('http://a.example:8080');
+  });
+
+  it(`stops after ${MAX_PROXY_RUNS} runs through its own proxies too`, async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const hosts = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(
+      (name) => `${name}.example`,
+    );
+    videoDeployment(
+      hosts.map((host) => `socks5h://${host}:1080`).join(', '),
+      '',
+      { walled: hosts },
+    );
+    expect(await metadata()).toEqual({
+      outcome: 'botDetection',
+      proxies: hosts
+        .slice(0, MAX_PROXY_RUNS)
+        .map((host) => `socks5h://${host}:1080`),
+    });
   });
 
   it('starts every download over when a run goes again', async () => {

@@ -50,17 +50,23 @@ at the same moment cannot both slip past it.
 
 ### VID-R7 · A video keeps one proxy and moves on when the platform refuses it
 
-Through the deployment's outbound proxies, a video's metadata, captions and sound go out
-through one proxy. When the platform refuses the video there (a bot check, a rate limit, a
-refused request), or the proxy cannot carry it, the video moves to the next proxy that has not
-failed it. Each fetch (metadata, captions, sound) makes at most five attempts and retries only
-within the first 90 seconds of its step; when a Vimeo video's page fails, the metadata step also
-tries Vimeo's embedded player, with attempts of its own. A fetch through a single proxy is not
-retried. The platform's next video starts on the proxy it last served.
+Through the deployment's outbound proxies, or through video ingestion's own list of proxies
+when one is set, a video's metadata, captions and sound go out through one proxy. When the
+platform refuses the video there (a bot check, a rate limit, a refused request), or the proxy
+cannot carry it, the video moves to the next proxy of that list that has not failed it. Each
+fetch (metadata, captions, sound) makes at most five attempts and retries only within the first
+90 seconds of its step; when a Vimeo video's page fails, the metadata step also tries Vimeo's
+embedded player, with attempts of its own. A fetch through a single proxy is not retried. The
+platform's next video starts on the proxy it last served. Video ingestion's own list never hands
+a video to the outbound proxies or a direct connection: once every proxy in it has failed the
+video, the video ends with the platform's reason.
 
 - **Example**: Mia's deployment lists three proxies and YouTube asks the first for a bot check
   → her video is fetched through the second, captions and sound included, and the next video
   starts on the second.
+- **Example**: Mia's deployment gives video two proxies of its own and YouTube asks both for a
+  bot check → her video ends with the bot check, and none of its requests goes out through the
+  outbound proxies or directly.
 
 ## Removing a link
 

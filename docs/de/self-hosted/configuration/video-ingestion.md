@@ -47,13 +47,21 @@ OUTBOUND_PROXY_URLS=http://user-1:password@gateway.example:80,http://user-2:pass
 
 Anfragen an Websites nehmen diese Proxys weiterhin reihum. Plattformen weisen viele Adressen aus Rechenzentren ab. Zeigt das Log bei den meisten Videos Wechsel, helfen Proxys aus Privatkunden- oder ISP-Netzen: Sie werden seltener abgewiesen.
 
-Setze `VIDEO_INGEST_PROXY_URL`, wenn Videoabrufe stattdessen über einen eigenen freigegebenen Proxy laufen sollen. Er ersetzt die ausgehenden Proxys nur für Videos, sodass die ausgehende Liste dann einen rotierenden Endpunkt behalten kann. Als einzelner Proxy wiederholt er keinen abgewiesenen Versuch. Unterstützt werden `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf.
+Um Proxys nur für Videos zu nutzen, etwa Proxys aus Privatkunden- oder ISP-Netzen, die pro Adresse oder pro Gigabyte abgerechnet werden, liste sie stattdessen in `VIDEO_INGEST_PROXY_URLS`. Videoabrufe laufen dann nur über diese Proxys, während Anfragen an Websites und Sandbox-Sessions bei den ausgehenden Proxys bleiben, die dann auch einen rotierenden Endpunkt enthalten können. Ein Video wechselt in dieser Liste wie oben beschrieben, und jeder Eintrag muss eine feste öffentliche Adresse behalten. Ist das Video an jedem Proxy der Liste gescheitert, endet der Schritt mit dem Grund der Plattform; er weicht nie auf die ausgehenden Proxys oder eine direkte Verbindung aus. Im Worker-Log erscheint ein Wechsel in dieser Liste als `video proxy entry`, ein Wechsel in der ausgehenden Liste als `outbound proxy entry`.
+
+Trenne die Einträge durch Kommas oder Leerzeichen. Jeder Eintrag hat die Form `scheme://[user:password@]host[:port]` mit einem der Schemata `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf. Ein fehlerhafter Eintrag verhindert den Start des Backends; die Meldung nennt den Eintrag nach seiner Position.
+
+```bash
+VIDEO_INGEST_PROXY_URLS=socks5h://user-1:password@residential.example:1080,socks5h://user-2:password@residential.example:1080
+```
+
+Für einen einzelnen freigegebenen Proxy nur für Videos setze stattdessen `VIDEO_INGEST_PROXY_URL`. Er ersetzt die ausgehenden Proxys nur für Videos und nimmt dieselben Schemata an, wiederholt als einzelner Proxy aber keinen abgewiesenen Versuch. Setze entweder `VIDEO_INGEST_PROXY_URL` oder `VIDEO_INGEST_PROXY_URLS`: Sind beide gesetzt, startet das Backend nicht.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Ergänze erforderliche Zugangsdaten über deine Geheimnisverwaltung. Eine ungültige URL oder ein nicht unterstütztes Schema wird mit Warnung ignoriert, und der Abruf läuft wie ohne die Variable über die ausgehenden Proxys, falls es welche gibt. Prüfe deshalb die übernommene Konfiguration und einen echten Abruf. Erstelle den Worker nach Änderungen seiner Umgebung neu. Ein Neustart des bestehenden Containers liest eine geänderte `.env` nicht ein.
+Ergänze erforderliche Zugangsdaten über deine Geheimnisverwaltung. Eine ungültige URL oder ein nicht unterstütztes Schema in `VIDEO_INGEST_PROXY_URL` wird mit Warnung ignoriert, und der Abruf läuft wie ohne die Variable über die ausgehenden Proxys, falls es welche gibt. Prüfe deshalb die übernommene Konfiguration und einen echten Abruf. Erstelle den Worker nach Änderungen seiner Umgebung neu. Ein Neustart des bestehenden Containers liest eine geänderte `.env` nicht ein.
 
 Ein anderer Netzwerkweg garantiert keinen Zugriff. Prüfe, ob Proxy und Quellkonto für die benötigten Inhalte verwendet werden dürfen. Bleibt die Quelle unerreichbar, importiere ein bereits vorliegendes Transkript als [Wissensdokument](/de/platform/knowledge/documents).
 
