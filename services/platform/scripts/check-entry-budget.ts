@@ -19,6 +19,9 @@
  * The code editor is held to a budget of its own: what its lazy view chunk
  * loads beyond the cold load (`LAZY_BUDGETS`) — the editor's packages and
  * nothing more, no other language's grammar, no code built from strings.
+ * So is the embedding setup alert above every dashboard page: its own words,
+ * and a wait for their topic alone. It once read them from the settings
+ * pages' topic and brought all of that topic along.
  *
  * What a chunk carries is read from its source map. A chunk whose code no
  * map shows fails the build, and so do maps that do not name the English
@@ -334,6 +337,11 @@ export interface LazyBudget {
   packages: readonly string[];
   /** Text none of its chunks may hold. */
   text: readonly string[];
+  /**
+   * When given, the message topics its chunks may wait for before it
+   * renders: what a session in another language fetches for it first.
+   */
+  topics?: readonly string[];
 }
 
 export const LAZY_BUDGETS: readonly LazyBudget[] = [
@@ -353,6 +361,17 @@ export const LAZY_BUDGETS: readonly LazyBudget[] = [
     // The production CSP has no `unsafe-eval`.
     text: ['eval(', 'new Function('],
   },
+  {
+    // The embedding setup alert: its three strings, in a topic of their own.
+    // Read from the settings pages' topic, they brought all of it (26 KB gzip
+    // of English), and a German or French session waited for its translation
+    // (30 KB gzip) before the alert showed.
+    name: 'embedding-setup-alert',
+    maxGzip: 2 * 1024,
+    packages: [],
+    text: [],
+    topics: ['embeddingSetup'],
+  },
 ];
 
 /**
@@ -370,6 +389,23 @@ export function staticImportsOf(source: string, url: string): string[] {
     if (path !== undefined) found.add(join(dir, path));
   }
   return [...found];
+}
+
+/**
+ * The message topics a built chunk waits for: the names in the `ready([…])`
+ * the `messageTopics` plugin appends to a chunk loaded on demand, in whatever
+ * quotes the minifier leaves; none when it waits for none.
+ */
+export function awaitedTopicsOf(source: string): string[] {
+  const topics: string[] = [];
+  for (const wait of source.matchAll(
+    /__taleMessageTopics\?\.ready\(\[([^\]]*)\]\)/g,
+  )) {
+    for (const name of (wait[1] ?? '').matchAll(/[`'"]([^`'"]*)[`'"]/g)) {
+      if (name[1] !== undefined) topics.push(name[1]);
+    }
+  }
+  return topics;
 }
 
 /** `start` and every chunk it imports statically, each once, `start` first. */
@@ -413,6 +449,8 @@ export interface LazyReport {
    *  have already loaded. */
   chunks: string[];
   gzip: number;
+  /** The message topics those chunks wait for, each once. */
+  topics: string[];
   problems: string[];
 }
 
@@ -420,8 +458,8 @@ export interface LazyReport {
  * Hold one lazy chunk to its budget: the chunks its static closure adds to
  * what is loaded by the time it is asked for — the cold load (`preloaded`)
  * and whatever every chunk that imports it brings — their gzip size, the
- * packages their source maps name and the text they hold; a chunk whose
- * code no map shows is a problem too.
+ * packages their source maps name, the text they hold and the topics they
+ * wait for; a chunk whose code no map shows is a problem too.
  */
 export function checkLazyChunk(
   dist: string,
@@ -440,6 +478,7 @@ export function checkLazyChunk(
       name: budget.name,
       chunks: [],
       gzip: 0,
+      topics: [],
       problems: [
         first === undefined
           ? `no ${budget.name} chunk was built`
@@ -464,6 +503,7 @@ export function checkLazyChunk(
   );
   const gzip = gzipTotal(dist, chunks);
   const problems: string[] = [];
+  const topics = new Set<string>();
   if (gzip > budget.maxGzip) {
     problems.push(
       `${(gzip / 1024).toFixed(0)} KB gzip, over its ${(budget.maxGzip / 1024).toFixed(0)} KB`,
@@ -473,6 +513,12 @@ export function checkLazyChunk(
     const text = read(url);
     for (const needle of budget.text) {
       if (text.includes(needle)) problems.push(`${url} holds ${needle}`);
+    }
+    for (const topic of awaitedTopicsOf(text)) {
+      topics.add(topic);
+      if (budget.topics !== undefined && !budget.topics.includes(topic)) {
+        problems.push(`${url} waits for the ${topic} topic`);
+      }
     }
     const sources = mapSourcesOf(dist, url);
     if (sources === undefined) {
@@ -485,7 +531,7 @@ export function checkLazyChunk(
       problems.push(`${url} carries ${name}`);
     }
   }
-  return { name: budget.name, chunks, gzip, problems };
+  return { name: budget.name, chunks, gzip, topics: [...topics], problems };
 }
 
 if (import.meta.main) {
@@ -526,8 +572,10 @@ if (import.meta.main) {
   }
   for (const budget of LAZY_BUDGETS) {
     const report = checkLazyChunk(dist, urls, budget);
+    const waits =
+      report.topics.length > 0 ? `, waits for ${report.topics.join(', ')}` : '';
     console.log(
-      `Lazy ${report.name}: ${report.chunks.length} chunks beyond what loads it, ${(report.gzip / 1024).toFixed(0)} KB gzip (budget ${(budget.maxGzip / 1024).toFixed(0)} KB)`,
+      `Lazy ${report.name}: ${report.chunks.length} chunks beyond what loads it, ${(report.gzip / 1024).toFixed(0)} KB gzip (budget ${(budget.maxGzip / 1024).toFixed(0)} KB)${waits}`,
     );
     for (const url of report.chunks) {
       const size = gzipTotal(dist, [url]);

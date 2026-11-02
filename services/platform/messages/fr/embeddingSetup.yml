@@ -1,0 +1,8 @@
+# The embedding setup alert, shown above every dashboard page while an
+# organization has an AI provider but no embedding model; the data residency
+# settings keep the rest of the embedding words.
+title: La recherche de connaissances est coupée
+body: Cette organisation a un fournisseur IA mais aucun modèle
+  d'embedding, donc les documents ne peuvent pas être indexés, et ni
+  les documents ni les sites web ne peuvent être cherchés.
+link: Choisir un modèle d'embedding
