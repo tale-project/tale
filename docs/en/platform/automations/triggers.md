@@ -229,7 +229,7 @@ When the deployed version requires fields the trigger doesn’t send, the sectio
 
 ## Turn on the trigger after deploy
 
-A new trigger starts switched off, and so does the trigger of an automation you create from a template without **Start it now**. When you deploy a version, in the editor or by uploading a package, and its trigger is off, a notice says **Its trigger is off**. **Turn on the trigger** switches on the saved trigger exactly as it is, and the notice then reads **The trigger is on.**
+A new trigger starts switched off, and so does the trigger of an automation you create from a template or as a blank automation without **Start it now**. When you deploy a version, in the editor or by uploading a package, and its trigger is off, a notice says **Its trigger is off**. **Turn on the trigger** switches on the saved trigger exactly as it is, and the notice then reads **The trigger is on.**
 
 When the deployed version would refuse what the trigger sends, or a webhook has no URL yet, the notice offers **Review the trigger** instead. It opens the **Trigger** section on the **General** tab, where you can add the fixed input or create the URL first. A template asks for such values when you use it, as [Automation templates](/platform/automations/templates) explains.
 

@@ -22,6 +22,7 @@ trigger:
     repeatNoCron: '«{sentence}» lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
   nextRuns:
     paused: 'Pausiert: Schalte «Aktiv» ein und speichere, damit diese Läufe starten.'
+    startNowOff: '«Jetzt starten» ist aus: Noch startet keiner dieser Läufe.'
   skip:
     missed:
       policySkip: 'Sie wurden ausgelassen, wie unter «Verpasste Läufe» eingestellt.'

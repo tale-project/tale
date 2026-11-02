@@ -229,7 +229,7 @@ Verlangt die Live-Version Felder, die der Trigger nicht sendet, ist der Abschnit
 
 ## Den Trigger nach dem Live-Schalten einschalten
 
-Ein neuer Trigger ist zunächst ausgeschaltet, ebenso der Trigger einer Automatisierung, die du ohne **Jetzt starten** aus einer Vorlage anlegst. Schaltest du eine Version live, im Editor oder durch das Hochladen eines Pakets, und ihr Trigger ist aus, meldet ein Hinweis **Ihr Trigger ist ausgeschaltet**. **Trigger einschalten** schaltet den gespeicherten Trigger unverändert ein, und der Hinweis lautet dann **Der Trigger ist eingeschaltet.**
+Ein neuer Trigger ist zunächst ausgeschaltet, ebenso der Trigger einer Automatisierung, die du ohne **Jetzt starten** aus einer Vorlage oder als leere Automatisierung anlegst. Schaltest du eine Version live, im Editor oder durch das Hochladen eines Pakets, und ihr Trigger ist aus, meldet ein Hinweis **Ihr Trigger ist ausgeschaltet**. **Trigger einschalten** schaltet den gespeicherten Trigger unverändert ein, und der Hinweis lautet dann **Der Trigger ist eingeschaltet.**
 
 Würde die Live-Version ablehnen, was der Trigger sendet, oder hat ein Webhook noch keine URL, bietet der Hinweis stattdessen **Trigger prüfen** an. Das öffnet den Abschnitt **Trigger** im Tab **Allgemein**, wo du zuerst die feste Eingabe ergänzt oder die URL erzeugst. Eine Vorlage fragt solche Werte ab, wenn du sie verwendest, wie [Vorlagen für Automatisierungen](/de/platform/automations/templates) erklärt.
 
