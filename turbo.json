@@ -1,0 +1,9 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "transit": {
+      "inputs": ["$TURBO_EXTENDS$", "$TURBO_DEFAULT$", "!README.md"]
+    }
+  }
+}
