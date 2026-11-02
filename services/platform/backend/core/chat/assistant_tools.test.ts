@@ -118,6 +118,8 @@ interface ToolResult {
   totalChars?: number;
   offset?: number;
   nextOffset?: number;
+  note?: string;
+  file?: { ref: string; name: string };
 }
 
 interface Executor {
@@ -145,6 +147,13 @@ interface Who {
     settle: (...args: never[]) => unknown;
     release: (...args: never[]) => unknown;
   };
+  /** Keeps a document web_fetch read as a file of the conversation. */
+  keepFetchedDocument?: (file: {
+    name: string;
+    mediaType: string;
+    bytes: Uint8Array;
+    url: string;
+  }) => Promise<{ ref: string; name: string }>;
 }
 
 type ExecutorFactory = (ctx: unknown, who: Who) => Executor;
@@ -1466,14 +1475,15 @@ describe('web_fetch', () => {
   const fetchDocument = async (
     url: string,
     input: Record<string, unknown> = {},
+    who: Who = WHO,
   ) =>
-    (await makeExecutor(createCtx().ctx)).execute({
+    (await makeExecutor(createCtx().ctx, who)).execute({
       id: 'call_1',
       name: 'web_fetch',
       input: { url, ...input },
     });
 
-  it('reads a linked PDF as its text, named, typed and noted as text only', async () => {
+  it('reads a linked PDF as its text, named and typed', async () => {
     safeFetchMock.mockResolvedValueOnce(
       documentAnswer(
         makeTextPdf('Quarterly report: revenue grew 12 percent'),
@@ -1492,13 +1502,16 @@ describe('web_fetch', () => {
       title: 'q3-report.pdf',
       document: { type: 'PDF', pages: 1 },
       offset: 0,
-      note: expect.stringMatching(/ask the user to attach the file/),
     });
     expect(result.content).toContain('<untrusted_source tool="web_fetch"');
     expect(result.content).toContain(
       'Quarterly report: revenue grew 12 percent',
     );
     expect(result).not.toHaveProperty('nextOffset');
+    // A turn that cannot keep the file gets its text alone, and is not sent
+    // to ask for an attachment no tool of it could take.
+    expect(result).not.toHaveProperty('file');
+    expect(result).not.toHaveProperty('note');
     // The documents it reads are asked for by type.
     expect(safeFetchMock).toHaveBeenCalledWith(
       'https://example.com/files/q3-report.pdf',
@@ -1509,6 +1522,161 @@ describe('web_fetch', () => {
         }),
       }),
     );
+  });
+
+  describe('keeping the document as a file of the conversation [FILE-R10]', () => {
+    const keptAs = (name: string) =>
+      vi.fn((file: { name: string }) =>
+        Promise.resolve({ ref: 's3:org_1/kept', name: file.name, extra: name }),
+      );
+
+    it("keeps the bytes it read and returns the file's ref beside the text", async () => {
+      const pdf = makeTextPdf('Quarterly report: revenue grew 12 percent');
+      safeFetchMock.mockResolvedValueOnce(
+        documentAnswer(
+          pdf,
+          'application/pdf',
+          // Where the link led, after redirects.
+          'https://cdn.example.com/files/q3-report.pdf',
+        ),
+      );
+      const keepFetchedDocument = keptAs('q3-report.pdf');
+
+      const result = await fetchDocument(
+        'https://example.com/files/q3-report.pdf',
+        {},
+        { ...WHO, keepFetchedDocument },
+      );
+
+      expect(keepFetchedDocument).toHaveBeenCalledTimes(1);
+      expect(keepFetchedDocument).toHaveBeenCalledWith({
+        name: 'q3-report.pdf',
+        mediaType: 'application/pdf',
+        bytes: new Uint8Array(pdf),
+        url: 'https://cdn.example.com/files/q3-report.pdf',
+      });
+      expect(result).toMatchObject({
+        status: 'ok',
+        title: 'q3-report.pdf',
+        document: { type: 'PDF', pages: 1 },
+        file: { ref: 's3:org_1/kept', name: 'q3-report.pdf' },
+        note: expect.stringMatching(
+          /kept as a file of this conversation.*"file\.ref".*a tool that takes files.*came from the web, not from the user/,
+        ),
+      });
+      // The file's ref only: its bytes stay in the store.
+      expect(Object.keys(result.file ?? {})).toEqual(['ref', 'name']);
+      expect(result.note).not.toMatch(/ask the user/);
+      expect(result.note).not.toMatch(/run_code/);
+      // Its text still reaches the model wrapped as untrusted.
+      expect(result.content).toMatch(
+        /^<untrusted_source tool="web_fetch" url="https:\/\/cdn\.example\.com\/files\/q3-report\.pdf">\n[\s\S]*Quarterly report: revenue grew 12 percent[\s\S]*\n<\/untrusted_source>$/,
+      );
+      // One fetch: the file is the bytes the tool read.
+      expect(safeFetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a document under the type its extension names', async () => {
+      const docx = await buildDocx(para('Minutes of the board meeting'));
+      safeFetchMock.mockResolvedValueOnce(
+        documentAnswer(
+          docx,
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'https://example.com/download?id=7',
+          { 'content-disposition': 'attachment; filename="minutes.docx"' },
+        ),
+      );
+      const keepFetchedDocument = keptAs('minutes.docx');
+
+      const result = await fetchDocument(
+        'https://example.com/download?id=7',
+        {},
+        { ...WHO, keepFetchedDocument },
+      );
+
+      expect(keepFetchedDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'minutes.docx',
+          mediaType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          url: 'https://example.com/download?id=7',
+        }),
+      );
+      expect(result).toMatchObject({
+        status: 'ok',
+        file: { ref: 's3:org_1/kept', name: 'minutes.docx' },
+      });
+    });
+
+    it('still returns the text when the file cannot be kept', async () => {
+      safeFetchMock.mockResolvedValueOnce(
+        documentAnswer(
+          makeTextPdf('Quarterly report: revenue grew 12 percent'),
+          'application/pdf',
+          'https://example.com/files/q3-report.pdf',
+        ),
+      );
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const keepFetchedDocument = vi.fn(() =>
+        Promise.reject(new Error('the store is down')),
+      );
+
+      const result = await fetchDocument(
+        'https://example.com/files/q3-report.pdf',
+        {},
+        { ...WHO, keepFetchedDocument },
+      );
+
+      expect(result).toMatchObject({
+        status: 'ok',
+        note: expect.stringMatching(/could not be kept as a file/),
+      });
+      expect(result).not.toHaveProperty('file');
+      expect(result.content).toContain(
+        'Quarterly report: revenue grew 12 percent',
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('keeping the document read at example.com'),
+      );
+      warn.mockRestore();
+    });
+
+    it('keeps nothing of a document it cannot read, or of a page', async () => {
+      const keepFetchedDocument = keptAs('none');
+      safeFetchMock
+        .mockResolvedValueOnce(
+          documentAnswer(
+            new TextEncoder().encode('%PDF-1.4 not really a pdf'),
+            'application/pdf',
+            'https://example.com/broken.pdf',
+          ),
+        )
+        .mockResolvedValueOnce({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain' }),
+          body: 'A page of plain text.',
+          finalUrl: 'https://example.com/notes.txt',
+        });
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const broken = await fetchDocument(
+        'https://example.com/broken.pdf',
+        {},
+        { ...WHO, keepFetchedDocument },
+      );
+      const page = await fetchDocument(
+        'https://example.com/notes.txt',
+        {},
+        { ...WHO, keepFetchedDocument },
+      );
+
+      expect(broken.status).not.toBe('ok');
+      expect(page).toMatchObject({ status: 'ok' });
+      expect(page).not.toHaveProperty('file');
+      expect(keepFetchedDocument).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
   });
 
   it('pages a document like a page: offsets index the extracted text', async () => {
@@ -1675,11 +1843,7 @@ describe('web_fetch', () => {
       expect(result).toMatchObject({
         status: 'ok',
         document: { type: 'PDF', pages: PDF_MAX_PAGES + 1 },
-        note: expect.stringMatching(
-          new RegExp(
-            `^Only its first ${PDF_MAX_PAGES} of ${PDF_MAX_PAGES + 1} pages were read\\. This is the document's text`,
-          ),
-        ),
+        note: `Only its first ${PDF_MAX_PAGES} of ${PDF_MAX_PAGES + 1} pages were read.`,
       });
       const tail = await fetchDocument('https://example.com/manual.pdf', {
         offset: (result.totalChars as number) - 100,
