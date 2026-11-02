@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { KNOWLEDGE_VECTOR_WIDTHS } from '@tale/shared/schemas/knowledge';
 import { describe, expect, it } from 'vitest';
 
+import { EXACT_DENSE_SCAN_MAX_CHUNKS } from '../../backend/core/knowledge/corpus';
 import { HNSW_DIMENSION_LIMIT } from '../../backend/core/knowledge/dimensions';
 
 /**
@@ -30,6 +31,11 @@ const MIGRATIONS = path.join(
 );
 
 const SCHEMAS = ['private_knowledge', 'public_web'] as const;
+
+/** The widths pgvector can build an approximate index for. */
+const INDEXABLE = KNOWLEDGE_VECTOR_WIDTHS.filter(
+  (width) => width <= HNSW_DIMENSION_LIMIT,
+);
 
 /** The `-- migrate:up` halves of a schema's migrations, in filename order. */
 function upSql(schema: string): string {
@@ -86,17 +92,69 @@ describe('the vector tables the migrations create are the widths the platform ac
   );
 
   // pgvector cannot index a `vector` above its limit; every width under it
-  // gets the approximate index, or its searches scan in sequence.
-  it.each(SCHEMAS)('%s indexes every width pgvector can index', (schema) => {
+  // gets the approximate index, or its searches scan in sequence. A site's
+  // pages are shared by the organizations that registered it, and so is
+  // their index.
+  it('public_web indexes every width pgvector can index', () => {
     expect(
-      widthsCreatedBy(upSql(schema), /CREATE INDEX IF NOT EXISTS/),
-    ).toEqual(
-      KNOWLEDGE_VECTOR_WIDTHS.filter((width) => width <= HNSW_DIMENSION_LIMIT),
-    );
+      widthsCreatedBy(upSql('public_web'), /CREATE INDEX IF NOT EXISTS/),
+    ).toEqual(INDEXABLE);
   });
 
   it('lists the widths in ascending order, each once', () => {
     const sorted = [...new Set(KNOWLEDGE_VECTOR_WIDTHS)].sort((a, b) => a - b);
     expect([...KNOWLEDGE_VECTOR_WIDTHS]).toEqual(sorted);
+  });
+});
+
+/**
+ * A document's vectors are one organization's, and so is their approximate
+ * index (knowledge-db migration 18, #4711): every width's vectors carry
+ * their organization, the index the organizations shared is gone from every
+ * width that had one, and an organization gets one of its own on a width
+ * pgvector can index once it holds more vectors there than the platform
+ * scans exactly. The migration states that bound as a number; it has to be
+ * the platform's.
+ */
+describe('private_knowledge indexes each organization’s vectors apart', () => {
+  const sql = upSql('private_knowledge');
+
+  it('stamps the vectors of every width with their organization', () => {
+    for (const statement of [
+      /ADD COLUMN IF NOT EXISTS org_slug/,
+      /CREATE TRIGGER chunk_vectors_%s_org/,
+      /ALTER COLUMN org_slug SET NOT NULL/,
+    ]) {
+      expect(widthsCreatedBy(sql, statement)).toEqual([
+        ...KNOWLEDGE_VECTOR_WIDTHS,
+      ]);
+    }
+  });
+
+  it('drops the index the organizations shared, on every width', () => {
+    expect(
+      widthsCreatedBy(
+        sql,
+        /DROP INDEX IF EXISTS private_knowledge\.idx_pk_chunk_vectors_%s_hnsw/,
+      ),
+    ).toEqual(INDEXABLE);
+  });
+
+  it('builds an organization its own on every width pgvector can index, past the platform’s bound', () => {
+    expect(Number(/IF width > (\d+) THEN/.exec(sql)?.[1])).toBe(
+      HNSW_DIMENSION_LIMIT,
+    );
+    expect(
+      widthsCreatedBy(sql, /ensure_chunk_vectors_org_index\(w, org/),
+    ).toEqual(INDEXABLE);
+    const bounds = [
+      ...sql.matchAll(
+        /HAVING count\(\*\) > (\d+)|ensure_chunk_vectors_org_index\(w, org, (\d+)\)/g,
+      ),
+    ].map(([, having, passed]) => Number(having ?? passed));
+    expect(bounds).not.toHaveLength(0);
+    expect(
+      bounds.filter((bound) => bound !== EXACT_DENSE_SCAN_MAX_CHUNKS),
+    ).toEqual([]);
   });
 });
