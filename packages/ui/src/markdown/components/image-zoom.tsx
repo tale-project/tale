@@ -79,7 +79,12 @@ export function ImageZoom({
         )}
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
+        <DialogPrimitive.Overlay
+          // Dimmed, not blurred: the frame that opens the image would blur
+          // the whole page behind it, and without GPU compositing that was
+          // 144 ms per open, for a blur 80% black barely shows (#4348).
+          className="fixed inset-0 z-50 bg-black/80"
+        />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center p-4 focus:outline-none"
