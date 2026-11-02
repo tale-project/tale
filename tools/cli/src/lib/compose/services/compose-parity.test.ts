@@ -757,7 +757,7 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     // services/proxy).
     expect(compose.services['backend-api']?.labels).toEqual(backendApiLabels());
     expect(createBackendApiService(config).labels).toEqual(backendApiLabels());
-    for (const colour of ['blue', 'green']) {
+    for (const colour of ['blue', 'green'] as const) {
       const labels = createBackendApiService(config, { colour }).labels ?? {};
       const uncoloured = Object.fromEntries(
         Object.entries(labels).map(([key, value]) => [
