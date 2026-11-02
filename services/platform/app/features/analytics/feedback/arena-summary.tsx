@@ -11,7 +11,8 @@ import type { ArenaVerdict } from './types';
 
 interface ArenaSummaryProps {
   byVerdict: Record<ArenaVerdict, number>;
-  /** Verdicts cast on two copies of the same model — no comparison. */
+  /** Verdicts cast on the same model through the same provider — no
+   * comparison. */
   selfMatches?: number;
   total: number;
 }

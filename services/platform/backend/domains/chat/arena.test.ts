@@ -88,6 +88,13 @@ const PAIR_OF = (threadId: unknown) =>
     ? { pairId: 'pair', role: 'a', partnerThreadId: 'thread_b', createdAt: 1 }
     : { pairId: 'pair', role: 'b', partnerThreadId: 'thread_a', createdAt: 1 };
 
+/** Each column's newest reply as a verdict attributes it: one model through
+ * two providers. */
+const SIDE_OF = (threadId: unknown) =>
+  threadId === 'thread_a'
+    ? { model: 'model-x', provider: 'provider-a' }
+    : { model: 'model-x', provider: 'provider-b' };
+
 /** The settle's reads answered; `newestOf` scripts each column's newest
  * turn row (the judgeable read), `holds` the org's active legal holds,
  * everything else is empty. */
@@ -97,6 +104,9 @@ function settleSql(
   /** What the locked read inside the transaction answers for each column
    * (`null` = the marker is gone already, i.e. the pair settled meanwhile). */
   lockedArenaOf: (threadId: string) => unknown = PAIR_OF,
+  /** The model and provider of each column's newest reply, which a verdict
+   * records. */
+  sideOf: (threadId: unknown) => unknown = SIDE_OF,
 ) {
   return fakeSql((statement) => {
     if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
@@ -113,8 +123,10 @@ function settleSql(
     if (statement.text.includes('SELECT role, model, error, status')) {
       return newestOf(statement.values[0]);
     }
-    if (statement.text.includes('SELECT model FROM app.messages')) {
-      return [{ model: 'model-x' }];
+    if (
+      statement.text.includes('provider_slug AS provider FROM app.messages')
+    ) {
+      return [sideOf(statement.values[0])];
     }
     return [];
   });
@@ -185,6 +197,49 @@ describe('settleArenaPair verdict integrity [CHAT-R11]', () => {
         s.text.includes('INSERT INTO app.message_feedback'),
       ),
     ).toBe(true);
+  });
+
+  it("records each side's provider with its model [FDBK-R8]", async () => {
+    const { sql, statements } = settleSql(() => [FRESH_REPLY]);
+    await settleArenaPair(sql, { ...ARGS, verdict: 'b_better' });
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.message_feedback'),
+    );
+    expect(insert?.values).toContain('arena:model-x:model-x');
+    expect(insert?.values).toContainEqual({
+      json: {
+        arenaVerdict: 'b_better',
+        modelA: 'model-x',
+        modelB: 'model-x',
+        providerA: 'provider-a',
+        providerB: 'provider-b',
+      },
+    });
+  });
+
+  it('records no provider for a side whose reply names none [FDBK-R8]', async () => {
+    const { sql, statements } = settleSql(
+      () => [FRESH_REPLY],
+      [],
+      PAIR_OF,
+      (threadId) =>
+        threadId === 'thread_a'
+          ? { model: 'model-x', provider: 'provider-a' }
+          : { model: 'model-y', provider: null },
+    );
+    await settleArenaPair(sql, { ...ARGS, verdict: 'tie' });
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.message_feedback'),
+    );
+    expect(insert?.values).toContainEqual({
+      json: {
+        arenaVerdict: 'tie',
+        modelA: 'model-x',
+        modelB: 'model-y',
+        providerA: 'provider-a',
+        providerB: null,
+      },
+    });
   });
 
   it('still settles a plain exit on a one-sided round, without a feedback row', async () => {
