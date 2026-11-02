@@ -567,6 +567,15 @@ fails the candidate. Work in this order.
   `main` where needed, then validate a new candidate and release it as the next version
   (steps 1–5).
 
+- **The tag-bound CLI run fails at `Attach to release`.** Its `Wait for release to exist` step
+  treats any failed `gh release view` as a missing release, so an API outage or an exhausted API
+  budget reads as "not found" after ten tries, although the five builds were fine and the release
+  exists. No asset is attached. Confirm the release exists, then dispatch the publication again on
+  the tag ref, never on `main`: `gh workflow run cli.yml --ref vX.Y.Z -f release_tag=vX.Y.Z`.
+  Prefer that to a failed-job-only rerun: the adopter reads the newest run for the tag and
+  requires its complete job matrix from one attempt. Check the assets, and that each binary's
+  GitHub digest equals its line in `tale_checksums.txt`.
+
 ## Merging during a release, and the release lease
 
 Releases never freeze merging.
