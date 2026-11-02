@@ -19,6 +19,7 @@ metrics: Metrics
 personalization: Preferences
 account: Account
 usage: Usage
+usageFiles: Storage files
 agents: Agents
 mcp: MCP
 connectedAgents: Connected agents

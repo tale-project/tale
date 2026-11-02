@@ -1280,10 +1280,27 @@ function countedUploadsClause(
   return sql`fm.org_id = ${organizationId} AND fm.uploaded_by = ${userId}`;
 }
 
-/** Keyset cursor for the hub page walk (creation DESC, id DESC). */
+/** What holds a counted file: the Storage meter's part and the storage
+ * list's kind, one rule for both. A file takes the first kind it matches: a
+ * document wins over the chat it came from, an agent's file over the chat it
+ * was made in, so each byte is in exactly one part. Over
+ * `app.file_metadata fm`. */
+function uploadKindSql(sql: Sql | TransactionSql) {
+  return sql`
+    CASE
+      WHEN fm.document_id IS NOT NULL THEN 'documents'
+      WHEN fm.source = 'agent' THEN 'agentFiles'
+      WHEN fm.thread_id IS NOT NULL THEN 'chatAttachments'
+      ELSE 'other'
+    END`;
+}
+
+/** Keyset cursor for a page walk: the walk's first key — creation time on
+ * the hub, size on the storage list, both whole numbers — and the id that
+ * breaks its ties. */
 function decodePageCursor(
   cursor: string | null,
-): { createdAt: number; id: string } | null {
+): { key: number; id: string } | null {
   if (cursor === null || cursor === '') return null;
   try {
     const parsed: unknown = JSON.parse(
@@ -1293,11 +1310,11 @@ function decodePageCursor(
       parsed !== null &&
       typeof parsed === 'object' &&
       'c' in parsed &&
-      typeof parsed.c === 'number' &&
+      Number.isSafeInteger(parsed.c) &&
       'i' in parsed &&
       typeof parsed.i === 'string'
     ) {
-      return { createdAt: parsed.c, id: parsed.i };
+      return { key: Number(parsed.c), id: parsed.i };
     }
   } catch (error) {
     console.warn('[documents] bad page cursor ignored:', error);
@@ -1305,9 +1322,9 @@ function decodePageCursor(
   return null;
 }
 
-function encodePageCursor(row: { createdAt: number; id: string }): string {
+function encodePageCursor(row: { key: number; id: string }): string {
   return Buffer.from(
-    JSON.stringify({ c: row.createdAt, i: row.id }),
+    JSON.stringify({ c: row.key, i: row.id }),
     'utf8',
   ).toString('base64url');
 }
@@ -1357,7 +1374,7 @@ export async function listHubDocumentsPaginated(
         OR source_provider = ${sourceProvider})
       AND (${extension}::text IS NULL OR extension = ${extension})
       AND (${after === null}
-        OR (created_at_ms, id) < (${after?.createdAt ?? 0}, ${after?.id ?? ''}))
+        OR (created_at_ms, id) < (${after?.key ?? 0}, ${after?.id ?? ''}))
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${numItems + 1}
   `;
@@ -1370,7 +1387,7 @@ export async function listHubDocumentsPaginated(
     continueCursor:
       last === undefined
         ? ''
-        : encodePageCursor({ createdAt: last.createdAt, id: last.id }),
+        : encodePageCursor({ key: last.createdAt, id: last.id }),
   };
 }
 
@@ -1456,18 +1473,11 @@ export async function computeUploadUsageForUser(
       chatCount: 0,
     };
   }
-  // A file takes the first kind it matches: a document wins over the chat it
-  // came from, so each byte is in exactly one part.
+  // Each byte is in exactly one part (`uploadKindSql`).
   const parts = await sql<
     { kind: keyof UploadUsageBreakdown; bytes: string }[]
   >`
-    SELECT
-      CASE
-        WHEN fm.document_id IS NOT NULL THEN 'documents'
-        WHEN fm.source = 'agent' THEN 'agentFiles'
-        WHEN fm.thread_id IS NOT NULL THEN 'chatAttachments'
-        ELSE 'other'
-      END AS kind,
+    SELECT ${uploadKindSql(sql)} AS kind,
       coalesce(sum(fm.size), 0)::text AS bytes
     FROM app.file_metadata fm
     WHERE ${countedUploadsClause(sql, organizationId, userId)}
@@ -1517,6 +1527,241 @@ export async function computeUploadUsageForUser(
       bytes: Number(chat.bytes),
     })),
     chatCount: chats[0]?.total ?? 0,
+  };
+}
+
+/** How many files a page of the storage list holds at most. */
+export const UPLOAD_FILES_PAGE_MAX = 100;
+
+/** Where a counted file lives, as the storage list names and links it.
+ * `open` says the viewer may go there now: never for a file in Trash, a
+ * project they may not read or a chat that is not their own live one. A
+ * place they may not open keeps its type, never its name. */
+export type UploadedFilePlace =
+  | { type: 'knowledge'; open: boolean }
+  | {
+      type: 'project';
+      id: string | null;
+      name: string | null;
+      archived: boolean;
+      open: boolean;
+    }
+  | { type: 'chat'; id: string | null; title: string | null; open: boolean }
+  | { type: 'none'; open: false };
+
+/** A file on the storage list: one row the upload gate counts. */
+export interface UploadedFile {
+  /** The file row; each version of a document is a row of its own. */
+  id: string;
+  /** The blob reference the file opens by (`s3:<key>`). */
+  storageRef: string;
+  name: string;
+  contentType: string;
+  size: number;
+  createdAt: number;
+  kind: keyof UploadUsageBreakdown;
+  /** The document the file backs, only where the viewer may read its place
+   * (a Knowledge document their teams see, a project they may read). A
+   * delete removes it with every version. */
+  document: {
+    id: string;
+    title: string | null;
+    sourceProvider: string | null;
+    /** How Knowledge reads its origin (`documentSourceMode`). */
+    sourceMode: 'auto' | 'manual';
+    /** This file is the document's current one, not an older version. */
+    current: boolean;
+    /** A controlled record every delete refuses
+     * (`recordTrashRefusalFromJson`). */
+    recordProtected: boolean;
+  } | null;
+  place: UploadedFilePlace;
+  /** The file, its document or its chat is in Trash, where it keeps
+   * counting until Trash purges it. */
+  inTrash: boolean;
+}
+
+interface UploadedFileRow {
+  id: string;
+  storageRef: string;
+  name: string;
+  contentType: string;
+  size: number;
+  createdAt: number;
+  kind: keyof UploadUsageBreakdown;
+  fileTrashed: boolean;
+  documentId: string | null;
+  documentTitle: string | null;
+  documentSourceProvider: string | null;
+  documentSourceMode: string | null;
+  documentCurrent: boolean;
+  documentRecord: Record<string, unknown> | null;
+  documentTrashed: boolean;
+  /** A Knowledge document whose audience takes the viewer. */
+  documentInHub: boolean;
+  placeProjectId: string | null;
+  projectReadable: boolean;
+  projectName: string | null;
+  projectArchived: boolean;
+  /** The file's thread is a chat (it has chat metadata), not a task run. */
+  inChat: boolean;
+  /** The chat's lineage root, when the chat is the viewer's own. */
+  chatId: string | null;
+  chatTitle: string | null;
+  chatStatus: string | null;
+}
+
+const TRASH_STATES = new Set(['trashed', 'expired']);
+
+/** How Knowledge reads a document's origin from its `sourceMode` metadata:
+ * a sync is `auto`, and a missing or unknown mode is `manual`. */
+export function documentSourceMode(raw: unknown): 'auto' | 'manual' {
+  if (raw === 'auto' || raw === 'manual') return raw;
+  return raw === 'sync' ? 'auto' : 'manual';
+}
+
+function uploadedFilePlace(
+  row: UploadedFileRow,
+  inTrash: boolean,
+): UploadedFilePlace {
+  if (row.documentId !== null && row.placeProjectId === null) {
+    return { type: 'knowledge', open: row.documentInHub && !inTrash };
+  }
+  if (row.documentId === null && row.inChat) {
+    return {
+      type: 'chat',
+      id: row.chatId,
+      title: row.chatId === null ? null : row.chatTitle,
+      open: row.chatId !== null && row.chatStatus === 'active' && !inTrash,
+    };
+  }
+  if (row.placeProjectId !== null) {
+    return row.projectReadable
+      ? {
+          type: 'project',
+          id: row.placeProjectId,
+          name: row.projectName,
+          archived: row.projectArchived,
+          open: !inTrash,
+        }
+      : { type: 'project', id: null, name: null, archived: false, open: false };
+  }
+  return { type: 'none', open: false };
+}
+
+/**
+ * The storage list behind Settings › Usage › Storage: every file the upload
+ * gate counts for the viewer (`countedUploadsClause`, nothing added but the
+ * keyset), largest first, with the kind the meter counts it under
+ * (`uploadKindSql`) and where it lives. The page is cut from the counted
+ * rows alone; the places are read for its rows only. Where a file lives
+ * follows the viewer's own reach: a Knowledge document whose audience takes
+ * them (`hubAccessClause`), a project they may read (`readableProjectsSql`,
+ * archived ones too) and, as the meter's chats, their own chat under its
+ * lineage root, open while it is live.
+ */
+export async function listCountedUploadsForUser(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  args: { cursor: string | null; numItems: number },
+): Promise<{ page: UploadedFile[]; isDone: boolean; continueCursor: string }> {
+  const numItems = Math.min(
+    Math.max(Math.trunc(args.numItems), 1),
+    UPLOAD_FILES_PAGE_MAX,
+  );
+  const after = decodePageCursor(args.cursor);
+  const rows = await sql<UploadedFileRow[]>`
+    WITH page AS (
+      SELECT fm.id, fm.storage_ref, fm.file_name, fm.content_type, fm.size,
+        fm.created_at_ms, fm.document_id, fm.thread_id, fm.project_id,
+        fm.lifecycle_status, ${uploadKindSql(sql)} AS kind
+      FROM app.file_metadata fm
+      WHERE ${countedUploadsClause(sql, auth.organizationId, auth.userId)}
+        AND (${after === null}
+          OR (fm.size, fm.id) < (${after?.key ?? 0}, ${after?.id ?? ''}))
+      ORDER BY fm.size DESC, fm.id DESC
+      LIMIT ${numItems + 1}
+    )
+    SELECT p.id, p.storage_ref AS "storageRef", p.file_name AS name,
+      p.content_type AS "contentType", p.size::float8 AS size,
+      p.created_at_ms::float8 AS "createdAt", p.kind,
+      coalesce(p.lifecycle_status IN ('trashed', 'expired'), false)
+        AS "fileTrashed",
+      d.id AS "documentId", d.title AS "documentTitle",
+      d.source_provider AS "documentSourceProvider",
+      d.metadata->>'sourceMode' AS "documentSourceMode",
+      coalesce(d.file_ref = p.storage_ref, false) AS "documentCurrent",
+      d.record AS "documentRecord",
+      coalesce(d.lifecycle_status IN ('trashed', 'expired'), false)
+        AS "documentTrashed",
+      EXISTS (
+        SELECT 1 FROM app.documents hub
+        WHERE hub.id = d.id AND ${hubAccessClause(sql, auth)}
+      ) AS "documentInHub",
+      CASE WHEN d.id IS NOT NULL THEN d.project_id ELSE p.project_id END
+        AS "placeProjectId",
+      rp.project_id IS NOT NULL AS "projectReadable",
+      pr.name AS "projectName",
+      rp.project_archived_at_ms IS NOT NULL AS "projectArchived",
+      tm.thread_id IS NOT NULL AS "inChat",
+      rt.id AS "chatId", rt.title AS "chatTitle", rtm.status AS "chatStatus"
+    FROM page p
+    LEFT JOIN app.documents d
+      ON d.id = p.document_id AND d.org_id = ${auth.organizationId}
+    LEFT JOIN ${readableProjectsSql(sql, auth, { includeArchived: true })} rp
+      ON rp.project_id =
+        CASE WHEN d.id IS NOT NULL THEN d.project_id ELSE p.project_id END
+    LEFT JOIN app.projects pr ON pr.id = rp.project_id
+    LEFT JOIN app.thread_metadata tm ON tm.thread_id = p.thread_id
+    LEFT JOIN app.thread_metadata rtm
+      ON rtm.thread_id = coalesce(tm.branch_root_id, tm.thread_id)
+    LEFT JOIN app.threads rt ON rt.id = rtm.thread_id
+      AND rt.org_id = ${auth.organizationId} AND rt.user_id = ${auth.userId}
+    ORDER BY p.size DESC, p.id DESC
+  `;
+  const isDone = rows.length <= numItems;
+  const kept = isDone ? rows : rows.slice(0, numItems);
+  const last = kept.at(-1);
+  return {
+    page: kept.map((row) => {
+      const inTrash =
+        row.fileTrashed ||
+        row.documentTrashed ||
+        TRASH_STATES.has(row.chatStatus ?? '');
+      return {
+        id: row.id,
+        storageRef: row.storageRef,
+        name: row.name,
+        contentType: row.contentType,
+        size: row.size,
+        createdAt: row.createdAt,
+        kind: row.kind,
+        // Only where the viewer may read the document's place: a place that
+        // is not named never tells its document's title either.
+        document:
+          row.documentId === null ||
+          !(row.placeProjectId === null
+            ? row.documentInHub
+            : row.projectReadable)
+            ? null
+            : {
+                id: row.documentId,
+                title: row.documentTitle,
+                sourceProvider: row.documentSourceProvider,
+                sourceMode: documentSourceMode(row.documentSourceMode),
+                current: row.documentCurrent,
+                recordProtected:
+                  recordTrashRefusalFromJson(row.documentRecord) !== null,
+              },
+        place: uploadedFilePlace(row, inTrash),
+        inTrash,
+      };
+    }),
+    isDone,
+    continueCursor:
+      last === undefined
+        ? ''
+        : encodePageCursor({ key: last.size, id: last.id }),
   };
 }
 

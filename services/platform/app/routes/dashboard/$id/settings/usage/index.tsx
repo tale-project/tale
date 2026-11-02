@@ -4,7 +4,7 @@ import { UsageSettings } from '@/app/features/settings/usage/components/usage-se
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
 import { seo } from '@/lib/utils/seo';
 
-export const Route = createFileRoute('/dashboard/$id/settings/usage')({
+export const Route = createFileRoute('/dashboard/$id/settings/usage/')({
   head: () => ({
     meta: seo('usage'),
   }),
