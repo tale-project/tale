@@ -1,7 +1,8 @@
 /**
  * The composer's side of choosing skills: which `/name` the caret is typing
  * at the start of the message, how a pick completes it, which skills match
- * what was typed, and which skills a conversation row uses.
+ * what was typed, the line under a skill's name, and which skills a
+ * conversation row uses.
  *
  * The grammar itself — what a turn reads as a chosen skill — is
  * `lib/skills/slash.ts`; this module only helps a person write it.
@@ -96,6 +97,16 @@ export function matchSkills<T extends { readonly slug: string }>(
     (skill) => !skill.slug.startsWith(needle) && skill.slug.includes(needle),
   );
   return [...starts, ...contains];
+}
+
+/** The line under a skill's name in the composer's lists, its parts joined
+ * by a middle dot: who made the skill first, so a description cut off at the
+ * edge never hides it, then what its author wrote, then any note. A part
+ * without words is left out. */
+export function skillCaption(...parts: (string | undefined)[]): string {
+  return parts
+    .filter((part): part is string => part !== undefined && part !== '')
+    .join(' · ');
 }
 
 /** The skills a conversation row uses (`capabilities.skills`), read
