@@ -6,9 +6,10 @@
     "setup": "echo 'Docker service - no local setup'",
     "serve": "docker compose up proxy -d && docker compose logs -f proxy",
     "build": "echo 'No build step'",
+    "test": "bun test",
     "docker:build": "docker compose build proxy",
     "logs": "docker compose logs -f proxy",
     "shell": "docker exec -it tale-proxy sh",
-    "trust-certs": "docker exec tale-proxy caddy trust"
+    "trust-certs": "docker cp tale-proxy:/data/pki/root.crt ./tale-root.crt && echo 'Install ./tale-root.crt in your OS or browser trust store.'"
   }
 }
