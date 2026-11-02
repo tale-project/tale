@@ -1313,6 +1313,9 @@ export function NodeFields({
               }}
               readers={readers}
               readByOutput={readByOutput}
+              {...(nodeType?.scenarios !== undefined && {
+                scenarios: nodeType.scenarios,
+              })}
               {...(context.onSelect !== undefined && {
                 onSelect: context.onSelect,
               })}
