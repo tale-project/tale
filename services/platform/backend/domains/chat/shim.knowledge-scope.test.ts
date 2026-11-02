@@ -110,9 +110,9 @@ vi.mock('../projects/service.ts', () => ({
           : {}),
       }),
   ),
-  listProjects: vi.fn(() =>
-    Promise.resolve([{ id: 'proj-1', archivedAt: null }]),
-  ),
+  // The work legs join the readable projects in the statement that reads
+  // them, which the substitute SQL answers with no rows.
+  readableProjectsSql: vi.fn(() => 'readable-projects'),
   readableProjectsWithDocuments: vi.fn(() =>
     Promise.resolve([{ id: 'proj-1', archived: false }]),
   ),
