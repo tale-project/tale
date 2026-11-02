@@ -11,6 +11,7 @@ import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Key, KeyRound, Trash2 } from 'lucide-react';
@@ -104,17 +105,13 @@ export function WebdavSettings(props: WebdavSettingsProps) {
         ref={regionRef}
         title={t('list.title')}
         description={t('create.description')}
-        // A revoked row stays, without its Revoke button: when no other row
-        // has one, the focus that button held lands on this named section
-        // (`DataTable`'s last resort), not on the page. So does the focus of
-        // a Try again that gave way.
+        // The focus of a Try again that gave way lands on this named section,
+        // not on the page. A revoke's lands here only when the table has
+        // nothing left to hold it (`DataTable`'s last resort): a revoked row
+        // stays without its Revoke button, so the focus that button held
+        // goes to the next row's, else to the table's Generate.
         tabIndex={-1}
         className="outline-none"
-        action={
-          <Button icon={KeyRound} onClick={() => setCreateOpen(true)}>
-            {t('create.submit')}
-          </Button>
-        }
       >
         {failedWithRows && (
           <CatalogLoadError
@@ -132,6 +129,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
           error={error}
           onRetry={retryRead}
           onErrorFocusLost={focusRegion}
+          onCreate={() => setCreateOpen(true)}
         />
       </SettingsSection>
 
@@ -149,11 +147,18 @@ export function WebdavSettings(props: WebdavSettingsProps) {
   );
 }
 
+/**
+ * The app-passwords as every settings list shows its rows (`useListPage`):
+ * a window of `DEFAULT_LIST_PAGE_SIZE` that grows as the reader scrolls, a
+ * search and Generate in the table's own toolbar, and the shared count
+ * footer.
+ */
 function WebdavAppPasswordsTable({
   rows,
   error,
   onRetry,
   onErrorFocusLost,
+  onCreate,
 }: {
   rows: WebdavAppPasswordRow[] | undefined;
   /** The list read's settled failure. With no app-password loaded the table
@@ -163,17 +168,39 @@ function WebdavAppPasswordsTable({
   onRetry: () => void;
   /** Takes the focus the error state held when a refresh replaces it. */
   onErrorFocusLost: () => void;
+  /** Opens the create dialog: the table's Generate. */
+  onCreate: () => void;
 }) {
   const { t } = useT('webdav');
-  // A read that has not answered is pending, or failed — the error state
-  // below wins then; never an empty list.
-  const isLoading = rows === undefined;
 
-  // Newest first — the just-generated row is the one users most want to find.
+  // Newest first — the just-generated row is the one users most want to
+  // find, so the first window holds the newest. A read that has not
+  // answered stays `undefined`: pending, or failed — the table's skeleton
+  // or its error state then; never an empty list.
   const sortedRows = useMemo(
-    () => (rows ? [...rows].sort((a, b) => b.createdAt - a.createdAt) : []),
+    () =>
+      rows === undefined
+        ? undefined
+        : [...rows].sort((a, b) => b.createdAt - a.createdAt),
     [rows],
   );
+
+  const list = useListPage<WebdavAppPasswordRow>({
+    dataSource: { type: 'query', data: sortedRows, error, retry: onRetry },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // The two texts a row shows: its label, and the prefix that tells two
+    // passwords apart.
+    search: {
+      fields: ['label', 'prefix'],
+      placeholder: t('list.searchPlaceholder'),
+    },
+    getRowId: (row) => row._id,
+    approxRowCount: 3,
+    entityLabel: {
+      one: t('list.entityLabelOne'),
+      other: t('list.entityLabel'),
+    },
+  });
 
   const columns = useMemo<ColumnDef<WebdavAppPasswordRow>[]>(
     () => [
@@ -246,18 +273,21 @@ function WebdavAppPasswordsTable({
   return (
     <DataTable
       columns={columns}
-      data={sortedRows}
-      isLoading={isLoading}
-      error={sortedRows.length > 0 ? null : error}
-      onRetry={onRetry}
+      caption={t('list.title')}
+      // The standard create affordance: DataTable sizes and places it like
+      // every other list's, in the toolbar beside the search.
+      addAction={{
+        label: t('create.submit'),
+        icon: KeyRound,
+        onClick: onCreate,
+      }}
       onErrorFocusLost={onErrorFocusLost}
-      approxRowCount={3}
-      getRowId={(row) => row._id}
       emptyState={{
         icon: Key,
         title: t('list.empty'),
         description: t('list.emptyDescription'),
       }}
+      {...list.tableProps}
     />
   );
 }
