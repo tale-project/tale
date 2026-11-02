@@ -42,8 +42,9 @@ the `docs` service; without it the docs host answers `502`. Setting `DOCS_URL` a
 that service.
 
 Routers run by priority, highest first: the edge's refusals, the blob store and the tunnel, the
-platform's health probe, the backend's lanes, the platform's machine doors and pages, and last the
-edge's answers while a service is absent. A new machine API must match a backend lane
+platform's health probe, the edge's answer to that probe while the platform is absent, the
+backend's lanes, the platform's machine doors and pages, and last the edge's answers while a
+service is absent. A new machine API must match a backend lane
 (`BACKEND_LANES` in `traefik-labels.ts`, kept equal to the edge's absent-backend rule by
 [`render/config.test.ts`](render/config.test.ts)) so it keeps machine-readable failure responses.
 

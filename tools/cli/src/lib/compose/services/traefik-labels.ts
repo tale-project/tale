@@ -18,11 +18,17 @@
  * detaches the old colour from the network before it removes it.
  *
  * Priorities, highest first: the edge's refusals (500–1000); the object store
- * and the sandbox tunnel (300); the platform's health probe (200); the
- * backend's lanes (100–120); the edge's answer while the backend is absent
- * (90); the platform's machine doors (50–60) and pages (2); the edge's answers
- * while the platform is absent (1–3).
+ * and the sandbox tunnel (300); the platform's health probe (200), which the
+ * edge answers while the platform is absent (150); the backend's lanes
+ * (100–120); the edge's answer while the backend is absent (90); the
+ * platform's machine doors (50–60) and pages (2); the edge's answers while the
+ * platform is absent (1–3).
  */
+
+/** The platform's health probe. The edge answers it while the platform is
+ *  absent (`PLATFORM_HEALTH` in services/proxy/render/config.js), above the
+ *  backend's lanes, whose `/api/` would answer it in the platform's place. */
+export const PLATFORM_HEALTH = '(?i)^/api/health$';
 
 /** Every path the backend serves. The edge answers the same rule while the
  *  backend is absent (`tale-absent-backend` in services/proxy/render/config.js,
@@ -105,7 +111,7 @@ export function platformLabels(color?: string): Record<string, string> {
   return labels(
     {
       [`${name}-health`]: {
-        rule: literal('PathRegexp(`(?i)^/api/health$`)'),
+        rule: literal(`PathRegexp(\`${PLATFORM_HEALTH}\`)`),
         priority: 200,
         service: `${name}-direct`,
       },

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   BACKEND_LANES as LABELLED_BACKEND_LANES,
+  PLATFORM_HEALTH as LABELLED_PLATFORM_HEALTH,
   PLATFORM_MACHINE_DOORS,
   backendApiLabels,
   objectStoreLabels,
@@ -12,6 +13,7 @@ import {
   BACKEND_LANES,
   ConfigError,
   MACHINE_DOORS,
+  PLATFORM_HEALTH,
   leafHosts,
   readSettings,
   renderAcmeHosts,
@@ -488,6 +490,33 @@ describe('renderEdge', () => {
     expect(absent.priority).toBeGreaterThan(
       priority(platformLabels('blue'), 'platform-blue-doors'),
     );
+  });
+
+  it('answers the platform health probe itself while the platform is absent', () => {
+    expect(PLATFORM_HEALTH).toBe(LABELLED_PLATFORM_HEALTH);
+    const absent = routers()['tale-absent-platform-health'];
+    expect(absent.middlewares).toEqual(['tale-answer-unavailable-json']);
+    const probe = regexpOf(absent.rule);
+    expect(probe.test('/api/health')).toBe(true);
+    expect(probe.test('/API/Health')).toBe(true);
+    expect(probe.test('/api/healthz')).toBe(false);
+    // Every backend lane takes /api/health too (lab, 2026-11-02: with the
+    // platform gone, the probe got the backend's answer), so the edge's
+    // answer outranks them all and stays below the platform's own route.
+    const priorities = (labels: Record<string, string>) =>
+      Object.entries(labels)
+        .filter(([key]) => key.endsWith('.priority'))
+        .map(([, value]) => Number(value));
+    expect(absent.priority).toBeGreaterThan(
+      Math.max(...priorities(backendApiLabels('blue'))),
+    );
+    expect(
+      Number(
+        platformLabels('blue')[
+          'traefik.http.routers.platform-blue-health.priority'
+        ],
+      ),
+    ).toBeGreaterThan(absent.priority);
   });
 
   it('strips BASE_PATH and routes the rest on the inner entrypoint', () => {

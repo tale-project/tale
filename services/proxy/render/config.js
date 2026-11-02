@@ -390,6 +390,10 @@ export const MACHINE_DOORS =
 // calling the backend never reaches the platform instead.
 export const BACKEND_LANES =
   '(?i)^/(api/|events$|dav/|scim/v2/|http_api/(api/sso|scim/v2|api/trusted-headers|api/cloud-import/oauth2)/|[.]well-known/oauth-(authorization-server/|protected-resource))';
+// The platform's health probe, as its labels declare it; answered here while
+// the platform is absent, above the backend's lanes, whose `/api/` would
+// answer it in the platform's place.
+export const PLATFORM_HEALTH = '(?i)^/api/health$';
 // A dot-segment, plain or percent-encoded, anywhere in the path. No honest
 // client sends one; refused before any route, so a path never means one
 // thing to the router and another to the service that folds the dots.
@@ -478,6 +482,12 @@ export function renderEdge(s) {
     },
     // Nothing serves the path: the service is absent, starting or stopped.
     // Its own routes come back with its container.
+    'tale-absent-platform-health': {
+      entryPoints: all,
+      rule: `PathRegexp(\`${PLATFORM_HEALTH}\`)`,
+      priority: 150,
+      ...answer('unavailable-json'),
+    },
     'tale-absent-backend': {
       entryPoints: all,
       rule: `PathRegexp(\`${BACKEND_LANES}\`)`,
