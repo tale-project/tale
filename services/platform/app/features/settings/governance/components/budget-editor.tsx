@@ -50,7 +50,11 @@ import {
 } from 'react';
 
 import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import {
+  type ProjectChoice,
+  useNamedProjects,
+} from '@/app/features/projects/hooks/queries';
+import { useProjectSelect } from '@/app/features/projects/hooks/use-project-select';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -198,8 +202,8 @@ function ApiKeyRuleTarget({
 /**
  * The Target cell of a project's rule: the project by name, marked when it is
  * archived. A rule outlives its project: one that is gone says so instead of
- * showing a bare id — except while the project list is still loading, or
- * after it failed to load: a list that never answered proves nothing about
+ * showing a bare id — except while the project is still being read, or
+ * after its read failed: a read that never answered proves nothing about
  * the project, and the rule still caps it (#4605).
  */
 function ProjectRuleTarget({
@@ -211,7 +215,7 @@ function ProjectRuleTarget({
   projectId: string;
   project: ProjectTarget | undefined;
   loading: boolean;
-  /** The project list failed to load (`readStateOf`). */
+  /** The project's read failed (`readStateOf`). */
   unavailable: boolean;
 }) {
   const { t } = useT('governance');
@@ -430,6 +434,89 @@ function TargetListLoadError({
   );
 }
 
+/** A project as a rule's Project field offers it: by name, marked when it is
+ *  archived — the project a saved rule caps, whatever became of it. */
+function projectTargetOption(project: ProjectChoice): SearchableSelectOption {
+  const option: SearchableSelectOption = {
+    value: project._id,
+    label: project.name || project._id,
+  };
+  if (project.archivedAt) option.labelBadge = <ProjectArchivedBadge />;
+  return option;
+}
+
+/**
+ * A rule's Project field. It offers the projects work still happens in —
+ * Home's page and, for what is typed, the server's search past it, never
+ * every project (#5205) — and keeps the project the rule names, archived or
+ * not, read by id when the page lacks it.
+ */
+function RuleProjectField({
+  organizationId,
+  id,
+  value,
+  onValueChange,
+  disabled,
+  error,
+  onFocusLost,
+}: {
+  organizationId: string;
+  id: string;
+  value: string | null;
+  onValueChange: (projectId: string) => void;
+  disabled: boolean;
+  error: boolean;
+  /** Where the focus goes if the load notice leaves while it holds it. */
+  onFocusLost: () => void;
+}) {
+  const { t } = useT('governance');
+  const select = useProjectSelect({
+    organizationId,
+    value,
+    onValueChange,
+    toOption: projectTargetOption,
+  });
+  return (
+    <>
+      <TargetListLoadError
+        read={select.read}
+        message={t('budgets.projectsLoadFailed')}
+        onFocusLost={onFocusLost}
+      />
+      <SearchableSelect
+        id={id}
+        label={t('budgets.project')}
+        // The rule keeps its project while its read is unavailable: the
+        // field never reads as unset over it.
+        placeholder={
+          select.valueStatus === 'unavailable'
+            ? t('budgets.projectNotLoaded')
+            : t('budgets.selectProject')
+        }
+        disabled={disabled}
+        value={value}
+        onValueChange={select.onValueChange}
+        onSearchChange={select.onSearchChange}
+        options={select.options}
+        searchPlaceholder={t('budgets.searchProjects')}
+        emptyText={
+          select.choices.unavailable
+            ? t('budgets.projectsLoadFailed')
+            : t('budgets.noProjectsFound')
+        }
+        aria-label={t('budgets.selectProjectAriaLabel')}
+        error={error}
+        // A rule whose project is gone limits nothing; the field says so
+        // rather than reading "Select project…" over a target it still
+        // keeps. Only a read that answered can tell (#4605).
+        {...(select.valueStatus === 'gone'
+          ? { description: t('budgets.projectDeletedHint') }
+          : {})}
+      />
+    </>
+  );
+}
+
 interface RuleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -440,14 +527,8 @@ interface RuleDialogProps {
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
   teamsRead: TargetListRead;
-  /** Every project, archived ones included: the picker offers the active
-   *  ones, and the one a saved rule names whatever became of it. */
-  projects: readonly ProjectTarget[];
-  /** Whether the project list is still loading — a project not in it yet
-   *  is not gone. */
-  projectsLoading: boolean;
-  /** A project list that failed to load is no proof either (#4605). */
-  projectsRead: TargetListRead;
+  /** Whose projects the Project field offers. */
+  organizationId: string;
   /** Every key the listing describes: the live ones the picker offers,
    *  and the ones a saved rule still names. */
   apiKeys: readonly OrgApiKeyWire[];
@@ -471,9 +552,7 @@ function RuleDialog({
   memberOptions,
   teamOptions,
   teamsRead,
-  projects,
-  projectsLoading,
-  projectsRead,
+  organizationId,
   apiKeys,
   apiKeysRead,
 }: RuleDialogProps) {
@@ -537,33 +616,6 @@ function RuleDialog({
   }, []);
 
   const errors = useMemo(() => validateBudgetRule(draft, t), [draft, t]);
-
-  // The picker offers the projects work still happens in; a rule being
-  // edited keeps its own project in the list, archived or not.
-  const projectOptions = useMemo(
-    () =>
-      projects
-        .filter((project) => !project.archived || project.id === draft.scopeId)
-        .map((project) => {
-          const option: SearchableSelectOption = {
-            value: project.id,
-            label: project.name,
-          };
-          if (project.archived) option.labelBadge = <ProjectArchivedBadge />;
-          return option;
-        }),
-    [projects, draft.scopeId],
-  );
-  // A rule whose project is gone limits nothing; the field says so rather
-  // than reading "Select project…" over a target it still keeps. Only a list
-  // that answered can tell: one that failed to load proves nothing (#4605).
-  const projectGone =
-    draft.scope === 'project' &&
-    draft.scopeId !== undefined &&
-    draft.scopeId !== '' &&
-    !projectsLoading &&
-    !projectsRead.unavailable &&
-    !projects.some((project) => project.id === draft.scopeId);
 
   // The picker offers the keys that can still spend. A rule being edited
   // keeps its own key in the list whatever became of it, so the field shows
@@ -686,39 +738,15 @@ function RuleDialog({
         )}
 
         {draft.scope === 'project' && (
-          <>
-            <TargetListLoadError
-              read={projectsRead}
-              message={t('budgets.projectsLoadFailed')}
-              onFocusLost={focusTargetPicker}
-            />
-            <SearchableSelect
-              id={targetPickerId}
-              label={t('budgets.project')}
-              // The rule keeps its project while the list is unavailable: the
-              // field never reads as unset over it.
-              placeholder={
-                projectsRead.unavailable && draft.scopeId
-                  ? t('budgets.projectNotLoaded')
-                  : t('budgets.selectProject')
-              }
-              disabled={cannotManage}
-              value={draft.scopeId ?? null}
-              onValueChange={(value) => updateDraft({ scopeId: value })}
-              options={projectOptions}
-              searchPlaceholder={t('budgets.searchProjects')}
-              emptyText={
-                projectsRead.unavailable
-                  ? t('budgets.projectsLoadFailed')
-                  : t('budgets.noProjectsFound')
-              }
-              aria-label={t('budgets.selectProjectAriaLabel')}
-              error={showTargetError}
-              {...(projectGone
-                ? { description: t('budgets.projectDeletedHint') }
-                : {})}
-            />
-          </>
+          <RuleProjectField
+            organizationId={organizationId}
+            id={targetPickerId}
+            value={draft.scopeId || null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            disabled={cannotManage}
+            error={showTargetError}
+            onFocusLost={focusTargetPicker}
+          />
         )}
 
         {draft.scope === 'apiKey' && (
@@ -909,13 +937,6 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams, ...teamsRead } = useOrgTeams();
-  // A rule outlives its project's archiving: archived projects are listed
-  // so the table still names the project a saved rule caps.
-  const {
-    projects: projectRows,
-    isLoading: projectsLoading,
-    ...projectsRead
-  } = useProjects(organizationId, { includeArchived: true });
   // The API keys an admin can attach a budget to: every member's live key,
   // not only the admin's own — a per-key cap is how an admin bounds one
   // person's script or coding tool. A rule stores the raw `apiKeyId` and
@@ -959,16 +980,6 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     [teams],
   );
 
-  const projects = useMemo(
-    (): ProjectTarget[] =>
-      projectRows.map((project) => ({
-        id: project._id,
-        name: project.name || project._id,
-        archived: Boolean(project.archivedAt),
-      })),
-    [projectRows],
-  );
-
   const apiKeyById = useMemo(
     () => new Map((apiKeys ?? []).map((key) => [key.id, key])),
     [apiKeys],
@@ -999,10 +1010,25 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const [dialogRule, setDialogRule] = useState(emptyRule());
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
-  // A project rule's target is unknown while the project list is unavailable:
-  // the table says why and reads it again. If that notice leaves while it
-  // holds the focus — the list answered — the focus goes to the table.
-  const capsAProject = rules.some((rule) => rule.scope === 'project');
+  // The projects the rules cap, by id — never every project (#5205) —
+  // archived ones too: a rule outlives its project's archiving, and the table
+  // still names the project it caps.
+  const ruleProjectIds = useMemo(
+    () =>
+      rules.flatMap((rule) =>
+        rule.scope === 'project' && rule.scopeId ? [rule.scopeId] : [],
+      ),
+    [rules],
+  );
+  const ruleProjects = useNamedProjects(organizationId, ruleProjectIds);
+  const projectsRead: TargetListRead = {
+    ...ruleProjects.read,
+    retry: ruleProjects.retry,
+  };
+  // A project rule's target is unknown while its read is unavailable: the
+  // table says why and reads it again. If that notice leaves while it holds
+  // the focus — the read answered — the focus goes to the table.
+  const capsAProject = ruleProjectIds.length > 0;
   const rulesTableRef = useRef<HTMLTableElement>(null);
   const focusRulesTable = useCallback(() => rulesTableRef.current?.focus(), []);
 
@@ -1141,12 +1167,19 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
         }
         case 'project': {
           if (!rule.scopeId) return '—';
+          const project = ruleProjects.projects.get(rule.scopeId);
           return (
             <ProjectRuleTarget
               projectId={rule.scopeId}
-              project={projects.find((project) => project.id === rule.scopeId)}
-              loading={projectsLoading}
-              unavailable={projectsRead.unavailable}
+              project={
+                project && {
+                  id: project._id,
+                  name: project.name || project._id,
+                  archived: Boolean(project.archivedAt),
+                }
+              }
+              loading={ruleProjects.isPending}
+              unavailable={ruleProjects.unread.has(rule.scopeId)}
             />
           );
         }
@@ -1173,16 +1206,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [
-      memberOptions,
-      teamOptions,
-      projects,
-      projectsLoading,
-      projectsRead.unavailable,
-      roleOptions,
-      apiKeyById,
-      t,
-    ],
+    [memberOptions, teamOptions, ruleProjects, roleOptions, apiKeyById, t],
   );
 
   const onAddRule = openAddDialog;
@@ -1408,9 +1432,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           memberOptions={memberOptions}
           teamOptions={teamOptions}
           teamsRead={teamsRead}
-          projects={projects}
-          projectsLoading={projectsLoading}
-          projectsRead={projectsRead}
+          organizationId={organizationId}
           apiKeys={apiKeys ?? NO_API_KEYS}
           apiKeysRead={apiKeysRead}
         />

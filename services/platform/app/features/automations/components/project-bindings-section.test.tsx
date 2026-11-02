@@ -38,6 +38,9 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
       ]),
     ),
     isPending: false,
+    unread: new Set(),
+    read: { unavailable: false, retrying: false, failureCount: 0 },
+    retry: () => undefined,
   }),
 }));
 vi.mock('@tale/ui/i18n/client', () => ({
