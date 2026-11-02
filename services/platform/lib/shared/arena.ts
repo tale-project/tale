@@ -7,8 +7,10 @@
  * copy. The verdict settles the pair by *choosing the surviving thread* —
  * no message ever migrates between columns — and records itself as a
  * `messageFeedback` row with a synthetic message id plus
- * `metadata.{arenaVerdict, modelA, modelB}`. The feedback analytics page
- * (`convex/feedback/stats.ts`) recognises arena rows purely by that
+ * `metadata.{arenaVerdict, modelA, modelB, providerA, providerB}` (each
+ * side's model and the provider that served it; a verdict recorded before
+ * verdicts named providers has none). The feedback analytics page
+ * (`backend/core/feedback/stats.ts`) recognises arena rows purely by that
  * metadata shape, so the constants here are a cross-page contract: settle
  * writes them, the verdict bar renders them, and the analytics contract
  * test locks them.
@@ -25,13 +27,22 @@ export type ArenaVerdict = (typeof ARENA_VERDICTS)[number];
 
 /**
  * The synthetic `messageId` an arena verdict's feedback row carries. A
- * verdict rates a matchup, not a message — the id encodes the pairing so
- * the analytics reader can group rows without resolving message documents.
- * Settle INSERTS a fresh row per verdict (never upserts): two runs of the
- * same matchup are two data points.
+ * verdict rates a matchup, not a message — the id names its two models,
+ * and the metadata carries the whole pairing, providers included, which is
+ * what the analytics reader groups by. Settle INSERTS a fresh row per
+ * verdict (never upserts): two runs of the same matchup are two data points.
  */
 export function arenaFeedbackMessageId(modelA: string, modelB: string): string {
   return `arena:${modelA}:${modelB}`;
+}
+
+/**
+ * The provider a verdict's metadata names for one side (`providerA` or
+ * `providerB`), or `null` when it names none: a verdict recorded before
+ * verdicts named providers.
+ */
+export function arenaSideProvider(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
 }
 
 /**
