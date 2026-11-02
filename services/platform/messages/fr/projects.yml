@@ -221,7 +221,7 @@ agents:
   emptyReaderTitle: Aucun agent dans ce projet pour l’instant
   emptyReaderBody: Les agents exécutent des tâches en ton nom. Demande à un éditeur ou à un admin d’en ajouter un à ce projet.
   equippedCount: '{count, plural, one {# équipé} other {# équipés}}'
-  rowView: "Voir les détails de l’agent"
+  rowActionsLabel: Actions pour {name}
   detailsTitle: "Détails de l’agent"
   providerLabel: "Fournisseur"
   providerUnpinned: "Non fixé"
@@ -233,8 +233,6 @@ agents:
   detailsMoreCount: "+{count} autres"
   detailsProviderCurrently: "Le fournisseur est déterminé pour les prochaines exécutions et peut changer."
   detailsStandardSnapshot: "Configuration enregistrée. L’agent standard détermine à nouveau son modèle, ses skills et ses instructions au démarrage de chaque exécution."
-  rowEdit: Modifier l'agent
-  rowDelete: Supprimer l'agent
   dialogCreateTitle: Nouvel agent
   dialogEditTitle: Modifier l'agent
   nameLabel: Nom
@@ -339,7 +337,7 @@ agents:
   instructionsPlaceholder:
     Ce que cet agent prend en charge, comment il doit travailler et les
     limites à respecter.
-  instructionsHint: Accompagne chaque exécution de cet agent comme instruction permanente.
+  instructionsHint: Ce que cet agent garde toujours en tête à chaque exécution.
   createSubmit: Créer l'agent
   createSubmitting: Création…
   editSubmit: Enregistrer les modifications
