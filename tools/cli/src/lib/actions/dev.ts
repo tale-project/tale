@@ -41,6 +41,7 @@ import {
   BACKEND_WORKER_STOP_GRACE_S,
   backendStopGraceSeconds,
 } from '../compose/services/create-backend-services';
+import { memoryReservationNotice } from '../compose/services/memory-env';
 import { ALL_SERVICES } from '../compose/types';
 import { resolveDevOrigin } from '../config/dev-origin';
 import { daemonReachable } from '../docker/daemon-reachable';
@@ -59,6 +60,7 @@ import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import {
   assertComposeAvailable,
   assertDockerEngineSupported,
+  probeCgroupVersion,
 } from '../docker/setup-checks';
 import { findChildProject, findProject } from '../project/find-project';
 import {
@@ -318,8 +320,11 @@ export async function runDev(options: DevOptions): Promise<void> {
   const version = imageVersion;
   const { port, host: hostAlias, siteUrl: url } = origin;
 
+  const cgroupVersion = await probeCgroupVersion();
+  const reservationNotice = memoryReservationNotice({ cgroupVersion });
+  if (reservationNotice) warnLine(reservationNotice);
   const compose = generateDevCompose(
-    { version, registry: env.GHCR_REGISTRY },
+    { version, registry: env.GHCR_REGISTRY, cgroupVersion },
     hostAlias,
     port,
     { projectDir },
