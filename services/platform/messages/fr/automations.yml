@@ -84,10 +84,6 @@ blank:
   stepWebhook: Copie l’URL du webhook — elle n’est affichée que maintenant.
   copyWebhookUrl: Copier l’URL du webhook
   openAutomation: Ouvrir l’automatisation
-  enableNow: Activer maintenant
-  enableNowHint: Décoché, le déclencheur reste en pause — rien ne démarre tant que tu ne l’actives pas depuis la carte Déclencheur.
-  deployNow: Mettre v1 en service maintenant
-  deployNowHint: v1 est mise en service tout de suite, et son déclencheur lance des exécutions tant qu’il est activé. Décoché, v1 reste un brouillon que tu mets en service depuis l’éditeur.
   deployFailed: 'L’automatisation a été créée, mais v1 n’a pas pu être mise en service : {error}. Mets-la en service depuis l’éditeur.'
   triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu
     être défini : {error}. Définis-le depuis la carte Trigger."
@@ -374,6 +370,7 @@ trigger:
     wouldRun: 'S’exécuterait à'
     paused: 'En pause : active « Actif » et enregistre pour lancer ces exécutions.'
     notDeployed: 'Rien ne démarre tant qu’aucune version n’est déployée.'
+    startNowOff: '« Démarrer maintenant » est décoché : aucune de ces exécutions ne démarre encore.'
     unavailable: 'Corrige la planification ci-dessus pour voir les prochaines exécutions.'
   health:
     lastRun: 'Dernière exécution {at}'

@@ -6,7 +6,8 @@ Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
 one **deployed** (live) version, a trigger bound to the name, project
 bindings, and a record of every run (mock or live). Tested here: the org list
-with its create menu (blank or upload a pack), the detail page's tabs —
+with its create menu (from a template, with your coding agent, blank, or
+upload a pack), the detail page's tabs —
 **Editor** (canvas + node inspector), **General** (trigger + project
 bindings), **Runs** and **Versions** (what is live, every version and
 deployment, one-click deploy and rollback, restore) — the run-detail page (status, effects,
@@ -193,7 +194,7 @@ output:
       (`automations.upload.trigger`); absent entirely without the developer
       capability.
 - [ ] `AUTO-F6` · **~~Builder dialog~~ (retired)** → The independent goal-based
-      creation entry was removed; use the two create lanes in AUTO-F5.
+      creation entry was removed; use the four create lanes in AUTO-F5.
 - [ ] `AUTO-F7` · **~~Builder run~~ (retired)** → The standalone builder session
       endpoint was removed; editor and MCP authoring remain available.
 - [ ] `AUTO-F8` · **Upload — yml lane** — Create menu → **Upload package** →
@@ -575,9 +576,11 @@ output:
       with **Enabled** OFF on a daily 09:00 schedule in your time zone;
       **Save** → after reload the switch is still off and the next runs read
       `automations.trigger.nextRuns.paused`; nothing fires at 09:00. In the
-      **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
-      is unchecked by default → the created automation's trigger is off;
-      check it → the trigger is on.
+      **Blank** wizard step 2, **Start it now**
+      (`automations.templates.startNow`) is unchecked by default and the next
+      runs read `automations.trigger.nextRuns.startNowOff` → the created
+      automation is a draft (no version deployed) with its trigger off; check
+      it → v1 is live and the trigger is on.
 - [ ] `AUTO-F46` · **Revoking a webhook asks first** — On an automation with
       a live webhook (AUTO-F28), switch **Trigger type** to Platform event and
       **Save** → a confirm dialog
@@ -1369,14 +1372,15 @@ output:
       — env-gated: mark **ENVIRONMENT** without a runnable harness and a
       model credential.
 - [ ] `AUTO-F122` · **Create a blank automation (Create automation › Blank)
-      with a webhook trigger, **Enable now** checked and **Deploy v1 now**
-      (`automations.blank.deployNow`) left on** → the automation opens with v1
-      live (the version selector reads `automations.versions.deployed`); send
-      the webhook's sample request with `{ "customer": "Ada" }` → a run starts,
-      and the agent's **Agent log** shows it reading
-      `/agent/workspace/input.json`, which holds the payload under `run`.
-      Repeat with **Deploy v1 now** unchecked → v1 stays a draft and the same
-      request starts nothing until you deploy it from the editor.
+      with a webhook trigger and **Start it now**
+      (`automations.templates.startNow`) checked** → the automation opens with
+      v1 live (the version selector reads `automations.versions.deployed`) and
+      its trigger on; send the webhook's sample request with
+      `{ "customer": "Ada" }` → a run starts, and the agent's **Agent log**
+      shows it reading `/agent/workspace/input.json`, which holds the payload
+      under `run`. Repeat with **Start it now** left unchecked → v1 stays a
+      draft with its trigger off, and the same request starts nothing until
+      you deploy v1 from the editor and turn the trigger on.
 - [ ] `AUTO-F123` · **Add an `http.get` step without a credential reading
       `https://httpbin.org/json`, save and **Run live** a deployed version** →
       the step succeeds; its output shows `status: 200`, `ok: true`, the JSON

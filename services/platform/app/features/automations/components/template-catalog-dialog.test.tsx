@@ -501,6 +501,35 @@ describe('TemplateCatalogDialog', { timeout: 30_000 }, () => {
     );
   });
 
+  it('says under its schedule what Start it now does to the next runs', async () => {
+    catalog.cards = [
+      {
+        ...SYNC,
+        connectors: [
+          { slug: 'github', connected: true, platform: false },
+          { slug: 'task', connected: true, platform: true },
+        ],
+      },
+    ];
+    const { user } = renderCatalog();
+    await useTemplate(user, /Sync GitHub issues/);
+    const startNow = screen.getByRole('checkbox', { name: /Start it now/ });
+    expect(startNow).toBeChecked();
+    // On, version 1 goes live as it is created: the runs listed are the
+    // ones it starts, and no line says what is missing.
+    expect(screen.getByRole('list', { name: /^Would run at/ })).toBeVisible();
+    expect(
+      screen.queryByText('Nothing starts until a version is deployed.'),
+    ).not.toBeInTheDocument();
+    await user.click(startNow);
+    expect(
+      screen.getByText('Start it now is off: none of these runs start yet.'),
+    ).toBeVisible();
+    // The General tab's line names a switch and a save the wizard has not
+    // got.
+    expect(screen.queryByText(/turn on Enabled/)).not.toBeInTheDocument();
+  });
+
   it('marks each answer the server could not use, and creates nothing', async () => {
     create.mockRejectedValue(
       Object.assign(new Error('refused'), {
