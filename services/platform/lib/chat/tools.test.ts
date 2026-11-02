@@ -233,13 +233,17 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toContain('"rendered": true');
   });
 
-  it('web_fetch reads a linked document as text, and asks for the file to change it', () => {
+  it('web_fetch reads a linked document as text, and keeps it as a file to change', () => {
     const text = wireDescription('web_fetch');
     expect(text).toMatch(
       /PDF, DOCX, XLSX,\s+PPTX or ODT document is read as its text/,
     );
     expect(text).toContain('"document"');
-    expect(text).toMatch(/ask the user to attach the file/);
+    expect(text).toContain('"file"');
+    expect(text).toMatch(/a tool that takes files accepts/);
+    expect(text).not.toMatch(/ask the user to attach the file/);
+    // It names no work tool: web_fetch is offered without them too.
+    expect(text).not.toMatch(/run_code/);
   });
 
   it('web_fetch accepts a URL the instructions name', () => {

@@ -42,6 +42,9 @@ export interface InputFile {
 /** Which files the turn may read back: those among `refs` it holds. */
 export interface InputFiles {
   resolve(refs: readonly string[]): Promise<Map<string, InputFile>>;
+  /** Whether the conversation holds a document read from a link (`web_fetch`
+   * keeps one only where `run_code` is offered); absent where none can be. */
+  holdsFetched?(): Promise<boolean>;
 }
 
 /** An image generation's admission and settle, booked to the turn's
