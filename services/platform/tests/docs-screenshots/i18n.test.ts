@@ -12,7 +12,7 @@ const NATIVE_LABELS = [
   'chat.send',
   'home.views.inbox',
   'conversations.messagePlaceholder',
-  'projects.agents.rowEdit',
+  'projects.agents.rowActionsLabel',
   'automations.runs.nodeStatus.ok',
   'tasks.fields.description',
   'tasks.fields.priority',
