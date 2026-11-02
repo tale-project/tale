@@ -104,7 +104,8 @@ it from that memory (one session per 768 MiB beyond the reserve, or per
 daemon reports, at least 8, at most 256; at boot, or at the first sweep that
 can read it), and 8 applies elsewhere. On
 such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
-the host, at least 1 GiB), counting creates still starting at their planned
+the host, at least 1 GiB and at least the `SANDBOX_RESERVED_MEMORY` the
+database and the application tier reserve), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into. A create that would cut into it reclaims a released idle
 session only when the host's latest reading itself, less the create's working
