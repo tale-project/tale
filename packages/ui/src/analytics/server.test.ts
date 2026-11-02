@@ -107,6 +107,49 @@ describe('deployment analytics boundary', () => {
     });
   });
 
+  it('takes the X-Real-IP a Traefik edge stamps when no dedicated header arrives, never over one', async () => {
+    const fetcher = vi.fn(async () => new Response('{}'));
+    const analytics = createAnalytics(environment, '', fetcher);
+    const event = (headers: Record<string, string>) =>
+      new Request('https://app.example/_a/api/send', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'user-agent': 'Test Browser',
+          ...headers,
+        },
+        body: JSON.stringify({ type: 'event', payload }),
+      });
+    const forwarded = (call: number) =>
+      new Headers(fetcher.mock.calls[call][1].headers).get(
+        'x-analytics-client-ip',
+      );
+    expect(
+      (await analytics.handle(event({ 'x-real-ip': '198.51.100.7' })))?.status,
+    ).toBe(200);
+    expect(forwarded(0)).toBe('198.51.100.7');
+    expect(
+      (
+        await analytics.handle(
+          event({
+            'x-analytics-client-ip': '192.0.2.45',
+            'x-real-ip': '198.51.100.7',
+          }),
+        )
+      )?.status,
+    ).toBe(200);
+    expect(forwarded(1)).toBe('192.0.2.45');
+    for (const headers of [
+      { 'x-analytics-client-ip': '', 'x-real-ip': '198.51.100.7' },
+      { 'x-analytics-client-ip': 'unknown', 'x-real-ip': '198.51.100.7' },
+      { 'x-real-ip': '198.51.100.7, 192.0.2.2' },
+      { 'x-real-ip': '' },
+      {},
+    ])
+      expect((await analytics.handle(event(headers)))?.status).toBe(400);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('allows only the tracker GET and collector POST, with no arbitrary proxy path', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response('/* tracker */'));
     const analytics = createAnalytics(environment, '', fetcher);
