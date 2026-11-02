@@ -13,6 +13,7 @@ import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
+import { keepFetchedDocument } from '../agent_tools/artifacts.ts';
 import { listSkillCatalog } from '../agent_tools/skills.ts';
 import { readConversationSkills } from './threads.ts';
 import { chatWorkTools, listChatSkillChoices } from './work-tools.ts';
@@ -33,6 +34,17 @@ vi.mock('../../core/skills/file_actions.ts', async (importOriginal) => ({
     typeof import('../../core/skills/file_actions.ts')
   >()),
   listSkillsForViewer: vi.fn(),
+}));
+vi.mock('../agent_tools/artifacts.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../agent_tools/artifacts.ts')>()),
+  keepFetchedDocument: vi.fn(() =>
+    Promise.resolve({
+      ref: 's3:acme/web-1',
+      name: 'brochure.pdf',
+      mediaType: 'application/pdf',
+      sizeBytes: 3,
+    }),
+  ),
 }));
 vi.mock('../agent_tools/skills.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../agent_tools/skills.ts')>()),
@@ -206,6 +218,29 @@ describe('chatWorkTools', () => {
         'the database went away',
       );
     });
+  });
+
+  it('keeps a document web_fetch reads only where run_code can take it, at the conversation root [FILE-R10]', async () => {
+    const tools = await offeredTools();
+    const file = {
+      name: 'brochure.pdf',
+      mediaType: 'application/pdf',
+      bytes: new Uint8Array([1, 2, 3]),
+      url: 'https://example.com/brochure.pdf',
+    };
+    await expect(tools?.keepFetchedDocument?.(file)).resolves.toMatchObject({
+      ref: 's3:acme/web-1',
+    });
+    expect(keepFetchedDocument).toHaveBeenCalledWith(
+      sql,
+      { organizationId: 'org_1', userId: 'user_1', threadId: 'root_1' },
+      file,
+    );
+
+    policies({ files: true, skills: true, code: false });
+    const withoutCode = await offeredTools();
+    expect(withoutCode?.loadout.runCode).toBe(false);
+    expect(withoutCode).not.toHaveProperty('keepFetchedDocument');
   });
 
   it('offers no work tool at all when every switch is off', async () => {

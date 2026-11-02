@@ -20,6 +20,7 @@ import {
   type RunCodeLanguage,
 } from '../../../lib/agent/work-tools.ts';
 import type { ToolArtifact, ToolCallOptions } from '../../../lib/chat/tools.ts';
+import { wrapUntrusted } from '../../../lib/chat/untrusted-content.ts';
 import {
   describeStageSkips,
   drainSessionExecResilient,
@@ -349,6 +350,25 @@ function inputPaths(files: readonly InputFile[]): Map<string, string> {
   return paths;
 }
 
+/**
+ * Whether what a program prints may hold text from the web: the
+ * conversation holds a document web_fetch kept, and its sandbox keeps
+ * staged inputs between calls, so any later program may read it. When that
+ * cannot be read, the output is taken as holding it.
+ */
+async function printsWebText(scope: WorkToolScope): Promise<boolean> {
+  if (scope.inputs.holdsFetched === undefined) return false;
+  try {
+    return await scope.inputs.holdsFetched();
+  } catch (error) {
+    console.warn(
+      '[run_code] reading whether the conversation holds a fetched document failed; the output is wrapped as untrusted:',
+      error,
+    );
+    return true;
+  }
+}
+
 interface SkippedOutput {
   name: string;
   reason: string;
@@ -377,7 +397,7 @@ export async function runRunCode(
   if (missing.length > 0) {
     return failure(
       'not_found',
-      `These refs name no file of this conversation: ${missing.join(', ')}. Use the refs of files the person uploaded or that you created.`,
+      `These refs name no file of this conversation: ${missing.join(', ')}. Use the refs of files the person uploaded, documents read from a link, or files you created.`,
     );
   }
   const inputFiles = args.files.flatMap((ref) => {
@@ -586,6 +606,16 @@ async function runInSandbox(
     console.warn('[run_code] marking the sandbox used failed:', error);
   });
 
+  // Text from a document read from a link reaches the model wrapped as
+  // untrusted, as web_fetch returns it.
+  const fromWeb = await printsWebText(scope);
+  const printed = (base64: string): string => {
+    const text = tail(decode(base64));
+    return fromWeb && text !== ''
+      ? wrapUntrusted(text, { tool: 'run_code' })
+      : text;
+  };
+
   const timedOut = result.errorCode === 'TIMEOUT';
   const ok =
     result.status === 'completed' && result.exitCode === 0 && !timedOut;
@@ -607,8 +637,8 @@ async function runInSandbox(
               : {}),
         }),
     exitCode: result.exitCode,
-    stdout: tail(decode(result.stdoutBase64)),
-    stderr: tail(decode(result.stderrBase64)),
+    stdout: printed(result.stdoutBase64),
+    stderr: printed(result.stderrBase64),
     durationMs: result.durationMs > 0 ? result.durationMs : elapsedMs,
     sandbox: lease.created ? 'started' : 'reused',
     ...(inputFiles.length > 0
