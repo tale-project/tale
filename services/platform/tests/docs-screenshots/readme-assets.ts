@@ -1,36 +1,36 @@
 /**
- * Derive the README's gallery tiles and product tour from the committed docs
- * screenshots — the same doctrine as the shots themselves: nothing here is
- * hand-made, so a retake of the docs images is one command away from a retake
- * of the README.
+ * Derive the README's gallery tiles from the committed docs screenshots — the
+ * same doctrine as the shots themselves: nothing here is hand-made, so a
+ * retake of the docs images is one command away from a retake of the README.
  *
- *   bun run readme:assets --gallery-only  # static gallery only
- *   bun run readme:assets                 # gallery and animated tour
+ *   bun run readme:assets
  *
  * Sources are the full frames under `services/docs/public/images/`, which are
- * 1.6:1 by construction (a 1440×900 viewport at DPR 2). Every asset here keeps
- * that ratio, so a tile is a straight downscale — never a crop that slices a
+ * 1.6:1 by construction (a 1440×900 viewport at DPR 2). Every tile keeps that
+ * ratio, so a tile is a straight downscale — never a crop that slices a
  * column off the right edge. A shot captured at a different viewport must keep
  * 1.6:1 too (see `projects-task-board` in manifest.ts).
  *
- * Encodes with sharp — the encoder the shots themselves go through (webp.ts) —
- * so the pipeline needs no ImageMagick on PATH.
+ * GitHub shows a README image as is, with no `srcset` to pick from, so a tile
+ * is the one width the shared image policy names for it
+ * (`FIXED_IMAGE_WIDTHS.readmeTile` in `@tale/ui/images/responsive`), at the
+ * policy's screen quality, through the shared encoder and its byte budget
+ * (`@tale/ui/images/encode`). `services/docs/tests/readme-assets.test.ts` holds
+ * the committed tiles to the same width and budget.
  */
 
 import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseArgs } from 'node:util';
 
+import { encodeImage } from '@tale/ui/images/encode';
+import { FIXED_IMAGE_WIDTHS, IMAGE_QUALITY } from '@tale/ui/images/responsive';
 import sharp from 'sharp';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.resolve(HERE, '../../../..');
 const IMAGES = path.join(REPO_ROOT, 'services/docs/public/images');
 const ASSETS = path.join(REPO_ROOT, '.github/assets');
-const { values } = parseArgs({
-  args: process.argv.slice(2),
-  options: { 'gallery-only': { type: 'boolean', default: false } },
-});
 
 /** Gallery tile → the docs frame it is a downscale of. */
 const TILES: ReadonlyArray<{ name: string; source: string }> = [
@@ -54,70 +54,40 @@ const TILES: ReadonlyArray<{ name: string; source: string }> = [
   },
 ] as const;
 
-/** The tour cycles the same five surfaces the README's gallery leads with. */
-const TOUR_FRAMES: readonly string[] = [
-  'platform/project-agents-models',
-  'platform/projects-task-board',
-  'platform/automation-editor-canvas',
-  'platform/connectors-add-credential',
-  'platform/governance-guardrails',
-] as const;
-
-/** Bounding boxes — every source is 1.6:1, so fitting inside is a plain
- *  downscale, never a stretch. */
-const TILE_BOX = { width: 1202, height: 752 } as const;
-const TOUR_BOX = { width: 1402, height: 877 } as const;
-/** Straight cuts, held long enough to read — a morph between product screens
- *  just smears text. */
-const TOUR_FRAME_MS = 2200;
-
 const sourcePath = (source: string): string =>
   path.join(IMAGES, `${source}.webp`);
 const assetPath = (name: string): string => path.join(ASSETS, `${name}.webp`);
 
 async function main(): Promise<void> {
-  const sources = [
-    ...TILES.map((tile) => tile.source),
-    ...(values['gallery-only'] ? [] : TOUR_FRAMES),
-  ];
-  const missing = sources.filter((source) => !existsSync(sourcePath(source)));
+  const missing = TILES.filter(({ source }) => !existsSync(sourcePath(source)));
   if (missing.length > 0) {
     console.error(
       'Missing docs screenshots — run `bun run docs:screenshots` first:\n' +
-        missing.map((source) => `  ${source}.webp`).join('\n'),
+        missing.map(({ source }) => `  ${source}.webp`).join('\n'),
     );
     process.exit(1);
   }
 
+  const width = FIXED_IMAGE_WIDTHS.readmeTile;
   for (const tile of TILES) {
+    const frame = sharp(sourcePath(tile.source));
+    const { width: sourceWidth } = await frame.metadata();
+    if (sourceWidth < width) {
+      throw new Error(
+        `${tile.source}.webp is ${sourceWidth} px wide, narrower than the ${width} px README tile — retake it at DPR 2`,
+      );
+    }
     // sharp drops the capture rig's metadata unless asked to keep it.
-    await sharp(sourcePath(tile.source))
-      .resize(TILE_BOX.width, TILE_BOX.height, { fit: 'inside' })
-      .webp({ quality: 92 })
-      .toFile(assetPath(tile.name));
-    console.log(`✓ ${tile.name}.webp ← ${tile.source}.webp`);
+    const { bytes, quality } = await encodeImage(frame.resize({ width }), {
+      format: 'webp',
+      quality: IMAGE_QUALITY.screen.webp,
+      label: `${tile.name}.webp`,
+    });
+    await writeFile(assetPath(tile.name), bytes);
+    console.log(
+      `✓ ${tile.name}.webp ← ${tile.source}.webp (${width} px, quality ${quality}, ${bytes.byteLength} bytes)`,
+    );
   }
-
-  if (values['gallery-only']) return;
-
-  // Animation frames must share one size, so scale each first, then join
-  // them as pages of one animated WebP.
-  const frames = await Promise.all(
-    TOUR_FRAMES.map((source) =>
-      sharp(sourcePath(source))
-        .resize(TOUR_BOX.width, TOUR_BOX.height, { fit: 'inside' })
-        .toBuffer(),
-    ),
-  );
-  await sharp(frames, { join: { animated: true } })
-    // One delay per frame: a bare number only times the first page.
-    .webp({
-      quality: 78,
-      delay: TOUR_FRAMES.map(() => TOUR_FRAME_MS),
-      loop: 0,
-    })
-    .toFile(assetPath('readme-tour'));
-  console.log(`✓ readme-tour.webp ← ${TOUR_FRAMES.length} frames`);
 }
 
 main().catch((error: unknown) => {

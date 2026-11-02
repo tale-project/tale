@@ -1,12 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import {
+  FIXED_IMAGE_WIDTHS,
+  IMAGE_MAX_BYTES,
+} from '@tale/ui/images/responsive';
 import { describe, it } from 'vitest';
 
 import { assertNoFindings, type Finding } from './lib/findings';
 import { parseFrontmatter } from './lib/markdown';
 import { CONTENT_ROOT, REPO_ROOT } from './lib/paths';
 import { BASE_LOCALES, walkDocs } from './lib/walk';
+import { webpSize } from './lib/webp-size';
 
 /**
  * Every tutorial video ships as a complete, manifest-declared set — or it
@@ -30,8 +35,10 @@ import { BASE_LOCALES, walkDocs } from './lib/walk';
  *   4. Every on-disk video asset is referenced by at least one page (no
  *      orphaned megabytes), except the manifest itself.
  *   5. Budgets: an mp4 stays under 40 MB (expect 5–25 at the pipeline's
- *      encode settings — investigate before raising this), a poster under
- *      250 KB.
+ *      encode settings — investigate before raising this). `<video poster>`
+ *      takes one URL, so a poster is the one width the shared image policy
+ *      names for it (`FIXED_IMAGE_WIDTHS.videoPoster`), within its byte
+ *      budget (`IMAGE_MAX_BYTES`), and its manifest entry records its size.
  *   6. Caption files are well-formed WebVTT: header, at least one cue,
  *      monotonically non-overlapping timestamps.
  *
@@ -45,7 +52,6 @@ const MANIFEST_REL = path.relative(REPO_ROOT, MANIFEST_PATH);
 const PRODUCE_COMMAND = 'bun run docs:videos';
 
 const MAX_MP4_BYTES = 40 * 1024 * 1024;
-const MAX_POSTER_BYTES = 250 * 1024;
 
 const ASSET_NAME =
   /^(?<episode>[a-z0-9-]+)\.(?<locale>[a-z-]+)\.(?<ext>mp4|vtt|webp)$/;
@@ -56,6 +62,8 @@ interface ManifestEntry {
   locale: string;
   kind: 'video' | 'captions' | 'poster';
   durationSec?: number;
+  width?: number;
+  height?: number;
 }
 
 function readManifest(): ManifestEntry[] {
@@ -262,12 +270,43 @@ describe('docs video contract', () => {
           detail: `${file} is ${(bytes / 1024 / 1024).toFixed(1)} MB (cap ${MAX_MP4_BYTES / 1024 / 1024} MB) — tighten the encode, don't raise the cap`,
         });
       }
-      if (file.endsWith('.webp') && bytes > MAX_POSTER_BYTES) {
+      if (file.endsWith('.webp') && bytes > IMAGE_MAX_BYTES) {
         findings.push({
           file: MANIFEST_REL,
           line: 0,
           rule: 'poster-over-budget',
-          detail: `${file} is ${Math.round(bytes / 1024)} KB (cap ${MAX_POSTER_BYTES / 1024} KB)`,
+          detail: `${file} is ${bytes} bytes, above the ${IMAGE_MAX_BYTES}-byte image budget`,
+        });
+      }
+    }
+
+    // 5b. Posters at the policy width, their size recorded in the manifest.
+    const posters = new Map(
+      manifest
+        .filter((entry) => entry.kind === 'poster')
+        .map((entry) => [entry.file, entry]),
+    );
+    for (const file of onDisk.filter((f) => f.endsWith('.webp'))) {
+      const size = webpSize(path.join(PUBLIC_ROOT, file));
+      if (size?.width !== FIXED_IMAGE_WIDTHS.videoPoster) {
+        findings.push({
+          file: MANIFEST_REL,
+          line: 0,
+          rule: 'poster-width',
+          detail: `${file} is ${size ? `${size.width} px wide` : 'not a well-formed WebP'}, the policy's poster is ${FIXED_IMAGE_WIDTHS.videoPoster} px — produce it via \`${PRODUCE_COMMAND}\``,
+        });
+        continue;
+      }
+      const entry = posters.get(file);
+      if (
+        entry &&
+        (entry.width !== size.width || entry.height !== size.height)
+      ) {
+        findings.push({
+          file: MANIFEST_REL,
+          line: 0,
+          rule: 'poster-size-stale',
+          detail: `${file} is ${size.width}×${size.height}, its entry records ${entry.width}×${entry.height}`,
         });
       }
     }

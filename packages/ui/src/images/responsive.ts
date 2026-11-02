@@ -4,7 +4,9 @@
  * budget one variant must fit. The marketing site (`services/web`) and the
  * docs (`services/docs`) generate their committed variants from it with
  * `encodeImage` (`@tale/ui/images/encode`) and render them with `<Picture>`
- * (`@tale/ui/picture`).
+ * (`@tale/ui/picture`). The images served at one size (the README tiles, the
+ * docs video posters and the social card) take their width or format from it
+ * and go through the same encoder.
  */
 
 /** Widths, in image pixels, that a raster is encoded at. */
@@ -28,6 +30,30 @@ export const IMAGE_MAX_BYTES = 200 * 1024;
 export const IMAGE_QUALITY_STEP = 2;
 /** …and rejects the image below this floor instead of shipping it muddy. */
 export const IMAGE_MIN_QUALITY = 60;
+
+/**
+ * Images served at one size, where no `srcset` lets the browser pick: each is
+ * the ladder width that covers its slot at DPR 2.
+ */
+export const FIXED_IMAGE_WIDTHS = {
+  /** A README gallery tile (`bun run readme:assets`): one of two table cells
+   * across GitHub's README column, which is at most about 830 CSS px wide. */
+  readmeTile: 828,
+  /** A docs video poster (`bun run docs:videos`): `<video poster>` takes one
+   * URL, shown in the docs column, which is at most 48rem wide. */
+  videoPoster: 1600,
+} as const satisfies Record<string, (typeof IMAGE_WIDTHS)[number]>;
+
+/**
+ * The format of an image its readers fetch as is, with no `<picture>` to
+ * offer AVIF or WebP: the social card (`og:image`), which crawlers read, and
+ * some decode neither. A palette PNG keeps flat brand art exact in a few
+ * kilobytes; `quality` bounds the colours the quantiser may merge.
+ */
+export const PNG_QUALITY = 100;
+
+/** Every format `encodeImage` writes. */
+export type EncodedFormat = ImageFormat | 'png';
 
 /** A raster encoded along the ladder: its intrinsic size, and the URL of
  * each variant by format and width. */

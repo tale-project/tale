@@ -13,6 +13,7 @@
     "prerender": "bun --bun scripts/prerender.ts",
     "fetch-releases": "bun --bun scripts/fetch-releases.ts",
     "seo:compile": "bun --bun ../../packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo",
+    "og-card": "bun --bun scripts/og-card.ts",
     "optimize-images": "bun --bun scripts/optimize-images.ts",
     "start": "bun server.ts",
     "lint": "bunx oxlint --type-aware",

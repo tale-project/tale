@@ -5,14 +5,14 @@
 import type { Sharp } from 'sharp';
 
 import {
+  type EncodedFormat,
   IMAGE_MAX_BYTES,
   IMAGE_MIN_QUALITY,
   IMAGE_QUALITY_STEP,
-  type ImageFormat,
 } from './responsive';
 
 interface EncodingOptions {
-  format: ImageFormat;
+  format: EncodedFormat;
   quality: number;
   label: string;
   maxBytes?: number;
@@ -33,12 +33,7 @@ export async function encodeImage(
   let quality = initialQuality;
   let size = 0;
   while (true) {
-    const pipeline = image.clone();
-    const bytes = await (
-      format === 'avif'
-        ? pipeline.avif({ quality })
-        : pipeline.webp({ quality })
-    ).toBuffer();
+    const bytes = await encoder(image.clone(), format, quality).toBuffer();
     size = bytes.byteLength;
     if (size <= maxBytes) return { bytes, quality };
     if (quality <= IMAGE_MIN_QUALITY) break;
@@ -48,4 +43,22 @@ export async function encodeImage(
     `Image "${label}" (${format}) is ${size} bytes at quality ${quality}, ` +
       `above the ${maxBytes}-byte budget. Choose a tighter source or crop; dimensions were preserved.`,
   );
+}
+
+/** A PNG is written with a palette: libimagequant keeps the fewest colours
+ * that reach `quality`, so lowering it trades colours for bytes the way it
+ * trades detail in AVIF and WebP. */
+function encoder(
+  pipeline: Sharp,
+  format: EncodedFormat,
+  quality: number,
+): Sharp {
+  if (format === 'avif') return pipeline.avif({ quality });
+  if (format === 'webp') return pipeline.webp({ quality });
+  return pipeline.png({
+    palette: true,
+    quality,
+    effort: 10,
+    compressionLevel: 9,
+  });
 }

@@ -8,6 +8,7 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/docs/**",
         "$TURBO_ROOT$/README*.md",
+        "$TURBO_ROOT$/.github/assets/readme-*.webp",
         "$TURBO_ROOT$/packages/ui/src/i18n/messages/*.yml",
         "$TURBO_ROOT$/packages/marketing-ui/src/i18n/messages/*.yml",
         "$TURBO_ROOT$/packages/ui/src/i18n/tests/**",

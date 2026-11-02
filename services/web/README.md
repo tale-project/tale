@@ -55,6 +55,13 @@ The optimizer preserves dimensions and adjusts encoding quality only when needed
 asset budget. If a capture cannot fit at the quality floor, it names the asset and stops so its
 source or framing can be reviewed.
 
+The social card (`public/og.png`) that every Tale site names in `og:image` is rendered from the
+`TaleLogo` component at the size `TALE_OG_IMAGE` documents, through the same encoder and budget:
+
+```bash
+bun run --filter @tale/web og-card
+```
+
 The eight product heroes also have individual native interactions in English, German, and French,
 including separate phone takes. Silent WebM clips use an H.264 MP4 fallback and matching native
 first-frame posters from the same image optimizer. Reduced motion and unplayable media retain
