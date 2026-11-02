@@ -193,6 +193,57 @@ export interface DocumentsContract {
       chatCount: number;
     };
   };
+  'documents/queries:listUploadUsageFiles': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      paginationOpts: { numItems: number; cursor: null | string };
+    };
+    returns: {
+      /** The files the Storage meter adds up, largest first, in Trash too. */
+      page: Array<{
+        id: string;
+        /** The blob reference the file opens by. */
+        storageRef: string;
+        name: string;
+        contentType: string;
+        size: number;
+        createdAt: number;
+        /** The part of the meter the file counts in. */
+        kind: 'documents' | 'agentFiles' | 'chatAttachments' | 'other';
+        document: null | {
+          id: string;
+          title: null | string;
+          sourceProvider: null | string;
+          sourceMode: 'auto' | 'manual';
+          current: boolean;
+          recordProtected: boolean;
+        };
+        /** Where the file lives, named only as far as the viewer reaches it;
+         * `open` says whether the viewer may go there now. */
+        place:
+          | { type: 'knowledge'; open: boolean }
+          | {
+              type: 'project';
+              id: null | string;
+              name: null | string;
+              archived: boolean;
+              open: boolean;
+            }
+          | {
+              type: 'chat';
+              id: null | string;
+              title: null | string;
+              open: boolean;
+            }
+          | { type: 'none'; open: false };
+        /** The file, its document or its chat is in Trash. */
+        inTrash: boolean;
+      }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
+  };
   'documents/queries:listDocumentVersions': {
     kind: 'query';
     args: { organizationId: string; documentId: string };
