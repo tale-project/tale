@@ -72,6 +72,9 @@ notificationPreferences:
 usage:
   title: Usage
   description: How much you have used of the limits that apply to you.
+usageFiles:
+  title: Storage files
+  description: The files that count toward your storage limit.
 organization:
   title: Organization
   description: Manage your organization settings.

@@ -347,6 +347,13 @@ function StorageBreakdown({
         ))}
       </dl>
       <Link
+        to="/dashboard/$id/settings/usage/files"
+        params={{ id: organizationId }}
+        className={cn('self-start', linkClass)}
+      >
+        {t('usage.storage.viewFiles')}
+      </Link>
+      <Link
         to="/dashboard/$id/documents"
         params={{ id: organizationId }}
         search={{ uploadedBy: 'me' }}

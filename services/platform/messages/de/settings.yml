@@ -254,9 +254,44 @@ usage:
       agentFiles: Von Agenten erstellte Dateien
       other: Sonstige Dateien
     viewDocuments: Meine Dokumente in Wissen anzeigen
+    viewFiles: Dateien anzeigen
     chats:
       label: Chats mit deinen Dateien
       more: '{count, plural, one {und # weiterer Chat} other {und # weitere Chats}}'
+    files:
+      title: Gespeicherte Dateien
+      description: Alle von dir hochgeladenen Dateien, die auf dein
+        Speicherlimit angerechnet werden, die größten zuerst. Eine Datei im
+        Papierkorb zählt weiter, bis sie endgültig gelöscht ist.
+      back: Zurück zu Nutzung
+      caption: Dateien, die auf dein Speicherlimit angerechnet werden
+      entityLabel: Dateien
+      entityLabelOne: Datei
+      columns:
+        name: Name
+        kind: Art
+        place: Ort
+        size: Größe
+        uploaded: Hochgeladen
+      kind:
+        documents: Dokument
+        chatAttachments: Chat-Anhang
+        agentFiles: Von einem Agenten erstellt
+        other: Sonstige Datei
+      place:
+        knowledge: Wissen
+        hiddenProject: Ein Projekt, das du nicht öffnen kannst
+        hiddenChat: Ein Chat, den du nicht öffnen kannst
+        none: Nicht in Wissen, einem Projekt oder einem Chat
+      archived: Archiviert
+      inTrash: Im Papierkorb
+      open: Öffnen
+      delete: Löschen
+      empty:
+        title: Keine Dateien werden auf dein Speicherlimit angerechnet
+        description: Dateien, die du in Dokumente und Chats hochlädst, werden
+          hier aufgeführt.
+      loadFailed: Deine Dateien konnten nicht geladen werden.
 organization:
   title: Organisationsname
   loadFailed: Die Organisationsdetails konnten nicht geladen werden.

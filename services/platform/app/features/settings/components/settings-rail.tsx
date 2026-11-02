@@ -65,6 +65,9 @@ interface RailLeaf {
   matchMode?: 'exact' | 'startsWith';
   can?: [AppAction, AppSubject];
   icon: LucideIcon;
+  /** Pages under the leaf's own (`usage/files`): the leaf stays active on
+   * them, and each is named after it ("Usage · Storage files"). */
+  pages?: { slug: string; labelKey: string }[];
 }
 
 /** An expandable row whose sub-items render inline when its route is active. */
@@ -132,7 +135,13 @@ function useSettingsSections(
         icon: Bell,
       },
       // No `can`: every role has personal limits to read.
-      { kind: 'leaf', labelKey: 'usage', path: 'usage', icon: Gauge },
+      {
+        kind: 'leaf',
+        labelKey: 'usage',
+        path: 'usage',
+        icon: Gauge,
+        pages: [{ slug: 'files', labelKey: 'usageFiles' }],
+      },
     ];
     if (!showAccountTab) personal.shift();
 
@@ -291,9 +300,13 @@ function useSettingsSections(
 
 function isLeafActive(item: RailLeaf, base: string, pathname: string) {
   const href = `${base}/${item.path}`;
-  return item.matchMode === 'startsWith'
-    ? pathname === href || pathname.startsWith(`${href}/`)
-    : pathname === href;
+  if (item.matchMode === 'startsWith') return isWithin(href, pathname);
+  return (
+    pathname === href ||
+    (item.pages ?? []).some((page) =>
+      isWithin(`${href}/${page.slug}`, pathname),
+    )
+  );
 }
 
 function isWithin(href: string, pathname: string) {
@@ -319,11 +332,18 @@ export function useSettingsPage(
     for (const item of section.items) {
       const href = `${base}/${item.path}`;
       if (item.kind === 'leaf') {
-        if (isLeafActive(item, base, pathname)) {
-          const title = tNav(item.labelKey);
-          return { key: href, title, leaf: title };
-        }
-        continue;
+        if (!isLeafActive(item, base, pathname)) continue;
+        const title = tNav(item.labelKey);
+        const page = item.pages?.find((entry) =>
+          isWithin(`${href}/${entry.slug}`, pathname),
+        );
+        if (page === undefined) return { key: href, title, leaf: title };
+        const leaf = tNav(page.labelKey);
+        return {
+          key: `${href}/${page.slug}`,
+          title: `${title} · ${leaf}`,
+          leaf,
+        };
       }
       if (!isWithin(href, pathname)) continue;
       const child = item.children.find((entry) =>
