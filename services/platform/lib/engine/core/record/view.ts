@@ -15,6 +15,7 @@ import type { ValueSummary } from '@tale/ui/data/value-summary';
 
 import { topoSort } from '../execute/controlflow';
 import type { Automation, NodeDef } from '../types';
+import type { SkipReason } from '../walk/progress';
 import { failedAndContinued, skipChain, type SkipCause } from './skip-chain';
 import {
   END_PATH,
@@ -69,8 +70,6 @@ export interface ValueGlimpse {
 export const GLIMPSE_SHAPE_DEPTH = 3;
 
 export type NodeRunCounts = NonNullable<NodeRunRecord['counts']>;
-
-type SkipReason = NonNullable<NodeRunRecord['skip']>['reason'];
 
 /** One step of a run, as the run's record reads. */
 export interface NodeRunSummary {

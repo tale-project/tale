@@ -10,7 +10,7 @@
  */
 
 import { stringifyYaml } from '../../shared/config/yaml';
-import { nodeTypes } from '../core/slots';
+import { type CoreNodeKind, nodeTypes } from '../core/slots';
 import {
   MAX_TESTS,
   SUITE_DEADLINE_MS,
@@ -126,10 +126,6 @@ function exampleDocumentYaml(): string {
     .map((l) => `    ${l}`)
     .join('\n');
 }
-
-/** The four core node kinds — the grammar the reference teaches, not catalog
- * capabilities. */
-export type CoreNodeKind = 'transform' | 'llm' | 'agent' | 'subautomation';
 
 /**
  * Each core node kind's own section of the reference, as the reference

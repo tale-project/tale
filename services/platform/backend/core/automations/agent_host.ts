@@ -28,6 +28,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import PQueue from 'p-queue';
 
 import { escapeForXmlTag } from '../../../lib/chat/untrusted-content';
+import type { AgentTurnRequest } from '../../../lib/engine/core/slots';
 import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
@@ -167,31 +168,6 @@ interface SkillBundleFile {
 // (`agentWorkTurnDeadlineMs`) — the exec's own `timeoutMs` is only a sliding
 // orphan reaper, so this deadline is the sole absolute cap on the turn.
 
-/** What one agent node asks for, templates already resolved. */
-export interface WorkflowAgentRequest {
-  model: string;
-  /** The provider slug the node's model pick pinned — serving resolution
-   * honors it fail-closed; absent on nodes saved before the picker carried
-   * providers (those keep the unpinned walk). */
-  modelProvider?: string;
-  prompt: string;
-  system?: string;
-  harness?: string;
-  skills?: string[];
-  connectors?: string[];
-  /** Platform-tool grants beyond the automation baseline (canonicalized
-   * against `AGENT_TOOL_CATALOG` at mint). */
-  tools?: string[];
-  /** Referenced org-secret names, injected as per-exec env. */
-  secrets?: string[];
-  /** Mount name → staging source: a folder id string, or
-   * `{folderId|folderPath|content}`. */
-  files?: Record<string, unknown>;
-  /** The node's resolved `input`, staged for the turn as `input.json` in
-   * its workspace; absent when the node declares none. */
-  input?: unknown;
-}
-
 /** What the stepper parks in the cursor after a kick. */
 export interface WorkflowAgentKick {
   execId: string;
@@ -214,7 +190,7 @@ export interface AutomationAgentHost {
   kick(args: {
     runId: string;
     nodeId: string;
-    request: WorkflowAgentRequest;
+    request: AgentTurnRequest;
     /** Broker-token hashes burned by prior failed attempts of this node
      * execution — the mint rotates away from them (softly). */
     excludeBrokerTokenHashes?: string[];
