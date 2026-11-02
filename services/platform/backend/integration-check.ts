@@ -5578,6 +5578,67 @@ async function checkDocuments(
     `count=${approx.success ? approx.data.count : 'ERR'}, limited=${usage.success ? usage.data.limited : 'ERR'}, versions=${versions.success ? `${versions.data.versions?.versions.length ?? 'null'} (size ${versions.data.versions?.versions[0]?.size})` : `ERR ${versions.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`}, extNull=${byExternal.success ? byExternal.data.document === null : 'ERR'}, search=${hubSearch.success ? hubSearch.data.documents.length : 'ERR'}`,
   );
 
+  // DOC-R14: the storage list walks exactly the rows the upload limit counts,
+  // largest first — the ids and the bytes of the counted rows read here,
+  // the three root uploads among them as documents.
+  const filesSchema = z.object({
+    page: z.array(
+      z.object({
+        id: z.string(),
+        size: z.number(),
+        kind: z.string(),
+        document: z.object({ id: z.string() }).nullable(),
+      }),
+    ),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const listed: { id: string; size: number; kind: string; doc: string }[] = [];
+  let filesCursor = '';
+  let filesDone = false;
+  for (let i = 0; i < 50 && !filesDone; i += 1) {
+    const page = filesSchema.safeParse(
+      await get(
+        `/api/app/documents/upload-usage/files?orgId=${orgId}&numItems=2${filesCursor === '' ? '' : `&cursor=${encodeURIComponent(filesCursor)}`}`,
+      ),
+    );
+    if (!page.success) break;
+    listed.push(
+      ...page.data.page.map((file) => ({
+        id: file.id,
+        size: file.size,
+        kind: file.kind,
+        doc: file.document?.id ?? '',
+      })),
+    );
+    filesDone = page.data.isDone;
+    filesCursor = page.data.continueCursor;
+  }
+  const countedRows = await sql<{ id: string; size: number }[]>`
+    SELECT id, size::float8 AS size FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${userId}
+  `;
+  const countedIds = new Set(countedRows.map((row) => row.id));
+  const listedBytes = listed.reduce((sum, file) => sum + file.size, 0);
+  const countedBytes = countedRows.reduce((sum, row) => sum + row.size, 0);
+  const rootListed = rootIds.filter((id) =>
+    listed.some((file) => file.doc === id && file.kind === 'documents'),
+  );
+  record(
+    'storage list (DOC-R14: the counted rows, largest first, keyset walk)',
+    filesDone &&
+      listed.length === countedRows.length &&
+      new Set(listed.map((file) => file.id)).size === listed.length &&
+      listed.every((file) => countedIds.has(file.id)) &&
+      listed.every(
+        (file, index) =>
+          index === 0 || (listed[index - 1]?.size ?? 0) >= file.size,
+      ) &&
+      listedBytes === countedBytes &&
+      rootListed.length === rootIds.length,
+    `listed=${listed.length} counted=${countedRows.length}, bytes=${listedBytes}/${countedBytes}, done=${filesDone}, rootDocs=${rootListed.length}/${rootIds.length}`,
+  );
+
   // Retry-rag answers the established { success, error? } wire (never a 5xx).
   const retryRag = z
     .object({ success: z.boolean(), error: z.string().optional() })

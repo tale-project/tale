@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 169 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 177 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -31,6 +31,7 @@ disclosure rows whose children render indented.
 | Preferences                | `/dashboard/{org}/settings/personalization`                                |
 | Notifications              | `/dashboard/{org}/settings/notifications`                                  |
 | Usage                      | `/dashboard/{org}/settings/usage`                                          |
+| Usage → Storage files      | `/dashboard/{org}/settings/usage/files`                                    |
 | Organization               | `/dashboard/{org}/settings/organization`                                   |
 | Teams                      | `/dashboard/{org}/settings/teams`                                          |
 | Members                    | `/dashboard/{org}/settings/members`                                        |
@@ -80,6 +81,10 @@ absent while it is off (SET-B38). The member rights boxes (SET-F93–SET-F101,
 SET-B42–SET-B45, SET-A13–SET-A14) need a Member, an Editor, a Developer and
 a second Admin, one more account whose role is **Disabled**, and the model
 endpoints on as above.
+The storage list boxes (SET-F107–SET-F109, SET-A15) need a Developer under
+the upload policy's per-user volume (an Editor cannot mint the WebDAV
+app-password SET-F109 uses), a second account, and a second admin to release
+SET-F109's legal hold (GOV-F7).
 Restore any toggled setting after the run.
 
 > **Agent note**: pages on the header **Save** / **Discard** cluster
@@ -699,6 +704,63 @@ Restore any toggled setting after the run.
   without folder rows or breadcrumb, and clearing the filter returns to the
   root; the chat is listed under **Chats that hold your files**
   (`settings.usage.storage.chats.label`) and its name opens it.
+- [ ] `SET-F107` · **The files behind the storage meter** — As a Developer
+  with the upload policy's per-user volume set, upload a document into a
+  folder of **Knowledge**, one into an organization-wide project's **Files**
+  (**Add file**, `projects.files.addButton`), and attach a file in a chat;
+  have a second account upload a file to the same folder. Open
+  `/dashboard/{org}/settings/usage` and choose **View files**
+  (`settings.usage.storage.viewFiles`) under the **Storage** meter →
+  `/dashboard/{org}/settings/usage/files` shows **Storage files**
+  (`settings.usage.storage.files.title`) with the columns **Name**, **Kind**,
+  **Location**, **Size** and **Uploaded**
+  (`settings.usage.storage.files.columns.*`); every file you uploaded is
+  listed once, largest first, the documents as **Document** and the chat's
+  file as **Chat attachment** (`settings.usage.storage.files.kind.*`), and the
+  second account's file is not listed; scrolled to its end, the list's sizes
+  add up to the meter's used amount, to the rounding of the shown sizes;
+  **Back to Usage** (`settings.usage.storage.files.back`) returns to the
+  meter.
+- [ ] `SET-F108` · **Where each stored file lives** — On the SET-F107 list,
+  follow each **Location** → **Knowledge**
+  (`settings.usage.storage.files.place.knowledge`) opens Knowledge ›
+  Documents with that document's preview open, the project's name opens its
+  **Files** page (`projects.files.title`) with the preview open, and the
+  chat's title opens the chat. Have an owner archive the project → its name
+  on the list gains **Archived** (`settings.usage.storage.files.archived`)
+  and still opens it, and its row's **Open menu**
+  (`common.actions.openMenu`) offers **Open**
+  (`settings.usage.storage.files.open`) but no **Delete**. Have the owner
+  unarchive it and set its **Audience** (`projects.settings.audience`) to a
+  team the Developer is not in (PROJ-F3) → the row reads **A project you
+  can't open** (`settings.usage.storage.files.place.hiddenProject`), links
+  nowhere and offers no **Delete**; set the project back to **Org-wide**
+  (`projects.list.sharingOrgWide`). Attach a file in a second chat, then
+  delete that chat (CHAT-F29) → the file stays listed with **In Trash**
+  (`settings.usage.storage.files.inTrash`), its chat title is plain text, its
+  row has no **Open menu**, and the meter's **Chat attachments** still counts
+  it.
+- [ ] `SET-F109` · **Delete a document from the storage list** — On the
+  SET-F107 list, open the Knowledge document's **Open menu**
+  (`common.actions.openMenu`) → **Delete**
+  (`settings.usage.storage.files.delete`) → **Delete document**
+  (`documents.deleteFile.title`) names the file and says it can't be undone
+  (`documents.deleteFile.confirmation`) → **Delete**
+  (`documents.deleteFile.deleteButton`) → The row leaves the list; back on
+  the meter, the used amount and **Documents** drop by its size; Knowledge ›
+  Documents no longer lists it, and an owner's
+  `/dashboard/{org}/settings/governance/trash` does not hold it. The chat
+  attachment's menu offers **Open** but no **Delete**. A document you save
+  over WebDAV with a SET-F34 app-password (`curl --user
+  <email>:<password> --upload-file note.txt
+  <site>/dav/<org>/documents/note.txt`) is listed as a **Document** in
+  **Knowledge**, and its menu offers **Delete** as Knowledge's does. With an
+  org-wide legal hold active (GOV-F7), the project's document's **Delete**
+  is unavailable and reads **Blocked by legal hold**
+  (`legalHold.blockedByHold`), as on its project's **Files** page; release
+  the hold. With the Developer's role changed to **Member**, no row offers
+  **Delete** and every row not in Trash still offers **Open**; restore the
+  role.
 - [ ] `SET-F41` · **Team writes reach a second session** — Two signed-in
   sessions of the SAME organization (two browsers/profiles), both parked on
   `/dashboard/{org}/settings/teams`, neither reloaded for the whole box → In
@@ -1958,6 +2020,23 @@ Restore any toggled setting after the run.
   within reach, and the row menu shows **Rights** (**Rechte**, **Droits**)
   without clipping; in the dark theme the muted reasons and both badges keep
   their contrast.
+
+- [ ] `SET-A15` · **Storage files by keyboard and screen reader** — On
+  `/dashboard/{org}/settings/usage`, Tab to **View files** and press Enter,
+  then Tab through **Storage files** → **Back to Usage**, each **Location**
+  link and each row's **Open menu** (`common.actions.openMenu`) take visible
+  focus in reading order; a screen reader announces the table by its caption
+  **Files that count toward your storage limit**
+  (`settings.usage.storage.files.caption`) and the menu column as **Row
+  actions** (`common.aria.rowActions`); Enter opens a row's menu, where on a
+  row that offers both the arrow keys move between **Open** and **Delete**,
+  and Escape closes it with focus back on its button; the preview that
+  **Open** shows and the **Delete document** dialog
+  (`documents.deleteFile.title`) hold focus, and Escape gives it back to the
+  row's **Open menu**; **In Trash** and **Archived** are words, not colour
+  alone. At 320, 768 and 1280 px in `en`, `de` and `fr` the page never scrolls
+  sideways (the table scrolls inside its own frame) and a long file name ends
+  in an ellipsis with its full name on hover.
 
 ## Performance
 
