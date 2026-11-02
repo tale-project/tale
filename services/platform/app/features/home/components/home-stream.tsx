@@ -448,10 +448,12 @@ export function HomeWindowedList<T>({
           <li
             data-index={virtualItem.index}
             ref={virtualizer.measureElement}
+            // Opaque in whatever the stream stands on: the page on a phone's
+            // Home screen, the sidebar surface inside the Home panel.
             className={
               entry.first
-                ? 'bg-background sticky top-0 z-20'
-                : 'bg-background sticky top-0 z-20 pt-[3px]'
+                ? 'bg-background [[data-slot=sub-panel]_&]:bg-sidebar sticky top-0 z-20'
+                : 'bg-background [[data-slot=sub-panel]_&]:bg-sidebar sticky top-0 z-20 pt-[3px]'
             }
           >
             <h3 className="text-muted-foreground px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
