@@ -33,8 +33,8 @@ import {
 import { listEntriesForAgent } from '../knowledge_entries/service.ts';
 import {
   getProjectAuthContext,
-  listProjects,
   readableProjectsAmong,
+  readableProjectsSql,
   readableProjectsWithDocuments,
   type ProjectAuthContext,
   type ProjectRow,
@@ -221,26 +221,6 @@ async function canReadProject(
   return (await readableProjectsAmong(sql, auth, [projectId])).has(projectId);
 }
 
-/** The projects whose tasks and boards the chat tools' work legs read:
- * every project the turn user reads, archived ones included. Read whole
- * until those legs join the readable relation themselves (#5207); the
- * knowledge scope above no longer carries them. */
-async function resolveWorkProjects(
-  sql: Sql,
-  organizationId: string,
-  userId: string,
-): Promise<{ projectIds: string[]; archivedProjectIds: string[] }> {
-  const auth = await resolveScopeAuth(sql, organizationId, userId);
-  if (auth === null) return { projectIds: [], archivedProjectIds: [] };
-  const projects = await listProjects(sql, auth, { includeArchived: true });
-  return {
-    projectIds: projects.map((project) => project.id),
-    archivedProjectIds: projects
-      .filter((project) => project.archivedAt !== null)
-      .map((project) => project.id),
-  };
-}
-
 /**
  * A crawl that is mid-teardown or broken is not part of the catalog — the 0.4
  * reader skipped both statuses, so naming one to the model would offer a site
@@ -300,26 +280,28 @@ const TASK_CONTEXT_BLOCKERS_MAX = 25;
  */
 const LIST_CAP = 15;
 
-async function searchTasks(
+/** What the chat tools' work legs search: the projects the caller may read,
+ * or one of them. */
+interface WorkLegSearch {
+  term: string;
+  /** One project alone: a project thread's own, or the one a listing or a
+   * project ref names. The statement checks it against the readable
+   * projects like any other. */
+  projectId?: string;
+  list?: boolean;
+  paginationOpts?: PaginationOpts;
+}
+
+/**
+ * The tasks leg: the tasks of the projects the caller may read, archived
+ * projects included, joined in the statement that reads them (#5207) — no
+ * list of those projects is read first and sent back as `ANY(<ids>)`.
+ */
+export async function searchTasksForChat(
   sql: Sql,
-  args: {
-    organizationId: string;
-    projectIds: string[];
-    term: string;
-    status?: string;
-    projectId?: string;
-    list?: boolean;
-    excludeArchived?: boolean;
-    paginationOpts?: PaginationOpts;
-  },
+  auth: ProjectAuthContext,
+  args: WorkLegSearch & { status?: string; excludeArchived?: boolean },
 ): Promise<PageResult<TaskLegRow>> {
-  const readable =
-    args.projectId !== undefined
-      ? args.projectIds.filter((id) => id === args.projectId)
-      : args.projectIds;
-  if (readable.length === 0) {
-    return { ...emptyPage(), ...(args.list === true ? { listed: true } : {}) };
-  }
   const bounds = pageBounds(args.paginationOpts);
   const term = args.term.trim();
   const like = `%${term}%`;
@@ -329,7 +311,7 @@ async function searchTasks(
   // reply show, so a question naming one must resolve it: the key is the
   // project's key joined to the task's number, matched whole and
   // case-insensitively, and an exact key match leads the page. `t.` on
-  // every column — projects carry `description` and `status` too.
+  // every task column, `rp.` on the readable project's.
   const keyed = term !== '';
   const walk = async (
     listing: boolean,
@@ -342,19 +324,21 @@ async function searchTasks(
              t.project_id AS "projectId", t.due_date_ms::float8 AS "dueDate",
              t.archived_at_ms::float8 AS "archivedAt"
       FROM app.tasks t
-      LEFT JOIN app.projects p ON p.id = t.project_id
-      WHERE t.org_id = ${args.organizationId}
-        AND t.project_id = ANY(${readable})
+      JOIN ${readableProjectsSql(sql, auth, { includeArchived: true })} rp
+        USING (project_id)
+      WHERE t.org_id = ${auth.organizationId}
+        AND (${args.projectId === undefined}
+             OR t.project_id = ${args.projectId ?? ''})
         AND (${listing || term === ''} OR t.title ILIKE ${like}
              OR t.description ILIKE ${like}
-             OR lower(coalesce(p.key || '-' || t.number::text, '')) = lower(${term})
+             OR lower(coalesce(rp.project_key || '-' || t.number::text, '')) = lower(${term})
              OR (${words.length > 0}
                  AND (t.title ~* ANY(${words}) OR t.description ~* ANY(${words}))))
         AND (${status === undefined}
              OR (${status ?? ''} = 'open' AND NOT (t.status = ANY(${OPEN_EXCLUDED})))
              OR t.status = ${status ?? ''})
         AND (${args.excludeArchived !== true} OR t.archived_at_ms IS NULL)
-      ORDER BY (${keyed} AND lower(coalesce(p.key || '-' || t.number::text, '')) = lower(${term})) DESC,
+      ORDER BY (${keyed} AND lower(coalesce(rp.project_key || '-' || t.number::text, '')) = lower(${term})) DESC,
                t.updated_at_ms DESC
       LIMIT ${page.limit + 1} OFFSET ${page.offset}
     `;
@@ -390,19 +374,16 @@ interface ProjectLegRow {
   archivedAt?: number;
 }
 
-async function searchProjects(
+/**
+ * The projects leg: the projects the caller may read, archived ones included
+ * and labelled by their own `archivedAt`, read through the readable projects
+ * in one statement (#5207).
+ */
+export async function searchProjectsForChat(
   sql: Sql,
-  args: {
-    organizationId: string;
-    projectIds: string[];
-    term: string;
-    list?: boolean;
-    paginationOpts?: PaginationOpts;
-  },
+  auth: ProjectAuthContext,
+  args: WorkLegSearch,
 ): Promise<PageResult<ProjectLegRow>> {
-  if (args.projectIds.length === 0) {
-    return { ...emptyPage(), ...(args.list === true ? { listed: true } : {}) };
-  }
   const bounds = pageBounds(args.paginationOpts);
   const term = args.term.trim();
   const like = `%${term}%`;
@@ -417,7 +398,10 @@ async function searchProjects(
              done_task_count AS "doneTaskCount",
              archived_at_ms::float8 AS "archivedAt"
       FROM app.projects
-      WHERE org_id = ${args.organizationId} AND id = ANY(${args.projectIds})
+      JOIN ${readableProjectsSql(sql, auth, { includeArchived: true })} rp
+        ON rp.project_id = app.projects.id
+      WHERE org_id = ${auth.organizationId}
+        AND (${args.projectId === undefined} OR id = ${args.projectId ?? ''})
         AND (${listing || term === ''} OR name ILIKE ${like}
              OR description ILIKE ${like} OR key ILIKE ${like}
              OR (${words.length > 0}
@@ -864,24 +848,22 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { organizationId: string; projectIds: string[] };
       if (args.projectIds.length === 0) return [];
+      // The page's projects, and whether each is archived: the label a
+      // task row carries for its project.
       const rows = await sql<
-        { id: string; name: string; key: string | null }[]
+        { id: string; name: string; key: string | null; archived: boolean }[]
       >`
-        SELECT id, name, key FROM app.projects
+        SELECT id, name, key, archived_at_ms IS NOT NULL AS archived
+        FROM app.projects
         WHERE org_id = ${args.organizationId} AND id = ANY(${args.projectIds})
       `;
       return rows.map((row) =>
         Object.assign(
           { id: row.id, name: row.name },
           row.key !== null ? { key: row.key } : {},
+          row.archived ? { archived: true } : {},
         ),
       );
-    },
-
-    'projects/internal_queries:resolveWorkProjectsForChat': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the chat tools pass exactly this shape
-      const args = raw as { organizationId: string; userId: string };
-      return resolveWorkProjects(sql, args.organizationId, args.userId);
     },
 
     // ------------------------------------------------------ knowledge scope
@@ -1037,16 +1019,46 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // ------------------------------------------------------- entity legs
+    // The work legs read as the turn user: a seat that reads no project
+    // (gone, or disabled) finds nothing, and a listing still says it listed.
     'tasks/search_for_chat:searchTasksForChat': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as Parameters<typeof searchTasks>[1];
-      return searchTasks(sql, args);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the chat tools pass exactly this shape
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+      } & Parameters<typeof searchTasksForChat>[2];
+      const auth = await resolveScopeAuth(
+        sql,
+        args.organizationId,
+        args.userId,
+      );
+      if (auth === null) {
+        return {
+          ...emptyPage(),
+          ...(args.list === true ? { listed: true } : {}),
+        };
+      }
+      return searchTasksForChat(sql, auth, args);
     },
 
     'tasks/search_for_chat:searchProjectsForChat': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as Parameters<typeof searchProjects>[1];
-      return searchProjects(sql, args);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the chat tools pass exactly this shape
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+      } & Parameters<typeof searchProjectsForChat>[2];
+      const auth = await resolveScopeAuth(
+        sql,
+        args.organizationId,
+        args.userId,
+      );
+      if (auth === null) {
+        return {
+          ...emptyPage(),
+          ...(args.list === true ? { listed: true } : {}),
+        };
+      }
+      return searchProjectsForChat(sql, auth, args);
     },
 
     'tasks/internal_queries:getTaskByIdInternal': async (raw) => {

@@ -138,35 +138,9 @@ describe("chat shim 'contacts/internal_queries:queryContacts'", () => {
   });
 });
 
-describe("chat shim 'tasks/search_for_chat:searchTasksForChat'", () => {
-  it('resolves the human task key the board shows, exact match first', async () => {
-    // 2026-09-26 evaluation, A-05: "find TE2-1" matched only title and
-    // description, so the assistant answered that no task carries that id.
-    const { sql, texts } = capturingSql();
-    const handlers = chatShimHandlers(sql);
-    const search = handlers['tasks/search_for_chat:searchTasksForChat'];
-    if (search === undefined) throw new Error('task search handler missing');
-
-    await search({
-      organizationId: 'org_1',
-      projectIds: ['project_1'],
-      term: 'TE2-1',
-    });
-
-    const tasks = texts.find((text) => text.includes('FROM app.tasks t'));
-    expect(tasks).toContain('LEFT JOIN app.projects p ON p.id = t.project_id');
-    expect(tasks).toContain('t.number');
-    const keyMatch =
-      "lower(coalesce(p.key || '-' || t.number::text, '')) = lower(?)";
-    expect(tasks).toContain(`OR ${keyMatch}`);
-    // The exact key match leads the page, before recency.
-    const orderBy = `ORDER BY (? AND ${keyMatch}) DESC`;
-    expect(tasks).toContain(orderBy);
-    const recency = 't.updated_at_ms DESC';
-    expect(tasks).toContain(recency);
-    expect(tasks?.indexOf(orderBy)).toBeLessThan(tasks?.indexOf(recency) ?? -1);
-  });
-
+// The task search's key match reads as the turn user, through the readable
+// projects: `shim.scope-projects.test.ts` pins it with the membership mocked.
+describe('chat shim task keys', () => {
   it('reads the task number for the fetched task, so the key can be named', async () => {
     const { sql, texts } = capturingSql();
     const handlers = chatShimHandlers(sql);

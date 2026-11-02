@@ -174,7 +174,6 @@ const MAIL_PROVENANCE_FN =
 const TASKS_SEARCH_FN = 'tasks/search_for_chat:searchTasksForChat';
 const PROJECTS_SEARCH_FN = 'tasks/search_for_chat:searchProjectsForChat';
 const PROJECT_LABELS_FN = 'projects/internal_queries:getProjectLabelsForOrg';
-const WORK_PROJECTS_FN = 'projects/internal_queries:resolveWorkProjectsForChat';
 const PROJECT_ACCESS_FN =
   'projects/internal_queries:assertProjectAccessForChat';
 const TASK_BY_ID_FN = 'tasks/internal_queries:getTaskByIdInternal';
@@ -244,16 +243,10 @@ function createCtx(
       projectIds: [],
       includeHub: true,
     }),
-    // The work legs' projects and the thread project's own check read the
-    // projects the scope fixture names (every one of them holding a
-    // document), unless a test says otherwise.
-    [WORK_PROJECTS_FN]: (args) => {
-      const scope = fixtureScope(args);
-      return {
-        projectIds: scope.projectIds ?? [],
-        archivedProjectIds: scope.archivedProjectIds ?? [],
-      };
-    },
+    // The check of one project (the thread's own, or one a listing or a ref
+    // names) admits the projects the scope fixture names, unless a test
+    // says otherwise. The work legs read no list of projects: their reads
+    // join the readable projects as the user (#5207).
     [PROJECT_ACCESS_FN]: (args) => ({
       allowed: (fixtureScope(args).projectIds ?? []).includes(
         String(args.projectId),
@@ -263,12 +256,8 @@ function createCtx(
   };
   function fixtureScope(args: Record<string, unknown>): {
     projectIds?: string[];
-    archivedProjectIds?: string[];
   } {
-    return reads[KNOWLEDGE_SCOPE_FN]?.(args) as {
-      projectIds?: string[];
-      archivedProjectIds?: string[];
-    };
+    return reads[KNOWLEDGE_SCOPE_FN]?.(args) as { projectIds?: string[] };
   }
   const runQuery: QueryMock = vi.fn((ref: unknown, args: unknown) => {
     const name = fnName(ref);
@@ -2753,16 +2742,8 @@ describe('rag_search work legs', () => {
     expect(fetched.taskKey).toBe('GRW-12');
   });
 
-  it('scopes the work legs to the projects the turn user can read', async () => {
-    const { ctx, runQuery } = createCtx({
-      reads: {
-        [KNOWLEDGE_SCOPE_FN]: () => ({
-          teamIds: [],
-          projectIds: ['project_a', 'project_b'],
-          includeHub: true,
-        }),
-      },
-    });
+  it('scopes the work legs to the projects the turn user can read, as that user', async () => {
+    const { ctx, runQuery } = createCtx();
     const executor = await makeExecutor(ctx);
     await executor.execute({
       id: 'c1',
@@ -2770,15 +2751,21 @@ describe('rag_search work legs', () => {
       input: { query: 'open work' },
     });
 
-    // A task has no ACL of its own, so its parent project's readable set IS
-    // the filter. Passing organizationId alone — the shape the contacts and
-    // products legs safely use — would return every project's board.
-    const call = runQuery.mock.calls.find(
-      ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
-    );
+    // A task has no ACL of its own, so its parent project's visibility IS
+    // the filter: the reads join the projects the user may read, in their
+    // own statement (#5207), and no list of them crosses over. Passing
+    // organizationId alone — the shape the contacts and products legs
+    // safely use — would return every project's board.
+    for (const fn of [TASKS_SEARCH_FN, PROJECTS_SEARCH_FN]) {
+      const args = argsOfQuery(runQuery, fn);
+      expect(args).toMatchObject({ organizationId: 'org_1', userId: 'user_1' });
+      expect(args).not.toHaveProperty('projectIds');
+      // A personal thread names no project: every readable one is searched.
+      expect(args).not.toHaveProperty('projectId');
+    }
     expect(
-      (call?.[1] as Record<string, unknown> | undefined)?.projectIds,
-    ).toEqual(['project_a', 'project_b']);
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === PROJECT_ACCESS_FN),
+    ).toBe(false);
   });
 
   it('passes an "open" status filter through to the tasks query', async () => {
@@ -3166,6 +3153,12 @@ describe('rag_search archive context', () => {
     includeHub: true,
     archivedProjectIds: ['project_old'],
   });
+  /** The page's projects as `getProjectLabelsForOrg` labels them: a task's
+   * project says itself whether it is archived. */
+  const LABELS = () => [
+    { id: 'project_live', name: 'Pricing' },
+    { id: 'project_old', name: 'Pricing 2025', archived: true },
+  ];
 
   function taskRow(over: Record<string, unknown> = {}) {
     return {
@@ -3182,7 +3175,7 @@ describe('rag_search archive context', () => {
   it('marks a task that is itself archived', async () => {
     const { ctx } = createCtx({
       reads: {
-        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [PROJECT_LABELS_FN]: LABELS,
         [TASKS_SEARCH_FN]: () => ({
           page: [taskRow({ archivedAt: 1_700_000_000_000 })],
           isDone: true,
@@ -3203,9 +3196,12 @@ describe('rag_search archive context', () => {
   });
 
   it('marks a live task whose project is archived, and does not call it archived', async () => {
+    // The label is the project's own: the knowledge scope holds no project
+    // (none holds a document), and the task's project still says it is
+    // archived.
     const { ctx } = createCtx({
       reads: {
-        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [PROJECT_LABELS_FN]: LABELS,
         [TASKS_SEARCH_FN]: () => ({
           page: [taskRow({ projectId: 'project_old' })],
           isDone: true,
@@ -3229,7 +3225,7 @@ describe('rag_search archive context', () => {
   it('returns an archived task rather than filtering it out', async () => {
     const { ctx } = createCtx({
       reads: {
-        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [PROJECT_LABELS_FN]: LABELS,
         [TASKS_SEARCH_FN]: () => ({
           page: [taskRow({ archivedAt: 1, projectId: 'project_old' })],
           isDone: true,
@@ -3253,7 +3249,7 @@ describe('rag_search archive context', () => {
   it('carries neither key for a live task in a live project', async () => {
     const { ctx } = createCtx({
       reads: {
-        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [PROJECT_LABELS_FN]: LABELS,
         [TASKS_SEARCH_FN]: () => ({
           page: [taskRow()],
           isDone: true,
@@ -3271,6 +3267,114 @@ describe('rag_search archive context', () => {
     const task = rows.find((r) => r.kind === 'task');
     expect(task?.data).not.toHaveProperty('archived');
     expect(task?.data).not.toHaveProperty('projectArchived');
+  });
+
+  it('labels the same task the same way whether searched or listed', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [PROJECT_LABELS_FN]: LABELS,
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow({ projectId: 'project_old', number: 4 })],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const searched = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing page' },
+    })) as Record<string, unknown>;
+    const listed = (await executor.execute({
+      id: 'c2',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'open' },
+    })) as Record<string, unknown>;
+    const fromSearch = (
+      searched.results as Array<Record<string, unknown>>
+    ).find((r) => r.kind === 'task');
+    const fromList = (listed.results as Array<Record<string, unknown>>)[0];
+    expect(fromSearch?.data).toMatchObject({
+      project: 'Pricing 2025',
+      projectArchived: true,
+    });
+    expect(fromList?.data).toEqual(fromSearch?.data);
+  });
+
+  it('marks a project row archived by its own archivedAt', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [PROJECTS_SEARCH_FN]: () => ({
+          page: [
+            { _id: 'project_old', name: 'Pricing 2025', archivedAt: 1 },
+            { _id: 'project_live', name: 'Pricing' },
+          ],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing' },
+    })) as Record<string, unknown>;
+    const rows = (result.results as Array<Record<string, unknown>>).filter(
+      (r) => r.kind === 'project',
+    );
+    expect(rows.map((row) => row.title)).toEqual(['Pricing 2025', 'Pricing']);
+    expect(rows[0]?.data).toMatchObject({ archived: true });
+    // The row is the project: `projectArchived` would say it twice.
+    expect(rows[0]?.data).not.toHaveProperty('projectArchived');
+    expect(rows[1]?.data).not.toHaveProperty('archived');
+  });
+
+  it("labels the tasks of an archived project's ref by that project", async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [PROJECT_LABELS_FN]: LABELS,
+        [TASKS_SEARCH_FN]: () => ({
+          page: [
+            taskRow({ _id: 'task_1', projectId: 'project_old', number: 1 }),
+            taskRow({
+              _id: 'task_2',
+              projectId: 'project_old',
+              number: 2,
+              archivedAt: 1,
+            }),
+          ],
+          isDone: true,
+          continueCursor: '',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'project:project_old' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('ok');
+    const tasks = result.tasks as Array<Record<string, unknown>>;
+    expect(tasks[0]).toMatchObject({ projectArchived: true });
+    expect(tasks[0]).not.toHaveProperty('archived');
+    expect(tasks[1]).toMatchObject({ archived: true, projectArchived: true });
+    // The project was checked on its own, and its tasks read as the user.
+    expect(argsOfQuery(runQuery, PROJECT_ACCESS_FN)).toEqual({
+      projectId: 'project_old',
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).toMatchObject({
+      organizationId: 'org_1',
+      userId: 'user_1',
+      projectId: 'project_old',
+      list: true,
+    });
   });
 
   // A document has no archive state of its own, so its project is the only
@@ -3393,12 +3497,17 @@ describe('the thread’s project is the scope boundary', () => {
       projectIds: ['project_1'],
       includeHub: true,
     });
-    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)?.projectIds).toEqual([
-      'project_1',
-    ]);
-    expect(argsOfQuery(runQuery, PROJECTS_SEARCH_FN)?.projectIds).toEqual([
-      'project_1',
-    ]);
+    // The work legs name the thread's project alone, and their statement
+    // checks it against what the user may read (#5207).
+    for (const fn of [TASKS_SEARCH_FN, PROJECTS_SEARCH_FN]) {
+      const args = argsOfQuery(runQuery, fn);
+      expect(args).toMatchObject({
+        organizationId: 'org_1',
+        userId: 'user_1',
+        projectId: 'project_1',
+      });
+      expect(args).not.toHaveProperty('projectIds');
+    }
   });
 
   it('lists the project’s files and the hub in one page, each row saying which', async () => {
@@ -3518,10 +3627,13 @@ describe('the thread’s project is the scope boundary', () => {
     });
     expect(result.status).toBe('ok');
     expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).toMatchObject({
-      projectIds: ['project_1'],
+      userId: 'user_1',
       projectId: 'project_1',
       list: true,
     });
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).not.toHaveProperty(
+      'projectIds',
+    );
   });
 
   it('fetches nothing from another readable project — the same miss as a missing file', async () => {
@@ -3589,12 +3701,17 @@ describe('the thread’s project is the scope boundary', () => {
       name: 'rag_search',
       input: { query: 'launch' },
     });
-    // Nothing widens to project_2: no project at all, for documents and work.
+    // Nothing widens to project_2: no project at all for documents, and the
+    // work legs still name project_1 alone, which their statement no longer
+    // finds readable.
     expect(lastArgsOf(searchKnowledgeMock).access).toMatchObject({
       projectIds: [],
       includeHub: true,
     });
-    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)?.projectIds).toEqual([]);
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).toMatchObject({
+      userId: 'user_1',
+      projectId: 'project_1',
+    });
 
     const listed = await executor.execute({
       id: 'c2',
@@ -3635,10 +3752,12 @@ describe('the organization chat reaches the hub, never a project’s files', () 
       projectIds: [],
       includeHub: true,
     });
-    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)?.projectIds).toEqual([
-      'project_1',
-      'project_2',
-    ]);
+    // The work legs name no project: their statement joins every project
+    // the user may read.
+    const work = argsOfQuery(runQuery, TASKS_SEARCH_FN);
+    expect(work).toMatchObject({ organizationId: 'org_1', userId: 'user_1' });
+    expect(work).not.toHaveProperty('projectId');
+    expect(work).not.toHaveProperty('projectIds');
   });
 
   it('refuses a projectId on a document list, pointing at the project’s own chat', async () => {
@@ -3669,10 +3788,20 @@ describe('the organization chat reaches the hub, never a project’s files', () 
       input: { action: 'list', kind: 'task', projectId: 'project_2' },
     });
     expect(result.status).toBe('ok');
+    // That project alone is checked, then listed as the user.
+    expect(argsOfQuery(runQuery, PROJECT_ACCESS_FN)).toEqual({
+      projectId: 'project_2',
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
     expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).toMatchObject({
-      projectIds: ['project_1', 'project_2'],
+      organizationId: 'org_1',
+      userId: 'user_1',
       projectId: 'project_2',
     });
+    expect(argsOfQuery(runQuery, TASKS_SEARCH_FN)).not.toHaveProperty(
+      'projectIds',
+    );
   });
 
   it('never serves a project file’s inline content to the organization chat', async () => {
@@ -4168,7 +4297,8 @@ describe('rag_search list action', () => {
   });
 
   it('refuses a projectId outside the readable set, uniformly', async () => {
-    const executor = await makeExecutor(createCtx().ctx);
+    const { ctx, runQuery } = createCtx();
+    const executor = await makeExecutor(ctx);
     const result = (await executor.execute({
       id: 'c1',
       name: 'rag_search',
@@ -4176,6 +4306,14 @@ describe('rag_search list action', () => {
     })) as Record<string, unknown>;
     expect(result.status).toBe('invalid_args');
     expect(result.message).toContain('No readable project');
+    // Checked on its own, before any task is read.
+    expect(argsOfQuery(runQuery, PROJECT_ACCESS_FN)).toMatchObject({
+      projectId: 'project_foreign',
+      userId: 'user_1',
+    });
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === TASKS_SEARCH_FN),
+    ).toBe(false);
   });
 
   it('lists contacts with the term off and marks a non-active row', async () => {

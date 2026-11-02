@@ -254,7 +254,6 @@ interface HandlerNames {
       getProjectIdForThread: FunctionRef;
       getProjectLabelsForOrg: FunctionRef;
       getProjectSkillScope: FunctionRef;
-      resolveWorkProjectsForChat: FunctionRef;
     };
   };
   provider_credentials: FunctionRef & {
