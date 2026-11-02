@@ -79,7 +79,7 @@ interface WorkspaceStepProps {
   /** Already-created org id (set once the workspace exists) — keeps the input
    *  disabled and the step idempotent if the user steps back into it. */
   createdOrgId: string | null;
-  /** Lifts the new org id so later steps (provider, finish) can use it. */
+  /** Lifts the new org id so the finish step can use it. */
   onCreated: (organizationId: string) => void;
 }
 
@@ -135,9 +135,9 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
 
   const createWorkspace = async (): Promise<boolean> => {
     if (createdOrgId) return true;
-    // The websocket may still be authenticating right after sign-up; the
-    // current user isn't available yet. Stay on the step so the user can
-    // retry once auth settles (Next is also gated on `user` via `valid`).
+    // Right after sign-up the session probe (`currentUser`) may not have
+    // answered yet, so there is no current user. Stay on the step so the user
+    // can retry once it has (Next is also gated on `user` via `valid`).
     if (!user) return false;
     setSubmitError(null);
     try {
