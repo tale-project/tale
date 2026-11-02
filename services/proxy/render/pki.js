@@ -1,7 +1,7 @@
 // The self-signed mode's certificates: a local CA kept in the data volume,
-// and a leaf for every host the edge serves, signed by it. What Caddy's
-// internal issuer did, written with WebCrypto so that njs (in the image) and
-// Bun (in the tests) run the same code.
+// and a leaf for every host the edge serves, signed by it. Written with
+// WebCrypto so that njs (in the image) and Bun (in the tests) run the same
+// code.
 //
 // The CA lives ten years and is made once; clients trust it by installing
 // /data/pki/root.crt. The leaf lives a year and is reissued when fewer than

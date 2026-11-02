@@ -21,8 +21,8 @@ export const INNER = '127.0.0.1:8098';
 /** The read-only Docker API proxy (services/proxy/docker-api/nginx.conf). */
 export const DOCKER_API = 'tcp://docker-api:2375';
 
-// Caddy's `private_ranges`, which the Caddy edge trusted for an empty
-// TRUSTED_PROXIES.
+// What `private_ranges` names, and what an empty TRUSTED_PROXIES trusts:
+// the private and loopback ranges.
 const PRIVATE_RANGES = [
   '192.168.0.0/16',
   '172.16.0.0/12',
@@ -106,8 +106,9 @@ function trustedProxies(env) {
 }
 
 /**
- * Reads and validates the environment, with the Caddy entrypoint's
- * normalisation and messages.
+ * Reads and validates the environment: normalises the origins, the subpath
+ * and the TLS settings, and throws a ConfigError on what the edge cannot
+ * serve.
  */
 export function readSettings(env) {
   const host = env.HOST || 'localhost';
@@ -230,7 +231,7 @@ export function readSettings(env) {
   };
 }
 
-/** What the proxy prints at boot, as the Caddy entrypoint did. */
+/** What the proxy prints at boot. */
 export function describe(s) {
   const lines = [
     'Domain Configuration:',
@@ -535,8 +536,7 @@ export function renderEdge(s) {
   if (s.basePath) {
     // A subpath deployment: the prefix is stripped and the request re-enters
     // on the inner entrypoint, where every route matches the bare path. A
-    // path without the prefix is routed as it is, as Caddy's
-    // `uri strip_prefix` did.
+    // path without the prefix is routed as it is.
     routers['tale-base-path'] = {
       entryPoints: main,
       rule: `PathRegexp(\`^${escapeRegExp(s.basePath)}(/|$)\`)`,
@@ -622,7 +622,7 @@ export function renderEdge(s) {
  * The certificates (tls.yml): the issued leaf in self-signed mode, inline so
  * that a reissued leaf changes the file Traefik watches; in Let's Encrypt
  * mode the ACME certificate of SITE_URL's host, as the default for a client
- * that sends no server name (Caddy's default_sni).
+ * that sends no server name.
  */
 export function renderTls(s, leaf) {
   if (s.mode === 'letsencrypt') {
