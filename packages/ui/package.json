@@ -415,6 +415,7 @@
     "./test-results": "./src/components/feedback/test-results.tsx",
     "./testing/filters": "./src/testing/filters.ts",
     "./testing/flow": "./src/testing/flow.ts",
+    "./testing/social-card": "./src/testing/social-card.ts",
     "./text": "./src/components/typography/text.tsx",
     "./textarea": "./src/components/forms/textarea.tsx",
     "./typeahead-listbox": "./src/components/forms/typeahead-listbox.tsx",
