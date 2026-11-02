@@ -26,7 +26,11 @@ export interface FeedbackModelBucket {
 
 export interface FeedbackMatchupBucket {
   modelLeft: string;
+  /** The provider that served the side, `null` on verdicts recorded before
+   * verdicts named providers. */
+  providerLeft: string | null;
   modelRight: string;
+  providerRight: string | null;
   leftWins: number;
   rightWins: number;
   ties: number;
@@ -49,6 +53,10 @@ export interface RecentFeedbackItem {
   arenaVerdict: ArenaVerdict | null;
   arenaModelA: string | null;
   arenaModelB: string | null;
+  /** The provider that served each side, `null` on a verdict recorded
+   * before verdicts named providers. */
+  arenaProviderA: string | null;
+  arenaProviderB: string | null;
   isArena: boolean;
   createdAt: number;
 }

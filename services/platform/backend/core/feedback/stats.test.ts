@@ -233,7 +233,9 @@ describe('computeFeedbackStats', () => {
     expect(out.topMatchups).toEqual([
       {
         modelLeft: 'alpha',
+        providerLeft: null,
         modelRight: 'zeta',
+        providerRight: null,
         leftWins: 1,
         rightWins: 1,
         ties: 1,
@@ -307,6 +309,170 @@ describe('computeFeedbackStats', () => {
     expect(matchup).toMatchObject({ leftWins: 1, rightWins: 0, ties: 1 });
     expect(decisive).toBe((matchup?.leftWins ?? 0) + (matchup?.rightWins ?? 0));
     expect(out.arena.byVerdict.tie).toBe(matchup?.ties);
+  });
+
+  it('counts one model through one provider as a self-match [FDBK-R7]', () => {
+    const out = computeFeedbackStats(
+      [
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'luna',
+            modelB: 'luna',
+            providerA: 'openrouter',
+            providerB: 'openrouter',
+          },
+        }),
+        // One side names no provider: nothing shows two providers.
+        row({
+          metadata: {
+            arenaVerdict: 'tie',
+            modelA: 'luna',
+            modelB: 'luna',
+            providerA: 'openrouter',
+            providerB: null,
+          },
+        }),
+      ],
+      NO_FILTER,
+    );
+    expect(out.arena.total).toBe(2);
+    expect(out.arena.selfMatches).toBe(2);
+    expect(out.arena.byVerdict).toEqual({
+      a_better: 0,
+      b_better: 0,
+      tie: 0,
+      both_bad: 0,
+    });
+    expect(out.topMatchups).toEqual([]);
+  });
+
+  it('pairs one model through two providers as a matchup of its own [FDBK-R8]', () => {
+    const out = computeFeedbackStats(
+      [
+        // openrouter (A) wins over gateway (B). Canonical [gateway,
+        // openrouter] → rightWins.
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'luna',
+            modelB: 'luna',
+            providerA: 'openrouter',
+            providerB: 'gateway',
+          },
+        }),
+        // gateway (A) vs openrouter (B), B wins → rightWins again.
+        row({
+          metadata: {
+            arenaVerdict: 'b_better',
+            modelA: 'luna',
+            modelB: 'luna',
+            providerA: 'gateway',
+            providerB: 'openrouter',
+          },
+        }),
+        row({
+          metadata: {
+            arenaVerdict: 'tie',
+            modelA: 'luna',
+            modelB: 'luna',
+            providerA: 'gateway',
+            providerB: 'openrouter',
+          },
+        }),
+      ],
+      NO_FILTER,
+    );
+    expect(out.arena.selfMatches).toBe(0);
+    expect(out.arena.byVerdict).toEqual({
+      a_better: 1,
+      b_better: 1,
+      tie: 1,
+      both_bad: 0,
+    });
+    expect(out.topMatchups).toEqual([
+      {
+        modelLeft: 'luna',
+        providerLeft: 'gateway',
+        modelRight: 'luna',
+        providerRight: 'openrouter',
+        leftWins: 0,
+        rightWins: 2,
+        ties: 1,
+        bothBad: 0,
+        total: 3,
+      },
+    ]);
+  });
+
+  it('counts a verdict recorded without providers by its models, apart from one with them [FDBK-R8]', () => {
+    const out = computeFeedbackStats(
+      [
+        // Recorded before verdicts named providers: same as ever.
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'zeta',
+            modelB: 'alpha',
+          },
+        }),
+        row({
+          metadata: { arenaVerdict: 'tie', modelA: 'zeta', modelB: 'zeta' },
+        }),
+        // The same pairing through named providers: a matchup of its own.
+        row({
+          metadata: {
+            arenaVerdict: 'b_better',
+            modelA: 'alpha',
+            modelB: 'zeta',
+            providerA: 'openai',
+            providerB: 'anthropic',
+          },
+        }),
+        row({
+          metadata: {
+            arenaVerdict: 'both_bad',
+            modelA: 'alpha',
+            modelB: 'zeta',
+            providerA: 'openai',
+            providerB: 'anthropic',
+          },
+        }),
+      ],
+      NO_FILTER,
+    );
+    expect(out.arena.total).toBe(4);
+    expect(out.arena.selfMatches).toBe(1);
+    expect(out.arena.byVerdict).toEqual({
+      a_better: 1,
+      b_better: 1,
+      tie: 0,
+      both_bad: 1,
+    });
+    expect(out.topMatchups).toEqual([
+      {
+        modelLeft: 'alpha',
+        providerLeft: 'openai',
+        modelRight: 'zeta',
+        providerRight: 'anthropic',
+        leftWins: 0,
+        rightWins: 1,
+        ties: 0,
+        bothBad: 1,
+        total: 2,
+      },
+      {
+        modelLeft: 'alpha',
+        providerLeft: null,
+        modelRight: 'zeta',
+        providerRight: null,
+        leftWins: 0,
+        rightWins: 1,
+        ties: 0,
+        bothBad: 0,
+        total: 1,
+      },
+    ]);
   });
 
   it('ignores arena rows with unknown verdict in byVerdict', () => {

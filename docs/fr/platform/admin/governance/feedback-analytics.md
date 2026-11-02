@@ -16,7 +16,7 @@ Utilise **Commentaires uniquement** pour privilégier les explications écrites.
 | Signal | Ce qu’il indique |
 | --- | --- |
 | Pouce vers le haut/bas | Si un membre a trouvé une réponse précise utile. Un commentaire facultatif apporte du contexte. |
-| Verdict d’arène | Quelle réponse a été préférée dans une paire donnée, ou si les réponses sont à égalité ou toutes deux mauvaises. Un verdict rendu sur deux copies du même modèle est compté sous **Même modèle**, à part des verdicts et du tableau des paires. |
+| Verdict d’arène | Quelle réponse a été préférée dans une paire donnée, ou si les réponses sont à égalité ou toutes deux mauvaises. Un verdict rendu sur le même modèle chez le même fournisseur est compté sous **Même modèle**, à part des verdicts et du tableau des paires. Le même modèle chez deux fournisseurs forme une paire à part entière : lorsque le tableau contient un modèle chez plusieurs fournisseurs, il nomme chaque côté avec son fournisseur, comme **openrouter · openai/gpt-5.6-luna**. Les verdicts plus anciens, qui n’indiquent pas encore de fournisseur, forment leurs paires d’après leurs seuls modèles. |
 
 Les membres peuvent modifier ou retirer une évaluation. Le tableau de bord reflète l’état actuel, pas un compteur permanent de chaque clic. Le [mode arène](/fr/platform/chat/arena-mode) explique comment comparer deux réponses.
 

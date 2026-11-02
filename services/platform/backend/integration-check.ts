@@ -58699,7 +58699,8 @@ async function checkMetricsSurface(
   `;
 }
 
-/** Complete one real comparison round after pairing, not the copied history. */
+/** Complete one real comparison round after pairing, not the copied history.
+ * Each side's reply names the provider that served it. */
 async function seedArenaRoundReplies(
   sql: Sql,
   orgId: string,
@@ -58709,16 +58710,17 @@ async function seedArenaRoundReplies(
   await sql`
     INSERT INTO app.messages (
       id, thread_id, org_id, "order", step_order, role, parts, model,
-      status, created_at_ms
+      provider_slug, status, created_at_ms
     )
     SELECT gen_random_uuid()::text, t.thread_id, ${orgId},
            coalesce((SELECT max("order") FROM app.messages m
                      WHERE m.thread_id = t.thread_id), -1) + 1,
            0, 'assistant', ${sql.json([{ type: 'text', text: 'comparison reply' }])},
-           t.model, 'complete',
+           t.model, t.provider, 'complete',
            greatest(${Date.now()}::bigint, (meta.arena->>'createdAt')::bigint + 1)
-    FROM (VALUES (${threadA}, 'model-a'), (${threadB}, 'model-b'))
-      AS t (thread_id, model)
+    FROM (VALUES (${threadA}, 'model-a', 'provider-a'),
+                 (${threadB}, 'model-b', 'provider-b'))
+      AS t (thread_id, model, provider)
     JOIN app.thread_metadata meta ON meta.thread_id = t.thread_id
       AND meta.org_id = ${orgId}
   `;
@@ -58929,6 +58931,23 @@ async function checkArena(
     WHERE org_id = ${orgId} AND message_id = 'arena:model-a:model-b'
       AND user_id = ${userId} AND thread_id = ${threadA}
   `;
+  // FDBK-R8: the verdict names each side's provider, read from its reply.
+  const verdictSides1 = await sql<
+    { providerA: string | null; providerB: string | null }[]
+  >`
+    SELECT metadata->>'providerA' AS "providerA",
+           metadata->>'providerB' AS "providerB"
+    FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'arena:model-a:model-b'
+      AND user_id = ${userId} AND thread_id = ${threadA}
+  `;
+  record(
+    "arena: a verdict records each side's provider with its model",
+    verdictSides1.length === 1 &&
+      verdictSides1[0]?.providerA === 'provider-a' &&
+      verdictSides1[0].providerB === 'provider-b',
+    `sides=${JSON.stringify(verdictSides1)} (want one verdict, provider-a against provider-b)`,
+  );
   // Second run of the SAME matchup — a fresh pair, same models, same user.
   const ensured2 = z
     .object({ threadIdB: z.string() })

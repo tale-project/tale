@@ -16,6 +16,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
+import { type ArenaSide, arenaSideNames } from './arena-side-name';
 import type { ArenaVerdict, RecentFeedbackItem } from './types';
 
 function ExpandedComment({
@@ -58,6 +59,20 @@ const VERDICT_I18N_KEY: Record<ArenaVerdict, string> = {
   both_bad: 'bothBad',
 };
 
+/** An arena row's sides A and B; `null` for a side that names no model. */
+function arenaSidesOf(
+  row: RecentFeedbackItem,
+): [ArenaSide | null, ArenaSide | null] {
+  return [
+    row.arenaModelA
+      ? { model: row.arenaModelA, provider: row.arenaProviderA }
+      : null,
+    row.arenaModelB
+      ? { model: row.arenaModelB, provider: row.arenaProviderB }
+      : null,
+  ];
+}
+
 interface RecentFeedbackTableProps {
   rows: RecentFeedbackItem[];
   isLoading: boolean;
@@ -84,6 +99,17 @@ export function RecentFeedbackTable({
 }: RecentFeedbackTableProps) {
   const { t: tAnalytics } = useT('analytics');
   const { t: tChat } = useT('chat');
+  // A model the loaded arena rows hold through two providers is named with
+  // each.
+  const nameOf = useMemo(
+    () =>
+      arenaSideNames(
+        rows.flatMap((row) =>
+          arenaSidesOf(row).flatMap((side) => (side === null ? [] : [side])),
+        ),
+      ),
+    [rows],
+  );
 
   const columns = useMemo<ColumnDef<RecentFeedbackItem>[]>(
     () => [
@@ -163,15 +189,14 @@ export function RecentFeedbackTable({
         header: tAnalytics('feedback.recent.columns.model'),
         cell: ({ row }) => {
           if (row.original.isArena) {
-            const a = row.original.arenaModelA;
-            const b = row.original.arenaModelB;
+            const [a, b] = arenaSidesOf(row.original);
             if (a && b) {
               return (
                 <Text
                   as="span"
                   className="text-muted-foreground block text-xs break-all"
                 >
-                  {a} vs {b}
+                  {nameOf(a)} vs {nameOf(b)}
                 </Text>
               );
             }
@@ -198,7 +223,7 @@ export function RecentFeedbackTable({
         size: 300,
       },
     ],
-    [tAnalytics, tChat],
+    [tAnalytics, tChat, nameOf],
   );
 
   const renderExpandedRow = useCallback(
@@ -216,8 +241,9 @@ export function RecentFeedbackTable({
               {tAnalytics('feedback.recent.expanded.arena')}
             </Text>
             <Text className="text-sm">
-              {row.original.arenaModelA ?? '—'} vs{' '}
-              {row.original.arenaModelB ?? '—'}
+              {arenaSidesOf(row.original)
+                .map((side) => (side === null ? '—' : nameOf(side)))
+                .join(' vs ')}
               {row.original.arenaVerdict
                 ? ' · ' +
                   tChat(`arena.${VERDICT_I18N_KEY[row.original.arenaVerdict]}`)
@@ -237,7 +263,7 @@ export function RecentFeedbackTable({
         )}
       </Stack>
     ),
-    [tAnalytics, tChat],
+    [tAnalytics, tChat, nameOf],
   );
 
   return (
