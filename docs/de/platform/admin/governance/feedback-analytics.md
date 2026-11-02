@@ -16,7 +16,7 @@ Mit **Nur Kommentare** konzentrierst du dich auf schriftliche Erläuterungen. Pr
 | Signal | Was es aussagt |
 | --- | --- |
 | Daumen hoch/runter | Ob ein Mitglied eine bestimmte Antwort hilfreich fand. Ein optionaler Kommentar liefert Kontext. |
-| Arena-Urteil | Welche Antwort in einem konkreten Paar bevorzugt wurde oder ob beide gleich gut beziehungsweise schlecht waren. Ein Urteil über zwei Kopien desselben Modells zählt unter **Gleiches Modell**, getrennt von den Urteilen und der Paarungstabelle. |
+| Arena-Urteil | Welche Antwort in einem konkreten Paar bevorzugt wurde oder ob beide gleich gut beziehungsweise schlecht waren. Ein Urteil über dasselbe Modell desselben Anbieters zählt unter **Gleiches Modell**, getrennt von den Urteilen und der Paarungstabelle. Dasselbe Modell zweier Anbieter ist eine eigene Paarung: Führt die Tabelle ein Modell von mehr als einem Anbieter, nennt sie jede Seite mit ihrem Anbieter, etwa **openrouter · openai/gpt-5.6-luna**. Ältere Urteile, die noch keinen Anbieter festhalten, bilden Paarungen allein nach ihren Modellen. |
 
 Mitglieder können Bewertungen ändern oder zurückziehen. Das Dashboard zeigt den aktuellen Stand, keine dauerhafte Zählung aller Klicks. Im [Arena-Modus](/de/platform/chat/arena-mode) erfährst du, wie Mitglieder zwei Antworten vergleichen.
 

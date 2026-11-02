@@ -1,6 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { ARENA_VERDICTS } from '../../../lib/shared/arena.ts';
+import {
+  ARENA_VERDICTS,
+  arenaSideProvider,
+} from '../../../lib/shared/arena.ts';
 import { loadOwnedThread, loadProjectSharedThread } from '../chat/threads.ts';
 
 /**
@@ -395,6 +398,8 @@ export async function listRecentFeedbackPage(
       arenaVerdict,
       arenaModelA: typeof modelA === 'string' ? modelA : null,
       arenaModelB: typeof modelB === 'string' ? modelB : null,
+      arenaProviderA: arenaSideProvider(row.metadata?.providerA),
+      arenaProviderB: arenaSideProvider(row.metadata?.providerB),
       isArena: row.metadata?.arenaVerdict !== undefined,
       createdAt: row.createdAt,
     };
