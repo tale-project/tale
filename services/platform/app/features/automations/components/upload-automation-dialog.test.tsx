@@ -12,7 +12,13 @@ vi.mock('@tale/ui/i18n/client', () => ({
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectChoices: () => ({ projects: [] }),
-  useNamedProjects: () => ({ projects: new Map(), isPending: false }),
+  useNamedProjects: () => ({
+    projects: new Map(),
+    isPending: false,
+    unread: new Set(),
+    read: { unavailable: false, retrying: false, failureCount: 0 },
+    retry: () => undefined,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
