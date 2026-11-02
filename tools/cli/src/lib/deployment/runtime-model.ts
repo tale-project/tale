@@ -52,6 +52,14 @@ export const INCUS_STACK_FILE = 'incus-stack.json';
 export type RuntimeFile =
   | (typeof RUNTIME_FILES)[number]
   | typeof INCUS_STACK_FILE;
+
+/**
+ * The file whose presence tells a revision runs its edge on Traefik, routed by
+ * the labels its services declare. The managed runtime renders the edge's
+ * Caddyfile, so it refuses such a revision until it learns the Traefik edge
+ * (tale-project/tale#5282).
+ */
+export const TRAEFIK_EDGE_MARKER = 'services/proxy/render/config.js';
 export const hash = (bytes: string | Buffer): string =>
   createHash('sha256').update(bytes).digest('hex');
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);

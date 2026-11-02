@@ -66,7 +66,7 @@ export function isLocalHostname(host: string): boolean {
  * single-domain default).
  *
  * A `letsencrypt` deployment additionally needs each additional hostname to
- * be public — Caddy asks the ACME CA for a certificate per site address, and
+ * be public — the edge asks the ACME CA for a certificate per hostname, and
  * a localhost/IP entry fails that challenge.
  */
 export function validateAdditionalSiteUrls(config: {

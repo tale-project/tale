@@ -498,7 +498,7 @@ describe('createSnapshot', () => {
 
       expect(manifest?.volumes['llm-gateway-data']).toBeUndefined();
       expect(tarredVolumes()).not.toContain('llm-gateway-data');
-      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(6);
+      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(7);
       expect(loggerWarnMock).not.toHaveBeenCalled();
       expect(loggerNoticeMock).not.toHaveBeenCalled();
     });
@@ -522,6 +522,7 @@ describe('createSnapshot', () => {
         'knowledge-db-data',
         'llm-gateway-data',
         'object-store-data',
+        'proxy-data',
       ]);
       expect(manifest?.volumes['object-store-data']).toEqual({
         sha256: SHA,
@@ -557,7 +558,7 @@ describe('createSnapshot', () => {
 
       expect(manifest?.volumes['object-store-data']).toBeUndefined();
       expect(tarredVolumes()).not.toContain('object-store-data');
-      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(6);
+      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(7);
       const notices = loggerNoticeMock.mock.calls.map((call) =>
         String(call[0]),
       );

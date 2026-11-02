@@ -43,7 +43,9 @@ const r = new Results();
 const SIZE_BUDGETS: Record<string, number> = {
   platform: 2900,
   db: 1200,
-  proxy: 100,
+  // Traefik's static binary (174 MiB) on nginx:alpine with njs (59 MiB),
+  // measured from the pinned layers; ~11% headroom.
+  proxy: 260,
   // Docker .Size measured 255 MiB in Build37264873673; ~17% headroom.
   // Registry gzip layers are 86.45 MiB, a different metric from this guard.
   'sandbox-llm-gateway': 300,
@@ -208,7 +210,9 @@ async function main(): Promise<number> {
         r.pass(`${svc}: root (expected — gosu to postgres at runtime)`);
         break;
       case 'proxy':
-        r.pass(`${svc}: base Caddy image (acceptable)`);
+        r.pass(
+          `${svc}: root (expected — the edge binds 80/443, the docker-api role reads docker.sock)`,
+        );
         break;
       case 'sandbox':
       case 'sandbox-egress':

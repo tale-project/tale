@@ -5,8 +5,9 @@ import {
 } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { backendApiLabels } from './traefik-labels';
 
-/** The api's container port — the proxy's `BACKEND_UPSTREAM` target. */
+/** The api's container port — the target its Traefik labels route to. */
 const BACKEND_API_PORT = 3005;
 
 /**
@@ -167,6 +168,7 @@ export function createBackendApiService(
     ...(options.colour === undefined
       ? { container_name: `${getProjectId()}-backend-api` }
       : {}),
+    labels: backendApiLabels(options.colour),
     environment: {
       ...roleEnvironment('api', options),
       PORT: String(BACKEND_API_PORT),
@@ -178,7 +180,7 @@ export function createBackendApiService(
     // LIVENESS, not readiness: `/ping` stays 200 while a replica drains, so
     // Docker does not kill a container that is deliberately finishing its
     // in-flight work. `/ready` is the deploy's question (503 once this
-    // replica is draining) and is not what Docker or Caddy probe.
+    // replica is draining) and is not what Docker or the edge probe.
     healthcheck: {
       test: ['CMD-SHELL', `curl -sf http://localhost:${BACKEND_API_PORT}/ping`],
       interval: '10s',

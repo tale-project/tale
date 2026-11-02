@@ -60,7 +60,6 @@ await mockModule('../../utils/logger', () => ({
 }));
 
 const env: DeploymentEnv = {
-  BACKEND_UPSTREAM: '',
   GHCR_REGISTRY: 'ghcr.io/tale-project/tale',
   SITE_URL: 'https://localhost',
   HEALTH_CHECK_TIMEOUT: 1,
@@ -82,6 +81,7 @@ const DATA_VOLUMES = [
   'tale_config-data',
   'tale_caddy-data',
   'tale_caddy-config',
+  'tale_proxy-data',
   'tale_db-data',
   'tale_db-backup',
   'tale_object-store-data',

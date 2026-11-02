@@ -49,6 +49,9 @@ export const SNAPSHOT_VOLUMES = [
   BLOB_VOLUME,
   'caddy-data',
   'caddy-config',
+  // The edge's ACME account and certificates, and the self-signed CA a
+  // device may already trust.
+  'proxy-data',
   GATEWAY_VOLUME,
 ] as const;
 

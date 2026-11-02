@@ -1,6 +1,7 @@
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { platformLabels } from './traefik-labels';
 
 /**
  * The web tier, as one colour's replica template.
@@ -17,9 +18,10 @@ export function createPlatformService(
 ): ComposeService {
   return {
     image: imageRef(config, 'platform'),
+    labels: platformLabels(color),
     // /app/data is the org config store, mounted read-only so server.ts can
-    // watch config files and serve branding images. Platform does not mount
-    // caddy-data any more (zero outbound HTTPS).
+    // watch config files and serve branding images. Platform mounts none of
+    // the proxy's volumes (zero outbound HTTPS).
     volumes: ['config-data:/app/data:ro', 'static-assets:/app/static-assets'],
     env_file: ['.env'],
     restart: 'unless-stopped',
