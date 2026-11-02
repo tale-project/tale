@@ -88,7 +88,6 @@ describe('agentTurnShimHandlers', () => {
         'agent_secrets/actions:resolveAgentSecretsEnv',
         'connector_credentials/queries:resolveCredentialRefInternal',
         'sandbox/session_mutations:recordCredentialAccess',
-        'sandbox/session_queries:getSessionOwnerIdentity',
       ]),
     );
   });

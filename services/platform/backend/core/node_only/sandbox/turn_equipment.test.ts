@@ -12,7 +12,6 @@ vi.mock('../../lib/handler_names', () => ({
   internal: {
     agent_secrets: { actions: { resolveAgentSecretsEnv: 'agent-secrets' } },
     sandbox: {
-      session_queries: { getSessionOwnerIdentity: 'owner-identity' },
       session_mutations: { recordCredentialAccess: 'credential-access' },
     },
   },
@@ -27,21 +26,36 @@ const args = {
   secrets: [],
 };
 
-function context(identity: { name: string; email: string } | null) {
+/** A host context. The equipment reads nothing about the session: whose
+ * workspace it is never decides whose name a commit carries. */
+function context() {
   const runAction = vi
     .fn()
     .mockResolvedValue({ env: { REPO_SSH_KEY: 'synthetic-secret' } });
-  const runQuery = vi.fn().mockResolvedValue(identity);
+  const runQuery = vi.fn().mockRejectedValue(new Error('unexpected query'));
   const runMutation = vi.fn().mockResolvedValue(undefined);
   const ctx = { runAction, runQuery, runMutation } as unknown as ActionCtx;
   return { ctx, runAction, runQuery, runMutation };
 }
 
+/** The env Tale's own identity sets, as author, committer and config. */
+const TALE_ENV = {
+  GIT_CONFIG_COUNT: '2',
+  GIT_CONFIG_KEY_0: 'user.name',
+  GIT_CONFIG_VALUE_0: 'Tale',
+  GIT_CONFIG_KEY_1: 'user.email',
+  GIT_CONFIG_VALUE_1: 'noreply@tale.dev',
+  GIT_AUTHOR_NAME: 'Tale',
+  GIT_AUTHOR_EMAIL: 'noreply@tale.dev',
+  GIT_COMMITTER_NAME: 'Tale',
+  GIT_COMMITTER_EMAIL: 'noreply@tale.dev',
+};
+
 beforeEach(() => vi.clearAllMocks());
 
-describe('credentialed turn git author identity', () => {
-  it('an SSH-only turn commits as its session owner without resolving any connector token', async () => {
-    const fx = context({ name: 'Alex Rivera', email: 'alex@example.com' });
+describe('every turn commits under an identity, never a person’s [SBX-R42]', () => {
+  it('an SSH-only turn commits as Tale without resolving any connector token', async () => {
+    const fx = context();
     const env = await resolveTurnEquipmentEnv(fx.ctx, {
       ...args,
       secrets: ['REPO_SSH_KEY'],
@@ -51,50 +65,53 @@ describe('credentialed turn git author identity', () => {
     expect(fx.runMutation).not.toHaveBeenCalled();
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(Object.values(env)).not.toContain('credential.helper');
-    const author = execFileSync('git', ['var', 'GIT_AUTHOR_IDENT'], {
-      env: {
-        PATH: process.env.PATH,
-        GIT_CONFIG_NOSYSTEM: '1',
-        GIT_CONFIG_GLOBAL: '/dev/null',
-        ...env,
-      },
-      encoding: 'utf8',
-    });
-    expect(author).toMatch(/^Alex Rivera <alex@example.com> /);
+    const identity = (name: string) =>
+      execFileSync('git', ['var', name], {
+        env: {
+          PATH: process.env.PATH,
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          ...env,
+        },
+        encoding: 'utf8',
+      });
+    expect(identity('GIT_AUTHOR_IDENT')).toMatch(/^Tale <noreply@tale.dev> /);
+    expect(identity('GIT_COMMITTER_IDENT')).toMatch(
+      /^Tale <noreply@tale.dev> /,
+    );
   });
 
-  it('an otherwise unequipped turn receives only its owner identity', async () => {
-    const fx = context({ name: 'Alex Rivera', email: 'alex@example.com' });
-    const env = await resolveTurnEquipmentEnv(fx.ctx, args);
+  it('a session no person owns (system:task-agent, system:automation) gets Tale’s identity, not none', async () => {
+    const fx = context();
+    expect(await resolveTurnEquipmentEnv(fx.ctx, args)).toEqual(TALE_ENV);
     expect(fx.runAction).not.toHaveBeenCalled();
+    expect(fx.runQuery).not.toHaveBeenCalled();
     expect(resolveConnectorCredential).not.toHaveBeenCalled();
-    expect(env).toEqual({
-      GIT_CONFIG_COUNT: '2',
-      GIT_CONFIG_KEY_0: 'user.name',
-      GIT_CONFIG_VALUE_0: 'Alex Rivera',
-      GIT_CONFIG_KEY_1: 'user.email',
-      GIT_CONFIG_VALUE_1: 'alex@example.com',
+  });
+
+  it('a broker failure drops the credential but keeps the secrets and the identity', async () => {
+    resolveConnectorCredential.mockResolvedValue({
+      credentialId: 'cred-github',
+      connectorSlug: 'github',
+      authMethod: 'bearer',
+      secrets: { token: 'gh-token' },
+      config: {},
     });
-  });
-
-  it('a system session without an identity stays empty and makes no credential request', async () => {
-    const fx = context(null);
-    expect(await resolveTurnEquipmentEnv(fx.ctx, args)).toEqual({});
-    expect(resolveConnectorCredential).not.toHaveBeenCalled();
-  });
-
-  it('an unavailable owner lookup preserves granted secrets without inventing an author', async () => {
-    const fx = context(null);
-    fx.runQuery.mockRejectedValue(new Error('identity unavailable'));
+    const fx = context();
+    fx.runMutation.mockRejectedValue(new Error('audit unavailable'));
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       expect(
         await resolveTurnEquipmentEnv(fx.ctx, {
           ...args,
+          connectors: ['github'],
           secrets: ['REPO_SSH_KEY'],
         }),
-      ).toEqual({ REPO_SSH_KEY: 'synthetic-secret' });
-      expect(resolveConnectorCredential).not.toHaveBeenCalled();
+      ).toEqual({ REPO_SSH_KEY: 'synthetic-secret', ...TALE_ENV });
+      expect(warning).toHaveBeenCalledWith(
+        '[turn-equipment] connector broker failed (continuing):',
+        'audit unavailable',
+      );
     } finally {
       warning.mockRestore();
     }
@@ -137,9 +154,9 @@ function gitConfig(env: Record<string, string>): Record<string, string> {
 }
 
 describe('a project agent’s turn is equipped with its own credential and identity', () => {
-  it('a pinned agent’s run in a workspace no person owns resolves the pinned credential and commits as the agent [SBX-R41] [SBX-R42]', async () => {
+  it('a pinned agent’s run resolves the pinned credential and commits as the agent [SBX-R41] [SBX-R42]', async () => {
     resolveConnectorCredential.mockResolvedValue(CLIENT_A);
-    const fx = context(null);
+    const fx = context();
     const env = await resolveTurnEquipmentEnv(fx.ctx, equipped);
     expect(resolveConnectorCredential).toHaveBeenCalledTimes(1);
     expect(resolveConnectorCredential).toHaveBeenCalledWith(fx.ctx, {
@@ -162,39 +179,32 @@ describe('a project agent’s turn is equipped with its own credential and ident
       'user.name': 'Coder',
       'user.email': 'coder@tale.dev',
     });
+    expect(env.GIT_AUTHOR_NAME).toBe('Coder');
+    expect(env.GIT_COMMITTER_EMAIL).toBe('coder@tale.dev');
   });
 
-  it('a confined run of the same agent is handed none of its secrets or credentials, only its commit identity [TASK-R79] [SBX-R42]', async () => {
-    resolveConnectorCredential.mockResolvedValue(CLIENT_A);
-    const fx = context(null);
+  it('a confined run of the same agent is handed none of its secrets or credentials, only its commit identity [TASK-R79] [SBX-R42]', () => {
     // The host holds the agent's whole equipment; the confined resolver
     // takes nothing from it but the identity.
-    const env = await resolveConfinedTurnEnv(fx.ctx, equipped);
-    expect(env).toEqual({
+    expect(resolveConfinedTurnEnv(equipped.gitIdentity)).toEqual({
       GIT_CONFIG_COUNT: '2',
       GIT_CONFIG_KEY_0: 'user.name',
       GIT_CONFIG_VALUE_0: 'Coder',
       GIT_CONFIG_KEY_1: 'user.email',
       GIT_CONFIG_VALUE_1: 'coder@tale.dev',
+      GIT_AUTHOR_NAME: 'Coder',
+      GIT_AUTHOR_EMAIL: 'coder@tale.dev',
+      GIT_COMMITTER_NAME: 'Coder',
+      GIT_COMMITTER_EMAIL: 'coder@tale.dev',
     });
-    expect(fx.runAction).not.toHaveBeenCalled();
     expect(resolveConnectorCredential).not.toHaveBeenCalled();
-    expect(fx.runMutation).not.toHaveBeenCalled();
   });
 
-  it('a confined run in a person’s workspace commits as that person, not as the agent [SBX-R42]', async () => {
-    const fx = context({ name: 'Alex Rivera', email: 'alex@example.com' });
-    expect(await resolveConfinedTurnEnv(fx.ctx, equipped)).toEqual({
-      GIT_CONFIG_COUNT: '2',
-      GIT_CONFIG_KEY_0: 'user.name',
-      GIT_CONFIG_VALUE_0: 'Alex Rivera',
-      GIT_CONFIG_KEY_1: 'user.email',
-      GIT_CONFIG_VALUE_1: 'alex@example.com',
-    });
-    expect(fx.runQuery).toHaveBeenCalledWith('owner-identity', {
-      sessionId: 'session',
-    });
-    expect(fx.runAction).not.toHaveBeenCalled();
-    expect(fx.runMutation).not.toHaveBeenCalled();
+  it('a confined run in a person’s workspace commits as the agent, else as Tale, never as that person [SBX-R42]', () => {
+    // The confined resolver takes no session and no context: the workspace's
+    // owner has no way to reach the commit.
+    expect(resolveConfinedTurnEnv(CODER).GIT_AUTHOR_NAME).toBe('Coder');
+    expect(resolveConfinedTurnEnv(null)).toEqual(TALE_ENV);
+    expect(resolveConfinedTurnEnv()).toEqual(TALE_ENV);
   });
 });
