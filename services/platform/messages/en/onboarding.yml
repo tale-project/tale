@@ -22,7 +22,6 @@ finish:
   heading: Ready to go
   subtitle: "Here's what you can do next:"
   providerItem: Connect an AI provider to power agents and chat.
-  providerConnected: AI provider connected.
   inviteItem: Invite teammates to collaborate.
   providerCta: Connect a provider
   inviteCta: Invite teammates

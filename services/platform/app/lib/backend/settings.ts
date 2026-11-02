@@ -1457,14 +1457,6 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       }).then(() => null),
     invalidate: invalidateUserPrefs,
   },
-  'user_preferences/mutations:setOnboardingCompleted': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>('/user-preferences/onboarding-completed', {
-        orgId: requireOrg(args, ctx),
-        body: { completed: args.completed !== false },
-      }).then(() => null),
-    invalidate: invalidateUserPrefs,
-  },
   'user_preferences/mutations:setCustomInstructionsEnabled': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(
