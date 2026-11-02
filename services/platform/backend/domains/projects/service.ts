@@ -1556,8 +1556,8 @@ export interface ProjectAgentRow {
    * from tasks, by name (migration 0233): each in its project's spelling
    * when it was granted, sorted without regard to case. */
   labelGrants: string[];
-  /** The name and email its commits carry where no person owns its
-   * workspace (migration 0219); `null` for none. */
+  /** The name and email its commits carry, as author and committer
+   * (migration 0219); `null` for Tale's own. */
   gitIdentity: ProjectAgentGitIdentity | null;
   instructions: string | null;
   /** The organization's standard agent (migration 0146): Tale created it
