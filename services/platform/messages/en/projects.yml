@@ -218,7 +218,7 @@ agents:
   emptyReaderTitle: No agents in this project yet
   emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
   equippedCount: '{count} equipped'
-  rowView: "View agent details"
+  rowActionsLabel: Actions for {name}
   detailsTitle: "Agent details"
   providerLabel: "Provider"
   providerUnpinned: "Not pinned"
@@ -230,8 +230,6 @@ agents:
   detailsMoreCount: "+{count} more"
   detailsProviderCurrently: "The provider is resolved for future runs and may change."
   detailsStandardSnapshot: "Saved configuration. The standard agent resolves its model, skills, and instructions again when a run starts."
-  rowEdit: Edit agent
-  rowDelete: Delete agent
   dialogCreateTitle: New agent
   dialogEditTitle: Edit agent
   nameLabel: Name
@@ -331,7 +329,7 @@ agents:
   instructionsPlaceholder:
     What this agent owns, how it should work, and the boundaries it must
     respect.
-  instructionsHint: Rides along as a standing instruction on every run of this agent.
+  instructionsHint: What this agent always keeps in mind on every run.
   createSubmit: Create agent
   createSubmitting: Creating…
   editSubmit: Save changes
