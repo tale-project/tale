@@ -114,7 +114,7 @@ export default {
         // Hand-run locale-org bootstrap (`bun tests/docs-videos/seed-locale-orgs.ts`).
         'tests/docs-videos/seed-locale-orgs.ts',
         // Same shape: the root `readme:assets` script derives the README gallery
-        // tiles and tour from the captured docs frames.
+        // tiles from the captured docs frames.
         'tests/docs-screenshots/readme-assets.ts',
       ],
       project: ['**/*.{ts,tsx}'],

@@ -277,7 +277,8 @@ Every marketing page declares its head once via
 URL join + hreflang maps from [`@tale/ui/seo/urls`](../../packages/ui/src/seo/urls.ts) /
 [`@tale/ui/seo/alternates`](../../packages/ui/src/seo/alternates.ts))
 with the **unlocalized `path`** — canonical, the hreflang cluster, `og:locale`, and the brand OG
-card (`public/og.png`, 1200×630) all derive from it. On top of that:
+card (`public/og.png`, 1200×630, written by `bun run --filter @tale/web og-card`) all derive from
+it. On top of that:
 
 - One `h1` per page; question-shaped titles (visible H1 and matching `seo.*.title`) where natural,
   with a standalone answer as the first sentence beneath them.
