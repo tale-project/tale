@@ -1,8 +1,8 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { memorySizeEnvMib } from './memory-env';
 
-const MIB = 1024 ** 2;
 /** The gateway and its provider workers before any session runs, in MiB. */
 const GATEWAY_BASE_MIB = 256;
 /**
@@ -54,35 +54,13 @@ function sessionCapacity(): number {
  * set, a size such as 4g or 4096m and at least 512 MiB; else the base and a
  * share for each session of the capacity, at least 512 MiB. It is a cap, not
  * a reservation, so headroom costs an idle gateway nothing. The shipped
- * compose.yml hands the same variable to mem_limit as it is, so this takes
- * only spellings compose takes too: not the Kubernetes 4Gi that the spawner's
- * own sizes (sizeEnv in services/sandbox/src/config.ts) also read.
+ * compose.yml hands the same variable to mem_limit as it is (memorySizeEnvMib).
  */
 function gatewayMemoryLimit(): string {
-  const name = 'SANDBOX_LLM_GATEWAY_MEMORY';
-  const value = process.env[name]?.trim();
-  if (value === undefined || value === '') {
-    const derived = GATEWAY_BASE_MIB + GATEWAY_SESSION_MIB * sessionCapacity();
-    return `${Math.max(GATEWAY_MIN_MIB, derived)}m`;
-  }
-  const m = /^(\d+)([kmg]?)b?$/i.exec(value);
-  const unit = { '': 1, k: 1024, m: MIB, g: 1024 * MIB }[
-    (m?.[2] ?? '').toLowerCase()
-  ];
-  const bytes = Number(m?.[1]) * (unit ?? 1);
-  // NaN when it is no size; past 2^53 bytes the limit would print in exponent
-  // notation, which compose refuses.
-  if (!Number.isSafeInteger(bytes)) {
-    throw new Error(
-      `Env var ${name} is not a size such as 4g or 4096m: ${JSON.stringify(value)}`,
-    );
-  }
-  if (bytes < GATEWAY_MIN_MIB * MIB) {
-    throw new Error(
-      `Env var ${name} must be at least 512m; got: ${JSON.stringify(value)}`,
-    );
-  }
-  return `${Math.floor(bytes / MIB)}m`;
+  const set = memorySizeEnvMib('SANDBOX_LLM_GATEWAY_MEMORY', GATEWAY_MIN_MIB);
+  if (set !== undefined) return `${set}m`;
+  const derived = GATEWAY_BASE_MIB + GATEWAY_SESSION_MIB * sessionCapacity();
+  return `${Math.max(GATEWAY_MIN_MIB, derived)}m`;
 }
 
 /**
