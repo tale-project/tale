@@ -24,7 +24,6 @@ export interface UserPreferences {
    * pick saved before providers were part of it — such a pick resolves by id
    * alone, the first connector listing it. */
   chatModelProviderSlug?: string;
-  onboardingCompleted?: boolean;
   updatedAt: number;
 }
 
@@ -41,7 +40,6 @@ interface PreferencesRow {
   voiceOutput: boolean | null;
   chatModelId: string | null;
   chatModelProviderSlug: string | null;
-  onboardingCompleted: boolean | null;
   updatedAt: number;
 }
 
@@ -65,7 +63,6 @@ export async function getMyPreferences(
            voice_output AS "voiceOutput",
            chat_model_id AS "chatModelId",
            chat_model_provider_slug AS "chatModelProviderSlug",
-           onboarding_completed AS "onboardingCompleted",
            updated_at::float8 AS "updatedAt"
     FROM app.user_preferences
     WHERE user_id = ${scope.userId} AND org_id = ${scope.orgId}
@@ -87,9 +84,6 @@ export async function getMyPreferences(
     // behind by a cleared pick is never surfaced on its own.
     ...(row.chatModelId !== null && row.chatModelProviderSlug !== null
       ? { chatModelProviderSlug: row.chatModelProviderSlug }
-      : {}),
-    ...(row.onboardingCompleted !== null
-      ? { onboardingCompleted: row.onboardingCompleted }
       : {}),
     updatedAt: row.updatedAt,
   };
@@ -196,10 +190,7 @@ export async function upsertCustomInstructions(
   `;
 }
 
-type FlagColumn =
-  | 'custom_instructions_enabled'
-  | 'voice_output'
-  | 'onboarding_completed';
+type FlagColumn = 'custom_instructions_enabled' | 'voice_output';
 
 async function upsertFlag(
   tx: TransactionSql,
@@ -231,14 +222,6 @@ export function setVoiceOutput(
   enabled: boolean,
 ): Promise<void> {
   return upsertFlag(tx, scope, 'voice_output', enabled);
-}
-
-export function setOnboardingCompleted(
-  tx: TransactionSql,
-  scope: { userId: string; orgId: string },
-  completed: boolean,
-): Promise<void> {
-  return upsertFlag(tx, scope, 'onboarding_completed', completed);
 }
 
 // Provider-namespaced printable identifier, never free prose.
