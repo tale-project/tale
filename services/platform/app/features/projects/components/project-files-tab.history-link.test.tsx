@@ -57,9 +57,6 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useLegalHoldByTarget: () => ({ data: null }),
   useUploadPolicy: () => ({}),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
-}));
 vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
   toast: vi.fn(),
