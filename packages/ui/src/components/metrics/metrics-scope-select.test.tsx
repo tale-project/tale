@@ -69,6 +69,18 @@ describe('MetricsScopeSelect', () => {
     expect(onValueChange).toHaveBeenCalledWith('p2');
   });
 
+  it('reports what is typed, for subjects searched on the server', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderScope({ onSearchChange });
+
+    await user.click(screen.getByRole('button', { name: 'Select a project' }));
+    await user.type(
+      screen.getByRole('combobox', { name: 'Search projects' }),
+      'web',
+    );
+    expect(onSearchChange).toHaveBeenLastCalledWith('web');
+  });
+
   it('says so when there is nothing to scope to', async () => {
     const { user } = renderScope({ options: [] });
 

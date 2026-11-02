@@ -85,26 +85,26 @@ describe('activeOrganizationId', () => {
 });
 
 describe('project read adapters', () => {
-  it('lists projects under the project entity and strips nulls to the 0.4 shape', async () => {
+  it('searches projects under the project entity and strips nulls to the 0.4 shape', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')
       .mockResolvedValue(jsonResponse(200, { projects: [wireProject()] }));
 
-    const row = projectReadAdapters['projects/queries:listProjects']?.(
-      { organizationId: 'org-1' },
+    const row = projectReadAdapters['projects/queries:searchProjects']?.(
+      { organizationId: 'org-1', query: 'Apollo' },
       {},
     );
     expect(row?.queryKey).toEqual([
       'backend',
       'org-1',
       'project',
-      'list',
-      false,
+      'search',
+      'Apollo',
     ]);
 
     const projects = (await row?.queryFn()) as Record<string, unknown>[];
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/app/projects?includeArchived=false&summary=true&orgId=org-1',
+      '/api/app/projects/search?q=Apollo&summary=true&orgId=org-1',
       expect.anything(),
     );
     const view = projects[0];
@@ -120,7 +120,10 @@ describe('project read adapters', () => {
 
   it('answers null (skipped) when no org is in scope anywhere', () => {
     expect(
-      projectReadAdapters['projects/queries:listProjects']?.({}, {}),
+      projectReadAdapters['projects/queries:searchProjects']?.(
+        { query: 'Apollo' },
+        {},
+      ),
     ).toBeNull();
   });
 
@@ -320,7 +323,6 @@ describe('project read adapters', () => {
         ),
       );
     for (const name of [
-      'projects/queries:listProjects',
       'projects/queries:listSidebarProjects',
       'projects/queries:searchProjects',
       'projects/search:searchProjects',
@@ -333,7 +335,7 @@ describe('project read adapters', () => {
       expect(result).not.toBeNull();
       expect(JSON.stringify(result)).not.toContain(instructions);
       expect(fetchSpy.mock.calls.at(-1)?.[0]).toContain('summary=true');
-      if (name === 'projects/queries:listProjects')
+      if (name === 'projects/queries:searchProjects')
         expect(result).toEqual([
           expect.objectContaining({ description: project.description }),
         ]);
