@@ -8,7 +8,7 @@
 // 30 days remain or when the hosts change.
 
 const DAY = 24 * 60 * 60 * 1000;
-export const CA_DAYS = 3650;
+const CA_DAYS = 3650;
 export const LEAF_DAYS = 365;
 export const RENEW_DAYS = 30;
 
@@ -148,13 +148,13 @@ function pem(label, bytes) {
   return `-----BEGIN ${label}-----\n${lines}\n-----END ${label}-----\n`;
 }
 
-export function unpem(text) {
+function unpem(text) {
   const body = text.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
   return Array.from(Buffer.from(body, 'base64'));
 }
 
 /** The subject key identifier this module wrote into a certificate. */
-export function keyIdOf(der) {
+function keyIdOf(der) {
   const marker = oid(OID.subjectKeyIdentifier).concat([0x04, 0x16, 0x04, 0x14]);
   for (let i = 0; i + marker.length + 20 <= der.length; i++) {
     if (marker.every((byte, j) => der[i + j] === byte)) {
