@@ -55962,21 +55962,27 @@ async function checkDataResidencyConfig(
     .safeParse(
       await (await get(`/api/app/knowledge/connection?orgId=${orgId}`)).json(),
     );
-  // Stored-password probe against the live itest PG.
-  const knProbe = z
-    .object({ ok: z.boolean() })
-    .loose()
-    .safeParse(
-      await (
-        await post(`/api/app/knowledge/connection/test?orgId=${orgId}`, {
-          host: dbUrl.hostname,
-          port: Number(dbUrl.port || '5432'),
-          database: dbUrl.pathname.replace(/^\//, ''),
-          user: decodeURIComponent(dbUrl.username),
-          sslmode: 'prefer',
-        })
-      ).json(),
-    );
+  // Stored-password probes against the live itest PG, which serves no TLS.
+  // The test resolves TLS as the organization's pool does: `disable` reaches
+  // the database, and `prefer` fails the test as it fails the pool (#5330:
+  // the test used to fall back to plaintext and pass).
+  const probeKnowledge = async (sslmode: 'disable' | 'prefer') =>
+    z
+      .object({ ok: z.boolean(), error: z.string().optional() })
+      .loose()
+      .safeParse(
+        await (
+          await post(`/api/app/knowledge/connection/test?orgId=${orgId}`, {
+            host: dbUrl.hostname,
+            port: Number(dbUrl.port || '5432'),
+            database: dbUrl.pathname.replace(/^\//, ''),
+            user: decodeURIComponent(dbUrl.username),
+            sslmode,
+          })
+        ).json(),
+      );
+  const knProbe = await probeKnowledge('disable');
+  const knProbeTls = await probeKnowledge('prefer');
   // A save that names another model than the stated one is refused while the
   // organization's knowledge database does not answer, and this one does not:
   // the pool takes `prefer` as TLS, which the itest PG lacks. A removal goes
@@ -56046,6 +56052,8 @@ async function checkDataResidencyConfig(
       knView.data.hasPassword &&
       knProbe.success &&
       knProbe.data.ok &&
+      knProbeTls.success &&
+      !knProbeTls.data.ok &&
       embSaved.success &&
       embView.success &&
       embView.data.configured &&
@@ -56062,7 +56070,7 @@ async function checkDataResidencyConfig(
       !embGone.data.configured &&
       knGone.success &&
       !knGone.data.configured,
-    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? `${recs.data.recommendations.length}/${recs.data.providers.map((entry) => `${entry.providerSlug}:${entry.support}`).join(',')}` : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
+    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe(disable)=${knProbe.success ? knProbe.data.ok : 'ERR'}/true, probe(prefer)=${knProbeTls.success ? `${knProbeTls.data.ok}/false ${JSON.stringify((knProbeTls.data.error ?? '').slice(0, 80))}` : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? `${recs.data.recommendations.length}/${recs.data.providers.map((entry) => `${entry.providerSlug}:${entry.support}`).join(',')}` : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
   );
 }
 
