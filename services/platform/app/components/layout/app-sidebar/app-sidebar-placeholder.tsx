@@ -28,12 +28,13 @@ function TileSkeleton() {
 
 /**
  * Masked desktop rail shown while access resolves. Mirrors the AppSidebar's
- * fixed 52px icon rail — logo tile, nav tiles, pinned footer — so the live
- * rail slots in without reflow. Hidden below `md`, like the live rail.
+ * fixed 52px icon rail — logo tile, nav tiles, pinned footer — on the same
+ * sidebar surface, so the live rail slots in without reflow or a change of
+ * colour. Hidden below `md`, like the live rail.
  */
 export function AppSidebarPlaceholder() {
   return (
-    <div className="bg-background hidden h-full w-(--sidebar-width-collapsed) shrink-0 md:flex">
+    <div className="bg-sidebar hidden h-full w-(--sidebar-width-collapsed) shrink-0 md:flex">
       <Skeletonize loading>
         <Stack gap={0} className="h-full w-full overflow-hidden px-2">
           {/* Header: logo tile */}

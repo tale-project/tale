@@ -20,7 +20,9 @@ export interface AppSidebarProps {
  * its foot — present on every dashboard route. A section's own navigation
  * lives in its panel beside the page (the Home panel, the Settings panel).
  * Every tile carries its label as an `aria-label` with a right-side tooltip.
- * Hidden below `md`, where the bottom tab bar takes over.
+ * The rail and the section panels share the sidebar surface (`bg-sidebar`),
+ * one column set apart from the page. Hidden below `md`, where the bottom tab
+ * bar takes over.
  *
  * Also mounts the surface that must exist on every route regardless of
  * viewport: the shared search palette.
@@ -32,7 +34,7 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
     <>
       <aside
         aria-label={tNav('sidebar.landmark')}
-        className="bg-background hidden h-full w-(--sidebar-width-collapsed) shrink-0 md:flex"
+        className="bg-sidebar hidden h-full w-(--sidebar-width-collapsed) shrink-0 md:flex"
       >
         <Stack gap={0} className="h-full w-full overflow-hidden px-2">
           <div className="shrink-0 pt-3 pb-4">
