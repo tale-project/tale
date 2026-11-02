@@ -96,6 +96,9 @@ interface StoredRow {
   content_hash: string | null;
   status: string;
   stored: number;
+  /** The model the row records; absent reads NULL, as on a row indexed
+   * before the corpus recorded it. */
+  embedding_model?: string | null;
 }
 
 interface FakeDb {
@@ -120,11 +123,15 @@ function fakeDb(
     /** The previous release's column as the catalog declares it: `vector`
      * (never pinned, the default) or `vector(<width>)`. */
     legacyColumn?: string;
+    /** The model the row records once a run of it claimed the row after
+     * this one: the row lock then finds no row of this run's model. */
+    claimedBy?: string;
   } = {},
 ): FakeDb {
   const statements: string[] = [];
   const params: unknown[][] = [];
   let claimedHash: string | null = null;
+  let claimedModel: string | null = null;
   let storedChunks = 0;
   let status = 'processing';
   let released = false;
@@ -132,7 +139,9 @@ function fakeDb(
     statements.push(text.trim());
     params.push(values);
     if (text.includes('FOR KEY SHARE')) {
-      return Promise.resolve(released ? [] : [{ id: 'doc-1' }]);
+      const superseded =
+        options.claimedBy !== undefined && values[2] !== options.claimedBy;
+      return Promise.resolve(released || superseded ? [] : [{ id: 'doc-1' }]);
     }
     if (text.includes('FROM pg_attribute')) {
       return Promise.resolve([{ declared: options.legacyColumn ?? 'vector' }]);
@@ -148,13 +157,16 @@ function fakeDb(
                   id: 'doc-1',
                   content_hash: claimedHash,
                   status,
+                  embedding_model: claimedModel,
                   stored: storedChunks,
                 },
               ],
         );
       }
       return Promise.resolve(
-        options.stored ? [{ id: 'doc-existing', ...options.stored }] : [],
+        options.stored
+          ? [{ id: 'doc-existing', embedding_model: null, ...options.stored }]
+          : [],
       );
     }
     if (text.includes('content_hash = $2') && text.includes('completed')) {
@@ -163,9 +175,15 @@ function fakeDb(
       );
     }
     if (text.includes('INSERT INTO private_knowledge.documents')) {
-      // $4 is the content hash of a claim; a failure row carries none.
+      // $4 is the content hash of a claim and $13 its model; a failure row
+      // carries neither.
       if (typeof values[3] === 'string') claimedHash = values[3];
+      if (typeof values[12] === 'string') claimedModel = values[12];
       return Promise.resolve([{ id: 'doc-1' }]);
+    }
+    // A claim that keeps no chunks drops them: the next pass reads none.
+    if (text.trim().startsWith('DELETE FROM private_knowledge.chunks')) {
+      storedChunks = 0;
     }
     if (
       text.includes('INSERT INTO private_knowledge.chunks') &&
@@ -536,6 +554,167 @@ describe('vectors are stored and counted per width [KNOW-R11]', () => {
 
     expect(embedAll).not.toHaveBeenCalled();
     expect(db.statements).toEqual([]);
+  });
+});
+
+describe('a document is reused only under the model that embedded it [KNOW-R17]', () => {
+  /** Another model of the same width: only its name tells its vectors apart. */
+  const OTHER_MODEL = 'openrouter/qwen/qwen3-embedding-8b';
+  const complete = (embeddingModel: string | null): StoredRow => ({
+    content_hash: computeContentHash(ARGS.text),
+    status: 'completed',
+    stored: 99,
+    embedding_model: embeddingModel,
+  });
+  const claimOf = (db: FakeDb) => {
+    const at = db.statements.findIndex((statement) =>
+      statement.startsWith('INSERT INTO private_knowledge.documents'),
+    );
+    return { statement: db.statements[at], params: db.params[at] ?? [] };
+  };
+
+  it('embeds a complete document again when another model of its width embedded it', async () => {
+    const db = fakeDb({ stored: complete(OTHER_MODEL) });
+    const embedder = stubEmbedder();
+    const result = await indexDocument({ ...ARGS, sql: db.sql, embedder });
+
+    expect(result.skipped).toBeUndefined();
+    expect(result.chunksWritten).toBe(result.chunksTotal);
+    expect(embedder.embedded.length).toBe(result.chunksTotal);
+    // From its first chunk: the other model's chunks and vectors go.
+    expect(db.statements.join('\n')).toContain(
+      'DELETE FROM private_knowledge.chunks WHERE document_id = $1',
+    );
+    expect(claimOf(db).params[12]).toBe(MODEL.model);
+  });
+
+  it('skips a complete document this model embedded', async () => {
+    const db = fakeDb({ stored: complete(MODEL.model) });
+    const embedder = stubEmbedder();
+    const result = await indexDocument({ ...ARGS, sql: db.sql, embedder });
+
+    expect(result.skipped).toBe('unchanged');
+    expect(embedder.embedded).toEqual([]);
+  });
+
+  it('takes a document indexed before the model was recorded for this one', async () => {
+    const db = fakeDb({ stored: complete(null) });
+    const embedder = stubEmbedder();
+    const result = await indexDocument({ ...ARGS, sql: db.sql, embedder });
+
+    expect(result.skipped).toBe('unchanged');
+    expect(embedder.embedded).toEqual([]);
+  });
+
+  it('records the model on the row it claims, on insert and on conflict alike', async () => {
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const claim = claimOf(db);
+    expect(claim.statement).toMatch(
+      /source_created_at, source_modified_at, embedding_model\)/,
+    );
+    expect(claim.statement).toContain(
+      'embedding_model = EXCLUDED.embedding_model',
+    );
+    expect(claim.params[12]).toBe(MODEL.model);
+  });
+
+  it('copies an identical document only when this model embedded it', async () => {
+    const db = fakeDb({ duplicateId: 'doc-original' });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const at = db.statements.findIndex(
+      (statement) =>
+        statement.includes('content_hash = $2') &&
+        statement.includes('completed'),
+    );
+    expect(db.statements[at]).toContain(
+      '(d.embedding_model IS NULL OR d.embedding_model = $5)',
+    );
+    expect(db.params[at]?.[4]).toBe(MODEL.model);
+  });
+
+  it('writes a slice only while the row records this run’s model', async () => {
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const at = db.statements.findIndex((statement) =>
+      statement.includes('FOR KEY SHARE'),
+    );
+    expect(db.statements[at]).toContain(
+      'embedding_model IS NOT DISTINCT FROM $3',
+    );
+    expect(db.params[at]?.[2]).toBe(MODEL.model);
+    const completion = db.statements.findIndex((statement) =>
+      statement.includes("SET status = 'completed'"),
+    );
+    expect(db.statements[completion]).toContain(
+      'embedding_model IS NOT DISTINCT FROM $4',
+    );
+    expect(db.params[completion]?.[3]).toBe(MODEL.model);
+  });
+
+  // A run of another model claimed the row while this one embedded its
+  // slice, and dropped this run's chunks: adding them back would leave the
+  // row recording one model and holding two models' vectors.
+  it('stops without writing once a run of another model claimed the row', async () => {
+    const db = fakeDb({ claimedBy: OTHER_MODEL });
+    const result = await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder: stubEmbedder(),
+    });
+
+    expect(result.skipped).toBe('released');
+    expect(
+      db.statements.some((statement) =>
+        statement.startsWith('INSERT INTO private_knowledge.chunks'),
+      ),
+    ).toBe(false);
+    expect(
+      db.statements.some((statement) =>
+        statement.includes("SET status = 'completed'"),
+      ),
+    ).toBe(false);
+  });
+
+  it('starts a large document over when the model changed between its slices', async () => {
+    const LONG = Array.from(
+      { length: 200 },
+      (_v, i) =>
+        `## Section ${i}\n\nParagraph ${i} with enough words to fill a chunk.\n`,
+    ).join('\n');
+    const db = fakeDb({ resumable: true });
+    const first = stubEmbedder();
+    await indexDocument({
+      ...ARGS,
+      text: LONG,
+      sql: db.sql,
+      embedder: first,
+      maxChunks: 3,
+    });
+    // The settings now state another model of the same width.
+    const other = stubEmbedder();
+    Object.assign(other, { model: { ...MODEL, model: OTHER_MODEL } });
+    const second = await indexDocument({
+      ...ARGS,
+      text: LONG,
+      sql: db.sql,
+      embedder: other,
+      maxChunks: 3,
+    });
+
+    // Not after the first model's three chunks: from the first chunk again,
+    // so the document never holds two models' vectors.
+    expect(second.chunksStored).toBe(3);
+    expect(other.embedded).toEqual(first.embedded);
+    const claims = db.statements.flatMap((statement, index) =>
+      statement.startsWith('INSERT INTO private_knowledge.documents')
+        ? [db.params[index]?.[12]]
+        : [],
+    );
+    expect(claims).toEqual([MODEL.model, OTHER_MODEL]);
   });
 });
 

@@ -240,7 +240,7 @@ database stores the widths 256, 384, 512, 768, 1024, 1536, 2048, 3072 and 4096, 
 from the others. An organization's vectors are stored and searched among the vectors of the
 width its model states, so organizations whose models differ in width share one database, and
 a search never compares vectors of two widths. On a website that several organizations added,
-each has its own vectors for the same pages.
+each width has its own vectors for the same pages.
 
 A width outside that list cannot be saved (`INVALID_EMBEDDING`). A model that answers vectors
 of another width than the settings state has nothing written: the document being indexed
@@ -253,19 +253,34 @@ fails with both widths named (`embedding_provider_refused`).
 - **Example**: Ada's settings state 1536 and the model answers vectors 1024 wide → the
   document shows **Failed** with a message that names 1024 and 1536, and nothing is written.
 
-### KNOW-R17 · After a change of vector width, what was indexed is embedded again
+### KNOW-R17 · After a change of embedding model, what was indexed is embedded again
 
-What an organization has indexed under a model of one width has no vectors of another. When
-an admin saves the embedding model, every indexed document and email that has no vectors of
-the width the saved model states is put back in the queue and embedded again, without anyone
-retrying it, and the save counts it with the documents of `KNOW-R10`. While it waits in the
-queue a document is still found by its words. The organization's websites are scanned for the
-same reason. A save that leaves the width as it was puts nothing back. A file that is being
-indexed, one that failed and one whose uploader chose not to index it are left as they are.
+What one model embedded cannot be compared with a query another model embeds, and a model of
+another width finds no vectors of its own at all. Every indexed document and email records the
+model that embedded it, by the name the settings state. When an admin saves the embedding
+model, every indexed document and email the saved model did not embed — one with no vectors
+of its width, or one another model embedded — is put back in the queue and embedded again,
+without anyone retrying it, and the save counts it with the documents of `KNOW-R10`. While it
+waits in the queue a document is still found by its words, and search by meaning leaves it out
+until it is embedded again. A save that keeps the model's name and width puts nothing back,
+also when it reaches the model through another provider: the same model makes the same
+vectors. A document indexed before the model was recorded counts as embedded by the model the
+settings state when they next change, and a save that names another model is refused while
+the knowledge database does not answer, since those documents have to record that first. A
+file or an email being indexed while the model changes is put back in the queue when its run
+ends; one that failed and one whose uploader chose not to index it are left as they are. Once
+a day the corpus reconcile puts back in the queue any indexed document or email the stated
+model has not embedded, which catches what a save could not reach. Every save scans the
+organization's websites again too, and a scan embeds the pages that have no vectors of the
+saved width.
 
 - **Example**: Ada's organization has 40 documents indexed under a model 1536 wide. She saves
   a model 1024 wide → the save reports that 40 documents were put back in the queue, and each
   is found by meaning again once it is indexed.
+- **Example**: The same 40 documents were embedded by `text-embedding-3-small`, 1536 wide.
+  Ada picks `openrouter/qwen/qwen3-embedding-8b`, also 1536 wide, and saves → the 40
+  documents go back in the queue. Later she reaches the same model through another gateway,
+  under the same name → nothing is put back.
 
 ### KNOW-R12 · Only a failure that waiting can fix is retried
 
@@ -430,18 +445,28 @@ exception: it is opened on every scan. **Scan now** asks the same way as a sched
   without a scope today.
 - **`KNOW-R9` when the policy cannot be read at all.** A PII policy that cannot be read is
   treated as no policy (`service.ts`); no test holds that.
-- **A change of embedding model that keeps the vector width** is not noticed: documents that
-  are already indexed stay as they are. The user docs tell the admin to plan re-indexing.
-- **`KNOW-R17` and a document in flight.** A document that was being indexed while the width
-  changed finishes with vectors of the old width and is not put back; it is embedded at the
-  new width when it is next indexed, or when the embedding model is saved again. No test
-  holds that.
+- **`KNOW-R17` on a website, for a change of model that keeps the width.** Within one knowledge
+  database the pages of a website are stored once for every organization that added it, with
+  one vector per page and width, and nothing records which model made it. A scan embeds only
+  the pages that have no vector of its width, so after a change to another model of the same
+  width a website keeps the old model's vectors until a page's text changes, and two
+  organizations that track one site with different models of the same width search one
+  model's vectors. The user docs say so.
+- **`KNOW-R17` during a rolling deploy.** The previous image records no model. A document it
+  indexes for the first time while the deployment rolls counts as embedded by the model stated,
+  so a model saved during the roll can leave it with the old model's vectors until it is
+  indexed again; one it indexes again keeps the model it recorded, and the daily reconcile
+  puts it back when that is no longer the model stated. No test holds the roll.
+- **`KNOW-R17` and a name that keeps its model.** A model is told apart by its name as the
+  settings state it: `text-embedding-3-small` and `openai/text-embedding-3-small` count as two
+  models, and a gateway alias that keeps its name while it routes to another model counts as
+  one. No test holds the alias.
 - **`KNOW-R17` on a website.** The scan that follows the save embeds the pages that have no
   vectors of the new width (`crawl_action.vectors.test.ts` holds the sweep); no test drives
   the save through to that scan for a change of width.
 - **The vectors a document held at its old width** are removed when it is embedded again, so
-  a move back to the old width embeds it once more. A website page keeps the vectors of every
-  width until its text changes.
+  a move back to the old width, or to the old model, embeds it once more. A website page keeps
+  the vectors of every width until its text changes.
 - **`chunks.embedding`, the column that held one width for the whole database, is retired,
   not dropped**; the ledger in `.agents/repo.md` records it.
 - **Website search has no search by meaning, and its fallback is silent**, and

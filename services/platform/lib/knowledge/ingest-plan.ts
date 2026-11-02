@@ -9,6 +9,12 @@
  * pay that again. A document whose content hash matches what is already stored,
  * and which is stored COMPLETELY, is skipped.
  *
+ * **The model that embedded it.** Stored chunks are only reused under the
+ * embedding model that made their vectors. Another model's vectors cannot be
+ * compared with a query the model indexing now embeds, however unchanged the
+ * content — even at the same width, where nothing else tells them apart — so
+ * such a document is stored again from its first chunk, as changed content is.
+ *
  * **Resumable slicing.** A large document takes longer to index than one
  * invocation is allowed to run, so indexing commits chunks in slices and the
  * committed prefix IS the checkpoint. When the same content comes back, storing
@@ -33,6 +39,12 @@ export interface StoredDocumentState {
   readonly status: 'processing' | 'completed' | 'failed';
   /** How many chunks are committed — the resume checkpoint. */
   readonly storedChunks: number;
+  /**
+   * The embedding model whose vectors the stored chunks hold, by the name the
+   * organization's settings state. `null` for a document stored before the
+   * corpus recorded it, which passes for the model indexing now.
+   */
+  readonly embeddingModel: string | null;
 }
 
 export interface IngestPlanInput {
@@ -40,6 +52,8 @@ export interface IngestPlanInput {
   readonly contentHash: string;
   /** How many chunks the new content produces. */
   readonly totalChunks: number;
+  /** The embedding model indexing now, by the name the settings state. */
+  readonly embeddingModel: string;
   /** What is already stored, or `null` when this reference is new. */
   readonly stored: StoredDocumentState | null;
   /**
@@ -76,30 +90,39 @@ export type IngestPlan =
  */
 export function planIngest(input: IngestPlanInput): IngestPlan {
   const stored = input.stored;
+  // What another model embedded is no prefix of this run: neither complete
+  // nor a checkpoint, whatever its hash says.
+  const reusable =
+    stored !== null &&
+    (stored.embeddingModel === null ||
+      stored.embeddingModel === input.embeddingModel)
+      ? stored
+      : null;
 
-  if (stored !== null && stored.contentHash === input.contentHash) {
+  if (reusable !== null && reusable.contentHash === input.contentHash) {
     // Complete means: marked completed AND every chunk the current content
     // produces is committed. The second half matters because a document can be
     // stamped completed and later have its chunk count grow if the chunker
     // changes; treating it as done would leave the tail unsearchable.
     if (
-      stored.status === 'completed' &&
-      stored.storedChunks >= input.totalChunks
+      reusable.status === 'completed' &&
+      reusable.storedChunks >= input.totalChunks
     ) {
       return { action: 'skip', reason: 'unchanged' };
     }
-    if (stored.storedChunks > 0) {
-      return { action: 'resume', fromChunk: stored.storedChunks };
+    if (reusable.storedChunks > 0) {
+      return { action: 'resume', fromChunk: reusable.storedChunks };
     }
   }
 
   // A clone is only safe when nothing of this document is stored yet under this
   // reference — otherwise the resume path above owns the decision and copying
-  // would overwrite a prefix that is already correct.
+  // would overwrite a prefix that is already correct. Chunks another model
+  // embedded are no such prefix.
   if (
     input.duplicateOf !== undefined &&
     input.duplicateOf !== null &&
-    (stored === null || stored.contentHash !== input.contentHash)
+    (reusable === null || reusable.contentHash !== input.contentHash)
   ) {
     return { action: 'clone', sourceDocumentId: input.duplicateOf };
   }

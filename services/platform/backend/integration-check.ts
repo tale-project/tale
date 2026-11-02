@@ -134,6 +134,7 @@ import { checkImmutableBudgetProjects } from './domains/governance/immutable-pro
 import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
 import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
+import { checkEmbeddingModelChange } from './domains/knowledge/embedding-model.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
@@ -66159,6 +66160,10 @@ async function main(): Promise<void> {
             record,
             embeddingsPayload: fakeEmbeddingsPayload,
           }),
+      ],
+      [
+        'checkEmbeddingModelChange',
+        () => checkEmbeddingModelChange(sql, record),
       ],
       ['checkRagWatchdogBatch', () => checkRagWatchdogBatch(sql, record)],
       [

@@ -1985,9 +1985,9 @@ dataResidency:
     dimensions: Largeur des vecteurs
     dimensionsHint:
       "Déclarée, jamais devinée : le nombre exact de dimensions que produit
-      ce modèle, parmi {widths}. Après un changement, les documents et les
-      pages de sites déjà indexés reçoivent de nouveaux vecteurs à la
-      nouvelle largeur."
+      ce modèle, parmi {widths}. Enregistrer un autre modèle ou une autre
+      largeur donne de nouveaux vecteurs aux documents déjà indexés, et aussi
+      aux pages de sites quand la largeur change."
     baseUrl: URL de base
     baseUrlHint: Endpoint compatible OpenAI ; vide pour celui du fournisseur.
     removed: Modèle d'embedding supprimé — la recherche de connaissances est

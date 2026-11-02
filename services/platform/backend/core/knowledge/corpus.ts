@@ -100,6 +100,13 @@ type DocumentRows = 'files' | 'mail';
  * allowed. `access` is the caller's team/project visibility, derived
  * server-side by the calling surface — see {@link KnowledgeAccessScope}.
  *
+ * Its dense leg reads only the vectors of the model the query was embedded
+ * with: those of the query's width, of a document whose row records that
+ * model or none (indexed before the corpus recorded it). A document another
+ * model of the same width embedded waits in the queue to be embedded again
+ * (`KNOW-R17`), and its vectors cannot be compared with the query's
+ * meanwhile; it is still found by its words.
+ *
  * Mail is searched as a partition of its own, each leg with its own
  * candidate pool, and the two lists are merged by the leg's score. Mail is
  * decided by its conversation's live assignment, which only the admission
@@ -113,10 +120,14 @@ export class DocumentCorpusReader implements CorpusReader {
   readonly corpus = 'documents' as const;
   private readonly sql: Sql;
   private readonly orgSlug: string;
+  private readonly embeddingModel: string;
 
-  constructor(sql: Sql, orgSlug: string) {
+  /** `embeddingModel` is the model the dense leg's queries are embedded
+   * with, by the name the organization's settings state. */
+  constructor(sql: Sql, orgSlug: string, embeddingModel: string) {
     this.sql = sql;
     this.orgSlug = orgSlug;
+    this.embeddingModel = embeddingModel;
   }
 
   async keyword(
@@ -199,7 +210,10 @@ export class DocumentCorpusReader implements CorpusReader {
   ): Promise<readonly KnowledgeHit[] | null> {
     const scope = this.scope(query, 2, rows);
     // The vectors of the query's own width: a chunk embedded under a model
-    // of another width has no row here, and is not a candidate.
+    // of another width has no row here, and is not a candidate. Nor is one
+    // another model of this width embedded (see the class note); its name
+    // is bound after the scope's, which number as on the keyword leg.
+    const model = `$${3 + scope.params.length}`;
     const vectors = chunkVectorsTable(
       PRIVATE_KNOWLEDGE_SCHEMA,
       query.embedding.length,
@@ -221,14 +235,16 @@ export class DocumentCorpusReader implements CorpusReader {
         ON d.id = c.document_id AND d.org_slug = c.org_slug
       WHERE c.org_slug = $2
         AND d.status = 'completed'
+        AND (d.embedding_model IS NULL OR d.embedding_model = ${model})
         AND NOT c.passage_repeat
         ${scope.clause}
       ORDER BY v.embedding <=> $1::vector
-      LIMIT $${3 + scope.params.length}
+      LIMIT $${4 + scope.params.length}
     `;
     // The scope's size decides the plan (see `runDenseLeg`): the same
     // predicates, no ORDER BY, no vector.
     const scopeCount = this.scope(query, 1, rows);
+    const countModel = `$${2 + scopeCount.params.length}`;
     const countStatement = `
       SELECT count(*)::text AS n
       FROM ${vectors} v
@@ -237,6 +253,7 @@ export class DocumentCorpusReader implements CorpusReader {
         ON d.id = c.document_id AND d.org_slug = c.org_slug
       WHERE c.org_slug = $1
         AND d.status = 'completed'
+        AND (d.embedding_model IS NULL OR d.embedding_model = ${countModel})
         AND NOT c.passage_repeat
         ${scopeCount.clause}
     `;
@@ -246,11 +263,12 @@ export class DocumentCorpusReader implements CorpusReader {
         JSON.stringify(query.embedding),
         this.orgSlug,
         ...scope.params,
+        this.embeddingModel,
         query.limit,
       ],
       {
         statement: countStatement,
-        params: [this.orgSlug, ...scopeCount.params],
+        params: [this.orgSlug, ...scopeCount.params, this.embeddingModel],
       },
       query.limit,
     );

@@ -16,6 +16,9 @@ import {
 
 const HASH = 'sha256:aaa';
 const OTHER_HASH = 'sha256:bbb';
+/** The embedding model indexing now, and another of the same width. */
+const MODEL = 'text-embedding-3-small';
+const OTHER_MODEL = 'openrouter/qwen/qwen3-embedding-8b';
 
 function stored(
   overrides: Partial<StoredDocumentState> = {},
@@ -24,6 +27,7 @@ function stored(
     contentHash: HASH,
     status: 'completed',
     storedChunks: 10,
+    embeddingModel: MODEL,
     ...overrides,
   };
 }
@@ -32,12 +36,22 @@ describe('what to do with a document', () => {
   const cases: Array<[string, Parameters<typeof planIngest>[0], IngestPlan]> = [
     [
       'nothing stored yet',
-      { contentHash: HASH, totalChunks: 10, stored: null },
+      {
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: null,
+      },
       { action: 'index' },
     ],
     [
       'unchanged and complete',
-      { contentHash: HASH, totalChunks: 10, stored: stored() },
+      {
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored(),
+      },
       { action: 'skip', reason: 'unchanged' },
     ],
     [
@@ -45,6 +59,7 @@ describe('what to do with a document', () => {
       {
         contentHash: HASH,
         totalChunks: 10,
+        embeddingModel: MODEL,
         stored: stored({ status: 'processing', storedChunks: 4 }),
       },
       { action: 'resume', fromChunk: 4 },
@@ -54,13 +69,19 @@ describe('what to do with a document', () => {
       {
         contentHash: HASH,
         totalChunks: 12,
+        embeddingModel: MODEL,
         stored: stored({ status: 'completed', storedChunks: 10 }),
       },
       { action: 'resume', fromChunk: 10 },
     ],
     [
       'the content changed',
-      { contentHash: OTHER_HASH, totalChunks: 10, stored: stored() },
+      {
+        contentHash: OTHER_HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored(),
+      },
       { action: 'rewrite' },
     ],
     [
@@ -68,6 +89,7 @@ describe('what to do with a document', () => {
       {
         contentHash: HASH,
         totalChunks: 10,
+        embeddingModel: MODEL,
         stored: stored({ status: 'failed', storedChunks: 0 }),
       },
       { action: 'rewrite' },
@@ -77,6 +99,7 @@ describe('what to do with a document', () => {
       {
         contentHash: HASH,
         totalChunks: 10,
+        embeddingModel: MODEL,
         stored: null,
         duplicateOf: 'doc-uuid-1',
       },
@@ -95,6 +118,7 @@ describe('what to do with a document', () => {
       planIngest({
         contentHash: HASH,
         totalChunks: 10,
+        embeddingModel: MODEL,
         stored: stored({ status: 'processing', storedChunks: 6 }),
         duplicateOf: 'doc-uuid-1',
       }),
@@ -108,9 +132,77 @@ describe('what to do with a document', () => {
       planIngest({
         contentHash: HASH,
         totalChunks: 10,
+        embeddingModel: MODEL,
         stored: stored({ status: 'processing', storedChunks: 10 }),
       }),
     ).toEqual({ action: 'resume', fromChunk: 10 });
+  });
+
+  it('embeds a complete document again when another model embedded it [KNOW-R17]', () => {
+    // Same content, same width, every chunk with a vector: only the name of
+    // the model tells these vectors from the ones a query now needs.
+    expect(
+      planIngest({
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored({ embeddingModel: OTHER_MODEL }),
+      }),
+    ).toEqual({ action: 'rewrite' });
+  });
+
+  it('starts over rather than resume after a prefix another model embedded [KNOW-R17]', () => {
+    // A resume would leave one document with two models' vectors.
+    expect(
+      planIngest({
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored({
+          status: 'processing',
+          storedChunks: 6,
+          embeddingModel: OTHER_MODEL,
+        }),
+      }),
+    ).toEqual({ action: 'rewrite' });
+  });
+
+  it('copies identical content this model embedded over what another model stored [KNOW-R17]', () => {
+    expect(
+      planIngest({
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored({ embeddingModel: OTHER_MODEL }),
+        duplicateOf: 'doc-uuid-1',
+      }),
+    ).toEqual({ action: 'clone', sourceDocumentId: 'doc-uuid-1' });
+  });
+
+  it('takes a document stored before the model was recorded for the model indexing now', () => {
+    // Every document indexed before the corpus recorded the model reads
+    // `null`; embedding them all again on upgrade would bill the whole corpus.
+    const unrecorded = { embeddingModel: null };
+    expect(
+      planIngest({
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored(unrecorded),
+      }),
+    ).toEqual({ action: 'skip', reason: 'unchanged' });
+    expect(
+      planIngest({
+        contentHash: HASH,
+        totalChunks: 10,
+        embeddingModel: MODEL,
+        stored: stored({
+          ...unrecorded,
+          status: 'processing',
+          storedChunks: 4,
+        }),
+      }),
+    ).toEqual({ action: 'resume', fromChunk: 4 });
   });
 
   it('discards a stored prefix when the content changed', () => {
@@ -120,6 +212,7 @@ describe('what to do with a document', () => {
       planIngest({
         contentHash: OTHER_HASH,
         totalChunks: 10,
+        embeddingModel: MODEL,
         stored: stored({ status: 'processing', storedChunks: 7 }),
       }),
     ).toEqual({ action: 'rewrite' });

@@ -1953,9 +1953,9 @@ dataResidency:
     dimensions: Vektorbreite
     dimensionsHint:
       'Angegeben, nie geraten: die exakte Dimensionszahl, die dieses Modell
-      erzeugt — eine von {widths}. Nach einer Änderung erhalten die
-      indexierten Dokumente und Website-Seiten neue Vektoren in der neuen
-      Breite.'
+      erzeugt — eine von {widths}. Speicherst du ein anderes Modell oder eine
+      andere Breite, erhalten die indexierten Dokumente neue Vektoren, bei
+      einer neuen Breite auch die Website-Seiten.'
     baseUrl: Basis-URL
     baseUrlHint: OpenAI-kompatibler Endpunkt; leer lassen für den des Anbieters.
     removed:

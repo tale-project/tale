@@ -40,7 +40,7 @@ import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
 import type { DirectCallSubject } from '../governance/direct-calls.ts';
 import { embeddingBlocked, embeddingMeter } from './embedding-meter.ts';
 import { isMessageCorpusLive } from './liveness.ts';
-import { knowledgeShimHandlers } from './service.ts';
+import { embeddingMovedSince, knowledgeShimHandlers } from './service.ts';
 
 /** Inbound mail is nobody's spend: its embedding books to the organization. */
 const MAIL_EMBEDDING_SUBJECT: DirectCallSubject = {
@@ -277,6 +277,27 @@ export async function indexConversationMessage(
         `[knowledge] email body not indexed: ${result.skipped}`,
         log,
       );
+    } else if (
+      (result.skipped === undefined || result.skipped === 'unchanged') &&
+      (await embeddingMovedSince(orgSlug, embedder.model))
+    ) {
+      // The settings were read before the body was embedded. A save that
+      // moved them to another model since left this body to its run, so
+      // what the run stored is the old model's (`KNOW-R17`). Never fails
+      // the run: what a failure here leaves, the daily corpus reconcile
+      // puts back.
+      try {
+        await addJobInTx(sql, 'rag.index_message', { messageId });
+        console.info(
+          '[knowledge] email body indexed under a model the settings no longer state; queued again',
+          log,
+        );
+      } catch (error) {
+        console.warn(
+          '[knowledge] email body indexed under a model the settings no longer state, and could not be queued again; the daily corpus reconcile puts it back',
+          { ...log, error: error instanceof Error ? error.message : error },
+        );
+      }
     }
   } catch (error) {
     // pg-boss gave up on the job (its budget, a shutdown) and owns the retry.

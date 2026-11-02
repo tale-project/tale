@@ -22,7 +22,9 @@ import {
  * indexed before the stamp as an unstamped hub row for good, and nothing
  * else would notice. Bytes a release of the reconcile could not delete once
  * their corpus rows were gone go to the durable release job, since no walk
- * would ever list their ref again.
+ * would ever list their ref again. And the embedding model's pass, which
+ * puts back in the queue what the stated model has not embedded — whatever
+ * the save that changed the model could not reach.
  */
 
 const { deleteKnowledgeDocumentsBatch, listKnowledgeDocumentRefs } = vi.hoisted(
@@ -35,11 +37,15 @@ const { deleteKnowledgeDocumentsBatch, listKnowledgeDocumentRefs } = vi.hoisted(
   }),
 );
 const { deleteOrgObject } = vi.hoisted(() => ({ deleteOrgObject: vi.fn() }));
-const { reconcileDocumentScopeStamps, reconcileMailAttachmentStamps } =
-  vi.hoisted(() => ({
-    reconcileDocumentScopeStamps: vi.fn(),
-    reconcileMailAttachmentStamps: vi.fn(),
-  }));
+const {
+  reconcileDocumentScopeStamps,
+  reconcileMailAttachmentStamps,
+  requeueDocumentsNotEmbeddedByModel,
+} = vi.hoisted(() => ({
+  reconcileDocumentScopeStamps: vi.fn(),
+  reconcileMailAttachmentStamps: vi.fn(),
+  requeueDocumentsNotEmbeddedByModel: vi.fn(),
+}));
 const { addJobInTx } = vi.hoisted(() => ({
   addJobInTx: vi.fn(
     async (_sql: unknown, _name: string, _payload: unknown) => 'job-1',
@@ -55,6 +61,7 @@ vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 vi.mock('./service.ts', () => ({
   reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
+  requeueDocumentsNotEmbeddedByModel,
 }));
 
 const { runCorpusReconcile, settleReleaseOutcome } =
@@ -151,6 +158,58 @@ beforeEach(() => {
   deleteKnowledgeDocumentsBatch.mockResolvedValue({ success: true });
   reconcileDocumentScopeStamps.mockResolvedValue({ scanned: 0, corrected: 0 });
   reconcileMailAttachmentStamps.mockResolvedValue(QUIET);
+  requeueDocumentsNotEmbeddedByModel.mockResolvedValue({ requeued: 0 });
+});
+
+describe('runCorpusReconcile — the embedding model pass [KNOW-R17]', () => {
+  it('puts back, for every organization, what its stated model has not embedded', async () => {
+    const { sql } = fakeSql([
+      { id: 'org-1', slug: 'acme' },
+      { id: 'org-2', slug: 'globex' },
+      { id: 'org-3', slug: null },
+    ]);
+    await runCorpusReconcile(sql);
+
+    expect(requeueDocumentsNotEmbeddedByModel.mock.calls).toEqual([
+      [sql, { organizationId: 'org-1', orgSlug: 'acme' }],
+      [sql, { organizationId: 'org-2', orgSlug: 'globex' }],
+    ]);
+  });
+
+  it('says how many it put back, and nothing when none', async () => {
+    requeueDocumentsNotEmbeddedByModel
+      .mockResolvedValueOnce({ requeued: 4 })
+      .mockResolvedValueOnce({ requeued: 0 });
+    await runCorpusReconcile(
+      fakeSql([
+        { id: 'org-1', slug: 'acme' },
+        { id: 'org-2', slug: 'globex' },
+      ]).sql,
+    );
+
+    const lines = info.mock.calls.map((call) => String(call[0]));
+    expect(lines.filter((line) => line.includes('has not embedded'))).toEqual([
+      '[knowledge] corpus reconcile for acme: re-queued 4 indexed document(s) the embedding model has not embedded',
+    ]);
+  });
+
+  it('lets one organization whose corpus does not answer leave the next one its pass', async () => {
+    requeueDocumentsNotEmbeddedByModel.mockRejectedValueOnce(
+      new Error('the knowledge database is unreachable'),
+    );
+    await runCorpusReconcile(
+      fakeSql([
+        { id: 'org-1', slug: 'acme' },
+        { id: 'org-2', slug: 'globex' },
+      ]).sql,
+    );
+
+    expect(requeueDocumentsNotEmbeddedByModel).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledWith(
+      '[knowledge] corpus reconcile failed for org acme:',
+      expect.any(Error),
+    );
+  });
 });
 
 describe('runCorpusReconcile — the emailed attachments pass', () => {
