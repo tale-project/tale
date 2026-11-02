@@ -14,7 +14,7 @@
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
-    "@types/bun": "1.3.11",
+    "@types/bun": "1.4.0",
     "@types/pngjs": "^6.0.5",
     "happy-dom": "^20.10.6",
     "typescript": "6.0.2"

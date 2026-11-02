@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+# syntax=docker/dockerfile:1.26@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
 # Tale Platform Dockerfile
 # Builds the Vite SPA (web tier) and the Postgres backend (api/worker roles)
 # from ONE image — they share their wire contracts, so they must never
@@ -17,7 +17,7 @@ FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1
 # Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
 # sources directly via Node's type stripping (>= 22.18); only the binary is
 # needed — no npm, no corepack.
-FROM node:22.21.1-bookworm-slim@sha256:25b3eb23a00590b7499f2a2ce939322727fcce1b15fdd69754fcd09536a3ae2c AS node-bin
+FROM node:22.23.1-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS node-bin
 
 # ============================================================================
 # Shared build/install base — no source or installed dependencies
