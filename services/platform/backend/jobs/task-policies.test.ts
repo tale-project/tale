@@ -201,3 +201,14 @@ describe('file indexing', () => {
     expect(TASK_WORKER_SLOT_QUEUES.has('rag.index_file')).toBe(true);
   });
 });
+
+describe('the pass that resumes the PII scans', () => {
+  // Every booting worker sends one, and the hourly tick another, all without
+  // a key: one waits and one runs in the whole deployment, so two passes
+  // never queue one email body side by side.
+  it('keeps one pass waiting and one running in the deployment', () => {
+    expect(TASK_QUEUE_OPTIONS['knowledge.resume_pii_unavailable'].policy).toBe(
+      'stately',
+    );
+  });
+});

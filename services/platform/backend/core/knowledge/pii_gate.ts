@@ -50,7 +50,9 @@
  * the value `mask` should have masked, the document `block` should have
  * refused — to the embedding provider and into the index. The caller fails
  * the document with a cause of its own, apart from a detection, and saving
- * the policy queues it again.
+ * the policy queues it again. A document refused because the scrubber could
+ * not be built is also queued again on its own once it builds
+ * (`domains/knowledge/pii-scan-resume.ts`).
  */
 
 import { piiConfigSchema, type PiiConfig } from '@tale/shared/schemas/pii';

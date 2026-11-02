@@ -62,6 +62,7 @@ const {
   requeueDocumentsNotEmbeddedByModel,
   requeueEmbeddingBlockedDocuments,
   requeuePiiScanFailedDocuments,
+  requeueUnavailableScanDocuments,
   stampUnrecordedEmbeddingModel,
 } = await import('./service.ts');
 const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
@@ -630,6 +631,16 @@ describe('requeuePiiScanFailedDocuments', () => {
     ).toEqual([['rag.index_message', { messageId: BODY }]]);
   });
 
+  it('matches the files by their code alone, whatever the cause [KNOW-R9]', async () => {
+    const { sql, values } = fakeSql([]);
+
+    await requeuePiiScanFailedDocuments(sql, ORG);
+
+    for (const reason of Object.values(PII_SCAN_FAILED_REASONS)) {
+      expect(values[0]).not.toContainEqual(expect.arrayContaining([reason]));
+    }
+  });
+
   it('waits out the policy cache before any job runs [KNOW-R9]', async () => {
     // A replica still holding the policy from before the save would scan
     // with it, and could refuse the document again.
@@ -671,5 +682,147 @@ describe('requeuePiiScanFailedDocuments', () => {
     // The files' transaction, the reads', then 200 + 200 + 50 bodies.
     expect(begin).toHaveBeenCalledTimes(5);
     expect(addJobInTx).toHaveBeenCalledTimes(450);
+  });
+});
+
+describe('requeueUnavailableScanDocuments', () => {
+  const ORG = { organizationId: 'org-1', orgSlug: 'acme' };
+  const BODY = '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    addJobInTx.mockResolvedValue(undefined);
+    emitHintInTx.mockResolvedValue(undefined);
+    corpus.unsafe.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The fake above, and a queue that reports `waiting` for the bodies asked about. */
+  function fakeSqlWithQueue(returned: ReturnedRow[], waiting: string[] = []) {
+    const fake = fakeSql(returned);
+    const asked: { text: string; values: unknown[] }[] = [];
+    const sql = Object.assign(
+      (strings: TemplateStringsArray, ...args: unknown[]) => {
+        asked.push({ text: strings.join('?'), values: args });
+        return Promise.resolve(waiting.map((messageId) => ({ messageId })));
+      },
+      fake.sql as object,
+    ) as never;
+    return { ...fake, sql, asked };
+  }
+
+  // The pass that resumes these scans on its own takes only the documents
+  // refused because the protection could not start: a part that could not
+  // be scanned whole fails again for the same text and policy.
+  it('keeps the documents refused for the unavailable cause, and no other [KNOW-R9]', async () => {
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql, values } = fakeSqlWithQueue([doc('f1')]);
+
+    const out = await requeueUnavailableScanDocuments(sql, ORG, { limit: 250 });
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(values[0]).toContainEqual([PII_SCAN_FAILED_REASONS.unavailable]);
+    expect(values[0]).not.toContainEqual(
+      expect.arrayContaining([PII_SCAN_FAILED_REASONS.incomplete]),
+    );
+    // The body gets what the file left of the limit.
+    const [, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(params).toEqual([
+      'acme',
+      'msg:%',
+      [PII_SCAN_FAILED_REASONS.unavailable],
+      249,
+    ]);
+  });
+
+  // The pass covers documents only: a read the policy refused waits for the
+  // policy save, as it did before the pass existed.
+  it('leaves the reads the policy refused to the save [KNOW-R9]', async () => {
+    const { sql, statements } = fakeSqlWithQueue([doc('f1')]);
+
+    await requeueUnavailableScanDocuments(sql, ORG, { limit: 250 });
+
+    expect(statements.some((text) => text.includes('text_status'))).toBe(false);
+    expect(
+      addJobInTx.mock.calls.some(([, name]) => name === 'rag.read_file'),
+    ).toBe(false);
+  });
+
+  it('queues no more than its limit, files first [KNOW-R9]', async () => {
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql, statements, values } = fakeSqlWithQueue([
+      doc('f1'),
+      doc('f2'),
+    ]);
+
+    const out = await requeueUnavailableScanDocuments(sql, ORG, { limit: 3 });
+
+    expect(out).toEqual({ requeued: 3 });
+    expect(statements[0]).toContain('LIMIT ?');
+    expect(values[0]).toContain(3);
+    // The bodies get what the files left of the limit.
+    const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(text).toContain('LIMIT $4');
+    expect(params).toEqual([
+      'acme',
+      'msg:%',
+      [PII_SCAN_FAILED_REASONS.unavailable],
+      1,
+    ]);
+  });
+
+  it('reads no email body when the files took the whole limit', async () => {
+    const { sql } = fakeSqlWithQueue([doc('f1'), doc('f2')]);
+
+    const out = await requeueUnavailableScanDocuments(sql, ORG, { limit: 2 });
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(corpus.unsafe).not.toHaveBeenCalled();
+  });
+
+  // A body has no status row to flip: its corpus row reads Failed until its
+  // job claims it, so only the job says it is queued already.
+  it('leaves out the email bodies whose job still waits or runs [KNOW-R9]', async () => {
+    const QUEUED = BODY;
+    const REFUSED = `${BODY.slice(0, -3)}999`;
+    corpus.unsafe.mockResolvedValue([
+      { ref: `msg:${QUEUED}` },
+      { ref: `msg:${REFUSED}` },
+    ]);
+    const { sql, asked } = fakeSqlWithQueue([], [QUEUED]);
+
+    const out = await requeueUnavailableScanDocuments(sql, ORG, { limit: 250 });
+
+    expect(out).toEqual({ requeued: 1 });
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([['rag.index_message', { messageId: REFUSED }]]);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toContain('FROM pgboss.job');
+    // A running job counts too: a second one would scan the body beside
+    // it, and if it refuses the body again, the next pass sees that.
+    expect(asked[0]?.values).toEqual([true, [QUEUED, REFUSED]]);
+  });
+
+  it('waits out the policy cache before any job runs [KNOW-R9]', async () => {
+    vi.useFakeTimers({
+      now: new Date('2026-10-31T12:00:00Z'),
+      toFake: ['Date'],
+    });
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql } = fakeSqlWithQueue([doc('f1')]);
+
+    await requeueUnavailableScanDocuments(sql, ORG, { limit: 250 });
+
+    const startAfter = new Date(
+      Date.parse('2026-10-31T12:00:00Z') + ORG_CONFIG_CACHE_TTL_MS,
+    );
+    expect(addJobInTx.mock.calls.map(([, , , options]) => options)).toEqual([
+      { startAfter },
+      { startAfter },
+    ]);
   });
 });

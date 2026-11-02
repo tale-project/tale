@@ -3,7 +3,11 @@ import type { Sql } from 'postgres';
 import { describe, expect, test, vi } from 'vitest';
 
 import { setEnqueueBoss } from './enqueue.ts';
-import { SCHEDULES, sweepRunsAtBoot } from './schedules.ts';
+import {
+  resumePiiScansAtBoot,
+  SCHEDULES,
+  sweepRunsAtBoot,
+} from './schedules.ts';
 
 /** `m h dom mon dow` — these three are all daily, so hour and minute suffice. */
 function timeOf(name: string): { hour: number; minute: number } {
@@ -104,24 +108,23 @@ function minutesOf(field: string): Set<number> {
   return minutes;
 }
 
+/** The schedules other than the every-minute ones that fire on the minute
+ * of the hourly schedule `name`. */
+function sharingTheMinuteOf(name: string): string[] {
+  const entry = SCHEDULES.find((row) => row.name === name);
+  expect(entry?.cron).toMatch(/^\d+ \* \* \* \*$/);
+  const minute = Number(entry?.cron.split(' ')[0]);
+  return SCHEDULES.filter((row) => {
+    const field = row.cron.split(' ')[0] ?? '*';
+    return row.name !== name && field !== '*' && minutesOf(field).has(minute);
+  }).map((row) => row.name);
+}
+
 describe('expired chat send keys have a sweep that waits for no send', () => {
   test('the send-key sweep runs hourly, on a minute only the every-minute schedules share', () => {
     // A keyed send no longer sweeps its organization's expired keys; without
     // this entry the ledger keeps every key it was ever given.
-    const entry = SCHEDULES.find(
-      (row) => row.name === 'chat.send_idempotency_gc',
-    );
-    expect(entry?.cron).toMatch(/^\d+ \* \* \* \*$/);
-    const minute = Number(entry?.cron.split(' ')[0]);
-    const sharing = SCHEDULES.filter((row) => {
-      const field = row.cron.split(' ')[0] ?? '*';
-      return (
-        row.name !== 'chat.send_idempotency_gc' &&
-        field !== '*' &&
-        minutesOf(field).has(minute)
-      );
-    }).map((row) => row.name);
-    expect(sharing).toEqual([]);
+    expect(sharingTheMinuteOf('chat.send_idempotency_gc')).toEqual([]);
   });
 
   test('the minute reader reads the roster’s forms', () => {
@@ -176,6 +179,57 @@ describe('a booting worker sweeps automation runs at once', () => {
     await expect(sweepRunsAtBoot(sql)).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('boot liveness sweep'),
+      expect.objectContaining({ message: 'queue unavailable' }),
+    );
+    warn.mockRestore();
+  });
+});
+
+describe('documents the PII protection could not scan are queued again on their own [KNOW-R9]', () => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the send is faked, so the pool is never reached
+  const sql = {} as Sql;
+
+  test('the pass runs hourly, on a minute only the every-minute schedules share', () => {
+    // A data tree repaired without a restart heals within the hour, and a
+    // bounded pass leaves the rest to the next one.
+    expect(sharingTheMinuteOf('knowledge.resume_pii_unavailable')).toEqual([]);
+  });
+
+  test('a booting worker queues one pass beside the hourly schedule', async () => {
+    // The new process of a redeploy that fixed the image never saw the
+    // failure: the pass reads what was refused, at once.
+    const send = vi.fn().mockResolvedValue('job-1');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the façade calls `send` alone
+    setEnqueueBoss({ send } as unknown as PgBoss);
+    await resumePiiScansAtBoot(sql);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(
+      'knowledge.resume_pii_unavailable',
+      {},
+      expect.objectContaining({ db: expect.any(Object) }),
+    );
+  });
+
+  test('a pass already waiting takes the turn of the one a worker sends', async () => {
+    // The queue keeps one pass waiting: pg-boss answers a send beside it
+    // with no job, which is no failure.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const send = vi.fn().mockResolvedValue(null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the façade calls `send` alone
+    setEnqueueBoss({ send } as unknown as PgBoss);
+    await expect(resumePiiScansAtBoot(sql)).resolves.toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  test('a send that fails is logged and never fails the boot', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const send = vi.fn().mockRejectedValue(new Error('queue unavailable'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the façade calls `send` alone
+    setEnqueueBoss({ send } as unknown as PgBoss);
+    await expect(resumePiiScansAtBoot(sql)).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('boot PII scan resume'),
       expect.objectContaining({ message: 'queue unavailable' }),
     );
     warn.mockRestore();
