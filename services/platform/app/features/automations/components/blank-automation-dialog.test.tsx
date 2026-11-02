@@ -617,9 +617,16 @@ const AUTO_ROWS: readonly unknown[] = [
   pricing: { inputCentsPerMillion: 100, outputCentsPerMillion },
 }));
 
-function renderAs(role: string, onOpenChange = vi.fn()) {
+// Who may open the providers page: the roles' own abilities.
+const ABILITIES = {
+  admin: defineAbilityFor('admin'),
+  member: defineAbilityFor('member'),
+};
+
+function renderAs(role: keyof typeof ABILITIES, onOpenChange = vi.fn()) {
+  const ability = ABILITIES[role];
   return render(
-    <AbilityContext.Provider value={defineAbilityFor(role)}>
+    <AbilityContext.Provider value={ability}>
       <BlankAutomationDialog
         organizationId="org-1"
         open
