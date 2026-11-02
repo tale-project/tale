@@ -1010,7 +1010,7 @@ export function platformTaskNatives(
   const workflowCaller = (
     action: string,
     ctx: NativeConnectorContext,
-  ): ConnectorCaller => {
+  ): Extract<ConnectorCaller, { kind: 'workflow' }> => {
     if (ctx.caller?.kind !== 'workflow') {
       throw new ConnectorError(
         'INPUT_INVALID',
@@ -1067,17 +1067,10 @@ export function platformTaskNatives(
    */
   const reportGate: NativeConnectorImpl = async (input, ctx) => {
     const { projectId, key, report } = gateReportOf(input);
-    const caller = workflowCaller('report_gate', ctx);
-    if (caller.kind !== 'workflow') {
-      throw new ConnectorError(
-        'INPUT_INVALID',
-        'task.report_gate runs only as an automation step',
-        {},
-      );
-    }
+    const { runId } = workflowCaller('report_gate', ctx);
     const answer = await store.reportGate({
       organizationId: ctx.organizationId,
-      runId: caller.runId,
+      runId,
       projectId,
       key,
       report,

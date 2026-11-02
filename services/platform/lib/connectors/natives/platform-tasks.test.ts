@@ -1155,6 +1155,175 @@ describe('task.list as an automation step [CONN-R27]', () => {
   });
 });
 
+describe('task.report_gate as an automation step [TASK-R51]', () => {
+  const step = {
+    organizationId: 'org-1',
+    caller: { kind: 'workflow', runId: 'run-1', nodeId: 'report' },
+    idempotencyKey: 'run-1/report/0/0',
+  };
+  const nativeWith = (reportGate: ReturnType<typeof vi.fn>) =>
+    platformTaskNatives({ reportGate } as never)['task.report_gate'];
+  const reported = {
+    ok: true,
+    held: true,
+    changed: true,
+    reportedBy: 'run:run-1',
+  };
+
+  it('reports a value as the run, read as the API reads a report, and answers the gate [TASK-R51]', async () => {
+    const reportGate = vi.fn().mockResolvedValue(reported);
+    await expect(
+      nativeWith(reportGate)?.(
+        {
+          projectId: 'project-1',
+          key: 'ci',
+          value: 12,
+          reason: '  12 workflow runs queued ',
+        },
+        step as never,
+      ),
+    ).resolves.toEqual({
+      projectId: 'project-1',
+      key: 'ci',
+      held: true,
+      changed: true,
+      value: 12,
+      reason: '12 workflow runs queued',
+      reportedBy: 'run:run-1',
+    });
+    expect(reportGate).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      runId: 'run-1',
+      projectId: 'project-1',
+      key: 'ci',
+      report: { value: 12, reason: '12 workflow runs queued' },
+    });
+  });
+
+  it('reports a state, which carries no value', async () => {
+    const reportGate = vi
+      .fn()
+      .mockResolvedValue({ ...reported, held: false, changed: false });
+    await expect(
+      nativeWith(reportGate)?.(
+        { projectId: 'project-1', key: 'ci', state: 'open' },
+        step as never,
+      ),
+    ).resolves.toMatchObject({
+      held: false,
+      changed: false,
+      value: null,
+      reason: null,
+    });
+    expect(reportGate.mock.calls[0]?.[0]).toMatchObject({
+      report: { state: 'open' },
+    });
+  });
+
+  it.each([
+    [{ projectId: 'project-1', key: 'ci' }],
+    [{ projectId: 'project-1', key: 'ci', reason: 'queue is long' }],
+    [{ projectId: 'project-1', key: 'ci', state: 'closed' }],
+    [{ projectId: 'project-1', key: 'ci', state: 'hold', value: 30 }],
+    [{ projectId: 'project-1', key: 'ci', value: '12' }],
+    [{ projectId: 'project-1', key: 'ci', state: 'hold', reason: ' ' }],
+    [
+      {
+        projectId: 'project-1',
+        key: 'ci',
+        state: 'hold',
+        reason: 'r'.repeat(501),
+      },
+    ],
+    [{ projectId: 'project-1', key: 'k'.repeat(65), state: 'hold' }],
+    [{ projectId: 'project-1', key: '', state: 'hold' }],
+    [{ projectId: '', key: 'ci', state: 'hold' }],
+  ])('refuses %j before the store is asked', async (input) => {
+    const reportGate = vi.fn();
+    await expect(
+      nativeWith(reportGate)?.(input, step as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a call that is not an automation step', async () => {
+    const reportGate = vi.fn();
+    await expect(
+      nativeWith(reportGate)?.(
+        { projectId: 'project-1', key: 'ci', state: 'hold' },
+        {
+          ...step,
+          caller: { kind: 'user', userId: 'user-1' },
+        } as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(reportGate).not.toHaveBeenCalled();
+  });
+
+  it('fails a project the run may not report on with its cause', async () => {
+    const reportGate = vi.fn().mockResolvedValue({
+      ok: false,
+      refusal: {
+        kind: 'project',
+        code: 'AUTOMATION_PROJECT_FORBIDDEN',
+        detail: 'The automation is not installed in this project.',
+      },
+    });
+    const failure = nativeWith(reportGate)?.(
+      { projectId: 'project-9', key: 'ci', state: 'hold' },
+      step as never,
+    );
+    await expect(failure).rejects.toMatchObject({
+      connector: 'task',
+      action: 'report_gate',
+      failure: {
+        reason: 'TASK_PROJECT_NOT_BOUND',
+        params: { projectId: 'project-9' },
+      },
+    });
+    await expect(failure).rejects.toThrow(
+      'task.report_gate cannot report on the gates of project "project-9": The automation is not installed in this project.',
+    );
+  });
+
+  it.each([
+    [
+      'DISPATCH_GATE_UNKNOWN',
+      "The project's dispatch declares no gate of that key.",
+    ],
+    [
+      'DISPATCH_GATE_VALUE_UNJUDGED',
+      'This gate judges no values: report a state, or give the gate a holdAt.',
+    ],
+  ])(
+    'fails a gate refusal (%s) with the domain’s code',
+    async (code, detail) => {
+      const reportGate = vi.fn().mockResolvedValue({
+        ok: false,
+        refusal: { kind: 'gate', code, detail },
+      });
+      await expect(
+        nativeWith(reportGate)?.(
+          { projectId: 'project-1', key: 'deploys', value: 3 },
+          step as never,
+        ),
+      ).rejects.toMatchObject({
+        action: 'report_gate',
+        failure: {
+          reason: 'CONNECTOR_FAILED',
+          params: {
+            connector: 'task',
+            action: 'task.report_gate',
+            errorName: 'TaskError',
+            errorCode: code,
+            detail,
+          },
+        },
+      });
+    },
+  );
+});
+
 /**
  * `task.sync_issues`: the rim narrows the step's input, insists on the
  * workflow caller, and decides the step's outcome from the receipts — the
