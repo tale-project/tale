@@ -222,8 +222,10 @@ function headerRecord(headers: Headers): Record<string, string> {
   return out;
 }
 
-/** One buffered response, exposing exactly the contract's four members. */
-function toConnectorResponse(
+/** One buffered response, exposing exactly the contract's four members.
+ * Exported for the catalog test, whose proofs answer a live body with the
+ * response a live call hands it. */
+export function toConnectorResponse(
   status: number,
   headers: Record<string, string>,
   text: string,
