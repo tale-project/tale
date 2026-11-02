@@ -956,6 +956,57 @@ describe('live yaml-js backend', () => {
     expect(handedOn).not.toContain(authToken);
   });
 
+  // Twilio's IncomingPhoneNumber carries the number's webhook URLs, which can
+  // hold credentials for the owner's server: the body builds the declared
+  // members of each number and hands the rest of the record nowhere.
+  it("hands on only the declared members of Twilio's phone numbers", async () => {
+    const password = 'synthetic-webhook-password';
+    const webhook = (route: string) =>
+      `https://user:${password}@example.com/${route}`;
+    const declared = [
+      {
+        sid: 'PN0001',
+        phone_number: '+15550000001',
+        friendly_name: 'Support line',
+      },
+      {
+        sid: 'PN0002',
+        phone_number: '+15550000002',
+        friendly_name: 'Sales line',
+      },
+    ];
+    const nextPageUri =
+      '/2010-04-01/Accounts/AC0123/IncomingPhoneNumbers.json?PageSize=20&Page=1&PageToken=PAPN0002';
+    const result = await callShipped('twilio', 'list_phone_numbers', 200, {
+      incoming_phone_numbers: declared.map((each) => ({
+        ...each,
+        account_sid: 'AC0123',
+        voice_url: webhook('voice'),
+        voice_fallback_url: webhook('voice-fallback'),
+        sms_url: webhook('sms'),
+        sms_fallback_url: webhook('sms-fallback'),
+        status_callback: webhook('status'),
+        capabilities: { voice: true, sms: true, mms: false, fax: false },
+        status: 'in-use',
+        date_created: 'Wed, 07 Oct 2026 09:00:00 +0000',
+        uri: `/2010-04-01/Accounts/AC0123/IncomingPhoneNumbers/${each.sid}.json`,
+      })),
+      next_page_uri: nextPageUri,
+      page: 0,
+      page_size: 20,
+      uri: '/2010-04-01/Accounts/AC0123/IncomingPhoneNumbers.json?PageSize=20&Page=0',
+    });
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 'ok', backend: 'yaml-js' });
+    expect((result as { output: unknown }).output).toStrictEqual({
+      phone_numbers: declared,
+      next_page_uri: nextPageUri,
+    });
+    const handedOn = JSON.stringify(result);
+    expect(handedOn).not.toContain('voice_url');
+    expect(handedOn).not.toContain(password);
+  });
+
   // A GitHub repository can carry temp_clone_token, a five-minute Git
   // credential, at every place GitHub's schema nests one: the bodies hand the
   // rest of the answer on and that member nowhere.
