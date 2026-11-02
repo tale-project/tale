@@ -1,0 +1,8 @@
+# The embedding setup alert, shown above every dashboard page while an
+# organization has an AI provider but no embedding model; the data residency
+# settings keep the rest of the embedding words.
+title: Wissenssuche ist aus
+body: Diese Organisation hat einen KI-Anbieter, aber kein
+  Embedding-Modell — Dokumente lassen sich nicht indexieren, und
+  weder Dokumente noch Websites lassen sich durchsuchen.
+link: Embedding-Modell wählen

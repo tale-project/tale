@@ -71,8 +71,8 @@ export function useEmbeddingSetupNudge(
   return credentialsQuery.data.length > 0 ? 'shown' : 'hidden';
 }
 
-// The alert itself, with the settings words it quotes, loads only for an
-// organization that needs it.
+// The alert itself, with the words it shows (the `embeddingSetup` topic),
+// loads only for an organization that needs it.
 const EmbeddingSetupAlert = lazy(() =>
   import('./embedding-setup-alert').then((module) => ({
     default: module.EmbeddingSetupAlert,
