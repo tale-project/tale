@@ -39,6 +39,12 @@ describe('native product motion capture options', () => {
     );
   });
 
+  it('records both layouts of every scene, so it refuses a device filter', () => {
+    expect(() => productMotionArgs(['--devices', 'phone'])).toThrow(
+      '--devices only picks docs screenshot captures',
+    );
+  });
+
   it('keeps regional fallback out of duplicate capture directories', () => {
     expect(() => productMotionArgs(['--locales', 'de-CH'])).toThrow(
       'Unsupported capture locale',
