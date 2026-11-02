@@ -132,6 +132,9 @@ afterEach(() => {
 });
 
 describe('ApiKeyCreateDialog over more projects than a page', () => {
+  // Typing the search, waiting out its debounce and typing the key name take
+  // about 4s alone; beside the other suites of a shard the 5s default ended
+  // the test before the key was made, so it has a 15s ceiling.
   it('makes a key for a project past the page, found by the server search', async () => {
     const { user } = renderDialog();
     await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
@@ -186,5 +189,5 @@ describe('ApiKeyCreateDialog over more projects than a page', () => {
       PAGE_READ,
       '/api/app/projects/search?q=Project%2011&summary=true&orgId=org-1',
     ]);
-  });
+  }, 15_000);
 });
