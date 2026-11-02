@@ -1179,9 +1179,10 @@ describe('the stack images ship the patched init at /init', () => {
     'sandbox-llm-gateway',
   ];
   const INIT = 'dumb-init-1.2.5+maxsig64';
-  /** The file formats an infrastructure-tier image reads (D-17, R-02). */
+  /** The file formats an infrastructure-tier image reads (D-17, R-02). The
+   * proxy names none: its Traefik edge reads no switch upstream file, and the
+   * Incus stack target refuses it until the switch role is ported to Traefik. */
   const INFRA_FORMATS: Record<string, string> = {
-    proxy: 'switch-upstreams/1',
     'sandbox-egress': 'names-hosts/1',
   };
   const SOURCE_SHA256 =
@@ -1337,8 +1338,8 @@ describe('the stack images ship the patched init at /init', () => {
     });
 
     test('refuses a missing or stray infrastructure format', () => {
-      expect(initProblems('proxy', db, reference)).toEqual([
-        'dev.tale.infra-formats must be switch-upstreams/1',
+      expect(initProblems('sandbox-egress', db, reference)).toEqual([
+        'dev.tale.infra-formats must be names-hosts/1',
       ]);
     });
 

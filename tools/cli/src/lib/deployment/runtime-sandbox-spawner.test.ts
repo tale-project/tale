@@ -18,7 +18,7 @@ import {
   SANDBOX_INCUS_MOUNT_POINT,
 } from './runtime-sandbox';
 import {
-  commitRepositorySource,
+  commitRepositorySandbox,
   RuntimeDockerFixture,
   runtimeFixture,
   SPAWNER_CONFIG_SOURCE,
@@ -82,11 +82,11 @@ afterEach(() => {
 });
 
 /** The sandbox environment of the Incus bundle prepared from this repository's
- * own `compose.yml`, as the spawner container receives it. */
+ * own sandbox environment, as the spawner container receives it. */
 async function containerEnvironment() {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
-  commitRepositorySource(fixture);
+  commitRepositorySandbox(fixture);
   const docker = new RuntimeDockerFixture(fixture);
   const bundle = await prepareRuntime(
     {

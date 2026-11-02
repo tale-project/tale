@@ -123,14 +123,21 @@ export function createAnalytics(
       });
       let body: string | undefined;
       if (event) {
-        const ip = request.headers.get('x-analytics-client-ip') ?? '';
+        // The client as the edge saw it: the dedicated header an edge that
+        // can stamp one overwrites, else the X-Real-IP a Traefik edge
+        // overwrites, which cannot stamp it and strips a browser's copy. A
+        // blank or invalid dedicated header is refused, never replaced. Never
+        // use browser-provided X-Forwarded-For, cookies, authorization or
+        // Referer.
+        const ip =
+          request.headers.get('x-analytics-client-ip') ??
+          request.headers.get('x-real-ip') ??
+          '';
         if (!isIP(ip)) return reply(null, 400);
         if (
           !request.headers.get('content-type')?.startsWith('application/json')
         )
           return reply(null, 415);
-        // The native/edge Caddy overwrites this dedicated header. Never use
-        // browser-provided X-Forwarded-For, cookies, authorization or Referer.
         headers.set('x-analytics-client-ip', ip);
         headers.set('content-type', 'application/json');
         headers.set(

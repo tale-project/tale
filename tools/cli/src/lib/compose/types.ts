@@ -17,6 +17,9 @@ export interface ComposeService {
   // under only ONE platform — see create-object-storage-service.ts.
   platform?: string;
   container_name?: string;
+  // Routing for the edge: the Traefik labels of the service that serves the
+  // route (services/traefik-labels.ts).
+  labels?: Record<string, string>;
   // `init: true` runs an init process (PID 1 reaper) — needed by sidecars that
   // spawn short-lived child processes (e.g. the bgutil provider's headless
   // workers). `pull_policy` is emitted for third-party images not built here.
@@ -73,7 +76,7 @@ export interface ComposeConfig {
   >;
   networks?: Record<
     string,
-    { driver?: string; external?: boolean; name?: string }
+    { driver?: string; external?: boolean; internal?: boolean; name?: string }
   >;
 }
 
@@ -113,6 +116,9 @@ export const STATEFUL_SERVICES = [
   // `up -d <services…>` never started it at all.
   'object-store',
   'proxy',
+  // The edge's read-only Docker API proxy: the proxy image in its
+  // `docker-api` role, rolled with the proxy (create-proxy-service.ts).
+  'docker-api',
   'sandbox-llm-gateway',
   // Sandbox tier — the single spawner and its egress proxy. Rolled in place
   // through the stateful compose on every default deploy (see
@@ -149,7 +155,12 @@ export function isSidecarService(name: string): name is SidecarService {
  * because recreating Postgres / the proxy means an availability blip that a
  * routine app-tier roll shouldn't incur.
  */
-export const STOP_GATED_SERVICES = ['db', 'object-store', 'proxy'] as const;
+export const STOP_GATED_SERVICES = [
+  'db',
+  'object-store',
+  'proxy',
+  'docker-api',
+] as const;
 /**
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
  * default deploy. `sandbox-llm-gateway` is a singleton that owns the single
@@ -221,7 +232,8 @@ export function imagePlatform(image: string): 'linux/amd64' | undefined {
 /**
  * The `tale-*` image repository a service runs, without the registry prefix.
  * Every service ships its own `tale-<service>` image EXCEPT the backend tier,
- * which runs the platform image (`TALE_ROLE` picks api/worker at boot) —
+ * which runs the platform image (`TALE_ROLE` picks api/worker at boot), and
+ * the Docker API proxy, which runs the proxy image's `docker-api` role —
  * deriving the repository mechanically from the service name invents images
  * that were never built. Callers wanting a pullable reference use `imageRef`,
  * which also covers the third-party services this function does not.
@@ -229,6 +241,7 @@ export function imagePlatform(image: string): 'linux/amd64' | undefined {
 export function imageRepoForService(
   service: Exclude<ServiceName, keyof typeof THIRD_PARTY_IMAGES>,
 ): string {
+  if (service === 'docker-api') return 'tale-proxy';
   return (BACKEND_TIER_SERVICES as readonly string[]).includes(service)
     ? 'tale-platform'
     : `tale-${service}`;

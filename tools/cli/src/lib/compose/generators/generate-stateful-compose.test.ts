@@ -45,6 +45,9 @@ describe('generateStatefulCompose ↔ tale deploy --host', () => {
   test('without --host the proxy reads HOST and SITE_URL from .env', () => {
     const proxy = servicesOf().proxy;
     expect(proxy?.env_file).toEqual(['.env']);
-    expect(proxy?.environment).toBeUndefined();
+    // Only the Compose projects it routes: the stateful one and both colours.
+    expect(proxy?.environment).toEqual({
+      TALE_PROXY_PROJECTS: 'tale tale-blue tale-green',
+    });
   });
 });

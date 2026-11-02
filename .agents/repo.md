@@ -211,9 +211,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
     feature line with its next rebase.
 
   No branch has to be up to date with its base — never rebase, merge `main` in or
-  `gh pr update-branch` just because a PR reads *behind*; rebase only for a real conflict
+  `gh pr update-branch` just because a PR reads _behind_; rebase only for a real conflict
   (`git merge-tree --write-tree --name-only origin/main HEAD`), and never admin-merge past a red
   or pending check.
+
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
@@ -394,11 +395,13 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
   `release-candidate-*` workflows and the `setup-cli` action, plus the container image harness used to prove fork
   build coverage; the files the compose parity
-  suite reads: `compose.yml`, the proxy's `Caddyfile`, `Caddyfile.switch` and entrypoint, the
-  platform's `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, the
-  sandbox-egress entrypoint, and the `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
-  release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
-  `runtime-test-helper.ts`); the sandbox cross-check suite also runs the spawner's
+  suite reads: `compose.yml`, the proxy's `Caddyfile.switch` (the switch role, until Traefik takes
+  it over), the platform's `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress
+  `Dockerfile`s, the sandbox-egress entrypoint, and the `cli.yml` and `release.yml` workflows. The
+  runtime suites prepare, read and apply the release's own `compose.yml` and proxy `Caddyfile`
+  (`REPOSITORY_RUNTIME_SOURCE` in `runtime-test-helper.ts`). A revision whose edge is Traefik (marked
+  by the proxy's `render/config.js`) is refused by the managed runtime until tale-project/tale#5282
+  lands; the sandbox cross-check suite also runs the spawner's
   configuration modules in a child process (`SPAWNER_CONFIG_SOURCE` there, held to
   their real imports by a test). The package publication suite also reads the publisher, root
   `LICENSE`, both published packages’ manifests and READMEs, `publish-packages.yml` and
@@ -578,7 +581,7 @@ default means deleting the override and fixing what surfaces:
   `attachmentRefs`). A data URI pasted into `content` reaches the model as text and is answered as
   text, billed (2026-09, round f). The surface now says so. Paying it down means an `attachments`
   field on the REST send naming staged uploads the key holder minted — `POST
-/api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
+  /api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
   unfiled `/api/v1/threads` lane lacks today — handed to `runChatTurn` as the app's
   `{fileId: <s3Ref>, fileName, fileType, fileSize}`, with the spec's send body, the `Message`
   `attachment` part on the read side, the upload allowlist (`UNSUPPORTED_FILE_TYPE`) and a
@@ -646,7 +649,7 @@ default means deleting the override and fixing what surfaces:
   `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
   database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
   nothing on the wire saying so (2026-09, round g). Paying it down means `diagnostics: {leg:
-'keyword' | 'substring'}` on the response, and a `websiteId` filter on
+  'keyword' | 'substring'}` on the response, and a `websiteId` filter on
   `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
   search stack.
 - **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
@@ -690,7 +693,7 @@ default means deleting the override and fixing what surfaces:
 - **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
   now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse
   failures ("Invalid or corrupt file" in `backend/core/lib/knowledge/extraction/{ooxml,pptx,
-xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
+  xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
   times (2026-09, round g). Paying it down means wrapping those throws in
   `ExtractionError('malformed')` the way `pdf.ts` does.
 - **No `/.well-known/security.txt`** — nothing serves RFC 9116's disclosure channel; the path
