@@ -108,7 +108,9 @@ describe('deployment analytics boundary', () => {
   });
 
   it('takes the X-Real-IP a Traefik edge stamps when no dedicated header arrives, never over one', async () => {
-    const fetcher = vi.fn(async () => new Response('{}'));
+    const fetcher = vi.fn(
+      async (_url: string, _init: RequestInit) => new Response('{}'),
+    );
     const analytics = createAnalytics(environment, '', fetcher);
     const event = (headers: Record<string, string>) =>
       new Request('https://app.example/_a/api/send', {
@@ -139,13 +141,14 @@ describe('deployment analytics boundary', () => {
       )?.status,
     ).toBe(200);
     expect(forwarded(1)).toBe('192.0.2.45');
-    for (const headers of [
+    const refused: Record<string, string>[] = [
       { 'x-analytics-client-ip': '', 'x-real-ip': '198.51.100.7' },
       { 'x-analytics-client-ip': 'unknown', 'x-real-ip': '198.51.100.7' },
       { 'x-real-ip': '198.51.100.7, 192.0.2.2' },
       { 'x-real-ip': '' },
       {},
-    ])
+    ];
+    for (const headers of refused)
       expect((await analytics.handle(event(headers)))?.status).toBe(400);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
