@@ -47,7 +47,8 @@ fi
 
 nginx -c "$RUN/responder.conf" -g 'daemon off;' &
 responder=$!
-traefik --configFile="$RUN/traefik.yml" &
+# Traefik loads its local plugins (bodyfaults/) from ./plugins-local.
+(cd "$SHARE" && exec traefik --configFile="$RUN/traefik.yml") &
 traefik=$!
 retry=
 
