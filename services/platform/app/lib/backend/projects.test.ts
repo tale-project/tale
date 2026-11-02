@@ -270,6 +270,58 @@ describe('project read adapters', () => {
     expect(result.mine[0]?.authorName).toBeNull();
   });
 
+  it('lists project agents with their pins and commit identity as stored [PROJ-R23]', async () => {
+    const agent = {
+      id: 'a1',
+      organizationId: 'org-1',
+      projectId: 'p1',
+      name: 'Coder',
+      harness: 'claude-code',
+      model: 'claude-fable-5',
+      modelProvider: null,
+      skills: [],
+      connectors: ['forgejo'],
+      tools: [],
+      secrets: [],
+      instructions: null,
+      createdBy: 'u1',
+      createdAt: 1000,
+      updatedAt: 2000,
+    };
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        agents: [
+          {
+            ...agent,
+            connectorCredentials: { forgejo: 'Client A' },
+            gitIdentity: { name: 'Coder', email: 'coder@example.com' },
+          },
+          { ...agent, id: 'a2', connectorCredentials: {}, gitIdentity: null },
+          { ...agent, id: 'a3' },
+        ],
+      }),
+    );
+
+    const row = projectReadAdapters['projects/queries:listProjectAgents']?.(
+      { organizationId: 'org-1', projectId: 'p1' },
+      {},
+    );
+    const agents = (await row?.queryFn()) as Record<string, unknown>[];
+    expect(agents[0]).toMatchObject({
+      _id: 'a1',
+      connectorCredentials: { forgejo: 'Client A' },
+      gitIdentity: { name: 'Coder', email: 'coder@example.com' },
+    });
+    // None stays a stated none: `null` is no commit identity.
+    expect(agents[1]).toMatchObject({
+      connectorCredentials: {},
+      gitIdentity: null,
+    });
+    // An older backend sent neither: unknown, never read as none.
+    expect(agents[2]).not.toHaveProperty('connectorCredentials');
+    expect(agents[2]).not.toHaveProperty('gitIdentity');
+  });
+
   it('lists project secrets as metadata with nulls stripped', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(200, {

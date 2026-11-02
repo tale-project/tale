@@ -169,16 +169,22 @@ the credential's own spelling; any other is refused by name
 (`PROJECT_AGENT_CREDENTIAL_UNKNOWN`) and nothing is saved — it is never dropped, since a
 dropped pin would hand the agent the connector's default. For the same reason a save that
 leaves the pins out keeps them, and so does one that leaves the commit identity out; only an
-explicit empty set (or no identity) clears them. A declaration (`project-agent`) must spell a
-pin as the credential's name is stored, or it is refused, naming that spelling: a pin declared
-otherwise could never read back as declared. A pin kept exactly as stored is not checked again,
-so an unrelated edit of an agent whose pinned credential was since deleted goes through.
+explicit empty set (or no identity) clears them. A save keeps what it does not change: the
+agent's dialog shows its pins and its commit identity as stored and sends them only when a
+person changed them, so an edit of anything else keeps them, whoever saves. A declaration
+(`project-agent`) must spell a pin as the credential's name is stored, or it is refused, naming
+that spelling: a pin declared otherwise could never read back as declared. A pin kept exactly as
+stored is not checked again, so an unrelated edit of an agent whose pinned credential was since
+deleted goes through.
 
 - **Example**: Ada pins Forgejo credential "client a" on the Client A Coder → it is stored as
   "Client A", the credential's name. She pins "Client Z", which nobody connected → refused,
   naming "Client Z". She pins a Slack credential → refused: Slack opens no git remotes.
 - **Example**: A script reads the Client A Coder over the REST API without the new fields and
   saves it back with a new name → the agent keeps its pin on "Client A".
+- **Example**: Ada opens the Client A Coder's dialog and changes only its instructions → saved,
+  its pin on "Client A" and its commit identity as they were. Mia, an editor, does the same →
+  saved too.
 
 ### PROJ-R24 · Only owners and admins can change which credential an agent acts as
 

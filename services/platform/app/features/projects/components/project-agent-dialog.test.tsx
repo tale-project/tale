@@ -883,7 +883,7 @@ describe('ProjectAgentDialog repository access', () => {
     expect(updateAgent).not.toHaveBeenCalled();
   });
 
-  it('shows an editor the pin without letting them change it, and keeps it on save', async () => {
+  it('shows an editor the pin without letting them change it, and keeps it on save [PROJ-R24]', async () => {
     access.admin = false;
     const { user } = renderCoder({
       ...CODER,
@@ -897,13 +897,102 @@ describe('ProjectAgentDialog repository access', () => {
         'Only Owners and Admins can change which credential this agent uses.',
       ),
     ).toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: /Instructions/ }),
+      'Review every pull request.',
+    );
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
-    expect(updateAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connectorCredentials: { forgejo: 'Gone' },
-        gitIdentity: null,
+    // The save names no pin, which keeps it: nothing the server refuses an
+    // editor for.
+    const saved = updateAgent.mock.calls[0]?.[0];
+    expect(saved).toMatchObject({ instructions: 'Review every pull request.' });
+    expect(saved).not.toHaveProperty('connectorCredentials');
+    expect(saved).not.toHaveProperty('gitIdentity');
+  });
+
+  it('loads the pins and the commit identity as stored, and an edit of anything else leaves them out [PROJ-R23]', async () => {
+    const { user } = renderCoder({
+      ...CODER,
+      connectorCredentials: { forgejo: 'Client A' },
+      gitIdentity: { name: 'Client A Coder', email: 'coder@client-a.test' },
+    } as unknown as ProjectAgentRow);
+    expect(
+      screen.getByRole('combobox', { name: 'Forgejo credential' }),
+    ).toHaveTextContent('Client A');
+    expect(screen.getByRole('textbox', { name: 'Commit name' })).toHaveValue(
+      'Client A Coder',
+    );
+    expect(screen.getByRole('textbox', { name: 'Commit email' })).toHaveValue(
+      'coder@client-a.test',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: /Instructions/ }),
+      'Review every pull request.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    const saved = updateAgent.mock.calls[0]?.[0];
+    expect(saved).toMatchObject({
+      agentId: 'agent-1',
+      expectedUpdatedAt: 20,
+      instructions: 'Review every pull request.',
+    });
+    expect(saved).not.toHaveProperty('connectorCredentials');
+    expect(saved).not.toHaveProperty('gitIdentity');
+  });
+
+  it('clears no pin and no commit identity it never loaded [PROJ-R23]', async () => {
+    // A row without them, as an older backend sends it: unknown, not none.
+    const { user } = renderCoder({
+      ...LEGACY_AGENT,
+      modelProvider: 'anthropic',
+      connectors: ['forgejo', 'slack'],
+    } as unknown as ProjectAgentRow);
+    await user.type(
+      screen.getByRole('textbox', { name: /Instructions/ }),
+      'Review every pull request.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    const saved = updateAgent.mock.calls[0]?.[0];
+    expect(saved).not.toHaveProperty('connectorCredentials');
+    expect(saved).not.toHaveProperty('gitIdentity');
+  });
+
+  it('sends the pins once an admin changes them, and the commit identity kept out', async () => {
+    const { user } = renderCoder({
+      ...CODER,
+      connectorCredentials: { forgejo: 'Client A' },
+      gitIdentity: { name: 'Client A Coder', email: 'coder@client-a.test' },
+    } as unknown as ProjectAgentRow);
+    await user.click(
+      screen.getByRole('combobox', { name: 'Forgejo credential' }),
+    );
+    await user.click(
+      await screen.findByRole('option', {
+        name: 'Organization default (Central)',
       }),
     );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    const saved = updateAgent.mock.calls[0]?.[0];
+    expect(saved).toMatchObject({ connectorCredentials: {} });
+    expect(saved).not.toHaveProperty('gitIdentity');
+  });
+
+  it('sends no commit identity once an admin clears it, and the pins kept out', async () => {
+    const { user } = renderCoder({
+      ...CODER,
+      connectorCredentials: { forgejo: 'Client A' },
+      gitIdentity: { name: 'Client A Coder', email: 'coder@client-a.test' },
+    } as unknown as ProjectAgentRow);
+    await user.clear(screen.getByRole('textbox', { name: 'Commit name' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Commit email' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    const saved = updateAgent.mock.calls[0]?.[0];
+    expect(saved).toMatchObject({ gitIdentity: null });
+    expect(saved).not.toHaveProperty('connectorCredentials');
   });
 });
