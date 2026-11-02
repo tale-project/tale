@@ -55977,6 +55977,11 @@ async function checkDataResidencyConfig(
         })
       ).json(),
     );
+  // A save that names another model than the stated one is refused while the
+  // organization's knowledge database does not answer, and this one does not:
+  // the pool takes `prefer` as TLS, which the itest PG lacks. A removal goes
+  // ahead regardless, so the model an earlier lane stated goes first.
+  await (await del(`/api/app/knowledge/embedding?orgId=${orgId}`)).text();
   const embSaved = z.object({ ok: z.boolean() }).safeParse(
     await (
       await post(`/api/app/knowledge/embedding?orgId=${orgId}`, {
