@@ -36,6 +36,7 @@ type DocumentVersionsResult =
 type DocumentByExternalIdResult =
   ReturnsOf<'documents/queries:getDocumentByExternalItemId'>;
 type UploadUsageResult = ReturnsOf<'documents/queries:getUploadUsage'>;
+type UploadUsageFilesPage = ReturnsOf<'documents/queries:listUploadUsageFiles'>;
 type DocumentSearchHit = ItemOf<'documents/search:searchDocuments'>;
 type ProjectDocumentItem = ItemOf<'projects/queries:listProjectDocuments'>;
 type PendingRecordReviewResult =
@@ -640,7 +641,33 @@ export function hubDocumentsPageQuery(
   };
 }
 
+/**
+ * The files behind the Storage meter, largest first. Keyed under the meter's
+ * own key, inside the `document` prefix, so a document write refreshes the
+ * list and the meter together.
+ */
+export function uploadUsageFilesPageQuery(
+  orgId: string,
+): AdaptedPaginatedOptions {
+  return {
+    queryKey: backendKey(orgId, 'document', 'upload-usage', 'files'),
+    fetchPage: (cursor, numItems) => {
+      const query = new URLSearchParams({ numItems: String(numItems) });
+      if (cursor !== null) query.set('cursor', cursor);
+      return backendFetch<UploadUsageFilesPage>(
+        `/documents/upload-usage/files?${query.toString()}`,
+        { orgId },
+      );
+    },
+  };
+}
+
 export const documentPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  'documents/queries:listUploadUsageFiles': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return uploadUsageFilesPageQuery(orgId);
+  },
   'documents/queries:listDocumentsPaginated': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

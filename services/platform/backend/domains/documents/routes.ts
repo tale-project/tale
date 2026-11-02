@@ -52,6 +52,7 @@ import {
   DocumentError,
   getDocumentByExternalItemIdView,
   getDocumentById,
+  listCountedUploadsForUser,
   listDocuments,
   listDocumentVersionsView,
   listHubDocumentsPaginated,
@@ -230,6 +231,22 @@ export function createDocumentRoutes(deps: {
           auth.organizationId,
           auth.userId,
         ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The files behind the meter, largest first: the rows the gate counts.
+  app.get('/upload-usage/files', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const numItems = Number(c.req.query('numItems') ?? '50');
+      return c.json(
+        await listCountedUploadsForUser(deps.sql, auth, {
+          cursor: c.req.query('cursor') ?? null,
+          numItems: Number.isFinite(numItems) ? numItems : 50,
+        }),
       );
     } catch (error) {
       return handleError(c, error);
