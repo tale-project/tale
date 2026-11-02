@@ -283,8 +283,13 @@ export interface SessionConfig {
    * host's memory sizes {@link maxSessions} from it at boot. */
   autoMaxSessions?: boolean;
   /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
-   * unset is a tenth of the host, at least 1 GiB. */
+   * unset is a tenth of the host, at least 1 GiB and at least
+   * {@link reservedMemoryBytes}. */
   minFreeMemoryBytes?: number;
+  /** What the deployment's database and application tier reserve on this
+   * host (SANDBOX_RESERVED_MEMORY, which the CLI derives from their
+   * `mem_reservation`s). */
+  reservedMemoryBytes?: number;
   /** CPU pressure (the host's PSI `some avg10`, in percent, counted as far
    * as its CPUs are busy) at and above which admission lets sessions start
    * only one at a time
