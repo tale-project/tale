@@ -24,6 +24,7 @@ export const DEV_VOLUME_NAMES = [
   'object-store-data',
   'caddy-data',
   'caddy-config',
+  'proxy-data',
   'llm-gateway-data',
 ] as const;
 
@@ -39,6 +40,7 @@ export const REQUIRED_VOLUMES = [
   'config-data',
   'caddy-data',
   'caddy-config',
+  'proxy-data',
   'db-data',
   'db-backup',
   'object-store-data',
