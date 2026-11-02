@@ -36,7 +36,7 @@ function retryTransportOnly(failureCount: number, error: unknown): boolean {
 }
 
 /** Fresh-install probe (public): does ANY user exist yet? Drives the
- * sign-in ↔ setup routing on the auth pages. */
+ * sign-in ↔ setup routing of the entry route `/` and the auth pages. */
 export function hasAnyUsersQuery() {
   return queryOptions({
     queryKey: backendKey('me', 'account', 'has-any-users'),
