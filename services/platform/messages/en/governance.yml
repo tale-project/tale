@@ -457,8 +457,9 @@ retentionPolicy:
   userTemp:
     title: User temporary file cleanup
     description:
-      Automatically delete files uploaded by users but never saved to a
-      document (e.g. chat attachments, aborted uploads).
+      Automatically delete files uploaded by users, or read from a link in
+      their chats, but never saved to a document (e.g. chat attachments,
+      aborted uploads).
     placeholder: e.g. 24
     helper: Temporary files older than this will be deleted.
   agentTemp:

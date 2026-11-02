@@ -67,6 +67,7 @@ import {
   type OutboundProxyRef,
   type SafeFetchBinaryResponse,
 } from '../../../lib/net/safe-fetch';
+import { resolveFileType } from '../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { knowledgeDatabaseUnavailable } from '../../db/unavailable';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
@@ -131,7 +132,23 @@ export interface ChatToolContext {
    * project. Absent (a test's bare executor), nothing is metered.
    */
   readonly embeddingMeter?: EmbeddingMeter;
+  /**
+   * Keeps a document web_fetch read as a file of the conversation and
+   * answers its ref, so a tool that takes files can change or convert it.
+   * Present only where the turn offers one (`run_code`); absent, web_fetch
+   * returns the document's text alone.
+   */
+  readonly keepFetchedDocument?: FetchedDocumentKeeper;
 }
+
+/** Keeps the bytes of a document web_fetch read (`url`: the address it was
+ * read at, after redirects) as a file of the conversation. */
+export type FetchedDocumentKeeper = (file: {
+  name: string;
+  mediaType: string;
+  bytes: Uint8Array;
+  url: string;
+}) => Promise<{ readonly ref: string; readonly name: string }>;
 
 /** A page or document bigger than this is refused while it streams, BEFORE
  * extraction — a tool result must never threaten the Convex value ceiling,
@@ -336,15 +353,23 @@ interface WebDocument {
   readonly type: string;
   readonly pages: number | undefined;
   readonly text: string;
-  readonly note: string;
+  /** What was not read of it, when something was not. */
+  readonly unread: readonly string[];
 }
 
-/** Until a fetched document can be kept as a file of the conversation, its
- * text is all the model holds of it. */
-const WEB_DOCUMENT_TEXT_ONLY =
-  "This is the document's text, not the file: the file is not in the " +
-  'conversation, and no other tool can take it. To have the document ' +
-  'changed or converted, ask the user to attach the file to a message.';
+/** A kept document's result names the file beside its text. No tool is
+ * named: the model is told of none it was not offered. */
+const WEB_DOCUMENT_KEPT =
+  'The document itself is kept as a file of this conversation, under ' +
+  '"file": to change or convert it, hand "file.ref" to a tool that takes ' +
+  'files, as you would a file the user attached. It came from the web, ' +
+  'not from the user.';
+
+/** The keep failed: the text is all the model holds of the document. */
+const WEB_DOCUMENT_NOT_KEPT =
+  'The document itself could not be kept as a file of this conversation, ' +
+  'so only its text is here; to have it changed or converted, ask the ' +
+  'user to attach the file to a message.';
 
 /**
  * Read a document web_fetch fetched with the extraction router, as the
@@ -405,10 +430,34 @@ async function readWebDocument(
     type,
     pages,
     text: extracted.text,
-    note: [unread, scans, WEB_DOCUMENT_TEXT_ONLY]
-      .filter((sentence) => sentence !== null)
-      .join(' '),
+    unread: [unread, scans].filter((sentence) => sentence !== null),
   };
+}
+
+/**
+ * Keep a document web_fetch read as a file of the conversation, under the
+ * name it was read as and the type its extension names. A keep that fails
+ * is logged and answers null: the text still comes back.
+ */
+async function keepWebDocument(
+  keep: FetchedDocumentKeeper,
+  url: string,
+  bytes: Uint8Array,
+  name: string,
+): Promise<{ readonly ref: string; readonly name: string } | null> {
+  try {
+    return await keep({
+      name,
+      mediaType: resolveFileType(name, ''),
+      bytes,
+      url,
+    });
+  } catch (error) {
+    console.warn(
+      `[chat] web_fetch: keeping the document read at ${new URL(url).hostname} failed: ${describeError(error)}`,
+    );
+    return null;
+  }
 }
 
 /**
@@ -3009,7 +3058,10 @@ export function createChatToolExecutor(
     }
     if (kind.kind === 'document') {
       // A document is read as the page is: every window fetches and reads
-      // it again, and its offsets index the extracted text.
+      // it again, and its offsets index the extracted text. The bytes to
+      // keep are copied first, since reading a PDF can take the buffer.
+      const keep = who.keepFetchedDocument;
+      const bytes = keep !== undefined ? fetched.bytes.slice() : null;
       const document = await readWebDocument(
         response.finalUrl,
         fetched.bytes,
@@ -3019,6 +3071,18 @@ export function createChatToolExecutor(
         await recordDispatch('web_fetch', document.status, document.message);
         return document;
       }
+      // The file is the stored copy of these bytes: a tool that takes it
+      // never fetches the address again.
+      const file =
+        keep !== undefined && bytes !== null
+          ? await keepWebDocument(keep, response.finalUrl, bytes, document.name)
+          : undefined;
+      const note = [
+        ...document.unread,
+        ...(file === undefined
+          ? []
+          : [file === null ? WEB_DOCUMENT_NOT_KEPT : WEB_DOCUMENT_KEPT]),
+      ];
       const paged = windowText(document.text, offset, limit);
       await recordDispatch('web_fetch', 'ok');
       return {
@@ -3029,12 +3093,20 @@ export function createChatToolExecutor(
           type: document.type,
           ...(document.pages !== undefined ? { pages: document.pages } : {}),
         },
+        ...(file !== undefined && file !== null
+          ? {
+              file: {
+                ref: file.ref,
+                name: sanitizeUntrustedField(file.name),
+              },
+            }
+          : {}),
         totalChars: paged.totalChars,
         offset,
         ...(paged.nextOffset !== undefined
           ? { nextOffset: paged.nextOffset }
           : {}),
-        note: document.note,
+        ...(note.length > 0 ? { note: note.join(' ') } : {}),
         content: wrapUntrusted(paged.content, {
           tool: 'web_fetch',
           url: response.finalUrl,

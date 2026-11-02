@@ -23,6 +23,8 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import {
+  holdsFetchedFiles,
+  keepFetchedDocument,
   readThreadFiles,
   storeThreadArtifact,
 } from '../agent_tools/artifacts.ts';
@@ -133,6 +135,16 @@ export async function chatWorkTools(
   };
   const skillViewer = memberSkillViewer(turn.userId, teamIds, member.role);
   const projectIds = turn.projectId !== null ? [turn.projectId] : [];
+  const fileScope = {
+    organizationId: turn.organizationId,
+    userId: turn.userId,
+    threadId: turn.rootThreadId,
+    ...(turn.projectId !== null ? { projectId: turn.projectId } : {}),
+  };
+  const lineage = {
+    organizationId: turn.organizationId,
+    threadIds: turn.threadIds,
+  };
   const scope: WorkToolScope = {
     sql,
     organizationId: turn.organizationId,
@@ -142,25 +154,11 @@ export async function chatWorkTools(
     sandboxOwnerKey: turn.rootThreadId,
     loadout,
     artifacts: {
-      store: (file) =>
-        storeThreadArtifact(
-          sql,
-          {
-            organizationId: turn.organizationId,
-            userId: turn.userId,
-            threadId: turn.rootThreadId,
-            ...(turn.projectId !== null ? { projectId: turn.projectId } : {}),
-          },
-          file,
-        ),
+      store: (file) => storeThreadArtifact(sql, fileScope, file),
     },
     inputs: {
-      resolve: (refs) =>
-        readThreadFiles(
-          sql,
-          { organizationId: turn.organizationId, threadIds: turn.threadIds },
-          refs,
-        ),
+      resolve: (refs) => readThreadFiles(sql, lineage, refs),
+      holdsFetched: () => holdsFetchedFiles(sql, lineage),
     },
     ...(imageModel !== undefined
       ? {
@@ -187,7 +185,16 @@ export async function chatWorkTools(
         readConversationSkills(sql, turn.organizationId, turn.rootThreadId),
       ])
     : [[], []];
-  const built = turnWorkToolsFor(scope, catalog);
+  const offered = turnWorkToolsFor(scope, catalog);
+  // A document web_fetch reads is kept only where run_code can take it.
+  const built: TurnWorkTools | undefined =
+    offered === undefined || !loadout.runCode
+      ? offered
+      : {
+          ...offered,
+          keepFetchedDocument: (file) =>
+            keepFetchedDocument(sql, fileScope, file),
+        };
   // The skills the conversation uses ride with the tools that can read them.
   const tools =
     built === undefined || conversationSkills.length === 0
