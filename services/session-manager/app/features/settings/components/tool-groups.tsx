@@ -1,9 +1,11 @@
 import { Card } from '@tale/ui/card';
+import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { InlineCode } from '@tale/ui/inline-code';
 import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
+import { SUMMARY_FOCUS_CLASS } from '@/app/lib/summary-focus';
 import { useT } from '@/lib/i18n/client';
 
 import { TOOL_GROUPS, type ToolGroupKey } from '../lib/tools';
@@ -52,7 +54,10 @@ export function ToolGroups() {
           // control, and a click in its padding toggles it. `CollapsibleDetails`
           // has no prop for the summary's classes yet (as its `IssueDetail`
           // does, reached by selector).
-          className="[&>summary]:px-4 [&>summary]:py-3"
+          className={cn(
+            '[&>summary]:px-4 [&>summary]:py-3',
+            SUMMARY_FOCUS_CLASS,
+          )}
           summary={
             <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
               <span className="min-w-0">{words[group.key].title}</span>

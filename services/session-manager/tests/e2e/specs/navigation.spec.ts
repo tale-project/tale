@@ -41,6 +41,7 @@ import {
 } from '../helpers/settings-i18n';
 import { AI_ACCESS_OFF, McpClient } from '../helpers/settings-mcp';
 import { expectSettingsNotRead } from '../helpers/settings-pages';
+import { animationsDone } from '../helpers/viewer-stage';
 
 // What a test changes in the manager's settings, or scripts in the fakes, goes
 // back to the defaults when it ends, whether it passed or not.
@@ -1087,6 +1088,9 @@ test.describe('Horizontal overflow: dialogs', () => {
       const dialogFits = async (name: string) => {
         const dialog = page.getByRole('dialog', { name });
         await expect(dialog, name).toBeVisible();
+        // It slides in whatever the motion setting says (the box is 16px lower
+        // on its way): measured once it has stopped.
+        await animationsDone(page);
         const box = await dialog.boundingBox();
         expect(box?.x ?? -1, name).toBeGreaterThanOrEqual(0);
         expect(box?.y ?? -1, name).toBeGreaterThanOrEqual(0);

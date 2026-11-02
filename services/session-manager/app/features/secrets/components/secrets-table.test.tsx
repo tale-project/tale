@@ -971,8 +971,8 @@ describe('the list in a column too narrow for its columns', () => {
     await waitFor(() => expect(widthOf('Available to')).toBe('154px'));
   });
 
-  it('has the same columns, as narrow as they need, in a column of 1024px windows', async () => {
-    columnIs(1024 - 52 - 32);
+  it('has the same columns, as narrow as they need, in a column of 1024px windows, with the 15px of a scrollbar that takes room too', async () => {
+    columnIs(1024 - 52 - 32 - 15);
     await renderTable();
     expect(
       within(screen.getByRole('table', { name: 'Secrets' }))

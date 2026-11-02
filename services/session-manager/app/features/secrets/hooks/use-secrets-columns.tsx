@@ -34,16 +34,18 @@ import { useSecretLabels } from './use-secret-labels';
  *
  * The table gives each column these sizes at the least, and every pixel more
  * to the details, the one column of prose. `SECRETS_TABLE_MIN_WIDTH` is what
- * the columns add up to (932 of the 940px a laptop window of 1024px leaves the
- * table); a column narrower than that has the compact row instead of a
- * scrollbar that would take the menu of the row out of sight.
+ * the columns add up to (912 of the 925px a laptop window of 1024px leaves the
+ * table where a scrollbar takes 15px of it, as on Windows and Linux; 940px
+ * where it floats over the page, as on a Mac); a column narrower than that has
+ * the compact row instead of a scrollbar that would take the menu of the row
+ * out of sight.
  */
 const SIZE = {
   title: 240,
   kind: 194,
   scope: 154,
   /** The least the details have: what is more than the others need goes to them. */
-  preview: 100,
+  preview: 80,
   /** "il y a quelques secondes", the longest of what a fresh change reads. */
   updated: 188,
 } as const;

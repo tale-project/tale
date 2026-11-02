@@ -66,8 +66,9 @@ describe('the columns of the secrets', () => {
   });
 
   it('need no more than a laptop window gives them, so a window of 1024px has no compact row', () => {
-    // The page column of a 1024px window: 52px of rail and 16px of margin a side.
-    expect(SECRETS_TABLE_MIN_WIDTH).toBeLessThanOrEqual(1024 - 52 - 32);
+    // The page column of a 1024px window: 52px of rail and 16px of margin a side,
+    // and on Windows and Linux the 15px of a scrollbar that is not an overlay.
+    expect(SECRETS_TABLE_MIN_WIDTH).toBeLessThanOrEqual(1024 - 52 - 32 - 15);
   });
 
   it('give the age room for the longest phrase a fresh change reads, so that it never runs into the menu of the row', () => {

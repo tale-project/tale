@@ -1,3 +1,4 @@
+import { cn } from '@tale/ui/cn';
 import { CodeBlock } from '@tale/ui/code-block';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { InlineCode } from '@tale/ui/inline-code';
@@ -9,6 +10,7 @@ import { useConnectionTrouble } from '@/app/hooks/use-connection-trouble';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useMeta } from '@/app/hooks/use-meta';
 import { documentTitle } from '@/app/lib/page-head';
+import { SUMMARY_FOCUS_CLASS } from '@/app/lib/summary-focus';
 import { useT } from '@/lib/i18n/client';
 
 import { ShellAlert } from './shell-alert';
@@ -81,7 +83,7 @@ export function Banners() {
                   // the strip is 4.2:1, under the 4.5:1 of small text. The
                   // padding makes the summary a 28px target (`IssueDetail` of
                   // the library does the same).
-                  className="[&>summary]:py-1"
+                  className={cn('[&>summary]:py-1', SUMMARY_FOCUS_CLASS)}
                 >
                   <CodeBlock
                     className="mt-1 max-h-40 overflow-auto"

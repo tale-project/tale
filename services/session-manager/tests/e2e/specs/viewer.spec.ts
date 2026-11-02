@@ -54,6 +54,7 @@ import {
 import {
   Finger,
   LONG_PRESS_MS,
+  MOUSE_AFTER_DRAG_MS,
   TAP_SLOP,
   letTimePass,
 } from '../helpers/viewer-touch';
@@ -5648,7 +5649,10 @@ test.describe('on a phone', () => {
     );
 
     // A drag is not a click, whatever mouse events the browser makes of a finger that lifts: a tap
-    // after it proves that nothing else was sent before.
+    // after it proves that nothing else was sent before. The page lets go of a finger's mouse events
+    // for a while after a drag (a tap sooner is one of them), so the tap comes when that is over, by
+    // the page's own clock.
+    await letTimePass(page, MOUSE_AFTER_DRAG_MS);
     const aim = await viewer.at(0.5, 0.2);
     await page.touchscreen.tap(aim.screen.x, aim.screen.y);
     const after = await viewer.fake.when(

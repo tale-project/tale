@@ -4,6 +4,7 @@ import { InlineCode } from '@tale/ui/inline-code';
 import { Text } from '@tale/ui/text';
 import { useEffect, useRef } from 'react';
 
+import { SUMMARY_FOCUS_CLASS } from '@/app/lib/summary-focus';
 import type { ImportResult } from '@/lib/api/schemas';
 import { useT } from '@/lib/i18n/client';
 
@@ -70,6 +71,7 @@ export function ImportResultView({ result, onShow }: ImportResultViewProps) {
       {errors.length > 0 && (
         <CollapsibleDetails
           defaultOpen
+          className={SUMMARY_FOCUS_CLASS}
           summary={t('result.errors', { count: errors.length })}
         >
           <ul className="mt-2 flex flex-col gap-3">
@@ -95,6 +97,7 @@ export function ImportResultView({ result, onShow }: ImportResultViewProps) {
 
       {duplicates.length > 0 && (
         <CollapsibleDetails
+          className={SUMMARY_FOCUS_CLASS}
           summary={t('result.duplicates', { count: duplicates.length })}
         >
           <ul className="mt-2 flex flex-col gap-2">

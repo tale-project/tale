@@ -13,6 +13,13 @@ const FINGER_ID = 1;
 export const LONG_PRESS_MS = 500;
 
 /**
+ * How long the page lets go of the mouse events that follow a drag (its
+ * `MOUSE_AFTER_DRAG_MS` of `use-remote-pointer.ts`), in milliseconds: a tap
+ * sooner than that after a finger dragged is taken for one of them.
+ */
+export const MOUSE_AFTER_DRAG_MS = 700;
+
+/**
  * How far a finger may wobble and still rest or tap (the page's `TAP_SLOP`),
  * in CSS pixels; one that moves further is dragging the page.
  */
