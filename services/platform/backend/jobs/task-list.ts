@@ -665,6 +665,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
+    'knowledge.resume_pii_unavailable': async (_payload, context) => {
+      const { requeuePiiUnavailableDocuments } =
+        await import('../domains/knowledge/pii-scan-resume.ts');
+      const requeued = await requeuePiiUnavailableDocuments(deps.sql, {
+        signal: context?.signal,
+      });
+      if (requeued > 0) {
+        console.info(
+          `[knowledge] queued ${requeued} document(s) again that the PII policy could not scan while its protection could not start`,
+        );
+      }
+    },
     'watchdog.erasures': async () => {
       const { recoverStuckErasureRequests } =
         await import('../domains/erasure/service.ts');
