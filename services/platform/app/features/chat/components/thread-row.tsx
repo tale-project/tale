@@ -177,7 +177,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
           horizontal space until hover — the title gets the full width. On
           touch it stays in-flow and always visible. */}
       {!renaming && (
-        <div className="bg-background/80 z-10 shrink-0 rounded-md opacity-100 backdrop-blur-sm transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
+        <div className="bg-background/80 [[data-slot=sub-panel]_&]:bg-sidebar/80 z-10 shrink-0 rounded-md opacity-100 backdrop-blur-sm transition-opacity md:absolute md:top-1/2 md:right-1 md:-translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
           <ThreadRowMenu
             thread={thread}
             variant={variant}
