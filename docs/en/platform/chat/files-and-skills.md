@@ -65,6 +65,8 @@ To use a skill for one message, type `/` at the start of the message box, or cho
 
 To use skills for a whole conversation, open the model picker, go to **Skills** and check up to four. Every reply in that conversation reads them before it answers. A new chat starts without any.
 
+Both lists name who created each skill, ahead of its description: a member, **Built-in** for the skills your organization starts with, or **Configuration release** with the member whose upload installed it. A skill whose creator has left the organization reads **By a former member**. Check where an unfamiliar skill comes from before you use it.
+
 The assistant also reads a skill on its own when one fits your request, or when you name it in your words. It sees the name and description of every skill in your library; in a library of more than 40 skills, it sees the first 40 in alphabetical order, so choose any other one with `/`. A skill whose author marked it for explicit use only is meant for when you choose it: the assistant is asked not to use it otherwise.
 
 A skill can also say how the assistant writes: a tone, a format, a closing line for every reply. The assistant follows a skill throughout the reply that reads it, in how it writes as much as in what it does. A skill the assistant reads on its own is read for that reply; later replies read it again only when the assistant picks it again. To have a skill shape every reply, check it under **Skills**: each reply then reads it in full before it answers.
