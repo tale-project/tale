@@ -40,7 +40,9 @@ const ROWS: UserRow[] = [
   row('__automation__', '__automation__'),
   row('user-23', 'Person 23'),
   row('user-24', 'Ada Lovelace'),
-].map((usage, position) => ({ ...usage, costCents: (100 - position) * 10 }));
+].map((usage, position) =>
+  Object.assign(usage, { costCents: (100 - position) * 10 }),
+);
 const MANY = ROWS.length;
 
 /** What each row's User cell names, in the server's order. */
