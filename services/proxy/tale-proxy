@@ -1,0 +1,141 @@
+#!/bin/sh
+# Tale's edge. One image, two roles, chosen by the command:
+#
+#   edge (default)  renders the configuration from the environment
+#                   (render/main.js), then runs Traefik and the responder,
+#                   the loopback nginx that writes the edge's own answers.
+#   docker-api      the read-only Docker API proxy (docker-api/nginx.conf),
+#                   the one way Traefik reads the services' labels.
+#   health          the image's HEALTHCHECK, for either role.
+#
+# Any other command runs as given (`docker run … tale-proxy sh`).
+set -eu
+
+SHARE=${TALE_PROXY_SHARE_DIR:-/usr/share/tale-proxy}
+RUN=${TALE_PROXY_RUN_DIR:-/run/tale-proxy}
+DATA=${TALE_PROXY_DATA_DIR:-/data}
+export TALE_PROXY_SHARE_DIR="$SHARE" TALE_PROXY_RUN_DIR="$RUN" TALE_PROXY_DATA_DIR="$DATA"
+
+case "${1:-edge}" in
+docker-api)
+  mkdir -p "$RUN"
+  echo docker-api >"$RUN/role"
+  exec nginx -c "$SHARE/docker-api/nginx.conf"
+  ;;
+health)
+  if [ "$(cat "$RUN/role" 2>/dev/null)" = docker-api ]; then
+    exec wget -q --spider -T 5 http://127.0.0.1:2375/_ping
+  fi
+  exec wget -q --spider -T 5 http://127.0.0.1:2020/health
+  ;;
+edge) ;;
+*) exec "$@" ;;
+esac
+
+render() {
+  rm -f "$RUN/ready"
+  njs -n QuickJS -m "$SHARE/render/main.js" || return 1
+  [ -f "$RUN/ready" ]
+}
+
+mkdir -p "$RUN/dynamic" "$DATA/pki"
+echo edge >"$RUN/role"
+if ! render; then
+  echo "The proxy did not start: fix the configuration above." >&2
+  exit 1
+fi
+
+nginx -c "$RUN/responder.conf" -g 'daemon off;' &
+responder=$!
+traefik --configFile="$RUN/traefik.yml" &
+traefik=$!
+retry=
+
+stop() {
+  kill -TERM "$traefik" "$responder" ${retry:+"$retry"} 2>/dev/null || true
+  wait "$traefik" 2>/dev/null || true
+  wait "$responder" 2>/dev/null || true
+  exit 0
+}
+trap stop TERM INT
+
+# Let's Encrypt: ask again once DNS points here. Traefik asks for a host's
+# certificate when its configuration changes, and a host whose DNS lands
+# hours or days after the deployment would otherwise wait for a restart.
+# The loop checks that the host resolves to this server's public IP (through
+# 1.1.1.1, past Docker's DNS and wildcard records), then changes the
+# configuration with a new generation; without a public IP it asks every 15
+# minutes, under Let's Encrypt's limit of 5 failures per host and hour.
+acme_retry() {
+  generation=0
+  bump() {
+    generation=$((generation + 1))
+    printf '{"http":{"middlewares":{"tale-acme-retry":{"headers":{"customRequestHeaders":{"X-Tale-Acme-Retry":"%s"}}}}}}\n' \
+      "$generation" >"$RUN/dynamic/acme-retry.yml.tmp"
+    mv "$RUN/dynamic/acme-retry.yml.tmp" "$RUN/dynamic/acme-retry.yml"
+  }
+  echo "ACME retry: watching for certificates on: $(tr '\n' ' ' <"$RUN/acme-hosts")"
+  sleep 60
+  server_ip=$(wget -qO- -T5 http://ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]') || server_ip=
+  if [ -n "$server_ip" ]; then
+    echo "ACME retry: server public IP is ${server_ip}"
+  else
+    echo "ACME retry: could not determine public IP, will retry every 15 minutes"
+  fi
+  while true; do
+    pending=
+    while read -r cert_host; do
+      [ -n "$cert_host" ] || continue
+      grep -Fq "\"main\": \"${cert_host}\"" "$DATA/acme.json" 2>/dev/null ||
+        pending="${pending} ${cert_host}"
+    done <"$RUN/acme-hosts"
+    if [ -z "$pending" ]; then
+      echo "ACME certificates obtained for: $(tr '\n' ' ' <"$RUN/acme-hosts")"
+      return 0
+    fi
+    if [ -n "$server_ip" ]; then
+      resolved=
+      for cert_host in $pending; do
+        if nslookup "${cert_host}" 1.1.1.1 2>/dev/null | grep -q "${server_ip}"; then
+          resolved="${resolved} ${cert_host}"
+        fi
+      done
+      if [ -n "$resolved" ]; then
+        echo "DNS resolved${resolved} to ${server_ip}, asking for the certificates again..."
+        bump
+        sleep 120
+      else
+        sleep 300
+      fi
+    else
+      bump
+      sleep 900
+    fi
+  done
+}
+if [ -s "$RUN/acme-hosts" ]; then
+  acme_retry &
+  retry=$!
+fi
+
+# Supervise: when either process ends, the container ends, and Docker's
+# restart policy brings it back. Once a day the configuration is rendered
+# again, which reissues a self-signed leaf within 30 days of its end.
+rendered=$(date +%s)
+while kill -0 "$traefik" 2>/dev/null && kill -0 "$responder" 2>/dev/null; do
+  sleep 5 &
+  wait $! || true
+  now=$(date +%s)
+  if [ $((now - rendered)) -ge 86400 ]; then
+    render || echo "The daily render failed; the running configuration stays." >&2
+    rendered=$now
+  fi
+done
+if kill -0 "$traefik" 2>/dev/null; then
+  echo "The responder exited; stopping the proxy." >&2
+else
+  echo "Traefik exited; stopping the proxy." >&2
+fi
+kill -TERM "$traefik" "$responder" ${retry:+"$retry"} 2>/dev/null || true
+wait 2>/dev/null || true
+exit 1

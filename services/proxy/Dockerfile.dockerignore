@@ -1,5 +1,5 @@
 # =============================================================================
-# Tale Proxy (Caddy) — Dockerfile.dockerignore
+# Tale Proxy (Traefik) — Dockerfile.dockerignore
 # =============================================================================
 # BuildKit picks this file (adjacent to the Dockerfile) over the root
 # .dockerignore. It does NOT merge — so this file must list everything we want
@@ -113,7 +113,7 @@ compose.*.yml
 **/Dockerfile.dockerignore
 
 # =============================================================================
-# Proxy-specific: Caddy doesn't need any project source code
+# Proxy-specific: the edge needs no project source code
 # =============================================================================
 services/platform/
 services/web/
