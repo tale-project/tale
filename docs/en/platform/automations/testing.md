@@ -20,7 +20,7 @@ Each row is one test, in the order the document lists them: its status, its name
 ## Add a test
 
 1. In the **Tests** tab, select **Add test**, and **Blank test** if it opens a menu. A test named **New test** opens beside the canvas, with a placeholder for each field the run input requires.
-2. In **Setup**, fill in the test: its **Name**, the **Input** the run receives as JSON, the **Simulated outputs** and **Simulated failures** that stand in for steps, and under **Expectations** what the run must do. Your changes go into the draft as you type.
+2. In **Setup**, fill in the test: its **Name**, the **Input** the run receives as JSON, the **Simulated outputs**, **Simulated failures** and **Scenarios** that stand in for steps, and under **Expectations** what the run must do. **Scenarios** shows when a step's connector action ships some. Your changes go into the draft as you type.
 3. Save the draft to keep the test. Saving runs every test and records the result with the version.
 
 Adding a simulated output starts it empty: `{}` for a node, or `[]` when it runs once per item. **Use the last run's output** copies the output from the run on the canvas when you choose it. Review that value before saving.
@@ -74,7 +74,9 @@ The step's input is still worked out and checked. A call whose input matches the
 - When the scenario answers with an error, the step fails with the scenario's message, marked as simulated by the test, and carries **Simulated failure**. The run treats it as the same failure from the service, such as a refused access or a rate limit, so the rest of the automation handles it as it would in a live run.
 - When none of the step's calls matches the scenario, it shows under **Not used**, as an unused simulated output does.
 
-A step takes one stand-in: a scenario, a simulated output or a simulated failure. The **Setup** form has no control for `scenarios` yet: write them with **Edit as YAML**, and the form keeps them as written. [Connectors](/develop/connectors#scenarios) explains how an action declares its scenarios and how their failures are classified. Over the [MCP endpoint](/develop/mcp-endpoint#authoring), `get_catalog` lists the scenarios each action ships.
+A step takes one stand-in: a scenario, a simulated output or a simulated failure.
+
+In **Setup**, **Pick a scenario for a node** offers each step whose action ships scenarios and that has no other stand-in, and gives the step its action's first scenario. **Scenario for** the step then lists every scenario the action ships, each with its kind (**Success**, **Empty**, **Error**, **Refusal** or **Duplicate**), what the service answers and, for one that answers only some calls, which calls. The kind and description of the picked scenario show above the list. A name the action doesn't ship stays as written until you pick another, and **Problems** says what is wrong with it. A node's **Shape** tab lists the same scenarios. [Connectors](/develop/connectors#scenarios) explains how an action declares its scenarios and how their failures are classified. Over the [MCP endpoint](/develop/mcp-endpoint#authoring), `get_catalog` lists the scenarios each action ships.
 
 ### Start from the trigger or a path
 
@@ -133,4 +135,4 @@ Select a test to open it beside the canvas. A test with a result opens on **Resu
 
 ## Fix a problem in a test
 
-Tale checks tests as it checks the rest of the draft. A test that can never pass, for example one that simulates a step the automation doesn't have or names an unknown field, shows in **Problems** with what to fix. So does a test that picks a scenario for a step the automation doesn't have, picks one the step's action doesn't ship, or gives a step two stand-ins. For a scenario the action doesn't ship, the problem names the closest one and lists the scenarios the action ships. Such a test can't run until you fix it. Select the problem to open the test at that place in its YAML.
+Tale checks tests as it checks the rest of the draft. A test that can never pass, for example one that simulates a step the automation doesn't have or names an unknown field, shows in **Problems** with what to fix. So does a test that picks a scenario for a step the automation doesn't have, picks one the step's action doesn't ship, or gives a step two stand-ins. For a scenario the action doesn't ship, the problem names the closest one and lists the scenarios the action ships. Such a test can't run until you fix it. Select the problem to open the test at that place: in the **Setup** form when the form has a control there, such as a step's scenario, and otherwise in its YAML.

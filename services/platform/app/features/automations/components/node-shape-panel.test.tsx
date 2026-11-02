@@ -8,6 +8,7 @@ import type {
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
+import type { ConnectorScenarioSummary } from './connector-scenario';
 import { NodeShapePanel, type ShapeStatus } from './node-shape-panel';
 
 const issues: WireShape = {
@@ -34,11 +35,13 @@ function panel(
     status = 'ready',
     readers = [],
     readByOutput = false,
+    scenarios,
     onSelect = vi.fn(),
   }: {
     status?: ShapeStatus;
     readers?: string[];
     readByOutput?: boolean;
+    scenarios?: readonly ConnectorScenarioSummary[];
     onSelect?: (id: string) => void;
   } = {},
 ) {
@@ -50,11 +53,33 @@ function panel(
       words={{ connector: 'GitHub', type: 'Language model' }}
       readers={readers}
       readByOutput={readByOutput}
+      {...(scenarios !== undefined && { scenarios })}
       onSelect={onSelect}
       endId="__end"
     />,
   );
 }
+
+/** Two of the scenarios Slack's channel lookup ships, and one of a kind
+ * this editor does not know yet. */
+const scenarios: ConnectorScenarioSummary[] = [
+  {
+    name: 'one_channel',
+    kind: 'success',
+    description: 'Slack returns the channel.',
+  },
+  {
+    name: 'channel_not_found',
+    kind: 'error',
+    description: 'Slack answers that no channel has this id.',
+    when: { channel: 'C0000000009' },
+  },
+  {
+    name: 'slow_reply',
+    kind: 'throttled',
+    description: 'Slack answers late.',
+  },
+];
 
 describe('NodeShapePanel', () => {
   const fetch = { id: 'fetch', type: 'github.list_issues' };
@@ -146,10 +171,43 @@ describe('NodeShapePanel', () => {
     ).toBeVisible();
   });
 
+  it('lists the scenarios the action ships: each kind, what it is, and which calls it answers', () => {
+    panel(
+      { id: 'lookup', type: 'slack.get_channel' },
+      typesWith('lookup', issues),
+      { scenarios },
+    );
+    const section = screen.getByRole('region', { name: 'Scenarios' });
+    expect(section).toHaveTextContent(
+      'A test can pick one of these for this node in its Setup. The node then answers as described instead of calling.',
+    );
+    const [found, notFound, slow] = within(section).getAllByRole('listitem');
+    expect(found).toHaveTextContent('one_channel');
+    expect(found).toHaveTextContent('Success');
+    expect(found).toHaveTextContent('Slack returns the channel.');
+    expect(found).not.toHaveTextContent('Only for calls');
+    expect(notFound).toHaveTextContent('channel_not_found');
+    expect(notFound).toHaveTextContent('Error');
+    expect(notFound).toHaveTextContent(
+      'Only for calls whose input has channel: "C0000000009". Any other call gets the usual simulated answer.',
+    );
+    // A kind a newer server sends shows as written.
+    expect(slow).toHaveTextContent('throttled');
+  });
+
+  it('shows no scenarios for an action that ships none', () => {
+    panel(fetch, typesWith('fetch', issues));
+    expect(
+      screen.queryByRole('region', { name: 'Scenarios' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('passes an axe audit', async () => {
     const { container } = panel(fetch, typesWith('fetch', issues), {
       readers: ['open_issues'],
+      scenarios,
     });
+    expect(screen.getByRole('region', { name: 'Scenarios' })).toBeVisible();
     await checkAccessibility(container);
   });
 });

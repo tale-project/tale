@@ -72,17 +72,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The scenario a test picks for each node, by name: the form shows
- * none, and a pick that is not a name is left to the test's own checks. */
-function scenariosOf(test: unknown): Record<string, string> {
-  if (!isRecord(test) || !isRecord(test.scenarios)) return {};
-  return Object.fromEntries(
-    Object.entries(test.scenarios).flatMap(([node, name]) =>
-      typeof name === 'string' ? [[node, name] as const] : [],
-    ),
-  );
-}
-
 /** What a test stands in for, as a try sends it; none without stand-ins. */
 export function benchOfTest(test: unknown): SourceBench | undefined {
   const form = readTestForm(test);
@@ -90,7 +79,12 @@ export function benchOfTest(test: unknown): SourceBench | undefined {
     form.mocks.map(([node, output]) => [node, asJson(output)]),
   );
   const failures = Object.fromEntries(form.failures);
-  const scenarios = scenariosOf(test);
+  // A pick that is not a name is left to the test's own checks.
+  const scenarios = Object.fromEntries(
+    form.scenarios.flatMap(([node, name]) =>
+      typeof name === 'string' ? [[node, name] as const] : [],
+    ),
+  );
   const bench: SourceBench = {
     ...(Object.keys(mocks).length > 0 && { mocks }),
     ...(Object.keys(failures).length > 0 && { failures }),

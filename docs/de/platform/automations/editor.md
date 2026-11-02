@@ -107,7 +107,7 @@ Wähle einen Kasten, um ihn zu öffnen. Auf einem breiten Bildschirm öffnet sic
 Danach folgen drei Tabs:
 
 - **Felder** enthält, was du ändern kannst. Ein `transform` hat **Code**, ein `llm` **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema**, ein `agent` zusätzlich Agent-Laufzeit und Ausstattung. **Eingabe** enthält die JSON-Werte und Referenzen, die die Node erhält.
-- **Struktur** zeigt, was die Node erhält und zurückgibt, woher Tale diese Struktur kennt und welche Nodes ihre Ausgabe lesen. Wähle eine lesende Node, um sie zu öffnen. **Als TypeScript zeigen** zeigt dieselbe Struktur als Typ.
+- **Struktur** zeigt, was die Node erhält und zurückgibt, woher Tale diese Struktur kennt und welche Nodes ihre Ausgabe lesen. Wähle eine lesende Node, um sie zu öffnen. **Als TypeScript zeigen** zeigt dieselbe Struktur als Typ. Liefert eine Connector-Aktion Szenarien mit, listet **Szenarien** sie mit ihrer Art und dem, was der Dienst antwortet; ein Test wählt eines unter **Einrichtung**, wie [Ein Szenario eines Connectors wählen](/de/platform/automations/testing#scenarios) beschreibt.
 - **Letzter Lauf** zeigt **Aufgelöste Eingabe**, **Ausgabe** und Effekte der Node in dem Lauf, den der Canvas zeigt. Der Tab erscheint, solange der Canvas einen Lauf zeigt, und heißt **Ungespeicherter Test** bei einem [Versuch mit dem Entwurf](#try-the-draft) und **In diesem Test** beim Lauf eines Tests.
 
 <Frame caption="Der Tab Struktur: was Triage zurückgibt, woher diese Struktur stammt und welche Nodes sie lesen.">

@@ -6,14 +6,29 @@
  * Besides what the editor validates a node against (fields, output kind,
  * whether it writes), a row carries what a person reads on the canvas: the
  * connector it belongs to and the action's title in English with its
- * per-locale overrides. The connector rows carry the display name (with its
- * overrides, for a connector named with ordinary words rather than a brand)
- * and the shipped icon as a data URL. The route builds this shape and the app
- * parses it at the boundary, so a foreign answer is a failed read, never a
- * cast; keys this build does not know are stripped.
+ * per-locale overrides; and the scenarios a test can pick for the action. The
+ * connector rows carry the display name (with its overrides, for a connector
+ * named with ordinary words rather than a brand) and the shipped icon as a
+ * data URL. The route builds this shape and the app parses it at the
+ * boundary, so a foreign answer is a failed read, never a cast; keys this
+ * build does not know are stripped.
  */
 
 import { z } from 'zod';
+
+/** One case a test can pick for the action (`scenarios: {<node>: <name>}`),
+ * as the connector's catalog declares it, without the answer itself. */
+const nodeTypeScenarioSchema = z.object({
+  name: z.string(),
+  /** `success`, `empty`, `error`, `refusal` or `duplicate` today; read as
+   * text, so a kind a newer server adds is no failed read. */
+  kind: z.string(),
+  /** What the case is, in English. */
+  description: z.string(),
+  /** The input members a call must carry, each equal as JSON, to get the
+   * case; any other call gets the action's usual simulated answer. */
+  when: z.record(z.string(), z.json()).optional(),
+});
 
 const nodeTypeSummarySchema = z.object({
   type: z.string(),
@@ -32,6 +47,8 @@ const nodeTypeSummarySchema = z.object({
   i18n: z
     .record(z.string(), z.object({ title: z.string().optional() }))
     .optional(),
+  /** The cases a test can pick for the action; absent when it ships none. */
+  scenarios: z.array(nodeTypeScenarioSchema).optional(),
 });
 
 const connectorDisplaySchema = z.object({

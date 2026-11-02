@@ -9,8 +9,9 @@ import type { OrgEnv } from '../../auth/org.ts';
  * `GET /catalog/node-types` answers one row per shipped connector action and
  * the connectors themselves, once each, with what a person reads on a node —
  * the action's title in English, German and French, the connector's display
- * name and its icon. Read from the shipped catalog, not a stub, so the answer
- * is the one a deployment gives.
+ * name and its icon — and the scenarios a test can pick for the action. Read
+ * from the shipped catalog, not a stub, so the answer is the one a deployment
+ * gives.
  */
 
 const io = vi.hoisted(() => ({ role: 'developer' }));
@@ -85,6 +86,52 @@ describe('GET /catalog/node-types', () => {
     }
     const types = catalog.nodeTypes.map((row) => row.type);
     expect(types).toEqual([...types].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it('lists the scenarios an action ships, as get_catalog does, without their answers', async () => {
+    const catalog = nodeTypeCatalogSchema.parse(
+      await (await getCatalog()).json(),
+    );
+    const getChannel = catalog.nodeTypes.find(
+      (row) => row.type === 'slack.get_channel',
+    );
+    // What a test picks and a person reads: the name, the kind, the
+    // description and the input a call must carry; never the output or the
+    // error the bench answers with.
+    expect(getChannel?.scenarios).toEqual([
+      {
+        name: 'one_channel',
+        kind: 'success',
+        description: 'Slack returns the channel.',
+      },
+      {
+        name: 'no_topic',
+        kind: 'empty',
+        description:
+          'Slack returns a channel that has no topic, its topic value empty.',
+      },
+      {
+        name: 'channel_not_found',
+        kind: 'error',
+        description: 'Slack answers that no channel has this id.',
+        when: { channel: 'C0000000009' },
+      },
+      {
+        name: 'invalid_auth',
+        kind: 'error',
+        description:
+          'Slack cannot validate the bot token and answers invalid_auth.',
+      },
+    ]);
+    expect(
+      catalog.nodeTypes
+        .find((row) => row.type === 'slack.send_message')
+        ?.scenarios?.map((scenario) => scenario.kind),
+    ).toEqual(['success', 'duplicate', 'refusal', 'refusal', 'refusal']);
+    // An action that ships none carries no list at all.
+    expect(
+      catalog.nodeTypes.find((row) => row.type === 'github.list_issues'),
+    ).not.toHaveProperty('scenarios');
   });
 
   it('names every connector once, with its display name, translations and icon', async () => {
