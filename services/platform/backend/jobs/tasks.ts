@@ -42,6 +42,9 @@ export interface TaskPayloads {
   'watchdog.rag_indexing': Record<string, never>;
   /** Resume the knowledge work a usage limit parked, once it may run. */
   'knowledge.resume_usage_limited': Record<string, never>;
+  /** Queue again what the PII policy refused because its protection could
+   *  not start, once this process can build it. */
+  'knowledge.resume_pii_unavailable': Record<string, never>;
   /** Fail erasure runs whose processor never finished. */
   'watchdog.erasures': Record<string, never>;
   /** Revoke sessions idle past their org's policy window. */
@@ -520,6 +523,9 @@ export interface TaskQueueOptions {
    * the default key and shut each other out. `exclusive` goes further: at
    * most one job per key queued OR active, so a send while one runs is
    * dropped too — for work that must never run twice at once per key.
+   * `stately` keeps at most one job per key in each state up to running:
+   * one waits while one runs, a send beside the waiting one is dropped, and
+   * the waiting one starts only after the running one ends.
    */
   policy?: 'standard' | 'short' | 'singleton' | 'stately' | 'exclusive';
 }
@@ -551,6 +557,14 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.transcriptions': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.rag_indexing': { retryLimit: 1, expireInSeconds: 600 },
   'knowledge.resume_usage_limited': { retryLimit: 1, expireInSeconds: 600 },
+  // Sent without a key, so one pass waits and one runs in the whole
+  // deployment: the workers that boot together and the hourly tick share
+  // the waiting one, and two passes never queue one email body side by side.
+  'knowledge.resume_pii_unavailable': {
+    retryLimit: 1,
+    expireInSeconds: 600,
+    policy: 'stately',
+  },
   'watchdog.erasures': { retryLimit: 1, expireInSeconds: 300 },
   'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },

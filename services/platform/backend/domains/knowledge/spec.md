@@ -189,9 +189,14 @@ name) cannot be scanned whole. Its status is Failed with the code `pii_scan_fail
 reason says that the document could not be scanned, never what it holds. A detected value
 comes first: in **Block** mode a document that holds one is `pii_blocked`, even when another
 part of it could not be scanned. The platform log reports a protection that cannot be started
-once per policy, and a part that cannot be scanned once per document. Such a document is not
-tried again on its own. Every save of the PII policy, also one that changes nothing, queues
-each `pii_scan_failed` document again, and **Retry indexing** queues one.
+once per policy, and a part that cannot be scanned once per document. A document refused
+because the protection could not be started is queued again on its own once the platform can
+start it: when the platform starts with the data the protection loads, and every hour after
+that, while the organization's PII protection is on. Each time it queues at most 250 documents
+of an organization and 1,000 in all; the rest follow an hour later. A document with a part
+that could not be scanned whole is not tried again on its own: it would fail again for the
+same text and policy. Every save of the PII policy, also one that changes nothing, queues each
+`pii_scan_failed` document again at once, and **Retry indexing** queues one.
 
 - **Example**: The organization masks email addresses. Noah uploads a letter that contains
   `ada@example.com` → the letter is indexed with the address replaced by a placeholder. A
@@ -200,8 +205,9 @@ each `pii_scan_failed` document again, and **Retry indexing** queues one.
   **Failed** (`pii_blocked`), and nothing of it is indexed.
 - **Example**: The platform runs without the data its PII protection loads, so the protection
   cannot be started. Mia uploads a CV under the **Mask** policy → it shows **Failed**
-  (`pii_scan_failed`), and nothing of it is indexed. Once the data is back, an admin saves the
-  PII policy → the CV is indexed with its addresses masked.
+  (`pii_scan_failed`), and nothing of it is indexed. The platform is restarted with the data
+  → the CV is queued again on its own and indexed with its addresses masked, without anyone
+  saving the PII policy.
 
 ## When the embedding model is missing or fails
 
