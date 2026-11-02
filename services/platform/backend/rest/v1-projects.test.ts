@@ -243,7 +243,7 @@ function fakeSql(
     if (text.includes('FROM app.rate_limits')) {
       return Promise.resolve([{ value: '0', ts: String(Date.now()) }]);
     }
-    if (text.includes('sum(size)')) {
+    if (text.includes('sum(fm.size)')) {
       return Promise.resolve([{ total: String(opts.usedBytes?.() ?? 0) }]);
     }
     return Promise.resolve([]);
@@ -1291,7 +1291,7 @@ describe('POST /projects/{id}/files upload policy', () => {
 
   it('counts the file it is admitting once against the per-user volume quota', async () => {
     // The regression under test: the row was INSERTed (size = HEAD) before
-    // the policy read `sum(size)` on the same transaction, so the sum
+    // the policy read `sum(fm.size)` on the same transaction, so the sum
     // already held the file and the gate added it again — a user with
     // headroom for exactly this file (1234 <= 2000 - 0 < 2 * 1234) was
     // refused with `volume_exceeded`. The double mirrors the real row: once
@@ -1307,7 +1307,7 @@ describe('POST /projects/{id}/files upload policy', () => {
     expect(res.status).toBe(201);
     expect(vi.mocked(registerUpload)).toHaveBeenCalledTimes(1);
     // The volume read ran before the row write: the sum it saw was 0.
-    const volumeRead = queries.find((q) => q.text.includes('sum(size)'));
+    const volumeRead = queries.find((q) => q.text.includes('sum(fm.size)'));
     expect(volumeRead).toBeDefined();
     expect(landedBytes).toBe(1234);
   });
@@ -1412,7 +1412,7 @@ describe('POST /projects/{id}/files upload policy', () => {
         ),
       ).toBe(false);
       // The type gate charges no upload budget and reads no size.
-      expect(queries.some((q) => q.text.includes('sum(size)'))).toBe(false);
+      expect(queries.some((q) => q.text.includes('sum(fm.size)'))).toBe(false);
     });
 
     /** D-03: the 100 MiB ceiling — and an organization's lower cap — were
