@@ -41,6 +41,7 @@ import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
 import type { DirectCallSubject } from '../governance/direct-calls.ts';
 import { embeddingBlocked, embeddingMeter } from './embedding-meter.ts';
 import { isMessageCorpusLive } from './liveness.ts';
+import { messagesWithIndexJob } from './message-jobs.ts';
 import { embeddingMovedSince, knowledgeShimHandlers } from './service.ts';
 
 /** Inbound mail is nobody's spend: its embedding books to the organization. */
@@ -68,13 +69,7 @@ async function deferForUsageLimit(
   reason: string,
   resetsAtMs: number | undefined,
 ): Promise<void> {
-  const queued = await sql<{ id: string }[]>`
-    SELECT id FROM pgboss.job
-    WHERE name = 'rag.index_message' AND state IN ('created', 'retry')
-      AND data->>'messageId' = ${messageId}
-    LIMIT 1
-  `;
-  if (queued.length > 0) {
+  if ((await messagesWithIndexJob(sql, [messageId])).size > 0) {
     console.info('[knowledge] email body already waits for a usage limit', {
       messageId,
       reason,
@@ -120,7 +115,9 @@ async function deferForUsageLimit(
  *    ends the job quietly with a log line; a transient one (the provider, the
  *    corpus, a BM25 rebuild) throws, and the job's retry ladder runs it again.
  *    A body the PII policy could not scan is queued again by the next save
- *    of that policy (`requeuePiiScanFailedDocuments`).
+ *    of that policy (`requeuePiiScanFailedDocuments`), and, when the
+ *    protection could not start, by the pass that resumes those scans on its
+ *    own once it can (`pii-scan-resume.ts`).
  *    A message that never indexes is still found by the conversation search's
  *    keyword walk.
  *  - The secret scan reads the TEXT. A mail carries reset links and one-time

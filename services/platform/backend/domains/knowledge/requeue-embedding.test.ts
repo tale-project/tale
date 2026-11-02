@@ -587,14 +587,114 @@ describe('requeuePiiScanFailedDocuments', () => {
     expect(out).toEqual({ requeued: 1 });
     const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
     expect(text).toContain("status = 'failed'");
+    // Both causes, and no bound: the save queues all it could not scan.
     expect(params).toEqual([
       'acme',
       'msg:%',
       Object.values(PII_SCAN_FAILED_REASONS),
+      null,
     ]);
     expect(
       addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
     ).toEqual([['rag.index_message', { messageId: BODY }]]);
+  });
+
+  // The pass that resumes these scans on its own takes only the documents
+  // refused because the protection could not start: a part that could not
+  // be scanned whole fails again for the same text and policy.
+  it('keeps the documents refused for one cause when asked to [KNOW-R9]', async () => {
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql, values } = fakeSql([doc('f1')]);
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG, {
+      cause: 'unavailable',
+    });
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(values[0]).toContainEqual([PII_SCAN_FAILED_REASONS.unavailable]);
+    expect(values[0]).not.toContainEqual(
+      expect.arrayContaining([PII_SCAN_FAILED_REASONS.incomplete]),
+    );
+    const [, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(params).toEqual([
+      'acme',
+      'msg:%',
+      [PII_SCAN_FAILED_REASONS.unavailable],
+      null,
+    ]);
+  });
+
+  it('matches the files by their code alone when no cause is named', async () => {
+    const { sql, values } = fakeSql([]);
+
+    await requeuePiiScanFailedDocuments(sql, ORG);
+
+    for (const reason of Object.values(PII_SCAN_FAILED_REASONS)) {
+      expect(values[0]).not.toContainEqual(expect.arrayContaining([reason]));
+    }
+  });
+
+  it('queues no more than its limit, files first [KNOW-R9]', async () => {
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql, statements, values } = fakeSql([doc('f1'), doc('f2')]);
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG, { limit: 3 });
+
+    expect(out).toEqual({ requeued: 3 });
+    expect(statements[0]).toContain('LIMIT ?');
+    expect(values[0]).toContain(3);
+    // The bodies get what the files left of the limit.
+    const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(text).toContain('LIMIT $4');
+    expect(params).toEqual([
+      'acme',
+      'msg:%',
+      Object.values(PII_SCAN_FAILED_REASONS),
+      1,
+    ]);
+  });
+
+  it('reads no email body when the files took the whole limit', async () => {
+    const { sql } = fakeSql([doc('f1'), doc('f2')]);
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG, { limit: 2 });
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(corpus.unsafe).not.toHaveBeenCalled();
+  });
+
+  // A body has no status row to flip: its corpus row reads Failed until its
+  // job claims it, so only the job says it is queued already.
+  it('leaves out the email bodies whose job still waits or runs when asked to [KNOW-R9]', async () => {
+    const QUEUED = BODY;
+    const REFUSED = `${BODY.slice(0, -3)}999`;
+    corpus.unsafe.mockResolvedValue([
+      { ref: `msg:${QUEUED}` },
+      { ref: `msg:${REFUSED}` },
+    ]);
+    const fake = fakeSql([]);
+    const asked: { text: string; values: unknown[] }[] = [];
+    const sql = Object.assign(
+      (strings: TemplateStringsArray, ...args: unknown[]) => {
+        asked.push({ text: strings.join('?'), values: args });
+        return Promise.resolve([{ messageId: QUEUED }]);
+      },
+      fake.sql as object,
+    ) as never;
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG, {
+      skipQueuedBodies: true,
+    });
+
+    expect(out).toEqual({ requeued: 1 });
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([['rag.index_message', { messageId: REFUSED }]]);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toContain('FROM pgboss.job');
+    // A running job counts too: a second one would scan the body beside
+    // it, and if it refuses the body again, the next pass sees that.
+    expect(asked[0]?.values).toEqual([true, [QUEUED, REFUSED]]);
   });
 
   it('waits out the policy cache before any job runs [KNOW-R9]', async () => {
