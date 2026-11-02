@@ -1,0 +1,8 @@
+displayName: Tale request body faults
+type: middleware
+import: tale/bodyfaults
+summary: Answers a request whose body the client framed wrongly with the API's 400 error envelope.
+testData:
+  chunkMalformed:
+    code: BODY_CHUNK_MALFORMED
+    error: The request body's chunked encoding is malformed
