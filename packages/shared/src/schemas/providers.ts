@@ -628,8 +628,9 @@ export const modelCatalogEntrySchema = z
       })
       .strict()
       .optional(),
-    /** Embedding facts for an embedding-tagged entry; static-catalog sources
-     * only (live listings publish no vector width — this is exactly the
+    /** Embedding facts for an embedding-tagged entry: a static catalog's, or
+     * the width alone on a gateway's row for a model a static catalog
+     * curates (live listings publish no vector width — this is exactly the
      * fact an operator otherwise has to look up by hand). `recommended`
      * marks the entry the one-click knowledge setup offers. */
     embedding: z

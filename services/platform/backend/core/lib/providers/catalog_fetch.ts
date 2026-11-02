@@ -667,6 +667,23 @@ function modelsEndpointUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/models`;
 }
 
+/** Tale's shipped catalogs, each provider's entries, in the order a lookup
+ * over them answers: a vendor's own catalog before an aggregator's shipped
+ * defaults, then by provider name. */
+function shippedCatalogsVendorFirst(
+  options: LoadSystemConfigOptions,
+): (readonly [string, readonly ModelCatalogEntry[]])[] {
+  const vendorOwn = new Set(
+    loadProviderDefinitions(options)
+      .filter((provider) => provider.catalog.source === 'static')
+      .map((provider) => provider.name),
+  );
+  const rank = (name: string) => (vendorOwn.has(name) ? 0 : 1);
+  return [...loadStaticCatalogs(options).entries()].sort(
+    ([a], [b]) => rank(a) - rank(b) || a.localeCompare(b),
+  );
+}
+
 /**
  * Tale's shipped catalogs as one lookup by model: what Tale knows about a
  * model a custom provider's listing names without describing it. The id
@@ -682,17 +699,8 @@ function knownModelLookup(
   let index: Map<string, ModelCatalogEntry> | undefined;
   return (id) => {
     if (index === undefined) {
-      const vendorOwn = new Set(
-        loadProviderDefinitions(options)
-          .filter((provider) => provider.catalog.source === 'static')
-          .map((provider) => provider.name),
-      );
-      const rank = (name: string) => (vendorOwn.has(name) ? 0 : 1);
-      const catalogs = [...loadStaticCatalogs(options).entries()].sort(
-        ([a], [b]) => rank(a) - rank(b) || a.localeCompare(b),
-      );
       const built = new Map<string, ModelCatalogEntry>();
-      for (const [, entries] of catalogs) {
+      for (const [, entries] of shippedCatalogsVendorFirst(options)) {
         for (const entry of entries) {
           const key = modelIdMatchKey(entry.id);
           if (!built.has(key)) built.set(key, entry);
@@ -701,6 +709,39 @@ function knownModelLookup(
       index = built;
     }
     return index.get(modelIdMatchKey(id));
+  };
+}
+
+/**
+ * The vector widths Tale's shipped catalogs curate, by the ids a listing can
+ * name those very models by: the catalog's own id (`text-embedding-3-small`)
+ * and that id behind its provider's name (`openai/text-embedding-3-small`),
+ * as a gateway names the provider a row is served by. Exact ids only, never
+ * matched across spellings the way {@link knownModelLookup} matches: a
+ * curated width may be one the model gives only when a request asks for it
+ * (Qwen3 Embedding 8B answers 4096 dimensions, and OpenRouter's catalog
+ * curates 1536), and only the provider whose catalog curates it is known to
+ * honour that. Built on first use, in that lookup's order.
+ */
+function curatedEmbeddingWidthLookup(
+  options: LoadSystemConfigOptions,
+): (id: string) => number | undefined {
+  let index: Map<string, number> | undefined;
+  return (id) => {
+    if (index === undefined) {
+      const built = new Map<string, number>();
+      for (const [, entries] of shippedCatalogsVendorFirst(options)) {
+        for (const entry of entries) {
+          if (!entry.tags.includes('embedding')) continue;
+          if (entry.embedding === undefined) continue;
+          for (const key of [entry.id, `${entry.provider}/${entry.id}`]) {
+            if (!built.has(key)) built.set(key, entry.embedding.dimensions);
+          }
+        }
+      }
+      index = built;
+    }
+    return index.get(id);
   };
 }
 
@@ -801,6 +842,9 @@ export async function getProviderCatalog(
           // A gateway names the vendor models it routes without describing
           // them; what Tale's own catalogs know about each fills the gap.
           knownModel: knownModelLookup(options),
+          // A listing carries no vector width Tale reads; the width a shipped
+          // catalog curates for the very model a row names saves the lookup.
+          embeddingWidth: curatedEmbeddingWidthLookup(options),
         },
       );
     }

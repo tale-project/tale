@@ -1157,8 +1157,60 @@ describe('getProviderCatalog — a gateway listing that does not describe its mo
       supportsVision: false,
     });
     expect(unknown).not.toHaveProperty('reasoning');
-    // Known as an embedding model: never offered as a chat model.
-    expect(byId.get('openai/text-embedding-3-small')?.tags).toEqual([]);
+    // Known as an embedding model: offered as one, with the width the
+    // shipped OpenAI catalog curates — never as a chat model.
+    expect(byId.get('openai/text-embedding-3-small')).toMatchObject({
+      tags: ['embedding'],
+      supportsTools: false,
+      supportsVision: false,
+      embedding: { dimensions: 1536 },
+    });
+  });
+
+  it('gives an embedding row the width a shipped catalog curates for that very model', async () => {
+    /** Bifrost's row for a model it routes to OpenRouter (2026-11-02),
+     * described in OpenRouter's words: tagged by the listing itself. */
+    const described = (id: string) => ({
+      id,
+      context_length: 40_960,
+      architecture: {
+        input_modalities: ['text'],
+        output_modalities: ['embeddings'],
+      },
+      pricing: { prompt: '0.00000001', completion: '0' },
+    });
+    mockedFetch.mockResolvedValue(
+      listingResponse({
+        data: [
+          described('openrouter/qwen/qwen3-embedding-8b'),
+          described('qwen/qwen3-embedding-8b'),
+          // The same model served by another provider, or spelled another
+          // way: that provider is not known to give the curated width.
+          described('alibaba/qwen3-embedding-8b'),
+          described('Qwen/Qwen3-Embedding-8B'),
+          described('openrouter/qwen/qwen3-embedding-4b'),
+          row('text-embedding-3-small'),
+        ],
+      }),
+    );
+    const entries = await getProviderCatalog(GATEWAY, { maxAttempts: 1 });
+    const widths = Object.fromEntries(
+      entries.map((entry) => [entry.id, entry.embedding]),
+    );
+    // OpenRouter's shipped catalog curates Qwen3 Embedding 8B at 1536, and
+    // OpenAI's curates text-embedding-3-small at 1536 — by their own ids
+    // and behind their provider's name.
+    expect(widths).toStrictEqual({
+      'openrouter/qwen/qwen3-embedding-8b': { dimensions: 1536 },
+      'qwen/qwen3-embedding-8b': { dimensions: 1536 },
+      'alibaba/qwen3-embedding-8b': undefined,
+      'Qwen/Qwen3-Embedding-8B': undefined,
+      'openrouter/qwen/qwen3-embedding-4b': undefined,
+      'text-embedding-3-small': { dimensions: 1536 },
+    });
+    expect(entries.every((entry) => entry.tags.includes('embedding'))).toBe(
+      true,
+    );
   });
 
   describe("with a vendor's catalog and an aggregator's defaults that disagree", () => {

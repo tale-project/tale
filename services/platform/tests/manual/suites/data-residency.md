@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 29 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -204,6 +204,25 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   own width, keeps finding its documents throughout. Typing a width the hint
   does not list (`1000`) keeps the header **Save** disabled, with
   `…orgEmbedding.errors.dimensionsInvalid` under the field naming the list.
+- [ ] `DATA-F14` · **Embedding model: a gateway's model brings the width
+  Tale knows** — Add a **Custom provider** (**Discover from the endpoint**)
+  in front of a gateway that lists an embedding model under a name a shipped
+  catalog curates: a Bifrost gateway routing
+  `openrouter/qwen/qwen3-embedding-8b`, or **Base URL**
+  `https://api.openai.com/v1` with an OpenAI key, whose listing names
+  `text-embedding-3-small` by id alone. Toggle **Embedding model** on and
+  pick that provider → **Model** lists its embedding models (no chat model)
+  beside **Other model…**; picking the curated one fills **Vector width**
+  (`settings.dataResidency.orgEmbedding.dimensions`) with `1536`, nothing
+  shows under the field, and the header **Save** enables. A listed
+  embedding model no shipped catalog curates under that name (the Vercel AI
+  Gateway's `alibaba/qwen3-embedding-8b`) leaves the width empty with
+  `…orgEmbedding.errors.dimensionsInvalid`. Save the curated pick and upload
+  a document → it turns **Indexed** (`documents.rag.status.indexed`), and
+  the assistant finds a passage of it. Then pick another provider's model,
+  and switch back to the gateway → each switch empties **Model** and
+  **Vector width** with nothing flagged and turns the header **Save** off;
+  each pick of the curated model fills `1536` again and turns it back on.
 
 ## Boundary / error
 
