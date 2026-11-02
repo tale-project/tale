@@ -859,3 +859,54 @@ describe('keyboard drag announcements (real Chromium)', () => {
     }
   });
 });
+
+// The List view's drag clone floats over the rows for the whole drag (#5228).
+describe('the List drag clone (real Chromium)', () => {
+  it.each(['light', 'dark'])(
+    'stays an opaque card without a backdrop blur under the pointer in %s mode',
+    async (theme) => {
+      await page.viewport(1280, 900);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      render(
+        <div className="bg-background text-foreground h-160 w-full">
+          <TasksList tasks={[first, second]} canWorkTask={() => true} />
+        </div>,
+      );
+      const swatch = document.createElement('div');
+      swatch.className = 'bg-card';
+      document.body.append(swatch);
+      const card = getComputedStyle(swatch).backgroundColor;
+      swatch.remove();
+
+      const title = await screen.findByRole('button', { name: second.title });
+      title.focus();
+      await userEvent.keyboard(' ');
+      await expect
+        .poll(
+          () => screen.getAllByRole('button', { name: second.title }).length,
+        )
+        .toBe(2);
+      // The overlay renders after the lanes.
+      const cloneTitle = screen
+        .getAllByRole('button', { name: second.title })
+        .at(-1);
+      const clone = cloneTitle?.parentElement;
+      if (!cloneTitle || !clone?.parentElement) {
+        throw new Error('The drag clone has no row');
+      }
+      expect(getComputedStyle(clone.parentElement).position).toBe('fixed');
+      // Its own background would hide the blur, and every frame of the drag
+      // would compute it again.
+      expect(getComputedStyle(clone).backdropFilter).toBe('none');
+      expect(getComputedStyle(clone).backgroundColor).toBe(card);
+
+      // A pointer drag carries the clone under the pointer: no hover tint may
+      // turn it see-through.
+      await userEvent.hover(cloneTitle);
+      await expect.poll(() => clone.matches(':hover')).toBe(true);
+      await Promise.all(clone.getAnimations().map((motion) => motion.finished));
+      expect(getComputedStyle(clone).backgroundColor).toBe(card);
+      await userEvent.keyboard('{Escape}');
+    },
+  );
+});
