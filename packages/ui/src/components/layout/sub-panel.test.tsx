@@ -16,6 +16,30 @@ describe('SubPanel', () => {
     expect(panel).toHaveClass('w-70', 'border-r', 'hidden', 'md:flex');
   });
 
+  it('stands on the sidebar surface the rail shares, not the page', () => {
+    render(
+      <SubPanel as="nav" ariaLabel="Home" width="list">
+        <span>rows</span>
+      </SubPanel>,
+    );
+    const panel = screen.getByRole('navigation', { name: 'Home' });
+    expect(panel).toHaveClass('bg-sidebar');
+    expect(panel).not.toHaveClass('bg-background');
+    // The slot is what the shell and the shared rows key on.
+    expect(panel).toHaveAttribute('data-slot', 'sub-panel');
+  });
+
+  it('lets a caller give the panel its own surface', () => {
+    render(
+      <SubPanel as="nav" ariaLabel="Docs" className="bg-muted/20">
+        <span>rows</span>
+      </SubPanel>,
+    );
+    const panel = screen.getByRole('navigation', { name: 'Docs' });
+    expect(panel).toHaveClass('bg-muted/20');
+    expect(panel).not.toHaveClass('bg-sidebar');
+  });
+
   it('defaults to the narrow width', () => {
     render(
       <SubPanel as="nav" ariaLabel="Settings">

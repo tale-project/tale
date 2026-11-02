@@ -50,7 +50,7 @@ The stylesheet also exposes the familiar HSL token family used by many existing 
 | `text-destructive` | Error text or a destructive affordance. |
 | `bg-success`, `bg-warning`, `bg-info` | Status fills, each with a corresponding `-foreground` token. |
 | `border-border`, `bg-input`, `ring-ring` | Ordinary border, field fill, and focus-ring role. |
-| `bg-sidebar`, `bg-tab` | Navigation and selected-tab surfaces. |
+| `bg-sidebar`, `bg-tab` | Navigation and selected-tab surfaces. An app's icon rail and every `SubPanel` stand on `bg-sidebar`, one step off the page, and a count badge on it takes `ring-sidebar`. |
 
 Follow the existing file's family rather than partially converting its colors while adding an unrelated feature. The canonical and HSL names are supported vocabularies, not interchangeable values you can mix without checking the result.
 
