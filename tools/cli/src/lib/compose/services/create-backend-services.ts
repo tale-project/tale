@@ -5,6 +5,7 @@ import {
 } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { BACKEND_MEMORY_LIMIT_GIB, memoryReservation } from './memory-env';
 import { backendApiLabels } from './traefik-labels';
 
 /** The api's container port — the target its Traefik labels route to. */
@@ -68,7 +69,10 @@ function backendBase(
     // yt-dlp + ffmpeg subprocesses peak ~300-500 MB each and ingest runs
     // concurrently; the cap bounds the blast radius, pids_limit defends
     // against a fork-bomb regression, nofile covers concurrent sockets.
-    mem_limit: '12g',
+    mem_limit: `${BACKEND_MEMORY_LIMIT_GIB}g`,
+    // Spared by reclaim while sandbox sessions press on host memory, per
+    // replica, where the engine runs cgroup v2. Mirrored in compose.yml.
+    ...memoryReservation(service, config),
     pids_limit: 4096,
     ulimits: {
       nofile: { soft: 65536, hard: 65536 },
