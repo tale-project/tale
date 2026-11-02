@@ -381,9 +381,15 @@ export function renderStatic(s, paths) {
 }
 
 // The machine doors: lanes a program calls, which get a JSON answer rather
-// than the maintenance page. Judged on the path alone.
-const MACHINE_DOORS =
+// than the maintenance page. Judged on the path alone. The platform's labels
+// carry the same rule (tools/cli/src/lib/compose/services/traefik-labels.ts).
+export const MACHINE_DOORS =
   '(?i)^/((api|scim|http_api)(/|$)|(events|status[.]json|openapi[.]json)$|[.]well-known/)';
+// Every path the backend serves, as its labels declare it; answered here while
+// the backend is absent, above the platform's machine doors, so a program
+// calling the backend never reaches the platform instead.
+export const BACKEND_LANES =
+  '(?i)^/(api/|events$|dav/|scim/v2/|http_api/(api/sso|scim/v2|api/trusted-headers|api/cloud-import/oauth2)/|[.]well-known/oauth-(authorization-server/|protected-resource))';
 // A dot-segment, plain or percent-encoded, anywhere in the path. No honest
 // client sends one; refused before any route, so a path never means one
 // thing to the router and another to the service that folds the dots.
@@ -472,6 +478,12 @@ export function renderEdge(s) {
     },
     // Nothing serves the path: the service is absent, starting or stopped.
     // Its own routes come back with its container.
+    'tale-absent-backend': {
+      entryPoints: all,
+      rule: `PathRegexp(\`${BACKEND_LANES}\`)`,
+      priority: 90,
+      ...answer('unavailable-json'),
+    },
     'tale-absent-machine-door': {
       entryPoints: all,
       rule: `PathRegexp(\`${MACHINE_DOORS}\`)`,

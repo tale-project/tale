@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+  BACKEND_LANES as LABELLED_BACKEND_LANES,
+  PLATFORM_MACHINE_DOORS,
+  backendApiLabels,
+  platformLabels,
+} from '../../../tools/cli/src/lib/compose/services/traefik-labels';
+import {
+  BACKEND_LANES,
   ConfigError,
+  MACHINE_DOORS,
   leafHosts,
   readSettings,
   renderAcmeHosts,
@@ -349,6 +357,48 @@ describe('renderEdge', () => {
     }
     expect(all['tale-absent'].priority).toBeLessThan(
       all['tale-absent-machine-door'].priority,
+    );
+  });
+
+  it('answers every backend lane with JSON while the backend is absent', () => {
+    // The labels and the edge carry one rule each; they must stay one rule.
+    expect(BACKEND_LANES).toBe(LABELLED_BACKEND_LANES);
+    expect(MACHINE_DOORS).toBe(PLATFORM_MACHINE_DOORS);
+    const absent = routers()['tale-absent-backend'];
+    expect(absent.middlewares).toEqual(['tale-answer-unavailable-json']);
+    const lanes = regexpOf(absent.rule);
+    for (const path of [
+      '/api/v1/me',
+      '/API/auth/session',
+      '/events',
+      '/dav/files/a.txt',
+      '/scim/v2/Users',
+      '/http_api/api/sso/callback',
+      '/http_api/scim/v2/Users',
+      '/.well-known/oauth-authorization-server/api/auth',
+      '/.well-known/oauth-protected-resource',
+    ]) {
+      expect({ path, lane: lanes.test(path) }).toEqual({ path, lane: true });
+    }
+    for (const path of [
+      '/api',
+      '/eventsx',
+      '/scim/x',
+      '/http_api/x',
+      '/.well-known/openid-configuration',
+      '/status.json',
+      '/davx',
+    ]) {
+      expect({ path, lane: lanes.test(path) }).toEqual({ path, lane: false });
+    }
+    // Below the backend's own lanes, above the platform's machine doors.
+    const priority = (labels: Record<string, string>, router: string) =>
+      Number(labels[`traefik.http.routers.${router}.priority`]);
+    expect(
+      priority(backendApiLabels('blue'), 'backend-api-blue'),
+    ).toBeGreaterThan(absent.priority);
+    expect(absent.priority).toBeGreaterThan(
+      priority(platformLabels('blue'), 'platform-blue-doors'),
     );
   });
 

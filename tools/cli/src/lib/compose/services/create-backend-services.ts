@@ -5,6 +5,7 @@ import {
 } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { backendApiLabels } from './traefik-labels';
 
 /** The api's container port — the proxy's `BACKEND_UPSTREAM` target. */
 const BACKEND_API_PORT = 3005;
@@ -167,6 +168,7 @@ export function createBackendApiService(
     ...(options.colour === undefined
       ? { container_name: `${getProjectId()}-backend-api` }
       : {}),
+    labels: backendApiLabels(options.colour),
     environment: {
       ...roleEnvironment('api', options),
       PORT: String(BACKEND_API_PORT),

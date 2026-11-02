@@ -34,7 +34,7 @@ esac
 
 render() {
   rm -f "$RUN/ready"
-  njs -n QuickJS -m "$SHARE/render/main.js" || return 1
+  njs -n QuickJS -m -p "$SHARE/render" "$SHARE/render/main.js" || return 1
   [ -f "$RUN/ready" ]
 }
 
