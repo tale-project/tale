@@ -65,8 +65,10 @@ export const TALE_OG_LOCALES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Brand card served from the marketing origin (`public/og.png`). Docs
- * reuses the same absolute URL so social previews stay on-brand.
+ * Brand card served from the marketing origin (`services/web/public/og.png`),
+ * which `bun run --filter @tale/web og-card` writes at this size through the
+ * shared encoder. Docs and ui-docs reuse the same absolute URL so social
+ * previews stay on-brand.
  */
 export const TALE_OG_IMAGE = {
   path: '/og.png',
