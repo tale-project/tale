@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import type { MemberRight, MemberRights } from '@/lib/shared/competences';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { MemberRightsDialog } from './member-rights-dialog';
@@ -18,6 +20,31 @@ const state = vi.hoisted(() => ({
   teams: vi.fn(() => ({ teams: [], unavailable: false, failureCount: 0 })),
   // The rights as `useMemberRights` answers them (`setRights`).
   rights: {} as Record<string, unknown>,
+}));
+
+const MEMBERS: StandInMember[] = [
+  {
+    userId: 'user-ada',
+    email: 'ada@example.com',
+    displayName: 'Ada Admin',
+    role: 'admin',
+  },
+  {
+    userId: 'user-bo',
+    email: 'bo@example.com',
+    displayName: 'Bo Editor',
+    role: 'editor',
+  },
+];
+
+/** Whom the member lookup answered with — undefined while it runs, or once
+ * it has failed — whom the dialog asked it for, and every read the dialog
+ * made itself. */
+const lookup = vi.hoisted(() => ({
+  members: undefined as StandInMember[] | undefined,
+  fails: false,
+  asked: [] as MemberLookupTarget[],
+  reads: [] as string[],
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/mutations', () => ({
@@ -40,23 +67,19 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: state.teams,
 }));
-vi.mock('../hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      {
-        userId: 'user-ada',
-        email: 'ada@example.com',
-        displayName: 'Ada Admin',
-        role: 'admin',
-      },
-      {
-        userId: 'user-bo',
-        email: 'bo@example.com',
-        displayName: 'Bo Editor',
-        role: 'editor',
-      },
-    ],
-  }),
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => lookup.members,
+    lookup.asked,
+    { failed: () => lookup.fails },
+  ),
+);
+vi.mock('@/app/hooks/use-backend-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/hooks/use-backend-query')>()),
+  useBackendQuery: (name: string) => {
+    lookup.reads.push(name);
+    return { data: undefined, isLoading: false };
+  },
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
@@ -182,7 +205,20 @@ beforeEach(() => {
   vi.clearAllMocks();
   setRights(answer());
   state.refetch.mockResolvedValue({ data: answer() });
+  lookup.members = MEMBERS;
+  lookup.fails = false;
+  lookup.asked.length = 0;
+  lookup.reads.length = 0;
 });
+
+/** The user ids the dialog asked the lookup for. */
+function askedFor() {
+  return new Set(
+    lookup.asked.map((target) =>
+      'userId' in target ? target.userId : target.handle,
+    ),
+  );
+}
 
 function dialog() {
   return (
@@ -514,5 +550,74 @@ describe('MemberRightsDialog [GOV-R21]', () => {
       });
       await checkAccessibility(document.body);
     });
+  });
+});
+
+describe('MemberRightsDialog names granters from the member lookup [MEMBER-R11]', () => {
+  it('looks up only the admins who granted what the rights name, and reads no member list', async () => {
+    renderDialog();
+    await screen.findByRole('dialog', { name: 'Rights of Bo Editor' });
+
+    expect(askedFor()).toEqual(new Set(['user-gone', 'user-ada']));
+    expect(lookup.reads).not.toContain('members/queries:listByOrganization');
+  });
+
+  it('looks up nobody while it is closed', () => {
+    render(
+      <MemberRightsDialog
+        open={false}
+        onOpenChange={vi.fn()}
+        organizationId="org-a"
+        member={{ userId: 'user-bo', displayName: 'Bo Editor' }}
+      />,
+    );
+    expect(askedFor()).toEqual(new Set());
+  });
+
+  it('holds a placeholder, never an id, while a granter’s name is on its way', async () => {
+    lookup.members = undefined;
+    const { rerender } = renderDialog();
+    await screen.findByRole('dialog', { name: 'Rights of Bo Editor' });
+
+    // One placeholder per grant: the reasons that name nobody still read.
+    expect(
+      document.querySelectorAll('[data-slot="reason-pending"]'),
+    ).toHaveLength(3);
+    expect(screen.queryByText(/user-ada|user-gone/)).not.toBeInTheDocument();
+    expect(
+      rowOf('Call models over the API').getByText(
+        'Their role, Editor, needs a grant for this right.',
+      ),
+    ).toBeInTheDocument();
+
+    lookup.members = MEMBERS;
+    rerender(dialog());
+    expect(
+      document.querySelectorAll('[data-slot="reason-pending"]'),
+    ).toHaveLength(0);
+    expect(
+      rowOf('Export notifications').getByText(
+        /^Granted by Ada Admin on .+, until .+\.$/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('names a granter by id once their lookup has failed, never as a former member', async () => {
+    lookup.members = undefined;
+    lookup.fails = true;
+    renderDialog();
+    await screen.findByRole('dialog', { name: 'Rights of Bo Editor' });
+
+    expect(
+      rowOf('Call models over the API').getByText(
+        /^Granted by user-gone on .+, with no end date\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      rowOf('Export notifications').getByText(
+        /^Granted by user-ada on .+, until .+\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Former member/)).not.toBeInTheDocument();
   });
 });

@@ -289,6 +289,15 @@ export function memberSearchScope(
   );
 }
 
+/**
+ * The key every member lookup of an organization starts with, whoever it
+ * asks for: a notice that a name on screen could not be looked up reads
+ * and retries the lookups under it.
+ */
+export function memberLookupScope(orgId: string): BackendQueryKey {
+  return backendKey(orgId, MEMBER_HINT_ENTITY, 'lookup');
+}
+
 export const settingsReadAdapters: Record<string, ReadAdapter> = {
   'members/queries:listOrgTeams': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -334,14 +343,8 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey:
         'userId' in ask
-          ? backendKey(orgId, MEMBER_HINT_ENTITY, 'lookup', 'user', ask.userId)
-          : backendKey(
-              orgId,
-              MEMBER_HINT_ENTITY,
-              'lookup',
-              'handle',
-              ask.handle,
-            ),
+          ? [...memberLookupScope(orgId), 'user', ask.userId]
+          : [...memberLookupScope(orgId), 'handle', ask.handle],
       queryFn: () =>
         lookupMember(orgId, ask).then((rows) => rows.map(memberItem)),
     };

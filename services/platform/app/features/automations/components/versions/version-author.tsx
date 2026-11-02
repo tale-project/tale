@@ -6,7 +6,7 @@ import { SKELETON_PULSE } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useCallback } from 'react';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useFailedMemberLookups } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useT } from '@/lib/i18n/client';
 import type { AutomationWriteVia } from '@/lib/shared/schemas/automation-versions';
 
@@ -27,9 +27,9 @@ export interface AuthorFacts {
   clientName: string | null;
 }
 
-/** An author in words: `name` is null while the member directory loads,
- * and "Someone" once its read has failed; `caption` says through which door
- * and client, when known. */
+/** An author in words: `name` is null while the member lookup runs, and
+ * "Someone" once it has failed; `caption` says through which door and
+ * client, when known. */
 export interface AuthorText {
   actor: ActorLabel;
   name: string | null;
@@ -50,9 +50,9 @@ const VIA_KEY: Readonly<Record<AutomationWriteVia, string>> = {
 
 /**
  * The words for an author: the member's name, "You", "Tale", a former
- * member, "Not recorded", or "Someone" when the member directory could not
- * be read; and how they acted — "with Claude Code through MCP", "in the
- * app". The platform's own writes need no caption: "Tale" says it.
+ * member, "Not recorded", or "Someone" when the member could not be looked
+ * up; and how they acted — "with Claude Code through MCP", "in the app".
+ * The platform's own writes need no caption: "Tale" says it.
  */
 export function useAuthorText(
   organizationId: string,
@@ -105,9 +105,9 @@ export function useAuthorText(
 /**
  * Who saved a version or put one live, and how: the name over the door and
  * client (`stacked`, a table cell) or after it on one line (`inline`, a
- * byline). While the member directory loads the name is a placeholder,
- * never a guess; a directory that could not be read leaves "Someone", and
- * the page says why with {@link AuthorNamesLoadError}.
+ * byline). While the member lookup runs the name is a placeholder, never a
+ * guess; a lookup that failed leaves "Someone", and the page says why with
+ * {@link AuthorNamesLoadError}.
  */
 export function VersionAuthor({
   organizationId,
@@ -167,9 +167,10 @@ export function VersionAuthor({
 }
 
 /**
- * Says the member directory could not be read, with **Try again**: until
+ * Says a name on the page could not be looked up, with **Try again**: until
  * it is, the authors a page names read "Someone". Nothing while the
- * directory loads or once it has answered.
+ * lookups run or once they have answered. Render it once per page: it
+ * stands for every lookup on screen.
  */
 export function AuthorNamesLoadError({
   organizationId,
@@ -180,14 +181,14 @@ export function AuthorNamesLoadError({
   onFocusLost?: () => void;
 }) {
   const { t } = useT('automations');
-  const directory = useMembers(organizationId);
-  if (!directory.unavailable) return null;
+  const names = useFailedMemberLookups(organizationId);
+  if (!names.unavailable) return null;
   return (
     <CatalogLoadError
       message={t('versions.author.namesFailed')}
-      failureKey={directory.failureCount}
-      isRetrying={directory.retrying}
-      onRetry={directory.retry}
+      failureKey={names.failureCount}
+      isRetrying={names.retrying}
+      onRetry={names.retry}
       {...(onFocusLost !== undefined && { onFocusLost })}
     />
   );

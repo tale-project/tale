@@ -27,7 +27,6 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
-import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
@@ -83,17 +82,6 @@ export function AuditLogsPage({
   // actually filters something.
   const activeTab = tab ?? 'audit';
   const showCategoryFilter = activeTab === 'audit' || activeTab === 'errors';
-
-  const membersQuery = useBackendQuery('members/queries:listByOrganization', {
-    organizationId,
-  });
-  const userEmailMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of membersQuery.data ?? []) {
-      if (m.email) map.set(m.userId, m.email);
-    }
-    return map;
-  }, [membersQuery.data]);
 
   const handleCategoryChange = useCallback(
     (values: string[]) => {
@@ -283,7 +271,6 @@ export function AuditLogsPage({
                   <AuditLogTab
                     organizationId={organizationId}
                     category={category}
-                    userEmailMap={userEmailMap}
                     revealLogId={reveal?.logId}
                     revealNonce={reveal?.seq}
                   />
@@ -301,7 +288,6 @@ export function AuditLogsPage({
               content: (
                 <ActivityLogView
                   organizationId={organizationId}
-                  userEmailMap={userEmailMap}
                   actions={exportControl}
                 />
               ),
@@ -314,7 +300,6 @@ export function AuditLogsPage({
                   <ErrorLogTable
                     organizationId={organizationId}
                     category={category}
-                    userEmailMap={userEmailMap}
                   />
                 </LogsTableBoundary>
               ),

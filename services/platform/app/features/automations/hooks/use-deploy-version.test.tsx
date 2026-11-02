@@ -4,6 +4,8 @@ import { toast } from '@tale/ui/use-toast';
 import { act, type ReactElement, useLayoutEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { cleanup, render } from '@/tests/utils/render';
 
 import { type DeployVersion, useDeployVersion } from './use-deploy-version';
@@ -14,16 +16,26 @@ vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
 vi.mock('./mutations', () => ({
   useDeployAutomation: () => ({ mutateAsync }),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [{ userId: 'user-noah', displayName: 'Noah Weber' }],
-  }),
+/** Whom the member lookup answered with — undefined while it runs, or once
+ * it has failed — and whom the hook asked it for. */
+const lookup = vi.hoisted(() => ({
+  members: undefined as StandInMember[] | undefined,
+  fails: false,
+  asked: [] as MemberLookupTarget[],
 }));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => lookup.members,
+    lookup.asked,
+    { failed: () => lookup.fails },
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));
 
 let api: DeployVersion;
+let view: ReturnType<typeof render>;
 const showDeployments = vi.fn();
 const triggerOff = vi.fn();
 
@@ -65,7 +77,10 @@ beforeEach(() => {
   vi.mocked(toast).mockClear();
   showDeployments.mockReset();
   triggerOff.mockReset();
-  render(<Harness />);
+  lookup.members = [{ userId: 'user-noah', displayName: 'Noah Weber' }];
+  lookup.fails = false;
+  lookup.asked.length = 0;
+  view = render(<Harness />);
 });
 
 describe('useDeployVersion', () => {
@@ -157,6 +172,54 @@ describe('useDeployVersion', () => {
     );
     shown.action?.props.onClick();
     expect(showDeployments).toHaveBeenCalled();
+  });
+
+  // The lookup names whoever put another version live once the refusal names
+  // them: the toast waits for that name instead of saying "Someone".
+  it('waits for the name of whoever put another version live, then says it', async () => {
+    lookup.members = undefined;
+    view.rerender(<Harness />);
+    mutateAsync.mockRejectedValueOnce({
+      data: {
+        code: 'AUTOMATION_DEPLOYMENT_STALE',
+        deployedVersion: 6,
+        deployedBy: 'user-noah',
+        deployedAt: Date.now(),
+        deployedVia: 'app',
+        deployedClient: null,
+      },
+    });
+    await deploy(4, 5);
+    expect(toast).not.toHaveBeenCalled();
+    expect(lookup.asked).toContainEqual({ userId: 'user-noah' });
+
+    lookup.members = [{ userId: 'user-noah', displayName: 'Noah Weber' }];
+    act(() => view.rerender(<Harness />));
+    expect(toast).toHaveBeenCalledOnce();
+    expect(toastCall().title).toBe('v4 did not go live');
+    expect(toastCall().description).toMatch(/^Noah Weber made v6 live at /);
+    // Said once, however often the page renders after.
+    act(() => view.rerender(<Harness />));
+    expect(toast).toHaveBeenCalledOnce();
+  });
+
+  it('says Someone put another version live once their lookup has failed', async () => {
+    lookup.members = undefined;
+    lookup.fails = true;
+    view.rerender(<Harness />);
+    mutateAsync.mockRejectedValueOnce({
+      data: {
+        code: 'AUTOMATION_DEPLOYMENT_STALE',
+        deployedVersion: 6,
+        deployedBy: 'user-noah',
+        deployedAt: Date.now(),
+        deployedVia: 'app',
+        deployedClient: null,
+      },
+    });
+    await deploy(4, 5);
+    expect(toast).toHaveBeenCalledOnce();
+    expect(toastCall().description).toMatch(/^Someone made v6 live at /);
   });
 
   it('refuses a version whose tests fail, or that fails the checks, in a dialog', async () => {

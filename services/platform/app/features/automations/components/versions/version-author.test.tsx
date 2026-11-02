@@ -7,21 +7,20 @@ import { render, screen } from '@/tests/utils/render';
 import { AuthorNamesLoadError, VersionAuthor } from './version-author';
 
 const state = vi.hoisted(() => ({
+  /** Whom the lookup has answered with; undefined while it runs. */
   members: undefined as { userId: string; displayName: string }[] | undefined,
-  /** The directory's read failed after its retries (`readStateOf`). */
+  /** The lookup failed after its retries (`readStateOf`). */
   unavailable: false,
   retry: vi.fn(),
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: state.members,
-    unavailable: state.unavailable,
-    retrying: false,
-    failureCount: state.unavailable ? 1 : 0,
-    retry: state.retry,
-  }),
-}));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => state.members,
+    [],
+    { failed: () => state.unavailable, retry: () => state.retry() },
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));
@@ -76,7 +75,7 @@ describe('VersionAuthor', () => {
     expect(screen.queryByText('by Tale')).toBeNull();
   });
 
-  it('holds a placeholder while the directory loads, then says former member', () => {
+  it('holds a placeholder while the lookup runs, then says former member', () => {
     state.members = undefined;
     const { container, unmount } = renderAuthor({
       actor: 'user-gone',
@@ -99,7 +98,7 @@ describe('VersionAuthor', () => {
     expect(screen.getByText('Not recorded')).toBeVisible();
   });
 
-  it('says Someone, with no placeholder that waits forever, once the directory read has failed', () => {
+  it('says Someone, with no placeholder that waits forever, once the lookup has failed', () => {
     state.members = undefined;
     state.unavailable = true;
     const { container } = renderAuthor({
@@ -115,7 +114,7 @@ describe('VersionAuthor', () => {
 });
 
 describe('AuthorNamesLoadError', () => {
-  it('says the names could not be loaded, with Try again, only once the directory read has failed', async () => {
+  it('says the names could not be loaded, with Try again, only once a lookup has failed', async () => {
     const { container, unmount } = render(
       <AuthorNamesLoadError organizationId="org-1" />,
     );

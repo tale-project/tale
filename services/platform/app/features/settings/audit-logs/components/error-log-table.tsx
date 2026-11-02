@@ -7,7 +7,6 @@ interface ErrorLogTableProps {
   organizationId: string;
   /** Same category filter the page-level filter UI drives for the audit tab. */
   category?: string;
-  userEmailMap?: Map<string, string>;
 }
 
 /**
@@ -25,7 +24,6 @@ interface ErrorLogTableProps {
 export function ErrorLogTable({
   organizationId,
   category,
-  userEmailMap,
 }: ErrorLogTableProps) {
   const paginatedResult = useListErrorLogsPaginated({
     organizationId,
@@ -35,7 +33,7 @@ export function ErrorLogTable({
   return (
     <AuditLogTable
       paginatedResult={paginatedResult}
-      userEmailMap={userEmailMap}
+      organizationId={organizationId}
       variant="errors"
     />
   );

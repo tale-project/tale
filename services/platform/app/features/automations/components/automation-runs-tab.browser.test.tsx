@@ -86,10 +86,14 @@ vi.mock('@/app/hooks/use-ability', async (importOriginal) => ({
   useAbilityLoading: () => false,
 }));
 
-// Who started each run: the member directory answers from here.
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [], isLoading: false }),
-}));
+// Who started each run: the member lookup answers from here, and finds
+// nobody.
+const noMembers = vi.hoisted(() => []);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => noMembers,
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));

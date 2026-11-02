@@ -7,6 +7,7 @@ import { toast } from '@tale/ui/use-toast';
 import {
   type RefObject,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -109,6 +110,10 @@ export function useDeployVersion({
   const inFlight = useRef(false);
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
   const [refusal, setRefusal] = useState<DeployRefusal | null>(null);
+  const [staleRefusal, setStaleRefusal] = useState<{
+    version: number;
+    stale: StaleChange;
+  } | null>(null);
 
   // The answer can come long after the click: the deploy gate runs the
   // tests, and the reader may have begun an edit meanwhile. The page's
@@ -119,18 +124,21 @@ export function useDeployVersion({
     page.current = { onRefused, onTriggerOff };
   });
 
+  /** What a deploy someone else overtook says; null while the member
+   * lookup has not answered for whoever did. */
   const staleText = useCallback(
-    (stale: StaleChange): string => {
+    (stale: StaleChange): string | null => {
       if (stale.version === null || stale.by === null || stale.at === null) {
         return t('deploy.stale.changed');
       }
       const at = new Date(stale.at);
       const today = new Date().toDateString() === at.toDateString();
-      const { subject } = authorText({
+      const { actor, subject } = authorText({
         actor: stale.by,
         via: stale.via,
         clientName: stale.client,
       });
+      if (actor.kind === 'pending') return null;
       return t('deploy.stale.body', {
         who: subject.who,
         author: subject.author,
@@ -140,6 +148,40 @@ export function useDeployVersion({
     },
     [authorText, formatDate, t],
   );
+  const staleToast = useCallback(
+    (version: number, words: string) => {
+      toast({
+        title: t('deploy.stale.title', { version }),
+        description: words,
+        variant: 'destructive',
+        duration: DEPLOY_TOAST_MS,
+        ...(onShowDeployments !== undefined && {
+          action: (
+            <ToastPrimitives.Action
+              altText={t('deploy.stale.showDeployments')}
+              asChild
+              onClick={onShowDeployments}
+            >
+              <Button type="button" variant="secondary" size="sm">
+                {t('deploy.stale.showDeployments')}
+              </Button>
+            </ToastPrimitives.Action>
+          ),
+        }),
+      });
+    },
+    [onShowDeployments, t],
+  );
+  // Whoever put another version live may not be looked up yet: the toast
+  // waits for their name, so it says it and announces it, never
+  // "Someone" while the name is on its way.
+  const staleWords =
+    staleRefusal === null ? null : staleText(staleRefusal.stale);
+  useEffect(() => {
+    if (staleRefusal === null || staleWords === null) return;
+    setStaleRefusal(null);
+    staleToast(staleRefusal.version, staleWords);
+  }, [staleRefusal, staleToast, staleWords]);
 
   const runDeploy = (
     version: number,
@@ -189,25 +231,9 @@ export function useDeployVersion({
         (error: unknown) => {
           const stale = automationDeploymentStale(error);
           if (stale !== undefined) {
-            toast({
-              title: t('deploy.stale.title', { version }),
-              description: staleText(stale),
-              variant: 'destructive',
-              duration: DEPLOY_TOAST_MS,
-              ...(onShowDeployments !== undefined && {
-                action: (
-                  <ToastPrimitives.Action
-                    altText={t('deploy.stale.showDeployments')}
-                    asChild
-                    onClick={onShowDeployments}
-                  >
-                    <Button type="button" variant="secondary" size="sm">
-                      {t('deploy.stale.showDeployments')}
-                    </Button>
-                  </ToastPrimitives.Action>
-                ),
-              }),
-            });
+            const words = staleText(stale);
+            if (words === null) setStaleRefusal({ version, stale });
+            else staleToast(version, words);
             return;
           }
           if (page.current.onRefused?.(error, version) === true) return;
