@@ -3,12 +3,17 @@
 import { Button } from '@tale/ui/button';
 import type { CodeEditorDiagnosticsStatus } from '@tale/ui/code-editor';
 import { Field } from '@tale/ui/field';
-import type { FieldIssue } from '@tale/ui/field-issue-messages';
+import {
+  FieldIssueMessages,
+  fieldIssuesHaveError,
+  type FieldIssue,
+} from '@tale/ui/field-issue-messages';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
 import { useIssueFocusTarget } from '@tale/ui/issue-focus';
 import { schemaKindLabel } from '@tale/ui/schema-tree';
+import { SearchableSelect } from '@tale/ui/searchable-select';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
@@ -31,6 +36,7 @@ import {
   withName,
   withNodeState,
   withOutput,
+  withScenario,
   type EffectInputMode,
   type EffectRow,
   type OutputMode,
@@ -40,6 +46,12 @@ import { missingRequiredFields, placeholderFor } from '../../lib/fixed-input';
 import { fieldIssueMessage, type AutomationIssueView } from '../../lib/issues';
 import { nodeTitle } from '../../lib/node-face';
 import { runInputProviders } from '../../lib/run-input-completion';
+import {
+  ScenarioKindBadge,
+  scenarioKindWord,
+  scenarioSummaryText,
+  type ConnectorScenarioSummary,
+} from '../connector-scenario';
 import {
   JsonCodeField,
   jsonFieldText,
@@ -89,12 +101,14 @@ export interface TestSetupFormProps {
   lastResultOutput?: unknown;
   /** An action as the canvas names its node type. */
   effectLabel: (connector: string) => string;
+  /** The scenarios a node type's connector action ships; none without. */
+  scenariosOf?: (nodeType: string) => readonly ConnectorScenarioSummary[];
 }
 
 /**
  * A test's Setup as a form: its name and description, the run's input,
- * what it simulates — a node's output, a node's failure — and what it
- * expects of the run: the output (equal, or including what it lists), the
+ * what it simulates — a node's output, a node's failure, a scenario its
+ * connector action ships — and what it expects of the run: the output (equal, or including what it lists), the
  * state of some nodes, actions that must or must not happen, or a run that
  * fails. Each control writes the field it shows into the raw test, so keys
  * the form has no control for stay as written; each registers its place, so
@@ -112,6 +126,7 @@ export function TestSetupForm({
   lastRunOutputOf,
   lastResultOutput,
   effectLabel,
+  scenariosOf,
 }: TestSetupFormProps) {
   const { t } = useT('automations');
   const { t: tSchema } = useT('schemaTree');
@@ -223,15 +238,24 @@ export function TestSetupForm({
     isRecord(values.input) ? values.input : {},
   );
 
-  const mocked = new Set(values.mocks.map(([node]) => node));
-  const failing = new Set(values.failures.map(([node]) => node));
-  // A node takes one stand-in: none for a node the test picks a scenario
-  // for, which the form leaves as written.
+  // A node takes one stand-in: a simulated output, a simulated failure or a
+  // scenario, so each picker offers only the nodes that have none.
   const standingIn = new Set([
-    ...mocked,
-    ...failing,
-    ...(isRecord(raw.scenarios) ? Object.keys(raw.scenarios) : []),
+    ...values.mocks.map(([node]) => node),
+    ...values.failures.map(([node]) => node),
+    ...values.scenarios.map(([node]) => node),
   ]);
+  const scenariosOfNode = (
+    node: string,
+  ): readonly ConnectorScenarioSummary[] => {
+    const type = doc.nodes.find((candidate) => candidate.id === node)?.type;
+    return type === undefined ? [] : (scenariosOf?.(type) ?? []);
+  };
+  const scenarioNodes = new Set(
+    doc.nodes.flatMap((node) =>
+      scenariosOfNode(node.id).length > 0 ? [node.id] : [],
+    ),
+  );
   const expectedNodes = new Set(values.nodes.map(([node]) => node));
   const effectTypes = [
     ...new Set(
@@ -387,6 +411,53 @@ export function TestSetupForm({
           />
         )}
       </FormSection>
+
+      {(values.scenarios.length > 0 ||
+        (!readOnly && scenarioNodes.size > 0)) && (
+        <FormSection
+          title={t('tests.fields.scenarios')}
+          description={t('tests.fields.scenariosHint')}
+        >
+          {values.scenarios.map(([node, name]) => (
+            <div key={node} className="flex items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <ScenarioField
+                  label={t('tests.fields.scenarioFor', {
+                    node: nodeTitle(node),
+                  })}
+                  value={name}
+                  scenarios={scenariosOfNode(node)}
+                  anchor={`${base}/scenarios/${node}`}
+                  issues={linesAt(`${base}/scenarios/${node}`)}
+                  readOnly={readOnly}
+                  onChange={(next) => onChange(withScenario(raw, node, next))}
+                />
+              </div>
+              {!readOnly && (
+                <RemoveButton
+                  label={t('tests.fields.remove', { node: nodeTitle(node) })}
+                  onRemove={() => onChange(withScenario(raw, node, undefined))}
+                />
+              )}
+            </div>
+          ))}
+          {!readOnly && (
+            <AddPicker
+              label={t('tests.fields.scenariosAdd')}
+              options={nodeOptions(standingIn).filter(({ value }) =>
+                scenarioNodes.has(value),
+              )}
+              // The action's first scenario; the row then offers the rest.
+              onPick={(node) => {
+                const first = scenariosOfNode(node)[0];
+                if (first !== undefined) {
+                  onChange(withScenario(raw, node, first.name));
+                }
+              }}
+            />
+          )}
+        </FormSection>
+      )}
 
       <FormSection title={t('tests.fields.expect')}>
         <SegmentedControl
@@ -659,6 +730,80 @@ function RemoveButton({
       aria-label={label}
       onClick={onRemove}
     />
+  );
+}
+
+/** Where a pick the action does not ship stands in the list: no scenario
+ * name starts with `_`. */
+const UNLISTED_SCENARIO = '__unlisted__';
+
+/** The scenario a test picks for one node, from those its connector action
+ * ships: each with its kind and what it is. */
+function ScenarioField({
+  label,
+  value,
+  scenarios,
+  anchor,
+  issues,
+  readOnly,
+  onChange,
+}: {
+  label: string;
+  /** The pick as written: a name, or whatever else stands there. */
+  value: unknown;
+  scenarios: readonly ConnectorScenarioSummary[];
+  anchor: string;
+  issues: readonly FieldIssue[];
+  readOnly: boolean;
+  onChange: (name: string) => void;
+}) {
+  const { t } = useT('automations');
+  const id = useId();
+  useIssueFocusTarget(anchor, {
+    focus: () => document.getElementById(id)?.focus(),
+  });
+  const picked = scenarios.find((scenario) => scenario.name === value);
+  const options = [
+    ...scenarios.map((scenario) => ({
+      value: scenario.name,
+      label: scenario.name,
+      labelBadge: <ScenarioKindBadge kind={scenario.kind} />,
+      description: scenarioSummaryText(scenario, t),
+      keywords: [scenario.kind, scenarioKindWord(scenario.kind, t)],
+    })),
+    // A pick the action does not ship stays shown as written; the check
+    // says what is wrong with it.
+    ...(picked === undefined
+      ? [
+          {
+            value: UNLISTED_SCENARIO,
+            label:
+              typeof value === 'string' ? value : (JSON.stringify(value) ?? ''),
+          },
+        ]
+      : []),
+  ];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SearchableSelect
+        id={id}
+        label={label}
+        {...(picked !== undefined && {
+          description: t('connectorScenario.summary', {
+            kind: scenarioKindWord(picked.kind, t),
+            description: scenarioSummaryText(picked, t),
+          }),
+        })}
+        error={fieldIssuesHaveError(issues)}
+        value={picked?.name ?? UNLISTED_SCENARIO}
+        options={options}
+        disabled={readOnly}
+        onValueChange={(next) => {
+          if (next !== UNLISTED_SCENARIO) onChange(next);
+        }}
+      />
+      <FieldIssueMessages issues={issues} idPrefix={`${id}-issue`} />
+    </div>
   );
 }
 

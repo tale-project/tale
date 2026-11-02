@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import type { AutomationTests } from '../../hooks/use-automation-tests';
 import type { TestTextContext } from '../../lib/automation-tests/test-text';
 import type { AutomationIssueView } from '../../lib/issues';
+import type { ConnectorScenarioSummary } from '../connector-scenario';
 import { DocumentInspectorHeader } from '../document-inspector-parts';
 import { InspectorFrame } from '../node-inspector';
 import { TestResultView } from './test-result-view';
@@ -48,6 +49,9 @@ export interface TestFieldsProps {
   /** A node's output in the run laid over the canvas. */
   lastRunOutputOf?: (nodeId: string) => unknown;
   text: Pick<TestTextContext, 'nodeLabel' | 'effectLabel'>;
+  /** The scenarios a node type's connector action ships, as the editor's
+   * catalog lists them; none without. */
+  scenariosOf: (nodeType: string) => readonly ConnectorScenarioSummary[];
   onSelectNode: (nodeId: string) => void;
   /** Lays the test's latest run over the canvas. */
   onShowRun?: () => void;
@@ -75,6 +79,7 @@ export function TestFields({
   doc,
   lastRunOutputOf,
   text,
+  scenariosOf,
   onSelectNode,
   onShowRun,
   onDeselect,
@@ -175,6 +180,7 @@ export function TestFields({
                       lastResultOutput,
                     })}
                     effectLabel={text.effectLabel ?? ((id: string) => id)}
+                    scenariosOf={scenariosOf}
                   />
                 )}
               </div>

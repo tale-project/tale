@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TransientRecord } from '@/lib/engine/core/record/transient';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type {
   AutomationTests,
   TestRow,
 } from '../../hooks/use-automation-tests';
+import type { ConnectorScenarioSummary } from '../connector-scenario';
 import {
   TestFields,
   type TestFieldsProps,
@@ -112,6 +115,7 @@ function renderFields(
     doc?: TestFieldsProps['doc'];
     readOnly?: boolean;
     lastRunOutputOf?: (nodeId: string) => unknown;
+    scenariosOf?: TestFieldsProps['scenariosOf'];
   } = {},
 ) {
   const onTabChange = vi.fn();
@@ -139,6 +143,7 @@ function renderFields(
         lastRunOutputOf: options.lastRunOutputOf,
       })}
       text={{}}
+      scenariosOf={options.scenariosOf ?? (() => [])}
       onSelectNode={onSelectNode}
       {...(options.onShowRun !== undefined && { onShowRun: options.onShowRun })}
     />,
@@ -200,6 +205,42 @@ const SCENARIO_TEST = {
   input: { n: 7 },
   mocks: { total: { total: 21 } },
   scenarios: { fetch_rates: 'empty' },
+};
+
+/** Two of the scenarios Slack's channel lookup ships, as the editor's
+ * catalog lists them. */
+const GET_CHANNEL_SCENARIOS: readonly ConnectorScenarioSummary[] = [
+  {
+    name: 'one_channel',
+    kind: 'success',
+    description: 'Slack returns the channel.',
+  },
+  {
+    name: 'channel_not_found',
+    kind: 'error',
+    description: 'Slack answers that no channel has this id.',
+    when: { channel: 'C0000000009' },
+  },
+];
+
+/** Only the channel lookup ships scenarios. */
+function scenariosOf(nodeType: string): readonly ConnectorScenarioSummary[] {
+  return nodeType === 'slack.get_channel' ? GET_CHANNEL_SCENARIOS : [];
+}
+
+/** An automation that looks a Slack channel up, then works out a total. */
+const SLACK_DOC = {
+  name: 'channel-check',
+  nodes: [
+    { id: 'get_channel', type: 'slack.get_channel' },
+    { id: 'total', type: 'transform', code: 'return {};' },
+  ],
+};
+
+/** A test of it with no stand-in yet. */
+const CHANNEL_TEST = {
+  name: 'finds the channel',
+  input: { id: 'C0000000001' },
 };
 
 describe('the test inspector', () => {
@@ -417,6 +458,11 @@ describe('the test inspector', () => {
       replace,
       test: picked,
     });
+    // A plain HTTP call ships no scenario: the pick shows as written, for
+    // the check to say what is wrong with it.
+    expect(
+      screen.getByRole('button', { name: /^Scenario for Fetch rates/ }),
+    ).toHaveTextContent('empty');
     await user.click(
       screen.getByRole('combobox', { name: 'Simulate a failure' }),
     );
@@ -504,5 +550,271 @@ describe('the test inspector', () => {
         'The automation or this test changed since this result. Run the test again to see where it stands.',
       ),
     ).toBeVisible();
+  });
+});
+
+describe('a scenario in the test’s Setup', () => {
+  /** The test with this scenario picked for the channel lookup. */
+  const picking = (name: string) => ({
+    ...CHANNEL_TEST,
+    scenarios: { get_channel: name },
+  });
+
+  it('offers a scenario only for a node whose action ships one, and picks its first', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: CHANNEL_TEST,
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    expect(screen.getByRole('region', { name: 'Scenarios' })).toHaveTextContent(
+      'The node answers as in a scenario its action ships, instead of calling.',
+    );
+    await user.click(
+      screen.getByRole('combobox', { name: 'Pick a scenario for a node' }),
+    );
+    // The total is code: it calls no action, so it has no scenario.
+    expect(
+      screen.queryByRole('option', { name: 'Total' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Get channel' }));
+    expect(replace).toHaveBeenLastCalledWith(0, picking('one_channel'));
+  });
+
+  it('shows no Scenarios section where no action ships one', () => {
+    renderFields(FAILED, { tab: 'setup', test: CHANNEL_TEST, doc: SLACK_DOC });
+    expect(
+      screen.queryByRole('region', { name: 'Scenarios' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('lists each scenario with its kind and what it is, and changes the pick', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: picking('one_channel'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    const field = screen.getByRole('button', {
+      name: /^Scenario for Get channel/,
+    });
+    expect(field).toHaveTextContent('one_channel');
+    expect(field).toHaveAccessibleDescription(
+      'Success: Slack returns the channel.',
+    );
+    await user.click(field);
+    const found = await screen.findByRole('option', { name: /^one_channel/ });
+    expect(found).toHaveTextContent('Success');
+    expect(found).toHaveTextContent('Slack returns the channel.');
+    const notFound = screen.getByRole('option', {
+      name: /^channel_not_found/,
+    });
+    expect(notFound).toHaveTextContent('Error');
+    // Which calls it answers: only those that ask for that channel.
+    expect(notFound).toHaveTextContent(
+      'Slack answers that no channel has this id. Only for calls whose input has channel: "C0000000009". Any other call gets the usual simulated answer.',
+    );
+    await user.click(notFound);
+    expect(replace).toHaveBeenLastCalledWith(0, picking('channel_not_found'));
+  });
+
+  it('picks by keyboard, finding a scenario by its kind', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: picking('one_channel'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    screen.getByRole('button', { name: /^Scenario for Get channel/ }).focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard('error');
+    await user.keyboard('{Enter}');
+    expect(replace).toHaveBeenLastCalledWith(0, picking('channel_not_found'));
+  });
+
+  it('takes one stand-in a node: a picked scenario leaves no other, and goes when removed', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: picking('one_channel'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    await user.click(
+      screen.getByRole('combobox', { name: "Simulate a node's output" }),
+    );
+    expect(
+      screen.queryByRole('option', { name: 'Get channel' }),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(
+      screen.getByRole('combobox', { name: 'Simulate a failure' }),
+    );
+    expect(
+      screen.queryByRole('option', { name: 'Get channel' }),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    // The lookup was the only node with scenarios, and it has its pick.
+    expect(
+      screen.queryByRole('combobox', { name: 'Pick a scenario for a node' }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Get channel' }),
+    );
+    expect(replace).toHaveBeenLastCalledWith(0, CHANNEL_TEST);
+  });
+
+  it.each([
+    ['a simulated output', { mocks: { get_channel: { id: 'C0000000001' } } }],
+    ['a simulated failure', { failures: { get_channel: 'Slack is down.' } }],
+  ])('offers no scenario for a node that has %s', (_standIn, standIn) => {
+    renderFields(FAILED, {
+      tab: 'setup',
+      test: { ...CHANNEL_TEST, ...standIn },
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    expect(screen.getByRole('region', { name: 'Scenarios' })).toBeVisible();
+    expect(
+      screen.queryByRole('combobox', { name: 'Pick a scenario for a node' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps a pick the action does not ship, as written, until another is picked', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: picking('archived'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    const field = screen.getByRole('button', {
+      name: /^Scenario for Get channel/,
+    });
+    expect(field).toHaveTextContent('archived');
+    expect(field).not.toHaveAccessibleDescription();
+    await user.click(field);
+    // Choosing it again writes nothing.
+    await user.click(await screen.findByRole('option', { name: 'archived' }));
+    expect(replace).not.toHaveBeenCalled();
+    await user.click(field);
+    await user.click(
+      await screen.findByRole('option', { name: /^one_channel/ }),
+    );
+    expect(replace).toHaveBeenLastCalledWith(0, picking('one_channel'));
+  });
+
+  it('shows a pick read-only, and no section without one', () => {
+    const { unmount } = renderFields(FAILED, {
+      tab: 'setup',
+      readOnly: true,
+      test: picking('one_channel'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    expect(
+      screen.getByRole('button', { name: /^Scenario for Get channel/ }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Remove Get channel' }),
+    ).not.toBeInTheDocument();
+    unmount();
+    renderFields(FAILED, {
+      tab: 'setup',
+      readOnly: true,
+      test: CHANNEL_TEST,
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    expect(
+      screen.queryByRole('region', { name: 'Scenarios' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps a pick through Edit as YAML, both ways', async () => {
+    const onTest = vi.fn();
+    /** The inspector over a test it really edits, in either mode. */
+    function RoundTrip() {
+      const [test, setTest] = useState<unknown>(CHANNEL_TEST);
+      const [mode, setMode] = useState<TestSetupMode>('form');
+      const replace = (_index: number, next: unknown) => {
+        setTest(next);
+        onTest(next);
+      };
+      return (
+        <TestFields
+          headingId="test-heading"
+          tests={{ ...controller(FAILED, replace), tests: [test] }}
+          index={0}
+          settledTest={test}
+          issues={[]}
+          diagnosticsStatus="ready"
+          readOnly={false}
+          tab="setup"
+          onTabChange={vi.fn()}
+          setupMode={mode}
+          onSetupModeChange={setMode}
+          doc={SLACK_DOC}
+          text={{}}
+          scenariosOf={scenariosOf}
+          onSelectNode={vi.fn()}
+        />
+      );
+    }
+    const { user } = render(<RoundTrip />);
+    await user.click(
+      screen.getByRole('combobox', { name: 'Pick a scenario for a node' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'Get channel' }));
+    // The form's pick is the YAML's …
+    await user.click(screen.getByRole('switch', { name: 'Edit as YAML' }));
+    const yaml = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Test as YAML',
+    });
+    expect(yaml.value).toBe(testYaml(picking('one_channel')));
+    expect(yaml.value).toContain('scenarios:\n  get_channel: one_channel');
+    // … and a pick written as YAML is the form's, with its kind and what
+    // it is.
+    await user.click(yaml);
+    await user.keyboard('{Control>}a{/Control}');
+    await user.paste(testYaml(picking('channel_not_found')));
+    await waitFor(() =>
+      expect(onTest).toHaveBeenLastCalledWith(picking('channel_not_found')),
+    );
+    await user.click(screen.getByRole('switch', { name: 'Edit as YAML' }));
+    const field = screen.getByRole('button', {
+      name: /^Scenario for Get channel/,
+    });
+    expect(field).toHaveTextContent('channel_not_found');
+    expect(field).toHaveAccessibleDescription(
+      'Error: Slack answers that no channel has this id. Only for calls whose input has channel: "C0000000009". Any other call gets the usual simulated answer.',
+    );
+  });
+
+  it('passes an accessibility audit with a pick and the picker', async () => {
+    const { container } = renderFields(FAILED, {
+      tab: 'setup',
+      test: picking('channel_not_found'),
+      doc: {
+        ...SLACK_DOC,
+        nodes: [
+          ...SLACK_DOC.nodes,
+          { id: 'find_owner', type: 'slack.get_channel' },
+        ],
+      },
+      scenariosOf,
+    });
+    expect(
+      screen.getByRole('combobox', { name: 'Pick a scenario for a node' }),
+    ).toBeVisible();
+    await checkAccessibility(container);
   });
 });

@@ -668,6 +668,8 @@ editor:
     readBy: Lu par
     readByOutput: La sortie de l’automatisation
     notRead: Rien ne lit sa sortie.
+    scenarios: Scénarios
+    scenariosHint: Un test peut en choisir un pour ce nœud dans sa configuration. Le nœud répond alors comme décrit, au lieu d’appeler.
     checking: Mise à jour…
     unavailable: Impossible de déterminer les structures. Elles apparaîtront après la prochaine vérification réussie.
     origin:
@@ -1312,6 +1314,9 @@ tests:
     failureDefault: échec simulé
     failuresAdd: Simuler un échec
     scenarios: Scénarios
+    scenariosHint: Le nœud répond comme dans un scénario fourni par son action, au lieu d’appeler.
+    scenariosAdd: Choisir un scénario pour un nœud
+    scenarioFor: 'Scénario pour {node}'
     expect: Attentes
     outputModeLabel: Comment la sortie est vérifiée
     outputMode:
@@ -1384,6 +1389,15 @@ tests:
     refused: '{count, plural, one {Le test n’a pas pu s’exécuter : l’automatisation a # problème à corriger d’abord.} other {Le test n’a pas pu s’exécuter : l’automatisation a # problèmes à corriger d’abord.}}'
     timeout: '{seconds, plural, one {Le test a duré plus de # seconde et a été arrêté.} other {Le test a duré plus de # secondes et a été arrêté.}}'
     unknown: Le test n’a pas réussi.
+connectorScenario:
+  kind:
+    success: Succès
+    empty: Vide
+    error: Erreur
+    refusal: Refus
+    duplicate: Doublon
+  summary: '{kind} : {description}'
+  when: 'Uniquement pour les appels dont l’entrée contient {members}. Tout autre appel reçoit la réponse simulée habituelle.'
 condition:
   group: '({parts})'
   gt: '{a} est supérieur à {b}'

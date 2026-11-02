@@ -12,6 +12,7 @@ import {
   withName,
   withNodeState,
   withOutput,
+  withScenario,
 } from './test-form';
 
 const TEST = {
@@ -42,6 +43,7 @@ describe('a test read for the form', () => {
       input: { quantity: 120 },
       mocks: [['rates', { chf: 1 }]],
       failures: [],
+      scenarios: [],
       output: { mode: 'includes', value: { total: 2160 } },
       nodes: [['discount', 'ran']],
       failure: null,
@@ -60,6 +62,19 @@ describe('a test read for the form', () => {
       mode: 'none',
       value: undefined,
     });
+  });
+
+  it('reads every scenario pick, also one that is no name', () => {
+    // A pick that is no text keeps its row, where its problem shows.
+    expect(
+      readTestForm({
+        ...TEST,
+        scenarios: { post: 'channel_not_found', fetch: 3 },
+      }).scenarios,
+    ).toEqual([
+      ['post', 'channel_not_found'],
+      ['fetch', 3],
+    ]);
   });
 });
 
@@ -126,8 +141,20 @@ describe('a test written by the form', () => {
     expect(removed.expect).not.toHaveProperty('effects');
   });
 
-  it('keeps the scenarios a test picks through every edit, as written', () => {
-    // The form has no control for them: they are written as YAML.
+  it('picks, changes and removes a scenario, and the key with the last', () => {
+    const picked = withScenario(TEST, 'post', 'posted');
+    expect(picked.scenarios).toEqual({ post: 'posted' });
+    const changed = withScenario(picked, 'post', 'channel_not_found');
+    expect(changed.scenarios).toEqual({ post: 'channel_not_found' });
+    // The other stand-ins and the keys the form does not show stay.
+    expect(changed).toMatchObject({
+      mocks: { rates: { chf: 1 } },
+      note: 'a key this build does not know',
+    });
+    expect('scenarios' in withScenario(changed, 'post', undefined)).toBe(false);
+  });
+
+  it('keeps the scenarios a test picks through every other edit', () => {
     const picked = { ...TEST, scenarios: { post: 'channel_not_found' } };
     const edits = [
       withName(picked, 'renamed'),
@@ -160,7 +187,7 @@ describe('which places the form has a control for', () => {
     ['/tests/0/mocks/rates', true],
     ['/tests/0/mocks', false],
     ['/tests/0/failures/notify', true],
-    ['/tests/0/scenarios/post', false],
+    ['/tests/0/scenarios/post', true],
     ['/tests/0/scenarios', false],
     ['/tests/0/expect/output/total', true],
     ['/tests/0/expect/outputIncludes', true],

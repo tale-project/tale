@@ -47,6 +47,9 @@ export interface TestFormValues {
   mocks: ReadonlyArray<readonly [string, unknown]>;
   /** Node id → the message it fails with in this test. */
   failures: ReadonlyArray<readonly [string, string]>;
+  /** Node id → the scenario the test picks for it, as written: a pick that
+   * is no name stays, so its problem has a place in the form. */
+  scenarios: ReadonlyArray<readonly [string, unknown]>;
   output: { mode: OutputMode; value: unknown };
   nodes: ReadonlyArray<readonly [string, ExpectedNodeState]>;
   effects: readonly EffectRow[];
@@ -105,6 +108,7 @@ export function readTestForm(test: unknown): TestFormValues {
           typeof message === 'string' ? [[node, message] as const] : [],
         )
       : [],
+    scenarios: isRecord(raw.scenarios) ? Object.entries(raw.scenarios) : [],
     output,
     nodes: isRecord(expect.nodes)
       ? Object.entries(expect.nodes).flatMap(([node, state]) =>
@@ -136,7 +140,7 @@ function setIn(
 
 function withEntry(
   test: RawTest,
-  key: 'mocks' | 'failures',
+  key: 'mocks' | 'failures' | 'scenarios',
   node: string,
   value: unknown,
 ): Record<string, unknown> {
@@ -194,6 +198,16 @@ export function withFailure(
   message: string | undefined,
 ): Record<string, unknown> {
   return withEntry(test, 'failures', node, message);
+}
+
+/** The test picking the scenario `name` of its connector action for
+ * `node`, or none (undefined). */
+export function withScenario(
+  test: RawTest,
+  node: string,
+  name: string | undefined,
+): Record<string, unknown> {
+  return withEntry(test, 'scenarios', node, name);
 }
 
 /** The test checking the output as `mode` says, against `value`. */
@@ -319,7 +333,7 @@ export function withMustFail(
 
 /**
  * Whether the form has a control for the place `pointer` names in the
- * test at `index` — a field, a node's simulated output, an expectation —
+ * test at `index` — a field, a node's stand-in, an expectation —
  * so a problem there opens the form; a place it has none for (a key this
  * build does not know, the test as a whole) opens the YAML.
  */
@@ -334,6 +348,7 @@ export function formOwnsPlace(pointer: string, index: number): boolean {
       return true;
     case 'mocks':
     case 'failures':
+    case 'scenarios':
       return key !== undefined;
     case 'expect':
       switch (key) {
