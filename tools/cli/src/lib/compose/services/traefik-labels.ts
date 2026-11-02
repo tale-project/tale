@@ -194,6 +194,8 @@ export function sandboxLabels(): Record<string, string> {
         service: 'sandbox',
       },
     },
-    { sandbox: { url: 'http://sandbox:8004' } },
+    // Interpolated by compose from the same variable the spawner listens
+    // on, so a changed hub port moves its route with it.
+    { sandbox: { url: 'http://sandbox:${SANDBOX_HUB_PORT:-8004}' } },
   );
 }

@@ -33,8 +33,9 @@ one process, which holds across neither Kubernetes replicas nor a device.
 | `SANDBOX_HUB_API_UPSTREAM`     | `SANDBOX_HTTP_API_BASE_URL`, else `http://backend-api:3005`          | Where the `api` relay goes.                                                                                                                      |
 | `SANDBOX_HUB_GATEWAY_UPSTREAM` | `EXTERNAL_AGENT_GATEWAY_URL`, else `http://sandbox-llm-gateway:8080` | Where the `gateway` relay goes.                                                                                                                  |
 
-The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfile`,
-`SANDBOX_HUB_UPSTREAM`); the operator-facing settings are in the
+The proxy publishes the door at `<site>/sandbox/tunnel`, routed by the `sandbox` service's Traefik
+labels (`compose.yml`, `tools/cli/src/lib/compose/services/traefik-labels.ts`) to its
+`SANDBOX_HUB_PORT`; the operator-facing settings are in the
 [environment reference](../../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-devices).
 
 ### Signed API additions

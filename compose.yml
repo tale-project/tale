@@ -1007,7 +1007,7 @@ services:
       traefik.http.routers.sandbox.rule: 'Path(`/sandbox/tunnel`)'
       traefik.http.routers.sandbox.priority: '300'
       traefik.http.routers.sandbox.service: 'sandbox'
-      traefik.http.services.sandbox.loadbalancer.server.url: 'http://sandbox:8004'
+      traefik.http.services.sandbox.loadbalancer.server.url: 'http://sandbox:${SANDBOX_HUB_PORT:-8004}'
     networks:
       - internal
       - sandbox

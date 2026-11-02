@@ -306,7 +306,7 @@ export async function retireColor(args: RetireColorArgs): Promise<void> {
   }
 
   // Do NOT fail `/api/health` on the old platform while it still shares the
-  // `platform` alias. Caddy health-checks that hostname as ONE upstream — a
+  // `platform` alias. The edge health-checks that hostname as ONE server — a
   // 503 from the old colour marks the whole site down. Traffic leaves this
   // colour at `docker network disconnect` below, not via a health probe.
 

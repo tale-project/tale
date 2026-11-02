@@ -20,8 +20,8 @@ export function createPlatformService(
     image: imageRef(config, 'platform'),
     labels: platformLabels(color),
     // /app/data is the org config store, mounted read-only so server.ts can
-    // watch config files and serve branding images. Platform does not mount
-    // caddy-data any more (zero outbound HTTPS).
+    // watch config files and serve branding images. Platform mounts none of
+    // the proxy's volumes (zero outbound HTTPS).
     volumes: ['config-data:/app/data:ro', 'static-assets:/app/static-assets'],
     env_file: ['.env'],
     restart: 'unless-stopped',

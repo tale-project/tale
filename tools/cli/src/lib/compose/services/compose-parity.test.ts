@@ -211,7 +211,7 @@ describe('sandbox device hub parity', () => {
       'traefik.http.routers.sandbox.priority': '300',
       'traefik.http.routers.sandbox.service': 'sandbox',
       'traefik.http.services.sandbox.loadbalancer.server.url':
-        'http://sandbox:8004',
+        'http://sandbox:${SANDBOX_HUB_PORT:-8004}',
     });
     for (const service of Object.values(compose.services)) {
       for (const value of Object.values(service.labels ?? {})) {
