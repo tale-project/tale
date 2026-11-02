@@ -80,7 +80,7 @@ component-level axe coverage comes from `vitest-axe` via
   `<body>`. With rows left, it is on the next row's menu button, or the row
   above when the last row left. With none, it is on the empty state's create
   action or the toolbar's. On WebDAV the revoked row stays and has no control:
-  the next active row's **Revoke**, else the named **App-passwords** section.
+  the next active row's **Revoke**, else the toolbar's **Generate**.
   The next Tab stays in the main content, never at **Skip to main content**.
 - [ ] `A11Y-A6` · **Icon buttons** — Query all `<button>` on each surface →
   **Zero** buttons have an empty accessible name — every icon-only button

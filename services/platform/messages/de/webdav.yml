@@ -27,8 +27,12 @@ create:
 list:
   title: App-Passwörter
   empty: Noch keine App-Passwörter.
-  emptyDescription: Erzeuge unten ein App-Passwort, um Tale-Dokumente als Netzlaufwerk einzubinden.
+  emptyDescription: Erzeuge ein App-Passwort, um Tale-Dokumente als Netzlaufwerk einzubinden.
   refreshFailed: "Die neuesten App-Passwörter konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet."
+  # The app-passwords table: its search, and the count under it.
+  searchPlaceholder: App-Passwörter suchen
+  entityLabel: App-Passwörter
+  entityLabelOne: App-Passwort
   label: Label
   prefix: Präfix
   lastUsed: Zuletzt genutzt
