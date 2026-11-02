@@ -13,11 +13,6 @@ export interface UserPreferencesContract {
     args: { organizationId: string; enabled: boolean };
     returns: string;
   };
-  'user_preferences/mutations:setOnboardingCompleted': {
-    kind: 'mutation';
-    args: { organizationId: string; completed: boolean };
-    returns: string;
-  };
   'user_preferences/mutations:upsertMyPreferences': {
     kind: 'mutation';
     args: { organizationId: string; customInstructions: string };
@@ -35,7 +30,6 @@ export interface UserPreferencesContract {
       /** The connector that served `chatModelId` when it was picked; absent
        * on a pick saved before providers were part of it. */
       chatModelProviderSlug?: string;
-      onboardingCompleted?: boolean;
       organizationId: string;
       updatedAt: number;
       userId: string;
