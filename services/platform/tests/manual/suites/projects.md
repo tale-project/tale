@@ -103,9 +103,10 @@ projects-list row ⋯ menu.
   (`projects.agents.createSubmit`) → The new thread is listed in the Threads
   tab after reload; toast "Agent created" (`projects.agents.createSuccess`);
   the agent row (name + harness label + provider + model) persists in the
-  Agents tab after reload; **Edit agent** (`projects.agents.rowEdit`) saves
-  changes (toast `projects.agents.editSuccess`), **Delete agent**
-  (`projects.agents.rowDelete`) confirms in a dialog and removes the row
+  Agents tab after reload; in the row's menu **Actions for …**
+  (`projects.agents.rowActionsLabel`), **Edit** (`common.actions.edit`) saves
+  changes (toast `projects.agents.editSuccess`), **Delete**
+  (`common.actions.delete`) confirms in a dialog and removes the row
   (toast `projects.agents.deleteSuccess`)
 - [ ] `PROJ-F6` · **Instructions** — Instructions tab
   (`projects.instructions.label`, textbox id `project-instructions`) → edit
@@ -244,9 +245,10 @@ projects-list row ⋯ menu.
   promote it via drag or **Status** → **To do** (`tasks.status.todo`); dismiss
   via **Status** → **Cancelled** (`tasks.status.cancelled`); `…/tasks/backlog`
   redirects to the board.
-- [ ] `PROJ-F20` · **Agents: harness & model** — Agents tab → open an agent
-  (`projects.agents.rowEdit`) → **Harness** (`projects.agents.harnessLabel`)
-  and **Model** (`projects.agents.modelLabel`) pickers → The Harness picker
+- [ ] `PROJ-F20` · **Agents: harness & model** — Agents tab → an agent's row
+  menu → **Edit** (`common.actions.edit`) → **Harness**
+  (`projects.agents.harnessLabel`) and **Model**
+  (`projects.agents.modelLabel`) pickers → The Harness picker
   lists only harnesses the org can actually run managed (#2902 — e.g. Cursor
   is absent without its own vendor credential); the chosen harness + model
   persist on reload. (The Recommended/Restricted model-access modes were
@@ -359,7 +361,7 @@ projects-list row ⋯ menu.
 
 - [ ] `PROJ-F30` · **Deleting an agent unassigns its tasks** — Agents tab →
   create an agent, assign it two tasks and start one so a run exists (it
-  may fail); then row menu → **Delete agent** → confirm → Both tasks read
+  may fail); then row menu → **Delete** → confirm → Both tasks read
   **Unassigned** in the Assignee field and on their cards (never the raw
   agent id); each task's Activity shows **Assignee changed** from **Deleted
   agent** (`tasks.timeline.deletedAgent`) to nobody, and the run's earlier
@@ -409,11 +411,11 @@ projects-list row ⋯ menu.
   default language, carries the badge **Standard**
   (`projects.agents.standard.badge`) and the note
   `projects.agents.standard.managedNote`, names its agent type, provider and
-  model, counts the document skills available to the project, and offers
-  **Delete agent** (`projects.agents.rowDelete`) but no **Edit agent**
-  (`projects.agents.rowEdit`).
+  model, counts the document skills available to the project, and its row
+  menu offers **View** (`common.actions.view`) and **Delete**
+  (`common.actions.delete`) but no **Edit** (`common.actions.edit`).
 - [ ] `PROJ-F38` · **The standard agent gives way to the project's own** —
-  **Delete agent** on the standard agent's row and confirm → the row leaves,
+  **Delete** in the standard agent's row menu and confirm → the row leaves,
   the standard empty state returns, and the tasks it worked keep their
   history; giving a task to **Standard agent** again sets up a new one. Now
   add an agent with **New agent** and delete the standard agent → **Assignee**
@@ -421,11 +423,12 @@ projects-list row ⋯ menu.
   agents and no **Standard agent**.
 - [ ] `PROJ-F62` · **An agent's handle on the Agents tab** — Add an agent
   named "My Opus Agent #3" → its row on the **Agents** tab starts its caption
-  with `@my-opus-agent-3`; **Edit** (`projects.agents.rowEdit`) shows under
-  **Name** (`projects.agents.nameLabel`) **Mention it with @my-opus-agent-3.
-  Renaming the agent changes this.** (`projects.agents.handleHint`). Rename it
-  "QA Bot" and save → the row reads `@qa-bot`; rename it "qa bot" → the handle
-  stays `@qa-bot`. A new agent's create dialog shows no handle line.
+  with `@my-opus-agent-3`; **Edit** (`common.actions.edit`) in its row menu
+  shows under **Name** (`projects.agents.nameLabel`) **Mention it with
+  @my-opus-agent-3. Renaming the agent changes this.**
+  (`projects.agents.handleHint`). Rename it "QA Bot" and save → the row reads
+  `@qa-bot`; rename it "qa bot" → the handle stays `@qa-bot`. A new agent's
+  create dialog shows no handle line.
 - [ ] `PROJ-F63` · **Two agents whose names make the same handle** — Add "My
   Opus Agent #3" and then "My Opus Agent 3" → the second row reads
   `@my-opus-agent-3-02`; in a task comment `@my-opus-agent-3` lists both, each
@@ -724,6 +727,26 @@ projects-list row ⋯ menu.
   **Dispatch** (`projects.dispatch.title`) → **Environment** → the column's
   left and right edges never move; only **Tasks** (`tasks.title`), a board,
   spans the page. At phone width both pages keep the same side margins.
+- [ ] `PROJ-A11` · **Agents read like Settings** → At one window width, in
+  light and in dark, as an editor of a project with two agents and the
+  standard agent: the **Agents** tab (`projects.navigation.agents`) stands in
+  Organization's column under its header, its agents one bordered list with a
+  hairline between rows; each row shows its runtime icon, the name over its
+  caption and, at its end, a menu button a screen reader announces as
+  **Actions for …** (`projects.agents.rowActionsLabel`). A row lights up under
+  the pointer, and a click anywhere on it but the menu button opens **Agent
+  details** (`projects.agents.detailsTitle`). Tab stops on the name, its focus
+  ring around the whole row, then on the menu button; the menu offers
+  **View** (`common.actions.view`), **Edit** (`common.actions.edit`) and,
+  under a divider, **Delete** (`common.actions.delete`), the standard agent's
+  no **Edit**. The details read like **Standard agent**
+  (`governance.standardAgent.title`) in Settings › Governance: a hairline
+  between rows, each label above its value, **None**
+  (`projects.agents.detailsNone`) muted; closing them returns the focus to
+  the name or the menu button that opened them. **Edit** names **Agent
+  runtime**, **Model** and **Instructions** as Governance does, with **What
+  this agent always keeps in mind on every run.**
+  (`projects.agents.instructionsHint`) under Instructions.
 - [ ] `PROJ-B18` · **Names that make no plain handle** — Add agents named
   "发票助手", "🚀", "Büro Agent" and a 60-character name → their rows read
   `@agent`, `@agent-02`, `@buero-agent`, and a handle of at most 48 characters

@@ -215,43 +215,30 @@ export function ProjectFilesSkeleton({
   );
 }
 
-export function ProjectAgentRowsSkeleton({
-  canEdit = true,
-}: {
-  canEdit?: boolean;
-}) {
+export function ProjectAgentRowsSkeleton() {
+  // Every row has its menu: View is offered to readers too.
   return (
     <Skeletonize loading>
-      <Stack as="ul" gap={2}>
+      <ul className="divide-y overflow-hidden rounded-lg border">
         {[0, 1, 2].map((index) => (
-          <li key={index}>
-            <Row justify="between" gap={3} className="rounded-md border p-3">
-              <Row gap={3} className="min-w-0 flex-1">
-                <SkeletonBox asChild>
-                  <span className="size-6 shrink-0 rounded-sm" />
-                </SkeletonBox>
-                <Stack gap={1} className="min-w-0 flex-1">
-                  <Text className="font-medium">
-                    <SkeletonText seed={index} />
-                  </Text>
-                  <Text variant="caption">
-                    <SkeletonText seed={index + 3} />
-                  </Text>
-                </Stack>
-              </Row>
-              {canEdit && (
-                <Row gap={1} className="shrink-0">
-                  {[0, 1].map((action) => (
-                    <SkeletonBox key={action} asChild>
-                      <span className="size-9 rounded-lg" />
-                    </SkeletonBox>
-                  ))}
-                </Row>
-              )}
-            </Row>
+          <li key={index} className="flex items-center gap-3 px-4 py-2.5">
+            <SkeletonBox asChild>
+              <span className="size-6 shrink-0 rounded-sm" />
+            </SkeletonBox>
+            <Stack gap={0} className="min-w-0 flex-1">
+              <Text className="font-medium">
+                <SkeletonText seed={index} />
+              </Text>
+              <Text variant="caption">
+                <SkeletonText seed={index + 3} />
+              </Text>
+            </Stack>
+            <SkeletonBox asChild>
+              <span className="size-9 shrink-0 rounded-lg" />
+            </SkeletonBox>
           </li>
         ))}
-      </Stack>
+      </ul>
     </Skeletonize>
   );
 }
@@ -272,7 +259,7 @@ export function ProjectAgentsSkeleton({
         ) : undefined
       }
     >
-      <ProjectAgentRowsSkeleton canEdit={canEdit} />
+      <ProjectAgentRowsSkeleton />
     </ProjectAgentsFrame>
   );
 }
