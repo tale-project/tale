@@ -15,11 +15,11 @@
 // environment, and the answers when a service is absent or failing.
 
 /** The edge's own answers: a loopback nginx (renderResponder). */
-export const RESPONDER = '127.0.0.1:8099';
+const RESPONDER = '127.0.0.1:8099';
 /** The entrypoint a subpath request re-enters with its prefix stripped. */
-export const INNER = '127.0.0.1:8098';
+const INNER = '127.0.0.1:8098';
 /** The read-only Docker API proxy (services/proxy/docker-api/nginx.conf). */
-export const DOCKER_API = 'tcp://docker-api:2375';
+const DOCKER_API = 'tcp://docker-api:2375';
 
 // What `private_ranges` names, and what an empty TRUSTED_PROXIES trusts:
 // the private and loopback ranges.
