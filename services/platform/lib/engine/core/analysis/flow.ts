@@ -48,9 +48,9 @@ import {
   tokenizeTemplate,
 } from '../syntax/tokens';
 import type { NodeDef, NodeTrace } from '../types';
+import type { SkipReason } from '../walk/progress';
 
-/** Why a node produced no output — the reasons a run records. */
-export type SkipReason = 'when' | 'else' | 'upstream' | 'error';
+export type { SkipReason } from '../walk/progress';
 
 /** Free atoms the paths are enumerated for (at most 4096 assignments). */
 export const MAX_FREE_ATOMS = 12;
