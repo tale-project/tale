@@ -196,7 +196,7 @@ async function renderShell(recovery: Recovery = SIGNED_IN) {
       </SessionLapseRecovery>
     </QueryClientProvider>
   );
-  // Warm the real lazy module before mounting, including its settings words.
+  // Warm the real lazy module before mounting, including the words it shows.
   // React still crosses the lazy boundary; act flushes that commit and the
   // title below confirms the alert stands before any geometry is measured.
   await import('@/app/features/settings/data-residency/components/embedding-setup-alert');
