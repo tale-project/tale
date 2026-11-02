@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.56.0",
+    "version": "3.57.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -13440,7 +13440,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); a label grant naming a label the project does not have (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -13694,7 +13694,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); a label grant naming a label the project does not have (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -13893,7 +13893,7 @@
         "tags": ["Agents"],
         "summary": "Get a project agent",
         "operationId": "getProjectAgent",
-        "description": "One project agent with its full configuration — the model pair, skills, connectors, tool grants, the names (never the values) of its secrets, the credential it acts as per connector and its commit identity.",
+        "description": "One project agent with its full configuration — the model pair, skills, connectors, tool grants, the names (never the values) of its secrets, the credential it acts as per connector, the labels it may set on tasks and its commit identity.",
         "security": [
           {
             "bearerAuth": []
@@ -13987,7 +13987,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); a label grant naming a label the project does not have (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -14247,7 +14247,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); a label grant naming a label the project does not have (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -14502,7 +14502,7 @@
             }
           },
           "400": {
-            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
+            "description": "A body the schema refuses (`INVALID_BODY`); a harness that cannot run project agents (`PROJECT_AGENT_HARNESS_INVALID` — `data.harnesses` names the eligible set, the one `GET /api/v1/models` lists); a provider this organization has no credential for (`PROJECT_AGENT_PROVIDER_UNKNOWN`) or a model it cannot call, or that only a subscription bound to another harness serves (`PROJECT_AGENT_MODEL_INVALID`) — `GET /api/v1/models` lists the pairs; a tool grant outside the catalog (`PROJECT_AGENT_TOOL_UNKNOWN`), a skill the project cannot see (`PROJECT_AGENT_SKILL_UNKNOWN`), a connector the organization has not connected (`PROJECT_AGENT_CONNECTOR_UNKNOWN`), a secret name the organization has not stored (`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a pinned credential it does not hold for that connector (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names them); a label grant naming a label the project does not have (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -45960,7 +45960,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.56.0"
+          "example": "3.57.0"
         }
       },
       "Location": {
@@ -46233,6 +46233,7 @@
                   "PROJECT_AGENT_CREDENTIALS_FORBIDDEN",
                   "PROJECT_AGENT_CREDENTIAL_UNKNOWN",
                   "PROJECT_AGENT_HARNESS_INVALID",
+                  "PROJECT_AGENT_LABEL_UNKNOWN",
                   "PROJECT_AGENT_LIMIT",
                   "PROJECT_AGENT_MANAGED",
                   "PROJECT_AGENT_MODEL_INVALID",
@@ -46490,6 +46491,7 @@
                   "PROJECT_AGENT_CREDENTIALS_FORBIDDEN",
                   "PROJECT_AGENT_CREDENTIAL_UNKNOWN",
                   "PROJECT_AGENT_HARNESS_INVALID",
+                  "PROJECT_AGENT_LABEL_UNKNOWN",
                   "PROJECT_AGENT_LIMIT",
                   "PROJECT_AGENT_MANAGED",
                   "PROJECT_AGENT_MODEL_INVALID",
@@ -46738,6 +46740,7 @@
               "PROJECT_AGENT_CREDENTIALS_FORBIDDEN",
               "PROJECT_AGENT_CREDENTIAL_UNKNOWN",
               "PROJECT_AGENT_HARNESS_INVALID",
+              "PROJECT_AGENT_LABEL_UNKNOWN",
               "PROJECT_AGENT_LIMIT",
               "PROJECT_AGENT_MANAGED",
               "PROJECT_AGENT_MODEL_INVALID",
@@ -55883,6 +55886,7 @@
                 "task_comment",
                 "task_update_status",
                 "task_update_metadata",
+                "task_set_labels",
                 "task_review",
                 "task_delegate_review",
                 "task_start_agent",
@@ -55915,6 +55919,16 @@
             },
             "description": "Which of the organization’s credentials the agent acts as, per connector: a connector slug to the name of one of its credentials (Settings › Connectors lists them). Only a connector that opens a git host takes a pin (the MCP `list_connectors` tool names it as `gitHost`: GitHub, Forgejo). An equipped pinned connector hands the agent’s sandbox that credential’s git access instead of the default’s, and the agent’s connector calls from the sandbox act as it too; a pinned credential later deleted hands it nothing and fails those calls, never falling back to the default. A connector left out uses the default. A pin on a connector without a git host, or a name the organization does not hold for that connector, is refused (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names it), and only organization admins may change the pins (`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). Omitted on a `PUT` keeps the stored pins; `{}` clears them"
           },
+          "labelGrants": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            },
+            "description": "The labels the agent’s `task_set_labels` tool may add to and remove from existing tasks, by name; the tool sets no other label and never creates one. Each name must be a label of the agent’s own project, matched without regard to case and stored in the project’s spelling, sorted; any other is refused (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them). A granted name whose label was renamed or deleted since stays until it is removed. Granting labels does not grant the tool: list `task_set_labels` in `tools` too. Omitted on a `PUT` keeps the stored names; `[]` clears them"
+          },
           "gitIdentity": {
             "type": "object",
             "nullable": true,
@@ -55941,7 +55955,7 @@
         },
         "required": ["name", "harness", "model", "skills", "connectors"],
         "additionalProperties": false,
-        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution — one the managed lane runs unattended on the platform’s own credentials; `GET /api/v1/models` lists them under `harnesses`. Every equipment field is checked against what this organization can serve — the model pair against `GET /api/v1/models`, skills against `GET /api/v1/skills`, connectors against the connected set, tools against the grant catalog — and refused by name otherwise. Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays; omitted connectorCredentials and gitIdentity keep what is stored, since dropping a pin would widen the agent to the connector’s default (`{}` and `null` clear them). secrets contains organization secret NAMES, never values; only organization admins may change these grants or the credential pins, and a name the organization has not stored is refused (`PROJECT_AGENT_SECRET_UNKNOWN`, `PROJECT_AGENT_CREDENTIAL_UNKNOWN`), never pruned."
+        "description": "Full project-agent configuration. name, harness, model, skills and connectors are required. Harness must support project-agent execution — one the managed lane runs unattended on the platform’s own credentials; `GET /api/v1/models` lists them under `harnesses`. Every equipment field is checked against what this organization can serve — the model pair against `GET /api/v1/models`, skills against `GET /api/v1/skills`, connectors against the connected set, tools against the grant catalog — and refused by name otherwise. Omitted modelProvider/instructions reset to null; omitted tools/secrets reset to empty arrays; omitted connectorCredentials and gitIdentity keep what is stored, since dropping a pin would widen the agent to the connector’s default (`{}` and `null` clear them), and so does an omitted labelGrants (`[]` clears it). secrets contains organization secret NAMES, never values; only organization admins may change these grants or the credential pins, and a name the organization has not stored is refused (`PROJECT_AGENT_SECRET_UNKNOWN`, `PROJECT_AGENT_CREDENTIAL_UNKNOWN`), never pruned, as is a label grant naming a label the project does not have (`PROJECT_AGENT_LABEL_UNKNOWN`)."
       },
       "ProjectAgentUpdate": {
         "type": "object",
@@ -55995,6 +56009,7 @@
                 "task_comment",
                 "task_update_status",
                 "task_update_metadata",
+                "task_set_labels",
                 "task_review",
                 "task_delegate_review",
                 "task_start_agent",
@@ -56026,6 +56041,16 @@
               "maxLength": 100
             },
             "description": "Which of the organization’s credentials the agent acts as, per connector: a connector slug to the name of one of its credentials (Settings › Connectors lists them). Only a connector that opens a git host takes a pin (the MCP `list_connectors` tool names it as `gitHost`: GitHub, Forgejo). An equipped pinned connector hands the agent’s sandbox that credential’s git access instead of the default’s, and the agent’s connector calls from the sandbox act as it too; a pinned credential later deleted hands it nothing and fails those calls, never falling back to the default. A connector left out uses the default. A pin on a connector without a git host, or a name the organization does not hold for that connector, is refused (`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` names it), and only organization admins may change the pins (`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). Omitted on a `PUT` keeps the stored pins; `{}` clears them"
+          },
+          "labelGrants": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            },
+            "description": "The labels the agent’s `task_set_labels` tool may add to and remove from existing tasks, by name; the tool sets no other label and never creates one. Each name must be a label of the agent’s own project, matched without regard to case and stored in the project’s spelling, sorted; any other is refused (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them). A granted name whose label was renamed or deleted since stays until it is removed. Granting labels does not grant the tool: list `task_set_labels` in `tools` too. Omitted on a `PUT` keeps the stored names; `[]` clears them"
           },
           "gitIdentity": {
             "type": "object",
@@ -56077,6 +56102,7 @@
           "tools",
           "secrets",
           "connectorCredentials",
+          "labelGrants",
           "gitIdentity",
           "instructions",
           "managed",
@@ -56144,6 +56170,13 @@
               "type": "string"
             },
             "description": "The credential the agent acts as per connector, by name; a connector it does not name uses the organization’s default. Values are names, never secrets."
+          },
+          "labelGrants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The labels its `task_set_labels` tool may add to and remove from tasks, by name, in the project’s spelling and sorted without regard to case; `[]` for none. A name whose label was renamed or deleted since stays until it is removed."
           },
           "gitIdentity": {
             "type": "object",
