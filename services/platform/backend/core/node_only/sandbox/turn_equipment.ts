@@ -35,9 +35,9 @@ import {
 /**
  * Resolve a turn's secret + broker env. Best-effort throughout: a failure in
  * either source is logged and skipped, never thrown — a credential gap can
- * only downgrade a turn, not kill it. The git author identity (the session's
- * owner, else the agent's own) also resolves without a connector grant;
- * only a missing identity leaves an otherwise unequipped turn empty.
+ * only downgrade a turn, not kill it. The commit identity (the agent's own,
+ * else Tale's) needs no connector grant and survives a broker failure, so no
+ * turn goes without one [SBX-R42].
  */
 export async function resolveTurnEquipmentEnv(
   ctx: ActionCtx,
@@ -77,8 +77,8 @@ export async function resolveTurnEquipmentEnv(
   }
 
   // Only brokerable grants inject credentials. The same resolver supplies
-  // the session owner's non-secret commit identity with an empty grant list,
-  // including a turn equipped only with a repository-scoped SSH secret.
+  // the non-secret commit identity with an empty grant list, including a
+  // turn equipped only with a repository-scoped SSH secret.
   const brokerable = args.connectors.filter(isBrokerableGrant);
   try {
     const broker = await resolveSessionCredentialEnv(ctx, {
@@ -100,6 +100,7 @@ export async function resolveTurnEquipmentEnv(
       '[turn-equipment] connector broker failed (continuing):',
       err instanceof Error ? err.message : String(err),
     );
+    Object.assign(env, resolveSessionGitIdentityEnv(args.gitIdentity));
   }
 
   return env;
@@ -107,31 +108,13 @@ export async function resolveTurnEquipmentEnv(
 
 /**
  * The per-exec env of a CONFINED turn (TASK-R79): none of the agent's
- * secrets and no credential, pinned or default, but still the git author
- * identity its commits carry (the session owner's, else the agent's own
- * [SBX-R42]) — non-secret, so a confined run commits under the same name as
- * any other run of the agent instead of failing with "Author identity
- * unknown". Best-effort like {@link resolveTurnEquipmentEnv}.
+ * secrets and no credential, pinned or default, but still the commit identity
+ * (the agent's own, else Tale's [SBX-R42]) — non-secret, so a confined run
+ * commits under the same name as any other run of the agent instead of
+ * failing with "Author identity unknown".
  */
-export async function resolveConfinedTurnEnv(
-  ctx: ActionCtx,
-  args: {
-    sessionId: string;
-    gitIdentity?: ProjectAgentGitIdentity | null;
-  },
-): Promise<Record<string, string>> {
-  try {
-    return await resolveSessionGitIdentityEnv(ctx, {
-      sessionId: args.sessionId,
-      ...(args.gitIdentity !== undefined
-        ? { gitIdentity: args.gitIdentity }
-        : {}),
-    });
-  } catch (err) {
-    console.warn(
-      '[turn-equipment] commit identity resolution failed (continuing):',
-      err instanceof Error ? err.message : String(err),
-    );
-    return {};
-  }
+export function resolveConfinedTurnEnv(
+  gitIdentity?: ProjectAgentGitIdentity | null,
+): Record<string, string> {
+  return resolveSessionGitIdentityEnv(gitIdentity);
 }
