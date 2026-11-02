@@ -24,7 +24,12 @@ when the address changes (`useShownPathname`); every motion honours `prefers-red
 ## Shell & layout
 
 Three levels, the same in every section: the **rail** says where you are, a **section panel** says
-what is there, and the page shows the one thing you opened.
+what is there, and the page shows the one thing you opened. The rail and a section panel stand on
+one surface of their own, `bg-sidebar` (`--sidebar`, one step off the page in both themes), with no
+line between them; one hairline divides that column from the page, which keeps `bg-background`, and
+where no panel stands it runs along the rail. The boot shell's stand-ins paint the same surface, so
+the first paint does not flash. Row fills, focus rings, count badges (rimmed in `ring-sidebar`) and an
+organization's accent stay WCAG AA on it.
 
 - **Rail** — a permanent 52px column of Lucide icon targets holding the sections: **Home**,
   **Knowledge**, **Automations**, and at its foot **Settings**, notifications and the account. The

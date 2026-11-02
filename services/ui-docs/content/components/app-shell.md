@@ -65,6 +65,8 @@ Below `md`, the trail collapses toward an immediate-parent back control. `showIm
 
 `SubPanel` provides the bordered panel a section's navigation lives in, full height beside the page. Choose its width by the rows it holds: the default 224px for single-line rows, `wide` (256px) for longer labels, and `list` (280px) when each row carries a second line of context. It is hidden below `md`, so the host needs a mobile navigation path, such as a tab strip or a list screen of its own.
 
+The panel stands on the navigation's own surface, `bg-sidebar`, one step off the page. Set the app's icon rail on it as well and draw no line between the two: the panel's right border is the column's edge to the page. The panel marks itself `data-slot="sub-panel"`, so a row's floating overlay, such as a sticky band header or a hover action, can match the surface with `[[data-slot=sub-panel]_&]:bg-sidebar`.
+
 ```tsx
 import { SubPanel, SubPanelHeader } from '@tale/ui/sub-panel';
 import { SubPanelRowLink, SubPanelSectionHeader } from '@tale/ui/sub-panel-list';

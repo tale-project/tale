@@ -152,7 +152,9 @@ const NO_HELD = new Set<string>();
  * beside every Home route. Home needs no header naming it — the panel opens
  * straight on the view switcher, with **New chat** beside it. It folds to
  * nothing when hidden — the inner column keeps its width, so the fold is a
- * clip, not a reflow.
+ * clip, not a reflow. Folded, its right border stays: the shell drops its
+ * own line to the rail while a section panel stands, so that border is the
+ * sidebar's edge to the page, and it travels with the fold.
  */
 export function HomePanel({ organizationId }: { organizationId: string }) {
   const { t } = useT('home');
@@ -224,7 +226,7 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
       className={cn(
         'relative motion-reduce:transition-none',
         !resize.isResizing && '[transition:width_260ms_var(--ease-out-quint)]',
-        !open && 'w-0 border-r-0',
+        !open && 'w-0',
       )}
     >
       <div

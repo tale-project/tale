@@ -121,6 +121,15 @@ export function contrastRatio(a: string, b: string): number {
  * real page. `color.test.ts` holds these to the stylesheet.
  */
 export const THEME_BACKGROUND = { light: '#FCFCFC', dark: '#0A0A0A' } as const;
+/**
+ * The navigation's own surface each theme paints — the app's `--sidebar` in
+ * `packages/ui/src/globals.css` (`210 20% 98%` light, `0 0% 5.88%` dark),
+ * which the rail and every section panel stand on, one step off the page. The
+ * selected navigation row sets the accent as its text there, so the accent's
+ * text shade is judged on it too. `color.test.ts` holds these to the
+ * stylesheet.
+ */
+export const THEME_SIDEBAR = { light: '#F9FAFB', dark: '#0F0F0F' } as const;
 const LIGHTNESS_STEP = 2;
 /** The most steps a lightness walk can take from one end of the scale to
  * the other — the hard bound on every walk below, whatever the input. */
@@ -197,6 +206,8 @@ const MIN_BG_CONTRAST = 3;
  * text clears them with room to spare.
  */
 const ACCENT_TINT_ALPHA = 0.2;
+/** A selected navigation row's tint: `${accent}26`, 0x26 / 255 ≈ 15 %. */
+const SELECTED_TINT_ALPHA = 0x26 / 255;
 
 /** `top` laid over `bottom` at `alpha` — how the browser composites a
  * translucent fill onto an opaque one, channel by channel in sRGB. */
@@ -210,12 +221,12 @@ function compositeOver(top: string, bottom: string, alpha: number): string {
   return `#${channel(a.r, b.r)}${channel(a.g, b.g)}${channel(a.b, b.b)}`;
 }
 
-/** Whether `hex` reads as normal-size text on the page AND on its own tint. */
-function readsAsText(hex: string, background: string): boolean {
+/** Whether `hex` reads as normal-size text on `background` AND on its own
+ * tint laid over it at `alpha`. */
+function readsAsText(hex: string, background: string, alpha: number): boolean {
   return (
     contrastRatio(hex, background) >= MIN_FG_CONTRAST &&
-    contrastRatio(hex, compositeOver(hex, background, ACCENT_TINT_ALPHA)) >=
-      MIN_FG_CONTRAST
+    contrastRatio(hex, compositeOver(hex, background, alpha)) >= MIN_FG_CONTRAST
   );
 }
 
@@ -254,19 +265,23 @@ interface AccentPalette {
 /**
  * The accent as text: the pick's own hue and saturation, walked one
  * lightness point at a time toward the contrasting end (darker on light,
- * lighter on dark) until it reads at 4.5:1 on the page and on its own tint.
- * Black and white always do, so the walk always ends. The result is kept as
- * whole HSL parts, so the hex and the `--primary` HSL string name the same
- * color — a rounded HSL string of an arbitrary hex could land below a
- * threshold its hex cleared.
+ * lighter on dark) until it reads at 4.5:1 on the page and on its own tint,
+ * and on the sidebar plain and under a selected row's `…26` tint. Black and
+ * white always do, so the walk always ends. The result is kept as whole HSL
+ * parts, so the hex and the `--primary` HSL string name the same color — a
+ * rounded HSL string of an arbitrary hex could land below a threshold its hex
+ * cleared.
  *
- * "The page" is the theme's `--background` ({@link THEME_BACKGROUND}); the
- * guarantee is judged there and nowhere else. Measured over an 8,000-pick
- * grid (20 steps a channel), elsewhere it holds as follows:
+ * "The page" is the theme's `--background` ({@link THEME_BACKGROUND}), "the
+ * sidebar" its `--sidebar` ({@link THEME_SIDEBAR}); the guarantee is judged
+ * there and nowhere else. Measured over an 8,000-pick grid (20 steps a
+ * channel), elsewhere it holds as follows:
  *
  * - the light `--card` (`#FFFFFF`): everywhere, up to the `/20` hover;
- * - the dark `--sidebar` and the light `--muted`: plain and up to a selected
- *   row's `…26` tint, but ≈4.3:1 and ≈4.2:1 under a `/20` hover;
+ * - the sidebar beneath a `/20` tint, which none of its rows lays: ≈4.4:1
+ *   light and ≈4.3:1 dark;
+ * - the light `--muted`: plain and up to a selected row's `…26` tint, but
+ *   ≈4.2:1 under a `/20` hover;
  * - the dark `--card` (`#171717`, lighter than the page): plain only — a
  *   hair under it (4.498:1) beneath a `/10` tint, ≈4.2:1 beneath `…26` and
  *   ≈3.9:1 beneath `/20`;
@@ -287,11 +302,20 @@ function deriveAccentText(
 ): { hex: string; hsl: string } {
   if (!isHexColor(hex)) return { hex, hsl: hexToHsl(hex) };
   const background = THEME_BACKGROUND[theme];
+  const sidebar = THEME_SIDEBAR[theme];
   const direction = theme === 'dark' ? 1 : -1;
   const { h, s, l } = hexToHslParts(hex);
   let lightness = l;
   for (let step = 0; step <= 100; step++) {
-    if (readsAsText(hslToHex(h, s, lightness), background)) break;
+    const candidate = hslToHex(h, s, lightness);
+    // The densest tint under the accent's text: a citation's `/20` hover on
+    // the page, a selected row's `…26` on the sidebar.
+    if (
+      readsAsText(candidate, background, ACCENT_TINT_ALPHA) &&
+      readsAsText(candidate, sidebar, SELECTED_TINT_ALPHA)
+    ) {
+      break;
+    }
     const next = Math.min(100, Math.max(0, lightness + direction));
     if (next === lightness) break;
     lightness = next;

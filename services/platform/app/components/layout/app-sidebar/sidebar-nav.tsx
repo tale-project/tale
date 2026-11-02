@@ -116,7 +116,7 @@ export function SidebarNavItem({
         {showBadge && (
           <CountBadge
             count={item.badge ?? 0}
-            className="absolute -top-1.5 -right-1.5"
+            className="ring-sidebar absolute -top-1.5 -right-1.5"
           />
         )}
       </span>

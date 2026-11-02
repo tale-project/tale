@@ -121,14 +121,20 @@ describe('BrandingPreview', () => {
     expect(tile.querySelector('svg')).toHaveStyle({ color: text });
   });
 
-  it('sets the rail on the page background, as the live rail is', () => {
-    // The live rail (`AppSidebar`) is `bg-background`, the one surface the
-    // accent's text shade is guaranteed on; the dark `bg-sidebar` is lighter.
+  it('sets the rail and the Home panel on the sidebar surface, as the live ones are', () => {
+    // The live rail (`AppSidebar`) and every section panel (`SubPanel`)
+    // share `bg-sidebar`, apart from the page, with no line between them;
+    // the accent's text shade is judged on it (`THEME_SIDEBAR`).
     render(<BrandingPreview data={{ accentColor: '#0066CC' }} />);
 
     const rail = screen.getByTestId('preview-rail');
-    expect(rail).toHaveClass('bg-background');
-    expect(rail).not.toHaveClass('bg-sidebar');
+    expect(rail).toHaveClass('bg-sidebar');
+    expect(rail).not.toHaveClass('bg-background');
+    expect(rail).not.toHaveClass('border-r');
+    const panel = screen.getByTestId('preview-home-panel');
+    expect(panel).toHaveClass('bg-sidebar');
+    // Its border is the sidebar's edge to the page.
+    expect(panel).toHaveClass('border-r');
   });
 
   it('derives the dark theme from the stored accent, as the live app does', () => {

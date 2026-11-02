@@ -8,6 +8,8 @@ import { page } from 'vitest/browser';
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import { THEME_BACKGROUND, THEME_SIDEBAR } from '@/lib/utils/color';
+import { painted } from '@/tests/utils/paint';
 import { render, screen } from '@/tests/utils/render';
 
 import { Route } from './$id';
@@ -16,11 +18,13 @@ import '@/app/globals.css';
 import '@/app/locals.css';
 
 /** What the shell reads: the page it is on, and what each nudge's read
- * says. None of the nudges shows until a case says so. */
+ * says. None of the nudges shows until a case says so, nor the Home panel's
+ * frame. */
 const h = vi.hoisted(() => ({
   pathname: '/dashboard/org-1/documents',
   twoFactor: undefined as unknown,
   embeddingConfigured: true,
+  homePanel: false,
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -96,9 +100,19 @@ vi.mock('@/app/components/user-button', () => ({
 vi.mock('@/app/features/changelog/components/changelog-toast-trigger', () => ({
   ChangelogToastTrigger: () => null,
 }));
-vi.mock('@/app/features/home/components/home-panel', () => ({
-  HomePanel: () => null,
-}));
+// The Home panel's frame alone, where a case asks for it: the shell's line
+// to the rail answers to a section panel standing in the page.
+vi.mock('@/app/features/home/components/home-panel', async () => {
+  const { SubPanel } = await import('@tale/ui/sub-panel');
+  return {
+    HomePanel: () =>
+      h.homePanel ? (
+        <SubPanel as="nav" width="list" ariaLabel="Home">
+          <p>Chats</p>
+        </SubPanel>
+      ) : null,
+  };
+});
 
 // The real nudges, each shown the way its own read says so.
 vi.mock('@/app/context/account-bootstrap-context', () => ({
@@ -120,10 +134,15 @@ const DashboardLayout = (Route as unknown as { component: () => ReactNode })
 afterEach(() => {
   cleanup();
   document.documentElement.style.removeProperty('--safe-top');
-  document.documentElement.classList.remove('boot-thread-page');
+  document.documentElement.classList.remove(
+    'boot-thread-page',
+    'boot-home-panel-open',
+    'dark',
+  );
   h.pathname = '/dashboard/org-1/documents';
   h.twoFactor = undefined;
   h.embeddingConfigured = true;
+  h.homePanel = false;
 });
 
 /** The notch of an installed iPhone app, as `env(safe-area-inset-top)`. */
@@ -487,3 +506,66 @@ describe('the boot frame under the notch', () => {
     expect(box(screen.getByRole('main')).top).toBe(NOTCH);
   });
 });
+
+/** What `element` paints, as `#rrggbb`. */
+const surface = (element: Element) =>
+  painted(getComputedStyle(element).backgroundColor);
+
+// The rail and a section panel are one column on the sidebar's own surface,
+// the page keeps its own (#5011). The shell's line to the rail gives way
+// while a panel stands, whose right border is then the edge to the page — in
+// the boot frame, the first paint, as in the resolved shell.
+describe.each(['light', 'dark'] as const)(
+  'the sidebar surface (%s)',
+  (theme) => {
+    it('paints the boot rail and the Home stand-in alike, with no line between them', async () => {
+      await page.viewport(1280, 800);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      document.documentElement.classList.add('boot-home-panel-open');
+      renderApp(<DashboardShellFrame />);
+      const main = screen.getByRole('main');
+      // The rail's stand-in stands right before the page, the Home panel's
+      // first in the page's row.
+      const rail = main.previousElementSibling;
+      const panel = main.firstElementChild?.firstElementChild;
+      if (!rail || !panel) throw new Error('no rail or Home panel stand-in');
+      expect(surface(rail)).toBe(THEME_SIDEBAR[theme].toLowerCase());
+      expect(surface(panel)).toBe(surface(rail));
+      expect(surface(main)).toBe(THEME_BACKGROUND[theme].toLowerCase());
+      expect(box(panel).left).toBe(box(rail).right);
+      expect(getComputedStyle(main).borderLeftWidth).toBe('0px');
+      expect(getComputedStyle(panel).borderRightWidth).toBe('1px');
+    });
+
+    it('keeps the line between the boot rail and the page where no Home panel shows', async () => {
+      await page.viewport(1280, 800);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      renderApp(<DashboardShellFrame />);
+      const main = screen.getByRole('main');
+      const rail = main.previousElementSibling;
+      const panel = main.firstElementChild?.firstElementChild;
+      if (!rail || !panel) throw new Error('no rail or Home panel stand-in');
+      expect(getComputedStyle(panel).display).toBe('none');
+      expect(surface(rail)).toBe(THEME_SIDEBAR[theme].toLowerCase());
+      expect(getComputedStyle(main).borderLeftWidth).toBe('1px');
+    });
+
+    it('drops its line to the rail while a section panel stands, the page on its own surface', async () => {
+      await page.viewport(1280, 800);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      await renderShell();
+      expect(surface(mainRegion())).toBe(THEME_BACKGROUND[theme].toLowerCase());
+      expect(getComputedStyle(mainRegion()).borderLeftWidth).toBe('1px');
+      cleanup();
+
+      h.pathname = CHAT;
+      h.homePanel = true;
+      await renderShell();
+      const panel = screen.getByRole('navigation', { name: 'Home' });
+      expect(surface(panel)).toBe(THEME_SIDEBAR[theme].toLowerCase());
+      expect(surface(mainRegion())).toBe(THEME_BACKGROUND[theme].toLowerCase());
+      expect(getComputedStyle(mainRegion()).borderLeftWidth).toBe('0px');
+      expect(getComputedStyle(panel).borderRightWidth).toBe('1px');
+    });
+  },
+);
