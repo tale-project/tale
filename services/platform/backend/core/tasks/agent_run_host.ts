@@ -1706,12 +1706,7 @@ export async function startTaskAgentTurnImpl(
       // default [TASK-R79] — only the commit identity, which is no secret
       // [SBX-R42].
       const extraEnv = confined
-        ? await resolveConfinedTurnEnv(ctx, {
-            sessionId: args.sessionId,
-            ...(args.gitIdentity !== undefined
-              ? { gitIdentity: args.gitIdentity }
-              : {}),
-          })
+        ? resolveConfinedTurnEnv(args.gitIdentity)
         : await resolveTurnEquipmentEnv(ctx, {
             organizationId: args.organizationId,
             sessionId: args.sessionId,
@@ -3034,12 +3029,7 @@ export async function steerTaskAgentTurnImpl(
     // who steered it, and a run in a member's workspace stays confined,
     // keeping only its commit identity.
     const extraEnv = confined
-      ? await resolveConfinedTurnEnv(ctx, {
-          sessionId: args.sessionId,
-          ...(args.gitIdentity !== undefined
-            ? { gitIdentity: args.gitIdentity }
-            : {}),
-        })
+      ? resolveConfinedTurnEnv(args.gitIdentity)
       : await resolveTurnEquipmentEnv(ctx, {
           organizationId: args.organizationId,
           sessionId: args.sessionId,
