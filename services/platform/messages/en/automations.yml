@@ -663,6 +663,8 @@ editor:
     readBy: Read by
     readByOutput: The automation output
     notRead: Nothing reads its output.
+    scenarios: Scenarios
+    scenariosHint: A test can pick one of these for this node in its Setup. The node then answers as described instead of calling.
     checking: Updating…
     unavailable: "Couldn't work out the shapes. They appear after the next successful check."
     origin:
@@ -1301,6 +1303,9 @@ tests:
     failureDefault: simulated failure
     failuresAdd: Simulate a failure
     scenarios: Scenarios
+    scenariosHint: The node answers as in a scenario its action ships, instead of calling.
+    scenariosAdd: Pick a scenario for a node
+    scenarioFor: 'Scenario for {node}'
     expect: Expectations
     outputModeLabel: How the output is checked
     outputMode:
@@ -1373,6 +1378,18 @@ tests:
     refused: "{count, plural, one {The test couldn't run: the automation has # problem to fix first.} other {The test couldn't run: the automation has # problems to fix first.}}"
     timeout: '{seconds, plural, one {The test took longer than # second and was stopped.} other {The test took longer than # seconds and was stopped.}}'
     unknown: "The test didn't pass."
+# A case a connector action ships, which a test picks for a node
+# (`scenarios: {<node>: <name>}`): the test's Setup form and the node's
+# Shape tab show it.
+connectorScenario:
+  kind:
+    success: Success
+    empty: Empty
+    error: Error
+    refusal: Refusal
+    duplicate: Duplicate
+  summary: '{kind}: {description}'
+  when: 'Only for calls whose input has {members}. Any other call gets the usual simulated answer.'
 condition:
   group: '({parts})'
   gt: '{a} is greater than {b}'
