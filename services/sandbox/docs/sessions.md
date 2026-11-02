@@ -614,7 +614,9 @@ its planned working set (agent 512 MiB, with Docker inside 1.5 GiB, crawler
 render 512 MiB), and each session started in the last 90 seconds at the part
 of it a linear decay leaves (its turn is still growing into it while
 MemAvailable shows only the idle footprint), the host must keep
-`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it
+`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB and at least the
+`SANDBOX_RESERVED_MEMORY` the database and the application tier reserve).
+Short of it
 by the host's own reading — its available memory, less this create's working
 set, under the reserve — the create reclaims a released idle session like
 one at capacity and decides again on a reading taken after the reclaim. Short
@@ -656,7 +658,9 @@ the host's memory: at boot, else on a later sweep tick
 (the limit of an agent session with Docker inside wherever a workload may run
 Docker) against the host's total memory less the reserve, which is
 `SANDBOX_MIN_FREE_MEMORY` or its default on both paths. When they need more,
-`sessionMemoryWarning` words one `console.warn`. With an explicit
+`sessionMemoryWarning` words one `console.warn`, which names the setting the
+reserve came from: `SANDBOX_RESERVED_MEMORY` where the stack's reservations
+outweigh the default, else `SANDBOX_MIN_FREE_MEMORY`. With an explicit
 `SANDBOX_MAX_SESSIONS`, it says memory admission is off, so this is the only
 memory check left, and names the settings to lower or to unset. With a sized
 capacity, which plans on a typical session rather than its limit, it says a

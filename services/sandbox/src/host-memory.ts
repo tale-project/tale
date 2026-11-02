@@ -61,14 +61,30 @@ export interface HostMemory {
   availableBytes: number;
 }
 
+/** The settings the reserve is made of. Every caller hands over both, so none
+ * can drop the one it did not think of. */
+export type MemoryReserveSettings = Pick<
+  SpawnerConfig['session'],
+  'minFreeMemoryBytes' | 'reservedMemoryBytes'
+>;
+
 /** The memory admission always leaves free: the operator's, else a tenth of
  * the host and at least 1 GiB (the platform, its databases and the page cache
- * live on the same machine). */
+ * live on the same machine), and at least what the database and the
+ * application tier reserve, so admission never hands sessions the memory that
+ * reclaim spares for them. */
 export function memoryReserveBytes(
   totalBytes: number,
-  configuredBytes?: number,
+  settings: MemoryReserveSettings,
 ): number {
-  return configuredBytes ?? Math.max(GIB, Math.floor(totalBytes / 10));
+  return (
+    settings.minFreeMemoryBytes ??
+    Math.max(
+      GIB,
+      Math.floor(totalBytes / 10),
+      settings.reservedMemoryBytes ?? 0,
+    )
+  );
 }
 
 /** The session capacity a host of this size gets when the operator set none:
@@ -149,21 +165,24 @@ function gib(bytes: number): string {
 /** The warning a session capacity gets when that many agent sessions, each
  * at its memory limit, would need more than the host has for them after its
  * reserve; null where they fit. `explicit`: SANDBOX_MAX_SESSIONS set the
- * capacity, which turns memory admission off. */
+ * capacity, which turns memory admission off. `reserveSetting` names the
+ * setting the reserve came from. */
 function sessionMemoryWarning(
   figures: {
     sessions: number;
     sessionBytes: number;
     totalBytes: number;
     reserveBytes: number;
+    reserveSetting: 'SANDBOX_MIN_FREE_MEMORY' | 'SANDBOX_RESERVED_MEMORY';
   },
   explicit: boolean,
 ): string | null {
-  const { sessions, sessionBytes, totalBytes, reserveBytes } = figures;
+  const { sessions, sessionBytes, totalBytes, reserveBytes, reserveSetting } =
+    figures;
   const needed = sessions * sessionBytes;
   const left = Math.max(0, totalBytes - reserveBytes);
   if (needed <= left) return null;
-  const sizing = `${sessions} session${sessions === 1 ? '' : 's'} (${explicit ? 'SANDBOX_MAX_SESSIONS' : 'sized from the host'}) of up to ${gib(sessionBytes)} each (SANDBOX_AGENT_MEMORY) can use ${gib(needed)}, more than the ${gib(left)} the host has for them: ${gib(totalBytes)} less its ${gib(reserveBytes)} reserve (SANDBOX_MIN_FREE_MEMORY).`;
+  const sizing = `${sessions} session${sessions === 1 ? '' : 's'} (${explicit ? 'SANDBOX_MAX_SESSIONS' : 'sized from the host'}) of up to ${gib(sessionBytes)} each (SANDBOX_AGENT_MEMORY) can use ${gib(needed)}, more than the ${gib(left)} the host has for them: ${gib(totalBytes)} less its ${gib(reserveBytes)} reserve (${reserveSetting}).`;
   return explicit
     ? `[sandbox] ${sizing} With SANDBOX_MAX_SESSIONS set, memory admission is off, so sessions working at once can run the host out of memory: lower SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY, or unset SANDBOX_MAX_SESSIONS to size the capacity from the host and hold starts while its memory is short.`
     : `[sandbox] ${sizing} A start waits while the host's memory is short, but running sessions can still grow to their limits together: set SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY lower if many work at once.`;
@@ -181,10 +200,14 @@ export function hostSessionCapacity(
   totalBytes: number,
   cpus: number | null,
 ): { maxSessions: number; sized: boolean; warning: string | null } {
-  const reserveBytes = memoryReserveBytes(
-    totalBytes,
-    cfg.session.minFreeMemoryBytes,
-  );
+  const reserveBytes = memoryReserveBytes(totalBytes, cfg.session);
+  // What the database and the application tier reserve sets the reserve
+  // where it outweighs the default one, unless the operator set their own.
+  const reserveSetting =
+    cfg.session.minFreeMemoryBytes === undefined &&
+    reserveBytes > memoryReserveBytes(totalBytes, {})
+      ? 'SANDBOX_RESERVED_MEMORY'
+      : 'SANDBOX_MIN_FREE_MEMORY';
   const sized = cfg.session.autoMaxSessions === true;
   const maxSessions = sized
     ? autoSessionCapacity(
@@ -200,7 +223,13 @@ export function hostSessionCapacity(
     sessionBytes === null || cfg.deviceConfigPath !== null
       ? null
       : sessionMemoryWarning(
-          { sessions: maxSessions, sessionBytes, totalBytes, reserveBytes },
+          {
+            sessions: maxSessions,
+            sessionBytes,
+            totalBytes,
+            reserveBytes,
+            reserveSetting,
+          },
           !sized,
         );
   return { maxSessions, sized, warning };

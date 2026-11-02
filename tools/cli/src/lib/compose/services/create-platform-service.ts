@@ -1,6 +1,7 @@
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { memoryReservation } from './memory-env';
 import { platformLabels } from './traefik-labels';
 
 /**
@@ -36,6 +37,9 @@ export function createPlatformService(
     // mechanism the sandbox tier relies on (create-sandbox-service.ts). Keep
     // this >= the SHUTDOWN_* budget; bump it if those defaults grow.
     stop_grace_period: '45s',
+    // Spared by reclaim while sandbox sessions press on host memory, per
+    // replica, where the engine runs cgroup v2. Mirrored in compose.yml.
+    ...memoryReservation('platform', config),
     healthcheck: {
       test: [
         'CMD-SHELL',

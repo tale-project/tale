@@ -7,6 +7,7 @@ import {
   checkCompose,
   checkDockerEngine,
   collectSetupChecks,
+  probeCgroupVersion,
 } from './setup-checks';
 
 /** `docker version --format '{{json .Server}}'` as a Docker Engine answers. */
@@ -375,6 +376,24 @@ describe('the Docker Engine floor', () => {
       expect(
         await assertDockerEngineSupported(dependencies({ server }).probe),
       ).toBeUndefined();
+    }
+  });
+});
+
+describe("the engine's cgroup version", () => {
+  test('reads what docker info reports, and null for anything else', async () => {
+    const asked: string[][] = [];
+    const answer = (stdout: string | null) => async (args: string[]) => {
+      asked.push(args);
+      return stdout;
+    };
+    expect(await probeCgroupVersion(answer('2\n'))).toBe(2);
+    expect(await probeCgroupVersion(answer('1\n'))).toBe(1);
+    expect(asked[0]).toEqual(['info', '--format', '{{.CgroupVersion}}']);
+    // An engine that reports none (Podman's compatibility API, an old
+    // Docker), something else, or a daemon that does not answer.
+    for (const stdout of ['', '\n', '<no value>', '3', null]) {
+      expect(await probeCgroupVersion(answer(stdout))).toBeNull();
     }
   });
 });

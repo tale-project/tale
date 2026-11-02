@@ -62,6 +62,9 @@ export interface ComposeService {
   cap_drop?: string[];
   sysctls?: Record<string, string>;
   mem_limit?: string;
+  // cgroup v2 `memory.low`: the memory reclaim spares the service while host
+  // memory runs short. Emitted on cgroup v2 engines only — see memory-env.ts.
+  mem_reservation?: string;
   pids_limit?: number;
   ulimits?: Record<string, number | { soft: number; hard: number }>;
   security_opt?: string[];
@@ -87,6 +90,12 @@ export interface ServiceConfig {
   registry: string;
   /** Exact platform digest admitted by the automation protocol fence. */
   platformImage?: string;
+  /**
+   * The cgroup version the Docker engine reports (probeCgroupVersion), null
+   * when it reports none. Only 2 lets the generators emit `mem_reservation`
+   * (memory-env.ts); left out, the engine counts as unread.
+   */
+  cgroupVersion?: 1 | 2 | null;
 }
 
 /**

@@ -534,11 +534,12 @@ export class DeviceHub {
     )
       return slots;
     // Devices run non-DinD sessions. This is a placement hint from the last
-    // report; the device's current local admission remains authoritative.
+    // report, at the default reserve; the device's current local admission,
+    // with its own settings, remains authoritative.
     const available =
       memory.totalBytes -
       memory.usedBytes -
-      memoryReserveBytes(memory.totalBytes);
+      memoryReserveBytes(memory.totalBytes, {});
     const memorySlots = Math.floor(
       available / sessionWorkingSetBytes('agent', false),
     );
