@@ -14,6 +14,11 @@ import type {
 } from '@/lib/shared/schemas/automation-issues';
 
 import { nodeTitle } from '../lib/node-face';
+import {
+  ScenarioKindBadge,
+  scenarioWhenText,
+  type ConnectorScenarioSummary,
+} from './connector-scenario';
 
 /** Where the check stands: shapes on screen may be from the last answer. */
 export type ShapeStatus = 'pending' | 'checking' | 'ready' | 'failed';
@@ -106,6 +111,9 @@ export interface NodeShapePanelProps {
   readers: readonly string[];
   /** The automation's output reads this node. */
   readByOutput: boolean;
+  /** The scenarios the node's connector action ships, which a test can
+   * pick for it; none without. */
+  scenarios?: readonly ConnectorScenarioSummary[];
   /** Selects a node, or End, on the canvas. */
   onSelect?: (id: string) => void;
   /** End's id on the canvas. */
@@ -116,7 +124,8 @@ export interface NodeShapePanelProps {
  * The Shape tab: what a node receives (each item too, under For each),
  * what it returns and where that shape comes from, and which nodes read
  * it — the draft check's inferred shapes, shown as fields with their
- * kinds and, behind a disclosure, as TypeScript.
+ * kinds and, behind a disclosure, as TypeScript — and the scenarios its
+ * connector action ships for tests.
  */
 export function NodeShapePanel({
   node,
@@ -125,6 +134,7 @@ export function NodeShapePanel({
   words,
   readers,
   readByOutput,
+  scenarios = [],
   onSelect,
   endId,
 }: NodeShapePanelProps) {
@@ -204,6 +214,49 @@ export function NodeShapePanel({
           </ul>
         )}
       </section>
+      {scenarios.length > 0 && <ScenarioList scenarios={scenarios} />}
     </div>
+  );
+}
+
+/** The scenarios an action ships: each name with its kind, what it is,
+ * and which calls it answers. */
+function ScenarioList({
+  scenarios,
+}: {
+  scenarios: readonly ConnectorScenarioSummary[];
+}) {
+  const { t } = useT('automations');
+  const titleId = useId();
+  return (
+    <section aria-labelledby={titleId} className="flex flex-col gap-1.5">
+      <h4 id={titleId} className="text-foreground text-sm font-medium">
+        {t('editor.shape.scenarios')}
+      </h4>
+      <p className="text-muted-foreground text-xs">
+        {t('editor.shape.scenariosHint')}
+      </p>
+      <ul className="flex flex-col gap-2">
+        {scenarios.map((scenario) => {
+          const when = scenarioWhenText(scenario, t);
+          return (
+            <li key={scenario.name} className="flex flex-col gap-0.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <code className="text-foreground font-mono text-xs">
+                  {scenario.name}
+                </code>
+                <ScenarioKindBadge kind={scenario.kind} />
+              </div>
+              <p className="text-muted-foreground text-xs">
+                {scenario.description}
+              </p>
+              {when !== undefined && (
+                <p className="text-muted-foreground text-xs">{when}</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
