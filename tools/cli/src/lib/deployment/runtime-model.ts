@@ -41,6 +41,13 @@ export const RUNTIME_SERVICES = [
 ] as const;
 export const TALE_REGISTRY = 'ghcr.io/tale-project/tale';
 export const RUNTIME_FILES = ['compose.yml', 'Caddyfile.production'] as const;
+/**
+ * The file whose presence tells a revision runs its edge on Traefik, routed by
+ * the labels its services declare. The managed runtime renders the edge's
+ * Caddyfile, so it refuses such a revision until it learns the Traefik edge
+ * (tale-project/tale#5282).
+ */
+export const TRAEFIK_EDGE_MARKER = 'services/proxy/render/config.js';
 export const hash = (bytes: string | Buffer): string =>
   createHash('sha256').update(bytes).digest('hex');
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
