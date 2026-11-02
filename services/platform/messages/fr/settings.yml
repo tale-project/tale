@@ -259,9 +259,44 @@ usage:
       agentFiles: Fichiers créés par des agents
       other: Autres fichiers
     viewDocuments: Voir mes documents dans Connaissances
+    viewFiles: Voir les fichiers
     chats:
       label: Chats contenant tes fichiers
       more: '{count, plural, one {et # autre chat} other {et # autres chats}}'
+    files:
+      title: Fichiers stockés
+      description: Tous les fichiers que tu as téléversés et qui comptent dans
+        ta limite de stockage, les plus volumineux en premier. Un fichier dans
+        la corbeille continue de compter jusqu'à sa suppression définitive.
+      back: Retour à Utilisation
+      caption: Fichiers qui comptent dans ta limite de stockage
+      entityLabel: fichiers
+      entityLabelOne: fichier
+      columns:
+        name: Nom
+        kind: Type
+        place: Emplacement
+        size: Taille
+        uploaded: Téléversé le
+      kind:
+        documents: Document
+        chatAttachments: Pièce jointe de chat
+        agentFiles: Créé par un agent
+        other: Autre fichier
+      place:
+        knowledge: Connaissances
+        hiddenProject: Un projet que tu ne peux pas ouvrir
+        hiddenChat: Un chat que tu ne peux pas ouvrir
+        none: Ni dans Connaissances, ni dans un projet, ni dans un chat
+      archived: Archivé
+      inTrash: Dans la corbeille
+      open: Ouvrir
+      delete: Supprimer
+      empty:
+        title: Aucun fichier ne compte dans ta limite de stockage
+        description: Les fichiers que tu téléverses dans les documents et les
+          chats sont listés ici.
+      loadFailed: Impossible de charger tes fichiers.
 organization:
   title: Nom de l'organisation
   loadFailed: Les informations de l'organisation n'ont pas pu être chargées.

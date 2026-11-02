@@ -72,6 +72,9 @@ notificationPreferences:
 usage:
   title: Nutzung
   description: Wie viel du von den Limits verbraucht hast, die für dich gelten.
+usageFiles:
+  title: Gespeicherte Dateien
+  description: Die Dateien, die auf dein Speicherlimit angerechnet werden.
 organization:
   title: Organisation
   description: deine Organisationseinstellungen verwalten.

@@ -1,12 +1,24 @@
-import React from 'react';
+import { AppShell } from '@tale/ui/app-shell';
+import React, { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import {
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
-import { SettingsRail } from './settings-rail';
+import { SettingsRail, useSettingsPage } from './settings-rail';
 
 const ability = vi.hoisted(() => ({ canEverything: true }));
+
+// The page the router shows, which the rail marks current.
+const DEFAULT_PATHNAME = '/dashboard/org-1/settings/governance/policies-limits';
+const route = vi.hoisted(() => ({ pathname: '' }));
 
 vi.mock('@tanstack/react-router', () => ({
   // A row is a link over the rail's own anchor: the anchor gets the href and
@@ -18,7 +30,7 @@ vi.mock('@tanstack/react-router', () => ({
     }: { to: string } & Record<string, unknown>) {
       return <Anchor href={to} {...rest} />;
     },
-  useRouterState: () => '/dashboard/org-1/settings/governance/policies-limits',
+  useRouterState: () => route.pathname,
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -54,6 +66,7 @@ vi.mock(
 
 describe('SettingsRail', () => {
   beforeEach(() => {
+    route.pathname = DEFAULT_PATHNAME;
     ability.canEverything = true;
     apiAccess.apiKeys = false;
     apiAccess.modelApi = false;
@@ -206,5 +219,51 @@ describe('SettingsRail', () => {
       '/dashboard/org-1/settings/api/rest',
       '/dashboard/org-1/settings/api/models',
     ]);
+  });
+
+  it('keeps Usage current on its Storage files page', () => {
+    route.pathname = '/dashboard/org-1/settings/usage/files';
+
+    render(<SettingsRail organizationId="org-1" />);
+
+    const current = within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page');
+    expect(
+      current.map((link) => [link.textContent, link.getAttribute('href')]),
+    ).toEqual([['Usage', '/dashboard/org-1/settings/usage']]);
+  });
+});
+
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <AppShell i18n={i18n} locale={{ mode: 'client' }}>
+      {children}
+    </AppShell>
+  );
+}
+
+describe('useSettingsPage', () => {
+  it.each([
+    [
+      '/dashboard/org-1/settings/usage/files',
+      {
+        key: '/dashboard/org-1/settings/usage/files',
+        title: 'Usage · Storage files',
+        leaf: 'Storage files',
+      },
+    ],
+    [
+      '/dashboard/org-1/settings/usage',
+      { key: '/dashboard/org-1/settings/usage', title: 'Usage', leaf: 'Usage' },
+    ],
+  ])('names %s for the page header', async (pathname, page) => {
+    const { result } = renderHook(() => useSettingsPage('org-1', pathname), {
+      wrapper: Shell,
+    });
+
+    await waitFor(() => {
+      expect(result.current).toEqual(page);
+    });
   });
 });

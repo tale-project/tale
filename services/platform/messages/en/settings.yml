@@ -248,9 +248,43 @@ usage:
       agentFiles: Files made by agents
       other: Other files
     viewDocuments: View my documents in Knowledge
+    viewFiles: View files
     chats:
       label: Chats that hold your files
       more: '{count, plural, one {and # more chat} other {and # more chats}}'
+    files:
+      title: Storage files
+      description: Every file you uploaded that counts toward your storage
+        limit, largest first. A file in Trash keeps counting until it is
+        deleted for good.
+      back: Back to Usage
+      caption: Files that count toward your storage limit
+      entityLabel: files
+      entityLabelOne: file
+      columns:
+        name: Name
+        kind: Kind
+        place: Location
+        size: Size
+        uploaded: Uploaded
+      kind:
+        documents: Document
+        chatAttachments: Chat attachment
+        agentFiles: Made by an agent
+        other: Other file
+      place:
+        knowledge: Knowledge
+        hiddenProject: A project you can't open
+        hiddenChat: A chat you can't open
+        none: Not in Knowledge, a project or a chat
+      archived: Archived
+      inTrash: In Trash
+      open: Open
+      delete: Delete
+      empty:
+        title: No files count toward your storage limit
+        description: Files you upload to documents and chats are listed here.
+      loadFailed: Couldn't load your files.
 organization:
   title: Organization name
   detailsTitle: Organization details

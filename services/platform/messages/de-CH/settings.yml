@@ -50,3 +50,11 @@ teams:
   membershipRefreshConflict: Die Teammitglieder wurden in einer anderen Sitzung geändert. Schliesse diesen Dialog und öffne ihn erneut, um die aktuelle Liste zu prüfen.
   deleteImpact:
     competenceGrants: '{count, plural, one {# Recht, das diesem Team zugewiesen ist, wird widerrufen: Seine Mitglieder verlieren es, ausser sie haben es selbst.} other {# Rechte, die diesem Team zugewiesen sind, werden widerrufen: Seine Mitglieder verlieren sie, ausser sie haben sie selbst.}}'
+usage:
+  storage:
+    files:
+      description: Alle von dir hochgeladenen Dateien, die auf dein
+        Speicherlimit angerechnet werden, die grössten zuerst. Eine Datei im
+        Papierkorb zählt weiter, bis sie endgültig gelöscht ist.
+      columns:
+        size: Grösse

@@ -302,6 +302,16 @@ describe('UsageSettings', () => {
     expect(within(storage).getByText('and 1 more chat')).toBeInTheDocument();
   });
 
+  it('links the metered storage to the list of the files behind it', () => {
+    state.storage.data = metered(1.5 * GB, 10 * GB);
+
+    render(<UsageSettings organizationId="org-1" />);
+
+    expect(
+      within(section('Storage')).getByRole('link', { name: 'View files' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/settings/usage/files');
+  });
+
   it('names other files only when some count', () => {
     state.storage.data = metered(GB, 10 * GB);
     const { unmount } = render(<UsageSettings organizationId="org-1" />);

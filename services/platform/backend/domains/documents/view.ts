@@ -6,7 +6,7 @@ import {
   type SyncHealthIndex,
   type SyncHealthView,
 } from '../onedrive/sync-health.ts';
-import type { DocumentRow } from './service.ts';
+import { type DocumentRow, documentSourceMode } from './service.ts';
 
 /**
  * The 0.4 `DocumentItemResponse` view — what every hub/project listing and
@@ -195,13 +195,7 @@ export async function toDocumentItems(
       const value = metadata[key];
       return typeof value === 'number' ? value : undefined;
     };
-    const rawMode = metaString('sourceMode');
-    const sourceMode: 'auto' | 'manual' =
-      rawMode === 'auto' || rawMode === 'manual'
-        ? rawMode
-        : rawMode === 'sync'
-          ? 'auto'
-          : 'manual';
+    const sourceMode = documentSourceMode(metaString('sourceMode'));
     const rawType = metaString('type');
     const rag = row.fileRef !== null ? ragByRef.get(row.fileRef) : undefined;
     const lastModified =

@@ -72,6 +72,9 @@ notificationPreferences:
 usage:
   title: Utilisation
   description: Ce que tu as utilisé des limites qui s'appliquent à toi.
+usageFiles:
+  title: Fichiers stockés
+  description: Les fichiers qui comptent dans ta limite de stockage.
 organization:
   title: Organisation
   description: Gère les paramètres de ton organisation.
