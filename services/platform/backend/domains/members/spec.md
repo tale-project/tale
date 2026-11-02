@@ -52,7 +52,13 @@ membership is refused too (`MEMBER_SELF_REMOVAL_FORBIDDEN`).
 
 The caller must be an owner or admin in every organization where the target has a membership. Listing a member's passkeys follows the same authority rule. Anyone else is refused (`FORBIDDEN`) and nothing is changed.
 
+The member list tells only those who act as an owner or admin of the organization whether a
+member uses two-factor authentication and how many passkeys they hold. Everyone else gets the
+same rows without either field.
+
 - **Example**: Mia is a member. She revokes Noah's passkey → refused.
+- **Example**: Mia is a member. She reads her organization's member list → she gets Noah's name
+  and email, but not whether he uses two-factor authentication or how many passkeys he holds.
 
 ### MEMBER-R7 · An admin cannot reset an owner's sign-in factors in any workspace
 
