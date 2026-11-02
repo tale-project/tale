@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 308 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 309 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1690,8 +1690,22 @@ output:
       saying the test simulated it, and Result names `post` in
       `automations.tests.result.simulated`; with channel `C0000000001` the
       step gets the usual simulated answer and Result reads
-      `automations.tests.result.unmatched`; the Setup form keeps the pick as
-      written.
+      `automations.tests.result.unmatched`; the Setup form shows the pick
+      under `automations.tests.fields.scenarios`.
+- [ ] `AUTO-F250` · **On a test of an automation whose step `lookup` calls
+      Slack's `get_channel`, pick a scenario in Setup with the keyboard
+      alone, under a screen reader** → `automations.tests.fields.scenarios`
+      offers `lookup` and no code step in
+      `automations.tests.fields.scenariosAdd`; picking it writes the action's
+      first scenario, and its `automations.tests.fields.scenarioFor` list
+      shows each scenario with its kind and description, `channel_not_found`
+      with the calls it answers; the picked one's kind and description read
+      above the field and are heard with its label; `lookup` leaves the
+      `automations.tests.fields.mocks` and `automations.tests.fields.failures`
+      pickers, `automations.tests.inspector.editYaml` shows
+      `scenarios: {lookup: <name>}`, and the step's Shape tab lists the same
+      scenarios under `automations.editor.shape.scenarios`. Focus stays
+      visible on every control.
 - [ ] `AUTO-F172` · **On an automation with a bound trigger and a condition,
       open Add test** → a menu offers `automations.tests.addFrom.blank`,
       `automations.tests.addFrom.trigger` and

@@ -1970,6 +1970,8 @@ function AutomationEditorScope({
     doc: automation ?? { name: automationSlug, nodes: [] },
     lastRunOutputOf: sampleOf,
     text: testText,
+    scenariosOf: (nodeType: string) =>
+      catalog.types.get(nodeType)?.scenarios ?? [],
     onSelectNode: (nodeId: string) => {
       setSelectedTest(null);
       selectOnCanvas(nodeId);
