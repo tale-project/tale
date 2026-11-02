@@ -1,6 +1,6 @@
 ---
 title: Aufgaben aus einer Automatisierung anlegen
-description: Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, liste mit task.list die Aufgaben eines Projekts auf und erfahre, was abgelehnt wird.
+description: Erstelle mit dem Schritt task.create eine Aufgabe in einem Projekt — mit Titel, zuständiger Person, Status, Fälligkeitsdatum und Labels — einmal pro Ausführung des Schritts, liste mit task.list die Aufgaben eines Projekts auf, melde mit task.report_gate den Zustand einer Schranke der Arbeitsverteilung eines Projekts und erfahre, was abgelehnt wird.
 ---
 
 Verwende einen `task.create`-Schritt, wenn eine Automatisierung Arbeit an eine Person oder einen Agenten übergeben soll: eine Antwort, um die eine E-Mail bittet, ein Formular zum Nachfassen, eine fehlgeschlagene Prüfung. Er erstellt die Aufgabe in einem Projekt, in dem die Automatisierung installiert ist, und die Aufgabe nennt die Automatisierung als ihre Erstellerin. Ein Live-Lauf erstellt sie, ein Testlauf antwortet mit einem Mock.
@@ -101,11 +101,46 @@ nodes:
       limit: 10
 ```
 
+## Den Zustand einer Schranke melden {#report-gate}
+
+Ein Schritt `task.report_gate` meldet den Zustand einer [Schranke](/de/platform/projects/dispatch#arbeit-hinter-einer-schranke-zurueckhalten) der Arbeitsverteilung eines Projekts aus Tale heraus, so wie es ein externes System über die [REST-API](/de/develop/api-reference#dispatch) tut. Eine Automatisierung mit Zeitplan liest das Signal, dem die Schranke folgt, und meldet es; kein Job außerhalb von Tale braucht dafür einen API-Schlüssel. Diese Automatisierung liest über [HTTP-Zugangsdaten](/de/platform/automations/http) mit der Basis-URL `https://api.github.com`, wie viele GitHub-Actions-Läufe in der Warteschlange eines Repositorys warten, und meldet diese Zahl an die Schranke `ci`:
+
+```yaml
+nodes:
+  - id: queue
+    type: http.get
+    credential: GitHub API
+    input:
+      url: /repos/tale-project/tale/actions/runs
+      query: { status: queued, per_page: 1 }
+  - id: report
+    type: task.report_gate
+    input:
+      projectId: <ID des Projekts>
+      key: ci
+      value: '{{ nodes.queue.output.body.total_count }}'
+      reason: '{{ nodes.queue.output.body.total_count }} workflow runs queued'
+```
+
+Installiere die Automatisierung im Projekt und gib ihr einen [Zeitplan](/de/platform/automations/triggers#einen-zeitplan-einrichten) wie `*/5 * * * *`. Melde bei jeder Ausführung, nicht nur, wenn sich das Signal ändert: Eine Schranke, zu der niemand innerhalb von **Veraltet nach (Sekunden)** etwas meldet, öffnet sich wieder oder schließt sich.
+
+| Eingabe     | Was sie enthält                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId` | Das Projekt, dessen Arbeitsverteilung die Schranke deklariert. Die Automatisierung muss darin installiert sein, und das Projekt darf nicht archiviert sein. |
+| `key`       | Der Schlüssel der Schranke, wie die Arbeitsverteilung ihn deklariert.                                                               |
+| `state`     | `hold` (schließen) oder `open` (öffnen).                                                                                            |
+| `value`     | Statt `state` eine Zahl für eine Schranke mit **Schließen ab**: Ab diesem Wert schließt sie sich, und geschlossen öffnet sie sich erst unter **Wieder öffnen unter** wieder. |
+| `reason`    | Bis zu 500 Zeichen, angezeigt mit der letzten Meldung der Schranke.                                                                 |
+
+Ein Lauf, den ein Zeitplan oder ein Ereignis gestartet hat, meldet als die im Projekt installierte Automatisierung. Ein Lauf, den eine Person gestartet hat, mit **Jetzt ausführen** oder über die API, meldet nur, solange diese Person das Projekt bearbeiten darf. Der Schritt gibt `{ projectId, key, held, changed, value, reason, reportedBy }` zurück: `held` sagt, ob die Schranke nach der Meldung geschlossen ist, `changed`, ob die Meldung das geändert hat, und `reportedBy` ist `run:` gefolgt von der ID des Laufs. Die Schranke behält diesen Namen als Meldenden, sodass ihre letzte Meldung zum Lauf und zu seiner Automatisierung führt. Die Meldung zählt wie jede andere: Mit ihr beginnt die Frist von **Veraltet nach (Sekunden)** von Neuem, und eine Meldung, die die Schranke öffnet, lässt die zurückgehaltene Arbeit sofort starten.
+
 ## Wenn ein Schritt scheitert
 
 | Fehler                                                       | Was geschehen ist                                                                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | **Das Projekt der Aufgabe gehört nicht zur Automatisierung** | Die Automatisierung ist im Projekt nicht installiert, oder der Lauf wurde in einem anderen Projekt gestartet.             |
+| **Das Projekt der Aufgabe gehört nicht zur Automatisierung**, bei einer Meldung an eine Schranke | Das Projekt ist archiviert, oder den Lauf hat eine Person gestartet, die das Projekt nicht bearbeiten darf, oder niemand, der den Zustand seiner Schranken melden darf. |
+| **Der Dienst ist fehlgeschlagen**, bei einer Meldung an eine Schranke | Die Arbeitsverteilung deklariert keine Schranke mit diesem Schlüssel (`DISPATCH_GATE_UNKNOWN`), oder der Schritt hat einen `value` an eine Schranke ohne **Schließen ab** gesendet (`DISPATCH_GATE_VALUE_UNJUDGED`). |
 | **Die zuständige Person der Aufgabe ist unbekannt**          | Kein Mitglied der Organisation und kein Agent des Projekts trägt diesen Namen, oder sie dürfen im Projekt nicht arbeiten. |
 
 Nichts, was der Schritt begonnen hat, bleibt gespeichert, wenn er scheitert.

@@ -1,6 +1,6 @@
 ---
 title: Ajouter des tâches depuis une automatisation
-description: Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, liste les tâches d’un projet avec task.list, et sache ce qui est refusé.
+description: Crée une tâche dans un projet avec l’étape task.create — titre, personne assignée, statut, échéance et libellés — une fois à chaque exécution de l’étape, liste les tâches d’un projet avec task.list, signale l’état d’une barrière de la répartition d’un projet avec task.report_gate, et sache ce qui est refusé.
 ---
 
 Utilise une étape `task.create` quand une automatisation doit confier du travail à une personne ou à un agent : une réponse que demande un e-mail, un formulaire à relancer, une vérification qui a échoué. Elle crée la tâche dans un projet où l’automatisation est installée, et la tâche nomme l’automatisation comme sa créatrice. Une exécution en direct la crée ; une exécution de test répond avec un mock.
@@ -101,11 +101,46 @@ nodes:
       limit: 10
 ```
 
+## Signaler l’état d’une barrière {#report-gate}
+
+Une étape `task.report_gate` signale l’état d’une [barrière](/fr/platform/projects/dispatch#retenir-du-travail-derriere-une-barriere) de la répartition d’un projet depuis Tale, comme le fait un système externe par l’[API REST](/fr/develop/api-reference#dispatch). Une automatisation planifiée lit le signal que suit la barrière et le signale ; aucun programme hors de Tale n’a besoin pour cela d’une clé API. Cette automatisation lit, par des [identifiants HTTP](/fr/platform/automations/http) dont l’URL de base est `https://api.github.com`, combien d’exécutions GitHub Actions attendent dans la file d’un dépôt, et signale ce nombre à la barrière `ci` :
+
+```yaml
+nodes:
+  - id: queue
+    type: http.get
+    credential: GitHub API
+    input:
+      url: /repos/tale-project/tale/actions/runs
+      query: { status: queued, per_page: 1 }
+  - id: report
+    type: task.report_gate
+    input:
+      projectId: <ID du projet>
+      key: ci
+      value: '{{ nodes.queue.output.body.total_count }}'
+      reason: '{{ nodes.queue.output.body.total_count }} workflow runs queued'
+```
+
+Installe l’automatisation dans le projet et donne-lui une [planification](/fr/platform/automations/triggers#definir-une-planification) comme `*/5 * * * *`. Signale à chaque exécution, pas seulement quand le signal change : une barrière que personne ne signale pendant **Obsolète après (secondes)** se rouvre, ou se ferme.
+
+| Entrée      | Ce qu’elle contient                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId` | Le projet dont la répartition déclare la barrière. L’automatisation doit y être installée, et le projet ne doit pas être archivé.   |
+| `key`       | La clé de la barrière, telle que la répartition la déclare.                                                                         |
+| `state`     | `hold` (fermer) ou `open` (ouvrir).                                                                                                 |
+| `value`     | À la place de `state`, un nombre pour une barrière qui a **Fermer à partir de** : à partir de cette valeur, la barrière se ferme, et une fois fermée, elle ne se rouvre que sous **Rouvrir sous**. |
+| `reason`    | Jusqu’à 500 caractères, affichés avec le dernier signalement de la barrière.                                                        |
+
+Une exécution lancée par une planification ou un événement signale en tant que l’automatisation installée dans le projet. Une exécution lancée par une personne, avec **Exécuter maintenant** ou par l’API, ne signale que tant que cette personne peut modifier le projet. L’étape renvoie `{ projectId, key, held, changed, value, reason, reportedBy }` : `held` dit si la barrière est fermée après le signalement, `changed` si le signalement l’a changée, et `reportedBy` vaut `run:` suivi de l’ID de l’exécution. La barrière garde ce nom comme auteur du signalement, si bien que son dernier signalement mène à l’exécution et à son automatisation. Le signalement compte comme tout autre : il fait repartir le délai **Obsolète après (secondes)**, et un signalement qui ouvre la barrière laisse démarrer aussitôt le travail qu’elle retenait.
+
 ## Quand une étape échoue
 
 | Échec                                                         | Ce qui s’est passé                                                                                              |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **Le projet de la tâche n’est pas celui de l’automatisation** | L’automatisation n’est pas installée dans le projet, ou l’exécution a été lancée dans un autre projet.          |
+| **Le projet de la tâche n’est pas celui de l’automatisation**, pour un signalement de barrière | Le projet est archivé, ou l’exécution a été lancée par une personne qui ne peut pas modifier le projet, ou par personne qui puisse signaler l’état de ses barrières. |
+| **Le service a échoué**, pour un signalement de barrière | La répartition ne déclare aucune barrière de cette clé (`DISPATCH_GATE_UNKNOWN`), ou l’étape a envoyé une `value` à une barrière sans **Fermer à partir de** (`DISPATCH_GATE_VALUE_UNJUDGED`). |
 | **La personne assignée à la tâche est inconnue**              | Aucun membre de l’organisation ni agent du projet ne porte ce nom, ou il ne peut pas travailler dans le projet. |
 
 Rien de ce que l’étape a commencé ne reste enregistré quand elle échoue.
