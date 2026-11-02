@@ -34069,7 +34069,8 @@ async function checkChatEntityWordSearch(
             ${now}, ${now})
   `;
 
-  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const { chatShimHandlers, searchTasksForChat } =
+    await import('./domains/chat/shim.ts');
   const handlers = chatShimHandlers(sql);
   const pageShape = z
     .object({ page: z.array(z.unknown()), listed: z.boolean().optional() })
@@ -34081,6 +34082,18 @@ async function checkChatEntityWordSearch(
     const parsed = pageShape.safeParse(await handlers[name]?.(args));
     if (!parsed.success) return -1;
     return parsed.data.listed === true ? 0 : parsed.data.page.length;
+  };
+  // The task leg reads as the turn user, through the projects they may read
+  // (#5207). Nobody is a member of the fixture org, so it reads as its admin.
+  const admin = {
+    organizationId: org,
+    userId: ctx.userId,
+    role: 'admin',
+    teamIds: [],
+  };
+  const taskRows = async (term: string): Promise<number> => {
+    const found = await searchTasksForChat(sql, admin, { term });
+    return found.listed === true ? 0 : found.page.length;
   };
 
   const productQuestion = await rows(
@@ -34099,24 +34112,14 @@ async function checkChatEntityWordSearch(
     'products/internal_queries:queryProducts',
     { organizationId: org, searchTerm: 'what do we have?' },
   );
-  const taskQuestion = await rows('tasks/search_for_chat:searchTasksForChat', {
-    organizationId: org,
-    projectIds: [projectId],
-    term: 'recruitment ads Facebook ad account project tasks',
-  });
+  const taskQuestion = await taskRows(
+    'recruitment ads Facebook ad account project tasks',
+  );
   // 'ebook' alone would hit the phrase clause through 'Facebook'. Inside a
   // question the phrase cannot match, which isolates the word clause: a
   // mid-word fragment must not be enough on its own.
-  const taskMidWord = await rows('tasks/search_for_chat:searchTasksForChat', {
-    organizationId: org,
-    projectIds: [projectId],
-    term: 'do we have any ebook tasks',
-  });
-  const taskRealWord = await rows('tasks/search_for_chat:searchTasksForChat', {
-    organizationId: org,
-    projectIds: [projectId],
-    term: 'do we have any facebook tasks',
-  });
+  const taskMidWord = await taskRows('do we have any ebook tasks');
+  const taskRealWord = await taskRows('do we have any facebook tasks');
 
   record(
     'chat entity legs match a question, not only a typed name',
@@ -34415,7 +34418,7 @@ async function checkChatMailAttachmentListing(
  * `detectListingIntent` already routes a PURE listing utterance to
  * `action: "list"`, so the mixed query is the case that has nothing else to
  * fall back to. The fallback must not widen scope: it lists the SAME readable
- * project set the search was restricted to.
+ * projects the search was restricted to, joined as the reader (#5207).
  */
 async function checkChatZeroHitListingFallback(
   sql: Sql,
@@ -34423,17 +34426,22 @@ async function checkChatZeroHitListingFallback(
 ): Promise<void> {
   const now = Date.now();
   const org = `${ctx.orgId}-list-fallback-fixture`;
-  const seedProject = async (name: string): Promise<string> => {
+  const seedProject = async (
+    name: string,
+    teamIds: string[],
+  ): Promise<string> => {
     const rows = await sql<{ id: string }[]>`
-      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
-                                updated_at_ms)
-      VALUES (${org}, ${name}, ${ctx.userId}, ${now}, ${now})
+      INSERT INTO app.projects (org_id, name, team_ids, created_by,
+                                created_at_ms, updated_at_ms)
+      VALUES (${org}, ${name}, ${sql.array(teamIds)}::text[], ${ctx.userId},
+              ${now}, ${now})
       RETURNING id
     `;
     return rows[0]?.id ?? '';
   };
-  const readableId = await seedProject('Marketing Site Rebuild');
-  const hiddenId = await seedProject('Secret Board');
+  const readableId = await seedProject('Marketing Site Rebuild', []);
+  // A team's board: only its team and the admins read it.
+  const hiddenId = await seedProject('Secret Board', ['list-fallback-team']);
   const seedTask = async (projectId: string, title: string): Promise<void> => {
     await sql`
       INSERT INTO app.tasks (org_id, project_id, title, description, status,
@@ -34446,81 +34454,70 @@ async function checkChatZeroHitListingFallback(
   await seedTask(readableId, 'Draft the launch email');
   await seedTask(hiddenId, 'Do not surface this');
 
-  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
-  const handlers = chatShimHandlers(sql);
-  const legShape = z
-    .object({
-      page: z.array(
-        z
-          .object({
-            title: z.string().optional(),
-            name: z.string().optional(),
-          })
-          .loose(),
-      ),
-      isDone: z.boolean(),
-      listed: z.boolean().optional(),
-    })
-    .loose();
-  const leg = async (
-    name: string,
-    args: unknown,
-  ): Promise<{ titles: string; listed: boolean | undefined }> => {
-    const parsed = legShape.safeParse(await handlers[name]?.(args));
-    if (!parsed.success) return { titles: '(unparseable)', listed: undefined };
-    return {
-      titles: parsed.data.page
-        .map((row) => row.title ?? row.name ?? '')
-        .join('|'),
-      listed: parsed.data.listed,
-    };
-  };
-  const TASKS = 'tasks/search_for_chat:searchTasksForChat';
-  const PROJECTS = 'tasks/search_for_chat:searchProjectsForChat';
+  const { searchProjectsForChat, searchTasksForChat } =
+    await import('./domains/chat/shim.ts');
+  // The legs read as the turn user. Nobody is a member of the fixture org,
+  // so each read names its reader: a member of no team reads the open board
+  // alone, an admin reads both.
+  const viewer = (role: string) => ({
+    organizationId: org,
+    userId: ctx.userId,
+    role,
+    teamIds: [],
+  });
+  const member = viewer('member');
+  const admin = viewer('admin');
+  const leg = (found: {
+    page: ({ title: string } | { name: string })[];
+    listed?: boolean;
+  }): { titles: string; listed: boolean | undefined } => ({
+    titles: found.page
+      .map((row) => ('title' in row ? row.title : row.name))
+      .join('|'),
+    listed: found.listed,
+  });
 
   // The mixed query: real words, no match on this board.
-  const taskFallback = await leg(TASKS, {
-    organizationId: org,
-    projectIds: [readableId],
-    term: 'is anything blocked on procurement',
-  });
+  const taskFallback = leg(
+    await searchTasksForChat(sql, member, {
+      term: 'is anything blocked on procurement',
+    }),
+  );
   // A term that DOES match must stay a search, not a listing.
-  const taskMatched = await leg(TASKS, {
-    organizationId: org,
-    projectIds: [readableId],
-    term: 'what about the launch email',
-  });
+  const taskMatched = leg(
+    await searchTasksForChat(sql, member, {
+      term: 'what about the launch email',
+    }),
+  );
   // An explicit listing is unchanged.
-  const taskListed = await leg(TASKS, {
-    organizationId: org,
-    projectIds: [readableId],
-    term: '',
-    list: true,
-  });
-  // The fallback lists the readable set, never the whole org.
-  const taskScope = await leg(TASKS, {
-    organizationId: org,
-    projectIds: [readableId, hiddenId],
-    term: 'is anything blocked on procurement',
-  });
+  const taskListed = leg(
+    await searchTasksForChat(sql, member, { term: '', list: true }),
+  );
+  // The fallback lists what the reader reads, never the whole org: the
+  // admin's lists both boards.
+  const taskScope = leg(
+    await searchTasksForChat(sql, admin, {
+      term: 'is anything blocked on procurement',
+    }),
+  );
   // A status filter still applies to the fallback page.
-  const taskFiltered = await leg(TASKS, {
-    organizationId: org,
-    projectIds: [readableId],
-    term: 'is anything blocked on procurement',
-    status: 'done',
-  });
+  const taskFiltered = leg(
+    await searchTasksForChat(sql, member, {
+      term: 'is anything blocked on procurement',
+      status: 'done',
+    }),
+  );
 
-  const projectFallback = await leg(PROJECTS, {
-    organizationId: org,
-    projectIds: [readableId],
-    term: 'are there any archived initiatives',
-  });
-  const projectMatched = await leg(PROJECTS, {
-    organizationId: org,
-    projectIds: [readableId],
-    term: 'how is the rebuild going',
-  });
+  const projectFallback = leg(
+    await searchProjectsForChat(sql, member, {
+      term: 'are there any archived initiatives',
+    }),
+  );
+  const projectMatched = leg(
+    await searchProjectsForChat(sql, member, {
+      term: 'how is the rebuild going',
+    }),
+  );
 
   record(
     'chat task/project legs list when the words match nothing',
@@ -34538,7 +34535,7 @@ async function checkChatZeroHitListingFallback(
       projectFallback.listed === true &&
       projectMatched.titles === 'Marketing Site Rebuild' &&
       projectMatched.listed === false,
-    `taskFallback=${taskFallback.titles || '(none)'}/listed=${taskFallback.listed} (want listed), taskMatched=${taskMatched.titles || '(none)'}/listed=${taskMatched.listed} (want searched), taskListed=${taskListed.titles || '(none)'}/listed=${taskListed.listed}, scopedFallback=${taskScope.titles || '(none)'} (want both readable), statusFiltered=${taskFiltered.titles || '(none)'}/listed=${taskFiltered.listed} (want empty), projectFallback=${projectFallback.titles || '(none)'}/listed=${projectFallback.listed} (want listed), projectMatched=${projectMatched.titles || '(none)'}/listed=${projectMatched.listed} (want searched)`,
+    `taskFallback=${taskFallback.titles || '(none)'}/listed=${taskFallback.listed} (want listed), taskMatched=${taskMatched.titles || '(none)'}/listed=${taskMatched.listed} (want searched), taskListed=${taskListed.titles || '(none)'}/listed=${taskListed.listed}, adminFallback=${taskScope.titles || '(none)'} (want both boards), statusFiltered=${taskFiltered.titles || '(none)'}/listed=${taskFiltered.listed} (want empty), projectFallback=${projectFallback.titles || '(none)'}/listed=${projectFallback.listed} (want listed), projectMatched=${projectMatched.titles || '(none)'}/listed=${projectMatched.listed} (want searched)`,
   );
 }
 
