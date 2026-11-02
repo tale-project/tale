@@ -30,9 +30,11 @@ bun run docker:dev:logs
 | `compose.dev.yml` | Montages du code et commandes de développement. |
 | `compose.docs.yml` | Site de documentation et routage du proxy. |
 | `compose.web.yml` | Site marketing et routage du proxy. |
+| `compose.session-manager.yml` | Session Manager, publié uniquement sur l’interface locale. |
 | `compose.test.yml` | Configuration des tests de conteneur de la plateforme. |
 | `compose.docs.test.yml` | Configuration des tests de conteneur de la documentation. |
 | `compose.web.test.yml` | Configuration des tests de conteneur du site marketing. |
+| `compose.session-manager.test.yml` | Configuration des tests de conteneur du Session Manager. |
 | `compose.test.mock.yml` | Configuration d’intégration avec services simulés. |
 
 Lis le script qui utilise un fichier de test avant de l’appeler directement : il peut préparer les images, les ports et les données de test. [Contribuer à Docker](/fr/develop/contributing-docker) décrit les contrôles adaptés.

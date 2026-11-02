@@ -278,7 +278,13 @@ describe('dependency-aware Turbo cache', () => {
   });
 
   test('client builds and their regression guard hash the shared completion helper', () => {
-    for (const service of ['platform', 'web', 'docs', 'ui-docs']) {
+    for (const service of [
+      'platform',
+      'web',
+      'docs',
+      'ui-docs',
+      'session-manager',
+    ]) {
       expect(
         getTask(tasks, `@tale/${service}#build`).inputs[
           '../../packages/ui/bin/build-client.ts'

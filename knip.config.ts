@@ -230,6 +230,20 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/session-manager': {
+      vite: { config: ['vite.config.ts'] },
+      entry: [
+        'app/routes/**/*.tsx',
+        'scripts/**/*.ts',
+        // Playwright specs (config builds via the shared @tale/e2e factory).
+        'tests/e2e/specs/**/*.spec.ts',
+        // The fake-browser servers the specs run against: started by
+        // playwright.config.ts's `webServer.command` string (`bun
+        // tests/e2e/launcher.ts`), which knip cannot read.
+        'tests/e2e/launcher.ts',
+      ],
+      project: ['**/*.{ts,tsx}'],
+    },
     // Source-only packages expose these paths to consumers. Derive explicit
     // relative entries from their manifests: Knip's automatic absolute-path
     // discovery can miss them in worktrees. Keep internal files in the sweep.

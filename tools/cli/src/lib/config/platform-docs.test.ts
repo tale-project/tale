@@ -39,6 +39,7 @@ const CHECKED_CI_FILES = [
   'services/ui-docs/turbo.json',
   'services/web/playwright.config.ts',
   'services/docs/playwright.config.ts',
+  'services/session-manager/playwright.config.ts',
   'services/platform/vitest.ui.config.ts',
   '.github/actions/setup-turbo/action.yml',
   'services/platform/vitest.config.ts',
@@ -72,6 +73,7 @@ const CHECKED_CI_FILES = [
   'services/platform/tests/integration/container-web-test.ts',
   'services/platform/tests/integration/container-docs-test.ts',
   'services/platform/tests/integration/container-ui-docs-test.ts',
+  'services/platform/tests/integration/container-session-manager-test.ts',
   'services/platform/turbo.json',
 ];
 /**
@@ -93,6 +95,7 @@ const PARITY_FILES = [
   'compose.web.yml',
   'compose.docs.yml',
   'compose.ui-docs.yml',
+  'compose.session-manager.yml',
   'services/proxy/Caddyfile',
   'services/proxy/docker-entrypoint.sh',
   'services/platform/Dockerfile',

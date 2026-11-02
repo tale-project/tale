@@ -30,6 +30,7 @@ body:
         - Platform (web app)
         - Web (marketing site)
         - Docs
+        - Session Manager
         - Sandbox
         - CLI
         - Database

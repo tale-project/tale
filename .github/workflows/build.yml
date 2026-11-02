@@ -193,11 +193,11 @@ jobs:
             # Candidates, conservative scope and shared build inputs run every
             # service and test. A skipped candidate check never passed; shared
             # dependencies can alter every Dockerfile.
-            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
+            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","session-manager","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
             CI_TESTS=true
             STORYBOOK=true
           elif [ "${IMAGE_INPUTS:-false}" = true ]; then
-            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
+            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","session-manager","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
             CI_TESTS=true
             STORYBOOK=true
           fi
@@ -210,11 +210,11 @@ jobs:
           if [ "$CI_TESTS" = true ]; then STACK=true; fi
 
           # Vulnerability scan covers the compose-stack services + sandbox
-          # trio that `build` actually pushes to GHCR. Web, docs and ui-docs
-          # use their own compose stacks and are reachable via security.yml's
-          # filesystem scan. A release candidate is not scanned here: the scan
-          # is advisory, and its SARIF would be filed against main's head, not
-          # against the candidate.
+          # trio that `build` actually pushes to GHCR. Web, docs, ui-docs and
+          # session-manager use their own compose stacks and are reachable via
+          # security.yml's filesystem scan. A release candidate is not scanned
+          # here: the scan is advisory, and its SARIF would be filed against
+          # main's head, not against the candidate.
           SCANNABLE=$(jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]' <<< "$SERVICES")
           if [ -n "$CANDIDATE_SHA" ]; then SCANNABLE='[]'; fi
           {
@@ -265,9 +265,9 @@ jobs:
   # Unchanged services can reuse the main branch's GHA layer cache when it is
   # available. A missing or evicted cache still requires a complete build.
   #
-  # Web/docs/ui-docs are NOT in this matrix — they have their own compose
-  # stacks and are exercised by the separate web-test / docs-test /
-  # ui-docs-test jobs below.
+  # Web/docs/ui-docs/session-manager are NOT in this matrix — they have their
+  # own compose stacks and are exercised by the separate web-test / docs-test /
+  # ui-docs-test / session-manager-test jobs below.
   #
   # Fork PRs cannot push to upstream GHCR. Their smoke-test-fork and
   # image-validate-fork jobs build locally on the runners that use the images;
@@ -989,6 +989,79 @@ jobs:
         if: always()
         run: echo "## tale-ui-docs container test complete" >> "$GITHUB_STEP_SUMMARY"
 
+  # The session manager is no site, but it ships the same way: its own image,
+  # its own compose stack and its own container test, outside the platform stack.
+  session-manager-test:
+    name: Session Manager container test
+    needs: changes
+    if: >-
+      !cancelled() &&
+      needs.changes.result == 'success' &&
+      (contains(fromJson(needs.changes.outputs.services), 'session-manager') && github.event.pull_request.draft != true)
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      actions: read
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
+
+      - name: Reclaim disk space if needed
+        env:
+          MIN_FREE_GIB: '20'
+        run: *reclaim-ci-disk
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          # Hosted runners are discarded; large layer teardown delayed
+          # downstream checks by 47–132 seconds in measured builds.
+          cleanup: false
+
+      # Keep Compose's build arguments, context, Dockerfile and image tags as
+      # the source of truth; only add a persistent layer cache and local load.
+      - name: Resolve site build
+        env:
+          SERVICE: session-manager
+        run: |
+          set -euo pipefail
+          # The existing probe creates this placeholder before Compose too.
+          if [ ! -e "services/$SERVICE/.env" ]; then touch "services/$SERVICE/.env"; fi
+          docker compose -f "compose.$SERVICE.yml" -f "compose.$SERVICE.test.yml" \
+            --env-file .env.test -p "tale-$SERVICE-test" build --print "$SERVICE" \
+            > "$RUNNER_TEMP/site-build.json"
+
+      - name: Build site image
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
+        with:
+          source: .
+          files: ${{ runner.temp }}/site-build.json
+          targets: session-manager
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=session-manager
+            ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('*.cache-to=type=gha,scope=session-manager,mode=max,ghtoken={0},repository={1}', secrets.GITHUB_TOKEN, github.repository) || '' }}
+          provenance: false
+
+      - name: Run session-manager container test
+        run: bun services/platform/tests/integration/container-session-manager-test.ts
+        env:
+          SKIP_BUILD: 'true'
+          PULL_POLICY: never
+
+      - name: Summary
+        if: always()
+        run: echo "## tale-session-manager container test complete" >> "$GITHUB_STEP_SUMMARY"
+
   # ---------------------------------------------------------------------------
   # Validate container image metadata, healthchecks, entrypoints. Pulls images
   # built by the `build` job from GHCR.
@@ -1351,6 +1424,7 @@ jobs:
       - web-test
       - docs-test
       - ui-docs-test
+      - session-manager-test
       - storybook
     if: always() && needs.changes.outputs.candidate_sha != ''
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
@@ -1436,7 +1510,7 @@ jobs:
   ci-ready:
     name: CI ready (Build)
     if: always() && github.event_name == 'pull_request'
-    needs: [pr-scope, candidate-source, changes, build, smoke-test, smoke-test-fork, web-test, docs-test, ui-docs-test, image-validate, image-validate-fork, vulnerability-scan, storybook, candidate-gate]
+    needs: [pr-scope, candidate-source, changes, build, smoke-test, smoke-test-fork, web-test, docs-test, ui-docs-test, session-manager-test, image-validate, image-validate-fork, vulnerability-scan, storybook, candidate-gate]
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:

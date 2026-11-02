@@ -27,7 +27,7 @@ type Workflow = {
   jobs: Record<string, Job>;
 };
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
-const standaloneServices = ['web', 'docs', 'ui-docs'];
+const standaloneServices = ['web', 'docs', 'ui-docs', 'session-manager'];
 const standaloneHarnesses = standaloneServices.map(
   (service) =>
     `services/platform/tests/integration/container-${service}-test.ts`,
@@ -248,6 +248,7 @@ describe('container build boundaries', () => {
         'web',
         'docs',
         'ui-docs',
+        'session-manager',
       ]) {
         const dockerfile = (
           await readFile(
@@ -262,6 +263,9 @@ describe('container build boundaries', () => {
             .split(/\s+/)
             .slice(1, -1)
             .filter((word) => !word.startsWith('--'));
+          // `COPY <<'EOF' /dest` writes the lines that follow it: the text
+          // lives in the Dockerfile, which the service's own scope holds.
+          if (sources.every((word) => word.startsWith('<<'))) continue;
           expect(sources.length, line).toBeGreaterThan(0);
           for (const source of sources) {
             // A directory COPY owns every descendant, not only the directory name.

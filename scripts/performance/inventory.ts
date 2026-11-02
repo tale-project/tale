@@ -86,6 +86,11 @@ const coverage: Record<string, Coverage> = {
     remaining:
       'Shared serving/SEO/rendering code with synthetic content; actual demos/build/prerender and browser navigation need service-specific measurements.',
   },
+  '@tale/session-manager': {
+    workloads: [],
+    remaining:
+      'Real Camoufox browsers, the live-view screencast and the MCP tools need a browser build, a proxy and a disposable data directory: measure session start, frame rate and browser memory against them.',
+  },
   '@tale/cli': {
     workloads: ['cli.help'],
     remaining:
