@@ -30,6 +30,10 @@ COPY services/proxy/render/config.js services/proxy/render/pki.js services/proxy
 COPY services/proxy/docker-api/nginx.conf services/proxy/docker-api/strip-env.js \
      /usr/share/tale-proxy/docker-api/
 COPY services/proxy/maintenance.html /usr/share/tale-proxy/maintenance.html
+# Traefik's plugin that answers a request body the client framed wrongly,
+# read where Traefik looks for local plugins (tale-proxy starts it here)
+COPY services/proxy/bodyfaults/bodyfaults.go services/proxy/bodyfaults/.traefik.yml \
+     /usr/share/tale-proxy/plugins-local/src/tale/bodyfaults/
 COPY services/proxy/tale-proxy /usr/local/bin/tale-proxy
 RUN chmod 755 /usr/local/bin/tale-proxy
 
