@@ -102,9 +102,9 @@ export const MOTION_SCENES: readonly MotionScene[] = [
     sourceShot: 'project-agents-models',
     action: 'inspect-agent-configuration',
     run: async (page) => {
+      // The agent's name opens its details.
       await page
-        .getByRole('button', { name: t('projects.agents.rowView') })
-        .first()
+        .getByRole('button', { name: 'Content editor', exact: true })
         .click();
       const detailsDialog = page.getByRole('dialog', {
         name: t('projects.agents.detailsTitle'),
@@ -121,8 +121,7 @@ export const MOTION_SCENES: readonly MotionScene[] = [
     reset: async (page) => {
       await page.keyboard.press('Escape');
     },
-    beforeAssertion: () =>
-      `button: ${t('projects.agents.rowView')}; Content editor`,
+    beforeAssertion: () => `button: Content editor`,
     afterAssertion: () =>
       `dialog: ${t('projects.agents.detailsTitle')}; Content editor; ${t('projects.agents.instructionsLabel')}`,
     result: dialog,

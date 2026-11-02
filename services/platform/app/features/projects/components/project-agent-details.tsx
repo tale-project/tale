@@ -7,6 +7,10 @@ import { Text } from '@tale/ui/text';
 import { Bot } from 'lucide-react';
 import type { RefObject } from 'react';
 
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
 import { titleFromSlug } from '@/lib/shared/schemas/automation_presentation';
 
@@ -17,7 +21,11 @@ import {
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
 import type { ProjectAgentDetails } from '../lib/agent-details';
 
-/** One reading surface, compact in the timeline and complete in its dialog. */
+/**
+ * One reading surface, compact in the timeline and complete in its dialog.
+ * The dialog lays the agent out as the settings rows that set it up; the
+ * timeline's preview keeps the small scale of the popover it sits in.
+ */
 export function ProjectAgentDetailsContent({
   agent,
   compact = false,
@@ -54,15 +62,28 @@ export function ProjectAgentDetailsContent({
   const harness =
     roster?.harnesses.find((row) => row.harness === agent.harness)?.label ??
     agent.harness;
-  const facts = [
-    { label: t('agents.harnessLabel'), value: harness },
+  const modelLabel = model?.label ?? agent.model;
+  const facts: {
+    label: string;
+    value: string;
+    /** False for a placeholder ("Not pinned"), which reads as muted. */
+    set: boolean;
+    description?: string;
+  }[] = [
+    { label: t('agents.harnessLabel'), value: harness, set: true },
     {
       label: t('agents.providerLabel'),
       value: providerLabel ?? t('agents.providerUnpinned'),
+      set: providerLabel !== undefined,
+      // Unpinned, the provider shown is today's resolution, not the agent's.
+      ...(!agent.modelProvider && resolved
+        ? { description: t('agents.detailsProviderCurrently') }
+        : {}),
     },
     {
       label: t('agents.modelLabel'),
-      value: model?.label ?? agent.model ?? t('agents.detailsUnavailable'),
+      value: modelLabel ?? t('agents.detailsUnavailable'),
+      set: modelLabel !== undefined,
     },
   ];
   const sections = [
@@ -93,8 +114,68 @@ export function ProjectAgentDetailsContent({
       ],
     },
   ];
+  if (!compact) {
+    return (
+      <Stack gap={4}>
+        {agent.managed ? (
+          <Text variant="muted">{t('agents.detailsStandardSnapshot')}</Text>
+        ) : null}
+        <SettingsFieldList>
+          {facts.map((fact) => (
+            <SettingsFieldRow
+              key={fact.label}
+              layout="stack"
+              label={fact.label}
+              description={fact.description}
+            >
+              <Text
+                variant={fact.set ? 'body' : 'muted'}
+                className="wrap-anywhere"
+              >
+                {fact.value}
+              </Text>
+            </SettingsFieldRow>
+          ))}
+          {sections.map((section) => (
+            <SettingsFieldRow
+              key={section.label}
+              layout="stack"
+              label={section.label}
+            >
+              {section.values.length === 0 ? (
+                <Text variant="muted">{t('agents.detailsNone')}</Text>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {section.values.map((value, index) => (
+                    <Badge
+                      key={`${value}-${index}`}
+                      variant="outline"
+                      className="max-w-full wrap-anywhere whitespace-normal"
+                    >
+                      {value}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </SettingsFieldRow>
+          ))}
+          <SettingsFieldRow
+            layout="stack"
+            label={t('agents.instructionsLabel')}
+          >
+            <Text
+              variant={agent.instructions?.trim() ? 'body' : 'muted'}
+              className="wrap-anywhere whitespace-pre-wrap"
+            >
+              {agent.instructions?.trim() || t('agents.detailsNone')}
+            </Text>
+          </SettingsFieldRow>
+        </SettingsFieldList>
+      </Stack>
+    );
+  }
   return (
-    <Stack gap={compact ? 2 : 4}>
+    <Stack gap={2}>
       <dl className="space-y-1 text-xs">
         {facts.map((fact) => (
           <div
@@ -118,7 +199,6 @@ export function ProjectAgentDetailsContent({
       {sections
         .filter(
           (section) =>
-            !compact ||
             section.label === t('agents.detailsSkills') ||
             section.values.length > 0,
         )
@@ -131,41 +211,16 @@ export function ProjectAgentDetailsContent({
               <Text variant="muted" className="text-xs">
                 {t('agents.detailsNone')}
               </Text>
-            ) : compact ? (
+            ) : (
               <Text className="text-xs wrap-anywhere">
                 {section.values.slice(0, 3).join(', ')}
                 {section.values.length > 3
                   ? ` · ${t('agents.detailsMoreCount', { count: section.values.length - 3 })}`
                   : ''}
               </Text>
-            ) : (
-              <div className="flex flex-wrap gap-1">
-                {section.values.map((value, index) => (
-                  <Badge
-                    key={`${value}-${index}`}
-                    variant="outline"
-                    className="max-w-full wrap-anywhere whitespace-normal"
-                  >
-                    {value}
-                  </Badge>
-                ))}
-              </div>
             )}
           </Stack>
         ))}
-      {!compact ? (
-        <Stack gap={1}>
-          <Text variant="label" className="text-xs">
-            {t('agents.instructionsLabel')}
-          </Text>
-          <Text
-            variant={agent.instructions?.trim() ? 'body' : 'muted'}
-            className="text-sm wrap-anywhere whitespace-pre-wrap"
-          >
-            {agent.instructions?.trim() || t('agents.detailsNone')}
-          </Text>
-        </Stack>
-      ) : null}
     </Stack>
   );
 }
