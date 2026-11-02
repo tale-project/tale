@@ -11,7 +11,7 @@ import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { useMemo, useState } from 'react';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useT } from '@/lib/i18n/client';
 
 import { useSubmitRecordForReview } from '../hooks/mutations';
@@ -42,35 +42,39 @@ function DocumentRecordSubmitDialogContent({
 }: DocumentRecordSubmitDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
-  const { members } = useMembers(organizationId);
-  // Server-derived option filter: only members who could actually RESPOND
-  // (team visibility, project edit access) are offered — a designation the
-  // server would refuse must not be pickable. Content mounts per open
-  // dialog, so this subscribes once, not per table row.
+  // Server-derived options: only members who could actually RESPOND (team
+  // visibility, project edit access) are offered — a designation the server
+  // would refuse must not be pickable — and only they are looked up, never
+  // every member. Content mounts per open dialog, so this subscribes once,
+  // not per table row.
   const { data: eligibleIds } = useEligibleDocumentReviewerIds(documentId);
+  const eligible = useMemo(
+    () => (eligibleIds ?? []).map((userId) => ({ userId })),
+    [eligibleIds],
+  );
+  const { members } = useMemberLookup(organizationId, eligible);
   const { data: lastReview } = useLastDocumentRecordReview(documentId);
   const submit = useSubmitRecordForReview();
   const [reviewerUserId, setReviewerUserId] = useState<string | null>(null);
 
-  const options = useMemo<SearchableSelectOption[]>(() => {
-    if (eligibleIds === undefined) return [];
-    const eligible = new Set(eligibleIds);
-    return (members ?? [])
-      .filter(
-        (member) =>
-          member.role !== 'disabled' &&
-          eligible.has(member.userId) &&
-          member.userId !== standingReviewer?.userId,
-      )
-      .map((member) => {
-        const option: SearchableSelectOption = {
-          value: member.userId,
-          label: member.displayName ?? member.email ?? member.userId,
-        };
-        if (member.email !== undefined) option.description = member.email;
-        return option;
-      });
-  }, [members, eligibleIds, standingReviewer?.userId]);
+  const options = useMemo<SearchableSelectOption[]>(
+    () =>
+      members
+        .filter(
+          (member) =>
+            member.role !== 'disabled' &&
+            member.userId !== standingReviewer?.userId,
+        )
+        .map((member) => {
+          const option: SearchableSelectOption = {
+            value: member.userId,
+            label: member.displayName ?? member.email ?? member.userId,
+          };
+          if (member.email !== undefined) option.description = member.email;
+          return option;
+        }),
+    [members, standingReviewer?.userId],
+  );
 
   const isReassign = standingReviewer !== undefined;
 
@@ -199,8 +203,9 @@ function DocumentRecordSubmitDialogContent({
  * (actor directory + editor-role filter), so it is not reused here.
  *
  * Mounted only while open (the DocumentTeamTagsDialog pattern): the content
- * holds live queries (org member directory), which must not subscribe once
- * per table row, and Radix keeps closed dialogs mounted through animations.
+ * holds live queries (the eligible reviewers and their member lookup), which
+ * must not subscribe once per table row, and Radix keeps closed dialogs
+ * mounted through animations.
  */
 export function DocumentRecordSubmitDialog(
   props: DocumentRecordSubmitDialogProps,
