@@ -950,6 +950,24 @@ Restore any toggled setting after the run.
   **Search devices** leaves the Macs. As a Developer, Devices keeps its search
   and shows no **Add device**. No page scrolls sideways at 390 px, and every
   label is readable in both themes and in German and French.
+- [ ] `SET-F107` · **WebDAV app-passwords keep their controls in the table's
+  toolbar** — As owner, with two SET-F34 app-passwords, one of them revoked,
+  open `/dashboard/{org}/settings/api/webdav` at 1280 px and at 390 px, in the
+  light and in the dark theme → The **App-passwords** section
+  (`webdav.list.title`) has no button in its header. The table's own toolbar
+  holds **Search app-passwords** (`webdav.list.searchPlaceholder`) and
+  **Generate** (`webdav.create.submit`): at the toolbar's right end at
+  1280 px, on a full-width row of its own at 390 px; **Generate** opens
+  **Generate a new app-password** (`webdav.create.title`). The newest
+  password is on top, the revoked one stays listed and counted, and the table
+  closes on **Showing all 2 app-passwords** (`common.pagination.showingAll`;
+  past 20 rows **Showing 20 of {n} app-passwords**,
+  `common.pagination.showingFiltered`, and the rest arrive as you scroll to
+  the table's end). A password's label or its prefix in **Search
+  app-passwords** leaves that password alone. Before the first app-password,
+  the table shows its empty state (`webdav.list.empty`) under the same
+  toolbar. No page scrolls sideways at 390 px, and every label is readable in
+  both themes and in German and French.
 - [ ] `SET-F64` · **Models tab while the model endpoints are off** — As an
   owner, with **Model endpoints for API keys** off (governance.md GOV-F40),
   open `/dashboard/{org}/settings/api/models` → The API pages read **REST**,

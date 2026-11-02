@@ -22,6 +22,11 @@ import { describe, expect, it } from 'vitest';
  *   with a second create button there. The ban is on the slot, since no walk
  *   can tell what a button in it does; a list that one day needs it for
  *   something other than creating names that exception here, like the sizes.
+ *   For the same reason a file that renders a `DataTable` passes no `action`
+ *   to a `SettingsSection`: a button in the header of the section that holds
+ *   the table is a create button outside it, where WebDAV's Generate once
+ *   sat. A header in another file than its table, or a create button in a
+ *   bar of the page's own, is beyond this walk.
  *
  * A settings list is anything a settings route renders: all of
  * `features/settings/` and the route folder, plus the pages that live with
@@ -76,6 +81,37 @@ const LIMIT_LITERAL = /\blimit\s*:\s*\d/;
 const setsOwnPageSize = (src: string) =>
   PAGE_SIZE_LITERALS.some((pattern) => pattern.test(src));
 const capsItsRead = (src: string) => LIMIT_LITERAL.test(src);
+
+/**
+ * What decides where a JSX opening tag ends: a string or a comment, taken
+ * whole since it may hold a `>` or a quote of its own (a comment between
+ * the props says "the table's"), a brace, or a `>`.
+ */
+const TAG_TOKEN = /"[^"]*"|'[^']*'|`[^`]*`|\/\/[^\n]*|\/\*[\s\S]*?\*\/|[{}>]/g;
+
+/**
+ * The JSX opening tag that starts at `start`: up to its first `>` outside
+ * braces, strings and comments, since a prop's value (an arrow function, a
+ * button) holds a `>` of its own.
+ */
+function openingTag(src: string, start: number): string {
+  let depth = 0;
+  for (const match of src.slice(start).matchAll(TAG_TOKEN)) {
+    const token = match[0];
+    if (token === '{') depth++;
+    else if (token === '}') depth--;
+    else if (token === '>' && depth === 0) {
+      return src.slice(start, start + (match.index ?? 0) + 1);
+    }
+  }
+  return src.slice(start);
+}
+
+/** Whether a `<SettingsSection>` in `src` puts something in its header. */
+const passesSectionAction = (src: string) =>
+  [...src.matchAll(/<SettingsSection\b/g)].some(({ index = 0 }) =>
+    /\saction=/.test(openingTag(src, index)),
+  );
 
 function listSources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -237,6 +273,43 @@ describe('settings list conventions', () => {
     expect(
       offenders,
       "These put a create button in DataTable's actionMenu slot. Pass addAction={{ label, icon, onClick }} instead.",
+    ).toEqual([]);
+  });
+
+  it('recognizes a section header action wherever its tag puts it', () => {
+    for (const header of [
+      '<SettingsSection title="App-passwords" action={<Button>Generate</Button>}>',
+      `<SettingsSection
+        ref={regionRef}
+        title={count > 0 ? many : one}
+        onFocus={() => setOpen(true)}
+        // Holds the focus (the table's last resort) when no row has > 0.
+        action={
+          <Button icon={KeyRound} onClick={() => setOpen(true)}>
+            Generate
+          </Button>
+        }
+      >`,
+    ]) {
+      expect(passesSectionAction(header), header).toBe(true);
+    }
+    for (const none of [
+      '<SettingsSection title="App-passwords">{action}</SettingsSection>',
+      '<SettingsSection title="Keys"><DataTable addAction={{ label }} /></SettingsSection>',
+      '<SettingsSection title="A > B">\n  <Button action={open} />\n</SettingsSection>',
+      '<SettingsSectionHeader action={<Button>Edit</Button>} />',
+    ]) {
+      expect(passesSectionAction(none), none).toBe(false);
+    }
+  });
+
+  it('creates through addAction, never a section header over the table', () => {
+    const offenders = sources
+      .filter(({ src }) => /<DataTable\b/.test(src) && passesSectionAction(src))
+      .map(({ name }) => name);
+    expect(
+      offenders,
+      "These render a DataTable and put a button in a SettingsSection's header. Create through the table's addAction={{ label, icon, onClick }} instead.",
     ).toEqual([]);
   });
 });

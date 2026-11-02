@@ -25,10 +25,14 @@ create:
 list:
   title: App-passwords
   empty: No app-passwords yet.
-  emptyDescription: Generate an app-password below to mount Tale documents as a network drive.
+  emptyDescription: Generate an app-password to mount Tale documents as a network drive.
   # A failed refresh keeps the app-passwords it left and is named above them;
   # a failed first read is the table's error state (#4652).
   refreshFailed: "Couldn't load the latest app-passwords. What's listed may be incomplete or out of date."
+  # The app-passwords table: its search, and the count under it.
+  searchPlaceholder: Search app-passwords
+  entityLabel: app-passwords
+  entityLabelOne: app-password
   label: Label
   prefix: Prefix
   lastUsed: Last used

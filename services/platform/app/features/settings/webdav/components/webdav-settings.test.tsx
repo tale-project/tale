@@ -165,18 +165,18 @@ describe('WebDAV revoke keeps the keyboard in the list', () => {
     );
   });
 
-  it('lands on the app-password list when no row keeps a Revoke', async () => {
+  // The table's own create action takes it, as in every settings list: the
+  // revoked rows stay, with no control left in them.
+  it("lands on the table's Generate when no row keeps a Revoke", async () => {
     listed.rows = [ACTIVE, RETIRED];
     const { user, rerender } = render(page());
 
     await revokeByKeyboard(user, 'Active workstation');
     refreshRevoked(rerender, ACTIVE._id);
 
-    await waitFor(() =>
-      expect(
-        screen.getByRole('region', { name: 'App-passwords' }),
-      ).toHaveFocus(),
-    );
+    const generate = screen.getByRole('button', { name: 'Generate' });
+    expect(generate.closest('[data-table-add-action]')).not.toBeNull();
+    await waitFor(() => expect(generate).toHaveFocus());
   });
 
   // #3715's path stays its own case: a cancelled revoke changes nothing.
