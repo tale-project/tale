@@ -74,7 +74,8 @@ export const RAG_ERROR_PII_BLOCKED = 'pii_blocked';
  * protection could not be started, or a part of the text could not be
  * scanned whole — so it is not indexed, in any mode. Fails closed rather
  * than indexing text the policy never saw; queued again when an admin saves
- * the PII policy, or by Retry indexing. */
+ * the PII policy, or by Retry indexing, and on its own once a protection
+ * that could not be started can be. */
 export const RAG_ERROR_PII_SCAN_FAILED = 'pii_scan_failed';
 
 /** A usage limit that binds whoever the indexing is for — the uploader, a
