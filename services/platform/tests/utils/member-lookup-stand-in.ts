@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import type {
   AskedMemberLookup,
+  FailedMemberLookups,
   LookedUpMember,
   MemberLookup,
   MemberLookupTarget,
@@ -26,11 +27,21 @@ function lookedUp(member: StandInMember, index: number): LookedUpMember {
   };
 }
 
+/** A lookup that failed, as a test stages it. */
+export interface StandInLookupFailure {
+  /** While `members()` is undefined, whether the lookup failed for
+   * everyone instead of still running. */
+  failed?: () => boolean;
+  /** What **Try again** on the failure notice calls. */
+  retry?: () => void;
+}
+
 /**
  * Stand-ins for the member lookup hooks (`member-lookup.ts`), for a test that
  * hands a screen its members instead of serving `GET /members/lookup`: the
  * lookup has answered for everyone in `members()` — and, while that is
- * undefined, for nobody yet. Whom the screen asks for is pushed onto
+ * undefined, for nobody yet, or has failed for everyone when
+ * `failure.failed()` says so. Whom the screen asks for is pushed onto
  * `asked`.
  *
  * Mock the module with it from a hoisted factory:
@@ -46,15 +57,20 @@ function lookedUp(member: StandInMember, index: number): LookedUpMember {
 export function memberLookupStandIn(
   members: () => readonly StandInMember[] | undefined,
   asked: MemberLookupTarget[] = [],
+  failure: StandInLookupFailure = {},
 ) {
+  const hasFailed = (rows: readonly StandInMember[] | undefined) =>
+    rows === undefined && (failure.failed?.() ?? false);
   function useStandInLookup(): MemberLookup {
     const rows = members();
+    const failed = hasFailed(rows);
     return useMemo(
       () => ({
         members: (rows ?? []).map(lookedUp),
         answered: () => rows !== undefined,
+        failed: () => failed,
       }),
-      [rows],
+      [rows, failed],
     );
   }
   return {
@@ -77,6 +93,15 @@ export function memberLookupStandIn(
         }),
         [lookup],
       );
+    },
+    useFailedMemberLookups: (_organizationId: string): FailedMemberLookups => {
+      const failed = hasFailed(members());
+      return {
+        unavailable: failed,
+        retrying: false,
+        failureCount: failed ? 1 : 0,
+        retry: () => failure.retry?.(),
+      };
     },
   };
 }

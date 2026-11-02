@@ -198,11 +198,14 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
   useApprovalAllowances: () => ({ data: undefined }),
 }));
 
-// Who saved a version, who deployed one: the member directory answers from
-// here, not from a server.
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [], isLoading: false }),
-}));
+// Who saved a version, who deployed one: the member lookup answers from
+// here, not from a server, and finds nobody.
+const noMembers = vi.hoisted(() => []);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => noMembers,
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));
