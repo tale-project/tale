@@ -329,6 +329,11 @@ runtime:
       explanation: Eine Aufgabe geht an ein Mitglied der Organisation oder an einen Agenten ihres Projekts.
       cause: 'Kein Mitglied und kein Agent des Projekts ist {assignee}, oder sie dürfen dort nicht arbeiten.'
       fix: Nenne die E-Mail-Adresse oder Benutzer-ID eines Mitglieds oder einen Agenten des Projekts.
+    TASK_LABEL_UNKNOWN:
+      title: Ein Label gehört nicht zum Projekt
+      explanation: Eine Issue-Synchronisierung gibt ihren Aufgaben nur Labels, die das Projekt schon hat, und legt nie eines an.
+      cause: 'Das Projekt hat kein Label namens {labels}.'
+      fix: Lege die Labels im Projekt an, oder nimm sie aus mirrorLabels der Quelle heraus.
     NOTIFY_NOT_A_MEMBER:
       title: Eine genannte Person ist kein Mitglied
       explanation: Eine Automatisierung schickt Nachrichten nur an Mitglieder der Organisation und schickt gar nichts, wenn jemand, den sie nennt, keines ist.

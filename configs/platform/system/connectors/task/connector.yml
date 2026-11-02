@@ -428,8 +428,9 @@ actions:
       becomes a task in Backlog, given the source's taskLabels; an item
       imported before refreshes its task's source snapshot (title,
       description, state) and leaves the task's own title, description,
-      status, labels and assignee alone, closed upstream or not. Each alert is
-      one task, and a secret is never read. Each source answers for itself in
+      status, labels and assignee alone, closed upstream or not, but for the
+      labels a github source mirrors from its issue (mirrorLabels). Each alert
+      is one task, and a secret is never read. Each source answers for itself in
       its receipt: one whose tracker fails does not stop the others, an item
       the tracker refuses or a task write refused is skipped and tried again
       later, and a source the tracker rate-limits stops for this run, keeps
@@ -473,6 +474,7 @@ actions:
                   author: { type: string, maxLength: 100, description: 'Only the items this login opened, such as renovate[bot]; anyone''s when empty.' }
                   credential: { type: string, maxLength: 200, description: 'The GitHub connection to read with, by name; the default one when empty or left out.' }
                   taskLabels: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 50 }, description: 'Labels the tasks this source creates are given, such as source:github.' }
+                  mirrorLabels: { type: object, maxProperties: 50, propertyNames: { minLength: 1, maxLength: 100 }, additionalProperties: { type: string, minLength: 1, maxLength: 50 }, description: 'Issue labels mirrored onto labels of the project, such as { bug: bug, feat: feature }: on its create and on every read after, each task wears exactly the mapped project labels its issue wears and keeps its other labels, each change on its timeline and in the audit log. Issue labels match without regard to case. The project must have every mapped label, which the sync never creates: a project that lacks one fails the step before any tracker is read. None may be one of taskLabels.' }
               - type: object
                 required: [kind, owner, repo, alerts]
                 additionalProperties: false
@@ -526,7 +528,7 @@ actions:
     exampleInput:
       projectId: proj_mock
       sources:
-        - { kind: github, owner: example, repo: web, labels: bug, taskLabels: ['source:github'] }
+        - { kind: github, owner: example, repo: web, labels: bug, taskLabels: ['source:github'], mirrorLabels: { feat: feature, enhancement: improvement } }
         - { kind: github, owner: example, repo: web, type: pulls, author: 'renovate[bot]' }
         - { kind: github-security, owner: example, repo: web, alerts: [code-scanning, dependabot], minSeverity: high, tools: [CodeQL] }
         - { kind: forgejo, owner: example, repo: web, type: issues }

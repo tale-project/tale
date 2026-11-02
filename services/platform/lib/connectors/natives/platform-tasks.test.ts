@@ -14,7 +14,11 @@ import {
 } from '../../../backend/core/tasks/helpers';
 import { nodeVmRunner } from '../../engine/runners/node-vm';
 import { parseYamlOrThrow } from '../../shared/config/yaml';
-import { IssueSyncProjectRefusal, type IssueSourceReceipt } from './issue-sync';
+import {
+  IssueSyncLabelRefusal,
+  IssueSyncProjectRefusal,
+  type IssueSourceReceipt,
+} from './issue-sync';
 import { platformTaskNatives } from './platform-tasks';
 
 const bodies = {
@@ -1344,6 +1348,25 @@ describe('task.sync_issues as an automation step', () => {
       failure: {
         reason: 'TASK_PROJECT_NOT_BOUND',
         params: { projectId: 'project-9' },
+      },
+    });
+  });
+
+  it('fails before any tracker is read when the project lacks a label a source mirrors, naming the labels [TASK-R98]', async () => {
+    const syncIssues = vi
+      .fn()
+      .mockRejectedValue(new IssueSyncLabelRefusal(['perf', 'docs']));
+    await expect(
+      nativeWith(syncIssues)?.(
+        { projectId: 'project-9', sources },
+        step as never,
+      ),
+    ).rejects.toMatchObject({
+      connector: 'task',
+      action: 'sync_issues',
+      failure: {
+        reason: 'TASK_LABEL_UNKNOWN',
+        params: { labels: 'perf, docs', projectId: 'project-9' },
       },
     });
   });

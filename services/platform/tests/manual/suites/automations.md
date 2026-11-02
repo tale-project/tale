@@ -1859,6 +1859,16 @@ output:
       the project), the run fails naming the GitHub source alone, and its
       GlitchTip receipt reads `saved: true`; remove the label from one task
       and run again → it stays off (TASK-R77, TASK-R78).
+- [ ] `AUTO-F249` · **In the editor, give the GitHub source of a sync step
+      `mirrorLabels: { bug: bug, feat: feature }` in a project that has the
+      labels `bug` and `feature`, label one open issue `bug` and select Run
+      now** → its task wears `bug`; add `hold` to the task, relabel the issue
+      from `bug` to `feat` on GitHub and run again → the task wears `hold`
+      and `feature`, its timeline shows the label change by the automation,
+      and the audit log holds it; run again with no change on GitHub → the
+      timeline gains no label entry. Map `perf` to `perf`, which the project
+      does not have, and run → the run fails before it reads GitHub with
+      `automationRuns.reasons.TASK_LABEL_UNKNOWN` naming `perf` (TASK-R98).
 - [ ] `AUTO-F184` · **Create a new organization, open Automations, then
       run `tale migrate`** → the list is empty
       (`automations.list.empty.title`) with **Browse templates**

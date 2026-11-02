@@ -329,6 +329,11 @@ runtime:
       explanation: A task goes to a member of the organization or to an agent of its project.
       cause: 'No member or agent of the project is {assignee}, or they may not work in it.'
       fix: Name a member's email or user id, or an agent of the project.
+    TASK_LABEL_UNKNOWN:
+      title: A label isn't the project's
+      explanation: An issue sync puts only labels the project already has on its tasks, and never creates one.
+      cause: 'The project has no label named {labels}.'
+      fix: Create the labels in the project, or take them out of the source's mirrorLabels.
     NOTIFY_NOT_A_MEMBER:
       title: A recipient isn't a member
       explanation: An automation sends messages only to members of the organization, and sends nothing when someone it names isn't one.

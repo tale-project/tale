@@ -281,7 +281,7 @@ nodes:
       projectId: <the project's ID>
       sources:
         - { kind: github, owner: tale-project, repo: tale, labels: bug }
-        - { kind: github, owner: tale-project, repo: docs, credential: GitHub docs }
+        - { kind: github, owner: tale-project, repo: docs, credential: GitHub docs, mirrorLabels: { bug: bug, feat: feature } }
         - { kind: github, owner: tale-project, repo: tale, type: pulls, author: 'renovate[bot]', taskLabels: ['source:renovate'] }
         - { kind: github-security, owner: tale-project, repo: tale, alerts: [code-scanning, dependabot], minSeverity: high, tools: [CodeQL] }
         - { kind: forgejo, owner: ops, repo: deploy, type: issues, credential: Forgejo ops }
@@ -295,12 +295,14 @@ The kinds of source:
 
 | `kind` | Reads | Fields |
 | --- | --- | --- |
-| `github` | A repository's open issues, or its open pull requests with `type: pulls`. | `owner`, `repo`; optional `type` (`issues` or `pulls`), `labels` (an item needs every one), `author` (a login, such as `renovate[bot]`). |
+| `github` | A repository's open issues, or its open pull requests with `type: pulls`. | `owner`, `repo`; optional `type` (`issues` or `pulls`), `labels` (an item needs every one), `author` (a login, such as `renovate[bot]`), `mirrorLabels` (the issue labels its tasks wear, see below). |
 | `github-security` | A repository's open security alerts, one task per alert. | `owner`, `repo`, `alerts` (any of `code-scanning`, `dependabot`, `secret-scanning`); optional `minSeverity` (`low`, `medium`, `high`, `critical`) and `tools` (code scanning tools, such as `CodeQL`). |
 | `forgejo` | A repository's open issues or pull requests on the instance its credentials name. | `owner`, `repo`; optional `type`, `labels` (an item needs every one), `author` (a user name). |
 | `glitchtip` | A project's unresolved issues. | `organization`, `project`; optional `query` (GlitchTip's search). |
 
 Every kind also takes `credential` and `taskLabels`: up to 10 labels each task the source creates is given, so a board several sources fill shows where a task came from. A task the sync made before keeps the labels it has, and a label the project does not have yet is added to the project.
+
+A `github` source can also mirror its issues' own labels with `mirrorLabels`, a map from an issue label to a label of the project, such as `{ bug: bug, feat: feature }`. A task the source creates wears the mapped labels its issue wears, and each later read of the issue, in a new pass or among the `refreshLimit` issues read again, sets the task's mapped labels to exactly those the issue wears, so the task follows a label added or taken off on GitHub. Issue labels match without regard to case, an issue label the map does not name is ignored, and the task keeps its other labels, its source's `taskLabels` and those a person set included; an archived task keeps all of them. Each change is on the task's timeline and in the audit log as the automation's, and the receipt counts the task as `refreshed`. The sync never creates a label: every label the map names must already be the project's, none may also be one of `taskLabels`, and a run whose project lacks one fails before it reads any tracker, naming the labels it lacks.
 
 The platform keeps each source's position per project, tracker, source name (`owner/repo`, `organization/project`) and filter, and on Forgejo and GlitchTip, whose credentials name the instance, per the `credential` it names: automations that name the same source under the same filter in the same project share one pass, the same repository read through credentials for two instances keeps a pass on each, a source narrowed by `labels`, a `query`, an `author`, its `type` or its alert filters keeps a pass of its own, and a source without a filter, or a `credential` on Forgejo and GlitchTip, carries on a pass that a hand-built chain of `task.get_import_cursor` and `task.save_import_cursor` started. Each run reads up to `limit` new open issues per source (100 when left out, at most 500), makes a task in **Backlog** for each issue the project does not have yet, and saves where it stopped; after the last issue, the next run starts the next pass from the first. It also reads up to `refreshLimit` issues imported earlier again (50 when left out, 0 for none), the longest-unchecked first, and updates their tasks' source cards; a task's own title, description, status and assignee stay as they are, closed upstream or not. `credential` names the stored credentials a source is read with; empty or left out, the default ones.
 

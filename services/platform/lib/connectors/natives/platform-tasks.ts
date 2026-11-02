@@ -34,6 +34,7 @@ import type {
 import { ConnectorError } from '../errors';
 import type { SecurityAlertKind } from './issue-import-alerts';
 import {
+  IssueSyncLabelRefusal,
   IssueSyncProjectRefusal,
   failedSources,
   issueSyncFailure,
@@ -123,6 +124,11 @@ export interface WorkflowIssueInput {
   /** Labels a task this write creates is given; a task that exists keeps
    * its own. */
   labels?: string[];
+  /** The project labels an issue sync mirrors from the issue (TASK-R98), by
+   * name: every one its source maps, and those the issue wears. The task
+   * wears exactly the carried ones of them, on its create and on a newer
+   * read of an unarchived task, and keeps its other labels. */
+  mirrorLabels?: { managed: string[]; carried: string[] };
 }
 
 /** One imported issue as the task domain settled it. `title` is the title
@@ -300,7 +306,8 @@ export interface WorkflowTaskStore {
    * source, the next batch from its position, its linked tasks refreshed,
    * every issue written into its task, the position saved — one receipt
    * each. Throws {@link IssueSyncProjectRefusal} when the run may not write
-   * in the project. */
+   * in the project, and {@link IssueSyncLabelRefusal} when the project lacks
+   * a label a source mirrors. */
   syncIssues(
     args: Omit<IssueSyncInput, 'failOn'> & {
       organizationId: string;
@@ -1039,6 +1046,17 @@ export function platformTaskNatives(
           `task.sync_issues cannot write in project "${projectId}": ${error.message}`,
           { reason: 'TASK_PROJECT_NOT_BOUND', params: { projectId } },
           'install the automation in the project, or run it in a project it is installed in',
+        );
+      }
+      if (error instanceof IssueSyncLabelRefusal) {
+        throw new TaskStepRefusal(
+          'sync_issues',
+          `task.sync_issues: project "${projectId}" has no label named ${error.labels.join(', ')}; the sync never creates one`,
+          {
+            reason: 'TASK_LABEL_UNKNOWN',
+            params: { labels: error.labels.join(', '), projectId },
+          },
+          'create the labels in the project, or take them out of the source’s mirrorLabels',
         );
       }
       throw error;

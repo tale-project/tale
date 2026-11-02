@@ -926,7 +926,7 @@ actions:
         title: Issues für den Import auflisten
       fr:
         title: Lister les issues à importer
-    description: Read matching open issues for task intake, oldest first, or the open pull requests with type pulls. Labels narrow the listing to items carrying every one of them, author to the items one login opened (an app's login ends in [bot], such as renovate[bot]). Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
+    description: Read matching open issues for task intake, oldest first, or the open pull requests with type pulls. Labels narrow the listing to items carrying every one of them, author to the items one login opened (an app's login ends in [bot], such as renovate[bot]). With withLabels, each issue also names the labels it wears (sourceLabels). Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
     effects: read
     input:
       type: object
@@ -938,13 +938,14 @@ actions:
         labels: { type: string, maxLength: 1000 }
         type: { type: string, enum: [issues, pulls], description: 'Issues (the default) or pull requests.' }
         author: { type: string, maxLength: 100, description: 'Only the items this login opened.' }
+        withLabels: { type: boolean, description: 'Each issue also names the labels it wears (sourceLabels).' }
         limit: { type: integer, minimum: 1, maximum: 500 }
         cursor: { type: string, maxLength: 12000 }
-    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string, legacyPrefixes?: Array<string> }'
+    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object, sourceLabels?: Array<string> }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string, legacyPrefixes?: Array<string> }'
     mock: |
       const externalId = String(input.owner).toLowerCase() + '/' + String(input.repo).toLowerCase() + '#1';
       const url = 'https://github.com/' + input.owner + '/' + input.repo + (input.type === 'pulls' ? '/pull/1' : '/issues/1');
-      const issue = { externalSystem: 'github', externalId, title: 'Example issue', description: 'Mock issue body.', externalUrl: url, externalIssue: { id: '1', title: 'Example issue', description: 'Mock issue body.', url, state: 'open', syncedAt: 0, repositoryId: 1, number: 1 } };
+      const issue = { externalSystem: 'github', externalId, title: 'Example issue', description: 'Mock issue body.', externalUrl: url, externalIssue: { id: '1', title: 'Example issue', description: 'Mock issue body.', url, state: 'open', syncedAt: 0, repositoryId: 1, number: 1 }, ...(input.withLabels === true ? { sourceLabels: [] } : {}) };
       return { issues: [issue], truncated: false, nextCursor: null, repositoryId: 1 };
     backend:
       kind: native
@@ -957,7 +958,7 @@ actions:
         title: Importiertes Issue aktualisieren
       fr:
         title: Actualiser une issue importée
-    description: Refresh a previously imported issue by immutable source identity, including closed or resolved issues outside the discovery filter. Marks a missing source unavailable without changing its Tale task.
+    description: Refresh a previously imported issue by immutable source identity, including closed or resolved issues outside the discovery filter. Marks a missing source unavailable without changing its Tale task. With withLabels, the issue also names the labels it wears (sourceLabels), unless the tracker no longer has it.
     effects: read
     input:
       type: object
@@ -968,10 +969,11 @@ actions:
         organization: { type: string, minLength: 1, maxLength: 100 }
         repositoryId: { type: integer, minimum: 1 }
         sourceProjectId: { type: string, minLength: 1 }
-    output: '{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }'
+        withLabels: { type: boolean, description: 'The issue also names the labels it wears (sourceLabels).' }
+    output: '{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object, sourceLabels?: Array<string> }'
     mock: |
       const source = input.issue.externalIssue;
-      return { externalSystem: 'github', externalId: input.issue.externalId, externalUrl: source.url, title: source.title, description: source.description, externalIssue: source };
+      return { externalSystem: 'github', externalId: input.issue.externalId, externalUrl: source.url, title: source.title, description: source.description, externalIssue: source, ...(input.withLabels === true ? { sourceLabels: [] } : {}) };
     backend:
       kind: native
       impl: github.get_import_issue
@@ -999,11 +1001,12 @@ actions:
         repositoryId: { type: integer, minimum: 1 }
         sourceProjectId: { type: string, minLength: 1 }
         report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the issues alone.' }
+        withLabels: { type: boolean, description: 'Each issue also names the labels it wears (sourceLabels).' }
     # `report: true` answers { issues, failed, notRead, retryAfter } instead
     # (the issue sync's own reading); the signature types the plain answer.
-    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
+    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object, sourceLabels?: Array<string> }>'
     mock: |
-      const issues = input.issues.map((issue) => ({ externalSystem: 'github', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+      const issues = input.issues.map((issue) => ({ externalSystem: 'github', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue, ...(input.withLabels === true ? { sourceLabels: [] } : {}) }));
       return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;
     backend:
       kind: native

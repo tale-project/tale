@@ -15,6 +15,7 @@ import {
   startWorkflowForTaskInTx,
   taskWorkflowStartLockKey,
   upsertTaskByExternalRef,
+  type UpsertTaskByExternalRefArgs,
 } from './external-ref.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
@@ -1356,6 +1357,222 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
       taskId: 't-42',
       created: false,
       title: 'Triaged in Tale',
+    });
+  });
+
+  describe('the labels an issue sync mirrors [TASK-R98]', () => {
+    /** The project's catalog: id to name. */
+    const catalog = new Map([
+      ['lbl-bug', 'Bug'],
+      ['lbl-feature', 'feature'],
+      ['lbl-hold', 'hold'],
+      ['lbl-source', 'source:github'],
+    ]);
+    const idOf = (name: string): string | null =>
+      [...catalog].find(
+        ([, label]) => label.toLowerCase() === name.toLowerCase(),
+      )?.[0] ?? null;
+    const texts = (value: unknown): string[] =>
+      Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string')
+        : [];
+    /** The sync's upsert of one issue over `row`, or a create without one,
+     * and what it wrote: the label UPDATE, the timeline's label lines, the
+     * task it inserted, the labels it minted, the catalog reads of the
+     * mirror, the audit row, and its answer or refusal. */
+    const mirroring = async (
+      row: TaskRow | null,
+      call: Pick<UpsertTaskByExternalRefArgs, 'labels' | 'mirrorLabels'>,
+      options: { stale?: boolean } = {},
+    ) => {
+      vi.mocked(createAuditLog).mockClear();
+      let relabelled: string[] | undefined;
+      let inserted: unknown[] | undefined;
+      const lines: unknown[][] = [];
+      let minted = 0;
+      let catalogReads = 0;
+      const { tx } = fakeDb((text, values) => {
+        if (text.startsWith('SELECT wanted.name, label.id FROM unnest(')) {
+          catalogReads += 1;
+          return texts(values[0]).map((name) => ({ name, id: idOf(name) }));
+        }
+        if (text.startsWith('SELECT id, name FROM app.task_labels')) {
+          return texts(values[1]).flatMap((id) => {
+            const name = catalog.get(id);
+            return name === undefined ? [] : [{ id, name }];
+          });
+        }
+        if (text.startsWith('SELECT id FROM app.task_labels')) {
+          const id = idOf(texts([values[1]])[0] ?? '');
+          return id === null ? [] : [{ id }];
+        }
+        if (text.startsWith('INSERT INTO app.task_labels')) {
+          minted += 1;
+          return [{ id: 'lbl-minted' }];
+        }
+        if (text.startsWith('INSERT INTO app.task_activity')) {
+          if (values[5] === 'labels.changed') {
+            lines.push([values[3], values[4], values[6], values[7]]);
+          }
+          return [];
+        }
+        if (text.startsWith('UPDATE app.tasks SET label_ids')) {
+          relabelled = texts(values[0]);
+          return [];
+        }
+        if (text.startsWith('UPDATE app.tasks SET')) {
+          return options.stale === true || row === null ? [] : [{ id: row.id }];
+        }
+        if (text.includes('FROM app.tasks WHERE org_id = ?')) {
+          return row === null ? [] : [row];
+        }
+        if (text.startsWith('INSERT INTO app.tasks')) {
+          inserted = values;
+          return [{ id: 't-new' }];
+        }
+        if (text.startsWith('SELECT id FROM app.projects')) {
+          return [{ id: 'p-1' }];
+        }
+        if (text.startsWith('UPDATE app.projects SET task_counter')) {
+          return [{ taskCounter: 43 }];
+        }
+        return [];
+      });
+      const outcome = await upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: 'Issue 42',
+        externalIssue: snapshot,
+        ...call,
+      }).then(
+        (result) => ({ result, error: undefined }),
+        (error: unknown) => ({ result: undefined, error }),
+      );
+      return {
+        ...outcome,
+        relabelled,
+        inserted,
+        lines,
+        minted,
+        catalogReads,
+        audit: vi.mocked(createAuditLog).mock.calls.at(-1)?.[1],
+      };
+    };
+
+    it('gives a task the sync creates the mapped labels its issue wears, from the catalog alone', async () => {
+      const seen = await mirroring(null, {
+        labels: ['source:github'],
+        mirrorLabels: { managed: ['bug', 'feature'], carried: ['bug'] },
+      });
+      expect(seen.error).toBeUndefined();
+      expect(seen.result).toEqual({
+        taskId: 't-new',
+        created: true,
+        title: 'Issue 42',
+      });
+      expect(seen.inserted).toContainEqual(['lbl-source', 'lbl-bug']);
+      expect(seen.minted).toBe(0);
+      // The labels are part of the create, not a change after it.
+      expect(seen.lines).toEqual([]);
+    });
+
+    it('refuses a mapped label the catalog does not have, and creates none', async () => {
+      const created = await mirroring(null, {
+        mirrorLabels: { managed: ['bug', 'perf'], carried: ['perf'] },
+      });
+      const refreshed = await mirroring(stored, {
+        mirrorLabels: { managed: ['bug', 'perf'], carried: ['perf'] },
+      });
+      for (const seen of [created, refreshed]) {
+        expect(seen.error).toBeInstanceOf(TaskError);
+        expect(seen.error).toMatchObject({
+          code: 'TASK_LABEL_UNKNOWN',
+          data: { labels: ['perf'] },
+        });
+        expect(seen.minted).toBe(0);
+        expect(seen.relabelled).toBeUndefined();
+      }
+      expect(created.inserted).toBeUndefined();
+    });
+
+    it('adds and removes the mapped labels of a task on a newer read, keeps the others, and records the automation as the one who did', async () => {
+      const seen = await mirroring(
+        { ...stored, labelIds: ['lbl-bug', 'lbl-hold', 'lbl-source'] },
+        {
+          labels: ['source:github'],
+          mirrorLabels: { managed: ['bug', 'feature'], carried: ['feature'] },
+        },
+      );
+      expect(seen.relabelled).toEqual([
+        'lbl-hold',
+        'lbl-source',
+        'lbl-feature',
+      ]);
+      expect(seen.lines).toEqual([
+        [
+          'agent',
+          'workflow',
+          'Bug, hold, source:github',
+          'hold, source:github, feature',
+        ],
+      ]);
+      expect(seen.audit).toMatchObject({
+        actorId: 'workflow',
+        actorType: 'api',
+        resourceId: 't-42',
+        metadata: {
+          viaAgent: true,
+          externalSystem: 'github',
+          sourceId: '9042',
+        },
+        previousState: { labelIds: ['lbl-bug', 'lbl-hold', 'lbl-source'] },
+        newState: { labelIds: ['lbl-hold', 'lbl-source', 'lbl-feature'] },
+      });
+      expect(seen.result).toEqual({
+        taskId: 't-42',
+        created: false,
+        title: 'Triaged in Tale',
+        labelsChanged: true,
+      });
+    });
+
+    it('writes no label change when the task already wears what its issue does', async () => {
+      const seen = await mirroring(
+        { ...stored, labelIds: ['lbl-feature', 'lbl-hold'] },
+        { mirrorLabels: { managed: ['bug', 'feature'], carried: ['feature'] } },
+      );
+      expect(seen.catalogReads).toBe(1);
+      expect(seen.relabelled).toBeUndefined();
+      expect(seen.lines).toEqual([]);
+      expect(seen.audit).not.toHaveProperty('previousState');
+      expect(seen.audit).not.toHaveProperty('newState');
+      expect(seen.result).toEqual({
+        taskId: 't-42',
+        created: false,
+        title: 'Triaged in Tale',
+      });
+    });
+
+    it('leaves the labels alone on an older observation and on an archived task', async () => {
+      const mirrorLabels = {
+        managed: ['bug', 'feature'],
+        carried: ['feature'],
+      };
+      const older = await mirroring(
+        { ...stored, labelIds: ['lbl-bug'] },
+        { mirrorLabels },
+        { stale: true },
+      );
+      const archived = await mirroring(
+        { ...stored, labelIds: ['lbl-bug'], archivedAt: 5 },
+        { mirrorLabels },
+      );
+      for (const seen of [older, archived]) {
+        expect(seen.error).toBeUndefined();
+        expect(seen.catalogReads).toBe(0);
+        expect(seen.relabelled).toBeUndefined();
+        expect(seen.lines).toEqual([]);
+        expect(seen.result).not.toHaveProperty('labelsChanged');
+      }
     });
   });
 });

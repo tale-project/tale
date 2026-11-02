@@ -13,7 +13,9 @@ import {
   issueSyncFailure,
   issueSyncFails,
   issueSyncInputSchema,
+  mirroredProjectLabels,
   syncIssueSources,
+  type IssueLabelMirror,
   type IssueSourceReceipt,
   type IssueSyncDeps,
   type IssueWrite,
@@ -86,6 +88,8 @@ function fakes(
     refuse?: Set<string>;
     signal?: AbortSignal;
     linked?: LinkedIssue[];
+    /** The issues whose write changes the mirrored labels of their task. */
+    labelsChanged?: Set<string>;
   } = {},
 ) {
   let revisions = 1;
@@ -99,7 +103,11 @@ function fakes(
   }> = [];
   const failures: string[] = [];
   const writes: string[] = [];
-  const labelled: Array<{ externalId: string; labels?: string[] }> = [];
+  const labelled: Array<{
+    externalId: string;
+    labels?: string[];
+    mirror?: IssueLabelMirror;
+  }> = [];
   const queries: Array<Parameters<IssueSyncDeps['linked']>[0]> = [];
   const name = (key: SyncPositionKey) => `${key.externalSystem}:${key.source}`;
   const row = (key: SyncPositionKey): FakePosition => {
@@ -229,6 +237,9 @@ function fakes(
         ...(writeOptions?.labels !== undefined && {
           labels: writeOptions.labels,
         }),
+        ...(writeOptions?.mirror !== undefined && {
+          mirror: writeOptions.mirror,
+        }),
       });
       if (options.refuse?.has(written.externalId)) {
         return { ok: false, reason: 'TASK_EXTERNAL_REF_INVALID' };
@@ -240,6 +251,9 @@ function fakes(
         taskId: `task-${written.externalIssue.id}`,
         created: previous === null,
         previous,
+        ...(options.labelsChanged?.has(written.externalId) === true && {
+          labelsChanged: true,
+        }),
       };
     },
     now: () => NOW,
@@ -1074,6 +1088,202 @@ describe('task.sync_issues task labels', () => {
         }).success,
       ).toBe(false);
     }
+  });
+});
+
+describe('task.sync_issues mirrored labels', () => {
+  const mirroring = {
+    ...web,
+    mirrorLabels: { bug: 'bug', feat: 'feature', enhancement: 'feature' },
+  };
+  const labelledIssue = (
+    id: string,
+    sourceLabels: string[],
+  ): ImportedIssue => ({
+    ...issue(id),
+    sourceLabels,
+  });
+  const refreshing =
+    (issues: ImportedIssue[]): Script =>
+    () => ({ issues, failed: [], notRead: 0, retryAfter: null });
+  const linkedOne: LinkedIssue[] = [
+    {
+      taskId: 'task-1',
+      externalId: 'example/web#1',
+      externalIssue: snapshot('1'),
+    },
+  ];
+
+  it('reads the labels each issue wears only for a source that mirrors them, on the listing and the refresh alike [TASK-R98]', async () => {
+    const run = async (source: Record<string, unknown>) => {
+      const harness = fakes({
+        tasks: new Map([['1', snapshot('1')]]),
+        linked: linkedOne,
+        list: { github: listing([], null) },
+        refresh: { github: refreshing([issue('1')]) },
+      });
+      await syncIssueSources(harness.deps, input([source]));
+      return harness;
+    };
+    const plain = await run(web);
+    const mirrored = await run(mirroring);
+    const asked = (harness: typeof plain) =>
+      harness.calls.map((call) => [call.action, call.input.withLabels]);
+    expect(asked(plain)).toEqual([
+      ['list_import_issues', undefined],
+      ['refresh_import_issues', undefined],
+    ]);
+    expect(asked(mirrored)).toEqual([
+      ['list_import_issues', true],
+      ['refresh_import_issues', true],
+    ]);
+    // Mirroring narrows nothing: a source that starts mirroring carries on
+    // with the pass it has.
+    expect([...mirrored.positions.keys()]).toEqual([...plain.positions.keys()]);
+  });
+
+  it('gives each write the labels the source maps and those of them its issue wears, matched without regard to case, ignoring the unmapped ones [TASK-R98]', async () => {
+    const harness = fakes({
+      list: {
+        github: listing(
+          [
+            labelledIssue('1', ['Bug', 'question']),
+            labelledIssue('2', ['FEAT', 'enhancement', 'bug']),
+            labelledIssue('3', ['question']),
+          ],
+          null,
+        ),
+      },
+    });
+    await syncIssueSources(
+      harness.deps,
+      input([{ ...mirroring, taskLabels: ['source:github'] }]),
+    );
+    const managed = ['bug', 'feature'];
+    expect(harness.labelled).toEqual([
+      {
+        externalId: 'example/web#1',
+        labels: ['source:github'],
+        mirror: { managed, carried: ['bug'] },
+      },
+      {
+        externalId: 'example/web#2',
+        labels: ['source:github'],
+        mirror: { managed, carried: ['feature', 'bug'] },
+      },
+      {
+        externalId: 'example/web#3',
+        labels: ['source:github'],
+        mirror: { managed, carried: [] },
+      },
+    ]);
+  });
+
+  it('mirrors nothing onto a task whose issue’s labels were not read, as for an issue its tracker no longer shows [TASK-R98]', async () => {
+    const harness = fakes({
+      tasks: new Map([['1', snapshot('1')]]),
+      linked: linkedOne,
+      list: { github: listing([issue('2')], null) },
+      refresh: { github: refreshing([issue('1', { unavailable: true })]) },
+    });
+    await syncIssueSources(harness.deps, input([mirroring]));
+    expect(harness.labelled).toEqual([
+      { externalId: 'example/web#1' },
+      { externalId: 'example/web#2' },
+    ]);
+  });
+
+  it('counts a task whose mirrored labels alone followed its issue as refreshed [TASK-R98]', async () => {
+    const harness = fakes({
+      tasks: new Map([
+        ['1', snapshot('1')],
+        ['2', snapshot('2')],
+      ]),
+      labelsChanged: new Set(['example/web#1']),
+      list: {
+        github: listing(
+          [labelledIssue('1', ['feat']), labelledIssue('2', ['bug'])],
+          null,
+        ),
+      },
+    });
+    const result = await syncIssueSources(harness.deps, input([mirroring]));
+    expect(result.sources[0]).toMatchObject({
+      created: 0,
+      refreshed: 1,
+      unchanged: 1,
+    });
+  });
+
+  it('refuses a mirror that maps no label name, or more labels than a task wears [TASK-R98]', () => {
+    const parses = (mirrorLabels: Record<string, string>) =>
+      issueSyncInputSchema.safeParse({
+        projectId: 'project-1',
+        sources: [{ ...web, mirrorLabels }],
+      }).success;
+    for (const mirrorLabels of [
+      { bug: '' },
+      { bug: 'x'.repeat(51) },
+      { '': 'bug' },
+      { '  ': 'bug' },
+      { ['x'.repeat(101)]: 'bug' },
+      { bug: 'bug', ' BUG ': 'defect' },
+      Object.fromEntries(
+        Array.from({ length: 51 }, (_, at): [string, string] => [
+          `label-${at}`,
+          'bug',
+        ]),
+      ),
+    ]) {
+      expect(parses(mirrorLabels)).toBe(false);
+    }
+    // Several issue labels may map to one project label.
+    expect(
+      parses({ bug: 'bug', defect: 'bug', ['x'.repeat(100)]: 'feature' }),
+    ).toBe(true);
+  });
+
+  it('refuses a mirror of a label the source gives every task it creates [TASK-R98]', () => {
+    const parsed = issueSyncInputSchema.safeParse({
+      projectId: 'project-1',
+      sources: [{ ...web, taskLabels: ['Bug'], mirrorLabels: { bug: 'bug' } }],
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.message).toContain(
+      'mirrors bug, which taskLabels gives every task the source creates',
+    );
+  });
+
+  it('refuses a mirror on a source that reads no GitHub issues [TASK-R98]', () => {
+    for (const source of [
+      { kind: 'forgejo', owner: 'example', repo: 'web' },
+      glitch,
+      {
+        kind: 'github-security',
+        owner: 'example',
+        repo: 'web',
+        alerts: ['dependabot'],
+      },
+    ]) {
+      expect(
+        issueSyncInputSchema.safeParse({
+          projectId: 'project-1',
+          sources: [{ ...source, mirrorLabels: { bug: 'bug' } }],
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('names each project label the sources mirror once, in the order they first appear [TASK-R98]', () => {
+    expect(
+      mirroredProjectLabels(
+        input([
+          mirroring,
+          { ...web, repo: 'docs', mirrorLabels: { docs: 'Docs', bug: 'BUG' } },
+          glitch,
+        ]).sources,
+      ),
+    ).toEqual(['bug', 'feature', 'Docs']);
   });
 });
 

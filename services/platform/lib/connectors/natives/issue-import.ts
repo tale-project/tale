@@ -31,7 +31,14 @@ export interface ImportedIssue {
   title: string;
   description: string;
   externalIssue: TaskExternalIssue;
+  /** The labels the issue wears at its source, by name as the tracker
+   * spells them: read only when the listing asks for them (`withLabels`),
+   * and absent for an issue its tracker no longer answers for. */
+  sourceLabels?: string[];
 }
+
+/** The most labels a GitHub issue wears: GitHub's own cap. */
+const SOURCE_LABELS_MAX = 100;
 
 /** The longest a rate limit may ask the sync to wait. A reset further out
  * reads as a broken header, not as a day off. */
@@ -156,6 +163,8 @@ const githubInput = z
     type: itemTypeSchema.optional(),
     /** Only the items this login opened. */
     author: githubLoginSchema.optional(),
+    /** Each issue also names the labels it wears (`sourceLabels`). */
+    withLabels: z.boolean().optional(),
     limit,
     cursor,
   })
@@ -190,6 +199,12 @@ const sourceInput = z
       .regex(/^[A-Za-z0-9_-]+$/)
       .max(100)
       .optional(),
+  })
+  .strict();
+const githubSourceInput = sourceInput
+  .extend({
+    /** The issue also names the labels it wears (`sourceLabels`). */
+    withLabels: z.boolean().optional(),
   })
   .strict();
 export const positionSchema = z
@@ -335,6 +350,31 @@ export function isPullRequestRow(row: unknown): boolean {
     row.pull_request !== undefined
   );
 }
+/** The names of the labels a code host's issue row wears, as the tracker
+ * spells them: each label an object with a `name`, or a bare name. */
+export function rowLabelNames(row: unknown): string[] {
+  const labels =
+    typeof row === 'object' &&
+    row !== null &&
+    'labels' in row &&
+    Array.isArray(row.labels)
+      ? row.labels
+      : [];
+  const names: string[] = [];
+  for (const label of labels) {
+    const name =
+      typeof label === 'string'
+        ? label
+        : typeof label === 'object' &&
+            label !== null &&
+            'name' in label &&
+            typeof label.name === 'string'
+          ? label.name
+          : '';
+    if (name !== '') names.push(name);
+  }
+  return names;
+}
 /** Whether an issue row was opened by `author`, a login compared without
  * regard to case; every row when no author is asked for. */
 export function openedBy(row: unknown, author: string | undefined): boolean {
@@ -376,7 +416,11 @@ export function nameList(
 export function storable(text: string): string {
   return text.replaceAll('\u0000', '');
 }
-function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
+function githubIssue(
+  raw: unknown,
+  repositoryId: number,
+  withLabels: boolean,
+): ImportedIssue {
   const row = parse(githubIssueSchema, raw);
   const title = storable(row.title).trim() || `#${row.number}`;
   const url = new URL(row.html_url);
@@ -410,6 +454,11 @@ function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
       syncedAt: 0,
       ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
     },
+    ...(withLabels && {
+      sourceLabels: rowLabelNames(row)
+        .map(storable)
+        .slice(0, SOURCE_LABELS_MAX),
+    }),
   };
 }
 const glitchtipIssueSchema = z
@@ -621,7 +670,11 @@ export function issueImportNatives(): Readonly<
         normalize: (item) => {
           if (isPullRequestRow(item) !== pulls || !openedBy(item, input.author))
             return null;
-          const issue = githubIssue(item, metadata.id);
+          const issue = githubIssue(
+            item,
+            metadata.id,
+            input.withLabels === true,
+          );
           issue.externalIssue.syncedAt = syncedAt;
           return issue;
         },
@@ -657,7 +710,7 @@ export function issueImportNatives(): Readonly<
     },
     'github.get_import_issue': async (raw, ctx) => {
       const syncedAt = Date.now();
-      const { issue, repositoryId } = parse(sourceInput, raw);
+      const { issue, repositoryId, withLabels } = parse(githubSourceInput, raw);
       const source = issue.externalIssue;
       const legacy = /^([A-Za-z0-9-]+)\/([A-Za-z0-9_.-]+)#([1-9][0-9]*)$/.exec(
         issue.externalId,
@@ -678,6 +731,7 @@ export function issueImportNatives(): Readonly<
       const result = githubIssue(
         requireSuccess(response, 'GitHub', 'github.get_import_issue'),
         repoId,
+        withLabels === true,
       );
       if (source && result.externalIssue.id !== source.id)
         invalid('GitHub returned a different issue identity.');
@@ -838,20 +892,24 @@ export function issueImportNatives(): Readonly<
       return result;
     },
   };
-  for (const provider of ['github', 'glitchtip']) {
+  const refreshInput = z
+    .object({
+      issues: z.array(sourceInput.shape.issue).max(500),
+      organization: sourceInput.shape.organization,
+      repositoryId: sourceInput.shape.repositoryId,
+      sourceProjectId: sourceInput.shape.sourceProjectId,
+      report: z.boolean().optional(),
+    })
+    .strict();
+  const refreshInputs = {
+    github: refreshInput
+      .extend({ withLabels: githubSourceInput.shape.withLabels })
+      .strict(),
+    glitchtip: refreshInput,
+  };
+  for (const provider of ['github', 'glitchtip'] as const) {
     natives[`${provider}.refresh_import_issues`] = async (raw, ctx) => {
-      const input = parse(
-        z
-          .object({
-            issues: z.array(sourceInput.shape.issue).max(500),
-            organization: sourceInput.shape.organization,
-            repositoryId: sourceInput.shape.repositoryId,
-            sourceProjectId: sourceInput.shape.sourceProjectId,
-            report: z.boolean().optional(),
-          })
-          .strict(),
-        raw,
-      );
+      const input = parse(refreshInputs[provider], raw);
       const refresh = natives[`${provider}.get_import_issue`];
       if (!refresh) throw new Error('Missing issue refresh backend');
       return answerRefresh(provider, input.issues, input.report, (issue) =>
@@ -863,6 +921,8 @@ export function issueImportNatives(): Readonly<
             ...(input.sourceProjectId
               ? { sourceProjectId: input.sourceProjectId }
               : {}),
+            ...('withLabels' in input &&
+              input.withLabels === true && { withLabels: true }),
           },
           ctx,
         ),

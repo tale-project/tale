@@ -1373,11 +1373,30 @@ that waits out a rate limit has not failed here either.
 A source can name labels (`taskLabels`) that every task it creates is given, so a board several
 sources fill shows where each task came from. A label the project does not have yet is added
 where the run may add labels. A task the sync made before keeps the labels it has: a refresh
-never adds, removes or restores one.
+never adds, removes or restores one, except a label a GitHub source mirrors from its issue
+(`TASK-R98`).
 
 - **Example**: Mia's ops board takes GitHub issues and GlitchTip errors, and the GlitchTip source
   names `source:glitchtip` → each new error's task wears `source:glitchtip`; when Noah takes the
   label off one, the next run leaves it off.
+
+### TASK-R98 · A GitHub source can keep its tasks' labels in step with its issues' labels
+
+A GitHub source can map issue labels to labels of the project (`mirrorLabels`), an issue label
+matched without regard to case. A task the source creates wears the mapped labels its issue
+wears, and every later read of the issue makes an unarchived task's mapped labels exactly those
+its issue wears. Every other label stays, the source's `taskLabels` and a person's own included;
+an issue label the source does not map is ignored, and an issue its tracker no longer shows leaves
+its task's labels as they are. Each change is on the task's timeline (`labels.changed`) and in the
+audit log as the automation's, and a read that changes no label writes no label change. The sync
+never creates a label: a run whose project lacks a mapped label fails before it reads any tracker
+(`TASK_LABEL_UNKNOWN`), naming the labels it lacks.
+
+- **Example**: Mia's GitHub source maps `bug` to `bug` and `feat` to `feature`. Noah relabels an
+  issue from `bug` to `feat` while its task wears `bug` and `hold` → after the sync reads the issue
+  again, the task wears `hold` and `feature`, and its timeline shows the automation's label change.
+- **Example**: The source also maps `perf` to `perf`, and the project has no `perf` label → the run
+  fails naming `perf` before it reads GitHub, and no task changes.
 
 ### TASK-R64 · A code host source reads its issues or its pull requests, never both
 
