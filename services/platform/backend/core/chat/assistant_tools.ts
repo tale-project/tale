@@ -533,12 +533,11 @@ const PROJECT_TASKS_LIMIT = 25;
  */
 function archiveFlags(args: {
   archivedAt?: number | undefined;
-  projectId?: string | null | undefined;
-  archivedProjectIds: ReadonlySet<string>;
+  projectArchived?: boolean | undefined;
 }): { archived?: true; projectArchived?: true } {
   return {
     ...(args.archivedAt !== undefined ? { archived: true as const } : {}),
-    ...(args.projectId != null && args.archivedProjectIds.has(args.projectId)
+    ...(args.projectArchived === true
       ? { projectArchived: true as const }
       : {}),
   };
@@ -576,8 +575,9 @@ interface SearchResultEntry {
 // per kind, so the two surfaces can never disagree about what a row says.
 
 /** Name (+ optional key) for a project id — what a task row shows the model
- * next to `projectId`, matching the `rag_fetch` task fields. */
-type ProjectLabel = { name: string; key?: string };
+ * next to `projectId`, matching the `rag_fetch` task fields — and whether
+ * the project is archived, which the row labels. */
+type ProjectLabel = { name: string; key?: string; archived?: true };
 
 /** The human task key (`KEY-n`) the board and the global search show — the
  * id a user names in a question. Absent when the project has no key. */
@@ -592,8 +592,7 @@ function taskKeyOf(
 
 function taskResultEntry(
   task: Doc<'tasks'>,
-  archivedProjectIds: ReadonlySet<string>,
-  projectsById: ReadonlyMap<string, ProjectLabel> = new Map(),
+  projectsById: ReadonlyMap<string, ProjectLabel>,
 ): SearchResultEntry {
   const projectId = task.projectId != null ? String(task.projectId) : undefined;
   const label =
@@ -629,15 +628,15 @@ function taskResultEntry(
         : {}),
       ...archiveFlags({
         archivedAt: task.archivedAt,
-        projectId: projectId ?? null,
-        archivedProjectIds,
+        projectArchived: label?.archived,
       }),
     },
   };
 }
 
-/** Resolve name/key for the distinct project ids on a task page. One query
- * for the page, never per row — the ids are already the readable set. */
+/** Resolve name, key and archive state for the distinct project ids on a
+ * task page. One query for the page, never per row — the page was read
+ * through the projects the user may read. */
 async function projectLabelsById(
   ctx: ActionCtx,
   organizationId: string,
@@ -656,19 +655,20 @@ async function projectLabelsById(
     { organizationId, projectIds: unique },
   );
   return new Map(
-    labels.map((row: { id: string; name: string; key?: string }) => [
-      row.id,
-      row.key !== undefined
-        ? { name: row.name, key: row.key }
-        : { name: row.name },
-    ]),
+    labels.map(
+      (row: { id: string; name: string; key?: string; archived?: true }) => [
+        row.id,
+        {
+          name: row.name,
+          ...(row.key !== undefined ? { key: row.key } : {}),
+          ...(row.archived === true ? { archived: true as const } : {}),
+        },
+      ],
+    ),
   );
 }
 
-function projectResultEntry(
-  project: Doc<'projects'>,
-  archivedProjectIds: ReadonlySet<string>,
-): SearchResultEntry {
+function projectResultEntry(project: Doc<'projects'>): SearchResultEntry {
   return {
     kind: 'project',
     title: project.name,
@@ -685,10 +685,7 @@ function projectResultEntry(
       doneTasks: project.doneTaskCount ?? 0,
       // `projectArchived` would be redundant here: this row is the
       // project, so its own `archived` says it.
-      ...archiveFlags({
-        archivedAt: project.archivedAt,
-        archivedProjectIds,
-      }),
+      ...archiveFlags({ archivedAt: project.archivedAt }),
     },
   };
 }
@@ -1126,33 +1123,32 @@ export function createChatToolExecutor(
 
   /** WORK scope — the projects whose tasks and boards the work legs read: a
    * project thread's own project (the same confinement a project agent's
-   * task tools have), every readable project in a personal thread. */
-  let workPromise: Promise<KnowledgeAccessScope> | null = null;
-  const workAccess = (): Promise<KnowledgeAccessScope> => {
-    workPromise ??= Promise.all([
-      baseAccess(),
-      ctx.runQuery(
-        internal.projects.internal_queries.resolveWorkProjectsForChat,
-        { organizationId: who.organizationId, userId: who.userId },
-      ),
-      pinnedProject(),
-    ]).then(
-      ([base, work, project]: [
-        KnowledgeAccessScope,
-        { projectIds: string[]; archivedProjectIds: string[] },
-        { id: string; readable: boolean } | null,
-      ]) => {
-        const readable: KnowledgeAccessScope = {
-          ...base,
-          projectIds: work.projectIds,
-          archivedProjectIds: work.archivedProjectIds,
-        };
-        return project === null
-          ? readable
-          : withProjects(readable, project.readable ? [project.id] : []);
-      },
-    );
-    return workPromise;
+   * task tools have), every project the user may read in a personal thread.
+   * The reads join those projects in their statement, as the user (#5207):
+   * no list of them is read here. */
+  const workScope = {
+    organizationId: who.organizationId,
+    userId: who.userId,
+    ...(who.projectId !== null ? { projectId: who.projectId } : {}),
+  };
+
+  /** Whether the work legs may read one named project on this turn, checked
+   * on its own: in a project thread its own project alone, while the user
+   * may read it; in a personal thread any project the user may read. */
+  const workProjectReadable = async (projectId: string): Promise<boolean> => {
+    if (who.projectId !== null) {
+      return (
+        projectId === who.projectId &&
+        (await pinnedProject())?.readable === true
+      );
+    }
+    return ctx
+      .runQuery(internal.projects.internal_queries.assertProjectAccessForChat, {
+        projectId,
+        organizationId: who.organizationId,
+        userId: who.userId,
+      })
+      .then((access: { allowed: boolean }) => access.allowed);
   };
 
   /** Role-matrix read check for one subject; a denial is a result, not a
@@ -1594,8 +1590,9 @@ export function createChatToolExecutor(
             // does, so `projectArchived` is the only flag it can carry. It is
             // still returned and still citable; the label is the context.
             const flags = archiveFlags({
-              projectId: hit.source.projectId,
-              archivedProjectIds: archivedForDocs,
+              projectArchived:
+                hit.source.projectId != null &&
+                archivedForDocs.has(hit.source.projectId),
             });
             // A whole chunk while the response's budget lasts, the head
             // of one after — never less than a listed row gets.
@@ -1789,26 +1786,21 @@ export function createChatToolExecutor(
       }
     }
 
-    // Legs 6–7 — the organization's work. Scoped by the readable project set
-    // the turn already resolved: a task has no ACL of its own, so its parent
-    // project's is the only correct filter. Passing organizationId alone to an
-    // RLS-bypassing query — the shape legs 3–4 safely use — would hand every
-    // project's work to any member, because those tables are org-scope-only and
-    // work is not.
+    // Legs 6–7 — the organization's work. Scoped by the projects the user may
+    // read, which the reads join as the user: a task has no ACL of its own,
+    // so its parent project's is the only correct filter. Passing
+    // organizationId alone to an RLS-bypassing query — the shape legs 3–4
+    // safely use — would hand every project's work to any member, because
+    // those tables are org-scope-only and work is not.
     if (runLeg('task', 'project')) {
       if (tasksAllowed || projectsAllowed) {
-        const access = await workAccess();
-        const projectIds = [...access.projectIds];
-        const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
-
         // Leg 6 — tasks (question-aware; open/status filter).
         if (runLeg('task')) {
           if (tasksAllowed) {
             const tasks = await ctx.runQuery(
               internal.tasks.search_for_chat.searchTasksForChat,
               {
-                organizationId: who.organizationId,
-                projectIds,
+                ...workScope,
                 term: query,
                 ...(statusFilter !== undefined ? { status: statusFilter } : {}),
                 paginationOpts: {
@@ -1825,9 +1817,7 @@ export function createChatToolExecutor(
               ),
             );
             for (const task of tasks.page) {
-              results.push(
-                taskResultEntry(task, archivedProjectIds, projectsById),
-              );
+              results.push(taskResultEntry(task, projectsById));
             }
             sources.tasks =
               tasks.page.length === 0
@@ -1846,8 +1836,7 @@ export function createChatToolExecutor(
             const projects = await ctx.runQuery(
               internal.tasks.search_for_chat.searchProjectsForChat,
               {
-                organizationId: who.organizationId,
-                projectIds,
+                ...workScope,
                 term: query,
                 paginationOpts: {
                   numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
@@ -1856,7 +1845,7 @@ export function createChatToolExecutor(
               },
             );
             for (const project of projects.page) {
-              results.push(projectResultEntry(project, archivedProjectIds));
+              results.push(projectResultEntry(project));
             }
             sources.projects =
               projects.page.length === 0
@@ -2093,22 +2082,20 @@ export function createChatToolExecutor(
             '"projectId" (an id from a project row\'s data).',
         );
       }
-      const access = await workAccess();
-      if (projectId !== undefined && !access.projectIds.includes(projectId)) {
+      if (projectId !== undefined && !(await workProjectReadable(projectId))) {
         return invalidArgs(
           'No readable project with that "projectId" in this organization. ' +
             'Use the "data"."projectId" a previous task or project row ' +
             'carried.',
         );
       }
-      const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
       let tasks;
       try {
         tasks = await ctx.runQuery(
           internal.tasks.search_for_chat.searchTasksForChat,
           {
             organizationId: who.organizationId,
-            projectIds: [...access.projectIds],
+            userId: who.userId,
             term: '',
             list: true,
             excludeArchived: true,
@@ -2135,7 +2122,7 @@ export function createChatToolExecutor(
         ),
       );
       const results = tasks.page.map((task: Doc<'tasks'>) =>
-        taskResultEntry(task, archivedProjectIds, projectsById),
+        taskResultEntry(task, projectsById),
       );
       return envelope({
         results,
@@ -2154,13 +2141,10 @@ export function createChatToolExecutor(
     }
 
     if (kind === 'project') {
-      const access = await workAccess();
-      const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
       const projects = await ctx.runQuery(
         internal.tasks.search_for_chat.searchProjectsForChat,
         {
-          organizationId: who.organizationId,
-          projectIds: [...access.projectIds],
+          ...workScope,
           term: '',
           list: true,
           excludeArchived: true,
@@ -2169,7 +2153,7 @@ export function createChatToolExecutor(
       );
       const hasMore = !projects.isDone;
       const results = projects.page.map((project: Doc<'projects'>) =>
-        projectResultEntry(project, archivedProjectIds),
+        projectResultEntry(project),
       );
       return envelope({
         results,
@@ -2606,10 +2590,9 @@ export function createChatToolExecutor(
       // rule the document branch below applies. In a project thread the work
       // scope is that project alone, so another project's task reads as the
       // same not_found.
-      const work = await workAccess();
       if (
         scoped.projectId != null &&
-        !work.projectIds.includes(String(scoped.projectId))
+        !(await workProjectReadable(String(scoped.projectId)))
       ) {
         await recordDispatch('rag_fetch', missing.status, missing.message);
         return missing;
@@ -2677,10 +2660,9 @@ export function createChatToolExecutor(
           'No project with that ref is readable in this organization. Re-run ' +
           'rag_search and use a ref from its results.',
       };
-      const access = await workAccess();
       // A ref is not a capability here either: the project must still be in
       // the caller's work scope on THIS turn.
-      if (!access.projectIds.includes(projectId)) {
+      if (!(await workProjectReadable(projectId))) {
         await recordDispatch('rag_fetch', missing.status, missing.message);
         return missing;
       }
@@ -2690,7 +2672,7 @@ export function createChatToolExecutor(
           internal.tasks.search_for_chat.searchTasksForChat,
           {
             organizationId: who.organizationId,
-            projectIds: [...access.projectIds],
+            userId: who.userId,
             projectId: projectId,
             term: '',
             // An explicit listing, so the page size is honoured (the old
@@ -2705,9 +2687,10 @@ export function createChatToolExecutor(
         await recordDispatch('rag_fetch', missing.status, missing.message);
         return missing;
       }
-      const projectKey = (
+      const projectLabel = (
         await projectLabelsById(ctx, who.organizationId, [projectId])
-      ).get(projectId)?.key;
+      ).get(projectId);
+      const projectKey = projectLabel?.key;
       await recordDispatch('rag_fetch', 'ok');
       return {
         status: 'ok',
@@ -2723,8 +2706,7 @@ export function createChatToolExecutor(
           ...(task.priority ? { priority: task.priority } : {}),
           ...archiveFlags({
             archivedAt: task.archivedAt,
-            projectId,
-            archivedProjectIds: new Set(access.archivedProjectIds ?? []),
+            projectArchived: projectLabel?.archived,
           }),
         })),
         // A capped list must say it is capped, or "that is all of them" is a
