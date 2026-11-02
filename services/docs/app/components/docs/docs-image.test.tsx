@@ -1,3 +1,4 @@
+import { MOBILE_QUERY } from '@tale/ui/use-is-mobile';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
@@ -5,6 +6,7 @@ import { IMAGE_DIMENSIONS } from '@/app/content/image-dimensions';
 import {
   DOCS_IMAGE_MAX_WIDTH,
   DOCS_IMAGE_SIZES,
+  phoneCaptureFile,
 } from '@/lib/content/image-variants';
 import { pageImageTargets } from '@/tests/lib/image-refs';
 
@@ -14,6 +16,24 @@ import { DocsImage } from './docs-image';
 // once, when it loads.
 vi.hoisted(() => {
   vi.stubEnv('BASE_URL', '/docs/');
+});
+
+// A shot with a phone capture, added to the generated registry so the test
+// holds whichever captures are committed.
+const SHOT = vi.hoisted(() => ({
+  desktop: 'images/platform/example-shot.webp',
+  phone: 'images/platform/example-shot.phone.webp',
+}));
+vi.mock('@/app/content/image-dimensions', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/app/content/image-dimensions')>();
+  return {
+    IMAGE_DIMENSIONS: {
+      ...actual.IMAGE_DIMENSIONS,
+      [SHOT.desktop]: [2880, 1800],
+      [SHOT.phone]: [780, 1688],
+    },
+  };
 });
 
 const PAGE_IMAGES = [...pageImageTargets()]
@@ -45,12 +65,19 @@ describe('DocsImage', () => {
         <DocsImage src={`/${file}`} alt="Screenshot" />,
       );
       const img = container.querySelector('picture > img');
-      const avif = container.querySelector('picture > source');
+      const avif = container.querySelector('picture > source:not([media])');
+      const phoneSources = [
+        ...container.querySelectorAll('picture > source[media]'),
+      ];
       const urls = [
         ...candidates(img?.getAttribute('srcset')),
         ...candidates(avif?.getAttribute('srcset')),
+        ...phoneSources.flatMap((source) =>
+          candidates(source.getAttribute('srcset')),
+        ),
       ];
       const size = IMAGE_DIMENSIONS[file];
+      const phoneSize = IMAGE_DIMENSIONS[phoneCaptureFile(file)];
       const served =
         size !== undefined &&
         img?.getAttribute('src') === `/docs/${file}` &&
@@ -60,6 +87,14 @@ describe('DocsImage', () => {
         img.getAttribute('loading') === 'lazy' &&
         avif?.getAttribute('type') === 'image/avif' &&
         avif.getAttribute('sizes') === DOCS_IMAGE_SIZES &&
+        phoneSources.length === (phoneSize ? 2 : 0) &&
+        phoneSources.every(
+          (source) =>
+            source.getAttribute('media') === MOBILE_QUERY &&
+            source.getAttribute('sizes') === DOCS_IMAGE_SIZES &&
+            source.getAttribute('width') === String(phoneSize?.[0]) &&
+            source.getAttribute('height') === String(phoneSize?.[1]),
+        ) &&
         urls.length > 0 &&
         urls.every((url) => url.startsWith('/docs/images/'));
       if (!served) unserved.push(file);
@@ -84,6 +119,64 @@ describe('DocsImage', () => {
         name: 'Screenshot',
       }),
     ).toHaveAttribute('src', `/docs/${file}`);
+  });
+
+  it('serves the phone capture of a shot below the md breakpoint, in the page and the lightbox', () => {
+    const { container } = render(
+      <DocsImage src={`/${SHOT.desktop}`} alt="Screenshot" />,
+    );
+    const sources = [...container.querySelectorAll('picture > source')].map(
+      (source) => ({
+        media: source.getAttribute('media'),
+        type: source.getAttribute('type'),
+        srcSet: source.getAttribute('srcset'),
+        width: source.getAttribute('width'),
+        height: source.getAttribute('height'),
+      }),
+    );
+    // The phone layout first, so it wins wherever Tale shows it; the
+    // desktop capture stays the default, as for a shot without one.
+    expect(sources).toEqual([
+      {
+        media: MOBILE_QUERY,
+        type: 'image/avif',
+        srcSet:
+          '/docs/images/optimized/platform/example-shot.phone-480.avif 480w, /docs/images/optimized/platform/example-shot.phone-780.avif 780w',
+        width: '780',
+        height: '1688',
+      },
+      {
+        media: MOBILE_QUERY,
+        type: 'image/webp',
+        srcSet:
+          '/docs/images/optimized/platform/example-shot.phone-480.webp 480w, /docs/images/platform/example-shot.phone.webp 780w',
+        width: '780',
+        height: '1688',
+      },
+      {
+        media: null,
+        type: 'image/avif',
+        srcSet: expect.stringContaining(
+          '/docs/images/optimized/platform/example-shot-1600.avif 1600w',
+        ),
+        width: null,
+        height: null,
+      },
+    ]);
+    expect(screen.getByRole('img', { name: 'Screenshot' })).toHaveAttribute(
+      'src',
+      `/docs/${SHOT.desktop}`,
+    );
+
+    // The lightbox opens the full-size file of the capture the page shows.
+    fireEvent.click(screen.getByRole('button'));
+    const dialog = screen.getByRole('dialog');
+    const phoneFull = dialog.querySelector('picture > source');
+    expect(phoneFull).toHaveAttribute('media', MOBILE_QUERY);
+    expect(phoneFull).toHaveAttribute('srcset', `/docs/${SHOT.phone}`);
+    expect(
+      within(dialog).getByRole('img', { name: 'Screenshot' }),
+    ).toHaveAttribute('src', `/docs/${SHOT.desktop}`);
   });
 
   it('renders an image without variants as a plain lazy image', () => {
