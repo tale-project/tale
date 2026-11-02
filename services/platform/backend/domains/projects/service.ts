@@ -17,6 +17,10 @@ import {
   type SetProjectTaskReviewerInput,
 } from '@tale/shared/schemas/task-review';
 import {
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+} from '@tale/shared/task-limits';
+import {
   deriveProjectKey,
   isValidProjectKey,
   normalizeProjectKey,
@@ -76,6 +80,7 @@ import {
   loadActiveHolds,
 } from '../legal_holds/service.ts';
 import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
+import { compareLabelNames } from '../tasks/agent-labels.ts';
 import {
   cancelAgentRunsElsewhereInTx,
   retireTasksInTx,
@@ -1547,6 +1552,10 @@ export interface ProjectAgentRow {
    * connector, by the credential's name (migration 0219); a connector it
    * does not name uses the organization's default. */
   connectorCredentials: ProjectAgentConnectorCredentials;
+  /** The project labels its `task_set_labels` grant may add to and remove
+   * from tasks, by name (migration 0233): each in its project's spelling
+   * when it was granted, sorted without regard to case. */
+  labelGrants: string[];
   /** The name and email its commits carry where no person owns its
    * workspace (migration 0219); `null` for none. */
   gitIdentity: ProjectAgentGitIdentity | null;
@@ -1576,6 +1585,7 @@ const PROJECT_AGENT_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId", name, harness,
   model, model_provider AS "modelProvider", skills, connectors, tools,
   secrets, connector_credentials AS "connectorCredentials",
+  label_grants AS "labelGrants",
   git_identity AS "gitIdentity", instructions, managed,
   created_by AS "createdBy",
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt",
@@ -1776,6 +1786,66 @@ function validateProjectAgentTools(tools: readonly string[]): string[] {
       `Unknown tools: ${unknownTools.join(', ')}. The grantable tools are: ${AGENT_TOOL_GRANT_NAMES.join(', ')}.`,
     );
   return normalizeToolGrants(tools);
+}
+
+/**
+ * The labels a `task_set_labels` grant names, as stored: each in its
+ * project's spelling, sorted without regard to case. A name the save adds
+ * must be one of the agent's project's labels (`PROJECT_AGENT_LABEL_UNKNOWN`):
+ * a grant never creates a label [PROJ-R25]. A name already granted stays
+ * when its label has been renamed or deleted since, as a dispatch's label
+ * filters do, so the dialog shows it and the admin can untick it.
+ */
+async function resolveLabelGrants(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    requested: readonly string[];
+    stored: readonly string[];
+  },
+): Promise<string[]> {
+  if (args.requested.length > TASK_LABELS_MAX)
+    throw new ProjectError(
+      'too_many_bindings',
+      `An agent's label grant names at most ${TASK_LABELS_MAX} labels.`,
+    );
+  const requested = new Map<string, string>();
+  for (const raw of args.requested) {
+    const name = raw.normalize('NFC').trim();
+    if (name.length === 0 || name.length > TASK_LABEL_CHARS_MAX)
+      throw new ProjectError(
+        'PROJECT_AGENT_LABEL_UNKNOWN',
+        `A label name has 1 to ${TASK_LABEL_CHARS_MAX} characters.`,
+      );
+    if (!requested.has(name.toLowerCase()))
+      requested.set(name.toLowerCase(), name);
+  }
+  if (requested.size === 0) return [];
+  const rows = await tx<{ name: string }[]>`
+    SELECT name FROM app.task_labels
+    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+      AND lower(name) = ANY(${[...requested.keys()]})
+  `;
+  const catalog = new Map(
+    rows.map((row) => [row.name.toLowerCase(), row.name]),
+  );
+  const stored = new Map(args.stored.map((name) => [name.toLowerCase(), name]));
+  const granted: string[] = [];
+  const unknown: string[] = [];
+  for (const [folded, name] of requested) {
+    const spelled = catalog.get(folded) ?? stored.get(folded);
+    if (spelled === undefined) unknown.push(name);
+    else granted.push(spelled);
+  }
+  if (unknown.length > 0)
+    throw new ProjectError(
+      'PROJECT_AGENT_LABEL_UNKNOWN',
+      `Unknown labels: ${unknown.join(', ')}. An agent may be granted only labels its project has.`,
+      400,
+      { labels: unknown },
+    );
+  return granted.sort(compareLabelNames);
 }
 
 /** The same serving-field validation for full saves and model-only adoption. */
@@ -2637,6 +2707,7 @@ export async function createProjectAgent(
     tools?: string[];
     secrets?: string[];
     connectorCredentials?: ProjectAgentConnectorCredentials;
+    labelGrants?: string[];
     gitIdentity?: ProjectAgentGitIdentity | null;
     instructions?: string;
     /** Default `prune` — the app dialog's rule. */
@@ -2672,6 +2743,12 @@ export async function createProjectAgent(
     { exactNames: args.exactCredentialNames === true },
   );
   assertMaySetCredentialPins(auth, fields.connectorCredentials, {});
+  const labelGrants = await resolveLabelGrants(tx, {
+    organizationId: auth.organizationId,
+    projectId: args.projectId,
+    requested: args.labelGrants ?? [],
+    stored: [],
+  });
 
   const existing = await tx<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.project_agents
@@ -2709,14 +2786,15 @@ export async function createProjectAgent(
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.project_agents (
         org_id, project_id, name, harness, model, model_provider, skills,
-        connectors, tools, secrets, connector_credentials, git_identity,
-        instructions, id, created_by,
+        connectors, tools, secrets, connector_credentials, label_grants,
+        git_identity, instructions, id, created_by,
         created_at_ms, updated_at_ms, handle, legacy_handles
       ) VALUES (
         ${auth.organizationId}, ${args.projectId}, ${fields.name},
         ${fields.harness}, ${fields.model}, ${fields.modelProvider ?? null},
         ${fields.skills}, ${fields.connectors}, ${fields.tools},
         ${fields.secrets}, ${JSON.stringify(fields.connectorCredentials)}::jsonb,
+        ${labelGrants}::text[],
         ${fields.gitIdentity === null ? null : JSON.stringify(fields.gitIdentity)}::jsonb,
         ${fields.instructions ?? null},
         ${explicitId === undefined ? tx`DEFAULT` : explicitId}, ${auth.userId},
@@ -2769,6 +2847,7 @@ export async function createProjectAgent(
         tools: fields.tools,
         secrets: fields.secrets,
         connectorCredentials: fields.connectorCredentials,
+        labelGrants,
         gitIdentity: fields.gitIdentity,
       },
       metadata: { op: 'create', projectAgentId: agentId },
@@ -2939,6 +3018,7 @@ export async function updateProjectAgent(
     tools?: string[];
     secrets?: string[];
     connectorCredentials?: ProjectAgentConnectorCredentials;
+    labelGrants?: string[];
     gitIdentity?: ProjectAgentGitIdentity | null;
     instructions?: string;
     /** Default `prune` — the app dialog's rule. */
@@ -3021,6 +3101,17 @@ export async function updateProjectAgent(
     fields.connectorCredentials,
     agent.connectorCredentials,
   );
+  // An omitted label grant keeps what is stored, as the pins do; `[]`
+  // clears it.
+  const labelGrants =
+    args.labelGrants === undefined
+      ? agent.labelGrants
+      : await resolveLabelGrants(tx, {
+          organizationId: auth.organizationId,
+          projectId: agent.projectId,
+          requested: args.labelGrants,
+          stored: agent.labelGrants,
+        });
 
   // A replace that names the configuration already stored is not a change:
   // no write, no audit row, and `updatedAt` — the precondition every other
@@ -3040,6 +3131,7 @@ export async function updateProjectAgent(
     sameList(fields.tools, agent.tools) &&
     sameList(fields.secrets, agent.secrets) &&
     samePins(fields.connectorCredentials, agent.connectorCredentials) &&
+    sameList(labelGrants, agent.labelGrants) &&
     sameGitIdentity(fields.gitIdentity, agent.gitIdentity) &&
     (fields.instructions ?? null) === (agent.instructions ?? null)
   ) {
@@ -3105,6 +3197,7 @@ export async function updateProjectAgent(
             model = ${fields.model}, model_provider = ${fields.modelProvider ?? null},
             skills = ${fields.skills}, connectors = ${fields.connectors},
             tools = ${fields.tools}, secrets = ${fields.secrets},
+            label_grants = ${labelGrants}::text[],
             connector_credentials = ${JSON.stringify(fields.connectorCredentials)}::jsonb,
             git_identity = ${
               fields.gitIdentity === null
@@ -3144,6 +3237,7 @@ export async function updateProjectAgent(
         tools: agent.tools,
         secrets: agent.secrets,
         connectorCredentials: agent.connectorCredentials,
+        labelGrants: agent.labelGrants,
         gitIdentity: agent.gitIdentity,
       },
       newState: {
@@ -3156,6 +3250,7 @@ export async function updateProjectAgent(
         tools: fields.tools,
         secrets: fields.secrets,
         connectorCredentials: fields.connectorCredentials,
+        labelGrants,
         gitIdentity: fields.gitIdentity,
       },
       metadata: { op: 'update', projectAgentId: args.agentId },

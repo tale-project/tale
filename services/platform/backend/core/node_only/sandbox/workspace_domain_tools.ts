@@ -55,7 +55,11 @@ import {
   taskLimitText,
   taskTitleRefusal,
 } from '../../tasks/helpers';
-import { TASK_PRIORITIES, taskMetadataPatchSchema } from '../../tasks/metadata';
+import {
+  TASK_PRIORITIES,
+  taskLabelsPatchSchema,
+  taskMetadataPatchSchema,
+} from '../../tasks/metadata';
 import {
   isRecord,
   readBoolean,
@@ -72,6 +76,7 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_comment',
   'task_update_status',
   'task_update_metadata',
+  'task_set_labels',
   'task_review',
   'task_delegate_review',
   'task_start_agent',
@@ -1777,6 +1782,46 @@ export async function runTaskTool(
       }
       const output = await ctx.runMutation(
         internal.tasks.internal_mutations.agentUpdateTaskMetadata,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          patch: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
+    }
+
+    if (args.tool === 'task_set_labels') {
+      if (confinedTo !== undefined) {
+        return memberRunRefusal(
+          'It cannot change task labels. An editor must start the agent for that.',
+        );
+      }
+      if (
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance: 'Only a live project agent run can change task labels.',
+            },
+          ],
+        };
+      }
+      const parsed = taskLabelsPatchSchema.safeParse(callArgs);
+      if (!parsed.success) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_set_labels needs {taskId, add?, remove?, expected: {labels}}: at least one label to add or remove, never one label in both, and every label the task wears now in expected.labels. No other fields are accepted.',
+        };
+      }
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentSetTaskLabels,
         {
           organizationId,
           sessionId: args.session.sessionId,

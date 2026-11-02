@@ -2927,6 +2927,96 @@ describe('dispatchWorkspaceToolImpl — task_update_metadata', () => {
   });
 });
 
+describe('dispatchWorkspaceToolImpl — task_set_labels', () => {
+  const labels = {
+    taskId: 'task_1',
+    add: ['optional-ci'],
+    remove: ['hold'],
+    expected: { labels: ['bug', 'hold'] },
+  };
+  async function call(callArgs: Record<string, unknown>, confined = false) {
+    const { dispatch } = await getActions();
+    const mutations: Record<string, unknown>[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'agent_manager',
+        scope: { kind: 'project', projectId: 'project_1' },
+        ...(confined ? { confinedToTaskId: 'own_task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (fnName(ref) === 'tasks/internal_mutations:agentSetTaskLabels') {
+          mutations.push(args as Record<string, unknown>);
+          return {
+            taskId: 'task_1',
+            labels: ['bug', 'optional-ci'],
+            changed: true,
+          };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        taskRunExecId: 'issuer_exec',
+        tool: 'task_set_labels',
+        callArgs,
+      }),
+      mutations,
+    };
+  }
+
+  it('passes the labels and only token-derived authority to the mutation [TASK-R96]', async () => {
+    const { result, mutations } = await call(labels);
+    expect(result).toEqual({
+      status: 'ok',
+      output: {
+        taskId: 'task_1',
+        labels: ['bug', 'optional-ci'],
+        changed: true,
+      },
+    });
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer_exec',
+        patch: labels,
+      },
+    ]);
+  });
+
+  it.each([
+    { taskId: 'task_1', expected: { labels: [] } },
+    { taskId: 'task_1', add: [], remove: [], expected: { labels: [] } },
+    {
+      taskId: 'task_1',
+      add: ['hold'],
+      remove: ['Hold'],
+      expected: { labels: [] },
+    },
+    { taskId: 'task_1', add: ['hold'] },
+    { taskId: 'task_1', add: [' '], expected: { labels: [] } },
+    { ...labels, labelIds: ['label_1'] },
+    { ...labels, expected: { labels: [], priority: null } },
+    { ...labels, actorId: 'forged' },
+  ])(
+    'refuses incomplete or widened label requests without reaching the mutation (%j)',
+    async (patch) => {
+      const { result, mutations } = await call(patch);
+      expect(result.status).toBe('invalid_args');
+      expect(mutations).toEqual([]);
+    },
+  );
+
+  it('refuses label writes by a member-confined run [TASK-R96]', async () => {
+    const { result, mutations } = await call(labels, true);
+    expect(result.status).toBe('unavailable');
+    expect(mutations).toEqual([]);
+  });
+});
+
 describe('dispatchWorkspaceToolImpl — task_review', () => {
   const review = {
     taskId: 'target',
