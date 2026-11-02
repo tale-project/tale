@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 69 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 70 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -18,6 +18,7 @@ open (`TALE_ALLOW_OPEN_SIGN_UP`).
 | Login                  | `/log-in`                                | `app/routes/_auth/log-in.tsx`                        |
 | 2FA challenge          | `/2fa`                                   | `app/routes/_auth/2fa.tsx`                           |
 | 2FA enrollment wall    | `/2fa-enroll`                            | `app/routes/2fa-enroll.tsx`                          |
+| Instance root          | `/`                                      | `app/routes/index.tsx`                               |
 | First-run setup        | `/setup`                                 | `app/routes/setup.tsx`                               |
 | Create-org wizard      | `/dashboard/create-organization`         | `app/routes/dashboard/create-organization.tsx`       |
 | Forced password change | `/forced-change-password/{id}`           | `app/routes/forced-change-password.$id.tsx`          |
@@ -74,6 +75,12 @@ compute codes from the enrollment secret.
   complete owner → workspace → finish → Owner created; lands on
   `/dashboard/{org}/chat`. Unreachable once any user exists (redirects to
   dashboard) — manual-only, needs an empty DB.
+- [ ] `AUTH-F38` · **The instance root on a fresh install** — On a **fresh
+  DB** open the instance URL with no path (`/`) → the URL becomes `/setup`
+  and the first-run wizard shows, with no sign-in form (**Log in**,
+  `auth.login.loginButton`) on the way, not even for a moment. Once any
+  account exists, `/` lands on `/log-in` while signed out and on
+  `/dashboard/{org}/chat` while signed in — manual-only, needs an empty DB.
 - [ ] `AUTH-F6` · **Create-org wizard** — Fresh user →
   `/dashboard/create-organization`; fill **Organization name**
   (`settings.organization.organizationName`) → **Next**
