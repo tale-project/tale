@@ -55,7 +55,9 @@ export interface FeedbackContract {
       }>;
       topMatchups: Array<{
         modelLeft: string;
+        providerLeft: null | string;
         modelRight: string;
+        providerRight: null | string;
         leftWins: number;
         rightWins: number;
         ties: number;
@@ -102,6 +104,8 @@ export interface FeedbackContract {
         arenaVerdict: null | 'a_better' | 'b_better' | 'tie' | 'both_bad';
         arenaModelA: null | string;
         arenaModelB: null | string;
+        arenaProviderA: null | string;
+        arenaProviderB: null | string;
         isArena: boolean;
         createdAt: number;
       }>;
