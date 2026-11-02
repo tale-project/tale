@@ -411,8 +411,10 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'llms.txt) is a lookup, not a source: stop reading it once you hold ' +
     'the link you need, and fetch that page. A link to a PDF, DOCX, XLSX, ' +
     'PPTX or ODT document is read as its text, and its result carries ' +
-    '"document"; that is the text, not the file, so to have a linked ' +
-    'document changed or converted, ask the user to attach the file.',
+    '"document"; when the conversation can keep the file, the result also ' +
+    'carries "file", the document kept as a file of this conversation, ' +
+    "whose ref a tool that takes files accepts like an attachment's, to " +
+    'change or convert it.',
 };
 
 /** The provider-wire definitions, in the fixed loadout order. */
