@@ -11,7 +11,7 @@ import { useT } from '@/lib/i18n/client';
  * the same `developerSettings` gate the providers route itself uses. Members
  * without it are pointed at an admin instead.
  */
-function useCanManageProviders(): boolean {
+export function useCanManageProviders(): boolean {
   return useAbility().can('read', 'developerSettings');
 }
 

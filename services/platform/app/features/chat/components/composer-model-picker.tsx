@@ -86,6 +86,24 @@ export function listsPick(
 }
 
 /**
+ * The listed copy of a saved pick: its own (provider, id) copy — two
+ * providers listing one id are different wires with different keys, and the
+ * copy the user picked is the one whose credential they meant. A pick saved
+ * before providers were part of it — or whose provider no longer lists the
+ * id — falls back to whichever provider serves the id.
+ */
+export function findPickedModel<
+  T extends { readonly id: string; readonly providerSlug: string },
+>(models: readonly T[], pick: ChatModelPick): T | undefined {
+  return (
+    models.find(
+      (model) =>
+        model.id === pick.modelId && model.providerSlug === pick.providerSlug,
+    ) ?? models.find((model) => model.id === pick.modelId)
+  );
+}
+
+/**
  * Seed the platform agent's model once the listing arrives: the user's saved
  * pick when it is still listed, else Auto (the default — the server picks
  * per message) when the catalog offers a real choice, else the single
@@ -101,19 +119,10 @@ export function withDefaultModel(
   if (selection.modelSelection === 'auto') return selection;
   const affordanceOf = (model: ComposerModelOption) =>
     resolveSandboxAffordance(asCatalogEntry(model), model.credential);
-  // The saved pick's own (provider, id) copy: two providers listing one id
-  // are different wires with different keys, and the copy the user picked
-  // is the one whose credential they meant. A pick saved before providers
-  // were part of it — or whose provider no longer lists the id — falls back
-  // to whichever provider serves the id.
   const preferred =
     preferredPick === undefined
       ? undefined
-      : (models.find(
-          (model) =>
-            model.id === preferredPick.modelId &&
-            model.providerSlug === preferredPick.providerSlug,
-        ) ?? models.find((model) => model.id === preferredPick.modelId));
+      : findPickedModel(models, preferredPick);
   if (preferred !== undefined) {
     return {
       ...selection,

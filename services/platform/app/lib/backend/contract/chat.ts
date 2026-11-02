@@ -71,6 +71,15 @@ export interface ChatContract {
         vision?: boolean;
         /** Its function tools work only on the Responses API. */
         toolCallingApi?: 'responses';
+        /** The catalog facts the chat's Auto screen reads — capability tags,
+         * function tools, price — which the Blank automation wizard picks
+         * its starting model by. */
+        tags?: string[];
+        tools?: boolean;
+        pricing?: {
+          inputCentsPerMillion: number;
+          outputCentsPerMillion: number;
+        };
         id: string;
         providerSlug: string;
         label: string;

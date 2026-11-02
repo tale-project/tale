@@ -1,56 +1,79 @@
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import type { ChatModelPick } from '@/app/features/chat/types';
 import { isValidAutomationName } from '@/lib/engine/core/validate/name';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { BlankAutomationDialog } from './blank-automation-dialog';
 
-// The picker's roster: the SAME model served by a direct OpenRouter key and
-// an Anthropic subscription (lookalike ids), the Anthropic id again through
-// an EU gateway's key, plus a subscription entry bound to another harness.
-// The wizard used to collapse options by id and store a bare model string —
-// the saved node then resolved to whichever provider the walk reached first,
-// never the one picked on screen.
+const roster = vi.hoisted(() => {
+  // The picker's roster: the SAME model served by a direct OpenRouter key
+  // and an Anthropic subscription (lookalike ids), the Anthropic id again
+  // through an EU gateway's key, plus a subscription entry bound to another
+  // harness. The wizard used to collapse options by id and store a bare
+  // model string — the saved node then resolved to whichever provider the
+  // walk reached first, never the one picked on screen.
+  const pinModels: readonly unknown[] = [
+    {
+      id: 'anthropic/claude-fable-5',
+      label: 'anthropic/claude-fable-5',
+      providerSlug: 'openrouter',
+      providerLabel: 'OpenRouter',
+      credential: { authMethod: 'api-key' },
+    },
+    {
+      id: 'claude-fable-5',
+      label: 'claude-fable-5',
+      providerSlug: 'anthropic',
+      providerLabel: 'Anthropic',
+      credential: {
+        authMethod: 'subscription-broker',
+        constraints: { harness: 'claude-code' },
+      },
+    },
+    {
+      id: 'claude-fable-5',
+      label: 'claude-fable-5',
+      providerSlug: 'eu-gateway',
+      providerLabel: 'EU Gateway',
+      credential: { authMethod: 'api-key' },
+    },
+    {
+      id: 'gpt-6-codex',
+      label: 'gpt-6-codex',
+      providerSlug: 'openai',
+      providerLabel: 'OpenAI',
+      credential: {
+        authMethod: 'subscription-key',
+        constraints: { harness: 'codex' },
+      },
+    },
+  ];
+  return { pinModels, models: pinModels };
+});
+
+// The user's saved chat pick, as the chat reads it; none by default.
+const chatPick = vi.hoisted(() => ({
+  current: { status: 'ready', data: undefined } as
+    | { status: 'ready'; data: ChatModelPick | undefined }
+    | { status: 'loading' },
+}));
+
+vi.mock('@/app/features/chat/data/chat-backend', () => ({
+  useChatModelPreference: () => ({
+    preference: chatPick.current,
+    save: () => undefined,
+  }),
+}));
+
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({
     data: {
       harnesses: [{ harness: 'claude-code', label: 'Claude Code' }],
-      models: [
-        {
-          id: 'anthropic/claude-fable-5',
-          label: 'anthropic/claude-fable-5',
-          providerSlug: 'openrouter',
-          providerLabel: 'OpenRouter',
-          credential: { authMethod: 'api-key' },
-        },
-        {
-          id: 'claude-fable-5',
-          label: 'claude-fable-5',
-          providerSlug: 'anthropic',
-          providerLabel: 'Anthropic',
-          credential: {
-            authMethod: 'subscription-broker',
-            constraints: { harness: 'claude-code' },
-          },
-        },
-        {
-          id: 'claude-fable-5',
-          label: 'claude-fable-5',
-          providerSlug: 'eu-gateway',
-          providerLabel: 'EU Gateway',
-          credential: { authMethod: 'api-key' },
-        },
-        {
-          id: 'gpt-6-codex',
-          label: 'gpt-6-codex',
-          providerSlug: 'openai',
-          providerLabel: 'OpenAI',
-          credential: {
-            authMethod: 'subscription-key',
-            constraints: { harness: 'codex' },
-          },
-        },
-      ],
+      models: roster.models,
     },
     isError: false,
   }),
@@ -100,6 +123,30 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,
   useParams: () => ({ id: 'org-1' }),
+  Link: ({
+    to,
+    params,
+    children,
+    className,
+    onClick,
+  }: {
+    to: string;
+    params?: { id: string };
+    children?: ReactNode;
+    className?: string;
+    onClick?: () => void;
+  }) => (
+    <a
+      href={to.replace('$id', params?.id ?? '')}
+      className={className}
+      onClick={(event) => {
+        event.preventDefault();
+        onClick?.();
+      }}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 // A new trigger reads its schedule in the author's zone; the suite pins it.
@@ -113,6 +160,8 @@ beforeEach(() => {
   setTrigger.mockClear();
   deployAutomation.mockClear();
   navigate.mockClear();
+  roster.models = roster.pinModels;
+  chatPick.current = { status: 'ready', data: undefined };
 });
 
 function renderDialog() {
@@ -546,5 +595,148 @@ describe('BlankAutomationDialog model pin', () => {
       model: 'claude-fable-5',
       modelProvider: 'anthropic',
     });
+  });
+});
+
+// Rows the chat's Auto chooses among, each with the catalog facts
+// `/chat/composer/models` lists: a chat model with tools and a price. Auto's
+// pick for everyday work is the middle row, neither the first nor the
+// cheapest.
+const AUTO_ROWS: readonly unknown[] = [
+  ['claude-fable-5-1', 2500],
+  ['claude-sonnet-5', 1500],
+  ['claude-haiku-4-5', 500],
+].map(([id, outputCentsPerMillion]) => ({
+  id,
+  label: id,
+  providerSlug: 'anthropic',
+  providerLabel: 'Anthropic',
+  credential: { authMethod: 'api-key' },
+  tags: ['chat'],
+  tools: true,
+  pricing: { inputCentsPerMillion: 100, outputCentsPerMillion },
+}));
+
+function renderAs(role: string, onOpenChange = vi.fn()) {
+  return render(
+    <AbilityContext.Provider value={defineAbilityFor(role)}>
+      <BlankAutomationDialog
+        organizationId="org-1"
+        open
+        onOpenChange={onOpenChange}
+      />
+    </AbilityContext.Provider>,
+  );
+}
+
+async function fillNameAndInstructions(
+  user: ReturnType<typeof renderDialog>['user'],
+) {
+  await user.type(screen.getByLabelText(/Name/i), 'Triage');
+  await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan issues');
+}
+
+describe('BlankAutomationDialog starting model', () => {
+  it('starts on the model the chat starts on, so a name and instructions alone enable Next', async () => {
+    roster.models = AUTO_ROWS;
+    const { user } = renderDialog();
+
+    const field = screen.getByRole('button', { name: /Agent model/i });
+    expect(field).toHaveTextContent('claude-sonnet-5');
+    expect(field).not.toHaveAccessibleDescription();
+    const next = screen.getByRole('button', { name: /Next/i });
+    expect(next).toBeDisabled();
+    await fillNameAndInstructions(user);
+    expect(next).toBeEnabled();
+
+    await user.click(next);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    const document = saveAutomation.mock.calls[0]?.[0]?.automation;
+    expect(document?.nodes?.[0]).toMatchObject({
+      model: 'claude-sonnet-5',
+      modelProvider: 'anthropic',
+    });
+  });
+
+  it('starts on the saved chat pick when the wizard offers it', () => {
+    roster.models = AUTO_ROWS;
+    chatPick.current = {
+      status: 'ready',
+      data: { modelId: 'claude-haiku-4-5', providerSlug: 'anthropic' },
+    };
+    renderDialog();
+
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveTextContent('claude-haiku-4-5');
+  });
+
+  it('waits for the saved chat pick, so the field never changes under the author', () => {
+    roster.models = AUTO_ROWS;
+    chatPick.current = { status: 'loading' };
+    const { rerender } = renderDialog();
+    const field = screen.getByRole('button', { name: /Agent model/i });
+    expect(field).toHaveTextContent('Choose the model the agent calls');
+
+    chatPick.current = {
+      status: 'ready',
+      data: { modelId: 'claude-haiku-4-5', providerSlug: 'anthropic' },
+    };
+    rerender(
+      <BlankAutomationDialog
+        organizationId="org-1"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    expect(field).toHaveTextContent('claude-haiku-4-5');
+  });
+
+  it('keeps the model the author picks', async () => {
+    roster.models = AUTO_ROWS;
+    const { user } = renderDialog();
+    await user.click(screen.getByRole('button', { name: /Agent model/i }));
+    await user.click(screen.getByRole('option', { name: /claude-fable-5-1/ }));
+
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveTextContent('claude-fable-5-1');
+  });
+
+  it('with no model on offer, keeps Next disabled and says to ask the admin', async () => {
+    roster.models = [];
+    const { user } = renderAs('member');
+
+    const field = screen.getByRole('button', { name: /Agent model/i });
+    expect(field).toHaveTextContent('Choose the model the agent calls');
+    expect(field).toHaveAccessibleDescription(
+      'Ask your workspace admin to connect an AI provider.',
+    );
+    // A member cannot open the providers page, so it is not offered.
+    expect(
+      screen.queryByRole('link', { name: 'Open AI providers' }),
+    ).toBeNull();
+    await fillNameAndInstructions(user);
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+  });
+
+  it('with no model on offer, takes an admin to the providers page', async () => {
+    roster.models = [];
+    const onOpenChange = vi.fn();
+    const { user } = renderAs('admin', onOpenChange);
+
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveAccessibleDescription(
+      'Connect an AI provider to choose a model. Open AI providers',
+    );
+    await fillNameAndInstructions(user);
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
+    const link = screen.getByRole('link', { name: 'Open AI providers' });
+    expect(link).toHaveAttribute('href', '/dashboard/org-1/settings/providers');
+    await user.click(link);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

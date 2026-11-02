@@ -22,7 +22,7 @@ import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { KeyRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +31,8 @@ import {
   SkillsMenu,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
+import { useCanManageProviders } from '@/app/features/chat/components/provider-settings-action';
+import { useChatModelPreference } from '@/app/features/chat/data/chat-backend';
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
 import {
   useAgentSecrets,
@@ -63,6 +65,7 @@ import {
 import { useAutomationCapabilities } from '../hooks/queries';
 import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
+import { startingModel } from '../lib/starting-model';
 import {
   defaultTriggerDraft,
   toTriggerBody,
@@ -99,6 +102,7 @@ export function BlankAutomationDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('automations');
+  const { t: tChat } = useT('chat');
   const { t: tCommon } = useT('common');
   const { t: tProjects } = useT('projects');
   const { t: tRecurrence } = useT('recurrence');
@@ -106,6 +110,8 @@ export function BlankAutomationDialog({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
   const navigate = useNavigate();
   const roster = useProjectHarnesses(organizationId);
+  const { preference: chatModelPick } = useChatModelPreference(organizationId);
+  const canManageProviders = useCanManageProviders();
   const capabilities = useAutomationCapabilities(
     organizationId,
     projectId,
@@ -186,17 +192,50 @@ export function BlankAutomationDialog({
   // collapsing two providers serving the same id was how a pick silently
   // landed on the wrong provider's bill. The scaffolded node names no
   // harness, so the host default drives it: subscription-served entries are
-  // offered only when bound to that harness.
-  const offeredModels = useMemo(
-    () =>
-      toModelOptions(roster.data?.models ?? []).filter(
-        (option) =>
-          option.subscription === undefined ||
-          option.subscription.harness === DEFAULT_HARNESS,
-      ),
-    [roster.data],
-  );
+  // offered only when bound to that harness. Each option keeps its listing
+  // row, whose catalog facts pick the model the field starts on.
+  const offered = useMemo(() => {
+    const rows = roster.data?.models ?? [];
+    const options = toModelOptions(rows);
+    const kept = rows.flatMap((row, index) => {
+      const option = options[index];
+      return option !== undefined &&
+        (option.subscription === undefined ||
+          option.subscription.harness === DEFAULT_HARNESS)
+        ? [{ row, option }]
+        : [];
+    });
+    return {
+      rows: kept.map(({ row }) => row),
+      models: kept.map(({ option }) => option),
+    };
+  }, [roster.data]);
+  const offeredModels = offered.models;
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
+
+  // The field starts where the chat's picker starts (`startingModel`), set
+  // once the roster and the saved chat pick have both answered, the way the
+  // chat seeds its own picker, so the field never changes under the author
+  // a beat later. A model the author picks is left alone.
+  const start = useMemo(
+    () =>
+      roster.data === undefined || chatModelPick.status === 'loading'
+        ? undefined
+        : startingModel(
+            offered.rows,
+            chatModelPick.status === 'ready' ? chatModelPick.data : undefined,
+          ),
+    [roster.data, chatModelPick, offered.rows],
+  );
+  useEffect(() => {
+    if (!open || model !== '' || start === undefined) return;
+    setModel(start.id);
+    setModelProvider(start.providerSlug);
+  }, [open, model, start]);
+  // Nothing to start on: the field says how to get a model, the way the
+  // chat's empty state does.
+  const noModelOnOffer =
+    roster.data !== undefined && !roster.isError && offeredModels.length === 0;
   const modelOptions = useMemo(
     () =>
       modelOptionsByProvider(offeredModels, (option, index) => ({
@@ -510,6 +549,28 @@ export function BlankAutomationDialog({
               setModelProvider(option.providerSlug);
             }}
             modal
+            // The field's own description, not an Alert: an Alert's title
+            // is a heading, out of order inside a dialog. The providers
+            // page is offered only to whoever can open it, as in the chat.
+            {...(noModelOnOffer
+              ? {
+                  description: canManageProviders ? (
+                    <>
+                      {t('blank.noModelAdmin')}{' '}
+                      <Link
+                        to="/dashboard/$id/settings/providers"
+                        params={{ id: organizationId }}
+                        className="underline underline-offset-2"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        {tChat('providerSetup.action')}
+                      </Link>
+                    </>
+                  ) : (
+                    tChat('providerSetup.descriptionMember')
+                  ),
+                }
+              : {})}
           />
           <HiddenModelsNote rule={roster.data?.modelsHiddenBy} />
           <Textarea

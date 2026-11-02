@@ -75,6 +75,7 @@ blank:
   modelPlaceholder: Wähle das Modell, das der Agent aufruft
   modelSearchPlaceholder: Modelle suchen
   modelSearchEmpty: Keine Modelle gefunden
+  noModelAdmin: Verbinde einen KI-Anbieter, um ein Modell auszuwählen.
   promptLabel: Was soll er tun?
   promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
     neue eine Aufgabe anlegen.
