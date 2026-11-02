@@ -132,17 +132,20 @@ its sign-in hands the turn nothing for that connector — never the default.
   "Client A", while the central Coder, which pins none, pushes with the default. Ada deletes
   "Client A" → the next turn of the Client A Coder gets no Forgejo access at all.
 
-### SBX-R42 · Commits carry the identity of whoever owns the workspace, else the agent's
+### SBX-R42 · Commits carry the agent's identity, else Tale's, never a person's
 
-A workspace a person owns commits under that person's name and email. A project agent's
-workers belong to Tale itself, so every run of the agent — whether a person, the dispatch, a
-standing role or a schedule started it, and whether or not it is confined to its task
-(`TASK-R79`) — commits under the agent's commit identity. It names no secret, so a confined run
-keeps it. With neither, no identity is set rather than a placeholder.
+Every commit a run makes is authored and committed under the agent's commit identity, else
+under Tale's own, "Tale <noreply@tale.dev>": whoever owns the workspace, whether a person, the
+dispatch, a standing role, a schedule or an automation started the run, and whether or not it
+is confined to its task (`TASK-R79`). A person's name or email never reaches a commit, and no
+run commits without an identity. It is set as git's author and committer, which rank above
+every name and email a repository's or the agent's own `git config` sets; only an explicit
+`--author` or a changed environment replaces it. It names no secret, so a confined run keeps it.
 
 - **Example**: The Coder's commit identity is "Coder <coder@tale.dev>". The dispatch starts it
-  on a task, and later Bea, a Member, starts it on another → both runs commit as "Coder",
-  although Bea's run gets none of the Coder's credentials.
+  on a task, and later Bea, a Member, starts it on another in Bea's own workspace → both runs
+  commit as "Coder", although Bea's run gets none of the Coder's credentials. An automation's
+  agent step, which has no commit identity, commits as "Tale".
 
 ### SBX-R43 · An agent's connector calls from its sandbox act as its pinned credential
 
