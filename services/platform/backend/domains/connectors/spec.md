@@ -130,9 +130,9 @@ action takes, and its output fits the output the action declares. A connector on
 list ships, on every action, at least the kinds its effect needs: a read ships a success, an
 empty answer and an error, and a write a success, a refusal and a duplicate. A connector that
 ships them on every action is put on the list, and none is taken off, since tests pick scenarios
-by name. Slack is the first, and each of its scenarios is held against its live call: given the
-answer Slack sends, the live call returns the scenario's output, or fails with its error, its
-status and the same cause. A scenario is data, never code, and made up: it names no real person,
+by name. Each scenario of a listed connector is held against its live call: given the answer its
+service sends, the live call returns the scenario's output, or fails with its error, its status
+and the same cause. A scenario is data, never code, and made up: it names no real person,
 workspace or customer.
 
 - **Example**: Lena adds an action that sends a message to a connector on the list, with a
