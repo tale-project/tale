@@ -7638,6 +7638,27 @@ describe('memory-aware admission', () => {
     expect(routes.pendingCreates().size).toBe(0);
   });
 
+  test("the stack's reservations raise the reserve a create must leave", async () => {
+    // SANDBOX_MIN_FREE_MEMORY unset: the 4 GiB the database and the
+    // application tier reserve outweigh both a tenth of the host and 1 GiB.
+    let available = 4.25;
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, reservedMemoryBytes: 4 * GIB } },
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    // 4.25 GiB less the session's 512 MiB leaves 3.75 GiB, under the 4 GiB.
+    const refused = await create(routes, 'reserved-1');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(created.has('reserved-1')).toBe(false);
+    // 5 GiB leaves 4.5 GiB: admitted.
+    available = 5;
+    expect((await create(routes, 'reserved-1')).status).toBe(201);
+    expect(created.has('reserved-1')).toBe(true);
+  });
+
   test('creates still starting count against the memory they are about to take', async () => {
     const gate = Promise.withResolvers<void>();
     const routes = new SessionRoutes(

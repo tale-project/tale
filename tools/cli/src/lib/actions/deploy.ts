@@ -20,6 +20,7 @@ import {
   selectDefaultServices,
   servicesKeepingHost,
 } from '../compose/select-services';
+import { memoryReservationNotice } from '../compose/services/memory-env';
 import {
   type RotatableService,
   type ServiceName,
@@ -54,6 +55,7 @@ import { isContainerRunning } from '../docker/is-container-running';
 import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import { pullImage } from '../docker/pull-image';
+import { probeCgroupVersion } from '../docker/setup-checks';
 import { waitForHealthy } from '../docker/wait-for-healthy';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
 import { discoverOrgs } from '../project/org-dirs';
@@ -329,7 +331,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const serviceConfig: ServiceConfig = {
         version,
         registry: env.GHCR_REGISTRY,
+        cgroupVersion: await probeCgroupVersion(),
       };
+      const reservationNotice = memoryReservationNotice(serviceConfig);
+      if (reservationNotice) logger.warn(reservationNotice);
       // How many replicas of each colour-rolled role to run (default 1 each).
       const replicas = getReplicaCounts();
 

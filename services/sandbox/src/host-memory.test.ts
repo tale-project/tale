@@ -24,14 +24,52 @@ describe('sizing from the host', () => {
     },
   );
   test('the reserve is a tenth of the host, at least 1 GiB, unless configured', () => {
-    expect(memoryReserveBytes(4 * GIB)).toBe(GIB);
-    expect(memoryReserveBytes(64 * GIB)).toBe(Math.floor((64 * GIB) / 10));
-    expect(memoryReserveBytes(64 * GIB, 2 * GIB)).toBe(2 * GIB);
+    expect(memoryReserveBytes(4 * GIB, {})).toBe(GIB);
+    expect(memoryReserveBytes(64 * GIB, {})).toBe(Math.floor((64 * GIB) / 10));
+    expect(memoryReserveBytes(64 * GIB, { minFreeMemoryBytes: 2 * GIB })).toBe(
+      2 * GIB,
+    );
+  });
+
+  test('the default reserve covers what the database and application tier reserve', () => {
+    // The CLI's defaults: db 512m, platform 128m, backend-api and
+    // backend-worker 256m each (SANDBOX_RESERVED_MEMORY).
+    const reservedMemoryBytes = 1152 * 1024 ** 2;
+    expect(memoryReserveBytes(8 * GIB, { reservedMemoryBytes })).toBe(
+      reservedMemoryBytes,
+    );
+    expect(memoryReserveBytes(4 * GIB, { reservedMemoryBytes })).toBe(
+      reservedMemoryBytes,
+    );
+    // A tenth of a larger host is more, and stays the reserve.
+    expect(memoryReserveBytes(64 * GIB, { reservedMemoryBytes })).toBe(
+      Math.floor((64 * GIB) / 10),
+    );
+    // Less than 1 GiB reserved keeps the 1 GiB floor.
+    expect(
+      memoryReserveBytes(4 * GIB, { reservedMemoryBytes: 256 * 1024 ** 2 }),
+    ).toBe(GIB);
+  });
+
+  test("an explicit SANDBOX_MIN_FREE_MEMORY wins over the stack's reservations", () => {
+    const reservedMemoryBytes = 1152 * 1024 ** 2;
+    expect(
+      memoryReserveBytes(8 * GIB, {
+        minFreeMemoryBytes: 512 * 1024 ** 2,
+        reservedMemoryBytes,
+      }),
+    ).toBe(512 * 1024 ** 2);
+    expect(
+      memoryReserveBytes(8 * GIB, {
+        minFreeMemoryBytes: 0,
+        reservedMemoryBytes,
+      }),
+    ).toBe(0);
   });
 
   test('capacity follows memory, never below the old default of 8 nor above 256', () => {
     const capacity = (gib: number) =>
-      autoSessionCapacity(gib * GIB, memoryReserveBytes(gib * GIB));
+      autoSessionCapacity(gib * GIB, memoryReserveBytes(gib * GIB, {}));
     expect(capacity(4)).toBe(8);
     expect(capacity(16)).toBe(19);
     expect(capacity(64)).toBe(76);
@@ -40,7 +78,7 @@ describe('sizing from the host', () => {
 
   test('where agent sessions run their own Docker daemon, a slot holds a whole such turn', () => {
     const capacity = (gib: number) =>
-      autoSessionCapacity(gib * GIB, memoryReserveBytes(gib * GIB), true);
+      autoSessionCapacity(gib * GIB, memoryReserveBytes(gib * GIB, {}), true);
     expect(capacity(4)).toBe(8);
     expect(capacity(16)).toBe(9);
     expect(capacity(64)).toBe(38);
@@ -50,7 +88,7 @@ describe('sizing from the host', () => {
     const capacity = (gib: number, cpus: number | null) =>
       autoSessionCapacity(
         gib * GIB,
-        memoryReserveBytes(gib * GIB),
+        memoryReserveBytes(gib * GIB, {}),
         false,
         undefined,
         cpus,
@@ -66,7 +104,7 @@ describe('sizing from the host', () => {
   });
 
   test('disabling Docker for every workload sizes light sessions while allowing any workload retains the Docker budget', () => {
-    const reserve = memoryReserveBytes(16 * GIB);
+    const reserve = memoryReserveBytes(16 * GIB, {});
     expect(autoSessionCapacity(16 * GIB, reserve, true, [])).toBe(19);
     expect(autoSessionCapacity(16 * GIB, reserve, true, ['project'])).toBe(9);
     expect(autoSessionCapacity(16 * GIB, reserve, true)).toBe(9);
@@ -164,6 +202,37 @@ describe('the session capacity against the host memory', () => {
       warning:
         '[sandbox] 8 sessions (SANDBOX_MAX_SESSIONS) of up to 4 GiB each (SANDBOX_AGENT_MEMORY) can use 32 GiB, more than the 14 GiB the host has for them: 15.6 GiB less its 1.6 GiB reserve (SANDBOX_MIN_FREE_MEMORY). With SANDBOX_MAX_SESSIONS set, memory admission is off, so sessions working at once can run the host out of memory: lower SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY, or unset SANDBOX_MAX_SESSIONS to size the capacity from the host and hold starts while its memory is short.',
     });
+  });
+
+  test("the stack's reservations raise the reserve the capacity is weighed with, and the warning names them", () => {
+    const explicit = { maxSessions: 8, autoMaxSessions: false };
+    expect(
+      hostSessionCapacity(
+        capacityConfig({ ...explicit, reservedMemoryBytes: 4 * GIB }),
+        HOST,
+        4,
+      ).warning,
+    ).toContain('15.6 GiB less its 4 GiB reserve (SANDBOX_RESERVED_MEMORY)');
+    // Reservations below the default reserve leave it, and its name.
+    expect(
+      hostSessionCapacity(
+        capacityConfig({ ...explicit, reservedMemoryBytes: GIB }),
+        HOST,
+        4,
+      ).warning,
+    ).toContain('15.6 GiB less its 1.6 GiB reserve (SANDBOX_MIN_FREE_MEMORY)');
+    // A reserve the operator set wins over the reservations.
+    expect(
+      hostSessionCapacity(
+        capacityConfig({
+          ...explicit,
+          minFreeMemoryBytes: 2 * GIB,
+          reservedMemoryBytes: 4 * GIB,
+        }),
+        HOST,
+        4,
+      ).warning,
+    ).toContain('15.6 GiB less its 2 GiB reserve (SANDBOX_MIN_FREE_MEMORY)');
   });
 
   test('a capacity sized from the host warns as well, and says what admission still does', () => {
