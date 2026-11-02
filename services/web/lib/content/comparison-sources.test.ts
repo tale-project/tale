@@ -13,6 +13,11 @@ import { readMarketingContent } from './server';
  * meets that bar in every locale; when every guide is listed, the list can go.
  */
 const SOURCED_GUIDES = [
+  'tale-vs-agent-zero',
+  'tale-vs-anythingllm',
+  'tale-vs-autensa',
+  'tale-vs-autogpt',
+  'tale-vs-claw-empire',
   'tale-vs-flowise',
   'tale-vs-vellum',
   'tale-vs-vibe-kanban',
