@@ -1,3 +1,5 @@
+import { logger } from '../../../lib/knowledge/logger';
+import { describeDatabaseError } from '../../db/unavailable';
 import {
   getKnowledgePoolForOrg,
   invalidateOrgUrl,
@@ -19,6 +21,12 @@ import {
  * website memberships, and every website nobody else holds any more (the
  * set form of `deregisterDomain`). Idempotent — a retry purges nothing and
  * reports zeros.
+ *
+ * Then, once that has committed, the org's own approximate indexes over its
+ * vectors (knowledge-db migration 18), empty by now. Not inside the
+ * transaction: dropping an index locks its table against every
+ * organization's searches, and the transaction would hold that lock until
+ * the whole purge ends.
  */
 export interface CorpusPurge {
   documents: number;
@@ -82,6 +90,19 @@ export async function purgeCorpusForOrg(orgSlug: string): Promise<CorpusPurge> {
       websites,
     };
   });
+  try {
+    await sql.unsafe(
+      `SELECT ${PRIVATE_KNOWLEDGE_SCHEMA}.drop_chunk_vectors_org_indexes($1)`,
+      [orgSlug],
+    );
+  } catch (err) {
+    // An index left behind holds no row — it covers the slug's vectors, and
+    // there are none — so the purge stands; the index is storage until a
+    // tenant of the same slug fills it again.
+    logger.warn(
+      `could not drop the approximate indexes of organization "${orgSlug}" after its purge: ${describeDatabaseError(err)}`,
+    );
+  }
   // The org's resolved database is about to lose its config file.
   invalidateOrgUrl(orgSlug);
   return purge;
