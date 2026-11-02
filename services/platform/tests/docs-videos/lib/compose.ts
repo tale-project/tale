@@ -17,7 +17,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { encodeWebp } from '../../docs-screenshots/webp';
 import { readAudioPlan } from './audio-plan';
 import type { EpisodeSpec, Locale } from './episode';
 import { narrationFor } from './episode';
@@ -29,6 +28,7 @@ import {
 } from './ffmpeg';
 import { buildConcatList } from './frame-playlist';
 import { DOCS_PUBLIC_DIR } from './paths';
+import { encodePoster, type EncodedPoster } from './poster';
 import { framesDir, timelinePath, type RecordedTimeline } from './recorder';
 import { writeReviewSheet } from './review';
 import { driftReport, driftViolations, MAX_DRIFT_MS } from './timeline';
@@ -220,7 +220,7 @@ export async function runComposeStage(
 
   // Poster: the fully revealed title card (mid-title-scene frame). Drafts
   // skip it — nothing in the review loop needs a webp.
-  let poster: Awaited<ReturnType<typeof encodeWebp>> | null = null;
+  let poster: EncodedPoster | null = null;
   let posterPath = '';
   if (!draft) {
     const titleScene = recorded.planned.scenes[0];
@@ -242,7 +242,7 @@ export async function runComposeStage(
       ],
       60_000,
     );
-    poster = await encodeWebp(
+    poster = await encodePoster(
       readFileSync(posterPngPath),
       `${baseName} poster`,
     );
