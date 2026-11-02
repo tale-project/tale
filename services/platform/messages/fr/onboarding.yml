@@ -22,7 +22,6 @@ finish:
   heading: "C'est prêt"
   subtitle: 'Voici ce que tu peux faire ensuite :'
   providerItem: Connecte un fournisseur d'IA pour alimenter les agents et le chat.
-  providerConnected: Fournisseur d'IA connecté.
   inviteItem: Invite des coéquipiers à collaborer.
   providerCta: Connecter un fournisseur
   inviteCta: Inviter des coéquipiers

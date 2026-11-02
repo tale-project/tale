@@ -94,7 +94,7 @@ compute codes from the enrollment secret.
   **Connect an agent** (`onboarding.finish.agentCta`); a deployment that
   switched agent sign-in off, or a person who may not connect one, shows no
   such row. **Connect an agent** opens **Connect a coding agent** over the
-  wizard (`SET-F89`) and does not mark onboarding complete. Run the commands
+  wizard (`SET-F89`) without leaving it. Run the commands
   for Claude Code or Codex and sign in → the dialog reads **Connected:**
   *agent*; **Done** → the row is a check with
   `onboarding.finish.agentConnected` naming the agent, focus rests on it, and

@@ -12,7 +12,6 @@ import {
   PreferencesError,
   setChatModel,
   setCustomInstructionsEnabled,
-  setOnboardingCompleted,
   setVoiceOutput,
   upsertCustomInstructions,
 } from './service.ts';
@@ -22,7 +21,6 @@ const customInstructionsSchema = z.object({
 });
 
 const enabledSchema = z.object({ enabled: z.boolean() });
-const completedSchema = z.object({ completed: z.boolean() });
 const chatModelSchema = z.object({
   modelId: z.string().max(200).optional(),
   // The connector that served the pick; meaningless without a model id.
@@ -90,18 +88,6 @@ export function createUserPreferenceRoutes(deps: {
       return c.json({ ok: true });
     });
   }
-
-  app.post('/onboarding-completed', async (c) => {
-    const body = completedSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return invalidBodyResponse(c, body.error);
-    }
-    const scope = scopeOf(c);
-    await transactSerializable(deps.sql, (tx) =>
-      setOnboardingCompleted(tx, scope, body.data.completed),
-    );
-    return c.json({ ok: true });
-  });
 
   app.post('/chat-model', async (c) => {
     const body = chatModelSchema.safeParse(await c.req.json());

@@ -15,7 +15,6 @@ import { useState } from 'react';
 import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { TaleLogo } from '@/app/components/logo/tale-logo';
 import { UserButton } from '@/app/components/user-button';
-import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { useT } from '@/lib/i18n/client';
 
@@ -27,16 +26,16 @@ import { WorkspaceStep } from './steps/workspace-step';
  * Setup wizard. Two modes share one flow:
  *
  *  - `first-run` (the `/setup` route, unauthenticated): the very first install.
- *    Walks owner account → workspace → OpenRouter → finish. Account creation
- *    signs the user in mid-flow; subsequent steps run on the now-authenticated
- *    websocket without leaving the wizard.
+ *    Walks owner account → workspace → finish. Account creation signs the
+ *    user in mid-flow; the later steps run on that session without leaving
+ *    the wizard.
  *  - `add-org` (the `/dashboard/create-organization` route, authenticated): an
- *    existing user spinning up another organization — just workspace →
- *    OpenRouter → finish.
+ *    existing user spinning up another organization — just workspace → finish.
  *
  * Language and theme aren't asked for: both are inferred from the client
  * (browser locale + OS color-scheme) by the locale/theme providers, and stay
- * changeable later in settings.
+ * changeable later in settings. Nor is an AI provider: the finish step points
+ * to Settings → Providers instead.
  */
 export function OnboardingWizard({
   mode = 'add-org',
@@ -48,20 +47,11 @@ export function OnboardingWizard({
   const { t } = useT('onboarding');
   const { t: tCommon } = useT('common');
 
-  const setOnboardingCompleted = useBackendMutation(
-    'user_preferences/mutations:setOnboardingCompleted',
-  );
-
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
   // Controlled step index so the page header can host the Back control (it
   // lives outside the wizard's provider). All wizard navigation routes through
   // `onIndexChange`, keeping this the single source of truth.
   const [stepIndex, setStepIndex] = useState(0);
-
-  // The wizard has no AI-provider step — provider keys are connected in
-  // Settings → Providers instead. The finish step keeps its provider row
-  // as an open to-do pointing at the provider settings page.
-  const providerConnected = false;
 
   const isFirstRun = mode === 'first-run';
 
@@ -71,20 +61,7 @@ export function OnboardingWizard({
     { id: 'finish', label: t('steps.finish') },
   ];
 
-  const completeOnboarding = async () => {
-    if (!createdOrgId) return;
-    try {
-      await setOnboardingCompleted.mutateAsync({
-        organizationId: createdOrgId,
-        completed: true,
-      });
-    } catch (err) {
-      console.warn('Failed to mark onboarding complete:', err);
-    }
-  };
-
-  const finishOnboarding = async () => {
-    await completeOnboarding();
+  const finishOnboarding = () => {
     if (createdOrgId) {
       void navigate({ to: '/dashboard/$id', params: { id: createdOrgId } });
     } else {
@@ -92,33 +69,24 @@ export function OnboardingWizard({
     }
   };
 
-  // Finish-step CTAs: mark onboarding complete, then land the user where the
-  // task actually gets done instead of dumping them on an empty dashboard.
+  // Finish-step CTAs land the user where the task actually gets done instead
+  // of dumping them on an empty dashboard.
   const finishTo = (target: FinishTarget) => {
-    void (async () => {
-      await completeOnboarding();
-      if (!createdOrgId) {
-        void navigate({ to: '/dashboard' });
+    if (!createdOrgId) {
+      void navigate({ to: '/dashboard' });
+      return;
+    }
+    const params = { id: createdOrgId };
+    switch (target) {
+      case 'providers':
+        void navigate({ to: '/dashboard/$id/settings/providers', params });
         return;
-      }
-      const params = { id: createdOrgId };
-      switch (target) {
-        case 'providers':
-          void navigate({
-            to: '/dashboard/$id/settings/providers',
-            params,
-          });
-          return;
-        case 'members':
-          // Members live on Organization now; `/settings/people` redirects to
-          // Teams (legacy split), which is the wrong place for "Invite teammates".
-          void navigate({
-            to: '/dashboard/$id/settings/organization',
-            params,
-          });
-          return;
-      }
-    })();
+      case 'members':
+        // Members live on Organization now; `/settings/people` redirects to
+        // Teams (legacy split), which is the wrong place for "Invite teammates".
+        void navigate({ to: '/dashboard/$id/settings/organization', params });
+        return;
+    }
   };
 
   return (
@@ -186,11 +154,7 @@ export function OnboardingWizard({
             createdOrgId={createdOrgId}
             onCreated={setCreatedOrgId}
           />
-          <FinishStep
-            onFinishTo={finishTo}
-            providerConnected={providerConnected}
-            organizationId={createdOrgId}
-          />
+          <FinishStep onFinishTo={finishTo} organizationId={createdOrgId} />
 
           <WizardFooter
             stacked
