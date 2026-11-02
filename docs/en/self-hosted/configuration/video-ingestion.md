@@ -47,13 +47,21 @@ OUTBOUND_PROXY_URLS=http://user-1:password@gateway.example:80,http://user-2:pass
 
 Requests to websites still take these proxies in turn. Platforms refuse many data-center addresses; if the log shows moves for most videos, proxies on residential or ISP networks are refused less often.
 
-Set `VIDEO_INGEST_PROXY_URL` when video retrieval needs an approved proxy of its own instead. It replaces the outbound proxies for video only, so the outbound list can then keep a rotating endpoint. As a single proxy, it does not repeat a refused attempt. Supported schemes include `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; the latter resolves DNS at the proxy.
+To keep proxies for video alone, such as residential or ISP proxies billed per address or per gigabyte, list them in `VIDEO_INGEST_PROXY_URLS` instead. Video retrieval then goes through these proxies only, while requests to websites and sandbox sessions keep the outbound proxies, which may then include a rotating endpoint. A video moves along this list as described above, and each entry must keep one public address. When every proxy in the list has failed the video, the step ends with the platform's reason; it never falls back to the outbound proxies or a direct connection. In the worker log, a move along this list reads `video proxy entry` where one along the outbound list reads `outbound proxy entry`.
+
+Separate the entries with commas or spaces. Each one is written `scheme://[user:password@]host[:port]`, with one of the schemes `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; the latter resolves DNS at the proxy. A malformed entry stops the backend from starting, and the message names the entry by its position.
+
+```bash
+VIDEO_INGEST_PROXY_URLS=socks5h://user-1:password@residential.example:1080,socks5h://user-2:password@residential.example:1080
+```
+
+For a single approved proxy reserved for video, set `VIDEO_INGEST_PROXY_URL` instead. It replaces the outbound proxies for video only and takes the same schemes, but as a single proxy it does not repeat a refused attempt. Set either `VIDEO_INGEST_PROXY_URL` or `VIDEO_INGEST_PROXY_URLS`: with both set, the backend does not start.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Add credentials through your secret-management workflow if the proxy requires them. An invalid or unsupported proxy URL is ignored with a warning, and retrieval goes through the outbound proxies, if any, as if it were unset. Confirm the applied configuration and a real retrieval result. Recreate the worker after changing its container environment; restarting the existing container does not import a changed `.env`.
+Add credentials through your secret-management workflow if a proxy requires them. An invalid or unsupported `VIDEO_INGEST_PROXY_URL` is ignored with a warning, and retrieval goes through the outbound proxies, if any, as if it were unset. Confirm the applied configuration and a real retrieval result. Recreate the worker after changing its container environment; restarting the existing container does not import a changed `.env`.
 
 A different route is not a promise of access. Confirm that your proxy and the source account are authorized for the content you need. If the source remains unavailable, import a transcript you already have as a [Knowledge document](/platform/knowledge/documents).
 
