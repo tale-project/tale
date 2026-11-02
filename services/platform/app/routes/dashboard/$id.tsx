@@ -4,6 +4,7 @@ import {
 } from '@tale/ui/adaptive-header';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { DirtyBlockerProvider } from '@tale/ui/editor';
 import { ErrorScopeProvider } from '@tale/ui/error-boundaries/error-scope';
 import { FullPageCenter } from '@tale/ui/full-page-center';
@@ -439,8 +440,17 @@ function DashboardLayout() {
                           // focused programmatically (tabIndex -1, never in the
                           // tab order), so the browser's focus-visible ring would
                           // outline the whole content area without conveying
-                          // anything actionable.
-                          className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
+                          // anything actionable. The line to the rail gives way
+                          // while a section panel stands beside the page (the
+                          // live one, or the boot frame's Home stand-in): the
+                          // rail and the panel are one sidebar surface, and the
+                          // panel's own right border is the edge to the page.
+                          className={cn(
+                            'border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l',
+                            hasRole
+                              ? 'md:has-[[data-slot=sub-panel]]:border-l-0'
+                              : '[.boot-home-panel-open_&]:md:border-l-0',
+                          )}
                         >
                           {hasRole && <ChangelogToastTrigger />}
                           {!hasRole && (

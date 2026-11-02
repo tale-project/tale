@@ -357,7 +357,7 @@ export const HomeChatRow = memo(function HomeChatRow({
         </Link>
       )}
       {!renaming && (
-        <div className="bg-background/85 absolute top-1.5 right-1.5 z-10 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
+        <div className="bg-background/85 [[data-slot=sub-panel]_&]:bg-sidebar/85 absolute top-1.5 right-1.5 z-10 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
           <ThreadRowMenu
             thread={thread}
             variant="default"

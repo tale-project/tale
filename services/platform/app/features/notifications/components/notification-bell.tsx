@@ -61,7 +61,7 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
         <Bell className="text-muted-foreground size-5 shrink-0" />
         <CountBadge
           count={unreadCount}
-          className="absolute -top-1.5 -right-1.5"
+          className="ring-sidebar absolute -top-1.5 -right-1.5"
         />
       </span>
     </button>

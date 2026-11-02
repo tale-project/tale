@@ -139,12 +139,13 @@ export const BrandingPreview = memo(function BrandingPreview({
         <BrowserChrome appName={appName} faviconUrl={faviconUrl} />
 
         <Row gap={0} align="stretch" className="h-[400px]">
-          {/* Rail — on the page background like the live rail, the surface
-              the accent's text shade is derived against. */}
+          {/* Rail — on the sidebar surface like the live rail, one column
+              with the Home panel beside it and no line between the two; the
+              accent's text shade is judged on that surface too. */}
           <Stack
             gap={0}
             align="center"
-            className="bg-background border-border w-11 shrink-0 border-r py-2.5"
+            className="bg-sidebar w-11 shrink-0 py-2.5"
             data-testid="preview-rail"
           >
             <Row gap={0} justify="center" className="size-7">
@@ -215,10 +216,11 @@ export const BrandingPreview = memo(function BrandingPreview({
             </Stack>
           </Stack>
 
-          {/* Home panel */}
+          {/* Home panel — the rail's surface; its border is the sidebar's
+              edge to the page. */}
           <Stack
             gap={0}
-            className="border-border w-40 shrink-0 border-r"
+            className="bg-sidebar border-border w-40 shrink-0 border-r"
             data-testid="preview-home-panel"
           >
             <Row

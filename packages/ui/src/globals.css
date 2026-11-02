@@ -261,7 +261,11 @@
   --border: 240 5.9% 90%;
   --input: 0 0% 100%;
   --ring: 240 10% 3.9%;
-  --sidebar: 0 0% 98.8%;
+  /* The navigation's own surface — the rail and every section panel — one
+     step off the page: `--color-bg-elevated` (#f9fafb), as the dark value is.
+     A deeper grey would swallow the rows' `bg-muted` fills, which must still
+     read on it; `THEME_SIDEBAR` in the platform's color.ts mirrors both. */
+  --sidebar: 210 20% 98%;
   --tab: 0 0% 100%;
   --chart-1: 12 76% 61%;
   --chart-2: 173 58% 39%;
