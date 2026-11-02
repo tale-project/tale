@@ -111,6 +111,11 @@ export const SCHEDULES: CronSchedule[] = [
   // may have reset or been raised (work still over it is parked again by
   // its budget check, before any bytes are read).
   { name: 'knowledge.resume_usage_limited', cron: '33 * * * *' },
+  // Documents the PII policy refused while its protection could not start,
+  // queued again once it can: a worker sends a pass as it boots
+  // (`resumePiiScansAtBoot`), and this one heals a data tree repaired
+  // without a restart and takes what the bounded pass left.
+  { name: 'knowledge.resume_pii_unavailable', cron: '51 * * * *' },
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
   // Repeating tasks that continue on their due date: the next task appears
   // within five minutes of the due day's start in the rule's zone. Offset so
@@ -180,6 +185,26 @@ export async function sweepRunsAtBoot(sql: Sql): Promise<void> {
   } catch (error) {
     console.warn(
       '[backend] could not queue the boot liveness sweep; the minute schedule runs it:',
+      error,
+    );
+  }
+}
+
+/**
+ * One pass that queues again what the PII policy refused while its
+ * protection could not start, as a worker whose boot probe loaded the PII
+ * data tree starts: the new process of a redeploy that fixed the image
+ * never saw the failure, and the refused documents are what tell it. The
+ * queue keeps one pass waiting (`stately`), so the workers that boot
+ * together share one. A send that fails is logged and never fails the boot:
+ * the hourly schedule runs the pass anyway.
+ */
+export async function resumePiiScansAtBoot(sql: Sql): Promise<void> {
+  try {
+    await addJobInTx(sql, 'knowledge.resume_pii_unavailable', {});
+  } catch (error) {
+    console.warn(
+      '[backend] could not queue the boot PII scan resume; the hourly schedule runs it:',
       error,
     );
   }
