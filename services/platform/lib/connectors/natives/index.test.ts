@@ -165,6 +165,17 @@ const NATIVE_ACTIONS: Array<{
     input: { projectId: 'proj_1', externalSystem: 'github', source: 'o/r' },
   },
   {
+    impl: 'task.report_gate',
+    connector: 'task',
+    action: 'report_gate',
+    input: {
+      projectId: 'proj_1',
+      key: 'ci',
+      value: 12,
+      reason: '12 workflow runs queued',
+    },
+  },
+  {
     impl: 'task.save_import_cursor',
     connector: 'task',
     action: 'save_import_cursor',
@@ -464,6 +475,13 @@ const taskStore: WorkflowTaskStore = {
       unchanged: 0,
       skipped: 0,
       closedUpstream: 0,
+    }),
+  reportGate: ({ runId }) =>
+    Promise.resolve({
+      ok: true,
+      held: false,
+      changed: true,
+      reportedBy: `run:${runId}`,
     }),
 };
 

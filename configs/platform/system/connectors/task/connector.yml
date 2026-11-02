@@ -12,9 +12,10 @@ i18n:
     displayName: Tâches
 description: >-
   Read a task, move its status, write or read its discussion comments, put
-  its project agent to work, sync issue trackers into a project, and keep a
-  scheduled issue import's position between occurrences — the platform's own
-  task board as automation steps.
+  its project agent to work, sync issue trackers into a project, keep a
+  scheduled issue import's position between occurrences, and report on a
+  gate of the project's dispatch — the platform's own task board as
+  automation steps.
 tags:
   - Platform
 auth:
@@ -701,3 +702,50 @@ actions:
       kind: native
       impl: task.upsert_issues
     exampleInput: { projectId: proj_mock, issues: [] }
+  - name: report_gate
+    title: Report on a gate
+    i18n:
+      de:
+        title: Schranke melden
+      fr:
+        title: Signaler l’état d’une barrière
+    description: >-
+      Report on a gate of a project's dispatch, as the API's gate report does:
+      a state (open or hold), or a value the gate judges by its holdAt, with
+      an optional reason. The project's dispatch must declare the gate, and the
+      automation must be installed in the project; a run a person or an API
+      key started reports only while that person may edit the project, and a
+      scheduled or event run reports as its installation. The report restarts
+      the gate's stale window, a report that opens the gate asks dispatch for a
+      pass at once, and the gate names the run as its reporter (run:<runId>).
+      held says whether the gate now holds its work, and changed whether the
+      report changed that. Runs only as an automation step.
+    effects: write
+    # Safe to repeat: the same report leaves the gate as it was and only
+    # restarts its stale window.
+    idempotent: true
+    input:
+      type: object
+      required: [projectId, key]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        key: { type: string, minLength: 1, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$', description: "The gate's key in the project's dispatch." }
+        state: { type: string, enum: [open, hold], description: Report a state — or a value instead. }
+        value: { type: number, description: A value the gate judges by its holdAt — or a state instead. }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    output: '{ projectId: string, key: string, held: boolean, changed: boolean, value: number | null, reason: string | null, reportedBy: string }'
+    mock: |
+      return {
+        projectId: String(input.projectId),
+        key: String(input.key),
+        held: input.state === 'hold',
+        changed: true,
+        value: typeof input.value === 'number' ? input.value : null,
+        reason: input.reason ?? null,
+        reportedBy: 'run:run_mock',
+      };
+    backend:
+      kind: native
+      impl: task.report_gate
+    exampleInput: { projectId: proj_mock, key: ci, value: 12, reason: 12 workflow runs queued }

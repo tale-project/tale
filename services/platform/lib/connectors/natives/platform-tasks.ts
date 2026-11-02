@@ -2,8 +2,8 @@
  * Native backend for the `task` platform connector — the task lifecycle as
  * automation capabilities: read a task, move its status, write and read its
  * discussion comments, put the task's project agent to work, sync a list of
- * issue sources into a project, and keep a scheduled issue import's position
- * between its occurrences.
+ * issue sources into a project, keep a scheduled issue import's position
+ * between its occurrences, and report on a gate of the project's dispatch.
  *
  * The thin rim: input narrowing and the marker-window semantics. The store
  * fronts the task domain's own trusted writers, so actor attribution, the
@@ -11,6 +11,10 @@
  * live today.
  */
 
+import {
+  dispatchGateReportSchema,
+  type DispatchGateReport,
+} from '@tale/shared/schemas/project-dispatch';
 import {
   ISSUE_TRACKERS,
   ISSUE_TRACKER_SYSTEMS,
@@ -180,6 +184,28 @@ export type WorkflowTaskListAnswer =
    * there, the run is pinned to another project, or the project is gone. */
   | { ok: false; refusal: { kind: 'project'; detail: string } };
 
+/** What `task.report_gate` answers: the gate as the report left it, or why
+ * nothing was recorded. */
+export type WorkflowGateReportAnswer =
+  | {
+      ok: true;
+      /** The gate holds the work it governs. */
+      held: boolean;
+      /** The report changed whether it holds, or is the gate's first. */
+      changed: boolean;
+      /** Who the gate names as its reporter: the run, `run:<runId>`. */
+      reportedBy: string;
+    }
+  | {
+      ok: false;
+      /** `project`: the run may not report on the project's gates — its
+       * automation is not installed there, the run is pinned to another
+       * project, the project is gone or archived, or the person who started
+       * the run may not edit it; `gate`: the dispatch declares no gate of
+       * that key, or the gate judges no values. `code` is the domain's. */
+      refusal: { kind: 'project' | 'gate'; code: string; detail: string };
+    };
+
 /** What the rim needs from the platform's task domain. */
 export interface WorkflowTaskStore {
   /** Create one task as an automation run's step: in a project the run may
@@ -258,6 +284,17 @@ export interface WorkflowTaskStore {
     after?: { createdAtMs: number; taskId: string };
     limit: number;
   }): Promise<WorkflowTaskListAnswer>;
+  /** Report on one of a project's dispatch gates as an automation run's
+   * step, held to the API door's bar: the run's automation is installed in
+   * the project, and a run a person or an API key started answers to that
+   * person, who may edit the project. The gate names the run. */
+  reportGate(args: {
+    organizationId: string;
+    runId: string;
+    projectId: string;
+    key: string;
+    report: DispatchGateReport;
+  }): Promise<WorkflowGateReportAnswer>;
   updateStatus(args: {
     organizationId: string;
     taskId: string;
@@ -600,6 +637,39 @@ const listInput = z
 function listMomentMs(value: number | string | undefined): number | undefined {
   if (value === undefined) return undefined;
   return typeof value === 'number' ? value : (momentMs(value) ?? undefined);
+}
+
+/** Where `task.report_gate` reports: the project and its gate's key. The
+ * rest of its input is the body the API door takes, read by the same
+ * schema (`dispatchGateReportSchema`). */
+const reportGateTarget = z.looseObject({
+  projectId: z.string().min(1),
+  key: z.string().min(1).max(64),
+});
+
+/** The gate a `task.report_gate` input names, and the report it carries —
+ * a state, or a value the gate judges, and a reason — as the API door
+ * reads its body. */
+function gateReportOf(input: unknown): {
+  projectId: string;
+  key: string;
+  report: DispatchGateReport;
+} {
+  const target = reportGateTarget.safeParse(input);
+  if (!target.success) refuse('report_gate', target.error);
+  const { projectId, key, ...body } = target.data;
+  if (!('state' in body) && !('value' in body)) {
+    throw new ConnectorError(
+      'INPUT_INVALID',
+      'task.report_gate: input reports a state (open or hold) or a value',
+      {},
+    );
+  }
+  // The branch the input means, so a refusal names its own field.
+  const [stateReport, valueReport] = dispatchGateReportSchema.options;
+  const parsed = ('state' in body ? stateReport : valueReport).safeParse(body);
+  if (!parsed.success) refuse('report_gate', parsed.error);
+  return { projectId, key, report: parsed.data };
 }
 
 /** A refusal of a task step that knows its cause in the run record's
@@ -990,6 +1060,66 @@ export function platformTaskNatives(
       'install the automation in the project, or run it in a project it is installed in',
     );
   };
+  /**
+   * A report on a gate of the project's dispatch, as the API door records
+   * one: the same writer, the same refusals, the same stale window, and a
+   * pass asked for when the report opens the gate. The gate names the run.
+   */
+  const reportGate: NativeConnectorImpl = async (input, ctx) => {
+    const { projectId, key, report } = gateReportOf(input);
+    const caller = workflowCaller('report_gate', ctx);
+    if (caller.kind !== 'workflow') {
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'task.report_gate runs only as an automation step',
+        {},
+      );
+    }
+    const answer = await store.reportGate({
+      organizationId: ctx.organizationId,
+      runId: caller.runId,
+      projectId,
+      key,
+      report,
+    });
+    if (answer.ok) {
+      return {
+        projectId,
+        key,
+        held: answer.held,
+        changed: answer.changed,
+        value: 'value' in report ? report.value : null,
+        reason: report.reason ?? null,
+        reportedBy: answer.reportedBy,
+      };
+    }
+    const { kind, code, detail } = answer.refusal;
+    if (kind === 'project') {
+      throw new TaskStepRefusal(
+        'report_gate',
+        `task.report_gate cannot report on the gates of project "${projectId}": ${detail}`,
+        { reason: 'TASK_PROJECT_NOT_BOUND', params: { projectId } },
+        'install the automation in the project; a run a person starts reports only while that person may edit the project',
+      );
+    }
+    throw new TaskStepRefusal(
+      'report_gate',
+      `task.report_gate cannot report on gate "${key}": ${detail}`,
+      {
+        reason: 'CONNECTOR_FAILED',
+        params: {
+          connector: 'task',
+          action: 'task.report_gate',
+          errorName: 'TaskError',
+          errorCode: code,
+          detail,
+        },
+      },
+      code === 'DISPATCH_GATE_VALUE_UNJUDGED'
+        ? 'report a state, or give the gate a holdAt'
+        : "name a gate the project's dispatch declares",
+    );
+  };
   const getImportCursor: NativeConnectorImpl = async (input, ctx) => {
     const parsed = importCursorKeyInput.safeParse(input);
     if (!parsed.success) refuse('get_import_cursor', parsed.error);
@@ -1075,6 +1205,7 @@ export function platformTaskNatives(
     'task.list_external_issues': listExternal,
     'task.get': get,
     'task.list': list,
+    'task.report_gate': reportGate,
     'task.update_status': updateStatus,
     'task.comment': comment,
     'task.list_comments': listComments,
