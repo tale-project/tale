@@ -33,7 +33,8 @@ import { cronInvalidText } from '../lib/cron-problem-text';
 import { listTimezoneOptions } from '../lib/timezones';
 import type { TriggerDraft } from '../lib/trigger-draft';
 
-/** Where the field is shown: the General tab, or the Blank wizard. */
+/** Where the field is shown: the General tab, or a create wizard (Blank, or
+ * a template's setup). */
 export type TriggerSurface = 'panel' | 'wizard';
 
 /** What the next runs are, beyond the schedule itself. */
@@ -87,7 +88,8 @@ export function TriggerScheduleField({
   stored: TriggerView | null;
   canEdit: boolean;
   viewerZone: string;
-  /** Whether the trigger starts runs (the Enabled switch, or Enable now). */
+  /** Whether the trigger starts runs (the Enabled switch, or a wizard's
+   * Start it now). */
   enabled: boolean;
   runState: ScheduleRunState;
   onChange: (patch: Partial<TriggerDraft>) => void;
@@ -228,7 +230,8 @@ export function TriggerScheduleField({
   const zoneInvalid = preview.zone === null;
 
   // Next runs: what the scan will start, what it would start once the
-  // trigger is on and a version deployed, or nothing to show.
+  // trigger is on and a version deployed, or nothing to show. In a wizard
+  // `enabled` is Start it now, which puts version 1 live as well.
   const unavailable = preview.occurrences === null;
   const wouldRun = !enabled || !runState.deployed;
   let header = t('trigger.nextRuns.title');
@@ -238,8 +241,13 @@ export function TriggerScheduleField({
   }
   let footnote: string | null = null;
   if (unavailable) footnote = t('trigger.nextRuns.unavailable');
-  else if (!enabled) footnote = t('trigger.nextRuns.paused');
-  else if (!runState.deployed) footnote = t('trigger.nextRuns.notDeployed');
+  else if (!enabled) {
+    footnote = wizard
+      ? t('trigger.nextRuns.startNowOff')
+      : t('trigger.nextRuns.paused');
+  } else if (!wizard && !runState.deployed) {
+    footnote = t('trigger.nextRuns.notDeployed');
+  }
   const occurrences = withServerNext(preview.occurrences ?? [], runState, zone);
 
   return (

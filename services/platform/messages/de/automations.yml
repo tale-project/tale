@@ -84,10 +84,6 @@ blank:
   stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
   copyWebhookUrl: Webhook-URL kopieren
   openAutomation: Automatisierung öffnen
-  enableNow: Jetzt aktivieren
-  enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
-  deployNow: v1 jetzt live schalten
-  deployNowHint: v1 ist sofort live, und sein Trigger startet Läufe, solange er aktiviert ist. Aus lässt v1 einen Entwurf, den du im Editor live schaltest.
   deployFailed: 'Die Automatisierung wurde angelegt, aber v1 ließ sich nicht live schalten: {error}. Schalte sie im Editor live.'
   triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
     sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
@@ -374,6 +370,7 @@ trigger:
     wouldRun: 'Würde laufen um'
     paused: 'Pausiert: Schalte „Aktiv“ ein und speichere, damit diese Läufe starten.'
     notDeployed: 'Es startet nichts, solange keine Version bereitgestellt ist.'
+    startNowOff: '„Jetzt starten“ ist aus: Noch startet keiner dieser Läufe.'
     unavailable: 'Korrigiere den Zeitplan oben, um die nächsten Läufe zu sehen.'
   health:
     lastRun: 'Letzter Lauf {at}'
