@@ -143,6 +143,7 @@ export async function getOrgChatHealth(
     at: number;
     type: string;
     model?: string;
+    provider?: string;
     threadId: string;
   }> = [];
 
@@ -185,6 +186,11 @@ export async function getOrgChatHealth(
           at: message.createdAt,
           type,
           ...(message.model !== null ? { model: message.model } : {}),
+          // The provider names the model's row on the page when two
+          // providers serve its id; a turn whose lane knew none has none.
+          ...(message.providerSlug !== null
+            ? { provider: message.providerSlug }
+            : {}),
           threadId: message.threadId,
         });
       }
@@ -239,9 +245,11 @@ export async function getOrgChatHealth(
         at: number;
         type: string;
         model?: string;
+        provider?: string;
         agentSlug?: string;
       } = { at: entry.at, type: entry.type };
       if (entry.model !== undefined) out.model = entry.model;
+      if (entry.provider !== undefined) out.provider = entry.provider;
       if (agentSlug !== undefined && agentSlug !== UNATTRIBUTED_AGENT_SLUG) {
         out.agentSlug = agentSlug;
       }
