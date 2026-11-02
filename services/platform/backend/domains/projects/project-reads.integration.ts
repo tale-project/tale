@@ -8,14 +8,20 @@
  * with agents; and so do the MCP project list, with the name searched in
  * the statement, and the settings list of their agents (#5203). The
  * knowledge scopes hand the knowledge database the readable projects that
- * hold a document, read through it (#5202). Fixture rows go in by SQL, in
- * an organization of their own so that no other lane's project counts;
- * every read goes through the service.
+ * hold a document, read through it (#5202), and the chat tools' work legs
+ * read the tasks and projects through it as the turn user (#5207). Fixture
+ * rows go in by SQL, in an organization of their own so that no other
+ * lane's project counts; every read goes through the service.
  */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import {
+  chatShimHandlers,
+  searchProjectsForChat,
+  searchTasksForChat,
+} from '../chat/shim.ts';
 import { searchDocumentsView } from '../documents/service.ts';
 import {
   getTaskOpsIndicators,
@@ -392,6 +398,41 @@ export async function checkProjectReads(
         JSON.stringify({ knowledge, knowledgeArchived }),
       );
 
+      // The chat tools' work legs join the relation as the turn user: the
+      // tasks leg finds the tasks of those projects and the archived one,
+      // a search where any are found, and the projects leg lists the same
+      // projects, the archived one by its own row.
+      const chatTasks = await searchTasksForChat(sql, auth, { term });
+      const chatProjects = await searchProjectsForChat(sql, auth, {
+        term: '',
+        list: true,
+      });
+      record(
+        `project reads: the chat work legs of ${who} find the tasks and list the projects of exactly those projects and the archived one, labelled archived`,
+        sameIds(
+          chatTasks.page.map((task) => task.projectId ?? ''),
+          searchable,
+        ) &&
+          (searchable.length === 0 || chatTasks.listed === false) &&
+          sameIds(
+            chatProjects.page.map((project) => project._id),
+            searchable,
+          ) &&
+          chatProjects.page.every(
+            (project) =>
+              (project.archivedAt !== undefined) ===
+              (project._id === named('archived').id),
+          ),
+        JSON.stringify({
+          tasks: chatTasks.page.map((task) => task.projectId),
+          listed: chatTasks.listed,
+          projects: chatProjects.page.map(({ _id, archivedAt }) => ({
+            _id,
+            archivedAt,
+          })),
+        }),
+      );
+
       // list_projects searches the name in the statement that reads the
       // page: a part of it in any case finds the project, and a wildcard is
       // a character like any other. The relation keeps a disabled seat out
@@ -564,6 +605,59 @@ export async function checkProjectReads(
         archivedHits[0]?.projectArchived === true &&
         archivedHits[0]?.projectKey === 'ARC',
       JSON.stringify(archivedHits),
+    );
+
+    // A chat listing that names one project reads that project alone, and
+    // only where the reader reads it: the legacy pair's project is Legal's,
+    // so a member of Finance lists nothing there; the admin lists the
+    // archived project's task.
+    const chatLegacy = await searchTasksForChat(
+      sql,
+      viewer('member', [finance]),
+      { term: '', list: true, projectId: named('legacy').id },
+    );
+    const chatArchived = await searchTasksForChat(sql, admin, {
+      term: '',
+      list: true,
+      projectId: named('archived').id,
+    });
+    record(
+      'project reads: a chat listing of one project reads its tasks alone, and none of a project the reader does not read',
+      chatLegacy.page.length === 0 &&
+        JSON.stringify(chatArchived.page.map((task) => task._id)) ===
+          JSON.stringify([named('archived').taskId]),
+      JSON.stringify({ chatLegacy, chatArchived }),
+    );
+
+    // The chat labels a task's project by that project's row: its key, and
+    // archived where it is.
+    const labelsOf =
+      chatShimHandlers(sql)['projects/internal_queries:getProjectLabelsForOrg'];
+    const label = async (name: string) =>
+      JSON.stringify(
+        await labelsOf?.({
+          organizationId: orgId,
+          projectIds: [named(name).id],
+        }),
+      );
+    const archivedLabel = await label('archived');
+    const openLabel = await label('open');
+    record(
+      "project reads: the chat labels a task's project by its own row, the archived one archived",
+      archivedLabel ===
+        JSON.stringify([
+          {
+            id: named('archived').id,
+            name: 'Reads archived',
+            key: 'ARC',
+            archived: true,
+          },
+        ]) &&
+        openLabel ===
+          JSON.stringify([
+            { id: named('open').id, name: 'Reads open', key: 'OPEN' },
+          ]),
+      JSON.stringify({ archivedLabel, openLabel }),
     );
 
     const memberFiles = await searchDocumentsView(
