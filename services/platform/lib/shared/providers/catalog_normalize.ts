@@ -34,6 +34,11 @@
  * ended up declaring a knob its connector could not spell, which silently
  * dropped the user's pick from the body.
  *
+ * No embedding model's vector width is read from a listing. A gateway's row
+ * for a model one of Tale's shipped catalogs curates a width for takes that
+ * width (`embeddingWidth`), so choosing it needs no lookup by hand; any
+ * other embedding entry carries none, and its width is typed.
+ *
  * Chat and embedding entries require a positive context window. Pure STT
  * listings and image generators that write no text may publish zero or no
  * token window; 0 preserves that absence without inventing a conversational
@@ -201,6 +206,15 @@ export interface NormalizeCatalogOptions {
    * (`backend/core/chat/gateway_wire.ts`).
    */
   readonly knownModel?: (id: string) => KnownModel | undefined;
+  /**
+   * The vector width Tale's shipped catalogs curate for the embedding model a
+   * listing names by this id, or `undefined` when they curate none for it.
+   * Asked only for an entry that is an embedding model here, whether the
+   * listing says so or Tale's catalogs do (see {@link normalizeCatalogModel}).
+   * Only the width is taken, never whether a catalog recommends the model:
+   * that is a choice about the catalog's own provider.
+   */
+  readonly embeddingWidth?: (id: string) => number | undefined;
 }
 
 /**
@@ -284,7 +298,11 @@ export function normalizeCatalogModel(
   // images (unknown must read as "cannot", so images reach it as text). Where
   // Tale's own catalogs know the model, their facts replace both assumptions
   // — and a model they know is not a chat model (an embedding, speech or
-  // image model) is not offered as one, nor assumed to be anything else.
+  // image model) is not offered as one. One they know as an embedding model
+  // is offered as that: the embeddings call it serves is the same on every
+  // OpenAI-compatible endpoint, and the width of each vector it answers is
+  // checked. A speech or image model is offered as nothing, since using one
+  // takes facts about the endpoint's own API that its row does not carry.
   const undescribed =
     entryType === undefined &&
     architecture === null &&
@@ -293,6 +311,7 @@ export function normalizeCatalogModel(
   const customListing = options.defaultContextWindow !== undefined;
   const known = undescribed ? options.knownModel?.(m.id) : undefined;
   const knownNotChat = known !== undefined && !known.tags.includes('chat');
+  const knownEmbedding = knownNotChat && known.tags.includes('embedding');
 
   const supportsVision =
     !isTranscription &&
@@ -356,18 +375,27 @@ export function normalizeCatalogModel(
     pricing?.input_cache_write,
   );
 
+  const tags = knownNotChat
+    ? knownEmbedding
+      ? ['embedding']
+      : []
+    : deriveTags({
+        inputModalities,
+        outputModalities,
+        entryType,
+        supportsVision,
+        isTranscription,
+      });
+  // The width a shipped catalog curates for this very model — asked only of
+  // an entry that is an embedding model here (see the module doc).
+  const embeddingWidth = tags.includes('embedding')
+    ? options.embeddingWidth?.(m.id)
+    : undefined;
+
   const candidate: ModelCatalogEntry = {
     id: m.id,
     provider,
-    tags: knownNotChat
-      ? []
-      : deriveTags({
-          inputModalities,
-          outputModalities,
-          entryType,
-          supportsVision,
-          isTranscription,
-        }),
+    tags,
     supportsTools,
     supportsVision,
     ...(outputsMedia && { outputsMedia }),
@@ -377,6 +405,9 @@ export function normalizeCatalogModel(
     ...(maxOutputTokens !== undefined && { maxOutputTokens }),
     ...(centsPerAudioMinute !== undefined && {
       transcription: { centsPerAudioMinute },
+    }),
+    ...(embeddingWidth !== undefined && {
+      embedding: { dimensions: embeddingWidth },
     }),
     ...(inputCentsPerMillion !== undefined &&
       outputCentsPerMillion !== undefined && {

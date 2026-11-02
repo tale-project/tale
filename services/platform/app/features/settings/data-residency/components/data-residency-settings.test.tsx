@@ -1559,6 +1559,160 @@ describe('DataResidencySettings', () => {
     });
   });
 
+  it("fills the width a gateway's row carries for an org-defined provider's pick", async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'bifrost', name: 'Bifrost' },
+    ];
+    // A custom provider in front of a gateway: the catalog read gives the
+    // row of a model a shipped catalog curates the width curated for it.
+    fixtures.catalogs = [
+      {
+        name: 'bifrost',
+        origin: 'organization',
+        catalogSource: 'models-endpoint',
+        models: [
+          { id: 'anthropic/claude-haiku-5-5', tags: ['chat'] },
+          {
+            id: 'openrouter/qwen/qwen3-embedding-8b',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+    ];
+    saveEmbedding.mockResolvedValue(null);
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'bifrost' }));
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    expect(
+      screen.queryByRole('option', { name: 'anthropic/claude-haiku-5-5' }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('option', {
+        name: 'openrouter/qwen/qwen3-embedding-8b',
+      }),
+    );
+
+    expect(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+    ).toHaveValue(1536);
+    expect(
+      within(section).queryByText(/Enter a supported vector width/),
+    ).not.toBeInTheDocument();
+    expect(capture.current?.isValid).toBe(true);
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      providerSlug: 'bifrost',
+      credentialId: undefined,
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      dimensions: 1536,
+      baseUrl: undefined,
+    });
+  });
+
+  it('fills the width again at each switch between gateways, and saves the last pick', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'bifrost', name: 'Bifrost' },
+      { id: 'cred-2', providerSlug: 'embed-gw', name: 'Gateway key' },
+    ];
+    // Two gateways of the org's own; each lists a model under a name a
+    // shipped catalog curates, and the catalog read gives its row that width.
+    fixtures.catalogs = [
+      {
+        name: 'bifrost',
+        origin: 'organization',
+        catalogSource: 'models-endpoint',
+        models: [
+          {
+            id: 'openrouter/qwen/qwen3-embedding-8b',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+      {
+        name: 'embed-gw',
+        origin: 'organization',
+        catalogSource: 'models-endpoint',
+        models: [
+          {
+            id: 'openai/text-embedding-3-small',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+          { id: 'emb-alpha', tags: ['embedding'] },
+        ],
+      },
+    ];
+    setEmbeddingFixture({
+      configured: true,
+      providerSlug: 'embed-gw',
+      model: 'emb-alpha',
+      dimensions: 1024,
+    });
+    saveEmbedding.mockResolvedValue(null);
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    const widthField = () =>
+      within(section).getByRole('spinbutton', { name: 'Vector width' });
+    const switchAndPick = async (provider: string, model: string) => {
+      await user.click(
+        within(section).getByRole('combobox', { name: 'Provider' }),
+      );
+      await user.click(screen.getByRole('option', { name: provider }));
+      // Each switch starts the pick over, unjudged, with Save off.
+      expect(
+        within(section).getByRole('combobox', { name: 'Model' }),
+      ).toHaveTextContent('Choose a model');
+      expect(widthField()).toHaveValue(null);
+      expect(
+        within(section).queryByText(/Enter a supported vector width/),
+      ).not.toBeInTheDocument();
+      await waitFor(() => expect(capture.current?.isValid).toBe(false));
+      await user.click(
+        within(section).getByRole('combobox', { name: 'Model' }),
+      );
+      await user.click(screen.getByRole('option', { name: model }));
+      // And each pick of a curated model fills its width, so Save turns on.
+      expect(widthField()).toHaveValue(1536);
+      await waitFor(() => expect(capture.current?.isValid).toBe(true));
+    };
+
+    await switchAndPick('bifrost', 'openrouter/qwen/qwen3-embedding-8b');
+    await switchAndPick('embed-gw', 'openai/text-embedding-3-small');
+    await switchAndPick('bifrost', 'openrouter/qwen/qwen3-embedding-8b');
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledTimes(1);
+    expect(saveEmbedding).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      providerSlug: 'bifrost',
+      credentialId: undefined,
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      dimensions: 1536,
+      baseUrl: undefined,
+    });
+  });
+
   it('opens a stored tag an org-defined listing does not carry in the Other model state', () => {
     fixtures.credentials = [
       { id: 'cred-1', providerSlug: 'local-embedding', name: 'Local key' },

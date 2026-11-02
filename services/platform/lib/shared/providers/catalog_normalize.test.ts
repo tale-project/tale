@@ -761,7 +761,8 @@ describe('normalizeCatalogModel — undescribed gateway entries', () => {
   });
 
   it('offers no model Tale knows is not a chat model as one', () => {
-    const entry = normalizeCatalogModel(
+    // An embedding model is offered as the embedding model it is.
+    const embedding = normalizeCatalogModel(
       { ...GATEWAY_GPT, id: 'openai/text-embedding-3-small' },
       'bifrost',
       {
@@ -773,12 +774,31 @@ describe('normalizeCatalogModel — undescribed gateway entries', () => {
         }),
       },
     );
-    expect(entry).toMatchObject({
+    expect(embedding).toMatchObject({
+      tags: ['embedding'],
+      supportsTools: false,
+      supportsVision: false,
+    });
+    expect(embedding).not.toHaveProperty('reasoning');
+    // A speech model is offered as nothing: its row says nothing about the
+    // endpoint's speech API.
+    const speech = normalizeCatalogModel(
+      { ...GATEWAY_GPT, id: 'openai/whisper-1' },
+      'bifrost',
+      {
+        ...CUSTOM,
+        knownModel: () => ({
+          tags: ['transcription'],
+          supportsTools: false,
+          supportsVision: false,
+        }),
+      },
+    );
+    expect(speech).toMatchObject({
       tags: [],
       supportsTools: false,
       supportsVision: false,
     });
-    expect(entry).not.toHaveProperty('reasoning');
   });
 
   it('leaves an entry the listing describes to the listing', () => {
@@ -799,5 +819,110 @@ describe('normalizeCatalogModel — undescribed gateway entries', () => {
         knownModel,
       })?.supportsTools,
     ).toBe(false);
+  });
+});
+
+describe('normalizeCatalogModel — embedding widths on a gateway', () => {
+  /** Abridged real row from a Bifrost gateway's `/v1/models` (2026-11-02):
+   * an embedding model it routes to OpenRouter, described in OpenRouter's
+   * own words, with no vector width. */
+  const GATEWAY_QWEN_EMBEDDING = {
+    id: 'openrouter/qwen/qwen3-embedding-8b',
+    canonical_slug: 'qwen/qwen3-embedding-8b',
+    name: 'Qwen: Qwen3 Embedding 8B',
+    context_length: 40_960,
+    max_output_tokens: 32_000,
+    architecture: {
+      modality: 'text->embeddings',
+      input_modalities: ['text'],
+      output_modalities: ['embeddings'],
+    },
+    pricing: { prompt: '0.00000001', completion: '0' },
+  };
+  const CUSTOM = { defaultContextWindow: 128_000 };
+
+  it("takes the width Tale's catalogs curate for the embedding model a row names", () => {
+    const asked: string[] = [];
+    const entry = normalizeCatalogModel(GATEWAY_QWEN_EMBEDDING, 'bifrost', {
+      ...CUSTOM,
+      embeddingWidth: (id) => {
+        asked.push(id);
+        return 1536;
+      },
+    });
+    expect(asked).toEqual(['openrouter/qwen/qwen3-embedding-8b']);
+    expect(entry).toMatchObject({
+      id: 'openrouter/qwen/qwen3-embedding-8b',
+      tags: ['embedding'],
+      supportsTools: false,
+      supportsVision: false,
+      contextWindow: 40_960,
+    });
+    // The width alone: whether to recommend a model is a choice about the
+    // curating catalog's own provider.
+    expect(entry?.embedding).toEqual({ dimensions: 1536 });
+  });
+
+  it('carries no width the catalogs do not curate', () => {
+    const entry = normalizeCatalogModel(GATEWAY_QWEN_EMBEDDING, 'bifrost', {
+      ...CUSTOM,
+      embeddingWidth: () => undefined,
+    });
+    expect(entry?.tags).toEqual(['embedding']);
+    expect(entry).not.toHaveProperty('embedding');
+    // Nor without a lookup to ask.
+    expect(
+      normalizeCatalogModel(GATEWAY_QWEN_EMBEDDING, 'bifrost', CUSTOM),
+    ).not.toHaveProperty('embedding');
+  });
+
+  it('asks no width of an entry that is not an embedding model', () => {
+    const asked: string[] = [];
+    const embeddingWidth = (id: string) => {
+      asked.push(id);
+      return 1536;
+    };
+    const chat = normalizeCatalogModel(OPENROUTER_CLAUDE, 'bifrost', {
+      ...CUSTOM,
+      embeddingWidth,
+    });
+    const speech = normalizeCatalogModel(
+      {
+        id: 'openai/whisper-1',
+        context_length: 0,
+        architecture: { output_modalities: ['transcription'] },
+      },
+      'bifrost',
+      { ...CUSTOM, embeddingWidth },
+    );
+    expect(asked).toEqual([]);
+    expect(chat).not.toHaveProperty('embedding');
+    expect(speech?.tags).toEqual(['transcription']);
+    expect(speech).not.toHaveProperty('embedding');
+  });
+
+  it("gives a row that names a known embedding model by id alone that model's width", () => {
+    const entry = normalizeCatalogModel(
+      {
+        id: 'openai/text-embedding-3-small',
+        context_length: 8_191,
+        pricing: { prompt: '0.00000002', completion: '0' },
+      },
+      'bifrost',
+      {
+        ...CUSTOM,
+        knownModel: () => ({
+          tags: ['embedding'],
+          supportsTools: false,
+          supportsVision: false,
+        }),
+        embeddingWidth: (id) =>
+          id === 'openai/text-embedding-3-small' ? 1536 : undefined,
+      },
+    );
+    expect(entry).toMatchObject({
+      tags: ['embedding'],
+      embedding: { dimensions: 1536 },
+    });
   });
 });
