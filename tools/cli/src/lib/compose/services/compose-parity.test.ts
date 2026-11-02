@@ -34,6 +34,7 @@ import {
 } from './create-backend-services';
 import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
+import { createPlatformService } from './create-platform-service';
 import { createDockerApiService } from './create-proxy-service';
 import {
   EGRESS_HEALTH_PROBE,
@@ -80,6 +81,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       stop_grace_period?: string;
       stop_signal?: string;
       mem_limit?: string;
+      mem_reservation?: string;
       image?: string;
       platform?: string;
       build?: unknown;
@@ -518,6 +520,62 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     const generated = createSandboxLlmGatewayService(config).stop_grace_period;
     expect(graceSeconds(fromCompose)).toBe(90);
     expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+});
+
+describe('memory reservation parity', () => {
+  // `tale deploy` and `docker compose up` reserve the same memory for the
+  // database and the application tier, each overridden by the same variable,
+  // and hand the spawner the same sum at the defaults.
+  const VARS = [
+    'DB_MEMORY_RESERVATION',
+    'PLATFORM_MEMORY_RESERVATION',
+    'BACKEND_API_MEMORY_RESERVATION',
+    'BACKEND_WORKER_MEMORY_RESERVATION',
+    'TALE_PLATFORM_REPLICAS',
+    'TALE_BACKEND_API_REPLICAS',
+    'TALE_BACKEND_WORKER_REPLICAS',
+  ] as const;
+  const original = Object.fromEntries(VARS.map((v) => [v, process.env[v]]));
+
+  afterEach(() => {
+    for (const name of VARS) {
+      const value = original[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  test('compose.yml reserves what the CLI generates on cgroup v2, under the same variables', () => {
+    for (const name of VARS) delete process.env[name];
+    // compose.yml cannot ask the engine; `tale deploy` emits reservations
+    // where it reports cgroup v2 only (memory-env.ts).
+    const v2 = { ...config, cgroupVersion: 2 } satisfies ServiceConfig;
+    const generated = {
+      db: [createDbService(v2), 'DB_MEMORY_RESERVATION'],
+      platform: [
+        createPlatformService(v2, 'blue'),
+        'PLATFORM_MEMORY_RESERVATION',
+      ],
+      'backend-api': [
+        createBackendApiService(v2),
+        'BACKEND_API_MEMORY_RESERVATION',
+      ],
+      'backend-worker': [
+        createBackendWorkerService(v2),
+        'BACKEND_WORKER_MEMORY_RESERVATION',
+      ],
+    } as const;
+    for (const [service, [generatedService, name]] of Object.entries(
+      generated,
+    )) {
+      expect(compose.services[service]?.mem_reservation).toBe(
+        `\${${name}:-${generatedService.mem_reservation}}`,
+      );
+    }
+    expect(compose.services.sandbox?.environment?.SANDBOX_RESERVED_MEMORY).toBe(
+      createSandboxService(config).environment?.SANDBOX_RESERVED_MEMORY,
+    );
   });
 });
 
