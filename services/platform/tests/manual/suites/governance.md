@@ -1245,8 +1245,8 @@ agent.
 
 - [ ] `GOV-B23` · **A project list that fails to load deletes no project** —
   Keep a GOV-F54 **Project** rule on a live project, block
-  `*/api/app/projects?includeArchived=true*` in DevTools (Network → request
-  blocking) and reload `policies-limits` → after the retries (a few seconds)
+  `*/api/app/projects/*` in DevTools (Network → request blocking) and reload
+  `policies-limits` → after the retries (a few seconds)
   the rule's **Target** reads **Project not loaded**
   (`governance.budgets.projectNotLoaded`), never **Deleted project**
   (`governance.budgets.projectDeleted`), and an alert above the rules table

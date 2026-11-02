@@ -198,6 +198,9 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
         .map((project) => [project._id, project]),
     ),
     isPending: false,
+    unread: new Set(),
+    read: { unavailable: false, retrying: false, failureCount: 0 },
+    retry: () => undefined,
   }),
   // The model pickers read the served-model roster; empty unless a test
   // picks a model.
