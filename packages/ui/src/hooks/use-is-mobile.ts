@@ -1,7 +1,12 @@
 import { useMediaQuery } from './use-media-query';
 
-/** Tailwind `md` breakpoint lower bound — below this is the mobile layout. */
-const MOBILE_QUERY = '(max-width: 767px)';
+/** The widest viewport, in CSS pixels, that gets the mobile layout: Tailwind's
+ * `md` breakpoint starts at 768. */
+export const MOBILE_MAX_WIDTH = 767;
+
+/** Tailwind `md` breakpoint lower bound — below this is the mobile layout.
+ * Docs pages switch to a screenshot's phone capture at the same width. */
+export const MOBILE_QUERY = `(max-width: ${MOBILE_MAX_WIDTH}px)`;
 
 /**
  * `true` when the viewport is narrower than the `md` breakpoint (`< 768px`).

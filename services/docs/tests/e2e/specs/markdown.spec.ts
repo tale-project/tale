@@ -5,17 +5,36 @@ import { createI18n } from '@tale/e2e/i18n';
 import { gotoClientPageWithLateBody } from '../helpers/late-page-body';
 
 /** Enter on the first framed screenshot opens it full size; Escape closes it
- * and hands focus back to the image. */
+ * and hands focus back to the image. The page shows the capture of the
+ * viewport's layout (a shot's phone capture below the `md` breakpoint, where
+ * it has one), and the lightbox opens that capture's full-size file. */
 async function zoomFirstFigureWithKeyboard(page: Page) {
   const figure = page.locator('main figure').first();
   await expect(figure.locator('figcaption')).toBeVisible();
   await expect(figure.locator('figcaption')).not.toHaveText('');
+  const shown = await figure.locator('picture').evaluate((picture) => {
+    const phone = [...picture.querySelectorAll('source[media]')].find(
+      (source) => matchMedia(source.getAttribute('media') ?? '').matches,
+    );
+    const capture = phone ?? picture.querySelector('img');
+    return {
+      phone: phone !== undefined,
+      width: capture?.getAttribute('width'),
+    };
+  });
   const image = figure.getByRole('button');
   await image.focus();
+  const pageImage = figure.locator('picture img');
+  await expect
+    .poll(() => pageImage.evaluate((img: HTMLImageElement) => img.currentSrc))
+    .toMatch(shown.phone ? /\.phone[-.]/ : /^(?!.*\.phone[-.])./);
   await page.keyboard.press('Enter');
   const zoom = page.getByRole('dialog');
   await expect(zoom.getByRole('img')).toBeVisible();
-  await expect(zoom.getByRole('img')).toHaveJSProperty('naturalWidth', 2880);
+  await expect(zoom.getByRole('img')).toHaveJSProperty(
+    'naturalWidth',
+    Number(shown.width),
+  );
   await page.keyboard.press('Escape');
   await expect(zoom).not.toBeVisible();
   await expect(image).toBeFocused();
@@ -33,13 +52,18 @@ for (const locale of ['en', 'de', 'fr'] as const) {
   const documentsPath = `${prefix}/platform/knowledge/documents`;
 
   test.describe(`${locale} rendered Markdown`, () => {
-    test('shows frame captions and keeps keyboard image zoom usable', async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await gotoClientPage(page, documentsPath);
-      await zoomFirstFigureWithKeyboard(page);
-    });
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1280, height: 800 },
+    ]) {
+      test(`shows frame captions and keeps keyboard image zoom usable at ${viewport.width} px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        await gotoClientPage(page, documentsPath);
+        await zoomFirstFigureWithKeyboard(page);
+      });
+    }
 
     test('zooms with the keyboard only once a late page body has committed', async ({
       page,

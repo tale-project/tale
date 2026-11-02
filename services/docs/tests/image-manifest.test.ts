@@ -1,10 +1,12 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { IMAGE_FORMATS, IMAGE_MAX_BYTES } from '@tale/ui/images/responsive';
+import { MOBILE_MAX_WIDTH } from '@tale/ui/use-is-mobile';
 import sharp from 'sharp';
-import { describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   PRODUCT_SCREENSHOTS,
@@ -12,8 +14,10 @@ import {
 } from '../../web/app/content/product-screenshots';
 import { IMAGE_DIMENSIONS } from '../app/content/image-dimensions';
 import {
+  desktopCaptureOf,
   docsImageVariant,
   docsImageWidths,
+  phoneCaptureFile,
 } from '../lib/content/image-variants';
 import { assertNoFindings, type Finding } from './lib/findings';
 import { pageImageTargets } from './lib/image-refs';
@@ -30,7 +34,7 @@ import { webpSize } from './lib/webp-size';
  * entry per image mapping the `public/`-relative file to the shot name,
  * route, viewport, and DPR it was captured with. The manifest is what makes
  * a screenshot reproducible — when the UI changes, grep the manifest for the
- * route and regenerate. This test locks the contract from six sides:
+ * route and regenerate. This test locks the contract from seven sides:
  *
  *   1. Every `*.webp` on disk under `public/images/` appears in the
  *      manifest. A hand-made image has no home here — by design; capture it
@@ -50,6 +54,14 @@ import { webpSize } from './lib/webp-size';
  *      names; `app/content/image-dimensions.ts` records its intrinsic size.
  *   6. No variant or recorded size outlives the page image it serves, and
  *      none sits off the ladder.
+ *   7. A phone capture (`<shot>.phone.webp`: the shot in Tale's phone layout,
+ *      which `DocsImage` shows in its desktop capture's place below the `md`
+ *      breakpoint) is an image the pages of its desktop capture show, so all
+ *      of the above holds for it too — its own file, which a phone may fetch
+ *      as its widest WebP, within the budget of one variant. Its manifest
+ *      entry says `device: "phone"` and a viewport no wider than
+ *      `MOBILE_MAX_WIDTH`, and a page names the desktop capture, never the
+ *      phone one. The fixture cases at the end prove each of these rules.
  *
  * Scope: `*.webp` only. The logo SVGs already under `public/images/` are
  * site chrome, not captured screenshots, and `public/images/optimized/` holds
@@ -58,48 +70,74 @@ import { webpSize } from './lib/webp-size';
  * live in `images.test.ts`.
  */
 
-const PUBLIC_ROOT = path.join(REPO_ROOT, 'services', 'docs', 'public');
-const IMAGES_ROOT = path.join(PUBLIC_ROOT, 'images');
-const MANIFEST_PATH = path.join(IMAGES_ROOT, 'manifest.json');
-const MANIFEST_REL = path.relative(REPO_ROOT, MANIFEST_PATH);
-const OPTIMIZED_ROOT = path.join(IMAGES_ROOT, 'optimized');
 const CAPTURE_COMMAND = 'bun run docs:screenshots';
 const IMAGES_COMMAND = 'bun run docs:images';
+const REGISTRY_FILE = 'services/docs/app/content/image-dimensions.ts';
 /** DPR-2 capture of a 1440-wide viewport. */
 const MAX_WIDTH = 2880;
 
-/** All `*.webp` files under `public/images/`, as `public/`-relative
- *  forward-slash paths (`images/<section>/<shot>.webp`) matching the
- *  manifest's `file` field and the pages' `/images/...` targets. */
-function walkWebp(dir: string, out: string[] = []): string[] {
+/** The screenshots of a docs site and what shows them: the real ones, or a
+ *  fixture tree the phone-capture cases break one rule at a time. */
+interface ImageTree {
+  /** The site's `public/` directory. */
+  publicRoot: string;
+  /** How a finding names `publicRoot`. */
+  label: string;
+  /** Every image a docs page names, as a `public/`-relative path. */
+  pageTargets: ReadonlySet<string>;
+  /** Every image the marketing screenshot registry shows. */
+  marketingTargets: ReadonlySet<string>;
+  /** The intrinsic sizes `app/content/image-dimensions.ts` records. */
+  dimensions: Readonly<Partial<Record<string, readonly [number, number]>>>;
+}
+
+/** The images of the marketing screenshot registry, as `public/`-relative
+ *  paths. */
+function marketingImageTargets(): Set<string> {
+  const out = new Set<string>();
+  for (const { source } of Object.values(PRODUCT_SCREENSHOTS)) {
+    for (const locale of PRODUCT_SCREENSHOT_LOCALES) {
+      out.add(
+        `images/platform/${locale === 'en' ? '' : `${locale}/`}${source}.webp`,
+      );
+    }
+  }
+  return out;
+}
+
+/** The docs site's own tree. Its page targets share the extraction with
+ *  `images.test.ts` and the variant generator, so "referenced" means the
+ *  same thing to all three. */
+function docsTree(): ImageTree {
+  return {
+    publicRoot: path.join(REPO_ROOT, 'services', 'docs', 'public'),
+    label: 'services/docs/public',
+    pageTargets: pageImageTargets(),
+    marketingTargets: marketingImageTargets(),
+    dimensions: IMAGE_DIMENSIONS,
+  };
+}
+
+/** All `*.webp` files under `images/`, as `public/`-relative forward-slash
+ *  paths (`images/<section>/<shot>.webp`) matching the manifest's `file`
+ *  field and the pages' `/images/...` targets. */
+function walkWebp(
+  tree: ImageTree,
+  dir = path.join(tree.publicRoot, 'images'),
+  out: string[] = [],
+): string[] {
   if (!fs.existsSync(dir)) return out;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // Derived from the captures; the variant sweep holds them to theirs.
-      if (full === OPTIMIZED_ROOT) continue;
-      walkWebp(full, out);
+      if (full === path.join(tree.publicRoot, 'images', 'optimized')) continue;
+      walkWebp(tree, full, out);
       continue;
     }
     if (entry.name.endsWith('.webp')) {
-      out.push(path.relative(PUBLIC_ROOT, full).split(path.sep).join('/'));
-    }
-  }
-  return out;
-}
-
-/** Every `/images/...` target referenced by any docs page in any locale or
- *  by the marketing screenshot registry, as `public/`-relative paths. Shares
- *  the extraction with `images.test.ts` so "referenced" means the same thing
- *  in both sweeps. */
-function referencedImageTargets(): Set<string> {
-  const out = pageImageTargets();
-  for (const { source } of Object.values(PRODUCT_SCREENSHOTS)) {
-    for (const locale of PRODUCT_SCREENSHOT_LOCALES) {
-      out.add(
-        `images/platform/${locale === 'en' ? '' : `${locale}/`}${source}.webp`,
-      );
+      out.push(path.relative(tree.publicRoot, full).split(path.sep).join('/'));
     }
   }
   return out;
@@ -119,15 +157,24 @@ interface ManifestEntry {
 
 /** Parse the manifest defensively — a malformed entry becomes a finding, not
  *  a crash. Returns the well-formed entries plus findings for the rest. */
-function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
+function readManifest(tree: ImageTree): {
+  entries: ManifestEntry[];
+  findings: Finding[];
+} {
+  const manifestFile = `${tree.label}/images/manifest.json`;
   const findings: Finding[] = [];
   const entries: ManifestEntry[] = [];
   let parsed: unknown;
   try {
-    parsed = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+    parsed = JSON.parse(
+      fs.readFileSync(
+        path.join(tree.publicRoot, 'images', 'manifest.json'),
+        'utf8',
+      ),
+    );
   } catch (error) {
     findings.push({
-      file: MANIFEST_REL,
+      file: manifestFile,
       line: 0,
       rule: 'manifest-unparsable',
       detail: `manifest.json is not valid JSON (${String(error)}) — regenerate via \`${CAPTURE_COMMAND}\``,
@@ -141,7 +188,7 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
     : (parsed as { entries?: unknown } | null)?.entries;
   if (!Array.isArray(list)) {
     findings.push({
-      file: MANIFEST_REL,
+      file: manifestFile,
       line: 0,
       rule: 'manifest-not-array',
       detail: `manifest.json must be { entries: [...] } — regenerate via \`${CAPTURE_COMMAND}\``,
@@ -152,7 +199,7 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
     const entry = raw as Record<string, unknown>;
     if (typeof entry?.file !== 'string' || entry.file.length === 0) {
       findings.push({
-        file: MANIFEST_REL,
+        file: manifestFile,
         line: 0,
         rule: 'manifest-entry-invalid',
         detail: `entry ${i} has no string "file" field — regenerate via \`${CAPTURE_COMMAND}\``,
@@ -164,6 +211,8 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
     // record their locale and place it in the matching directory.
     const locale = entry.locale ?? 'en';
     const shot = entry.shot;
+    // A desktop capture records no device; a phone capture sits beside it.
+    const device = entry.device;
     const segments = entry.file.split('/');
     const expectedFile =
       typeof locale === 'string' &&
@@ -175,15 +224,34 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
             'images',
             segments[1],
             ...(locale === 'en' ? [] : [locale]),
-            `${shot}.webp`,
+            `${shot}${device === 'phone' ? '.phone' : ''}.webp`,
           ].join('/')
         : undefined;
-    if (entry.file !== expectedFile) {
+    if (device !== undefined && device !== 'phone') {
       findings.push({
-        file: MANIFEST_REL,
+        file: manifestFile,
+        line: 0,
+        rule: 'manifest-device-invalid',
+        detail: `entry ${i} names the device ${JSON.stringify(device)}, but a capture is Tale's desktop layout (no device) or its "phone" layout — regenerate via \`${CAPTURE_COMMAND}\``,
+      });
+    } else if (entry.file !== expectedFile) {
+      findings.push({
+        file: manifestFile,
         line: 0,
         rule: 'manifest-locale-invalid',
-        detail: `entry ${i} locale/shot does not match "${entry.file}" — regenerate via \`${CAPTURE_COMMAND}\``,
+        detail: `entry ${i} locale/shot/device does not match "${entry.file}" — regenerate via \`${CAPTURE_COMMAND}\``,
+      });
+    }
+    if (
+      device === 'phone' &&
+      typeof viewport?.width === 'number' &&
+      viewport.width > MOBILE_MAX_WIDTH
+    ) {
+      findings.push({
+        file: manifestFile,
+        line: 0,
+        rule: 'phone-viewport-too-wide',
+        detail: `entry ${i} is a phone capture of a ${viewport.width}px viewport, but a page shows a phone capture only up to ${MOBILE_MAX_WIDTH}px, where Tale lays itself out for a phone — narrow the shot's phone viewport and regenerate via \`${CAPTURE_COMMAND}\``,
       });
     }
     entries.push({
@@ -199,256 +267,598 @@ function readManifest(): { entries: ManifestEntry[]; findings: Finding[] } {
   return { entries, findings };
 }
 
-describe('screenshot manifest', () => {
-  it('every webp is manifest-listed, page-referenced, and DPR-2 sized', () => {
-    const webps = walkWebp(IMAGES_ROOT);
-    const manifestExists = fs.existsSync(MANIFEST_PATH);
+/** Sides 1 to 4, and the manifest and page rules of side 7. */
+function manifestFindings(tree: ImageTree): Finding[] {
+  const manifestFile = `${tree.label}/images/manifest.json`;
+  const webps = walkWebp(tree);
+  const manifestExists = fs.existsSync(
+    path.join(tree.publicRoot, 'images', 'manifest.json'),
+  );
 
-    // Today's state: no screenshots captured yet — nothing to gate.
-    if (!manifestExists && webps.length === 0) return;
+  // No screenshots captured yet — nothing to gate.
+  if (!manifestExists && webps.length === 0) return [];
 
-    const findings: Finding[] = [];
-
-    if (!manifestExists) {
-      findings.push({
-        file: MANIFEST_REL,
+  if (!manifestExists) {
+    return [
+      {
+        file: manifestFile,
         line: 0,
         rule: 'manifest-missing',
         detail: `${webps.length} .webp file(s) exist under public/images/ but manifest.json does not — capture screenshots through the pipeline (\`${CAPTURE_COMMAND}\`), never by hand`,
+      },
+    ];
+  }
+
+  const findings: Finding[] = [];
+  const manifest = readManifest(tree);
+  findings.push(...manifest.findings);
+  const byFile = new Map(manifest.entries.map((e) => [e.file, e]));
+
+  for (const entry of manifest.entries) {
+    if (!fs.existsSync(path.join(tree.publicRoot, entry.file))) {
+      findings.push({
+        file: manifestFile,
+        line: 0,
+        rule: 'manifest-file-missing',
+        detail: `manifest entry "${entry.file}" has no file on disk — regenerate via \`${CAPTURE_COMMAND}\` or drop the entry`,
       });
-      assertNoFindings(findings, 'Screenshot-manifest issues');
-      return;
+    }
+  }
+
+  // A page names the desktop capture; `DocsImage` swaps in the phone one.
+  for (const target of [...tree.pageTargets].sort()) {
+    const desktop = desktopCaptureOf(target);
+    if (desktop === undefined) continue;
+    findings.push({
+      file: `${tree.label}/${target}`,
+      line: 0,
+      rule: 'phone-capture-linked',
+      detail: `a page names this phone capture itself — name /${desktop}, and the page shows this one in its place on a phone`,
+    });
+  }
+
+  for (const rel of webps) {
+    const file = `${tree.label}/${rel}`;
+
+    const entry = byFile.get(rel);
+    if (!entry) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'image-not-in-manifest',
+        detail: `no manifest entry — hand-made images have no home here; capture via \`${CAPTURE_COMMAND}\``,
+      });
     }
 
-    const manifest = readManifest();
-    findings.push(...manifest.findings);
-    const byFile = new Map(manifest.entries.map((e) => [e.file, e]));
-
-    for (const entry of manifest.entries) {
-      if (!fs.existsSync(path.join(PUBLIC_ROOT, entry.file))) {
-        findings.push({
-          file: MANIFEST_REL,
-          line: 0,
-          rule: 'manifest-file-missing',
-          detail: `manifest entry "${entry.file}" has no file on disk — regenerate via \`${CAPTURE_COMMAND}\` or drop the entry`,
-        });
-      }
+    // A phone capture is shown wherever a page shows its desktop capture.
+    const desktop = desktopCaptureOf(rel);
+    const referenced =
+      desktop === undefined
+        ? tree.pageTargets.has(rel) || tree.marketingTargets.has(rel)
+        : tree.pageTargets.has(desktop);
+    if (!referenced) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'image-unreferenced',
+        detail:
+          desktop === undefined
+            ? `no docs page or marketing screenshot registry references /${rel} — embed the source or remove the unused asset and manifest entry`
+            : `no docs page shows /${desktop}, which this is the phone capture of — show it on a page, or opt the shot out (\`phone: { none }\` in its capture manifest) and remove this capture and its manifest entry`,
+      });
     }
 
-    const referenced = referencedImageTargets();
-    for (const rel of webps) {
-      const file = `services/docs/public/${rel}`;
-
-      const entry = byFile.get(rel);
-      if (!entry) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'image-not-in-manifest',
-          detail: `no manifest entry — hand-made images have no home here; capture via \`${CAPTURE_COMMAND}\``,
-        });
-      }
-
-      if (!referenced.has(rel)) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'image-unreferenced',
-          detail: `no docs page or marketing screenshot registry references /${rel} — embed the source or remove the unused asset and manifest entry`,
-        });
-      }
-
-      const size = webpSize(path.join(PUBLIC_ROOT, rel));
-      if (size === null) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'image-invalid-webp',
-          detail: `not a parseable WebP file — re-export via \`${CAPTURE_COMMAND}\``,
-        });
-        continue;
-      }
-      // The cap is "a DPR-2 capture of the viewport this shot DECLARES", not a
-      // flat 2880: a shot may legitimately widen its viewport (the task board
-      // renders six columns and does not fit 1440). The manifest records that
-      // viewport, so the entry is the budget — and a shot without an entry still
-      // answers to the 1440 default.
-      const declaredWidth = entry?.viewportWidth;
-      const declaredDpr = entry?.dpr;
-      const widthBudget =
-        declaredWidth !== undefined && declaredDpr !== undefined
-          ? declaredWidth * declaredDpr
-          : MAX_WIDTH;
-      if (size.width > widthBudget) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'image-width-over-budget',
-          detail: `width ${size.width}px exceeds ${widthBudget}px (DPR-${declaredDpr ?? 2} capture of a ${declaredWidth ?? 1440}px viewport)`,
-        });
-      }
-      if (size.width % 2 !== 0) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'image-width-odd',
-          detail: `width ${size.width}px is odd — a DPR-2 capture is 2× a whole CSS pixel, so width must be even`,
-        });
-      }
-      if (
-        entry &&
-        (entry.width !== size.width || entry.height !== size.height)
-      ) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'manifest-dimensions-drift',
-          detail: `manifest says ${entry.width}×${entry.height} but the file is ${size.width}×${size.height} — regenerate via \`${CAPTURE_COMMAND}\``,
-        });
-      }
+    const size = webpSize(path.join(tree.publicRoot, rel));
+    if (size === null) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'image-invalid-webp',
+        detail: `not a parseable WebP file — re-export via \`${CAPTURE_COMMAND}\``,
+      });
+      continue;
     }
+    // The cap is "a DPR-2 capture of the viewport this shot DECLARES", not a
+    // flat 2880: a shot may legitimately widen its viewport (the task board
+    // renders six columns and does not fit 1440). The manifest records that
+    // viewport, so the entry is the budget — and a shot without an entry still
+    // answers to the 1440 default.
+    const declaredWidth = entry?.viewportWidth;
+    const declaredDpr = entry?.dpr;
+    const widthBudget =
+      declaredWidth !== undefined && declaredDpr !== undefined
+        ? declaredWidth * declaredDpr
+        : MAX_WIDTH;
+    if (size.width > widthBudget) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'image-width-over-budget',
+        detail: `width ${size.width}px exceeds ${widthBudget}px (DPR-${declaredDpr ?? 2} capture of a ${declaredWidth ?? 1440}px viewport)`,
+      });
+    }
+    if (size.width % 2 !== 0) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'image-width-odd',
+        detail: `width ${size.width}px is odd — a DPR-2 capture is 2× a whole CSS pixel, so width must be even`,
+      });
+    }
+    if (entry && (entry.width !== size.width || entry.height !== size.height)) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'manifest-dimensions-drift',
+        detail: `manifest says ${entry.width}×${entry.height} but the file is ${size.width}×${size.height} — regenerate via \`${CAPTURE_COMMAND}\``,
+      });
+    }
+  }
 
-    assertNoFindings(findings, 'Screenshot-manifest issues');
+  return findings;
+}
+
+describe('screenshot manifest', () => {
+  it('every webp is manifest-listed, page-referenced, and DPR-2 sized', () => {
+    assertNoFindings(
+      manifestFindings(docsTree()),
+      'Screenshot-manifest issues',
+    );
   });
 });
 
-/** The page images that exist as parseable WebP files, with their size. A
- *  missing, unlisted or broken one is the sweeps' finding above. */
-function pageImages(): { rel: string; width: number; height: number }[] {
-  return [...pageImageTargets()]
-    .filter((rel) => rel.endsWith('.webp'))
-    .sort()
-    .flatMap((rel) => {
-      const full = path.join(PUBLIC_ROOT, rel);
-      const size = fs.existsSync(full) ? webpSize(full) : null;
-      return size ? [{ rel, ...size }] : [];
-    });
+/** The images the pages show — the captures they name, and the phone
+ *  capture beside each — that exist as parseable WebP files, with their
+ *  size. A missing, unlisted or broken one is the sweeps' finding above. */
+function pageImages(
+  tree: ImageTree,
+): { rel: string; width: number; height: number }[] {
+  const named = [...tree.pageTargets].filter((rel) => rel.endsWith('.webp'));
+  const shown = new Set(named.flatMap((rel) => [rel, phoneCaptureFile(rel)]));
+  return [...shown].sort().flatMap((rel) => {
+    const full = path.join(tree.publicRoot, rel);
+    const size = fs.existsSync(full) ? webpSize(full) : null;
+    return size ? [{ rel, ...size }] : [];
+  });
 }
 
-/** The variants each page image ships besides the original itself. */
-function encodedVariants(rel: string, imageWidth: number) {
-  return docsImageWidths(imageWidth)
-    .flatMap((width) =>
-      IMAGE_FORMATS.map((format) => ({
-        width,
-        format,
-        variant: docsImageVariant(rel, imageWidth, width, format),
-      })),
-    )
-    .filter(({ variant }) => variant !== rel);
+/** Every candidate the `srcset`s of a page image offer: its variants, and
+ *  the image itself as the WebP at its own width when it is no wider than
+ *  the column needs. */
+function servedVariants(rel: string, imageWidth: number) {
+  return docsImageWidths(imageWidth).flatMap((width) =>
+    IMAGE_FORMATS.map((format) => ({
+      width,
+      format,
+      variant: docsImageVariant(rel, imageWidth, width, format),
+    })),
+  );
+}
+
+/** Side 5. */
+async function variantFindings(tree: ImageTree): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const hashes = new Map(
+    readManifest(tree).entries.map((entry) => [entry.file, entry.sha256]),
+  );
+  for (const { rel, width, height } of pageImages(tree)) {
+    const file = `${tree.label}/${rel}`;
+    const recorded = tree.dimensions[rel];
+    if (recorded?.[0] !== width || recorded[1] !== height) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'variant-size-unrecorded',
+        detail: `app/content/image-dimensions.ts records ${recorded ? recorded.join('×') : 'no size'} for this ${width}×${height} image — run \`${IMAGES_COMMAND}\``,
+      });
+    }
+    const sha256 = createHash('sha256')
+      .update(fs.readFileSync(path.join(tree.publicRoot, rel)))
+      .digest('hex');
+    if (hashes.get(rel) !== sha256) {
+      findings.push({
+        file,
+        line: 0,
+        rule: 'variants-stale',
+        detail: `the manifest's sha256 is not this capture's, so its variants are not either — run \`${IMAGES_COMMAND}\``,
+      });
+    }
+    for (const variant of servedVariants(rel, width)) {
+      const full = path.join(tree.publicRoot, variant.variant);
+      const variantFile = `${tree.label}/${variant.variant}`;
+      if (!fs.existsSync(full)) {
+        findings.push({
+          file: variantFile,
+          line: 0,
+          rule: 'variant-missing',
+          detail: `the ${variant.width}w ${variant.format} variant of /${rel} does not exist — run \`${IMAGES_COMMAND}\``,
+        });
+        continue;
+      }
+      const bytes = fs.statSync(full).size;
+      if (bytes > IMAGE_MAX_BYTES) {
+        findings.push({
+          file: variantFile,
+          line: 0,
+          rule: 'variant-over-budget',
+          detail:
+            variant.variant === rel
+              ? `${bytes} bytes exceeds the ${IMAGE_MAX_BYTES}-byte budget of one variant, which this capture is served as — capture it again via \`${CAPTURE_COMMAND}\``
+              : `${bytes} bytes exceeds the ${IMAGE_MAX_BYTES}-byte budget of one variant`,
+        });
+      }
+      // AVIF is AV1 in a HEIF container; sharp names the container.
+      const meta = await sharp(full).metadata();
+      const format =
+        meta.format === 'heif' && meta.compression === 'av1'
+          ? 'avif'
+          : meta.format;
+      const expectedHeight = (height * variant.width) / width;
+      if (
+        format !== variant.format ||
+        meta.width !== variant.width ||
+        Math.abs(meta.height - expectedHeight) >= 1
+      ) {
+        findings.push({
+          file: variantFile,
+          line: 0,
+          rule: 'variant-header-mismatch',
+          detail: `the file is ${format} ${meta.width}×${meta.height}, its name promises ${variant.format} ${variant.width}×${Math.round(expectedHeight)} — run \`${IMAGES_COMMAND} --force\``,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+/** Side 6. */
+function variantOrphanFindings(tree: ImageTree): Finding[] {
+  const findings: Finding[] = [];
+  const optimizedRoot = path.join(tree.publicRoot, 'images', 'optimized');
+  const images = pageImages(tree);
+  const expected = new Set(
+    images.flatMap(({ rel, width }) =>
+      servedVariants(rel, width).map(({ variant }) => variant),
+    ),
+  );
+  const files = fs.existsSync(optimizedRoot)
+    ? fs
+        .readdirSync(optimizedRoot, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) =>
+          path
+            .relative(tree.publicRoot, path.join(entry.parentPath, entry.name))
+            .split(path.sep)
+            .join('/'),
+        )
+    : [];
+  for (const rel of files) {
+    if (expected.has(rel)) continue;
+    findings.push({
+      file: `${tree.label}/${rel}`,
+      line: 0,
+      rule: 'variant-orphan',
+      detail: `no page image needs this variant (an image no page shows, or a width off the ladder) — run \`${IMAGES_COMMAND}\`, which removes it`,
+    });
+  }
+  const shown = new Set(images.map(({ rel }) => rel));
+  for (const rel of Object.keys(tree.dimensions)) {
+    if (shown.has(rel)) continue;
+    findings.push({
+      file: REGISTRY_FILE,
+      line: 0,
+      rule: 'variant-size-orphan',
+      detail: `records /${rel}, which no page shows — run \`${IMAGES_COMMAND}\``,
+    });
+  }
+  return findings;
 }
 
 describe('responsive variants', () => {
   it('every page image ships fresh variants along the ladder', async () => {
-    const findings: Finding[] = [];
-    const hashes = new Map(
-      readManifest().entries.map((entry) => [entry.file, entry.sha256]),
+    assertNoFindings(
+      await variantFindings(docsTree()),
+      'Responsive-variant issues',
     );
-    for (const { rel, width, height } of pageImages()) {
-      const file = `services/docs/public/${rel}`;
-      const recorded = IMAGE_DIMENSIONS[rel];
-      if (recorded?.[0] !== width || recorded[1] !== height) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'variant-size-unrecorded',
-          detail: `app/content/image-dimensions.ts records ${recorded ? recorded.join('×') : 'no size'} for this ${width}×${height} image — run \`${IMAGES_COMMAND}\``,
-        });
-      }
-      const sha256 = createHash('sha256')
-        .update(fs.readFileSync(path.join(PUBLIC_ROOT, rel)))
-        .digest('hex');
-      if (hashes.get(rel) !== sha256) {
-        findings.push({
-          file,
-          line: 0,
-          rule: 'variants-stale',
-          detail: `the manifest's sha256 is not this capture's, so its variants are not either — run \`${IMAGES_COMMAND}\``,
-        });
-      }
-      for (const variant of encodedVariants(rel, width)) {
-        const full = path.join(PUBLIC_ROOT, variant.variant);
-        const variantFile = `services/docs/public/${variant.variant}`;
-        if (!fs.existsSync(full)) {
-          findings.push({
-            file: variantFile,
-            line: 0,
-            rule: 'variant-missing',
-            detail: `the ${variant.width}w ${variant.format} variant of /${rel} does not exist — run \`${IMAGES_COMMAND}\``,
-          });
-          continue;
-        }
-        const bytes = fs.statSync(full).size;
-        if (bytes > IMAGE_MAX_BYTES) {
-          findings.push({
-            file: variantFile,
-            line: 0,
-            rule: 'variant-over-budget',
-            detail: `${bytes} bytes exceeds the ${IMAGE_MAX_BYTES}-byte budget of one variant`,
-          });
-        }
-        // AVIF is AV1 in a HEIF container; sharp names the container.
-        const meta = await sharp(full).metadata();
-        const format =
-          meta.format === 'heif' && meta.compression === 'av1'
-            ? 'avif'
-            : meta.format;
-        const expectedHeight = (height * variant.width) / width;
-        if (
-          format !== variant.format ||
-          meta.width !== variant.width ||
-          Math.abs(meta.height - expectedHeight) >= 1
-        ) {
-          findings.push({
-            file: variantFile,
-            line: 0,
-            rule: 'variant-header-mismatch',
-            detail: `the file is ${format} ${meta.width}×${meta.height}, its name promises ${variant.format} ${variant.width}×${Math.round(expectedHeight)} — run \`${IMAGES_COMMAND} --force\``,
-          });
-        }
-      }
-    }
-    assertNoFindings(findings, 'Responsive-variant issues');
   }, 60_000);
 
   it('no variant or recorded size outlives the page image it serves', () => {
-    const findings: Finding[] = [];
-    const images = pageImages();
-    const expected = new Set(
-      images.flatMap(({ rel, width }) =>
-        encodedVariants(rel, width).map(({ variant }) => variant),
-      ),
+    assertNoFindings(
+      variantOrphanFindings(docsTree()),
+      'Responsive-variant issues',
     );
-    const files = fs.existsSync(OPTIMIZED_ROOT)
-      ? fs
-          .readdirSync(OPTIMIZED_ROOT, { recursive: true, withFileTypes: true })
-          .filter((entry) => entry.isFile())
-          .map((entry) =>
-            path
-              .relative(PUBLIC_ROOT, path.join(entry.parentPath, entry.name))
-              .split(path.sep)
-              .join('/'),
-          )
-      : [];
-    for (const rel of files) {
-      if (expected.has(rel)) continue;
-      findings.push({
-        file: `services/docs/public/${rel}`,
-        line: 0,
-        rule: 'variant-orphan',
-        detail: `no page image needs this variant (an image no page shows, or a width off the ladder) — run \`${IMAGES_COMMAND}\`, which removes it`,
-      });
+  });
+});
+
+const DESKTOP = 'images/platform/home.webp';
+const PHONE = 'images/platform/home.phone.webp';
+/** A phone capture of a shot whose desktop capture no page shows. */
+const STRAY_PHONE = 'images/platform/settings.phone.webp';
+const FIXTURE_CAPTURES = [
+  {
+    file: DESKTOP,
+    viewport: { width: 1440, height: 900 },
+    fill: '#4f46e5',
+  },
+  {
+    file: PHONE,
+    viewport: { width: 390, height: 844 },
+    fill: '#059669',
+    device: 'phone',
+  },
+] as const;
+const FIXTURE_DIMENSIONS: Record<string, readonly [number, number]> = {
+  [DESKTOP]: [2880, 1800],
+  [PHONE]: [780, 1688],
+};
+
+/** Write one shot, `home`, captured in both layouts, with fresh variants and
+ *  hashes, under the `public/` directory `root`. */
+async function writeFixture(root: string): Promise<void> {
+  const entries: Record<string, unknown>[] = [];
+  for (const capture of FIXTURE_CAPTURES) {
+    const width = capture.viewport.width * 2;
+    const height = capture.viewport.height * 2;
+    const original = await sharp({
+      create: { width, height, channels: 3, background: capture.fill },
+    })
+      .webp()
+      .toBuffer();
+    fs.mkdirSync(path.dirname(path.join(root, capture.file)), {
+      recursive: true,
+    });
+    fs.writeFileSync(path.join(root, capture.file), original);
+    for (const variant of servedVariants(capture.file, width)) {
+      if (variant.variant === capture.file) continue;
+      const resized = sharp(original).resize({ width: variant.width });
+      const bytes = await (
+        variant.format === 'avif' ? resized.avif({ effort: 0 }) : resized.webp()
+      ).toBuffer();
+      const target = path.join(root, variant.variant);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, bytes);
     }
-    const shown = new Set(images.map(({ rel }) => rel));
-    for (const rel of Object.keys(IMAGE_DIMENSIONS)) {
-      if (shown.has(rel)) continue;
-      findings.push({
-        file: 'services/docs/app/content/image-dimensions.ts',
-        line: 0,
-        rule: 'variant-size-orphan',
-        detail: `records /${rel}, which no page shows — run \`${IMAGES_COMMAND}\``,
+    entries.push({
+      file: capture.file,
+      shot: 'home',
+      route: '/dashboard/:orgId',
+      viewport: capture.viewport,
+      dpr: 2,
+      width,
+      height,
+      locale: 'en',
+      ...('device' in capture ? { device: capture.device } : {}),
+      sha256: createHash('sha256').update(original).digest('hex'),
+    });
+  }
+  fs.writeFileSync(
+    path.join(root, 'images', 'manifest.json'),
+    `${JSON.stringify({ entries }, null, 2)}\n`,
+  );
+}
+
+/** Rewrite the manifest of the fixture under `root`. */
+function editManifest(
+  root: string,
+  edit: (entries: Record<string, unknown>[]) => void,
+): void {
+  const file = path.join(root, 'images', 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+    entries: Record<string, unknown>[];
+  };
+  edit(manifest.entries);
+  fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+/** The manifest entry of `file` among `entries`. */
+function entryOf(
+  entries: Record<string, unknown>[],
+  file: string,
+): Record<string, unknown> {
+  const entry = entries.find((candidate) => candidate.file === file);
+  if (!entry) throw new Error(`The fixture has no manifest entry for ${file}`);
+  return entry;
+}
+
+interface FixtureState {
+  root: string;
+  pageTargets: Set<string>;
+  dimensions: Record<string, readonly [number, number]>;
+}
+
+const PHONE_VARIANT = 'images/optimized/platform/home.phone-480.webp';
+const MANIFEST = 'public/images/manifest.json';
+
+/** Each case breaks one thing in a fresh copy of the fixture and names the
+ *  findings that follow, exactly. */
+const CASES: {
+  name: string;
+  breakIt: (state: FixtureState) => void | Promise<void>;
+  findings: [rule: string, file: string][];
+}[] = [
+  { name: 'a fresh shot in both layouts', breakIt: () => {}, findings: [] },
+  {
+    name: 'a phone capture its manifest entry names but no file holds',
+    breakIt: ({ root, dimensions }) => {
+      for (const { variant } of servedVariants(PHONE, 780)) {
+        fs.rmSync(path.join(root, variant));
+      }
+      delete dimensions[PHONE];
+    },
+    findings: [['manifest-file-missing', MANIFEST]],
+  },
+  {
+    name: 'a phone capture with no manifest entry',
+    breakIt: ({ root }) => {
+      editManifest(root, (entries) => {
+        entries.splice(entries.indexOf(entryOf(entries, PHONE)), 1);
       });
-    }
-    assertNoFindings(findings, 'Responsive-variant issues');
+    },
+    findings: [
+      ['image-not-in-manifest', `public/${PHONE}`],
+      ['variants-stale', `public/${PHONE}`],
+    ],
+  },
+  {
+    name: 'a phone capture of a shot no page shows',
+    breakIt: ({ root }) => {
+      fs.copyFileSync(path.join(root, PHONE), path.join(root, STRAY_PHONE));
+      editManifest(root, (entries) => {
+        entries.push({
+          ...entryOf(entries, PHONE),
+          file: STRAY_PHONE,
+          shot: 'settings',
+        });
+      });
+    },
+    findings: [['image-unreferenced', `public/${STRAY_PHONE}`]],
+  },
+  {
+    name: 'a page that names the phone capture itself',
+    breakIt: ({ pageTargets }) => {
+      pageTargets.add(PHONE);
+    },
+    findings: [['phone-capture-linked', `public/${PHONE}`]],
+  },
+  {
+    name: 'a phone capture taken wider than the md breakpoint',
+    breakIt: ({ root }) => {
+      editManifest(root, (entries) => {
+        entryOf(entries, PHONE).viewport = { width: 800, height: 844 };
+      });
+    },
+    findings: [['phone-viewport-too-wide', MANIFEST]],
+  },
+  {
+    name: 'a capture of a layout the docs do not serve',
+    breakIt: ({ root }) => {
+      editManifest(root, (entries) => {
+        entryOf(entries, PHONE).device = 'tablet';
+      });
+    },
+    findings: [['manifest-device-invalid', MANIFEST]],
+  },
+  {
+    name: 'a phone capture recorded as a desktop one',
+    breakIt: ({ root }) => {
+      editManifest(root, (entries) => {
+        delete entryOf(entries, PHONE).device;
+      });
+    },
+    findings: [['manifest-locale-invalid', MANIFEST]],
+  },
+  {
+    name: 'a phone capture missing a variant',
+    breakIt: ({ root }) => {
+      fs.rmSync(path.join(root, PHONE_VARIANT));
+    },
+    findings: [['variant-missing', `public/${PHONE_VARIANT}`]],
+  },
+  {
+    name: 'a phone capture with a variant off the ladder',
+    breakIt: ({ root }) => {
+      fs.copyFileSync(
+        path.join(root, PHONE_VARIANT),
+        path.join(root, 'images/optimized/platform/home.phone-600.webp'),
+      );
+    },
+    findings: [
+      [
+        'variant-orphan',
+        'public/images/optimized/platform/home.phone-600.webp',
+      ],
+    ],
+  },
+  {
+    name: 'a phone variant that is not what its name promises',
+    breakIt: ({ root }) => {
+      fs.copyFileSync(
+        path.join(root, 'images/optimized/platform/home.phone-780.avif'),
+        path.join(root, PHONE_VARIANT),
+      );
+    },
+    findings: [['variant-header-mismatch', `public/${PHONE_VARIANT}`]],
+  },
+  {
+    name: 'a phone capture whose size is not recorded',
+    breakIt: ({ dimensions }) => {
+      delete dimensions[PHONE];
+    },
+    findings: [['variant-size-unrecorded', `public/${PHONE}`]],
+  },
+  {
+    name: 'a recorded size of a phone capture no page shows',
+    breakIt: ({ dimensions }) => {
+      dimensions[STRAY_PHONE] = [780, 1688];
+    },
+    findings: [['variant-size-orphan', REGISTRY_FILE]],
+  },
+  {
+    name: 'phone variants encoded from an older capture',
+    breakIt: ({ root }) => {
+      editManifest(root, (entries) => {
+        entryOf(entries, PHONE).sha256 = '0'.repeat(64);
+      });
+    },
+    findings: [['variants-stale', `public/${PHONE}`]],
+  },
+  {
+    name: 'a phone capture over the budget of the variant it is served as',
+    breakIt: async ({ root }) => {
+      const noise = await sharp(randomBytes(780 * 1688 * 3), {
+        raw: { width: 780, height: 1688, channels: 3 },
+      })
+        .webp({ quality: 100 })
+        .toBuffer();
+      fs.writeFileSync(path.join(root, PHONE), noise);
+      editManifest(root, (entries) => {
+        entryOf(entries, PHONE).sha256 = createHash('sha256')
+          .update(noise)
+          .digest('hex');
+      });
+    },
+    findings: [['variant-over-budget', `public/${PHONE}`]],
+  },
+];
+
+describe('phone captures', () => {
+  let workdir = '';
+  let base = '';
+  beforeAll(async () => {
+    workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-image-manifest-'));
+    base = path.join(workdir, 'base', 'public');
+    await writeFixture(base);
+  }, 60_000);
+  afterAll(() => {
+    fs.rmSync(workdir, { recursive: true, force: true });
+  });
+
+  it.each(CASES)('$name', async ({ breakIt, findings }) => {
+    const root = path.join(
+      fs.mkdtempSync(path.join(workdir, 'case-')),
+      'public',
+    );
+    fs.cpSync(base, root, { recursive: true });
+    const state: FixtureState = {
+      root,
+      pageTargets: new Set([DESKTOP]),
+      dimensions: { ...FIXTURE_DIMENSIONS },
+    };
+    await breakIt(state);
+    const tree: ImageTree = {
+      publicRoot: root,
+      label: 'public',
+      pageTargets: state.pageTargets,
+      marketingTargets: new Set(),
+      dimensions: state.dimensions,
+    };
+    const found = [
+      ...manifestFindings(tree),
+      ...(await variantFindings(tree)),
+      ...variantOrphanFindings(tree),
+    ];
+    expect(found.map(({ rule, file }) => `${rule} ${file}`).sort()).toEqual(
+      findings.map(([rule, file]) => `${rule} ${file}`).sort(),
+    );
   });
 });

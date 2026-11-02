@@ -28,6 +28,16 @@ const IMAGE: ResponsiveImage = {
     webp: { 480: '/shot-480.webp', 1600: '/shot-1600.webp' },
   },
 };
+const PHONE_QUERY = '(max-width: 767px)';
+const PHONE_SRC = 'https://example.com/screenshot.phone.png';
+const PHONE: ResponsiveImage = {
+  width: 780,
+  height: 1688,
+  variants: {
+    avif: { 480: '/shot.phone-480.avif', 780: '/shot.phone-780.avif' },
+    webp: { 480: '/shot.phone-480.webp', 780: '/shot.phone-780.webp' },
+  },
+};
 
 describe('ImageZoom', () => {
   it('renders a lazy image inside a button trigger, no dialog mounted', () => {
@@ -111,6 +121,87 @@ describe('ImageZoom', () => {
     });
     expect(full).toHaveAttribute('src', SRC);
     expect(full).not.toHaveAttribute('srcset');
+    expect(full.closest('picture')).toBeNull();
+  });
+
+  it('serves the phone capture below its media query, on the page and in the lightbox', async () => {
+    const { container, user } = render(
+      <ImageZoom
+        src={SRC}
+        alt={ALT}
+        image={IMAGE}
+        sizes={SIZES}
+        sources={[{ media: PHONE_QUERY, image: PHONE, src: PHONE_SRC }]}
+      />,
+    );
+    const sources = [...container.querySelectorAll('picture > source')];
+    expect(
+      sources.map((source) => [
+        source.getAttribute('media'),
+        source.getAttribute('type'),
+        source.getAttribute('srcset'),
+      ]),
+    ).toEqual([
+      [
+        PHONE_QUERY,
+        'image/avif',
+        '/shot.phone-480.avif 480w, /shot.phone-780.avif 780w',
+      ],
+      [
+        PHONE_QUERY,
+        'image/webp',
+        '/shot.phone-480.webp 480w, /shot.phone-780.webp 780w',
+      ],
+      [null, 'image/avif', '/shot-480.avif 480w, /shot-1600.avif 1600w'],
+    ]);
+    // The phone capture reserves its own box: it is far taller than wide.
+    expect(sources[0]).toHaveAttribute('width', '780');
+    expect(sources[0]).toHaveAttribute('height', '1688');
+    expect(screen.getByRole('img', { name: ALT })).toHaveAttribute('src', SRC);
+
+    await user.click(screen.getByRole('button', { name: ALT }));
+    const dialog = screen.getByRole('dialog');
+    const full = within(dialog).getByRole('img', { name: ALT });
+    expect(full).toHaveAttribute('src', SRC);
+    expect(full.parentElement?.tagName).toBe('PICTURE');
+    expect(
+      [...dialog.querySelectorAll('picture > source')].map((source) => [
+        source.getAttribute('media'),
+        source.getAttribute('srcset'),
+      ]),
+    ).toEqual([[PHONE_QUERY, PHONE_SRC]]);
+  });
+
+  it("opens the phone capture's widest variant when its full-size file is not given", async () => {
+    const { user } = render(
+      <ImageZoom
+        src={SRC}
+        alt={ALT}
+        image={IMAGE}
+        sources={[{ media: PHONE_QUERY, image: PHONE }]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: ALT }));
+    expect(
+      screen.getByRole('dialog').querySelector('picture > source'),
+    ).toHaveAttribute('srcset', '/shot.phone-780.webp');
+  });
+
+  it('ignores sources without the default variants, as the trigger does', async () => {
+    const { container, user } = render(
+      <ImageZoom
+        src={SRC}
+        alt={ALT}
+        sources={[{ media: PHONE_QUERY, image: PHONE, src: PHONE_SRC }]}
+      />,
+    );
+    expect(container.querySelector('picture')).toBeNull();
+    await user.click(screen.getByRole('button', { name: ALT }));
+    const full = within(screen.getByRole('dialog')).getByRole('img', {
+      name: ALT,
+    });
+    expect(full).toHaveAttribute('src', SRC);
+    expect(full.closest('picture')).toBeNull();
   });
 
   it('opens the widest variant when the full-size file is not given', async () => {
