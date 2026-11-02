@@ -15,6 +15,7 @@ import {
 import { prepareRuntime } from './runtime-prepare';
 import { INCUS_BACKEND_MARKER, SANDBOX_INCUS_MOUNT } from './runtime-sandbox';
 import {
+  commitRepositorySandbox,
   commitRepositorySource,
   RuntimeDockerFixture,
   runtimeFixture,
@@ -465,36 +466,22 @@ describe('committed source runtime preparation', () => {
   });
 
   // The pinned runtime a deploy reads IS compose.yml and the proxy Caddyfile
-  // at the release commit: a port, mount, image, sandbox default or proxy
-  // anchor they gain must be one this CLI prepares and reads back, or the
-  // release's own CLI refuses the release (v0.5.62 shipped the device hub's
-  // 127.0.0.1:8004 and refused it).
-  test.each<[string, string | undefined, Parameters<typeof create>[1]]>([
-    ['as a plain deployment', undefined, {}],
-    ['under a container prefix', 'north-desk-prod', {}],
-    [
-      'with additional origins and organization creators',
-      undefined,
-      {
-        additionalOrigins: ['https://desk.partner.example'],
-        organizationCreators: ['ops@north-labs.example'],
-      },
-    ],
-  ])(
-    "prepares the repository's own runtime source %s",
-    async (_, containerPrefix, declared) => {
-      const { fixture, prepare } = create(containerPrefix, declared);
-      commitRepositorySource(fixture);
-      const bundle = await prepare();
-      const verified = readRuntimeBundle(fixture.options.bundleDirectory);
-      expect(verified.bundle).toEqual(bundle);
-      expect(bundle.source.composeSha256).toBe(
-        hash(readFileSync(join(fixture.repoRoot, 'compose.yml'))),
-      );
-      // The spawner and its device hub are reached over `internal` alone.
-      expect(verified.compose.services.sandbox.ports).toEqual([]);
-    },
-  );
+  // at the release commit, and this CLI must prepare and read back what they
+  // gain, or the release's own CLI refuses the release (v0.5.62 shipped the
+  // device hub's 127.0.0.1:8004 and refused it). This repository's edge is
+  // Traefik, routed by the labels its services declare, which the managed
+  // runtime cannot prepare yet: it refuses the revision by name until
+  // tale-project/tale#5282 teaches it, and that issue brings back the cases
+  // this suite and the apply suite ran on the repository's own source (a
+  // plain deployment, a container prefix, additional origins with
+  // organization creators, an apply on a fresh host).
+  test("refuses the repository's own runtime source, whose edge is Traefik, naming the issue", async () => {
+    const { fixture, prepare } = create();
+    commitRepositorySource(fixture);
+    await expect(prepare()).rejects.toThrow(
+      'This revision runs its edge on Traefik, which the managed runtime cannot prepare yet (tale-project/tale#5282)',
+    );
+  });
 
   // A managed host's runtime pin may lag the CLI pin (ops keeps the CLI at
   // or ahead of every runtime), so this CLI still prepares the runtimes from
@@ -760,8 +747,8 @@ describe('the Incus shape of the sandbox service', () => {
     expectTable(plain, incus);
   });
 
-  test("prepares the repository's own runtime source into the same shape", async () => {
-    const { plain, incus } = await both(commitRepositorySource);
+  test("prepares the repository's own sandbox environment into the same shape", async () => {
+    const { plain, incus } = await both(commitRepositorySandbox);
     expectTable(plain, incus);
     // The release's own sandbox service carries every variable the shape
     // replaces, and the spawner's other settings stay as the source sets them.

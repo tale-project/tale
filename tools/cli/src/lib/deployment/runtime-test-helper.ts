@@ -28,6 +28,7 @@ import {
   type ApplyRuntimeOptions,
   type ComposeDocument,
   type RuntimeDependencies,
+  TRAEFIK_EDGE_MARKER,
 } from './runtime-model';
 import { INCUS_BACKEND_MARKER } from './runtime-sandbox';
 import { sourceAutomationProtocol } from './source-automation-protocol';
@@ -198,7 +199,7 @@ export type RuntimeFixture = ReturnType<typeof runtimeFixture>;
  */
 export const REPOSITORY_RUNTIME_SOURCE = [
   'compose.yml',
-  'services/proxy/Caddyfile',
+  TRAEFIK_EDGE_MARKER,
   INCUS_BACKEND_MARKER,
   AUTOMATION_PROTOCOL_SOURCE,
   ...SOURCE_MIGRATION_ROOTS.flatMap((root) =>
@@ -243,6 +244,11 @@ export function commitRepositorySource(fixture: RuntimeFixture): void {
     rmSync(join(fixture.repoRoot, root), { recursive: true, force: true });
     mkdirSync(join(fixture.repoRoot, root), { recursive: true });
   }
+  // The repository's edge is Traefik: it has no Caddyfile.
+  rmSync(join(fixture.repoRoot, 'services/proxy/Caddyfile'));
+  mkdirSync(join(fixture.repoRoot, TRAEFIK_EDGE_MARKER, '..'), {
+    recursive: true,
+  });
   for (const file of REPOSITORY_RUNTIME_SOURCE)
     writeFileSync(
       join(fixture.repoRoot, file),
@@ -253,6 +259,30 @@ export function commitRepositorySource(fixture: RuntimeFixture): void {
     );
   fixture.git('add', '.');
   fixture.git('commit', '-qm', "the repository's own runtime source");
+  fixture.revision = fixture.git('rev-parse', 'HEAD');
+}
+
+/**
+ * Commit this repository's own sandbox environment over the fixture's, beside
+ * the fixture's edge: the spawner reads the environment alone, and the managed
+ * runtime cannot prepare the repository's Traefik edge yet
+ * (tale-project/tale#5282).
+ */
+export function commitRepositorySandbox(fixture: RuntimeFixture): void {
+  const repository = parse(
+    readFileSync(
+      fileURLToPath(new URL('../../../../../compose.yml', import.meta.url)),
+      'utf8',
+    ),
+  ) as ComposeDocument;
+  fixture.source.services.sandbox.environment =
+    repository.services.sandbox.environment;
+  writeFileSync(
+    join(fixture.repoRoot, 'compose.yml'),
+    stringify(fixture.source),
+  );
+  fixture.git('add', '.');
+  fixture.git('commit', '-qm', "the repository's own sandbox environment");
   fixture.revision = fixture.git('rev-parse', 'HEAD');
 }
 

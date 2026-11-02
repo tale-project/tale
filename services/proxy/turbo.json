@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tools/cli/src/lib/compose/services/traefik-labels.ts"
+      ]
+    }
+  }
+}

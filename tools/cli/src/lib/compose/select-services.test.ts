@@ -34,7 +34,12 @@ describe('selectDefaultServices', () => {
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
     });
-    expect(sel.leftRunning).toEqual(['db', 'object-store', 'proxy']);
+    expect(sel.leftRunning).toEqual([
+      'db',
+      'object-store',
+      'proxy',
+      'docker-api',
+    ]);
     expect(sel.stateful).not.toContain('db');
     expect(sel.stateful).not.toContain('object-store');
     expect(sel.stateful).not.toContain('proxy');
@@ -54,6 +59,7 @@ describe('selectDefaultServices', () => {
       'db',
       'object-store',
       'proxy',
+      'docker-api',
     ]);
   });
 
@@ -93,6 +99,7 @@ describe('selectDefaultServices', () => {
       'db',
       'object-store',
       'proxy',
+      'docker-api',
     ]);
   });
 });

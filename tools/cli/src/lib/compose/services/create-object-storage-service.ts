@@ -1,6 +1,7 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imagePlatform, imageRef } from '../types';
+import { objectStoreLabels } from './traefik-labels';
 
 /**
  * The deployment's BLOB store.
@@ -25,6 +26,7 @@ export function createObjectStorageService(
     image,
     platform: imagePlatform(image),
     container_name: `${getProjectId()}-object-store`,
+    labels: objectStoreLabels(),
     // Let in-flight multipart writes finish before SIGKILL.
     stop_grace_period: '30s',
     command: "server /data --address ':9000' --console-address ':9001'",

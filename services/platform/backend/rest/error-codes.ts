@@ -45,11 +45,13 @@ export const REST_ERROR_CODES = [
   'AUTOMATION_VERSION_STALE',
   'AUTOMATION_VERSION_UNKNOWN',
   'BLOB_NOT_FOUND',
-  // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
-  // by a handler: an HTTP/1.1 chunked body whose framing is malformed.
+  // An edge code, never a handler's: an HTTP/1.1 chunked body whose
+  // framing is malformed. The Traefik edge answers its own 500 instead
+  // until #5292 restores the code or retires it.
   'BODY_CHUNK_MALFORMED',
-  // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
-  // by a handler: an HTTP/2 body that ended before its declared length.
+  // An edge code, never a handler's: an HTTP/2 body that ended before its
+  // declared length. The Traefik edge answers its own 502 instead until
+  // #5292 restores the code or retires it.
   'BODY_LENGTH_MISMATCH',
   'BODY_TOO_LARGE',
   'BROWSER_SESSION_NOT_FOUND',
@@ -265,8 +267,8 @@ export const REST_ERROR_CODES = [
   'UPLOAD_FILE_MISMATCH',
   'UPLOAD_INTENT_INVALID',
   'UPLOAD_POLICY_REJECTED',
-  // Answered at the edge (services/proxy/Caddyfile `handle_errors`), never
-  // by a handler: a 502/503/504 on a machine door while the platform
+  // Answered at the edge (the responder services/proxy/render renders),
+  // never by a handler: a 502/503/504 on a machine door while the platform
   // restarts or cannot be reached.
   'UPSTREAM_UNAVAILABLE',
   'URI_TOO_LONG',
