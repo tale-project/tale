@@ -7,6 +7,8 @@ import { findActingMember } from '../../auth/membership.ts';
 import type { TurnWorkTools } from '../../core/chat/turn_action.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import { resolveImageGenerationModel } from '../../core/lib/providers/resolve_image_model.ts';
+import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
+import type { SkillSummaryView } from '../../core/skills/views.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -25,6 +27,12 @@ vi.mock('../../auth/membership.ts', () => ({
 }));
 vi.mock('../../core/lib/providers/resolve_image_model.ts', () => ({
   resolveImageGenerationModel: vi.fn(),
+}));
+vi.mock('../../core/skills/file_actions.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../core/skills/file_actions.ts')
+  >()),
+  listSkillsForViewer: vi.fn(),
 }));
 vi.mock('../agent_tools/skills.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../agent_tools/skills.ts')>()),
@@ -260,17 +268,126 @@ describe('chatWorkTools', () => {
 describe('listChatSkillChoices — what the composer offers to choose [CHAT-R29]', () => {
   const WHO = { organizationId: 'org_1', userId: 'user_1' };
 
-  it('lists the person’s skills while the Skills switch is on', async () => {
-    await expect(listChatSkillChoices(sql, WHO)).resolves.toEqual({
+  /** The organization's members, as the names behind a skill are read. */
+  const MEMBERS = [
+    { id: 'user_ada', name: 'Ada Lovelace', email: 'ada@example.com' },
+  ];
+
+  /** A `sql` double for the names: no skill edits on record, and the
+   * organization's members by id. It records what was asked. */
+  function directorySql(): Sql & { queries: string[] } {
+    const queries: string[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      queries.push(text);
+      if (text.includes('app.audit_logs')) return Promise.resolve([]);
+      if (text.includes('"member"')) {
+        const ids = values.find((value): value is string[] =>
+          Array.isArray(value),
+        );
+        return Promise.resolve(
+          MEMBERS.filter((member) => ids?.includes(member.id) === true),
+        );
+      }
+      throw new Error(`unexpected query: ${text}`);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return Object.assign(tag, { queries }) as unknown as Sql & {
+      queries: string[];
+    };
+  }
+
+  function listed(
+    slug: string,
+    fields: Partial<SkillSummaryView> = {},
+  ): SkillSummaryView {
+    return {
+      slug,
+      description: `${slug} skill`,
+      visibility: 'org',
+      origin: 'member',
+      canEdit: false,
+      etag: `"${slug}"`,
+      updatedAt: 1,
+      ...fields,
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(listSkillsForViewer)
+      .mockReset()
+      .mockResolvedValue({
+        skills: [
+          listed('xlsx', {
+            description: 'Spreadsheets',
+            origin: 'builtin',
+            disableModelInvocation: true,
+          }),
+          listed('brand-voice', { owner: 'user_ada' }),
+          listed('old-notes', { description: '', owner: 'user_gone' }),
+          listed('q3-report', { origin: 'release', owner: 'user_ada' }),
+        ],
+        failures: [],
+      });
+  });
+
+  it('lists the person’s skills while the Skills switch is on, each with who made it', async () => {
+    const answer = await listChatSkillChoices(directorySql(), WHO);
+
+    expect(answer).toEqual({
       enabled: true,
-      skills: [{ slug: 'docx', description: 'Word documents' }],
+      skills: [
+        {
+          slug: 'brand-voice',
+          description: 'brand-voice skill',
+          origin: 'member',
+          ownerName: 'Ada Lovelace',
+        },
+        // Its creator left the organization: no name, and no id either.
+        { slug: 'old-notes', origin: 'member' },
+        {
+          slug: 'q3-report',
+          description: 'q3-report skill',
+          origin: 'release',
+          ownerName: 'Ada Lovelace',
+        },
+        {
+          slug: 'xlsx',
+          description: 'Spreadsheets',
+          explicitOnly: true,
+          origin: 'builtin',
+        },
+      ],
     });
-    expect(listSkillCatalog).toHaveBeenCalledWith('acme', {
-      kind: 'user',
-      userId: 'user_1',
-      teamIds: ['team_1'],
-      isOrgAdmin: false,
+    // The creator's id stays on the server.
+    expect(JSON.stringify(answer)).not.toContain('user_');
+    // The person's own view of the library: their teams, their role.
+    expect(listSkillsForViewer).toHaveBeenCalledWith({
+      orgSlug: 'acme',
+      viewer: {
+        kind: 'user',
+        userId: 'user_1',
+        teamIds: ['team_1'],
+        isOrgAdmin: false,
+      },
     });
+    // The turn's catalog is a reader of its own, and the composer does not
+    // touch it.
+    expect(listSkillCatalog).not.toHaveBeenCalled();
+  });
+
+  it('offers no skill when the library cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(listSkillsForViewer).mockRejectedValue(new Error('EIO'));
+    const lookups = directorySql();
+
+    await expect(listChatSkillChoices(lookups, WHO)).resolves.toEqual({
+      enabled: true,
+      skills: [],
+    });
+    expect(lookups.queries).toEqual([]);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 
   it('offers no choice where skills are switched off, or the policy cannot be read', async () => {

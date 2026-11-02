@@ -2,6 +2,7 @@ import {
   type ChatToolsConfig,
   DEFAULT_CHAT_TOOLS,
 } from '@tale/shared/schemas/governance';
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
@@ -15,6 +16,8 @@ import type {
   WorkToolsUnavailable,
 } from '../../core/chat/turn_action.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
+import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
+import type { SkillSummaryView } from '../../core/skills/views.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -27,7 +30,11 @@ import { turnWorkToolsFor } from '../agent_tools/executor.ts';
 import { turnImageBilling } from '../agent_tools/image-billing.ts';
 import { offeredImageModel } from '../agent_tools/image-model.ts';
 import type { WorkToolScope } from '../agent_tools/scope.ts';
-import { listSkillCatalog } from '../agent_tools/skills.ts';
+import {
+  listSkillCatalog,
+  toSkillCatalogEntry,
+} from '../agent_tools/skills.ts';
+import { withSkillAttribution } from '../skills/attribution.ts';
 import { readConversationSkills } from './threads.ts';
 
 /**
@@ -206,15 +213,24 @@ function memberSkillViewer(
   };
 }
 
+/** A skill the composer offers to choose: its catalog entry, and who made it
+ * — the person weighs a skill by its creator, as the agent skill pickers let
+ * an editor do. The creator's id stays on the server. */
+export interface ChatSkillChoice extends SkillCatalogEntry {
+  readonly origin: SkillOrigin;
+  /** The creator's name while they are a member (`../skills/attribution.ts`). */
+  readonly ownerName?: string;
+}
+
 /** What the composer offers to choose: whether the person may choose skills
  * at all — the Chat tools policy's Skills switch, read as a turn reads it —
- * and the skills they may use, by name, description and explicit-only flag.
- * Nothing when the switch is off or the policy cannot be read: no control
- * may remain for a tool no reply would offer. */
+ * and the skills they may use, by name, description and explicit-only flag,
+ * with who made each. Nothing when the switch is off or the policy cannot be
+ * read: no control may remain for a tool no reply would offer. */
 export async function listChatSkillChoices(
   sql: Sql,
   who: { organizationId: string; userId: string },
-): Promise<{ enabled: boolean; skills: SkillCatalogEntry[] }> {
+): Promise<{ enabled: boolean; skills: ChatSkillChoice[] }> {
   const [policy, orgSlug, member, teamIds] = await Promise.all([
     readChatToolSwitches(sql, who.organizationId),
     resolveOrgSlug(sql, who.organizationId),
@@ -226,9 +242,47 @@ export async function listChatSkillChoices(
   }
   return {
     enabled: true,
-    skills: await listSkillCatalog(
+    skills: await readSkillChoices(
+      sql,
+      who.organizationId,
       orgSlug,
       memberSkillViewer(who.userId, teamIds, member.role),
     ),
   };
+}
+
+/** The skills the viewer may use, by name, each with who made it. A library
+ * that cannot be read offers none, as it lists none for a turn
+ * (`listSkillCatalog`). */
+async function readSkillChoices(
+  sql: Sql,
+  organizationId: string,
+  orgSlug: string,
+  viewer: UserSkillViewer,
+): Promise<ChatSkillChoice[]> {
+  let listed: SkillSummaryView[];
+  try {
+    listed = (await listSkillsForViewer({ orgSlug, viewer })).skills;
+  } catch (error) {
+    console.warn(
+      `[chat] the skill library of ${orgSlug} could not be listed for the composer:`,
+      error,
+    );
+    return [];
+  }
+  const attributed = await withSkillAttribution(sql, organizationId, listed);
+  return attributed
+    .map(toSkillChoice)
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+/** A listed skill as the composer offers it: its catalog entry, and who made
+ * it — never the creator's id. */
+function toSkillChoice(skill: SkillSummaryView): ChatSkillChoice {
+  const choice = Object.assign(toSkillCatalogEntry(skill), {
+    origin: skill.origin,
+  });
+  return skill.ownerName === undefined
+    ? choice
+    : Object.assign(choice, { ownerName: skill.ownerName });
 }

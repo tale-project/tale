@@ -24,6 +24,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { BookOpen, ChevronDown, Cpu, Gauge } from 'lucide-react';
 import { useMemo, useState, type ComponentType } from 'react';
 
+import { useSkillAttribution } from '@/app/components/skills/use-skill-attribution';
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import {
   groupByProvider,
@@ -35,6 +36,7 @@ import { EFFORT_LEVELS, type ReasoningEffort } from '@/lib/chat/effort';
 import { useT } from '@/lib/i18n/client';
 import { CHOSEN_SKILLS_MAX } from '@/lib/skills/slash';
 
+import { skillCaption } from '../lib/skill-picks';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { autoAvailable, selectionName } from './composer-model-picker';
 import {
@@ -86,6 +88,7 @@ export function ComposerSelectionPicker({
 }: ComposerSelectionPickerProps) {
   const { t } = useT('chat');
   const { locale } = useLocale();
+  const { creatorHint } = useSkillAttribution();
   const subscriptionNote =
     subscriptionProviders.length > 0
       ? t('modelSelector.subscriptionsTasksOnly', {
@@ -174,9 +177,10 @@ export function ComposerSelectionPicker({
   }, [models, selection, autoSelected, onSelectionChange, t]);
 
   /** The skills the conversation uses: a checkbox per skill the person may
-   * use, beside any it still names that they no longer can — those read
-   * unavailable and can only be unchecked. At most {@link CHOSEN_SKILLS_MAX}
-   * are checked; the others wait until one is unchecked. */
+   * use, under its name who made it and its description, beside any it still
+   * names that they no longer can — those read unavailable and can only be
+   * unchecked. At most {@link CHOSEN_SKILLS_MAX} are checked; the others wait
+   * until one is unchecked. */
   const chosenSkills = useMemo(
     () => selection.skills ?? [],
     [selection.skills],
@@ -191,28 +195,19 @@ export function ComposerSelectionPicker({
     };
     const available = new Set(skills.map((skill) => skill.slug));
     return [
-      ...skills.map((skill): PickerSearchOption => ({
-        key: skill.slug,
-        search: `${skill.slug} ${skill.description ?? ''}`,
-        label: (
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate">{skill.slug}</span>
-            {skill.description !== undefined && (
-              <span className="text-muted-foreground line-clamp-2 text-xs leading-snug text-wrap">
-                {skill.description}
-              </span>
-            )}
-          </span>
-        ),
-        ariaLabel: skill.slug,
-        fullLabel:
-          skill.description !== undefined
-            ? `${skill.slug} · ${skill.description}`
-            : skill.slug,
-        selected: chosenSkills.includes(skill.slug),
-        disabled: full && !chosenSkills.includes(skill.slug),
-        onSelect: () => toggle(skill.slug),
-      })),
+      ...skills.map((skill): PickerSearchOption => {
+        const caption = skillCaption(creatorHint(skill), skill.description);
+        return {
+          key: skill.slug,
+          search: `${skill.slug} ${skill.description ?? ''}`,
+          label: skill.slug,
+          description: caption,
+          fullLabel: skillCaption(skill.slug, caption),
+          selected: chosenSkills.includes(skill.slug),
+          disabled: full && !chosenSkills.includes(skill.slug),
+          onSelect: () => toggle(skill.slug),
+        };
+      }),
       ...chosenSkills
         .filter((slug) => !available.has(slug))
         .map((slug): PickerSearchOption => ({
@@ -222,7 +217,7 @@ export function ComposerSelectionPicker({
           onSelect: () => toggle(slug),
         })),
     ];
-  }, [skills, chosenSkills, selection, onSelectionChange, t]);
+  }, [skills, chosenSkills, selection, onSelectionChange, creatorHint, t]);
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     /** One section: a submenu row whose panel is a searchable list. */

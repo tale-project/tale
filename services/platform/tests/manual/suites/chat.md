@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 138 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 140 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -9,12 +9,12 @@ links and forking, arena mode, the chat header, the chat rows of the Home
 panel (pin, rename, move to a project, archive, delete), and the degraded
 states (backend unavailable, no provider, budget exceeded). There is **no
 agent picker** anymore: the composer picks a **model**, a reasoning effort and
-the skills a reply reads (CHAT-F73–CHAT-F75, CHAT-F83); agents and connectors
-are equipped per **project** (see [projects.md](projects.md)); chat reads skills
-from the person's own skill library and makes files with its own tools
-(CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77). The Home panel itself — its views,
-bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
-list of its own any more.
+the skills a reply reads (CHAT-F73–CHAT-F75, CHAT-F83, CHAT-F84); agents and
+connectors are equipped per **project** (see [projects.md](projects.md)); chat
+reads skills from the person's own skill library and makes files with its own
+tools (CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77). The Home panel itself — its
+views, bands and row anatomy — is [navigation.md](navigation.md)'s; there is
+no chat list of its own any more.
 
 ## Scope & routes
 
@@ -799,6 +799,19 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   France?" → **Reading the sign-off skill**, and the reply ends with 😎.
   Settings > Sandboxes lists no new **Light sandbox** row
   (`sandboxes.lightSandbox`) for these chats.
+- [ ] `CHAT-F84` · **Who made each skill** — With a skill member A created
+  (e.g. SKILL-F1's `brief-summary`), the builtin `docx`, and a skill of a
+  member B who has since been removed from the organization (SKILL-F16), type
+  `/` in a chat → each option's line under its name starts with who made the
+  skill, then its description: **By ‹A's name›**
+  (`skills.attribution.byMember`), **Built-in** (`skills.attribution.builtin`),
+  **By a former member** (`skills.attribution.byFormerMember`), and for a
+  skill a configuration release installed **Configuration release ·
+  ‹installing member›** (`skills.attribution.releaseBy`) — never a raw user
+  id; a long description is cut off after the creator, never the creator
+  itself. Open the composer picker's **Skills** (`chat.picker.sectionSkills`)
+  → each row reads the same under its name. Switch the interface to German,
+  then French → the creators read in that language.
 - [ ] `CHAT-F76` · **A failed step says why** — Mode A with the sandbox
   service, then stop the spawner and send `e2e:make-spreadsheet` → under
   **Running Python in a light sandbox** a red line reads **The sandbox service
@@ -1179,6 +1192,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   Enter or Tab writes it; Escape closes the list and keeps the text. A sent
   message's chip reads as **Skill brief-summary** (`chat.skillChip.label`). A
   failed step's line (CHAT-F76) is read as the step's description.
+- [ ] `CHAT-A12` · **Who made a skill, read after its name** → With a screen
+  reader, type `/` in the message box and move through the **Skills** list:
+  each option is read by its name alone (**/docx**), then who made it and its
+  description as the option's description (**Built-in · …**, CHAT-F84). In
+  the composer picker's **Skills** section each checkbox row is read by the
+  skill's name, its checked state, then the same description.
 
 ## Performance
 

@@ -58,6 +58,7 @@ import {
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
+import { useSkillAttribution } from '@/app/components/skills/use-skill-attribution';
 import type { FileIndexingInfo } from '@/app/features/chat/hooks/use-file-indexing-status';
 import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
 import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-images';
@@ -75,6 +76,7 @@ import {
   completeSkillToken,
   insertSkillSlash,
   matchSkills,
+  skillCaption,
   skillTokenAtCaret,
 } from '../lib/skill-picks';
 import type { ComposerModelOption, ComposerSelection } from '../types';
@@ -279,6 +281,7 @@ export const Composer = memo(
     const { t } = useT('chat');
     const { t: tDialogs } = useT('dialogs');
     const { i18n } = useTranslation();
+    const { creatorHint } = useSkillAttribution();
     const [text, setText] = usePersistedState(draftKey, '');
     const dictationRef = useRef<DictationButtonHandle>(null);
     // A dictation is under way: its words will join the message.
@@ -782,18 +785,19 @@ export const Composer = memo(
                     query: skillToken.query,
                   })}
                   options={skillMatches.map((skill) => {
-                    const caption = [
+                    // Who made it, what it is for: the option's description
+                    // for a screen reader.
+                    const caption = skillCaption(
+                      creatorHint(skill),
                       skill.description,
                       skill.explicitOnly === true
                         ? t('skillPicker.explicitOnly')
                         : undefined,
-                    ]
-                      .filter((line) => line !== undefined && line !== '')
-                      .join(' · ');
+                    );
                     return {
                       key: skill.slug,
                       name: `/${skill.slug}`,
-                      ...(caption !== '' ? { caption } : {}),
+                      caption,
                       leading: (
                         <BookOpen
                           aria-hidden
