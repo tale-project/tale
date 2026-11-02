@@ -644,7 +644,9 @@ export function createAutomationRoutes(deps: {
    * only; the editor folds its own core floor over these). Each action
    * carries its connector and its title in every language it ships in; each
    * connector, once, its display name and its icon as a data URL, so a node
-   * reads "GitHub · List issues" in the reader's language. */
+   * reads "GitHub · List issues" in the reader's language. An action that
+   * ships scenarios lists them as `get_catalog` does, without their answers:
+   * a test's Setup form offers them, the Shape tab describes them. */
   app.get('/catalog/node-types', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
@@ -667,6 +669,16 @@ export function createAutomationRoutes(deps: {
         ...(display !== undefined && { connector: display.connector }),
         ...(display?.title !== undefined && { title: display.title }),
         ...(display?.i18n !== undefined && { i18n: display.i18n }),
+        ...(def.connector?.scenarios?.length && {
+          scenarios: def.connector.scenarios.map(
+            ({ name, kind, description, when }) => ({
+              name,
+              kind,
+              description,
+              ...(when !== undefined && { when: { ...when } }),
+            }),
+          ),
+        }),
       });
     }
     nodeTypeRows.sort((a, b) => a.type.localeCompare(b.type));
