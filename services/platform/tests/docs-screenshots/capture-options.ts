@@ -3,12 +3,19 @@ import path from 'node:path';
 export const CAPTURE_LOCALES = ['en', 'de', 'fr'] as const;
 export type CaptureLocale = (typeof CAPTURE_LOCALES)[number];
 
+/** The layouts a shot is captured in: Tale's desktop layout, and its phone
+ * layout below the `md` breakpoint (`MOBILE_QUERY` in `@tale/ui/use-is-mobile`). */
+export const CAPTURE_DEVICES = ['desktop', 'phone'] as const;
+export type CaptureDevice = (typeof CAPTURE_DEVICES)[number];
+
 export interface CaptureArgs {
   list: boolean;
   skipSeed: boolean;
   only: string[];
   grep: RegExp | null;
   locales: CaptureLocale[];
+  /** `--devices`; null takes the default of `captureDevices`. */
+  devices: CaptureDevice[] | null;
   stateDir: string | null;
   configDir: string | null;
 }
@@ -20,6 +27,7 @@ export function parseCaptureArgs(argv: readonly string[]): CaptureArgs {
     only: [],
     grep: null,
     locales: ['en'],
+    devices: null,
     stateDir: null,
     configDir: null,
   };
@@ -47,6 +55,14 @@ export function parseCaptureArgs(argv: readonly string[]): CaptureArgs {
         }
       }
       args.locales = [...new Set(locales)] as CaptureLocale[];
+    } else if (arg === '--devices') {
+      const devices = valueAfter(i++).split(',');
+      for (const device of devices) {
+        if (!CAPTURE_DEVICES.includes(device as CaptureDevice)) {
+          throw new Error(`Unsupported capture device: ${device}`);
+        }
+      }
+      args.devices = [...new Set(devices)] as CaptureDevice[];
     } else throw new Error(`Unknown argument: ${arg}`);
   }
   return args;
@@ -61,16 +77,31 @@ export function screenshotStateDir(
   return path.resolve(args.stateDir ?? envStateDir ?? defaultStateDir);
 }
 
-/** Keep the English documentation URLs stable; localized pixels get their own directory. */
+/**
+ * The layouts a locale is captured in. The docs pages show English captures,
+ * so a phone capture is English unless `--devices` asks for it in every
+ * locale of the run.
+ */
+export function captureDevices(
+  args: CaptureArgs,
+  locale: CaptureLocale,
+): readonly CaptureDevice[] {
+  return args.devices ?? (locale === 'en' ? CAPTURE_DEVICES : ['desktop']);
+}
+
+/** Keep the English documentation URLs stable; localized pixels get their own
+ * directory, and a phone capture sits beside its desktop file as
+ * `<shot>.phone.webp`. */
 export function screenshotFile(
   section: string,
   shot: string,
   locale: CaptureLocale,
+  device: CaptureDevice = 'desktop',
 ): string {
   return [
     'images',
     section,
     ...(locale === 'en' ? [] : [locale]),
-    `${shot}.webp`,
+    device === 'desktop' ? `${shot}.webp` : `${shot}.${device}.webp`,
   ].join('/');
 }

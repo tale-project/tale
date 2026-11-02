@@ -8,10 +8,15 @@
  *   bun run docs:screenshots -- --only chat-composer
  *   bun run docs:screenshots -- --grep '^chat-'
  *   bun run docs:screenshots -- --skip-seed  # reuse the persisted org as-is
+ *   bun run docs:screenshots -- --devices phone  # only the phone captures
  *
- * After the capture it runs `bun run docs:images`, which encodes the
- * responsive variants of every changed image (services/docs/scripts/
- * optimize-images.ts).
+ * Each shot is captured in Tale's desktop layout and, unless it already is a
+ * phone layout or opts out (`Shot.phone`), in its phone layout beside it as
+ * `<name>.phone.webp`: English only by default, since the docs pages show the
+ * English captures (`captureDevices`). Both go through the shared encoder and
+ * byte budget (`@tale/ui/images/encode`). After the capture it runs
+ * `bun run docs:images`, which encodes the responsive variants of every
+ * changed image (services/docs/scripts/optimize-images.ts).
  *
  * The runner never boots the stack — it preflights the mock gateway (:4141)
  * and the app (:3000) and exits with the bring-up commands when either is
@@ -24,19 +29,23 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { chromium, expect, type Browser, type Page } from '@playwright/test';
+import { encodeImage } from '@tale/ui/images/encode';
+import { IMAGE_QUALITY } from '@tale/ui/images/responsive';
+import sharp from 'sharp';
 
 import { BASE_URL, TIMEOUT } from '../e2e/helpers/env';
 import {
+  captureDevices,
   parseCaptureArgs,
   screenshotFile,
   screenshotStateDir,
   type CaptureArgs,
+  type CaptureDevice,
   type CaptureLocale,
 } from './capture-options';
-import { captureRuntime } from './capture-runtime';
+import { captureRuntime, type OrgState } from './capture-runtime';
 import { withCaptureLocale } from './i18n';
-import { SHOTS, type Shot, type ShotContext } from './manifest';
-import { encodeWebp } from './webp';
+import { SHOTS, shotViewport, type Shot } from './manifest';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.resolve(HERE, '../../../..');
@@ -53,7 +62,6 @@ const runtime = captureRuntime({
   configDir: ARGS.configDir ?? undefined,
 });
 
-const VIEWPORT = { width: 1440, height: 900 } as const;
 const DPR = 2;
 
 interface ManifestEntry {
@@ -65,10 +73,41 @@ interface ManifestEntry {
   width: number;
   height: number;
   locale: CaptureLocale;
+  /** Set on a phone capture only; a desktop entry carries no device. */
+  device?: 'phone';
   /** The capture's SHA-256 once `bun run docs:images` encoded its responsive
    *  variants; a new capture replaces the entry and drops it. */
   sha256?: string;
 }
+
+/** One capture the run takes: a shot, in one locale and one layout. */
+interface PlannedCapture {
+  readonly shot: Shot;
+  readonly locale: CaptureLocale;
+  readonly device: CaptureDevice;
+  readonly viewport: { width: number; height: number };
+}
+
+/** Every capture of `shots` the run takes, by locale, then shot, then layout. */
+function planCaptures(
+  shots: readonly Shot[],
+  args: CaptureArgs,
+): PlannedCapture[] {
+  return args.locales.flatMap((locale) =>
+    shots.flatMap((shot) =>
+      captureDevices(args, locale).flatMap((device) => {
+        const viewport = shotViewport(shot, device);
+        return viewport ? [{ shot, locale, device, viewport }] : [];
+      }),
+    ),
+  );
+}
+
+/** How the log and the failure list name a capture. */
+function captureLabel({ shot, locale, device }: PlannedCapture): string {
+  return `${shot.name} [${locale}${device === 'desktop' ? '' : `, ${device}`}]`;
+}
+
 function selectShots(args: CaptureArgs): readonly Shot[] {
   let shots: readonly Shot[] = SHOTS;
   if (args.only.length > 0) {
@@ -110,9 +149,8 @@ function upsertManifest(entries: ManifestEntry[]): void {
 
 async function captureShots(
   browser: Browser,
-  shots: readonly Shot[],
-  ctx: ShotContext,
-  locales: readonly CaptureLocale[],
+  plan: readonly PlannedCapture[],
+  state: OrgState,
 ): Promise<void> {
   const captured: ManifestEntry[] = [];
   // One shot's failure must not cost the other 49: capture what it can,
@@ -120,15 +158,22 @@ async function captureShots(
   // failures at the end (a shot whose surface needs an absent backend —
   // e.g. RAG "Indexed" badges without the knowledge DB — fails alone).
   const failures: { name: string; reason: string }[] = [];
+  const locales = [...new Set(plan.map(({ locale }) => locale))];
   for (const locale of locales) {
     await withCaptureLocale(locale, async () => {
-      for (const shot of shots) {
-        const viewport = shot.viewport ?? VIEWPORT;
+      for (const planned of plan.filter((p) => p.locale === locale)) {
+        const { shot, device, viewport } = planned;
+        const label = captureLabel(planned);
+        const ctx = runtime.toContext(state, device);
         const context = await browser.newContext({
           baseURL: BASE_URL,
           storageState: runtime.authState,
           viewport,
           deviceScaleFactor: DPR,
+          // The phone layout as a phone renders it: the page's viewport meta
+          // applies and the pointer is coarse (touch-sized targets). Chromium
+          // keeps its own user agent, so no Safari-only clearance is drawn.
+          ...(device === 'phone' ? { isMobile: true, hasTouch: true } : {}),
           colorScheme: 'light',
           locale:
             locale === 'en' ? 'en-US' : locale === 'de' ? 'de-DE' : 'fr-FR',
@@ -184,9 +229,22 @@ async function captureShots(
           const png = target
             ? await target.screenshot({ animations: 'disabled' })
             : await page.screenshot({ animations: 'disabled' });
-          const encoded = await encodeWebp(png, shot.name);
+          // Over the byte budget even at the quality floor, it throws: crop
+          // tighter rather than ship a mushy image.
+          const image = sharp(png);
+          const { width, height } = await image.metadata();
+          const encoded = await encodeImage(image, {
+            format: 'webp',
+            quality: IMAGE_QUALITY.screen.webp,
+            label,
+          });
 
-          const relFile = screenshotFile(shot.section, shot.name, locale);
+          const relFile = screenshotFile(
+            shot.section,
+            shot.name,
+            locale,
+            device,
+          );
           const outPath = path.join(IMAGES_ROOT, '..', relFile);
           mkdirSync(path.dirname(outPath), { recursive: true });
           writeFileSync(outPath, encoded.bytes);
@@ -196,18 +254,19 @@ async function captureShots(
             route: shot.route,
             viewport,
             dpr: DPR,
-            width: encoded.width,
-            height: encoded.height,
+            width,
+            height,
             locale,
+            ...(device === 'phone' ? { device } : {}),
           });
           console.log(
-            `✓ ${shot.name} [${locale}] → ${relFile} (${Math.round(encoded.bytes.byteLength / 1024)} KB, q${encoded.quality}, ${encoded.width}×${encoded.height})`,
+            `✓ ${label} → ${relFile} (${Math.round(encoded.bytes.byteLength / 1024)} KB, q${encoded.quality}, ${width}×${height})`,
           );
         } catch (err) {
           const reason =
             err instanceof Error ? err.message.split('\n')[0] : String(err);
-          failures.push({ name: `${shot.name} [${locale}]`, reason });
-          console.error(`✗ ${shot.name} [${locale}] — ${reason}`);
+          failures.push({ name: label, reason });
+          console.error(`✗ ${label} — ${reason}`);
         } finally {
           if (shot.restore && page) {
             try {
@@ -217,11 +276,8 @@ async function captureShots(
               // photograph — surface it as this shot's failure.
               const reason =
                 err instanceof Error ? err.message.split('\n')[0] : String(err);
-              failures.push({
-                name: `${shot.name} [${locale}]`,
-                reason: `restore: ${reason}`,
-              });
-              console.error(`✗ ${shot.name} [${locale}] restore — ${reason}`);
+              failures.push({ name: label, reason: `restore: ${reason}` });
+              console.error(`✗ ${label} restore — ${reason}`);
             }
           }
           await context.close();
@@ -238,7 +294,7 @@ async function captureShots(
   });
   if (failures.length > 0) {
     console.error(
-      `\n${failures.length}/${shots.length * locales.length} shots failed:\n` +
+      `\n${failures.length}/${plan.length} captures failed:\n` +
         failures.map((f) => `  ✗ ${f.name} — ${f.reason}`).join('\n'),
     );
     process.exit(1);
@@ -254,14 +310,18 @@ async function captureShots(
 async function main(): Promise<void> {
   const args = ARGS;
   const shots = selectShots(args);
+  const plan = planCaptures(shots, args);
   if (args.list) {
-    for (const shot of shots) {
-      console.log(`${shot.name}  [${shot.section}]  ${shot.route}`);
+    for (const planned of plan) {
+      const { shot, viewport } = planned;
+      console.log(
+        `${captureLabel(planned)}  [${shot.section}]  ${viewport.width}×${viewport.height}  ${shot.route}`,
+      );
     }
     return;
   }
-  if (shots.length === 0) {
-    console.error('No shots matched the selection.');
+  if (plan.length === 0) {
+    console.error('No captures matched the selection.');
     process.exit(1);
   }
 
@@ -272,13 +332,11 @@ async function main(): Promise<void> {
   try {
     let state = await runtime.bootstrap(browser, args.skipSeed);
     if (!args.skipSeed) state = await runtime.seed(browser, state);
-    await captureShots(browser, shots, runtime.toContext(state), args.locales);
+    await captureShots(browser, plan, state);
   } finally {
     await browser.close();
   }
-  console.log(
-    `Done: ${shots.length * args.locales.length} shot(s). Manifest: ${MANIFEST_JSON}`,
-  );
+  console.log(`Done: ${plan.length} capture(s). Manifest: ${MANIFEST_JSON}`);
 }
 
 main().catch((error) => {

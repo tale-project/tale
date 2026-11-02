@@ -1,10 +1,29 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
+import { MOBILE_QUERY } from '../../hooks/use-is-mobile';
+import type { ResponsiveImage } from '../../images/responsive';
 import { ImageZoom } from './image-zoom';
 
 const RESPONSIVE_WIDTHS = [480, 828, 1200, 1600];
 const placeholder = (width: number, format: string) =>
   `https://placehold.co/${width}x${(width * 5) / 8}/${format}?text=${width}w+${format}`;
+// A phone capture: 390×844 CSS px at DPR 2.
+const PHONE_WIDTHS = [480, 780];
+const phonePlaceholder = (width: number, format: string) =>
+  `https://placehold.co/${width}x${Math.round((width * 844) / 390)}/${format}?text=phone+${width}w+${format}`;
+const responsiveImage = (
+  width: number,
+  height: number,
+  widths: number[],
+  url: (width: number, format: string) => string,
+): ResponsiveImage => ({
+  width,
+  height,
+  variants: {
+    avif: Object.fromEntries(widths.map((size) => [size, url(size, 'avif')])),
+    webp: Object.fromEntries(widths.map((size) => [size, url(size, 'webp')])),
+  },
+});
 
 const meta = {
   title: 'markdown/ImageZoom',
@@ -45,17 +64,24 @@ export const Responsive: Story = {
     src: placeholder(2880, 'webp'),
     alt: 'Responsive screenshot — resize the canvas to switch variants',
     sizes: '(min-width: 48rem) 48rem, 100vw',
-    image: {
-      width: 2880,
-      height: 1800,
-      variants: {
-        avif: Object.fromEntries(
-          RESPONSIVE_WIDTHS.map((width) => [width, placeholder(width, 'avif')]),
-        ),
-        webp: Object.fromEntries(
-          RESPONSIVE_WIDTHS.map((width) => [width, placeholder(width, 'webp')]),
-        ),
+    image: responsiveImage(2880, 1800, RESPONSIVE_WIDTHS, placeholder),
+  },
+};
+
+// With `sources` the capture of Tale's phone layout replaces `image` below
+// the `md` breakpoint, in the trigger and in the lightbox alike.
+export const PhoneCapture: Story = {
+  args: {
+    src: placeholder(2880, 'webp'),
+    alt: 'Screenshot with a phone capture — narrow the canvas below 768 px',
+    sizes: '(min-width: 48rem) 48rem, 100vw',
+    image: responsiveImage(2880, 1800, RESPONSIVE_WIDTHS, placeholder),
+    sources: [
+      {
+        media: MOBILE_QUERY,
+        image: responsiveImage(780, 1688, PHONE_WIDTHS, phonePlaceholder),
+        src: phonePlaceholder(780, 'webp'),
       },
-    },
+    ],
   },
 };

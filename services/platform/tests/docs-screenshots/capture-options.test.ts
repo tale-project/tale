@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  captureDevices,
   parseCaptureArgs,
   screenshotFile,
   screenshotStateDir,
@@ -58,17 +59,56 @@ describe('screenshot capture options', () => {
     ).toBe('/isolated/platform/config');
   });
 
-  it.each(['--locales', '--only', '--grep', '--state-dir', '--config-dir'])(
-    'rejects a missing %s value before opening a browser',
-    (flag) => {
-      expect(() => parseCaptureArgs([flag])).toThrow(
-        `Missing value for ${flag}`,
-      );
-      expect(() => parseCaptureArgs([flag, '--skip-seed'])).toThrow(
-        `Missing value for ${flag}`,
+  it('captures the phone layout in English, where the docs pages show it', () => {
+    const args = parseCaptureArgs(['--locales', 'en,de']);
+    expect(args.devices).toBeNull();
+    expect(captureDevices(args, 'en')).toEqual(['desktop', 'phone']);
+    expect(captureDevices(args, 'de')).toEqual(['desktop']);
+    expect(screenshotFile('platform', 'home-inbox', 'en', 'phone')).toBe(
+      'images/platform/home-inbox.phone.webp',
+    );
+    expect(screenshotFile('platform', 'home-inbox', 'de', 'phone')).toBe(
+      'images/platform/de/home-inbox.phone.webp',
+    );
+    expect(screenshotFile('platform', 'home-inbox', 'en', 'desktop')).toBe(
+      'images/platform/home-inbox.webp',
+    );
+  });
+
+  it('applies an explicit device list to every locale, once each', () => {
+    const args = parseCaptureArgs([
+      '--locales',
+      'en,fr',
+      '--devices',
+      'phone,phone',
+    ]);
+    expect(args.devices).toEqual(['phone']);
+    expect(captureDevices(args, 'en')).toEqual(['phone']);
+    expect(captureDevices(args, 'fr')).toEqual(['phone']);
+  });
+
+  it.each(['tablet', 'phone,', 'Phone'])(
+    'rejects unsupported device list %j',
+    (devices) => {
+      expect(() => parseCaptureArgs(['--devices', devices])).toThrow(
+        'Unsupported capture device',
       );
     },
   );
+
+  it.each([
+    '--locales',
+    '--devices',
+    '--only',
+    '--grep',
+    '--state-dir',
+    '--config-dir',
+  ])('rejects a missing %s value before opening a browser', (flag) => {
+    expect(() => parseCaptureArgs([flag])).toThrow(`Missing value for ${flag}`);
+    expect(() => parseCaptureArgs([flag, '--skip-seed'])).toThrow(
+      `Missing value for ${flag}`,
+    );
+  });
 
   it.each(['en,de-CH', '', 'en,', 'es'])(
     'rejects unsupported locale list %j',

@@ -7,6 +7,7 @@ import { expect, type Browser, type Page } from '@playwright/test';
 import { createOrgViaWizard } from '../e2e/helpers/auth';
 import { BASE_URL, TIMEOUT } from '../e2e/helpers/env';
 import { signUpOrIn } from './capture-auth';
+import type { CaptureDevice } from './capture-options';
 import { DEMO_ORG_NAME, DEMO_OWNER } from './demo-content';
 import type { ShotContext } from './manifest';
 import { seedDemoOrg } from './seed-demo-org';
@@ -197,9 +198,10 @@ export function captureRuntime(options: {
     }
   }
 
-  function toContext(state: OrgState): ShotContext {
+  function toContext(state: OrgState, device: CaptureDevice): ShotContext {
     return {
       orgId: state.orgId,
+      device,
       threads: new Map(Object.entries(state.threads)),
       projects: new Map(Object.entries(state.projects)),
     };

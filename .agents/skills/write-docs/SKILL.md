@@ -80,7 +80,9 @@ an action where it changes a decision; obvious controls do not need a paragraph 
 Images should clarify a location, unfamiliar state, relationship, or result. Do not add a hero
 image or an image to every step by default. Keep the written instructions complete without the
 image. Read [SCREENSHOTS.md](SCREENSHOTS.md) before changing an asset; every shipped screenshot
-must be reproducible through the repository's capture pipeline.
+must be reproducible through the repository's capture pipeline. Where the product's phone layout
+differs, the pipeline captures a shot in both layouts and the page serves the one that matches the
+reader's screen, so its alt text and caption must hold for both.
 
 Use lists for parallel choices and numbered steps for sequences, regardless of item count. Use
 components when they improve scanning or comparison; [COMPONENTS.md](COMPONENTS.md) covers their

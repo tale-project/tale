@@ -164,9 +164,12 @@ clipboard permission.
   (e.g. the OpenRouter link) → Opens the external site; external links don't
   hijack the SPA router; internal links stay client-side navigations.
 - [ ] `CONT-B3` · **Narrow viewport media** — At ≤ 400 px width, open the
-  images page and a videos page; zoom an image → Images and the video player
-  shrink to the column (no horizontal scroll); the zoom lightbox still opens,
-  fits the viewport, and closes cleanly.
+  images page and a videos page; zoom an image; then widen the window past
+  767 px → Images and the video player shrink to the column (no horizontal
+  scroll); the zoom lightbox still opens, fits the viewport, and closes
+  cleanly. Where a screenshot has a phone capture (`<shot>.phone.webp`), the
+  narrow page shows Tale's phone layout and the lightbox opens that capture;
+  past 767 px the page shows the desktop capture again.
 - [ ] `CONT-B4` · **Print preview** — Open the install quickstart and the
   browser's print preview (Cmd/Ctrl+P) at desktop width → Only the reading
   surface prints: the breadcrumb trail, the title, the description and

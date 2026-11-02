@@ -16,6 +16,11 @@ import { rebaseImageSrc } from './image-src';
  * intrinsic size in `app/content/image-dimensions.ts`. `DocsImage` serves the
  * variants through `srcset`; the original stays the full-size file at its
  * published URL, which the lightbox opens.
+ *
+ * A page names a shot's desktop capture. The capture of the same shot in
+ * Tale's phone layout, when one was taken (`phoneCaptureFile`), gets variants
+ * of its own, and `DocsImage` serves it in the desktop one's place below the
+ * `md` breakpoint.
  */
 
 /** The article column is at most 48rem (768 CSS px) wide: 1600 image pixels
@@ -64,4 +69,20 @@ export function docsResponsiveImage(
     }
   }
   return { width, height, variants };
+}
+
+const PHONE_CAPTURE = '.phone.webp';
+
+/** The phone capture of the desktop capture `file` (`images/….webp`), which
+ *  `bun run docs:screenshots` writes beside it as `<shot>.phone.webp`. */
+export function phoneCaptureFile(file: string): string {
+  return file.replace(/\.webp$/, PHONE_CAPTURE);
+}
+
+/** The desktop capture whose phone capture `file` is, or `undefined` when
+ *  `file` is no phone capture. */
+export function desktopCaptureOf(file: string): string | undefined {
+  return file.endsWith(PHONE_CAPTURE)
+    ? `${file.slice(0, -PHONE_CAPTURE.length)}.webp`
+    : undefined;
 }
