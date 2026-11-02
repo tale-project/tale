@@ -16,6 +16,16 @@
  * watches what the leg sends and holds that a scope under the bound is
  * counted in full and scanned exactly, and that one past it is counted to
  * one row past the bound and left to the index.
+ *
+ * That index is the organization's own (knowledge-db migration 18): the
+ * vectors carry their organization, and the indexer builds an organization
+ * an index over its own vectors once it is past the bound. The lane puts an
+ * organization just past the bound beside one whose vectors all lie nearer
+ * the query, more of them than an iterative scan visits before it gives up,
+ * and holds that its search gets its full result set, all of it its own,
+ * and that its own index can rank that search; that a vector carries its
+ * chunk's organization whatever the writer sent; and that the teardown
+ * drops the index with the corpus.
  */
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -30,14 +40,23 @@ import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   resolveOrgUrl,
 } from '../../core/knowledge/pool.ts';
+import { purgeCorpusForOrg } from '../../core/knowledge/teardown.ts';
 
 const WIDTH = 256;
 /** Chunks in the large scope: past the dense leg's exact-scan bound (5,000)
  * by more than the one row its count reads past it. */
 const BULK_CHUNKS = 5_010;
+/** Chunks of the organization whose vectors all lie nearer the query than
+ * the large scope's: more than `hnsw.max_scan_tuples` (20,000 by default),
+ * the tuples an iterative scan of one index over both visits before it
+ * gives up. */
+const CROWD_CHUNKS = 25_000;
+/** Hits the search past the bound asks for. */
+const RANKED = 30;
 
 interface Sent {
   readonly text: string;
+  readonly params: Parameters<Sql['unsafe']>[1];
   readonly rows: readonly unknown[];
 }
 
@@ -51,6 +70,7 @@ function watched<T extends Sql | TransactionSql>(handle: T, sent: Sent[]): T {
           const rows: unknown = await target.unsafe(...args);
           sent.push({
             text: args[0].trim(),
+            params: args[1],
             rows: Array.isArray(rows) ? [...rows] : [],
           });
           return rows;
@@ -98,7 +118,8 @@ export async function checkSearchWork(
   const tag = randomUUID().slice(0, 8);
   const acme = { id: randomUUID(), slug: `itest-search-acme-${tag}` };
   const bulk = { id: randomUUID(), slug: `itest-search-bulk-${tag}` };
-  for (const org of [acme, bulk]) {
+  const crowd = { id: randomUUID(), slug: `itest-search-crowd-${tag}` };
+  for (const org of [acme, bulk, crowd]) {
     await sql`
       INSERT INTO "organization" ("id", "name", "slug", "createdAt")
       VALUES (${org.id}, 'Search work', ${org.slug}, now())
@@ -135,11 +156,11 @@ export async function checkSearchWork(
   const pool = await getKnowledgePoolForOrg(acme.slug);
   const dbUrl = await resolveOrgUrl(acme.slug);
 
-  const index = (ref: string, text: string) =>
+  const index = (ref: string, text: string, orgSlug = acme.slug) =>
     indexWholeDocument({
       sql: pool,
       dbUrl,
-      orgSlug: acme.slug,
+      orgSlug,
       fileId: ref,
       filename: 'grüsse.txt',
       text,
@@ -166,6 +187,61 @@ export async function checkSearchWork(
         ORDER BY c.chunk_index`,
       [acme.slug, ref],
     );
+  /** A completed document of `count` chunks, written straight to the
+   * tables: more than the fake provider embeds in a lane's time. Chunk `g`'s
+   * vector is `base + amplitude * sin(0.37 g + i)` in dimension `i`. */
+  const plant = async (
+    orgSlug: string,
+    name: string,
+    count: number,
+    vector: { base: number; amplitude: number },
+  ) => {
+    const [document] = await pool.unsafe<{ id: string }[]>(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+           (org_slug, file_id, filename, status, chunks_count)
+       VALUES ($1, $2, $3, 'completed', $4)
+       RETURNING id::text AS id`,
+      [orgSlug, `s3:itest/${orgSlug}/${name}`, `${name}.txt`, count],
+    );
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks
+           (document_id, org_slug, chunk_index, chunk_content, content_hash,
+            core_content, core_offset)
+       SELECT $1::uuid, $2, g, $3 || ' passage ' || g, md5(g::text),
+              $3 || ' passage ' || g, 0
+         FROM generate_series(0, $4::int - 1) g`,
+      [document?.id ?? '', orgSlug, name, count],
+    );
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_${WIDTH}
+           (chunk_id, embedding)
+       SELECT c.id,
+              (SELECT array_agg(($4::real
+                                 + $5::real * sin(c.chunk_index * 0.37 + i))::real
+                                ORDER BY i)
+                 FROM generate_series(1, $3::int) i)::vector
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+        WHERE c.document_id = $1::uuid AND c.org_slug = $2`,
+      [document?.id ?? '', orgSlug, WIDTH, vector.base, vector.amplitude],
+    );
+  };
+
+  /** The organization's own index on the vectors of the lane's width: its
+   * name, and its definition while it exists. */
+  const ownIndex = async (orgSlug: string) => {
+    const [row] = await pool.unsafe<
+      { name: string; definition: string | null }[]
+    >(
+      `SELECT n.name,
+              pg_get_indexdef(to_regclass(
+                format('${PRIVATE_KNOWLEDGE_SCHEMA}.%I', n.name))) AS definition
+         FROM (SELECT ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_org_index_name(
+                        $1, $2) AS name) n`,
+      [WIDTH, orgSlug],
+    );
+    return { name: row?.name ?? '', definition: row?.definition ?? null };
+  };
+
   const storedAsSummed = (
     rows: readonly { stored: string | null; summed: string }[],
   ) => rows.every((row) => row.stored !== null && row.stored === row.summed);
@@ -282,33 +358,7 @@ export async function checkSearchWork(
 
     // 5. A scope past the bound: counted to one row past it, never in
     //    full, and left to the index.
-    const [bulkDocument] = await pool.unsafe<{ id: string }[]>(
-      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
-           (org_slug, file_id, filename, status, chunks_count)
-       VALUES ($1, $2, 'bulk.txt', 'completed', $3)
-       RETURNING id::text AS id`,
-      [bulk.slug, `s3:itest/${bulk.slug}/bulk`, BULK_CHUNKS],
-    );
-    await pool.unsafe(
-      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks
-           (document_id, org_slug, chunk_index, chunk_content, content_hash,
-            core_content, core_offset)
-       SELECT $1::uuid, $2, g, 'bulk passage ' || g, md5(g::text),
-              'bulk passage ' || g, 0
-         FROM generate_series(0, $3::int - 1) g`,
-      [bulkDocument?.id ?? '', bulk.slug, BULK_CHUNKS],
-    );
-    await pool.unsafe(
-      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_${WIDTH}
-           (chunk_id, embedding)
-       SELECT c.id,
-              (SELECT array_agg(sin(c.chunk_index * 0.37 + i)::real
-                                ORDER BY i)
-                 FROM generate_series(1, $3::int) i)::vector
-         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
-        WHERE c.document_id = $1::uuid AND c.org_slug = $2`,
-      [bulkDocument?.id ?? '', bulk.slug, WIDTH],
-    );
+    await plant(bulk.slug, 'bulk', BULK_CHUNKS, { base: 0, amplitude: 1 });
     const bulkSent: Sent[] = [];
     const bulkHits = await new DocumentCorpusReader(
       watched(pool, bulkSent),
@@ -328,11 +378,147 @@ export async function checkSearchWork(
         (bulkHits?.length ?? 0) > 0,
       `plan=${JSON.stringify(bulkPlan)} (want counted 5001 of ${BULK_CHUNKS}, not exact), hits=${bulkHits?.length ?? 'null'}`,
     );
+
+    // 6. The index past the bound is the organization's own. Its vectors
+    //    were written straight to the table; the indexer builds the index
+    //    when the organization's next document completes. One under the
+    //    bound never gets one.
+    const unbuilt = await ownIndex(bulk.slug);
+    const small = await ownIndex(acme.slug);
+    const next = await index(
+      `s3:itest/${bulk.slug}/grüsse`,
+      text.slice(0, 2_000),
+      bulk.slug,
+    );
+    const built = await ownIndex(bulk.slug);
+    record(
+      'knowledge search: an organization gets an approximate index of its own once its next document completes past the bound, and one under it none',
+      unbuilt.definition === null &&
+        small.definition === null &&
+        next.chunksTotal > 0 &&
+        (built.definition?.includes('USING hnsw') ?? false) &&
+        built.definition?.includes(`'${bulk.slug}'`) === true,
+      `before=${unbuilt.definition ?? 'none'}, under the bound=${small.definition ?? 'none'}, document chunks=${next.chunksTotal}, after=${built.definition ?? 'none'}`,
+    );
+
+    // 7. Beside an organization whose vectors all lie nearer the query —
+    //    every tuple a scan of an index over both would visit before it
+    //    gave up — the search gets its full result set, all its own.
+    await plant(crowd.slug, 'crowd', CROWD_CHUNKS, {
+      base: 1,
+      amplitude: 0.05,
+    });
+    const lone: Sent[] = [];
+    const loneHits =
+      (await new DocumentCorpusReader(
+        watched(pool, lone),
+        bulk.slug,
+        'itest-embed',
+      ).dense({
+        query: 'bulk passage',
+        limit: RANKED,
+        embedding: Array.from({ length: WIDTH }, () => 1),
+      })) ?? [];
+    const lonePlan = densePlan(lone);
+    const foreign = loneHits
+      .map((hit) => hit.source.ref)
+      .filter((hitRef) => !hitRef.startsWith(`s3:itest/${bulk.slug}/`));
+    // The ranking statement, explained with its parameters under the
+    // settings it ran with: the plan Postgres picks, and — sorting
+    // forbidden, so that only an index can order the rows — the index that
+    // can serve it. At the lane's few thousand rows Postgres may rank by an
+    // exact sort of the organization's own rows instead; at either size no
+    // index over another organization's vectors is left to pick.
+    const ranked = lone.find((entry) =>
+      entry.text.includes('ORDER BY v.embedding'),
+    );
+    const plans =
+      ranked === undefined
+        ? { chosen: '', served: '' }
+        : await pool.begin(async (tx) => {
+            for (const entry of lone) {
+              if (entry.text.startsWith('SET LOCAL hnsw.')) {
+                await tx.unsafe(entry.text);
+              }
+            }
+            const explain = async () =>
+              (
+                await tx.unsafe<{ 'QUERY PLAN': string }[]>(
+                  `EXPLAIN ${ranked.text}`,
+                  ranked.params,
+                )
+              )
+                .map((line) => line['QUERY PLAN'])
+                .join('\n');
+            const chosen = await explain();
+            await tx.unsafe('SET LOCAL enable_sort = off');
+            return { chosen, served: await explain() };
+          });
+    const scans = (plan: string) =>
+      JSON.stringify(
+        plan
+          .split('\n')
+          .filter((line) => /Scan|Sort|Loop|Join/.test(line))
+          .map((line) => line.trim().replace(/'\[[^\]]*\]'/g, "'[…]'"))
+          .slice(0, 6),
+      );
+    record(
+      'knowledge search: past the bound, an organization beside one whose vectors all lie nearer the query gets its full result set, all its own',
+      lonePlan.bounded &&
+        lonePlan.counted === '5001' &&
+        !lonePlan.exact &&
+        loneHits.length === RANKED &&
+        foreign.length === 0,
+      `hits=${loneHits.length}/${RANKED}, foreign=${JSON.stringify(foreign.slice(0, 3))}, plan=${JSON.stringify(lonePlan)}, chosen=${scans(plans.chosen)}`,
+    );
+    record(
+      'knowledge search: past the bound, the organization’s own index can rank its search',
+      built.name !== '' && plans.served.includes(`using ${built.name} `),
+      `index=${built.name}, served=${scans(plans.served)}`,
+    );
+
+    // 8. A vector's organization is its chunk's, whatever the writer sent.
+    const [stamped] = await pool.unsafe<{ vectors: string; astray: string }[]>(
+      `SELECT count(*)::text AS vectors,
+              count(*) FILTER (WHERE v.org_slug IS DISTINCT FROM c.org_slug)::text
+                AS astray
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_${WIDTH} v
+         JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
+        WHERE c.org_slug = ANY($1)`,
+      [[acme.slug, bulk.slug, crowd.slug]],
+    );
+    const [rewritten] = await pool.unsafe<{ org_slug: string }[]>(
+      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_${WIDTH}
+          SET org_slug = $2
+        WHERE chunk_id = (
+          SELECT min(v.chunk_id)
+            FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunk_vectors_${WIDTH} v
+            JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
+           WHERE c.org_slug = $1)
+        RETURNING org_slug`,
+      [bulk.slug, crowd.slug],
+    );
+    record(
+      'knowledge search: a vector carries its chunk’s organization, whatever the writer sent',
+      Number(stamped?.vectors ?? 0) > BULK_CHUNKS + CROWD_CHUNKS &&
+        stamped?.astray === '0' &&
+        rewritten?.org_slug === bulk.slug,
+      `vectors=${stamped?.vectors ?? '?'}, astray=${stamped?.astray ?? '?'}, written as ${crowd.slug}, stored as ${rewritten?.org_slug ?? 'no row'}`,
+    );
+
+    // 9. Purging the corpus drops the organization's index with it.
+    await purgeCorpusForOrg(bulk.slug);
+    const purged = await ownIndex(bulk.slug);
+    record(
+      'knowledge search: purging an organization’s corpus drops its approximate index',
+      built.definition !== null && purged.definition === null,
+      `before=${built.definition === null ? 'none' : 'built'}, after=${purged.definition ?? 'none'}`,
+    );
   } finally {
     await new Promise<void>((resolve) => {
       embedServer.close(() => resolve());
     });
-    for (const org of [acme, bulk]) {
+    for (const org of [acme, bulk, crowd]) {
       await pool
         .unsafe(
           `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents WHERE org_slug = $1`,
@@ -340,6 +526,14 @@ export async function checkSearchWork(
         )
         .catch((error: unknown) => {
           console.warn('[itest] search-work corpus cleanup failed:', error);
+        });
+      await pool
+        .unsafe(
+          `SELECT ${PRIVATE_KNOWLEDGE_SCHEMA}.drop_chunk_vectors_org_indexes($1)`,
+          [org.slug],
+        )
+        .catch((error: unknown) => {
+          console.warn('[itest] search-work index cleanup failed:', error);
         });
       await sql`DELETE FROM "organization" WHERE "id" = ${org.id}`;
     }

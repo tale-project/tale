@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { chunkDocument } from '../../../lib/knowledge/chunking';
+import { logger } from '../../../lib/knowledge/logger';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { Embedder } from './embedding';
@@ -126,6 +127,8 @@ function fakeDb(
     /** The model the row records once a run of it claimed the row after
      * this one: the row lock then finds no row of this run's model. */
     claimedBy?: string;
+    /** What the request for the organization's own vector index fails with. */
+    indexFails?: Error;
   } = {},
 ): FakeDb {
   const statements: string[] = [];
@@ -138,6 +141,9 @@ function fakeDb(
   const unsafe = (text: string, values: unknown[] = []): Promise<unknown[]> => {
     statements.push(text.trim());
     params.push(values);
+    if (options.indexFails && text.includes('ensure_chunk_vectors_org_index')) {
+      return Promise.reject(options.indexFails);
+    }
     if (text.includes('FOR KEY SHARE')) {
       const superseded =
         options.claimedBy !== undefined && values[2] !== options.claimedBy;
@@ -1590,5 +1596,90 @@ describe('a document released while its run is in flight', () => {
     expect(result.skipped).toBe('released');
     expect(embedder.embedded).toEqual([]);
     expect(db.statements.join('\n')).not.toContain('WITH copied AS');
+  });
+});
+
+describe('an organization past the exact-scan bound gets its own approximate index', () => {
+  const ENSURE = 'private_knowledge.ensure_chunk_vectors_org_index';
+
+  /** Where the completion and the index request fell among the statements. */
+  function order(statements: readonly string[]) {
+    return {
+      completed: statements.findIndex((text) =>
+        text.includes("SET status = 'completed'"),
+      ),
+      ensured: statements.findIndex((text) => text.includes(ENSURE)),
+    };
+  }
+
+  it('asks for it once the last slice completes the document, with the width, the organization and the bound', async () => {
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const { completed, ensured } = order(db.statements);
+    expect(completed).toBeGreaterThanOrEqual(0);
+    expect(ensured).toBeGreaterThan(completed);
+    expect(db.statements[ensured]).toBe(
+      `SELECT ${ENSURE}($1, $2, $3) AS built`,
+    );
+    expect(db.params[ensured]).toEqual([MODEL.dimensions, 'acme', 5_000]);
+  });
+
+  it('asks for it once copied chunks complete the document', async () => {
+    const db = fakeDb({ duplicateId: 'doc-original' });
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const { completed, ensured } = order(db.statements);
+    expect(db.statements.join('\n')).toContain('WITH copied AS');
+    expect(ensured).toBeGreaterThan(completed);
+    expect(db.params[ensured]).toEqual([MODEL.dimensions, 'acme', 5_000]);
+  });
+
+  it('does not ask while the document still has slices to do', async () => {
+    const db = fakeDb();
+    const result = await indexDocument({
+      ...ARGS,
+      text: Array.from(
+        { length: 200 },
+        (_v, i) =>
+          `## Section ${i}\n\nParagraph ${i} with enough words to fill a chunk.\n`,
+      ).join('\n'),
+      sql: db.sql,
+      embedder: stubEmbedder(),
+      maxChunks: 3,
+    });
+
+    expect(result.partial).toBe(true);
+    expect(order(db.statements).ensured).toBe(-1);
+  });
+
+  it('keeps the document indexed when the index cannot be built, and says so', async () => {
+    const db = fakeDb({
+      indexFails: Object.assign(new Error('could not extend file'), {
+        code: '53100',
+      }),
+    });
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    try {
+      const result = await indexDocument({
+        ...ARGS,
+        sql: db.sql,
+        embedder: stubEmbedder(),
+      });
+
+      expect(result.partial).toBe(false);
+      expect(result.chunksStored).toBe(result.chunksTotal);
+      expect(db.statements.join('\n')).toContain("SET status = 'completed'");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'could not build the approximate index of organization "acme" for width 1024',
+        ),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('53100 could not extend file'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
