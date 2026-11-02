@@ -18,7 +18,10 @@ import {
 import { createDbService } from '../services/create-db-service';
 import { createObjectStorageService } from '../services/create-object-storage-service';
 import { createPlatformService } from '../services/create-platform-service';
-import { createProxyService } from '../services/create-proxy-service';
+import {
+  createDockerApiService,
+  createProxyService,
+} from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
 import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
@@ -170,7 +173,9 @@ export function generateDevCompose(
     db: { condition: 'service_healthy' },
   };
 
-  const proxy = createProxyService(config, origin.host);
+  const proxy = createProxyService(config, origin.host, [
+    `${getProjectId()}-dev`,
+  ]);
   proxy.ports = [`${origin.port}:443`];
 
   // Dev-only: publish the sandbox spawner on host loopback so `bun dev`
@@ -185,9 +190,9 @@ export function generateDevCompose(
   serveOrigin([proxy, platform, backendApi, backendWorker, sandbox], origin, {
     TLS_MODE: 'selfsigned',
   });
-  // Caddy's site address selects its listener as well as its hostname. Keep
-  // that listener on 443 so a public port such as 2020 cannot collide with
-  // its private health endpoint. The app still uses the full public origin.
+  // The edge listens on 443 inside its container whatever port the host
+  // publishes, and its rules and certificate name the host alone, so it gets
+  // the origin without the port. The app still uses the full public origin.
   const proxyOrigin = new URL(origin.siteUrl);
   proxyOrigin.port = '';
   proxy.environment = { ...proxy.environment, SITE_URL: proxyOrigin.origin };
@@ -213,6 +218,7 @@ export function generateDevCompose(
       // presigned `/<bucket>/*` URLs to it exactly as in production.
       'object-store': createObjectStorageService(config),
       proxy,
+      'docker-api': createDockerApiService(config),
       'backend-api': backendApi,
       'backend-worker': backendWorker,
       platform,
@@ -230,6 +236,7 @@ export function generateDevCompose(
       // start.ts via ensureNetwork; here referenced as external so the
       // generator emits the right ref).
       sandbox: { external: true, name: 'tale-sandbox-net' },
+      'docker-api': { internal: true },
     },
   };
 
