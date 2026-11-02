@@ -461,7 +461,9 @@ export async function saveGovernancePolicy(
 /**
  * Every save of the PII policy, an unchanged one included, queues again the
  * documents it could not scan (`pii_scan_failed`): the save is how an admin
- * says "try again" once the platform can scan. After the commit, never in
+ * says "try again" once the platform can scan (those it could not scan
+ * because the protection could not start are also queued again on their own
+ * once it can: `knowledge/pii-scan-resume.ts`). After the commit, never in
  * it — the serializable callback runs again on a retry, and these jobs
  * belong to a save that stands. Best effort: the policy is saved either way,
  * and a document the re-queue missed keeps its Retry and the next save.
