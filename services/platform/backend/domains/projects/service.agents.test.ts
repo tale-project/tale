@@ -81,6 +81,7 @@ const AGENT = {
   secrets: ['REVIEW_TOKEN'],
   connectorCredentials: {} as Record<string, string>,
   gitIdentity: null as { name: string; email: string } | null,
+  labelGrants: [] as string[],
   instructions: null,
   createdBy: 'user-1',
   createdAt: 10,
@@ -113,6 +114,10 @@ function fakeTx(
     gitIdentity?: { name: string; email: string };
     /** The organization's connector credentials. */
     credentials?: Array<{ connectorSlug: string; name: string }>;
+    /** The agent's stored label grant. */
+    labelGrants?: string[];
+    /** The project's label catalog, by name. */
+    labels?: string[];
   } = {},
 ): {
   tx: TransactionSql;
@@ -130,8 +135,19 @@ function fakeTx(
           updatedAt: options.updatedAt ?? AGENT.updatedAt,
           connectorCredentials: options.pins ?? AGENT.connectorCredentials,
           gitIdentity: options.gitIdentity ?? AGENT.gitIdentity,
+          labelGrants: options.labelGrants ?? AGENT.labelGrants,
         },
       ]);
+    }
+    if (text.includes('FROM app.task_labels')) {
+      const keys = values[2];
+      return Promise.resolve(
+        (options.labels ?? [])
+          .filter(
+            (name) => Array.isArray(keys) && keys.includes(name.toLowerCase()),
+          )
+          .map((name) => ({ name })),
+      );
     }
     if (text.includes('FROM app.connector_credentials')) {
       const slugs = values[1];
@@ -1427,5 +1443,89 @@ describe('the managed door takes a pin only as its credential’s name is stored
     expect(boundBefore(update!, '::jsonb, git_identity')).toBe(
       JSON.stringify({ forgejo: 'Client A' }),
     );
+  });
+});
+
+describe('an agent’s label grant names only labels its project has [PROJ-R25]', () => {
+  const manager = {
+    projectId: 'project-1',
+    name: 'Manager',
+    harness: 'claude-code',
+    model: 'test-model',
+    skills: [],
+    connectors: [],
+    tools: ['task_set_labels'],
+  };
+
+  it('stores each granted label once, in its project’s spelling, sorted', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      insertedId: 'agent-9',
+      labels: ['optional-ci', 'Bug'],
+    });
+    await createProjectAgent(tx, auth, {
+      ...manager,
+      labelGrants: ['OPTIONAL-CI', ' bug', 'Bug'],
+    });
+    const inserted = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.project_agents'),
+    );
+    expect(inserted?.values).toContainEqual(['Bug', 'optional-ci']);
+  });
+
+  it('refuses a label its project does not have, by name, writing nothing', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      insertedId: 'agent-9',
+      labels: ['optional-ci'],
+    });
+    await expect(
+      createProjectAgent(tx, auth, {
+        ...manager,
+        labelGrants: ['optional-ci', 'nightly'],
+      }),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_LABEL_UNKNOWN',
+      status: 400,
+      data: { labels: ['nightly'] },
+    });
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.project_agents'),
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps the grant on a save that leaves it out, and a name granted before its label was deleted', async () => {
+    const stored = {
+      labelGrants: ['gone', 'optional-ci'],
+      labels: ['optional-ci'],
+    };
+    const omitted = fakeTx(['REVIEW_TOKEN'], stored);
+    await updateProjectAgent(omitted.tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+    });
+    expect(updates(omitted.statements)).toEqual([]);
+
+    const named = fakeTx(['REVIEW_TOKEN'], stored);
+    await updateProjectAgent(named.tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+      labelGrants: ['Gone', 'optional-ci'],
+    });
+    expect(updates(named.statements)).toEqual([]);
+  });
+
+  it('clears the grant on an explicit []', async () => {
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], {
+      labelGrants: ['optional-ci'],
+      labels: ['optional-ci'],
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      secrets: ['REVIEW_TOKEN'],
+      labelGrants: [],
+    });
+    const [update] = updates(statements);
+    expect(boundBefore(update!, '::text[], connector_credentials')).toEqual([]);
   });
 });

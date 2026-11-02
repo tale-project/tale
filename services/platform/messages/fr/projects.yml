@@ -276,6 +276,7 @@ agents:
     task_comment: Commenter des tâches
     task_update_status: Déplacer des tâches entre colonnes
     task_update_metadata: Modifier la priorité et l'agent assigné aux tâches
+    task_set_labels: Ajouter et retirer des étiquettes sur les tâches
     task_review: "Revoir les résultats des tâches d’autres agents"
     task_delegate_review: "Réattribuer les relectures en attente des agents"
     task_start_agent: Lancer d'autres agents sur des tâches
@@ -289,6 +290,14 @@ agents:
     product_find: Trouver des produits
     website_find: Lister les sites web
     document_create: Créer des documents
+  labelGrants:
+    label: Étiquettes autorisées
+    hint: Les seules étiquettes que cet agent peut ajouter aux tâches ou en retirer. Il ne crée jamais d’étiquette.
+    empty: Ce projet n’a pas encore d’étiquettes. Crée-en une depuis le sélecteur de tâche, puis autorise-la ici.
+    placeholder: Aucune étiquette
+    search: Rechercher des étiquettes
+    searchEmpty: Aucune étiquette ne correspond.
+    remove: Retirer {label}
   secrets:
     label: Secrets
     hint: Variables d'environnement que l'agent peut lire — n'utilise qu'un
@@ -443,6 +452,7 @@ errors:
   PROJECT_AGENT_LIMIT: Ce projet a atteint sa limite d'agents.
   PROJECT_AGENT_NOT_FOUND: Impossible de trouver cet agent. Il a peut-être été supprimé.
   PROJECT_AGENT_CREDENTIAL_UNKNOWN: Ces identifiants ne sont plus connectés. Choisis-en d’autres ou ceux par défaut de l’organisation.
+  PROJECT_AGENT_LABEL_UNKNOWN: L’une des étiquettes autorisées n’existe plus dans le projet. Retire-la du champ Étiquettes autorisées, puis enregistre à nouveau.
   PROJECT_AGENT_CREDENTIALS_FORBIDDEN: Seuls les propriétaires et les admins peuvent changer les identifiants utilisés par un agent.
   PROJECT_AGENT_GIT_IDENTITY_INVALID: Saisis un nom de commit sans < ni > et une adresse e-mail valide.
   PROJECT_ORG_MISMATCH: Ce projet appartient à une autre organisation.
