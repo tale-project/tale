@@ -64,6 +64,16 @@ export function newRunId(): string {
   return `run_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** A resolved template destined for prompt text: strings pass through,
+ * structured values render as JSON (never "[object Object]"), and absent
+ * values become empty text. Both executors build `llm` and `agent` prompts
+ * with it. */
+export function asPromptText(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v === null || v === undefined) return '';
+  return JSON.stringify(v);
+}
+
 /** FNV-1a tag of a prompt — the stable hash both mock texts embed. */
 function promptTag(prompt: string): string {
   let h = 0x811c9dc5;

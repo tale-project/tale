@@ -1,11 +1,16 @@
 /**
  * The ports a run's walk is driven through, whichever host walks it: where
- * its progress goes, and the human gate before an effect. The ledger's port
- * is `./ledger`; the run record's is `RunRecorder` (`../record/recorder`).
+ * its progress goes, the human gate before an effect, what a step's body
+ * calls outside the walk, where a called automation's document comes from,
+ * and the time. The ledger's port is `./ledger`; the run record's is
+ * `RunRecorder` (`../record/recorder`). The walker itself is
+ * `../execute/walker`.
  *
- * Types and the in-memory sink only, in a leaf (`selftest/purity.test.ts`).
+ * Types, the in-memory sink and the system clock only, in a leaf
+ * (`selftest/purity.test.ts`).
  */
 
+import type { AgentService, ConnectorLike, LlmService } from '../slots';
 import type { NodeCheckpoint, NodeCursor } from './progress';
 
 /** What the walk does with a finished node, a wait, and a spent budget. The
@@ -100,4 +105,88 @@ export interface AutomationApprovalGate {
   }): Promise<
     { status: 'allowed' } | { status: 'required'; approvalId?: string }
   >;
+}
+
+/** What a `transform` step's code reads: its resolved input, the outputs
+ * of the steps before it, and its item and index under `forEach`. */
+export type TransformContext = {
+  input: unknown;
+  nodes: unknown;
+  item: unknown;
+  index: unknown;
+};
+
+/** A connector action's live call, bound to what its host lets it reach. */
+export type ConnectorCall = (
+  input: unknown,
+  idempotencyKey: string,
+) => Promise<unknown>;
+
+/**
+ * What a step's body calls outside the walk: a `transform` step's code, an
+ * `llm` step's model, a connector action. Each is asked at the moment the
+ * step needs it; an answer of null leaves a live run's step to its
+ * deterministic mock, with a note that says so.
+ */
+export interface WalkCalls {
+  /** Run a `transform` step's code; `pointer` locates its failure. */
+  transform(
+    code: string,
+    context: TransformContext,
+    pointer: string,
+  ): Promise<unknown>;
+  /** The model service a live `llm` step calls, or null when none is
+   * installed. */
+  llm(): LlmService | null;
+  /** The live call of a connector action, or null when the action has no
+   * live backend or its host supplied none. */
+  connector(connector: ConnectorLike): ConnectorCall | null;
+}
+
+/** Who takes a live `agent` step's turn. */
+export interface WalkAgent {
+  /** The service that runs the turn, or null when none is installed. */
+  service(): AgentService | null;
+}
+
+/** A saved automation a `subautomation` step runs. */
+export interface LoadedAutomation {
+  name: string;
+  /** The version a run of the reference executes. */
+  version: number;
+  /** The stored document (validated when it was saved). */
+  automation: unknown;
+}
+
+/** Where a `subautomation` step's document comes from. */
+export interface WalkLoader {
+  /** The automation `name` at `version`, or at the version deployed when no
+   * version is named; null when no such automation is saved. */
+  load(
+    name: string,
+    version: number | undefined,
+  ): Promise<LoadedAutomation | null>;
+}
+
+/** The time a walk reads. */
+export interface WalkClock {
+  /** Wall time in epoch ms: a run's start and its time limit. */
+  now(): number;
+  /** A monotonic reading in ms: how long a step took. */
+  monotonic(): number;
+}
+
+export const systemClock: WalkClock = {
+  now: () => Date.now(),
+  monotonic: () => performance.now(),
+};
+
+/** The ports a walk calls out through. */
+export interface WalkPorts {
+  calls: WalkCalls;
+  agent: WalkAgent;
+  /** Absent when the host has no automations to load: a `subautomation`
+   * step then fails and says so. */
+  loader?: WalkLoader;
+  clock: WalkClock;
 }

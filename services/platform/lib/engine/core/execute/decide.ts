@@ -24,6 +24,7 @@ import {
   ExprError,
 } from '../template';
 import type { NodeDef } from '../types';
+import type { SkipReason } from '../walk/progress';
 import { refsOf } from './controlflow';
 import { makeScope } from './scope';
 
@@ -50,7 +51,7 @@ export type NodeDecision =
   | { kind: 'run' }
   | {
       kind: 'skip';
-      reason: 'upstream' | 'else' | 'when';
+      reason: Exclude<SkipReason, 'error'>;
       /** The skipped steps it reads from, first in walk order. */
       via?: string[];
       /** The trace note, as both executors have always written it. */

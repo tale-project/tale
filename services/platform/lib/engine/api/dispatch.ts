@@ -41,7 +41,7 @@ import type { ChangeSummary } from '../core/diff/changes';
 import { execute, type ExecuteOptions } from '../core/execute';
 import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
 import { recordBudget, redactTrace } from '../core/record/value';
-import type { StoreAdapter } from '../core/slots';
+import type { CoreNodeKind, StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
 import { BENCH_RUN_DEADLINE_MS } from '../core/test-limits';
 import {
@@ -56,11 +56,7 @@ import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
 import { closestName } from '../core/validate/similar';
 import { searchCatalog } from './catalog-search';
-import {
-  authoringReference,
-  CORE_NODE_KIND_REFERENCE,
-  type CoreNodeKind,
-} from './docs';
+import { authoringReference, CORE_NODE_KIND_REFERENCE } from './docs';
 import { documentYaml } from './document-yaml';
 import { METHODS } from './methods';
 import { isCodedRefusal, structuredRefusal } from './refusal';
