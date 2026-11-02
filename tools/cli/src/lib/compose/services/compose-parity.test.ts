@@ -34,12 +34,19 @@ import {
 } from './create-backend-services';
 import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
+import { createDockerApiService } from './create-proxy-service';
 import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
 } from './create-sandbox-egress-service';
 import { createSandboxLlmGatewayService } from './create-sandbox-llm-gateway-service';
 import { createSandboxService } from './create-sandbox-service';
+import {
+  backendApiLabels,
+  objectStoreLabels,
+  platformLabels,
+  sandboxLabels,
+} from './traefik-labels';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
 // config that lives in one pipeline but not the other. `compose.yml` (the
@@ -81,8 +88,14 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       healthcheck?: { test?: string[] };
       pids_limit?: number;
       ulimits?: Record<string, number | { soft: number; hard: number }>;
+      labels?: Record<string, string>;
+      command?: string;
+      volumes?: string[];
+      security_opt?: string[];
+      pull_policy?: string;
     }
   >;
+  networks?: Record<string, { internal?: boolean } | null>;
 };
 
 function networkNames(networks: unknown): string[] {
@@ -188,15 +201,23 @@ describe('sandbox device hub parity', () => {
   });
 
   test('the proxy publishes only the hub door, never the signed spawner API', () => {
-    const caddyfile = readFileSync(
-      resolve(repoRoot, 'services/proxy/Caddyfile'),
-      'utf8',
-    );
-    expect(caddyfile).toContain('handle /sandbox/tunnel {');
-    expect(caddyfile).toContain(
-      'reverse_proxy {$SANDBOX_HUB_UPSTREAM:sandbox:8004}',
-    );
-    expect(caddyfile).not.toMatch(/reverse_proxy [^\n]*sandbox:8003/);
+    // Both pipelines carry the generator's labels verbatim, and their one
+    // route is the tunnel, served on the hub's port alone.
+    expect(compose.services.sandbox?.labels).toEqual(sandboxLabels());
+    expect(createSandboxService(config).labels).toEqual(sandboxLabels());
+    expect(sandboxLabels()).toEqual({
+      'traefik.enable': 'true',
+      'traefik.http.routers.sandbox.rule': 'Path(`/sandbox/tunnel`)',
+      'traefik.http.routers.sandbox.priority': '300',
+      'traefik.http.routers.sandbox.service': 'sandbox',
+      'traefik.http.services.sandbox.loadbalancer.server.url':
+        'http://sandbox:8004',
+    });
+    for (const service of Object.values(compose.services)) {
+      for (const value of Object.values(service.labels ?? {})) {
+        expect(value).not.toContain(':8003');
+      }
+    }
   });
 });
 
@@ -544,6 +565,71 @@ describe('shared tale-db image is built once', () => {
   });
 });
 
+describe('read-only Docker API proxy parity', () => {
+  // The edge faces the internet and reads the labels through `docker-api`,
+  // which alone holds the socket and answers only the reads Traefik makes
+  // (services/proxy/docker-api/nginx.conf). Like knowledge-db, it runs the
+  // image another service builds, so `up --build` exports the tag once.
+  const deployed = parse(
+    generateStatefulCompose(config, 'tale.example.com'),
+  ) as typeof compose;
+
+  test('docker-api reuses the proxy image and does not declare its own build', () => {
+    expect(compose.services['docker-api']?.image).toBe(
+      compose.services.proxy?.image,
+    );
+    expect(compose.services.proxy?.build).toBeDefined();
+    expect(compose.services['docker-api']?.build).toBeUndefined();
+    expect(compose.services['docker-api']?.pull_policy).toBe('missing');
+    expect(createDockerApiService(config).image).toBe(
+      imageRef(config, 'proxy'),
+    );
+  });
+
+  test.each([
+    ['compose.yml', compose],
+    ['tale deploy', deployed],
+  ] as const)(
+    '%s keeps the socket behind an internal network only the edge joins',
+    (_, file) => {
+      expect(file.networks?.['docker-api']?.internal).toBe(true);
+      const members = Object.entries(file.services)
+        .filter(([, service]) =>
+          networkNames(service.networks).includes('docker-api'),
+        )
+        .map(([name]) => name)
+        .sort();
+      expect(members).toEqual(['docker-api', 'proxy']);
+      const api = file.services['docker-api'];
+      expect(networkNames(api?.networks)).toEqual(['docker-api']);
+      expect(api?.ports).toBeUndefined();
+      expect(api?.command).toBe('docker-api');
+      expect(api?.volumes).toEqual([
+        '/var/run/docker.sock:/var/run/docker.sock:ro',
+      ]);
+      expect(api?.security_opt).toEqual(['no-new-privileges:true']);
+      for (const [name, service] of Object.entries(file.services)) {
+        if (name === 'docker-api' || name === 'sandbox') continue;
+        expect({ name, volumes: service.volumes ?? [] }).toEqual({
+          name,
+          volumes: expect.not.arrayContaining([
+            expect.stringContaining('docker.sock'),
+          ]),
+        });
+      }
+    },
+  );
+
+  test('the edge routes the containers of its own projects alone', () => {
+    expect(compose.services.proxy?.environment?.TALE_PROXY_PROJECTS).toBe(
+      '${COMPOSE_PROJECT_NAME:-tale}',
+    );
+    expect(deployed.services.proxy?.environment?.TALE_PROXY_PROJECTS).toBe(
+      'test-project test-project-blue test-project-green',
+    );
+  });
+});
+
 describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () => {
   // The sidecar must exist in BOTH pipelines, on the same image tag, or one
   // path silently loses PO tokens (YouTube bot wall returns). The tag must also
@@ -641,116 +727,50 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
   test('both pipelines publish the store at its bucket path', () => {
     // Presigned URLs go to the BROWSER, so the store needs a public origin —
     // the proxy forwards `/<bucket>/*` UNSTRIPPED (SigV4 covers host + path).
-    // The proxy learns the bucket from env in both pipelines; compose sets it
-    // explicitly, `tale deploy`'s proxy reads the same `.env` the backend
-    // tiers do, and the entrypoint defaults to `tale-blobs` either way.
-    expect(compose.services.proxy?.environment?.OBJECT_STORE_BUCKET).toContain(
-      'tale-blobs',
+    // Compose fills the bucket into the rule from the same `.env` the backend
+    // tiers read, and both default to `tale-blobs`.
+    const labels = objectStoreLabels();
+    expect(compose.services['object-store']?.labels).toEqual(labels);
+    expect(createObjectStorageService(config).labels).toEqual(labels);
+    expect(labels['traefik.http.routers.object-store.rule']).toBe(
+      'PathPrefix(`/${OBJECT_STORE_BUCKET:-tale-blobs}/`)',
     );
-    const entrypoint = readFileSync(
-      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
-      'utf8',
-    );
-    expect(entrypoint).toContain('handle /${OBJECT_STORE_BUCKET}/*');
+    expect(
+      compose.services['backend-api']?.environment?.OBJECT_STORE_BUCKET,
+    ).toBe('${OBJECT_STORE_BUCKET:-tale-blobs}');
+    expect(
+      labels['traefik.http.services.object-store.loadbalancer.server.url'],
+    ).toBe('http://object-store:9000');
     // Stripping the prefix or rewriting the URI would invalidate every
     // signature — assert the route proxies verbatim.
-    const route = entrypoint.slice(
-      entrypoint.indexOf('handle /${OBJECT_STORE_BUCKET}/*'),
-    );
-    const body = route.slice(0, route.indexOf('\n\t}'));
-    expect(body).not.toContain('strip_prefix');
-    expect(body).not.toContain('rewrite');
-  });
-
-  test('the proxy injects the backend lanes unconditionally', () => {
-    // BACKEND_UPSTREAM began as the cutover's reversibility switch; with the
-    // Convex runtime gone, "unset" must mean the DEFAULT backend, not
-    // "skip the lanes" — v0.5.0 shipped the skip: uploads (/<bucket>/*),
-    // live updates (/events) and every machine door 404'd under `tale
-    // deploy`, which never set the variable.
-    const entrypoint = readFileSync(
-      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
-      'utf8',
-    );
-    expect(entrypoint).toContain(
-      'BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"',
-    );
-    expect(entrypoint).not.toContain('-n "${BACKEND_UPSTREAM');
-  });
-
-  test('public control paths are refused before the generic API fallback', () => {
-    const entrypoint = readFileSync(
-      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
-      'utf8',
-    );
-    for (const path of ['/api/control', '/api/control/*']) {
-      const handle = entrypoint.split(`handle ${path} {`)[1]?.split('\n\t}')[0];
-      expect(handle).toBeDefined();
-      expect(handle).toContain('respond "Not found" 404');
-      expect(handle).not.toContain('reverse_proxy');
-    }
-    // Removing the explicit control route alone leaves /api/* forwarding it.
-    const caddyfile = readFileSync(
-      resolve(repoRoot, 'services/proxy/Caddyfile'),
-      'utf8',
-    );
-    expect(caddyfile).toContain('handle /api/* {');
-  });
-
-  test('nothing routes to the retired runtime any more', () => {
-    // The proxy used to fall back to `convex:*` for everything the backend
-    // list did not name. That service is gone, so a fallback is a 502 — every
-    // remaining lane must resolve to something that exists.
-    const caddyfile = readFileSync(
-      resolve(repoRoot, 'services/proxy/Caddyfile'),
-      'utf8',
-    );
-    expect(caddyfile).not.toContain('convex');
-  });
-
-  test('the WebDAV door refuses dot-segments at the edge like the API lanes', () => {
-    // The platform's URL parser folds `..` / `%2e%2e` before the WebDAV
-    // path parser sees them, so a PUT through `<folder>/%2E%2E/x` landed
-    // one level up. The API rule lives in the entrypoint's injected block;
-    // the WebDAV handle never moved there, so its twin sits in the static
-    // Caddyfile — ahead of `handle /dav/*`, and matching the same raw-URI
-    // grammar, so the two never drift apart.
-    const caddyfile = readFileSync(
-      resolve(repoRoot, 'services/proxy/Caddyfile'),
-      'utf8',
-    );
-    const entrypoint = readFileSync(
-      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
-      'utf8',
-    );
-    const dotGrammar = (source: string, matcher: string): string => {
-      const line = source
-        .split(/\r?\n/)
-        .find((candidate) => candidate.includes(`@${matcher} expression`));
-      expect(line).toBeDefined();
-      return (line ?? '')
-        .slice((line ?? '').indexOf('&&'))
-        .replace(/[\\`]+$/, '');
-    };
-    const davRule = caddyfile.indexOf('@davDotSegments expression');
-    const davRefusal = caddyfile.indexOf('handle @davDotSegments {');
-    const davHandle = caddyfile.indexOf('handle /dav/* {');
-    expect(davRule).toBeGreaterThan(-1);
-    expect(davRefusal).toBeGreaterThan(davRule);
-    expect(davHandle).toBeGreaterThan(davRefusal);
     expect(
-      caddyfile
-        .slice(davRefusal, davHandle)
-        .includes('respond "Not found" 404'),
-    ).toBe(true);
-    expect(caddyfile).toContain(
-      '(path("/dav/*") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/dav/"))',
-    );
-    // The entrypoint escapes its backticks for the heredoc; past the
-    // closing backtick the grammar after `&&` compares byte for byte.
-    expect(dotGrammar(caddyfile, 'davDotSegments')).toBe(
-      dotGrammar(entrypoint, 'apiDotSegments'),
-    );
+      Object.keys(labels).filter((key) => key.endsWith('.middlewares')),
+    ).toEqual([]);
+  });
+
+  test('both pipelines label every backend lane, in either colour', () => {
+    // v0.5.0 shipped a proxy that skipped the lanes when BACKEND_UPSTREAM was
+    // unset: uploads (/<bucket>/*), live updates (/events) and every machine
+    // door 404'd under `tale deploy`, which never set it. The lanes are the
+    // backend's own labels now, the same in every pipeline and colour but
+    // for their names. The edge's refusals outrank them (config.test.ts in
+    // services/proxy).
+    expect(compose.services['backend-api']?.labels).toEqual(backendApiLabels());
+    expect(createBackendApiService(config).labels).toEqual(backendApiLabels());
+    for (const colour of ['blue', 'green']) {
+      const labels = createBackendApiService(config, { colour }).labels ?? {};
+      const uncoloured = Object.fromEntries(
+        Object.entries(labels).map(([key, value]) => [
+          key.replaceAll(`backend-api-${colour}`, 'backend-api'),
+          value.replaceAll(`backend-api-${colour}`, 'backend-api'),
+        ]),
+      );
+      expect(uncoloured).toEqual(backendApiLabels());
+    }
+  });
+
+  test('compose.yml routes the platform as the generator does', () => {
+    expect(compose.services.platform?.labels).toEqual(platformLabels());
   });
 
   test('the CLI refuses to boot the store on a default credential', () => {
@@ -1964,158 +1984,5 @@ describe('database fast-shutdown parity (SIGINT)', () => {
 
   test('CLI generator stops the db with SIGINT', () => {
     expect(createDbService(config).stop_signal).toBe('SIGINT');
-  });
-});
-
-describe('external TLS terminator trust (proxy)', () => {
-  // In `external` mode the browser's scheme reaches the proxy only as the
-  // terminator's X-Forwarded-Proto. A lane pinning `{scheme}`, or a proxy that
-  // trusts no peer, forwarded `http` for every request — so no additional
-  // https origin ever matched, and the SPA's SITE_URL, the SSO doors, the
-  // OpenAPI servers and the backend's public origin fell back to SITE_URL.
-  const caddyfile = readFileSync(
-    resolve(repoRoot, 'services/proxy/Caddyfile'),
-    'utf8',
-  ).replaceAll('\r\n', '\n');
-  const entrypoint = readFileSync(
-    resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
-    'utf8',
-  ).replaceAll('\r\n', '\n');
-  const placeholder = '# TRUSTED_PROXIES_PLACEHOLDER';
-
-  /** The entrypoint's trust block, exactly as the container runs it. */
-  function trustBlock(): string {
-    const begin = entrypoint.indexOf('\n# BEGIN trusted-proxies\n');
-    const end = entrypoint.indexOf('\n# END trusted-proxies\n');
-    expect(begin).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(begin);
-    return entrypoint.slice(begin, end);
-  }
-
-  test('no lane pins X-Forwarded-Proto to the connection scheme', () => {
-    expect(caddyfile).not.toMatch(/header_up\s+X-Forwarded-Proto/i);
-    expect(entrypoint).not.toMatch(/header_up\s+X-Forwarded-Proto/i);
-  });
-
-  test('the trust placeholder sits once, inside the global servers block', () => {
-    const lines = caddyfile.split('\n');
-    const at = lines.flatMap((line, index) =>
-      line.trim() === placeholder ? [index] : [],
-    );
-    const open = lines.findIndex((line) => line.trim() === 'servers {');
-    const close = lines.findIndex(
-      (line, index) => index > open && line === '\t}',
-    );
-    const firstSite = lines.findIndex((line) => line.startsWith('{$'));
-    expect(at).toHaveLength(1);
-    expect(open).toBeGreaterThan(0);
-    expect(at[0]).toBeGreaterThan(open);
-    expect(at[0]).toBeLessThan(close);
-    expect(close).toBeLessThan(firstSite);
-  });
-
-  test('the entrypoint injects trust only inside its external branch', () => {
-    const block = trustBlock();
-    const external = block.indexOf(
-      'if [ "${TLS_MODE:-selfsigned}" = "external" ]; then',
-    );
-    const otherwise = block.indexOf('\nelse\n');
-    const injected = block.indexOf('trusted_proxies static');
-    expect(external).toBeGreaterThan(-1);
-    expect(injected).toBeGreaterThan(external);
-    expect(injected).toBeLessThan(otherwise);
-    expect(entrypoint.split('trusted_proxies static')).toHaveLength(2);
-  });
-
-  // The entrypoint runs only in the Linux image; render it with POSIX tools.
-  describe.skipIf(process.platform === 'win32')('rendered', () => {
-    function render(env: Record<string, string>) {
-      const directory = mkdtempSync(resolve(tmpdir(), 'tale-proxy-trust-'));
-      const file = resolve(directory, 'Caddyfile');
-      try {
-        writeFileSync(file, caddyfile);
-        const result = spawnSync('sh', ['-c', `set -e\n${trustBlock()}`], {
-          encoding: 'utf8',
-          env: { PATH: process.env.PATH ?? '', CADDYFILE: file, ...env },
-        });
-        return {
-          status: result.status,
-          stderr: result.stderr,
-          lines: readFileSync(file, 'utf8').split('\n'),
-        };
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
-    }
-
-    test.each(['', 'selfsigned', 'letsencrypt'])(
-      'TLS_MODE=%p terminates TLS in the proxy and trusts no peer',
-      (mode) => {
-        const { status, lines } = render({
-          TLS_MODE: mode,
-          TRUSTED_PROXIES: '10.0.0.0/8',
-        });
-        expect(status).toBe(0);
-        expect(lines.join('\n')).not.toContain('TRUSTED_PROXIES_PLACEHOLDER');
-        expect(lines.some((line) => /^\s*trusted_proxies/.test(line))).toBe(
-          false,
-        );
-        expect(lines).toHaveLength(caddyfile.split('\n').length - 1);
-      },
-    );
-
-    test('external trusts every private range by default, strictly', () => {
-      const { status, lines } = render({ TLS_MODE: 'external' });
-      expect(status).toBe(0);
-      const at = lines.indexOf('\t\ttrusted_proxies static private_ranges');
-      expect(at).toBeGreaterThan(
-        lines.findIndex((line) => line.trim() === 'servers {'),
-      );
-      expect(lines[at + 1]).toBe('\t\ttrusted_proxies_strict');
-      expect(lines.join('\n')).not.toContain('TRUSTED_PROXIES_PLACEHOLDER');
-      expect(lines).toHaveLength(caddyfile.split('\n').length + 1);
-    });
-
-    test('external narrows trust to the declared ranges, in order', () => {
-      const { status, lines } = render({
-        TLS_MODE: 'external',
-        TRUSTED_PROXIES: ' 10.147.17.0/24\tfd00::/8  private_ranges\n',
-      });
-      expect(status).toBe(0);
-      expect(lines).toContain(
-        '\t\ttrusted_proxies static 10.147.17.0/24 fd00::/8 private_ranges',
-      );
-    });
-
-    test('external treats a blank value as unset', () => {
-      const { status, lines } = render({
-        TLS_MODE: 'external',
-        TRUSTED_PROXIES: ' \t ',
-      });
-      expect(status).toBe(0);
-      expect(lines).toContain('\t\ttrusted_proxies static private_ranges');
-    });
-
-    test.each([
-      '*',
-      'tale.example.com',
-      '10.0.0.1',
-      '10.0.0.0/33',
-      '256.1.1.0/24',
-      '10.0.0.0/8,fd00::/8',
-      'private_ranges}',
-      '10.0.0.0/8 import evil',
-    ])(
-      'external refuses TRUSTED_PROXIES=%p before touching the Caddyfile',
-      (value) => {
-        const { status, stderr, lines } = render({
-          TLS_MODE: 'external',
-          TRUSTED_PROXIES: value,
-        });
-        expect(status).not.toBe(0);
-        expect(stderr).toContain('TRUSTED_PROXIES entry');
-        expect(lines).toContain(`\t\t${placeholder}`);
-      },
-    );
   });
 });

@@ -189,6 +189,7 @@ async function main(): Promise<number> {
     'backend-api',
     'platform',
     'proxy',
+    'docker-api',
     'sandbox',
     'sandbox-egress',
     'sandbox-llm-gateway',
@@ -247,11 +248,41 @@ async function main(): Promise<number> {
     r.fail('Proxy /health (internal :2020)');
   }
 
+  // The edge reads the labels through the read-only Docker API proxy, on a
+  // network only the two of them join: the reads Traefik makes answer, an
+  // inspect carries no environment, and a write or any other endpoint is
+  // refused (403) before it reaches the socket. Busybox wget, in the edge.
+  const dockerApi = 'http://docker-api:2375';
+  for (const [label, script] of [
+    [
+      'Docker API proxy answers the reads the edge makes',
+      `wget -q -O /dev/null ${dockerApi}/_ping && wget -q -O /dev/null ${dockerApi}/version && wget -q -O /dev/null '${dockerApi}/containers/json?all=1'`,
+    ],
+    [
+      'Docker API proxy strips the environment from an inspect',
+      `body=$(wget -q -O - ${dockerApi}/containers/$(hostname)/json) && case "$body" in *'"Labels"'*) ;; *) exit 1 ;; esac && case "$body" in *TALE_PROXY_PROJECTS*) exit 1 ;; esac`,
+    ],
+    [
+      'Docker API proxy refuses POST /containers/create',
+      `wget -S -q -O /dev/null --header 'Content-Type: application/json' --post-data '{"Image":"alpine"}' ${dockerApi}/containers/create 2>&1 | grep -q ' 403 '`,
+    ],
+    [
+      'Docker API proxy refuses an endpoint it does not list',
+      `wget -S -q -O /dev/null ${dockerApi}/images/json 2>&1 | grep -q ' 403 '`,
+    ],
+  ] as const) {
+    if (await dockerExecOk(proxyContainer, ['sh', '-c', script])) {
+      r.pass(label);
+    } else {
+      r.fail(label);
+    }
+  }
+
   // Through-proxy platform health: the documented external readiness probe
   // ({SITE_URL}/api/health — README.md, tests/manual/setup.md §1C). Guards the
-  // Caddyfile route: without an explicit /api/health handle the generic /api/*
-  // catch-all sends it to the backend, whose 404 would fail the documented
-  // probe (#2553). Self-signed cert, so
+  // platform's own health route: without it the backend's /api/ lane takes
+  // the path, and the backend's 404 would fail the documented probe (#2553).
+  // Self-signed cert, so
   // skip verification; busybox wget --spider fails on any non-2xx status.
   if (
     await dockerExecOk(proxyContainer, [

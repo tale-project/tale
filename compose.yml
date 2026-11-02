@@ -334,6 +334,32 @@ services:
         max-size: '10m'
         max-file: '3'
 
+    # Its routes on the edge, which the proxy reads through the docker-api
+    # service. `tale deploy` emits the same labels
+    # (tools/cli/src/lib/compose/services/traefik-labels.ts), and the compose
+    # parity suite holds the two equal. `$$` is a literal `$` to Compose.
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.platform-health.rule: 'PathRegexp(`(?i)^/api/health$$`)'
+      traefik.http.routers.platform-health.priority: '200'
+      traefik.http.routers.platform-health.service: 'platform-direct'
+      traefik.http.routers.platform-ws.rule: 'PathPrefix(`/ws_api/`)'
+      traefik.http.routers.platform-ws.priority: '60'
+      traefik.http.routers.platform-ws.service: 'platform'
+      traefik.http.routers.platform-doors.rule: 'PathRegexp(`(?i)^/((api|scim|http_api)(/|$$)|(events|status[.]json|openapi[.]json)$$|[.]well-known/)`)'
+      traefik.http.routers.platform-doors.priority: '50'
+      traefik.http.routers.platform-doors.service: 'platform'
+      traefik.http.routers.platform-doors.middlewares: 'tale-compress@file,tale-unavailable-json@file'
+      traefik.http.routers.platform.rule: 'PathPrefix(`/`)'
+      traefik.http.routers.platform.priority: '2'
+      traefik.http.routers.platform.service: 'platform'
+      traefik.http.routers.platform.middlewares: 'tale-compress@file,tale-unavailable-page@file'
+      traefik.http.services.platform.loadbalancer.server.url: 'http://platform:3000'
+      traefik.http.services.platform.loadbalancer.healthcheck.path: '/api/health'
+      traefik.http.services.platform.loadbalancer.healthcheck.interval: '5s'
+      traefik.http.services.platform.loadbalancer.healthcheck.timeout: '2s'
+      traefik.http.services.platform-direct.loadbalancer.server.url: 'http://platform:3000'
+
     # Networks
     networks:
       - internal
@@ -415,6 +441,17 @@ services:
         max-size: '10m'
         max-file: '3'
 
+    # Its route on the edge: the bucket's path, forwarded verbatim (SigV4
+    # signs the host and the path). Same labels as `tale deploy`'s
+    # (tools/cli/src/lib/compose/services/traefik-labels.ts).
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.object-store.rule: 'PathPrefix(`/${OBJECT_STORE_BUCKET:-tale-blobs}/`)'
+      traefik.http.routers.object-store.priority: '300'
+      traefik.http.routers.object-store.service: 'object-store'
+      traefik.http.routers.object-store.observability.accesslogs: 'false'
+      traefik.http.services.object-store.loadbalancer.server.url: 'http://object-store:9000'
+
     networks:
       - internal
 
@@ -493,6 +530,24 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+    # Its lanes on the edge. Same labels as `tale deploy`'s
+    # (tools/cli/src/lib/compose/services/traefik-labels.ts); `$$` is a
+    # literal `$` to Compose.
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.backend-api-streams.rule: 'PathRegexp(`(?i)^/api/.+/sync$$`)'
+      traefik.http.routers.backend-api-streams.priority: '120'
+      traefik.http.routers.backend-api-streams.service: 'backend-api'
+      traefik.http.routers.backend-api-quiet.rule: 'PathRegexp(`(?i)^/api/(tools/|connectors/(execute|status|hostcall)$$|connectors/slack/|automations/webhook/)`)'
+      traefik.http.routers.backend-api-quiet.priority: '110'
+      traefik.http.routers.backend-api-quiet.service: 'backend-api'
+      traefik.http.routers.backend-api-quiet.middlewares: 'tale-compress@file'
+      traefik.http.routers.backend-api-quiet.observability.accesslogs: 'false'
+      traefik.http.routers.backend-api.rule: 'PathRegexp(`(?i)^/(api/|events$$|dav/|scim/v2/|http_api/(api/sso|scim/v2|api/trusted-headers|api/cloud-import/oauth2)/|[.]well-known/oauth-(authorization-server/|protected-resource))`)'
+      traefik.http.routers.backend-api.priority: '100'
+      traefik.http.routers.backend-api.service: 'backend-api'
+      traefik.http.routers.backend-api.middlewares: 'tale-compress@file'
+      traefik.http.services.backend-api.loadbalancer.server.url: 'http://backend-api:3005'
     # Dual-homed: the in-sandbox connectors bridge reaches this api directly
     # over the sandbox network (VK-authed).
     networks:
@@ -565,10 +620,12 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Proxy (Caddy)
+  # Tale Proxy (Traefik)
   # ============================================================================
   # Single entry point for all traffic (both local dev and production)
-  # Always serves over HTTPS with configurable certificate source.
+  # Always serves over HTTPS with configurable certificate source. Each service
+  # declares its own routes as labels; the proxy reads them through the
+  # docker-api service below and never holds the Docker socket itself.
   #
   # TLS Configuration (set in .env):
   #   TLS_MODE=selfsigned   - Self-signed certs (default, for development)
@@ -577,7 +634,9 @@ services:
   # For local development:
   #   - Run: docker compose up
   #   - Access: https://localhost (self-signed cert, browser warning expected)
-  #   - To trust certs: docker exec tale-proxy caddy trust
+  #   - To trust certs: copy the local CA out of the proxy
+  #     (docker cp tale-proxy:/data/pki/root.crt .) and add it to your
+  #     browser's or system's trust store
   #
   # For production with HTTPS:
   #   - Set HOST=yourdomain.com and SITE_URL=https://yourdomain.com in .env
@@ -606,12 +665,11 @@ services:
       - '443:443'
 
     # Volume mounts
-    # Persist Caddy data (certificates, etc.)
+    # The ACME account and certificates, and the self-signed CA. The Caddy
+    # edge's volumes stay declared below, unmounted, until the upgrade moves
+    # them (tale-project/tale#5209).
     volumes:
-      # Caddy data directory for certificates and configuration
-      - caddy-data:/data
-      # Caddy config directory
-      - caddy-config:/config
+      - proxy-data:/data
 
     # Environment file (optional — see env_file note below)
     # Override HOST/SITE_URL/TLS_MODE via .env; dev defaults live in compose.dev.yml.
@@ -623,40 +681,27 @@ services:
         required: false
 
     environment:
-      # The application backend. Every migrated lane routes here; the switch
-      # remains an env var so an operator can point the proxy at another
-      # host/port, never so the stack can fall back to a runtime that no
-      # longer exists.
-      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend-api:3005}
-      # The BLOB store, published at its own bucket path. The bucket name IS
-      # the public path and is forwarded unstripped — SigV4 covers the host
-      # and the path, so rewriting either breaks every presigned URL.
-      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
-      OBJECT_STORE_UPSTREAM: ${OBJECT_STORE_UPSTREAM:-object-store:9000}
+      # The Compose projects whose labelled containers the proxy routes: this
+      # one alone, so a container of another project on the same host cannot
+      # claim a route on this edge.
+      TALE_PROXY_PROJECTS: ${COMPOSE_PROJECT_NAME:-tale}
 
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
     # Health check via dedicated internal port (not exposed externally)
-    # Uses :2020 to avoid interfering with Caddy's ACME challenge handling on :80
+    # Uses :2020 to stay clear of the ACME challenge on :80
     healthcheck:
-      test:
-        [
-          'CMD',
-          'wget',
-          '--no-verbose',
-          '--tries=1',
-          '--spider',
-          'http://127.0.0.1:2020/health',
-        ]
+      test: ['CMD', 'tale-proxy', 'health']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
     # Note: platform depends on proxy (see platform.depends_on above).
-    # Caddy handles upstream unavailability gracefully.
+    # While a service is absent the proxy answers its routes itself: the
+    # maintenance page, or a JSON 503 on the lanes a program calls.
 
     # Logging configuration
     logging:
@@ -677,6 +722,42 @@ services:
         # The alias still does real work when HOST is a custom domain.
         aliases:
           - ${HOST:-localhost}
+      docker-api: {}
+
+  # ============================================================================
+  # Docker API proxy — the one way the proxy reads the labels
+  # ----------------------------------------------------------------------------
+  # The proxy image's read-only role (services/proxy/docker-api/nginx.conf):
+  # GET and HEAD on the version, ping, events and container list and inspect
+  # endpoints, every container's environment stripped from an inspect answer,
+  # everything else refused. The socket is mounted read-only, no port is
+  # published, and only the proxy shares its internal network.
+  # ============================================================================
+  docker-api:
+    # Same image `proxy` builds; a second `build:` would export the tag twice
+    # (see knowledge-db). `missing` uses the image `proxy` just produced.
+    image: ghcr.io/tale-project/tale/tale-proxy:${VERSION:-latest}
+    pull_policy: missing
+    container_name: tale-docker-api
+    command: docker-api
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'tale-proxy', 'health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - docker-api
 
   # ============================================================================
   # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy
@@ -918,6 +999,15 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+    # Only the device hub's tunnel is published, never the signed spawner
+    # API on :8003. Same labels as `tale deploy`'s
+    # (tools/cli/src/lib/compose/services/traefik-labels.ts).
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.sandbox.rule: 'Path(`/sandbox/tunnel`)'
+      traefik.http.routers.sandbox.priority: '300'
+      traefik.http.routers.sandbox.service: 'sandbox'
+      traefik.http.services.sandbox.loadbalancer.server.url: 'http://sandbox:8004'
     networks:
       - internal
       - sandbox
@@ -1084,11 +1174,14 @@ volumes:
   object-store-data:
     driver: local
 
-  # Persistent storage for Caddy proxy data (certificates, etc.)
-  caddy-data:
+  # The proxy's ACME account and certificates, and its self-signed CA
+  proxy-data:
     driver: local
 
-  # Persistent storage for Caddy proxy configuration
+  # The Caddy edge's data and configuration, no longer mounted: kept until the
+  # upgrade moves them (tale-project/tale#5209)
+  caddy-data:
+    driver: local
   caddy-config:
     driver: local
 
@@ -1107,6 +1200,11 @@ networks:
   # Internal network for Tale services
   internal:
     driver: bridge
+
+  # The proxy and the Docker API proxy alone: no other service joins it, and
+  # `internal` keeps it off the host's routes
+  docker-api:
+    internal: true
 
   # Sandbox network — internal-only bridge for artifact_run runtime containers + the
   # tinyproxy egress sidecar. The CLI (start.ts / deploy.ts via

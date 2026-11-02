@@ -4,7 +4,9 @@ import {
   BACKEND_LANES as LABELLED_BACKEND_LANES,
   PLATFORM_MACHINE_DOORS,
   backendApiLabels,
+  objectStoreLabels,
   platformLabels,
+  sandboxLabels,
 } from '../../../tools/cli/src/lib/compose/services/traefik-labels';
 import {
   BACKEND_LANES,
@@ -152,6 +154,49 @@ describe('readSettings', () => {
     ]);
   });
 
+  it.each([
+    '*',
+    'tale.example.com',
+    '10.0.0.1',
+    '10.0.0.0/33',
+    '256.1.1.0/24',
+    '10.0.0.0/8,fd00::/8',
+    'private_ranges}',
+    '10.0.0.0/8 import evil',
+  ])('refuses TRUSTED_PROXIES=%p behind an external terminator', (value) => {
+    expect(
+      refusal({ ...base, TLS_MODE: 'external', TRUSTED_PROXIES: value })[0],
+    ).toStartWith('Error: TRUSTED_PROXIES entry ');
+  });
+
+  it('trusts the private ranges for a blank TRUSTED_PROXIES and keeps the declared order', () => {
+    const trusted = (env: Record<string, string> = {}) =>
+      readSettings({ ...base, TLS_MODE: 'external', ...env }).trustedProxies;
+    const privateRanges = [
+      '192.168.0.0/16',
+      '172.16.0.0/12',
+      '10.0.0.0/8',
+      '127.0.0.1/8',
+      'fd00::/8',
+      '::1',
+    ];
+    expect(trusted()).toEqual(privateRanges);
+    expect(trusted({ TRUSTED_PROXIES: ' \t ' })).toEqual(privateRanges);
+    expect(
+      trusted({
+        TRUSTED_PROXIES: ' 10.147.17.0/24\tfd00::/8  private_ranges\n',
+      }),
+    ).toEqual([
+      '10.147.17.0/24',
+      'fd00::/8',
+      '192.168.0.0/16',
+      '172.16.0.0/12',
+      '10.0.0.0/8',
+      '127.0.0.1/8',
+      '::1',
+    ]);
+  });
+
   it('treats an unknown TLS_MODE as self-signed', () => {
     expect(readSettings({ ...base, TLS_MODE: 'acme' }).mode).toBe('selfsigned');
   });
@@ -245,6 +290,15 @@ describe('renderStatic', () => {
     expect(config).not.toHaveProperty('certificatesResolvers');
   });
 
+  it("keeps a trusted terminator's X-Forwarded-Proto: no route pins the scheme", () => {
+    // Pinned to the connection's `http`, no additional https origin matched
+    // and every public URL fell back to SITE_URL.
+    const s = readSettings({ ...base, TLS_MODE: 'external' });
+    expect(JSON.stringify([renderStatic(s, paths), renderEdge(s)])).not.toMatch(
+      /X-Forwarded-Proto/i,
+    );
+  });
+
   it('adds the loopback entrypoint a subpath request re-enters on', () => {
     const { entryPoints } = renderStatic(
       readSettings({ ...base, BASE_PATH: '/app' }),
@@ -335,6 +389,40 @@ describe('renderEdge', () => {
       'tale-metrics-path',
     ]);
     expect(open['tale-metrics-sla-rules'].service).toBe('tale-platform');
+  });
+
+  it('refuses ahead of every labelled route, and routes nothing to the retired runtime', () => {
+    const labelled = [
+      platformLabels(),
+      platformLabels('blue'),
+      backendApiLabels(),
+      backendApiLabels('green'),
+      objectStoreLabels(),
+      sandboxLabels(),
+    ];
+    const highest = Math.max(
+      ...labelled.flatMap((labels) =>
+        Object.entries(labels)
+          .filter(([key]) => key.endsWith('.priority'))
+          .map(([, value]) => Number(value)),
+      ),
+    );
+    const edge = routers({ METRICS_BEARER_TOKEN: 's3cret', BASE_PATH: '/app' });
+    // Only the answers given while a service is absent sit below its routes.
+    const outranked = Object.entries(edge)
+      .filter(
+        ([name, router]) =>
+          !name.startsWith('tale-absent') &&
+          router.priority !== undefined &&
+          router.priority <= highest,
+      )
+      .map(([name]) => name);
+    expect(outranked).toEqual([]);
+    expect(edge['tale-control'].priority).toBeGreaterThan(highest);
+    expect(edge['tale-dot-segments-dav'].priority).toBeGreaterThan(highest);
+    expect(JSON.stringify([edge, labelled]).toLowerCase()).not.toContain(
+      'convex',
+    );
   });
 
   it('answers a machine door with JSON and a person with the page when nothing serves them', () => {
