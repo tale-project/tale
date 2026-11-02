@@ -1469,6 +1469,22 @@ describe('HomePanel', () => {
     );
   });
 
+  // The shell drops its line to the rail while a section panel stands, so
+  // the panel's right border is the sidebar's edge to the page, folded too.
+  it('stands on the sidebar surface and keeps its right border folded', () => {
+    render(
+      <HomePanelProvider organizationId="org-1">
+        <HomePanel organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+    const panel = screen.getByRole('navigation', { name: 'Home' });
+    expect(panel).toHaveAttribute('data-slot', 'sub-panel');
+    expect(panel).toHaveClass('bg-sidebar', 'border-r');
+    backslash();
+    expect(panel).toHaveClass('w-0', 'border-r');
+    expect(panel).not.toHaveClass('border-r-0');
+  });
+
   it("folds with ⌘\\ on a project's page, whose header carries the toggle", () => {
     location.current = { pathname: '/dashboard/org-1/projects/p1', search: {} };
     render(

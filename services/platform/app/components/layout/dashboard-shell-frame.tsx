@@ -63,10 +63,13 @@ export function DashboardShellFrame() {
       {/* Desktop sidebar */}
       <AppSidebarPlaceholder />
 
+      {/* The line to the rail gives way while the Home panel stand-in shows:
+          the rail and the panel are one sidebar surface, and the panel's own
+          right border is then the edge to the page. */}
       <Stack
         as="main"
         gap={0}
-        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
+        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l [.boot-home-panel-open_&]:md:border-l-0"
       >
         {/* Home layout stand-ins — the row mirrors the Home frame (the
             panel beside the page, a chat's composer at the column's foot),

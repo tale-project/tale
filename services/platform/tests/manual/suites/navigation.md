@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 76 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 78 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -500,6 +500,23 @@ loaded, and reads **No teams** for an account in none.
   Member, open `/dashboard/{org}/automations` directly → **Access denied**
   (`accessDenied.title`) with `accessDenied.automations`, inside the shell
   with the rail still present.
+- [ ] `NAV-F45` · **The sidebar has its own surface** — At ≥ 768 px, in the
+  light theme and then the dark one (`auth.userButton.themeLight` /
+  `…themeDark`), open a chat, fold the Home panel with ⌘\ (NAV-F36) and
+  unfold it; open `/dashboard/{org}/settings/account` and
+  `/dashboard/{org}/documents`; hard-reload a chat with the network throttled
+  (NAV-P3); last, save the accent `#0B0B2A` (SET-F28a) and look at a chat
+  again → The rail (the `complementary` landmark **Dashboard sidebar**,
+  `navigation.sidebar.landmark`) and the Home panel, and the rail and the
+  **Settings** panel, stand on one tint of their own, apart from the page
+  beside them: no line runs between the rail and a panel, and one hairline
+  still divides the sidebar from the page — folded, the Home panel leaves
+  only that hairline, and on Knowledge, with no panel, it runs along the
+  rail. The boot shell paints the same tint, so the sidebar never flashes
+  from the page's colour to its own. The accent still marks the rail's
+  current tile and the open row, and every label, count badge and focus ring
+  stays readable on the tint. In the console, `getComputedStyle` gives the
+  rail and the panel one `backgroundColor`, and `document.body` another.
 
 ## Boundary & error tests
 

@@ -13,8 +13,9 @@ import { HomePanelSkeleton } from './home-panel-skeleton';
  * Masked stand-in for the Home panel, shown before the real one can mount:
  * baked into the served boot shell and rendered by the dashboard layout
  * while access resolves. Mirrors the real panel's frame (SubPanel `list`:
- * 280px, right border, hidden below `md`) with the shared panel skeleton
- * inside — so the live panel slots in without reflow.
+ * 280px, right border, the sidebar surface, hidden below `md`) with the
+ * shared panel skeleton inside — so the live panel slots in without reflow
+ * or a change of colour.
  *
  * Whether it shows is decided entirely in CSS by the `boot-home-panel-open`
  * class on `<html>`, set by the pre-hydration script in `index.html` when
@@ -28,7 +29,7 @@ import { HomePanelSkeleton } from './home-panel-skeleton';
  */
 export function HomePanelPlaceholder() {
   return (
-    <div className="bg-background border-border hidden h-full w-70 shrink-0 flex-col overflow-hidden border-r [.boot-home-panel-open_&]:md:flex">
+    <div className="bg-sidebar border-border hidden h-full w-70 shrink-0 flex-col overflow-hidden border-r [.boot-home-panel-open_&]:md:flex">
       <div className="flex h-full w-full flex-col overflow-hidden">
         <HomePanelSkeleton />
       </div>

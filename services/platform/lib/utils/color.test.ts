@@ -15,6 +15,7 @@ import {
   isHexColor,
   relativeLuminance,
   THEME_BACKGROUND,
+  THEME_SIDEBAR,
 } from './color';
 
 const WHITE = '#FFFFFF';
@@ -151,8 +152,8 @@ describe('adjustColorForTheme', () => {
   });
 });
 
-describe('THEME_BACKGROUND', () => {
-  // The palette is judged against the page it is painted on. It was once
+describe('THEME_BACKGROUND and THEME_SIDEBAR', () => {
+  // The palette is judged against the surfaces it is painted on. It was once
   // judged against pure white while the light page is #FCFCFC, so a pick
   // walked to exactly 3:1 read 2.96:1 where it was actually shown.
   const css = readFileSync(
@@ -160,19 +161,30 @@ describe('THEME_BACKGROUND', () => {
     'utf8',
   );
 
-  function background(selector: string): string {
+  function token(selector: string, name: string): string {
     const start = css.indexOf(`${selector} {`);
     const scope = css.slice(start, css.indexOf('}', start));
-    const match = /--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/.exec(
-      scope,
-    );
-    if (start < 0 || !match) throw new Error(`no ${selector} --background`);
+    const match = new RegExp(
+      `--${name}:\\s*([\\d.]+)\\s+([\\d.]+)%\\s+([\\d.]+)%`,
+    ).exec(scope);
+    if (start < 0 || !match) throw new Error(`no ${selector} --${name}`);
     return hslToHex(Number(match[1]), Number(match[2]), Number(match[3]));
   }
 
   it('is the page the stylesheet paints in each theme', () => {
-    expect(THEME_BACKGROUND.light.toLowerCase()).toBe(background(':root'));
-    expect(THEME_BACKGROUND.dark.toLowerCase()).toBe(background('.dark'));
+    expect(THEME_BACKGROUND.light.toLowerCase()).toBe(
+      token(':root', 'background'),
+    );
+    expect(THEME_BACKGROUND.dark.toLowerCase()).toBe(
+      token('.dark', 'background'),
+    );
+  });
+
+  it('is the sidebar the stylesheet paints in each theme, apart from the page', () => {
+    expect(THEME_SIDEBAR.light.toLowerCase()).toBe(token(':root', 'sidebar'));
+    expect(THEME_SIDEBAR.dark.toLowerCase()).toBe(token('.dark', 'sidebar'));
+    expect(THEME_SIDEBAR.light).not.toBe(THEME_BACKGROUND.light);
+    expect(THEME_SIDEBAR.dark).not.toBe(THEME_BACKGROUND.dark);
   });
 });
 
@@ -259,6 +271,23 @@ describe('deriveAccentPalette', () => {
             `${pick} on its ${alpha} tint`,
           ).toBeGreaterThanOrEqual(4.5);
         }
+      }
+    },
+  );
+
+  it.each(THEMES)(
+    'sets the accent as %s-theme text that reads on the sidebar, selected too',
+    (theme) => {
+      const sidebar = THEME_SIDEBAR[theme];
+      for (const pick of BAD_PICKS) {
+        const { text } = deriveAccentPalette(pick, theme);
+        // A rail tile or a panel row, at rest and selected: the accent's
+        // text over its own `…26` tint on the sidebar (WCAG 1.4.3).
+        expect(contrastRatio(text, sidebar), pick).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(text, tint(text, sidebar, 0x26 / 255)),
+          `${pick} selected on the sidebar`,
+        ).toBeGreaterThanOrEqual(4.5);
       }
     },
   );

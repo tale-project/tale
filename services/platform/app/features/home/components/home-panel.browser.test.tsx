@@ -6,12 +6,18 @@ import { useState, type AnchorHTMLAttributes, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
+import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
 import type {
   ChatProjectSummary,
   ChatThreadSummary,
 } from '@/app/features/chat/types';
 import { projectConversationItem } from '@/lib/shared/conversations/conversation-item';
-import { contrastRatio, deriveAccentPalette } from '@/lib/utils/color';
+import {
+  contrastRatio,
+  deriveAccentPalette,
+  THEME_BACKGROUND,
+  THEME_SIDEBAR,
+} from '@/lib/utils/color';
 import { i18n } from '@/tests/utils/i18n-all-languages';
 import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
 import { painted } from '@/tests/utils/paint';
@@ -217,6 +223,24 @@ vi.mock('./home-inbox-list', async (importOriginal) => ({
 
 vi.mock('@/app/hooks/use-current-user', () => ({
   useCurrentUser: () => ({ data: { userId: 'u1' } }),
+}));
+
+// The live rail's frame beside the panel, without its tiles: they read the
+// session and the abilities, and none of them paints the rail's surface.
+vi.mock('@/app/components/layout/app-sidebar/sidebar-header', () => ({
+  SidebarHeader: () => null,
+}));
+vi.mock('@/app/components/layout/app-sidebar/sidebar-footer', () => ({
+  SidebarFooter: () => null,
+}));
+vi.mock('@/app/components/layout/app-sidebar/sidebar-nav', () => ({
+  SidebarNav: () => null,
+}));
+vi.mock('@/app/components/layout/app-sidebar/sidebar-search-trigger', () => ({
+  SidebarSearchTrigger: () => null,
+}));
+vi.mock('@/app/components/layout/app-sidebar/sidebar-search-command', () => ({
+  SidebarSearchCommand: () => null,
 }));
 
 vi.mock('../hooks/use-home-data', async (importOriginal) => ({
@@ -1854,6 +1878,60 @@ describe('desktop Home panel resizing', () => {
     expect(screen.queryByRole('separator')).toBeNull();
   });
 });
+
+/**
+ * The rail and the Home panel are one column on the sidebar's own surface,
+ * set apart from the page (#5011): the same `--sidebar` in both, no line
+ * between them, and the panel's right border the column's edge to the page —
+ * folded too, when that border is all that is left of the panel.
+ */
+describe.each(['light', 'dark'] as const)(
+  'the sidebar surface (%s)',
+  (theme) => {
+    const surface = (element: Element) =>
+      painted(getComputedStyle(element).backgroundColor);
+
+    it('paints the rail and the Home panel alike, apart from the page', async () => {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      backend.home = homeData([], []);
+      backend.location = { pathname: `/dashboard/${ORG}/chat`, search: {} };
+      render(
+        <div className="flex h-160">
+          <AppSidebar organizationId={ORG} />
+          <HomePanelProvider organizationId={ORG}>
+            <HomePanel organizationId={ORG} />
+          </HomePanelProvider>
+        </div>,
+      );
+      const rail = screen.getByRole('complementary', {
+        name: 'Dashboard sidebar',
+      });
+      const panel = screen.getByRole('navigation', { name: 'Home' });
+      const sidebar = surface(rail);
+      const pageSurface = surface(document.body);
+      expect(sidebar).toBe(THEME_SIDEBAR[theme].toLowerCase());
+      expect(surface(panel)).toBe(sidebar);
+      expect(pageSurface).toBe(THEME_BACKGROUND[theme].toLowerCase());
+      expect(sidebar).not.toBe(pageSurface);
+      expect(box(panel).left).toBe(box(rail).right);
+      expect(getComputedStyle(rail).borderRightWidth).toBe('0px');
+      expect(getComputedStyle(panel).borderLeftWidth).toBe('0px');
+      expect(getComputedStyle(panel).borderRightWidth).toBe('1px');
+
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'Backslash',
+          ctrlKey: true,
+          metaKey: true,
+          bubbles: true,
+        }),
+      );
+      await expect.poll(() => box(panel).width).toBe(1);
+      expect(getComputedStyle(panel).borderRightWidth).toBe('1px');
+      expect(box(panel).left).toBe(box(rail).right);
+    });
+  },
+);
 
 describe('Home screen on a phone', () => {
   it('keeps the archive control above the mobile navigation', async () => {
