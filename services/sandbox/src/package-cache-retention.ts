@@ -23,6 +23,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { readDockerMetadata } from './buildkit-resources.ts';
+import { containerListing, type ListingFormat } from './docker-engine.ts';
 import type { SpawnerConfig } from './types.ts';
 import { listCacheVolumeOrganizations, removeCacheVolumes } from './volume.ts';
 import { ORG_ID_ALPHABET_RE } from './wire.ts';
@@ -33,7 +34,7 @@ import { ORG_ID_ALPHABET_RE } from './wire.ts';
 export const DEFAULT_PACKAGE_CACHE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** How often the host sweep looks at the caches: a retention counts in days,
- * and each look costs two docker CLI calls. */
+ * and each look lists the cache volumes and the session containers. */
 export const PACKAGE_CACHE_SWEEP_INTERVAL_MS = 60 * 60_000;
 
 const MARKER_DIR = '.package-caches';
@@ -106,15 +107,21 @@ async function lastUse(
   return Number.isSafeInteger(atMs) && atMs > 0 ? atMs : undefined;
 }
 
+/** The organization of each session container, a line each, from the CLI's
+ * template or from the Engine API's listing (docker-engine.ts). */
+export const SESSION_ORGANIZATION: ListingFormat = {
+  template: '{{.Label "tale.org"}}',
+  render: (c) => c.label('tale.org'),
+};
+
 /** The organizations with a session container on this daemon, in any state
  * and of any spawner instance: each may mount the caches. THROWS when the
  * list cannot be read, so a daemon hiccup never reads as "none". */
 async function sessionOrganizations(
   organizationId?: string,
 ): Promise<Set<string>> {
-  const listed = await readDockerMetadata(
+  const { args, engine } = containerListing(
     [
-      'ps',
       '--all',
       '--no-trunc',
       '--filter',
@@ -122,11 +129,10 @@ async function sessionOrganizations(
       ...(organizationId
         ? ['--filter', `label=tale.org=${organizationId}`]
         : []),
-      '--format',
-      '{{.Label "tale.org"}}',
     ],
-    { timeoutMs: 15_000 },
+    SESSION_ORGANIZATION,
   );
+  const listed = await readDockerMetadata(args, { timeoutMs: 15_000, engine });
   if (listed.exitCode !== 0) {
     throw new Error(
       `package caches: cannot list session containers: ${listed.stderr.trim() || listed.stdout.trim()}`,
