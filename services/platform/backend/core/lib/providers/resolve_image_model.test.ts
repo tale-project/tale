@@ -219,6 +219,8 @@ describe('resolveImageGenerationModel — pinned', () => {
     });
     // Only the pinned provider is walked.
     expect(catalogMock).toHaveBeenCalledTimes(1);
+    // OpenAI's own images API is the one verified: no other is asked.
+    expect(resolved).not.toHaveProperty('fallbackWire');
   });
 
   it('lets an admin pin a model of a provider automatic selection never uses', async () => {
@@ -229,9 +231,15 @@ describe('resolveImageGenerationModel — pinned', () => {
     };
     resolveProvidersMock.mockResolvedValue([LOCAL]);
     await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      organizationId: ORG,
       providerSlug: 'local-images',
       wire: 'openai-images',
       source: 'pinned',
+      // An images API nobody verified may be a gateway's that serves the
+      // model over chat alone; its catalog entry is no chat model, so a chat
+      // request asks it for images alone.
+      fallbackWire: 'chat-images',
+      writesText: false,
     });
   });
 
@@ -293,13 +301,17 @@ describe('resolveImageGenerationModel — automatic', () => {
   it('takes the first curated model the organization can reach', async () => {
     policy = { enabled: true };
     resolveProvidersMock.mockResolvedValue([OPENAI, OPENROUTER]);
-    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+    const resolved = await resolveImageGenerationModel(ctx, ORG);
+    expect(resolved).toMatchObject({
       providerSlug: 'openrouter',
       modelId: 'google/gemini-2.5-flash-image',
       source: 'preferred',
       wire: 'openrouter-images',
+      // Its catalog entry is a chat model too: it writes text as it draws.
+      writesText: true,
       attribution: { 'HTTP-Referer': 'https://tale.dev', 'X-Title': 'Tale' },
     });
+    expect(resolved).not.toHaveProperty('fallbackWire');
   });
 
   it('falls to the next curated model, across provider spellings', async () => {

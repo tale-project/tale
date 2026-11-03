@@ -45,16 +45,6 @@ import type { WireTool } from '../../../lib/chat/tools';
 import { knownModel } from '../lib/providers/catalog_fetch';
 import { loadProviderDefinitions } from '../lib/providers/load_system_config';
 
-/** The statuses a gateway answers a Responses request with when it cannot
- * serve that API for the model: no such route (404, 405, 501), a route the
- * key may not use or a front door that guards only the paths it knows (401,
- * 403), or a body it does not take (400, 415, 422). Limits and outages (429,
- * 5xx) would fail on Chat Completions just the same, and surface as they
- * are. */
-export const RESPONSES_REFUSAL_STATUSES: ReadonlySet<number> = new Set([
-  400, 401, 403, 404, 405, 415, 422, 501,
-]);
-
 /** How long a refusal holds before the gateway is asked again. */
 const REFUSAL_TTL_MS = 15 * 60 * 1000;
 /** How long a model that lost arguments on Chat Completions stays on the

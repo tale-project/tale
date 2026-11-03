@@ -1,9 +1,9 @@
 'use node';
 
 /**
- * Which model generates images for an agent — the `generate_image`
- * workspace tool a project agent working a task, or an automation's agent
- * step, calls. Chat never generates images.
+ * Which model generates images for an agent — the `generate_image` tool a
+ * chat reply, a project agent working a task, or an automation's agent step
+ * calls.
  *
  * Governed by the `image_generation` policy, and OFF until an admin turns
  * it on: a missing file, `enabled: false`, or an unreadable policy all leave
@@ -32,7 +32,11 @@
  * OpenRouter connector, the OpenAI images API for every other. The latter
  * is what OpenAI-compatible servers implement, so an admin may PIN such a
  * provider's image model; automatic selection only uses the two providers
- * whose image APIs were verified against their documentation.
+ * whose image APIs were verified against their documentation. On any other
+ * — an AI gateway's, which routes other vendors' models — a call the images
+ * API refuses is asked again over chat completions (`image_generation.ts`):
+ * that is how a gateway serves a model whose upstream it reaches over chat
+ * alone.
  */
 
 import { imageGenerationConfigSchema } from '@tale/shared/schemas/governance';
@@ -103,8 +107,17 @@ export interface ImageModelPick {
 /** Everything one generation call needs. Carries the credential secret, so
  * it never leaves the server: settings surfaces read {@link ImageModelPick}. */
 export interface ResolvedImageModel extends ImageModelPick {
+  /** The organization whose credential the call carries. */
+  organizationId: string;
   providerDisplayName: string;
   wire: ImageGenerationWire;
+  /** The wire a call is asked on again when its own refuses it as one the
+   * provider cannot serve for the model (`image_generation.ts`): chat
+   * completions, for an image API the platform has not verified. */
+  fallbackWire?: ImageGenerationWire;
+  /** The model writes text as well as images (its catalog entry is a chat
+   * model too), so a chat request asks it for both. */
+  writesText: boolean;
   baseUrl: string;
   apiKey: string;
   /** App-attribution headers the provider reads (OpenRouter). */
@@ -353,10 +366,17 @@ async function imageCandidates(
           modelId: entry.id,
           verifiedWire: verified,
           resolved: {
+            organizationId,
             providerSlug: provider.name,
             providerDisplayName: provider.displayName,
             modelId: entry.id,
             wire,
+            // An image API nobody verified may be a gateway's, which can
+            // serve a model over chat alone.
+            ...(!verified && wire === 'openai-images'
+              ? { fallbackWire: 'chat-images' as const }
+              : {}),
+            writesText: entry.tags.includes('chat'),
             baseUrl,
             apiKey: credential.secret,
             attribution,

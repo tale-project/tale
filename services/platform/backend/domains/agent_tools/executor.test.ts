@@ -13,10 +13,12 @@ vi.mock('./run-code.ts', () => ({
 
 const IMAGE = {
   model: {
+    organizationId: 'org_1',
     providerSlug: 'openrouter',
     providerDisplayName: 'OpenRouter',
     modelId: 'img-1',
     wire: 'openrouter-images' as const,
+    writesText: false,
     baseUrl: 'https://example.invalid',
     apiKey: 'k',
     attribution: {},
