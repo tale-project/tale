@@ -27,7 +27,8 @@
 // * `selfSignedCertificate()` - a throw-away certificate made in process (no
 //   openssl, no files); it is its own trust anchor, give it to the client as `ca`.
 // * `startTcpServer(onConnection)`, `startOrigin(respond?)`, `closedPort()`,
-//   `portOf(server)` - the servers a proxy connects to, and a port that refuses.
+//   `portOf(server)` - the servers a proxy connects to, and a port that refuses
+//   (held until the test that asked for it ends).
 // * `rawHttp`, `connectThrough`, `readAll`, `SocketReader` - clients that talk
 //   to a proxy by hand, so a test controls every byte.
 //
@@ -40,6 +41,7 @@ import net from 'node:net';
 import tls from 'node:tls';
 
 import * as x509 from '@peculiar/x509';
+import { onTestFinished } from 'vitest';
 
 import { debugLog } from '../lib/debug.ts';
 import { errorText } from '../lib/error-text.ts';
@@ -1072,11 +1074,29 @@ export function portOf(server: {
   return address.port;
 }
 
-/** A port nothing listens on: connecting to it is refused. */
+/**
+ * A port nothing listens on: connecting to it on 127.0.0.1 is refused until the
+ * test that asked for it ends. A port that was only closed again goes back to
+ * the system, which can hand it to the next server that asks for any port, here
+ * or in another process - and that server would answer in its place. So a
+ * socket of ours stays bound to the port without listening (it is connected to
+ * a server of ours). Linux then hands the port to no other socket until the
+ * test ends; other systems may still hand it to a server that asks for any port.
+ */
 export async function closedPort(): Promise<number> {
-  const server = await startTcpServer(() => undefined);
-  await server.stop();
-  return server.port;
+  let release = async (): Promise<void> => undefined;
+  onTestFinished(() => release());
+  const peer = await startTcpServer(() => undefined);
+  release = () => peer.stop();
+  // Bound to an address without a port: the system picks one no socket uses.
+  const holder = await connectTo(peer.port, '127.0.0.1', '127.0.0.1');
+  release = async () => {
+    holder.destroy();
+    await peer.stop();
+  };
+  if (holder.localPort === undefined)
+    throw new Error('the holder is not bound');
+  return holder.localPort;
 }
 
 // -- clients that talk to a proxy by hand ---------------------------------------------
@@ -1160,8 +1180,10 @@ export async function rawHttp(
 async function connectTo(
   port: number,
   host = '127.0.0.1',
+  // The address to connect from, on a port the system picks; any when unset.
+  localAddress?: string,
 ): Promise<net.Socket> {
-  const socket = net.connect({ host, port });
+  const socket = net.connect({ host, port, localAddress });
   socket.on('error', (error) => debug(`client socket error: ${error.message}`));
   await new Promise<void>((resolve, reject) => {
     socket.once('connect', () => {
