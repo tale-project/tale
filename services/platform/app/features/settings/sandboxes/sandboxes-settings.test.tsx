@@ -485,6 +485,7 @@ describe('SandboxesSettings access', () => {
     expect(query).not.toHaveBeenCalledWith(
       'governance/queries:getPolicy',
       expect.anything(),
+      undefined,
     );
     expect(screen.queryByText('Restricted project')).not.toBeInTheDocument();
     // Developers see the organization's devices, never the workspace table.
@@ -567,10 +568,11 @@ describe('SandboxesSettings access', () => {
   it('gives organization settings managers the workspace cleanup policy, right above the workspaces', () => {
     state.canManage = true;
     renderSettings();
-    expect(query).toHaveBeenCalledWith('governance/queries:getPolicy', {
-      organizationId: 'org-1',
-      policyType: 'sandbox_workspaces',
-    });
+    expect(query).toHaveBeenCalledWith(
+      'governance/queries:getPolicy',
+      { organizationId: 'org-1', policyType: 'sandbox_workspaces' },
+      undefined,
+    );
     expect(
       screen.getByRole('switch', { name: 'Delete unused workspaces' }),
     ).toBeChecked();
