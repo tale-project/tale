@@ -76,8 +76,9 @@ provider URLs require `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the test backend;
 `TALE_PROVIDER_KEY_E2E_MOCK`. Use synthetic credentials. `E2E_MOCK_LLM=0` selects the live-provider
 mode and skips canned-answer assertions; it does not configure a provider for you.
 
-Connector mock endpoints exist in the gateway, but this does not redirect every runtime connector
-call automatically. Verify the actual destination before exercising an external action. Read the
+The gateway has no connector endpoints, and nothing redirects a connector's calls to it. A flow that
+runs a connector action without reaching the vendor picks one of the action's scenarios (CONN-R33,
+AUTO-R78); otherwise verify the actual destination before exercising an external action. Read the
 mock README for the boundary between fixture responses and real integration coverage.
 
 ## Reuse helpers and assert the result
