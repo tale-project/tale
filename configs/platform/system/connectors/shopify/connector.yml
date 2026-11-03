@@ -69,6 +69,41 @@ actions:
         ],
         nextPageInfo: '',
       };
+    scenarios:
+      - name: two_products
+        kind: success
+        description: 'Shopify returns two products and no further page.'
+        output:
+          products:
+            - { id: 8123456789013, title: 'Stoneware mug', handle: stoneware-mug, status: active, created_at: '2026-03-02T10:15:00-05:00' }
+            - { id: 8123456789012, title: 'Linen apron', handle: linen-apron, status: active, created_at: '2026-02-27T16:40:00-05:00' }
+          nextPageInfo: ''
+      - name: more_pages
+        kind: success
+        description: 'Shopify returns two products and, in its Link header, the cursor of the next page.'
+        output:
+          products:
+            - { id: 8123456789015, title: 'Wool throw', handle: wool-throw, status: active, created_at: '2026-03-09T11:00:00-05:00' }
+            - { id: 8123456789014, title: 'Oak serving board', handle: oak-serving-board, status: active, created_at: '2026-03-06T08:45:00-05:00' }
+          nextPageInfo: eyJkaXJlY3Rpb24iOiJuZXh0IiwibGFzdF9pZCI6ODEyMzQ1Njc4OTAxNH0
+      - name: no_products
+        kind: empty
+        description: 'Shopify returns no products and no further page.'
+        output:
+          products: []
+          nextPageInfo: ''
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify list_products failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify list_products failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -114,6 +149,49 @@ actions:
           variants: [{ id: 2001, title: 'Default', price: '49.90', sku: 'DEMO-1' }],
         },
       };
+    scenarios:
+      - name: one_product
+        kind: success
+        description: 'Shopify returns the product with its two variants.'
+        output:
+          product:
+            id: 8123456789012
+            title: 'Linen apron'
+            handle: linen-apron
+            status: active
+            variants:
+              - { id: 45123456789012, title: Natural, price: '34.00', sku: APRON-NAT }
+              - { id: 45123456789013, title: Charcoal, price: '34.00', sku: APRON-CHA }
+      - name: no_sku
+        kind: empty
+        description: 'Shopify returns a draft product whose only variant, the default one, has no SKU.'
+        output:
+          product:
+            id: 8123456789012
+            title: 'Linen apron'
+            handle: linen-apron
+            status: draft
+            variants:
+              - { id: 45123456789014, title: 'Default Title', price: '34.00', sku: '' }
+      - name: product_not_found
+        kind: error
+        description: 'Shopify answers HTTP 404: no product has this id.'
+        when: { resourceId: '8123456789099' }
+        error:
+          message: 'Shopify get_product failed: product 8123456789099 not found.'
+          status: 404
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify get_product failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify get_product failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -173,6 +251,41 @@ actions:
         ],
         nextPageInfo: '',
       };
+    scenarios:
+      - name: two_customers
+        kind: success
+        description: 'Shopify returns two customers and no further page.'
+        output:
+          customers:
+            - { id: 7123456789013, email: sam@example.com, first_name: Sam, last_name: Example, orders_count: 1 }
+            - { id: 7123456789012, email: alex@example.com, first_name: Alex, last_name: Example, orders_count: 3 }
+          nextPageInfo: ''
+      - name: more_pages
+        kind: success
+        description: 'Shopify returns two customers and, in its Link header, the cursor of the next page.'
+        output:
+          customers:
+            - { id: 7123456789015, email: kim@example.com, first_name: Kim, last_name: Example, orders_count: 0 }
+            - { id: 7123456789014, email: lee@example.com, first_name: Lee, last_name: Example, orders_count: 2 }
+          nextPageInfo: eyJkaXJlY3Rpb24iOiJuZXh0IiwibGFzdF9pZCI6NzEyMzQ1Njc4OTAxNH0
+      - name: no_customers
+        kind: empty
+        description: 'Shopify returns no customers and no further page.'
+        output:
+          customers: []
+          nextPageInfo: ''
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify list_customers failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify list_customers failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -219,6 +332,36 @@ actions:
           total_spent: '149.70',
         },
       };
+    scenarios:
+      - name: one_customer
+        kind: success
+        description: 'Shopify returns the customer with their order totals.'
+        output:
+          customer: { id: 7123456789012, email: alex@example.com, first_name: Alex, last_name: Example, orders_count: 3, total_spent: '102.00' }
+      - name: no_orders
+        kind: empty
+        description: 'Shopify returns a customer who has not ordered yet: no orders, nothing spent.'
+        output:
+          customer: { id: 7123456789012, email: alex@example.com, first_name: Alex, last_name: Example, orders_count: 0, total_spent: '0.00' }
+      - name: customer_not_found
+        kind: error
+        description: 'Shopify answers HTTP 404: no customer has this id.'
+        when: { resourceId: '7123456789099' }
+        error:
+          message: 'Shopify get_customer failed: customer 7123456789099 not found.'
+          status: 404
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify get_customer failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify get_customer failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -283,6 +426,41 @@ actions:
         ],
         nextPageInfo: '',
       };
+    scenarios:
+      - name: two_orders
+        kind: success
+        description: 'Shopify returns two orders and no further page.'
+        output:
+          orders:
+            - { id: 5123456789013, name: '#1002', total_price: '18.00', financial_status: paid, fulfillment_status: partial, created_at: '2026-03-03T09:30:00-05:00' }
+            - { id: 5123456789012, name: '#1001', total_price: '68.00', financial_status: paid, fulfillment_status: fulfilled, created_at: '2026-03-01T14:05:00-05:00' }
+          nextPageInfo: ''
+      - name: more_pages
+        kind: success
+        description: 'Shopify returns two orders and, in its Link header, the cursor of the next page.'
+        output:
+          orders:
+            - { id: 5123456789015, name: '#1004', total_price: '34.00', financial_status: paid, fulfillment_status: fulfilled, created_at: '2026-03-08T12:00:00-05:00' }
+            - { id: 5123456789014, name: '#1003', total_price: '24.00', financial_status: refunded, fulfillment_status: restocked, created_at: '2026-03-05T17:20:00-05:00' }
+          nextPageInfo: eyJkaXJlY3Rpb24iOiJuZXh0IiwibGFzdF9pZCI6NTEyMzQ1Njc4OTAxNH0
+      - name: no_orders
+        kind: empty
+        description: 'Shopify returns no orders and no further page.'
+        output:
+          orders: []
+          nextPageInfo: ''
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify list_orders failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify list_orders failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -329,6 +507,50 @@ actions:
           line_items: [{ id: 6001, title: 'Demo product', quantity: 1, price: '49.90' }],
         },
       };
+    scenarios:
+      - name: one_order
+        kind: success
+        description: 'Shopify returns the order with its line item.'
+        output:
+          order:
+            id: 5123456789012
+            name: '#1001'
+            total_price: '68.00'
+            financial_status: paid
+            fulfillment_status: fulfilled
+            line_items:
+              - { id: 13123456789012, title: 'Linen apron', quantity: 2, price: '34.00' }
+      - name: nothing_to_pay
+        kind: empty
+        description: 'Shopify returns an order with nothing to pay: its one line item, a free swatch, costs 0.00.'
+        output:
+          order:
+            id: 5123456789012
+            name: '#1001'
+            total_price: '0.00'
+            financial_status: paid
+            fulfillment_status: fulfilled
+            line_items:
+              - { id: 13123456789013, title: 'Fabric swatch', quantity: 1, price: '0.00' }
+      - name: order_not_found
+        kind: error
+        description: 'Shopify answers HTTP 404: no order has this id.'
+        when: { resourceId: '5123456789099' }
+        error:
+          message: 'Shopify get_order failed: order 5123456789099 not found.'
+          status: 404
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify get_order failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify get_order failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -355,6 +577,27 @@ actions:
     output: '{ count: number }'
     mock: |
       return { count: 42 };
+    scenarios:
+      - name: four_products
+        kind: success
+        description: 'Shopify counts four products.'
+        output: { count: 4 }
+      - name: no_products
+        kind: empty
+        description: 'Shopify counts no products.'
+        output: { count: 0 }
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify count_products failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify count_products failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -380,6 +623,27 @@ actions:
     output: '{ count: number }'
     mock: |
       return { count: 17 };
+    scenarios:
+      - name: four_customers
+        kind: success
+        description: 'Shopify counts four customers.'
+        output: { count: 4 }
+      - name: no_customers
+        kind: empty
+        description: 'Shopify counts no customers.'
+        output: { count: 0 }
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify count_customers failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify count_customers failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -405,6 +669,27 @@ actions:
     output: '{ count: number }'
     mock: |
       return { count: 128 };
+    scenarios:
+      - name: four_orders
+        kind: success
+        description: 'Shopify counts four orders.'
+        output: { count: 4 }
+      - name: no_orders
+        kind: empty
+        description: 'Shopify counts no orders.'
+        output: { count: 0 }
+      - name: invalid_token
+        kind: error
+        description: 'Shopify does not accept the access token and answers HTTP 401.'
+        error:
+          message: 'Shopify count_orders failed: authentication failed — verify the access token (it starts with "shpat_").'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Shopify rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Shopify count_orders failed (429): {"errors":"Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |

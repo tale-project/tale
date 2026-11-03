@@ -27,7 +27,10 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
-import { toConnectorResponse } from '../../connectors/live-host';
+import {
+  createLiveHost,
+  toConnectorResponse,
+} from '../../connectors/live-host';
 import { connectorFailureOf } from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
@@ -78,7 +81,13 @@ const EXPECTED_SLUGS = [
  * effect needs (`MINIMUM_SCENARIO_KINDS`), each scenario with its proof in
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
-const SCENARIO_CONNECTORS = ['jev', 'slack', 'tavily', 'twilio'] as const;
+const SCENARIO_CONNECTORS = [
+  'jev',
+  'shopify',
+  'slack',
+  'tavily',
+  'twilio',
+] as const;
 type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
 const runner = nodeVmRunner();
@@ -1005,18 +1014,403 @@ const TWILIO_PROOFS: Record<string, ProofAnswers> = {
   },
 };
 
+/** The store a Shopify credential points at, which the live host hands the
+ * bodies as `ctx.endpoint`, and the Admin API version they call there. */
+const SHOPIFY_STORE = 'https://example-store.myshopify.com';
+const SHOPIFY_API = `${SHOPIFY_STORE}/admin/api/2026-01`;
+
+/** The one GET each Shopify action makes for its example input. */
+const SHOPIFY_REQUESTS = {
+  list_products: `GET ${SHOPIFY_API}/products.json?limit=50&status=active`,
+  get_product: `GET ${SHOPIFY_API}/products/8123456789012.json`,
+  list_customers: `GET ${SHOPIFY_API}/customers.json?limit=50`,
+  get_customer: `GET ${SHOPIFY_API}/customers/7123456789012.json`,
+  list_orders: `GET ${SHOPIFY_API}/orders.json?limit=50&status=any`,
+  get_order: `GET ${SHOPIFY_API}/orders/5123456789012.json`,
+  count_products: `GET ${SHOPIFY_API}/products/count.json`,
+  count_customers: `GET ${SHOPIFY_API}/customers/count.json`,
+  count_orders: `GET ${SHOPIFY_API}/orders/count.json`,
+} as const;
+
+/** A call Shopify carried out: HTTP 200 and what was asked for, under the
+ * resource's name. */
+function shopifyOk(body: Record<string, unknown>): ServiceAnswer {
+  return { status: 200, body };
+}
+
+/** A list page with a further one, which Shopify names in the Link header:
+ * the URL of the same list, with the next page's cursor as `page_info`. */
+function shopifyPage(
+  resource: string,
+  records: Record<string, unknown>[],
+  pageInfo: string,
+): ServiceAnswer {
+  return {
+    status: 200,
+    headers: {
+      link: `<${SHOPIFY_API}/${resource}.json?page_info=${pageInfo}&limit=50>; rel="next"`,
+    },
+    body: { [resource]: records },
+  };
+}
+
+/** A call Shopify refused: the status, and its errors in the body, which the
+ * live bodies hand on only for a status they do not name. */
+function shopifyError(status: number, errors: string): ServiceAnswer {
+  return { status, body: { errors } };
+}
+
+/** What Shopify answers an access token it does not accept. */
+const SHOPIFY_INVALID_TOKEN = shopifyError(
+  401,
+  '[API] Invalid API key or access token (unrecognized login or wrong password)',
+);
+
+/** A rate limit: 429, and the seconds to wait in Retry-After. */
+const SHOPIFY_RATE_LIMITED: ServiceAnswer = {
+  ...shopifyError(
+    429,
+    'Exceeded 2 calls per second for api client. Reduce request rates to resume uninterrupted service.',
+  ),
+  headers: { 'retry-after': '2.0' },
+};
+
+/** The proofs of the two refusals every Shopify action ships under the same
+ * names, `invalid_token` and `rate_limited`: Shopify's answer to the one
+ * request the action makes. */
+function shopifyRefusals(
+  action: keyof typeof SHOPIFY_REQUESTS,
+): Record<string, ProofAnswers> {
+  const request = SHOPIFY_REQUESTS[action];
+  return {
+    [`${action}/invalid_token`]: { [request]: SHOPIFY_INVALID_TOKEN },
+    [`${action}/rate_limited`]: { [request]: SHOPIFY_RATE_LIMITED },
+  };
+}
+
 /**
- * Every listed connector's proofs, with the secrets its credential holds —
+ * The proof of every Shopify scenario, keyed as Slack's are: Shopify's answer
+ * to the one GET the live body makes, at the store the credential points at.
+ * An answer carries the members the action's output names; the bodies hand
+ * Shopify's records on as they come, so the further members a real answer
+ * holds would ride along.
+ */
+const SHOPIFY_PROOFS: Record<string, ProofAnswers> = {
+  'list_products/two_products': {
+    [SHOPIFY_REQUESTS.list_products]: shopifyOk({
+      products: [
+        {
+          id: 8123456789013,
+          title: 'Stoneware mug',
+          handle: 'stoneware-mug',
+          status: 'active',
+          created_at: '2026-03-02T10:15:00-05:00',
+        },
+        {
+          id: 8123456789012,
+          title: 'Linen apron',
+          handle: 'linen-apron',
+          status: 'active',
+          created_at: '2026-02-27T16:40:00-05:00',
+        },
+      ],
+    }),
+  },
+  'list_products/more_pages': {
+    [SHOPIFY_REQUESTS.list_products]: shopifyPage(
+      'products',
+      [
+        {
+          id: 8123456789015,
+          title: 'Wool throw',
+          handle: 'wool-throw',
+          status: 'active',
+          created_at: '2026-03-09T11:00:00-05:00',
+        },
+        {
+          id: 8123456789014,
+          title: 'Oak serving board',
+          handle: 'oak-serving-board',
+          status: 'active',
+          created_at: '2026-03-06T08:45:00-05:00',
+        },
+      ],
+      'eyJkaXJlY3Rpb24iOiJuZXh0IiwibGFzdF9pZCI6ODEyMzQ1Njc4OTAxNH0',
+    ),
+  },
+  'list_products/no_products': {
+    [SHOPIFY_REQUESTS.list_products]: shopifyOk({ products: [] }),
+  },
+  ...shopifyRefusals('list_products'),
+  'get_product/one_product': {
+    [SHOPIFY_REQUESTS.get_product]: shopifyOk({
+      product: {
+        id: 8123456789012,
+        title: 'Linen apron',
+        handle: 'linen-apron',
+        status: 'active',
+        variants: [
+          {
+            id: 45123456789012,
+            title: 'Natural',
+            price: '34.00',
+            sku: 'APRON-NAT',
+          },
+          {
+            id: 45123456789013,
+            title: 'Charcoal',
+            price: '34.00',
+            sku: 'APRON-CHA',
+          },
+        ],
+      },
+    }),
+  },
+  'get_product/no_sku': {
+    [SHOPIFY_REQUESTS.get_product]: shopifyOk({
+      product: {
+        id: 8123456789012,
+        title: 'Linen apron',
+        handle: 'linen-apron',
+        status: 'draft',
+        variants: [
+          {
+            id: 45123456789014,
+            title: 'Default Title',
+            price: '34.00',
+            sku: '',
+          },
+        ],
+      },
+    }),
+  },
+  'get_product/product_not_found': {
+    [`GET ${SHOPIFY_API}/products/8123456789099.json`]: shopifyError(
+      404,
+      'Not Found',
+    ),
+  },
+  ...shopifyRefusals('get_product'),
+  'list_customers/two_customers': {
+    [SHOPIFY_REQUESTS.list_customers]: shopifyOk({
+      customers: [
+        {
+          id: 7123456789013,
+          email: 'sam@example.com',
+          first_name: 'Sam',
+          last_name: 'Example',
+          orders_count: 1,
+        },
+        {
+          id: 7123456789012,
+          email: 'alex@example.com',
+          first_name: 'Alex',
+          last_name: 'Example',
+          orders_count: 3,
+        },
+      ],
+    }),
+  },
+  'list_customers/more_pages': {
+    [SHOPIFY_REQUESTS.list_customers]: shopifyPage(
+      'customers',
+      [
+        {
+          id: 7123456789015,
+          email: 'kim@example.com',
+          first_name: 'Kim',
+          last_name: 'Example',
+          orders_count: 0,
+        },
+        {
+          id: 7123456789014,
+          email: 'lee@example.com',
+          first_name: 'Lee',
+          last_name: 'Example',
+          orders_count: 2,
+        },
+      ],
+      'eyJkaXJlY3Rpb24iOiJuZXh0IiwibGFzdF9pZCI6NzEyMzQ1Njc4OTAxNH0',
+    ),
+  },
+  'list_customers/no_customers': {
+    [SHOPIFY_REQUESTS.list_customers]: shopifyOk({ customers: [] }),
+  },
+  ...shopifyRefusals('list_customers'),
+  'get_customer/one_customer': {
+    [SHOPIFY_REQUESTS.get_customer]: shopifyOk({
+      customer: {
+        id: 7123456789012,
+        email: 'alex@example.com',
+        first_name: 'Alex',
+        last_name: 'Example',
+        orders_count: 3,
+        total_spent: '102.00',
+      },
+    }),
+  },
+  'get_customer/no_orders': {
+    [SHOPIFY_REQUESTS.get_customer]: shopifyOk({
+      customer: {
+        id: 7123456789012,
+        email: 'alex@example.com',
+        first_name: 'Alex',
+        last_name: 'Example',
+        orders_count: 0,
+        total_spent: '0.00',
+      },
+    }),
+  },
+  'get_customer/customer_not_found': {
+    [`GET ${SHOPIFY_API}/customers/7123456789099.json`]: shopifyError(
+      404,
+      'Not Found',
+    ),
+  },
+  ...shopifyRefusals('get_customer'),
+  'list_orders/two_orders': {
+    [SHOPIFY_REQUESTS.list_orders]: shopifyOk({
+      orders: [
+        {
+          id: 5123456789013,
+          name: '#1002',
+          total_price: '18.00',
+          financial_status: 'paid',
+          fulfillment_status: 'partial',
+          created_at: '2026-03-03T09:30:00-05:00',
+        },
+        {
+          id: 5123456789012,
+          name: '#1001',
+          total_price: '68.00',
+          financial_status: 'paid',
+          fulfillment_status: 'fulfilled',
+          created_at: '2026-03-01T14:05:00-05:00',
+        },
+      ],
+    }),
+  },
+  'list_orders/more_pages': {
+    [SHOPIFY_REQUESTS.list_orders]: shopifyPage(
+      'orders',
+      [
+        {
+          id: 5123456789015,
+          name: '#1004',
+          total_price: '34.00',
+          financial_status: 'paid',
+          fulfillment_status: 'fulfilled',
+          created_at: '2026-03-08T12:00:00-05:00',
+        },
+        {
+          id: 5123456789014,
+          name: '#1003',
+          total_price: '24.00',
+          financial_status: 'refunded',
+          fulfillment_status: 'restocked',
+          created_at: '2026-03-05T17:20:00-05:00',
+        },
+      ],
+      'eyJkaXJlY3Rpb24iOiJuZXh0IiwibGFzdF9pZCI6NTEyMzQ1Njc4OTAxNH0',
+    ),
+  },
+  'list_orders/no_orders': {
+    [SHOPIFY_REQUESTS.list_orders]: shopifyOk({ orders: [] }),
+  },
+  ...shopifyRefusals('list_orders'),
+  'get_order/one_order': {
+    [SHOPIFY_REQUESTS.get_order]: shopifyOk({
+      order: {
+        id: 5123456789012,
+        name: '#1001',
+        total_price: '68.00',
+        financial_status: 'paid',
+        fulfillment_status: 'fulfilled',
+        line_items: [
+          {
+            id: 13123456789012,
+            title: 'Linen apron',
+            quantity: 2,
+            price: '34.00',
+          },
+        ],
+      },
+    }),
+  },
+  'get_order/nothing_to_pay': {
+    [SHOPIFY_REQUESTS.get_order]: shopifyOk({
+      order: {
+        id: 5123456789012,
+        name: '#1001',
+        total_price: '0.00',
+        financial_status: 'paid',
+        fulfillment_status: 'fulfilled',
+        line_items: [
+          {
+            id: 13123456789013,
+            title: 'Fabric swatch',
+            quantity: 1,
+            price: '0.00',
+          },
+        ],
+      },
+    }),
+  },
+  'get_order/order_not_found': {
+    [`GET ${SHOPIFY_API}/orders/5123456789099.json`]: shopifyError(
+      404,
+      'Not Found',
+    ),
+  },
+  ...shopifyRefusals('get_order'),
+  'count_products/four_products': {
+    [SHOPIFY_REQUESTS.count_products]: shopifyOk({ count: 4 }),
+  },
+  'count_products/no_products': {
+    [SHOPIFY_REQUESTS.count_products]: shopifyOk({ count: 0 }),
+  },
+  ...shopifyRefusals('count_products'),
+  'count_customers/four_customers': {
+    [SHOPIFY_REQUESTS.count_customers]: shopifyOk({ count: 4 }),
+  },
+  'count_customers/no_customers': {
+    [SHOPIFY_REQUESTS.count_customers]: shopifyOk({ count: 0 }),
+  },
+  ...shopifyRefusals('count_customers'),
+  'count_orders/four_orders': {
+    [SHOPIFY_REQUESTS.count_orders]: shopifyOk({ count: 4 }),
+  },
+  'count_orders/no_orders': {
+    [SHOPIFY_REQUESTS.count_orders]: shopifyOk({ count: 0 }),
+  },
+  ...shopifyRefusals('count_orders'),
+};
+
+/** What a listed connector's credential holds, as the proofs hand it to the
+ * live body: the secrets it reads through `ctx.secrets` and, for a
+ * per-credential connector, the endpoint it points at. */
+interface ProofCredential {
+  secrets?: Record<string, string>;
+  endpoint?: string;
+}
+
+/**
+ * Every listed connector's proofs, with what its credential holds —
  * synthetic, as every answer is. A connector joins `SCENARIO_CONNECTORS` with
  * its proofs, or this does not type-check.
  */
 const SCENARIO_PROOFS: Record<
   ScenarioConnector,
-  { secrets?: Record<string, string>; proofs: Record<string, ProofAnswers> }
+  ProofCredential & { proofs: Record<string, ProofAnswers> }
 > = {
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
     proofs: JEV_PROOFS,
+  },
+  shopify: {
+    secrets: { accessToken: 'shpat_example' },
+    endpoint: SHOPIFY_STORE,
+    proofs: SHOPIFY_PROOFS,
   },
   slack: { proofs: SLACK_PROOFS },
   tavily: {
@@ -1031,12 +1425,23 @@ const SCENARIO_PROOFS: Record<
  * response the live host builds — the status, the headers, `text()`, and a
  * `json()` that throws on a body that is not JSON — so a refusal comes as
  * data rather than a throw, and noting each request made. A secret reads as
- * the credential holds it, and one it lacks as empty, as on a live call.
+ * the credential holds it, and one it lacks as empty, as on a live call; the
+ * endpoint is the one the live host derives from the credential's — checked
+ * against the connector's allowed hosts and cut to its origin — and absent
+ * when the credential names none.
  */
 function proofHost(
+  connector: Connector,
   answers: ProofAnswers,
-  secrets: Record<string, string> = {},
-): { ctx: Pick<ConnectorContext, 'http' | 'secrets'>; asked: string[] } {
+  { secrets = {}, endpoint: credentialEndpoint }: ProofCredential = {},
+): {
+  ctx: Pick<ConnectorContext, 'endpoint' | 'http' | 'secrets'>;
+  asked: string[];
+} {
+  const { endpoint } = createLiveHost({
+    connector,
+    endpoint: credentialEndpoint,
+  });
   const asked: string[] = [];
   const answer =
     (method: string) =>
@@ -1054,6 +1459,7 @@ function proofHost(
       );
     };
   const ctx = {
+    ...(endpoint !== undefined && { endpoint }),
     http: {
       get: answer('GET'),
       post: answer('POST'),
@@ -1209,9 +1615,9 @@ describe('a connector scenario fits its action and answers as the live call woul
           `${slug}.${actionName} has no live body or no ${scenarioName} scenario`,
         );
       }
-      const { secrets, proofs } = SCENARIO_PROOFS[slug];
+      const { proofs, ...credential } = SCENARIO_PROOFS[slug];
       const answers = proofs[key];
-      const { ctx, asked } = proofHost(answers, secrets);
+      const { ctx, asked } = proofHost(connector, answers, credential);
       const outcome = await outcomeOf(
         inProcessLiveRunner().runBody(
           connectorLiveBody(connector, action.backend.live),
