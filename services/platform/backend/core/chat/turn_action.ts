@@ -2,6 +2,7 @@
 
 import type {
   ApiFormat,
+  ModelCatalogEntry,
   ProviderDefinition,
   WireDialect,
 } from '@tale/shared/schemas/providers';
@@ -48,6 +49,7 @@ import type {
   TurnDeps,
   TurnOutcome,
   TurnRequest,
+  TurnReroute,
 } from '../../../lib/chat/turn';
 import {
   messageText,
@@ -997,6 +999,63 @@ async function autoPromptFacts(
 }
 
 /**
+ * An Auto turn's replacement for a model whose provider refused it before
+ * accepting the first round (`TurnDeps.reroute`): Auto resolves again for
+ * the same message with every refused provider left out, so the next model
+ * passes the same governance, the same access check and the same strict
+ * connector as the first did; `undefined` when none is left. A test's model
+ * override serves the replacement too.
+ */
+export function autoReroute(
+  ctx: ActionCtx,
+  args: Pick<ExecuteTurnArgs, 'organizationId' | 'userId'>,
+  prompt: { text: string; hasImages: boolean },
+  budgetFor: (entry: ModelCatalogEntry) => TurnReroute['budget'],
+  modelOverride: ModelCall | undefined,
+): NonNullable<TurnDeps['reroute']> {
+  return async (refused) => {
+    const resolution = await resolveChatModel(ctx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      promptText: prompt.text,
+      requiresVision: prompt.hasImages,
+      excludeProviders: [
+        ...new Set(refused.map((candidate) => candidate.providerSlug)),
+      ],
+    });
+    if (!resolution.ok) return undefined;
+    const { pick } = resolution;
+    const access = await ctx.runQuery(
+      internal.governance.queries.checkModelAccessInternal,
+      {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        modelId: pick.modelId,
+      },
+    );
+    if (!access.allowed) return undefined;
+    // Strict: the connector the pick names serves it, or nothing does —
+    // a fallback could land on the very provider that just refused.
+    const resolved = await resolveModel(
+      ctx,
+      args.organizationId,
+      pick.modelId,
+      pick.providerSlug,
+      true,
+    );
+    const call =
+      modelOverride ??
+      createDirectModelCall(
+        ctx,
+        args.organizationId,
+        resolved.connector,
+        await resolveDirectWire(ctx, args.organizationId, resolved.connector),
+      );
+    return { model: resolved.entry, budget: budgetFor(resolved.entry), call };
+  };
+}
+
+/**
  * The attachment gate: images (vision wire), audio/video (transcription
  * → text), documents and text-based files (RAG-indexed, retrieved through
  * the knowledge tools) — strictly the 0.3 upload family — the composer's
@@ -1308,14 +1367,20 @@ export async function executeTurn(
   // Auto resolves FIRST, into a concrete (provider, model) pair — so every
   // check below, starting with the access policy, judges the model that
   // will actually run. An unresolvable Auto is an explicit refusal with the
-  // reason in the user's face, never a silent fallback.
+  // reason in the user's face, never a silent fallback. A provider that
+  // refuses the pick before accepting it gets the next pick instead
+  // (`autoReroute`), judged the same way, and the reply names it.
   let modelId: string;
   let providerSlug = args.providerSlug;
+  /** What the Auto pick read — read again when a refusal asks for another
+   * model (`autoReroute`). Unset for a model the person named. */
+  let autoPrompt: { text: string; hasImages: boolean } | undefined;
   if (args.modelSelection === 'auto') {
     if (args.modelId !== undefined) {
       return refuse('Pass either a model id or Auto — not both.');
     }
     const prompt = await autoPromptFacts(ctx, args);
+    autoPrompt = prompt;
     const resolution = await resolveChatModel(ctx, {
       organizationId: args.organizationId,
       userId: args.userId,
@@ -1523,22 +1588,28 @@ export async function executeTurn(
   // long thread never materializes whole. The internal read also frees the
   // scheduled API-key lane from session auth the public query demands.
   const governanceCap = unwrap(await pendingGovernanceCap);
-  const windowTokens = resolveEffectiveWindow({
-    contextWindow: resolved.entry.contextWindow,
-    governanceMaxContext: governanceCap,
-  });
-  // Resolved against the model's declarations, then re-fitted in case
-  // governance shrank the window under what the declaration assumed.
-  const sampling = fitSamplingToWindow(
-    resolveTurnSampling(
-      resolved.entry,
-      args.reasoningEffort,
-      args.maxOutputTokens === undefined
-        ? {}
-        : { maxOutputTokens: args.maxOutputTokens },
-    ),
-    windowTokens,
-  );
+  /** One model's effective window and first-round sampling — the turn's
+   * model's here, and a replacement's after a refusal (`autoReroute`). */
+  const windowFor = (entry: ModelCatalogEntry) => {
+    const windowTokens = resolveEffectiveWindow({
+      contextWindow: entry.contextWindow,
+      governanceMaxContext: governanceCap,
+    });
+    // Resolved against the model's declarations, then re-fitted in case
+    // governance shrank the window under what the declaration assumed.
+    const sampling = fitSamplingToWindow(
+      resolveTurnSampling(
+        entry,
+        args.reasoningEffort,
+        args.maxOutputTokens === undefined
+          ? {}
+          : { maxOutputTokens: args.maxOutputTokens },
+      ),
+      windowTokens,
+    );
+    return { windowTokens, sampling };
+  };
+  const { windowTokens, sampling } = windowFor(resolved.entry);
   const historyTokenBudget = Math.max(0, windowTokens - sampling.maxTokens);
   const { messages: stored, omittedCount } = await ctx.runQuery(
     internal.chat.messages.listRecentForTurnInternal,
@@ -1690,6 +1761,25 @@ export async function executeTurn(
     // undefined.
     tools: composeToolExecutors([retrievalTools, workTools?.executor]),
     ...(workTools !== undefined ? { maxToolRounds: MAX_WORK_TOOL_ROUNDS } : {}),
+    // Auto alone may answer on another model when the provider refuses
+    // before accepting; a model the person named is the one they asked for.
+    ...(autoPrompt !== undefined
+      ? {
+          reroute: autoReroute(
+            ctx,
+            args,
+            autoPrompt,
+            (entry) => {
+              const next = windowFor(entry);
+              return {
+                maxTokens: next.windowTokens,
+                reserveOutputTokens: next.sampling.maxTokens,
+              };
+            },
+            overrides.model,
+          ),
+        }
+      : {}),
     ...overrides.deps,
   };
 

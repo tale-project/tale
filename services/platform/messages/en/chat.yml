@@ -500,8 +500,8 @@ errorHintAuthError: The API key is invalid or does not have access to this
 errorHintContentFilter: The message was flagged by the content filter. Try rephrasing your message.
 errorHintContextLength: The conversation is too long for the model's context
   window. Try starting a new chat.
-errorHintCreditExhausted: The AI provider's credit limit was exceeded. Contact
-  your administrator to add credits.
+errorHintCreditExhausted: The AI provider is out of credits. Pick a model from
+  another provider, or ask your administrator to add credits.
 errorHintMissingApiKey: No API key configured for this workspace.
 errorHintModelNotFound: The selected model was not found or is unavailable.
   Contact your administrator.
@@ -527,8 +527,8 @@ errorHintUnsupportedParameter:
   model settings, or expand the details below.
 errorHintProviderUnreachable: The AI provider could not be reached. It may be
   offline or misconfigured. Try again, or contact your administrator.
-errorHintCreditExhaustedNamed: '{provider} is out of credits. Contact your
-  administrator to add credits or switch providers.'
+errorHintCreditExhaustedNamed: '{provider} is out of credits. Pick a model from
+  another provider, or ask your administrator to add credits.'
 errorHintAuthErrorNamed: The API key for {provider} is invalid or expired.
   Contact your administrator to update it.
 errorHintProviderUnreachableNamed: '{provider} could not be reached. It may be

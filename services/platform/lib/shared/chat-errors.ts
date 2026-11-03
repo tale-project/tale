@@ -213,6 +213,45 @@ export function isProviderRequestRefusal(error: unknown): boolean {
   );
 }
 
+/** A refusal of what the request says — a content filter or policy, a
+ * moderation flag, a guardrail — whatever status it arrives with: OpenRouter
+ * answers a moderation or guardrail block as a 403, a refused key's status. */
+const CONTENT_REFUSAL =
+  /content.?filter|content.?policy|moderation|guardrail|flagged|prompt.?injection/i;
+
+/** What a provider says when this account cannot be served right now
+ * (payment, rate, key, plan), nothing against the request itself. */
+const ACCOUNT_REFUSALS: ReadonlySet<ChatErrorCode> = new Set([
+  'credit_exhausted',
+  'rate_limited',
+  'auth_error',
+  'model_not_entitled',
+]);
+
+/** The statuses such a refusal arrives with. A 400 is about the request,
+ * whatever its text happens to mention (a schema's `key`, a `messages.402`
+ * path). */
+const ACCOUNT_REFUSAL_STATUSES: ReadonlySet<number> = new Set([
+  401, 402, 403, 429,
+]);
+
+/**
+ * Whether a provider turned a request away for the account rather than for
+ * the request: no credit, a rate limit, a refused key, a plan without the
+ * model. Another provider's model may answer such a request. One refused for
+ * its shape would be refused anywhere, and one refused for its content is
+ * never shopped around.
+ */
+export function isAccountRefusal(error: unknown): boolean {
+  if (!isProviderRequestRefusal(error)) return false;
+  const { status, message } = extractErrorFacts(error);
+  if (status !== undefined && !ACCOUNT_REFUSAL_STATUSES.has(status)) {
+    return false;
+  }
+  if (CONTENT_REFUSAL.test(message)) return false;
+  return ACCOUNT_REFUSALS.has(classifyChatErrorCode(error));
+}
+
 /**
  * The human sentence of a failure for the stored envelope: a platform
  * refusal's `data.message`, else the Error's own message, else `fallback`.
@@ -378,7 +417,7 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     return 'context_length';
   }
 
-  if (/content.?filter|content.?policy|moderation/i.test(message)) {
+  if (CONTENT_REFUSAL.test(message)) {
     return 'content_filter';
   }
 

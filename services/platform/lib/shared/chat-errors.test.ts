@@ -7,6 +7,7 @@ import {
   decodeChatError,
   describeChatError,
   encodeChatError,
+  isAccountRefusal,
   isChatErrorCode,
   isProviderRequestRefusal,
 } from './chat-errors';
@@ -38,6 +39,92 @@ describe('isProviderRequestRefusal', () => {
     { status: 200, code: 'insufficient_quota' },
   ])('does not waive usage from an ambiguous failure: %j', (error) => {
     expect(isProviderRequestRefusal(error)).toBe(false);
+  });
+});
+
+describe('isAccountRefusal [CHAT-R36]', () => {
+  /** A refusal as the direct wire throws it. */
+  function wire(status: number, body: string): Error {
+    return Object.assign(
+      new Error(`The model provider answered ${status}: ${body}`),
+      { status },
+    );
+  }
+
+  it.each([
+    [
+      'spent credit',
+      wire(
+        402,
+        '{"error":{"message":"This request requires more credits, or fewer max_tokens."}}',
+      ),
+    ],
+    ['a rate limit', wire(429, '{"error":{"message":"Rate limit exceeded"}}')],
+    ['a refused key', wire(401, '{"error":{"message":"Invalid API key"}}')],
+    [
+      'a key over its limit',
+      wire(403, '{"error":{"message":"Key limit exceeded"}}'),
+    ],
+    [
+      'a plan without the model',
+      wire(
+        429,
+        '{"error":{"code":"1311","message":"Your current subscription plan does not yet include access to GLM-5"}}',
+      ),
+    ],
+  ])('holds for %s', (_name, error) => {
+    expect(isAccountRefusal(error)).toBe(true);
+  });
+
+  it('reads a plan without the model as that, not as a refused key', () => {
+    expect(
+      classifyChatErrorCode(
+        wire(
+          403,
+          'Your current subscription plan does not yet include access to this model',
+        ),
+      ),
+    ).toBe('model_not_entitled');
+  });
+
+  it.each([
+    [
+      'a moderation flag',
+      wire(
+        403,
+        '{"error":{"message":"Your chosen model requires moderation and your input was flagged for violence"}}',
+      ),
+    ],
+    [
+      'a guardrail',
+      wire(
+        403,
+        '{"error":{"message":"Blocked by guardrail: prompt injection"}}',
+      ),
+    ],
+    [
+      'a content filter',
+      wire(
+        400,
+        '{"error":{"code":"content_filter","message":"The response was filtered"}}',
+      ),
+    ],
+    [
+      'a schema naming a key',
+      wire(
+        400,
+        '{"error":{"message":"Invalid schema for function: unknown key strict"}}',
+      ),
+    ],
+    [
+      'a path naming 402',
+      wire(400, '{"error":{"message":"messages.402.content: field required"}}'),
+    ],
+    ['an unknown model', wire(404, '{"error":{"message":"model not found"}}')],
+    ['a provider fault', wire(500, '{"error":{"message":"internal error"}}')],
+    ['an unreachable host', new Error('fetch failed')],
+  ])('does not hold for %s', (_name, error) => {
+    expect(isAccountRefusal(error)).toBe(false);
   });
 });
 
@@ -177,6 +264,21 @@ describe('classifyChatErrorCode', () => {
     expect(
       classifyChatErrorCode({ message: 'maximum context length exceeded' }),
     ).toBe('context_length');
+  });
+
+  it('reads a guardrail block or a flagged input as a content filter', () => {
+    expect(
+      classifyChatErrorCode({
+        status: 400,
+        message: 'Blocked by guardrail: prompt injection detected',
+      }),
+    ).toBe('content_filter');
+    expect(
+      classifyChatErrorCode({
+        status: 400,
+        message: 'Your input was flagged for violence',
+      }),
+    ).toBe('content_filter');
   });
 
   it('reads a tokens-per-minute rate limit as a rate limit, not an output cap', () => {

@@ -112,6 +112,21 @@ message adds only the note.
 - **Example**: Mia's message contains a word the organization's filter bans → no reply is
   generated; the chat shows her message and a blocked reply naming the filter.
 
+### CHAT-R36 · Auto tries another provider's model when the first turns the message away
+
+On **Auto**, the provider of the chosen model may refuse the message outright, for the account
+rather than for what it says: its credit is spent, it is limiting requests, it refuses the key,
+or the plan does not include the model. Auto then picks again among the other providers'
+models, by the same rules and the sender's same model access (`CHAT-R7`), up to three models in
+all, and the reply names the model that answered. A refusal of the message's content or shape
+ends the reply, as does any failure once a provider has accepted the message, and a model the
+sender picked by hand is never replaced. When no model is left, the reply fails naming the
+provider that refused last and its reason, and its details list each refusal. Nothing is
+remembered: the next message picks afresh.
+
+- **Example**: Mia sends a message on **Auto**; the organization's OpenRouter key has spent its
+  limit → the reply comes from the same model on Anthropic, and its details name Anthropic.
+
 ## Stopping, editing and trying again
 
 ### CHAT-R9 · Stopping a reply keeps what was already written, marked as stopped

@@ -28,6 +28,12 @@
  * candidate ids the picker would show, so Auto and the picker can never
  * disagree about what the user may run.
  *
+ * A turn whose pick the provider refused before accepting it (a spent
+ * credit, a rate limit, a revoked key) asks again with that provider in
+ * `excludeProviders`: its models leave the candidate world before governance
+ * and the pin are read, so the replacement passes every rule the first pick
+ * did. The list belongs to that one turn — nothing is remembered.
+ *
  * Every pick logs one line — (org, provider, model, source, band) — so a
  * surprising route is greppable without a gateway request log (the lesson
  * the vision lane paid for once already).
@@ -72,6 +78,9 @@ export interface ResolveChatModelArgs {
   promptText: string;
   /** The message carries images, so only vision models may answer. */
   requiresVision: boolean;
+  /** Providers that already refused THIS turn before accepting it: none of
+   * their models is a candidate, the admin's pin included. */
+  excludeProviders?: readonly string[];
 }
 
 export async function resolveChatModel(
@@ -88,7 +97,10 @@ export async function resolveChatModel(
       credential.authMethod === 'api-key' || credential.authMethod === 'env',
   );
 
-  const hits = await walkChatCatalog(ctx, args.organizationId, credentials);
+  const excluded = new Set(args.excludeProviders);
+  const hits = (
+    await walkChatCatalog(ctx, args.organizationId, credentials)
+  ).filter((hit) => !excluded.has(hit.connector.name));
   // First-wins per (connector, id): two direct credentials serving the same
   // catalog produce identical entries, so the duplicate carries nothing.
   const providerByEntry = new Map<ModelCatalogEntry, string>();
@@ -151,7 +163,7 @@ export async function resolveChatModel(
         band,
         highStakes,
       };
-      logPick(args.organizationId, pick);
+      logPick(args.organizationId, pick, excluded);
       return { ok: true, pick };
     }
     // Not in the eligible pool: the credential rotated away, the model left
@@ -179,13 +191,19 @@ export async function resolveChatModel(
     band,
     highStakes,
   };
-  logPick(args.organizationId, pick);
+  logPick(args.organizationId, pick, excluded);
   return { ok: true, pick };
 }
 
 /** The one place every Auto pick is logged. */
-function logPick(organizationId: string, pick: ChatModelPick): void {
+function logPick(
+  organizationId: string,
+  pick: ChatModelPick,
+  excluded: ReadonlySet<string>,
+): void {
+  const excluding =
+    excluded.size > 0 ? `, excluding ${[...excluded].join(', ')}` : '';
   console.log(
-    `[chat-model] resolved ${pick.providerSlug}/${pick.modelId} for ${organizationId} (${pick.source}, band=${pick.band}${pick.highStakes ? ', high-stakes' : ''})`,
+    `[chat-model] resolved ${pick.providerSlug}/${pick.modelId} for ${organizationId} (${pick.source}, band=${pick.band}${pick.highStakes ? ', high-stakes' : ''}${excluding})`,
   );
 }

@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 136 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 137 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -1042,6 +1042,19 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   press Enter → the snapshot appears without a reload, and the focus is on
   the shared chat, not lost to the page. Stop sharing (`CHAT-F22`) and reload
   → `chat.share.notFound`, with no **Try again**.
+- [ ] `CHAT-B30` · **Auto with one provider refusing** — Mode B, with two
+  direct providers that both serve a chat model (an OpenRouter key and an
+  Anthropic key, say): pick **Auto**, send a message and note the provider
+  its details name. Make that provider refuse: spend its key's usage limit
+  if it is OpenRouter, revoke its key otherwise. Send the same message again
+  → the reply arrives, and its details name the other provider's model.
+  Revoke the other provider's key too and send it once more → the reply
+  fails naming the provider that refused last, as **The API key for
+  anthropic is invalid or expired. Contact your administrator to update
+  it.** when that is Anthropic (`chat.errorHintAuthErrorNamed`; a spent limit
+  reads `chat.errorHintCreditExhaustedNamed` instead), with the tried-models
+  line (`chat.errorTriedModels`) and both refusals, one per line, under the
+  technical details. Put working keys back afterwards.
 
 ## Accessibility (WCAG 2.1 AA)
 
