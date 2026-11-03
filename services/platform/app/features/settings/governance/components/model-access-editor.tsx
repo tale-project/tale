@@ -17,7 +17,7 @@ import { Card } from '@tale/ui/card';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { HStack, Stack } from '@tale/ui/layout';
-import { MultiSelect } from '@tale/ui/multi-select';
+import { MultiSelect, type MultiSelectOption } from '@tale/ui/multi-select';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { SkeletonText } from '@tale/ui/skeleton';
@@ -53,7 +53,11 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
-import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
+import {
+  isAccessEntryOffered,
+  useListProviders,
+  useModelCapabilities,
+} from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
@@ -154,6 +158,9 @@ interface RuleDialogProps {
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
   allModelOptions: { value: string; label: string; tags: string[] }[];
+  /** The chip of a stored model no option matches: kept, so the rule shows
+   * every model it names and the admin can remove one no provider offers. */
+  unmatchedModelOption: (modelId: string) => MultiSelectOption;
   modelCapabilities: Map<string, ModelInfoCapabilities>;
   organizationId: string;
   mode: ModelAccessConfig['mode'];
@@ -171,6 +178,7 @@ function RuleDialog({
   memberOptions,
   teamOptions,
   allModelOptions,
+  unmatchedModelOption,
   modelCapabilities,
   organizationId,
   mode,
@@ -334,6 +342,7 @@ function RuleDialog({
             }
           }}
           options={modelSelectOptions}
+          unmatchedOption={unmatchedModelOption}
           optionAction={(option) => (
             <ModelInfoPopover
               tags={tagsByModel.get(option.value) ?? []}
@@ -398,7 +407,7 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
-  const { providers } = useListProviders(organizationId);
+  const { providers, offered } = useListProviders(organizationId);
 
   const memberOptions = useMemo(
     () =>
@@ -439,6 +448,29 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     return options;
   }, [providers]);
 
+  // A model no provider with an active credential offers — left behind by
+  // a removed provider. The rule keeps naming it; the editor says so.
+  const isModelUnavailable = useCallback(
+    (modelId: string) =>
+      offered !== null && !isAccessEntryOffered(offered, modelId),
+    [offered],
+  );
+  const modelLabel = useCallback(
+    (modelId: string) =>
+      allModelOptions.find((o) => o.value === modelId)?.label ??
+      (isModelUnavailable(modelId)
+        ? t('modelAccess.unavailableModel', { model: modelId })
+        : modelId),
+    [allModelOptions, isModelUnavailable, t],
+  );
+  const unmatchedModelOption = useCallback(
+    (modelId: string): MultiSelectOption => ({
+      value: modelId,
+      label: modelLabel(modelId),
+    }),
+    [modelLabel],
+  );
+
   const savedConfig = useMemo(
     () => parseModelAccessConfig(policy?.config),
     [policy?.config],
@@ -457,6 +489,12 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
   const needsTargetRepair = rules.some(
     (rule) => !modelAccessRuleHasTarget(rule),
+  );
+  const namesUnavailableModels = rules.some((rule) =>
+    (mode === 'allowlist'
+      ? rule.allowedModels
+      : (rule.blockedModels ?? [])
+    ).some(isModelUnavailable),
   );
   // The model endpoints' switch lives in the same policy file: every save
   // below writes it back beside the rules, so no rule edit can drop it.
@@ -704,14 +742,11 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const resolveModelNames = useCallback(
     (modelIds: string[]): string => {
       if (modelIds.length === 0) return '\u2014';
-      const names = modelIds.map((id) => {
-        const opt = allModelOptions.find((o) => o.value === id);
-        return opt?.label ?? id;
-      });
+      const names = modelIds.map(modelLabel);
       if (names.length <= 3) return names.join(', ');
       return `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
     },
-    [allModelOptions],
+    [modelLabel],
   );
 
   const loading = isLoading || readback === null;
@@ -763,6 +798,12 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
               <Alert
                 variant="warning"
                 description={t('modelAccess.targetsNeedRepair')}
+              />
+            )}
+            {!loading && namesUnavailableModels && (
+              <Alert
+                variant="warning"
+                description={t('modelAccess.unavailableModelsHint')}
               />
             )}
             <HStack justify="end">
@@ -901,6 +942,7 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
             memberOptions={memberOptions}
             teamOptions={teamOptions}
             allModelOptions={allModelOptions}
+            unmatchedModelOption={unmatchedModelOption}
             modelCapabilities={modelCapabilities}
             organizationId={organizationId}
             mode={mode}

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 102 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 103 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -1057,6 +1057,21 @@ agent.
   **Couldn't load API keys.** (`governance.budgets.apiKeysLoadFailed`) with
   **Try again**, and its list never **No teams found** or **No API keys
   found**. No toast; every label reads in German and French too.
+- [ ] `GOV-B29` · **Rules on a provider no longer offered** — After
+  `SET-B50` (P's last active credential deleted), open Governance › Models →
+  the **Default models** rule reads **P (unavailable)** under **Provider**
+  (`governance.defaultModels.unavailableProvider`) beside its model id, under
+  the notice `governance.defaultModels.unavailableHint`; **Edit rule** → the
+  **Provider** field reads the same; **Confirm** and save → the rule is kept
+  as it was. A rule whose provider is still offered but no longer offers its
+  model reads `governance.defaultModels.unavailableModel` under **Model**.
+  The **Model access** rule names the P model with **(unavailable)**
+  (`governance.modelAccess.unavailableModel`), under the notice
+  `governance.modelAccess.unavailableModelsHint`; edit it → its chip stays in
+  the field, marked; save untouched → the model stays in the rule; remove the
+  chip and save → it is gone from the rule. Add a credential for P again and
+  reload → no marker or notice is left. Every label reads in German and
+  French too.
 
 ## Accessibility (WCAG 2.1 AA)
 

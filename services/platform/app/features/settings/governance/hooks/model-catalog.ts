@@ -6,6 +6,8 @@ import {
 } from '@/app/features/settings/providers/hooks/queries';
 import type { ModelInfoCapabilities } from '@/app/features/shared/models/model-info-popover';
 
+import { stripQualifier } from '../components/model-id';
+
 /**
  * The provider/model catalog the governance model-policy editors (default
  * models, model access) read to fill their provider and model pickers.
@@ -32,17 +34,38 @@ export interface CatalogProviderRecord {
   [key: string]: unknown;
 }
 
+/**
+ * The model ids each provider with an active credential offers, by provider
+ * name: what tells a stored rule entry that still names a model the
+ * organization can use from one a removed provider left behind.
+ */
+export type OfferedModels = ReadonlyMap<string, ReadonlySet<string>>;
+
 const EMPTY_PROVIDERS: CatalogProviderRecord[] = [];
 const EMPTY_CAPABILITIES = new Map<string, ModelInfoCapabilities>();
+
+function activeProviderSlugs(
+  credentials: readonly { providerSlug: string; status: string }[],
+): Set<string> {
+  return new Set(
+    credentials
+      .filter((credential) => credential.status === 'active')
+      .map((credential) => credential.providerSlug),
+  );
+}
 
 /**
  * Every provider the organization can authenticate with, each carrying its
  * model catalog. A provider with no active credential is omitted: a
  * default-model or access rule pointing at it could never serve, and the
- * Providers settings page shows the same set.
+ * Providers settings page shows the same set. `offered` is the same set as
+ * model ids, and `null` while it is unknown — a read is loading or failed,
+ * or a configured provider's catalog could not be listed (its models are
+ * unknown, not gone) — so no entry is marked unavailable on a guess.
  */
 export function useListProviders(organizationId: string): {
   providers: CatalogProviderRecord[];
+  offered: OfferedModels | null;
   isLoading: boolean;
 } {
   const { data: catalogs, isLoading: catalogsLoading } =
@@ -52,11 +75,7 @@ export function useListProviders(organizationId: string): {
 
   const providers = useMemo<CatalogProviderRecord[]>(() => {
     if (!catalogs || catalogs.length === 0) return EMPTY_PROVIDERS;
-    const configured = new Set(
-      (credentials ?? [])
-        .filter((credential) => credential.status === 'active')
-        .map((credential) => credential.providerSlug),
-    );
+    const configured = activeProviderSlugs(credentials ?? []);
     const list = catalogs
       .filter((provider) => configured.has(provider.name))
       .map<CatalogProviderRecord>((provider) => ({
@@ -75,7 +94,46 @@ export function useListProviders(organizationId: string): {
     return list.length === 0 ? EMPTY_PROVIDERS : list;
   }, [catalogs, credentials]);
 
-  return { providers, isLoading: catalogsLoading || credentialsLoading };
+  const offered = useMemo<OfferedModels | null>(() => {
+    if (!catalogs || !credentials) return null;
+    const configured = activeProviderSlugs(credentials);
+    const listed = catalogs.filter((provider) => configured.has(provider.name));
+    if (listed.some((provider) => provider.catalogError !== undefined)) {
+      return null;
+    }
+    return new Map(
+      listed.map((provider) => [
+        provider.name,
+        new Set(provider.models.map((model) => model.id)),
+      ]),
+    );
+  }, [catalogs, credentials]);
+
+  return {
+    providers,
+    offered,
+    isLoading: catalogsLoading || credentialsLoading,
+  };
+}
+
+/**
+ * Whether some provider with an active credential, other than
+ * `exceptProvider`, offers the model a model access entry names — compared
+ * without a provider qualifier, as the access check compares them.
+ */
+export function isAccessEntryOffered(
+  offered: OfferedModels,
+  entry: string,
+  exceptProvider?: string,
+): boolean {
+  const plain = stripQualifier(entry);
+  for (const [provider, models] of offered) {
+    if (provider === exceptProvider) continue;
+    for (const id of models) {
+      if (stripQualifier(id) === plain) return true;
+    }
+  }
+  return false;
 }
 
 /**

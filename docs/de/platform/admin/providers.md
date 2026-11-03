@@ -137,4 +137,6 @@ Nutze die Ersetzen-Aktion im Zeilenmenü, um ein Geheimnis zu rotieren und Namen
 
 Das Löschen eines Eintrags entzieht abhängigen Aufrufern den Zugriff. Stelle sie vorher um. Wenn du den Standard löschst, wähle einen neuen, damit Aufrufe ohne ausdrückliche Auswahl weiterhin Zugangsdaten finden. Zugangsdaten, die das Embedding-Modell der Wissenssuche verwendet — die unter **Einstellungen > Datenresidenz > Embedding-Modell** gewählten oder der letzte aktive Standard dieses Anbieters — lassen sich nicht löschen: Der Löschdialog nennt die Abhängigkeit, und Tale lehnt das Löschen ab. Wähle zuerst andere Zugangsdaten für das Embedding-Modell.
 
+Löschst du die letzten aktiven Zugangsdaten eines Anbieters, werden auch seine Modelle nicht mehr angeboten. Nennen Einstellungen sie noch — Standardmodelle, Modellzugriff, das Modell für Bilder, das Modell für Audiotranskription, die Bildgenerierung, der Standard-Agent oder Projekt-Agenten —, listet der Löschdialog sie auf. Das Löschen geht trotzdem durch und lässt diese Einstellungen unverändert; wähle danach andere Modelle für sie (siehe [Modelle](/de/platform/admin/governance/content-models)).
+
 </Warning>

@@ -399,6 +399,16 @@ export const providerCredentialUpdateSchema = z.object({
   accountId: z.string().trim().min(1).max(200).optional(),
 });
 
+/** The settings that can name a provider's models by the provider — what the
+ * delete dialog lists for the provider's last active credential. */
+export type CredentialSettingDependentKind =
+  | 'default-models'
+  | 'vision-model'
+  | 'transcription-model'
+  | 'image-generation'
+  | 'standard-agent'
+  | 'project-agents';
+
 /** Hash projection excludes masked previews, ciphertext and secret values. */
 export const providerCredentialMetadataSchema = z.object({
   id: z.string(),

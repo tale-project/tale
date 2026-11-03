@@ -137,4 +137,6 @@ Utilise l’action de remplacement de la ligne pour changer le secret en conserv
 
 Supprimer des identifiants retire l’accès aux appelants qui en dépendent. Migre-les d’abord. Si tu supprimes le choix par défaut, désigne son remplacement pour que les appels sans sélection explicite puissent encore fonctionner. Les identifiants que le modèle d’embedding de la recherche de connaissances utilise — ceux choisis sous **Paramètres > Résidence des données > Modèle d’embedding**, ou le dernier identifiant par défaut actif de ce fournisseur — ne peuvent pas être supprimés : la boîte de dialogue nomme la dépendance et Tale refuse la suppression. Choisis d’abord d’autres identifiants pour le modèle d’embedding.
 
+Supprimer le dernier identifiant actif d’un fournisseur fait aussi cesser l’offre de ses modèles. Si des paramètres les nomment encore — modèles par défaut, accès aux modèles, modèle pour les images, modèle de transcription audio, génération d’images, agent standard ou agents de projet —, la boîte de dialogue de suppression les liste. La suppression a tout de même lieu et laisse ces paramètres tels quels ; choisis ensuite d’autres modèles pour eux (voir [Modèles](/fr/platform/admin/governance/content-models)).
+
 </Warning>

@@ -66,6 +66,17 @@ retired this way. When retiring the provider fails, the credential is still dele
 - **Example**: Ada deletes the only credential of a provider her organization defined, and
   chooses to remove the provider too → both are gone.
 
+### PCRED-R7 · Deleting a provider's last active credential names the settings on its models
+
+The delete dialog lists the settings in force that name the provider: its default model
+rules, the vision and transcription models, image generation, the standard agent, the project
+agents pinned to it, and the model access rules whose models only this provider offers. The
+delete still goes through and changes none of them. While another active credential of the
+provider is left, nothing is listed.
+
+- **Example**: Ada deletes her organization's only OpenAI credential while the vision model
+  is pinned to an OpenAI model → the dialog names the vision model before she confirms.
+
 ## Not yet
 
 - **Who can manage credentials**: owners and admins. Only the read of what depends on a

@@ -43,7 +43,11 @@ import { answersChatTurns } from '@/lib/shared/providers/chat_turn_models';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
-import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
+import {
+  type OfferedModels,
+  useListProviders,
+  useModelCapabilities,
+} from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
@@ -142,6 +146,53 @@ interface ProviderInfo {
   models: ProviderModel[];
 }
 
+type Translator = (key: string, options?: Record<string, unknown>) => string;
+
+/** A rule's provider as the editor names it — marked when no provider with
+ * an active credential offers it any more (a removed provider's rule). */
+function providerLabel(
+  t: Translator,
+  providerList: ProviderInfo[],
+  offered: OfferedModels | null,
+  providerName: string,
+): string {
+  const provider = providerList.find((p) => p.name === providerName);
+  if (provider) return provider.displayName;
+  return offered !== null && !offered.has(providerName)
+    ? t('defaultModels.unavailableProvider', { provider: providerName })
+    : providerName;
+}
+
+/** A rule's model as the editor names it — marked when its provider is
+ * still offered but no longer offers the model (a removed provider's rule is
+ * marked on its provider). */
+function modelLabel(
+  t: Translator,
+  providerList: ProviderInfo[],
+  offered: OfferedModels | null,
+  rule: Pick<DefaultModelRule, 'providerName' | 'modelId'>,
+): string {
+  const model = providerList
+    .find((p) => p.name === rule.providerName)
+    ?.models.find((m) => m.id === rule.modelId);
+  if (model) return model.displayName;
+  return offered?.get(rule.providerName)?.has(rule.modelId) === false
+    ? t('defaultModels.unavailableModel', { model: rule.modelId })
+    : rule.modelId;
+}
+
+/** Whether a rule names a provider or a model no longer offered: the chat
+ * then falls back to automatic selection. */
+function isRuleModelUnavailable(
+  offered: OfferedModels | null,
+  rule: Pick<DefaultModelRule, 'providerName' | 'modelId'>,
+): boolean {
+  return (
+    offered !== null &&
+    offered.get(rule.providerName)?.has(rule.modelId) !== true
+  );
+}
+
 interface RuleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -151,6 +202,7 @@ interface RuleDialogProps {
   cannotManage: boolean;
   teamOptions: { value: string; label: string }[];
   providerList: ProviderInfo[];
+  offered: OfferedModels | null;
   accessConfig: ModelAccessConfig | null;
   organizationId: string;
 }
@@ -166,6 +218,7 @@ function RuleDialog({
   cannotManage,
   teamOptions,
   providerList,
+  offered,
   accessConfig,
   organizationId,
 }: RuleDialogProps) {
@@ -222,14 +275,25 @@ function RuleDialog({
     [draft, onSave, onOpenChange],
   );
 
-  const providerOptions = useMemo(
-    () =>
-      providerList.map((p) => ({
-        value: p.name,
-        label: p.displayName || p.name,
-      })),
-    [providerList],
-  );
+  // A stored provider or model no option matches stays the select's value as
+  // a marked option of its own, so the dialog shows what the rule names and
+  // a save keeps it until another is picked.
+  const providerOptions = useMemo(() => {
+    const options = providerList.map((p) => ({
+      value: p.name,
+      label: p.displayName || p.name,
+    }));
+    return draft.providerName &&
+      !options.some((o) => o.value === draft.providerName)
+      ? [
+          ...options,
+          {
+            value: draft.providerName,
+            label: providerLabel(t, providerList, offered, draft.providerName),
+          },
+        ]
+      : options;
+  }, [providerList, offered, draft.providerName, t]);
 
   // The models a chat turn can be sent to — the chat picker's own set.
   const chatModels = useMemo(() => {
@@ -237,14 +301,21 @@ function RuleDialog({
     return provider?.models.filter(answersChatTurns) ?? [];
   }, [providerList, draft.providerName]);
 
-  const modelOptions = useMemo(
-    () =>
-      chatModels.map((m) => ({
-        value: m.id,
-        label: m.displayName || m.id,
-      })),
-    [chatModels],
-  );
+  const modelOptions = useMemo(() => {
+    const options = chatModels.map((m) => ({
+      value: m.id,
+      label: m.displayName || m.id,
+    }));
+    return draft.modelId && !options.some((o) => o.value === draft.modelId)
+      ? [
+          ...options,
+          {
+            value: draft.modelId,
+            label: modelLabel(t, providerList, offered, draft),
+          },
+        ]
+      : options;
+  }, [chatModels, providerList, offered, draft, t]);
 
   // Only subscribe to capabilities (a per-model indexed read fan-out) while the
   // dialog is open — RuleDialog stays mounted when closed, so an ungated hook
@@ -401,7 +472,7 @@ function DefaultModelEditorContent({
   );
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { teams } = useOrgTeams();
-  const { providers } = useListProviders(organizationId);
+  const { providers, offered } = useListProviders(organizationId);
 
   const accessConfig = useMemo(
     () => parseModelAccessConfig(accessPolicy?.config),
@@ -586,23 +657,21 @@ function DefaultModelEditorContent({
   );
 
   const resolveModelName = useCallback(
-    (rule: DefaultModelRule): string => {
-      for (const provider of providerList) {
-        if (provider.name !== rule.providerName) continue;
-        const model = provider.models.find((m) => m.id === rule.modelId);
-        if (model) return model.displayName;
-      }
-      return rule.modelId;
-    },
-    [providerList],
+    (rule: DefaultModelRule): string =>
+      modelLabel(t, providerList, offered, rule),
+    [providerList, offered, t],
   );
 
   const resolveProviderName = useCallback(
-    (rule: DefaultModelRule): string => {
-      const provider = providerList.find((p) => p.name === rule.providerName);
-      return provider?.displayName ?? rule.providerName;
-    },
-    [providerList],
+    (rule: DefaultModelRule): string =>
+      providerLabel(t, providerList, offered, rule.providerName),
+    [providerList, offered, t],
+  );
+
+  // A rule left on a provider or model no longer offered falls back to
+  // automatic selection; the hint says so and that the rule is unchanged.
+  const namesUnavailableModels = rules.some((rule) =>
+    isRuleModelUnavailable(offered, rule),
   );
 
   // While loading, render fixed placeholder rows so the table occupies the
@@ -636,6 +705,12 @@ function DefaultModelEditorContent({
             sits under the table, where Model access has it. */}
         {(loading || enabled) && (
           <Stack gap={4}>
+            {!loading && namesUnavailableModels && (
+              <Alert
+                variant="warning"
+                description={t('defaultModels.unavailableHint')}
+              />
+            )}
             <Row justify="end">
               <Button
                 variant="primary"
@@ -765,6 +840,7 @@ function DefaultModelEditorContent({
           cannotManage={cannotManage}
           teamOptions={teamOptions}
           providerList={providerList}
+          offered={offered}
           accessConfig={accessConfig}
           organizationId={organizationId}
         />

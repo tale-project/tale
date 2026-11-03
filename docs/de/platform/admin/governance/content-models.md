@@ -14,6 +14,8 @@ Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** 
 
 Der Standard greift, wenn kein Modell ausdrücklich gewählt wurde. Eine Teamregel hat Vorrang vor einer Rollenregel, danach gilt der allgemeine Standard; gehört jemand mehreren Teams mit einer Regel an, gewinnt die erste passende Teamregel in der Tabelle (siehe [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine)). Ein Standard verhindert nicht, dass jemand ein anderes erlaubtes Modell wählt.
 
+Eine Regel, deren Anbieter keine aktiven Zugangsdaten mehr hat, zeigt **(nicht verfügbar)** hinter dem Anbieter, und ein Modell, das sein Anbieter nicht mehr anbietet, zeigt es hinter dem Modell. Ein Hinweis über der Tabelle sagt, dass solche Regeln auf **Automatisch** zurückfallen, bis du sie bearbeitest oder entfernst; Tale behält sie wie gespeichert.
+
 Die Modellliste bietet die Modelle an, die im Chat antworten können. Ein Bildmodell, das keine Tools verwenden kann, etwa Gemini 2.5 Flash Image, fehlt darin wie auch in der Modellauswahl des Chats: Der Chat sendet jede Nachricht mit Tools, etwa einer Dokumentsuche. Wähle ein solches Modell unter [Bildgenerierung](#let-agents-generate-images), dann erstellt der Assistent Bilder damit.
 
 ## Den Modellzugriff begrenzen
@@ -30,6 +32,8 @@ Regeln für Personen, Teams und Rollen benötigen in beiden Modi ein Ziel, bevor
 | Blockierte Liste | Modelle sind erlaubt, solange sie nicht als gesperrt aufgeführt sind. |
 
 Zuerst gelten Personenregeln, danach Teamregeln, Rollenregeln und der Standard. Mehrere passende Teamregeln kombinieren ihre Listen. Eine ausdrückliche Sperre hat für das Modell weiterhin Vorrang. Passt keine Regel, schränkt die Richtlinie diese Person nicht ein. Lege eine Standardregel an, wenn du alle abdecken willst.
+
+Ein Modell, das kein Anbieter mit aktiven Zugangsdaten mehr anbietet, bleibt in seiner Regel und zeigt **(nicht verfügbar)**, in der Tabelle und im Modellfeld der Regel, wo du es entfernen kannst. Tale behält es wie gespeichert.
 
 Bei Chats wird der Zugriff bei der Modellnutzung geprüft, auch bei ausdrücklich gewählten oder festgelegten Modellen. Ein Standardmodell muss die Prüfung ebenfalls bestehen. Wird es abgelehnt, kann die automatische Auswahl auf ein erlaubtes Modell ausweichen. Der Editor warnt bei widersprüchlichen Standard- und Zugriffsregeln. Löse den Widerspruch, damit der gewünschte Standard tatsächlich verwendet wird.
 

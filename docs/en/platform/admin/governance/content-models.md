@@ -14,6 +14,8 @@ Use **Settings > Governance > Models** as an Admin or Owner to choose the models
 
 The default is used when there is no explicit model choice. A team rule takes precedence over a role rule, followed by the baseline default; when someone belongs to several teams with a rule, the first matching team rule in the table wins (see [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine)). A default does not prevent someone from selecting another permitted model.
 
+A rule whose provider no longer has an active credential shows **(unavailable)** after the provider, and a model its provider no longer offers shows it after the model. A notice above the table says that such rules fall back to **Automatic** until you edit or remove them; Tale keeps them as saved.
+
 The model list offers the models that can answer in chat. An image model that can't use tools, such as Gemini 2.5 Flash Image, is not among them, nor in the chat's model picker: chat sends every message with tools, such as a document search. Choose such a model under [image generation](#let-agents-generate-images), and the assistant creates pictures with it.
 
 ## Restrict model access
@@ -30,6 +32,8 @@ Older rules saved without a target remain visible as **Missing target**, with a 
 | **Blocklist** | Models are permitted unless listed as blocked. |
 
 Access resolves user rules before team rules, then role rules, then the default. Multiple matching team rules combine their lists; an explicit block still wins for that model. If no rule matches, the policy does not restrict that user. Add a baseline rule when you intend to cover everyone.
+
+A model that no provider with an active credential offers any more stays in its rule and shows **(unavailable)**, in the table and in the rule's model field, where you can remove it. Tale keeps it as saved.
 
 For chat, access is checked when a model is used, including an explicitly selected or pinned model. A configured default must also pass the check. If it is denied, automatic selection can fall back to an allowed model. The editor warns about a default that conflicts with access rules; resolve that warning so the intended default is actually used.
 

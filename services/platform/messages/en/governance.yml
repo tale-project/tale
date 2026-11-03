@@ -160,6 +160,12 @@ defaultModels:
     developer: Developer
     editor: Editor
     member: Member
+  unavailableProvider: '{provider} (unavailable)'
+  unavailableModel: '{model} (unavailable)'
+  unavailableHint: >-
+    Some rules name a provider or model that no provider with an active
+    credential offers any more. They are marked unavailable and fall back to
+    Automatic until you edit or remove them.
 visionModel:
   title: Vision model
   description:
@@ -1407,6 +1413,10 @@ modelAccess:
       Anthropic-compatible endpoints. Calls count against budgets and pass the
       input guardrails; the models' answers are not filtered.
     enabled: Enable model endpoints for API keys
+  unavailableModel: '{model} (unavailable)'
+  unavailableModelsHint: >-
+    Some rules name models that no provider with an active credential offers
+    any more. They are marked unavailable; edit a rule to remove them.
 dataSubjectRequests:
   title: Data subject requests
   entityLabel: requests

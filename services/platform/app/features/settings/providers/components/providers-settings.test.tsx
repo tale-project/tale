@@ -46,6 +46,10 @@ const fixtures = vi.hoisted(() => ({
   catalogsError: null as unknown,
   /** What the dependents read answers for any credential. */
   dependents: [] as string[],
+  /** The settings it names as left on the provider's models. */
+  dependentSettings: [] as Array<{ setting: string; count: number }>,
+  /** The stored model access policy the delete dialog counts. */
+  modelAccess: null as unknown,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -72,7 +76,9 @@ vi.mock('../hooks/queries', () => ({
     options?: { enabled?: boolean },
   ) => ({
     data:
-      options?.enabled === false ? undefined : { usedBy: fixtures.dependents },
+      options?.enabled === false
+        ? undefined
+        : { usedBy: fixtures.dependents, settings: fixtures.dependentSettings },
     isPending: false,
     isError: false,
     error: null,
@@ -92,6 +98,26 @@ vi.mock('../hooks/queries', () => ({
     error: null,
   }),
 }));
+
+vi.mock(
+  '@/app/features/settings/governance/hooks/queries',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/settings/governance/hooks/queries')
+    >()),
+    useGovernancePolicy: (
+      _organizationId: string,
+      policyType: string,
+      options?: { enabled?: boolean },
+    ) => ({
+      data:
+        options?.enabled === false || policyType !== 'model_access'
+          ? undefined
+          : { config: fixtures.modelAccess },
+      isLoading: false,
+    }),
+  }),
+);
 
 vi.mock('../hooks/mutations', () => ({
   useCreateCredential: () => ({
@@ -344,6 +370,9 @@ describe('ProvidersSettings', () => {
     fixtures.catalogs = [anthropicProvider, openrouterProvider];
     fixtures.credentials = [...defaultCredentials];
     fixtures.catalogsError = null;
+    fixtures.dependents = [];
+    fixtures.dependentSettings = [];
+    fixtures.modelAccess = null;
   });
 
   it('lists one row per credential with its provider and status', async () => {
@@ -923,6 +952,188 @@ describe('ProvidersSettings', () => {
         ),
       );
       fixtures.dependents = [];
+    });
+
+    // #5340: deleting a provider's last active credential takes its models
+    // away from the settings that name them; the dialog names those, and the
+    // delete still goes through.
+    describe("the settings a provider's last active credential leaves", () => {
+      const ACCESS_POLICY = {
+        enabled: true,
+        mode: 'allowlist',
+        rules: [
+          {
+            scope: 'default',
+            // `gpt-6.1-sol` is no provider's: deleting the key changes nothing
+            // for it, so it is not counted.
+            allowedModels: ['claude-fable-5', 'gpt-6.1-sol'],
+            blockedModels: [],
+          },
+          {
+            scope: 'role',
+            scopeId: 'member',
+            allowedModels: ['claude-fable-5', 'claude-haiku-4'],
+          },
+        ],
+      };
+
+      async function openDelete(
+        user: Awaited<ReturnType<typeof render>>['user'],
+        name: string,
+      ) {
+        await user.click(
+          screen.getByRole('button', { name: `Actions for ${name}` }),
+        );
+        await user.click(
+          within(await screen.findByRole('menu')).getByRole('menuitem', {
+            name: 'Delete',
+          }),
+        );
+        return within(
+          await screen.findByRole('dialog', { name: 'Delete credential' }),
+        );
+      }
+
+      it('names each setting and still deletes', async () => {
+        fixtures.credentials = [
+          credential({ id: 'cred-1', name: 'Production key' }),
+        ];
+        fixtures.dependentSettings = [
+          { setting: 'default-models', count: 2 },
+          { setting: 'vision-model', count: 1 },
+          { setting: 'project-agents', count: 3 },
+        ];
+        fixtures.modelAccess = ACCESS_POLICY;
+        const { user } = renderPage();
+        const confirm = await openDelete(user, 'Production key');
+        expect(
+          await confirm.findByText(
+            'Anthropic has no other active credential, so its models will no longer be offered. These settings still name them and stay as they are: Default models (2 rules), Model access (2 models), Vision model, and 3 project agents.',
+          ),
+        ).toBeInTheDocument();
+        await user.click(confirm.getByRole('button', { name: /Delete/ }));
+        await waitFor(() =>
+          expect(deleteCredential).toHaveBeenCalledWith({
+            organizationId: 'org-1',
+            credentialId: 'cred-1',
+          }),
+        );
+      });
+
+      it("counts only the model access entries of the policy's mode", async () => {
+        fixtures.credentials = [
+          credential({ id: 'cred-1', name: 'Production key' }),
+        ];
+        fixtures.modelAccess = {
+          enabled: true,
+          mode: 'blocklist',
+          rules: [
+            {
+              scope: 'default',
+              allowedModels: ['claude-fable-5', 'claude-haiku-4'],
+              blockedModels: ['claude-haiku-4'],
+            },
+          ],
+        };
+        const { user } = renderPage();
+        const confirm = await openDelete(user, 'Production key');
+        expect(
+          await confirm.findByText(
+            /stay as they are: Model access \(1 model\)\./,
+          ),
+        ).toBeInTheDocument();
+      });
+
+      it.each([
+        ['another active credential of the provider is left', 'Ops key'],
+        ['the credential is disabled', 'Claude subscription'],
+      ])('names none when %s', async (_case, name) => {
+        fixtures.modelAccess = ACCESS_POLICY;
+        const { user } = renderPage();
+        const confirm = await openDelete(user, name);
+        expect(
+          confirm.queryByText(/no other active credential/),
+        ).not.toBeInTheDocument();
+      });
+
+      it('counts no model access entry while a configured catalog cannot be listed', async () => {
+        fixtures.credentials = [
+          credential({ id: 'cred-1', name: 'Production key' }),
+          credential({
+            id: 'cred-or',
+            name: 'Router key',
+            providerSlug: 'openrouter',
+          }),
+        ];
+        fixtures.modelAccess = ACCESS_POLICY;
+        const { user } = renderPage();
+        const confirm = await openDelete(user, 'Production key');
+        expect(
+          confirm.queryByText(/no other active credential/),
+        ).not.toBeInTheDocument();
+      });
+
+      it.each(SHIPPED_LOCALES)('words the list in %s', async (locale) => {
+        fixtures.credentials = [
+          credential({ id: 'cred-1', name: 'Production key' }),
+        ];
+        fixtures.dependentSettings = [
+          { setting: 'default-models', count: 1 },
+          { setting: 'transcription-model', count: 1 },
+          { setting: 'image-generation', count: 1 },
+          { setting: 'standard-agent', count: 1 },
+          { setting: 'project-agents', count: 1 },
+        ];
+        fixtures.modelAccess = ACCESS_POLICY;
+        saveLocale(locale);
+        await i18n.changeLanguage(locale);
+        try {
+          const { user } = renderPage();
+          await user.click(
+            await screen.findByRole('button', {
+              name: i18n.t('credentials.actionsLabel', {
+                ns: 'settings',
+                name: 'Production key',
+              }),
+            }),
+          );
+          await user.click(
+            within(await screen.findByRole('menu')).getByRole('menuitem', {
+              name: i18n.t('credentials.delete', { ns: 'settings' }),
+            }),
+          );
+          const dialog = await screen.findByRole('dialog', {
+            name: i18n.t('credentials.deleteTitle', { ns: 'settings' }),
+          });
+          const t = (key: string, options?: Record<string, unknown>) =>
+            i18n.t(`providers.credential.${key}`, {
+              ns: 'settings',
+              ...options,
+            });
+          const names = [
+            t('dependentSettings.defaultModels', { count: 1 }),
+            t('dependentSettings.modelAccess', { count: 2 }),
+            t('dependentSettings.transcriptionModel', { count: 1 }),
+            t('dependentSettings.imageGeneration', { count: 1 }),
+            t('dependentSettings.standardAgent', { count: 1 }),
+            t('dependentSettings.projectAgents', { count: 1 }),
+          ];
+          for (const name of names) expect(name).not.toMatch(/providers\./);
+          // The matcher reads the dialog with its whitespace collapsed, the
+          // no-break spaces French puts before a colon too.
+          expect(dialog).toHaveTextContent(
+            t('deleteSettingsWarning', {
+              provider: 'Anthropic',
+              settings: new Intl.ListFormat(locale, {
+                type: 'conjunction',
+              }).format(names),
+            }).replace(/\s+/g, ' '),
+          );
+        } finally {
+          cleanup();
+          await forgetSavedLocale();
+        }
+      });
     });
 
     // #4831: a refused rename said, in English, what the server wrote.

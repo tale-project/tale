@@ -1050,6 +1050,18 @@ providers:
       document indexing and search for the whole organization. Choose
       another credential under Settings → Data residency → Embedding model
       first.
+    deleteSettingsWarning: >-
+      {provider} has no other active credential, so its models will no longer
+      be offered. These settings still name them and stay as they are:
+      {settings}.
+    dependentSettings:
+      defaultModels: 'Default models ({count, plural, one {# rule} other {# rules}})'
+      modelAccess: 'Model access ({count, plural, one {# model} other {# models}})'
+      visionModel: Vision model
+      transcriptionModel: Audio transcription model
+      imageGeneration: Image generation
+      standardAgent: Standard agent
+      projectAgents: '{count, plural, one {# project agent} other {# project agents}}'
     inUseByEmbedding: >-
       The knowledge embedding model uses this credential. Choose another
       credential for it under Settings → Data residency → Embedding model,

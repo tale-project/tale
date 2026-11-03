@@ -79,6 +79,7 @@ export function CredentialRowActions<
   const dependencyWarning = adapter.useDeleteWarning({
     t,
     credential,
+    vendor,
     organizationId,
     open: dialogs.isOpen.delete,
   });
@@ -223,8 +224,8 @@ export function CredentialRowActions<
         title={t('credentials.deleteTitle')}
         description={t('credentials.deleteBody', { name: credential.name })}
         warning={
-          // What depends on the credential comes first: it is why the
-          // delete will be refused.
+          // What depends on the credential comes first: why the delete
+          // will be refused, and what it leaves behind.
           [
             dependencyWarning,
             // A surface whose server hands the default on (connectors) says

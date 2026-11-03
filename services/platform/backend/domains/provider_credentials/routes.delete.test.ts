@@ -18,6 +18,7 @@ const {
   caller,
   deleteCredential,
   credentialDependents,
+  credentialSettingDependents,
   deleteDefinition,
   remaining,
   customNames,
@@ -25,6 +26,7 @@ const {
   caller: { role: 'admin', orgId: 'org-a', slug: 'north' },
   deleteCredential: vi.fn(),
   credentialDependents: vi.fn(),
+  credentialSettingDependents: vi.fn(),
   deleteDefinition: vi.fn(),
   remaining: { count: 0 },
   customNames: ['qwen-cn'],
@@ -40,6 +42,7 @@ vi.mock('./service', async (original) => ({
   ...(await original<typeof import('./service')>()),
   deleteCredential,
   credentialDependents,
+  credentialSettingDependents,
 }));
 vi.mock('../providers/config', () => ({
   deleteProviderDefinition: deleteDefinition,
@@ -143,14 +146,24 @@ describe('DELETE /provider-credentials/:id — custom provider retirement [PCRED
 describe('the credential the embedding model depends on', () => {
   it('answers the dependents read for the delete dialog', async () => {
     credentialDependents.mockResolvedValue({ usedBy: ['embedding'] });
+    credentialSettingDependents.mockResolvedValue([
+      { setting: 'vision-model', count: 1 },
+    ]);
     const response = await app().request('/cred-1/dependents?orgId=org-a');
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ usedBy: ['embedding'] });
-    expect(credentialDependents).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ organizationId: 'org-a', userId: 'operator' }),
-      'cred-1',
-    );
+    expect(await response.json()).toEqual({
+      usedBy: ['embedding'],
+      settings: [{ setting: 'vision-model', count: 1 }],
+    });
+    for (const read of [credentialDependents, credentialSettingDependents])
+      expect(read).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          organizationId: 'org-a',
+          userId: 'operator',
+        }),
+        'cred-1',
+      );
   });
 
   it('answers the refused delete as 409 CREDENTIAL_IN_USE with what uses it [PCRED-R5]', async () => {

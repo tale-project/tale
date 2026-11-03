@@ -160,6 +160,12 @@ defaultModels:
     developer: Entwickler
     editor: Editor
     member: Mitglied
+  unavailableProvider: '{provider} (nicht verfügbar)'
+  unavailableModel: '{model} (nicht verfügbar)'
+  unavailableHint: >-
+    Einige Regeln nennen einen Anbieter oder ein Modell, das kein Anbieter mit
+    aktiven Zugangsdaten mehr anbietet. Sie sind als nicht verfügbar markiert
+    und fallen auf Automatisch zurück, bis du sie bearbeitest oder entfernst.
 visionModel:
   title: Modell für Bilder
   description:
@@ -1451,6 +1457,11 @@ modelAccess:
       Endpunkte. Aufrufe zählen gegen die Budgets und durchlaufen die
       Eingabe-Guardrails; die Antworten der Modelle werden nicht gefiltert.
     enabled: Modell-Endpunkte für API-Schlüssel aktivieren
+  unavailableModel: '{model} (nicht verfügbar)'
+  unavailableModelsHint: >-
+    Einige Regeln nennen Modelle, die kein Anbieter mit aktiven Zugangsdaten
+    mehr anbietet. Sie sind als nicht verfügbar markiert; bearbeite eine
+    Regel, um sie zu entfernen.
 dataSubjectRequests:
   title: Anfragen betroffener Personen
   entityLabel: Anfragen
