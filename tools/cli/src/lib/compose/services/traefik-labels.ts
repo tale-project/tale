@@ -39,7 +39,7 @@ export const BACKEND_LANES =
 /** Backend lanes a machine calls at volume, kept out of the access log: the
  *  tools and connector bridges, Slack's events and the automation webhooks. */
 const BACKEND_QUIET =
-  '(?i)^/api/(tools/|connectors/(execute|status|hostcall)$|connectors/slack/|automations/webhook/)';
+  '(?i)^/api/(tools/|connectors/(execute|status|hostcall|mcp)$|connectors/slack/|automations/webhook/)';
 
 /** The backend's sync WebSockets, which a compressor would break. */
 const BACKEND_STREAMS = '(?i)^/api/.+/sync$';
