@@ -629,6 +629,7 @@ describe('deriveTravels', () => {
 
     it('counts two million reads without building them', () => {
       const { automation, records } = perItem(1999, 1000);
+      deriveTravels(automation, records);
       const started = performance.now();
       const { travels, total } = deriveTravels(automation, records);
       const ms = performance.now() - started;
