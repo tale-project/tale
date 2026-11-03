@@ -288,11 +288,13 @@ function asConnectorError(
   );
 }
 
-function base64Encode(input: string): string {
+/** A live body's `ctx.base64Encode` and `ctx.base64Decode`. Exported for the
+ * catalog test, whose proofs hand a live body the host's own. */
+export function base64Encode(input: string): string {
   return Buffer.from(input, 'utf8').toString('base64');
 }
 
-function base64Decode(input: string): string {
+export function base64Decode(input: string): string {
   return Buffer.from(input, 'base64').toString('utf8');
 }
 
