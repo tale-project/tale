@@ -9,7 +9,6 @@
 // remote on a context with one blank tab.
 
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +26,7 @@ import {
 } from 'vitest';
 
 import type { TabLayout } from '../../lib/web-url.ts';
+import { closedPort } from '../../testing/local-proxies.ts';
 import { runProbe, SLOW_MS, startTestPages } from '../../testing/test-pages.ts';
 import type { TestPages } from '../../testing/test-pages.ts';
 import { PlaywrightRemote } from './playwright-remote.ts';
@@ -128,17 +128,6 @@ async function click(x: number, y: number): Promise<void> {
 }
 
 const tabUrls = (): string[] => remote.tabs().map((tab) => tab.url);
-
-async function freePort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  if (address === null || typeof address === 'string') {
-    throw new Error('no free port');
-  }
-  return address.port;
-}
 
 /**
  * A click on a button that opens a dialog does not return before the dialog is
@@ -758,7 +747,7 @@ describe('reading a page', () => {
 
   it('says why a page did not load', async () => {
     await open('/form.html');
-    const closed = `http://127.0.0.1:${await freePort()}/`; // nothing listens there
+    const closed = `http://127.0.0.1:${await closedPort()}/`; // nothing listens there
     await expect(remote.goto(closed, null, 'load')).rejects.toThrow(
       RemoteError,
     );

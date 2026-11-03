@@ -618,6 +618,18 @@ describe('selfSignedCertificate', () => {
   });
 });
 
+/** How a connection to `port` on 127.0.0.1 ends: `connected` or its error code. */
+function connectionTo(port: number): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve('connected');
+    });
+    socket.once('error', (error: NodeJS.ErrnoException) => resolve(error.code));
+  });
+}
+
 describe('startTcpServer', () => {
   it('destroys open connections when stopped', async () => {
     const server = await startTcpServer(() => undefined);
@@ -633,12 +645,25 @@ describe('startTcpServer', () => {
 
   it('tells a closed port from an open one', async () => {
     const port = await closedPort();
-    const refused = await new Promise<string | undefined>((resolve) => {
-      const socket = net.connect({ host: '127.0.0.1', port });
-      socket.once('error', (error: NodeJS.ErrnoException) =>
-        resolve(error.code),
-      );
-    });
-    expect(refused).toBe('ECONNREFUSED');
+    expect(await connectionTo(port)).toBe('ECONNREFUSED');
   });
+
+  // Linux only: other systems may hand a port that a connected socket holds to
+  // a server that asks for any port (see `closedPort`).
+  it.skipIf(process.platform !== 'linux')(
+    'keeps the closed port from the servers that start while the test runs',
+    async () => {
+      const port = await closedPort();
+      // Were the port only closed again, one of these 20,000 servers would
+      // nearly always get it.
+      for (let round = 0; round < 200; round++) {
+        const servers = await Promise.all(
+          Array.from({ length: 100 }, () => startTcpServer(() => undefined)),
+        );
+        await Promise.all(servers.map((server) => server.stop()));
+        expect(servers.map((server) => server.port)).not.toContain(port);
+      }
+      expect(await connectionTo(port)).toBe('ECONNREFUSED');
+    },
+  );
 });
