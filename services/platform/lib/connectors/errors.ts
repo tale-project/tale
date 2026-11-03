@@ -25,6 +25,8 @@ export const CONNECTOR_CODES = {
   LIVE_RUNNER_UNAVAILABLE:
     'a live yaml-js body needs a host-capable code runner, never the data-only one',
   MOCK_BODY_FAILED: 'a deterministic mock body must produce its output',
+  MOCK_STATE_TOO_LARGE:
+    "a mock run's own state of one connector must fit its cap, or the call keeps nothing",
   LIVE_BODY_FAILED:
     'a live connector body reached the outside world and failed',
   INTERRUPTED:

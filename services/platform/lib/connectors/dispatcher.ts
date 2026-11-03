@@ -46,8 +46,10 @@ import { vendorStatusOf } from '../engine/core/record/failure';
 import { codeRunner, type CodeRunner } from '../engine/core/runner';
 import type { ConnectorContext } from '../engine/core/slots';
 import { closestName } from '../engine/core/validate/similar';
+import type { RunMockState } from '../engine/core/walk/mock-state';
 import { ConnectorError } from './errors';
 import { createLiveHost, type ConnectorBlobSink } from './live-host';
+import { runMock } from './mock-call';
 import {
   buildPortableLiveCode,
   type PortableHostCall,
@@ -56,9 +58,6 @@ import {
 import { loadConnectors, nodeTypeFor } from './registry';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
-
-/** Mock bodies reshape data; the ceiling only bounds a runaway loop. */
-const MOCK_TIMEOUT_MS = 2000;
 
 /** A live body may chain several vendor calls, each individually capped by the
  * host, so its own ceiling is generous. */
@@ -346,6 +345,14 @@ export interface ConnectorDispatchContext {
    * must treat an interrupted write as one that may have happened.
    */
   signal?: AbortSignal;
+  /**
+   * The run's own state in mock mode (CONN-R36): the mock of an action that
+   * keeps it reads and writes its connector's part, and an idempotent
+   * write's answer is recorded under `idempotencyKey`. A durable run hands
+   * its own, which it commits with the step; without one a mock keeps
+   * nothing past the call. Never read in live mode.
+   */
+  mockState?: RunMockState;
   /**
    * Per-invocation CodeRunner override for the LIVE yaml-js path: every
    * live caller hands in the in-process live runner here — never through the
@@ -665,18 +672,23 @@ export async function executeConnectorAction(
 
   if (mode === 'mock') {
     // Deterministic, no IO of any kind: no credential is resolved, no host is
-    // built, and the body runs against `input` alone.
+    // built, and the body runs against `input` and the run's own state.
     let output: unknown;
     try {
-      output = await codeRunner().runBody(
-        action.mock,
-        { input },
-        { timeoutMs: MOCK_TIMEOUT_MS },
+      output = await runMock(
+        connector.name,
+        action,
+        input,
+        ctx.mockState === undefined
+          ? undefined
+          : { state: ctx.mockState, idempotencyKey },
       );
     } catch (cause) {
       await record('error', {
         error: cause instanceof Error ? cause.message : String(cause),
       });
+      // A coded refusal (a state over its cap) keeps its own code.
+      if (cause instanceof ConnectorError) throw cause;
       throw new ConnectorError(
         'MOCK_BODY_FAILED',
         `the ${nodeType} mock body failed: ${cause instanceof Error ? cause.message : String(cause)}`,

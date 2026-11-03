@@ -30,6 +30,7 @@ import type {
 } from '../types';
 import { compileSchema, inputRefusalMessage } from '../validate/schema';
 import { DEFAULT_MAX_NODE_EXECUTIONS } from '../walk/limits';
+import { RunMockState } from '../walk/mock-state';
 import { systemClock, type WalkPorts } from '../walk/ports';
 import { type BenchPlan, planBench, refusalIssue, refusalPath } from './bench';
 import { cloneData, makeScope, newRunId } from './scope';
@@ -68,8 +69,15 @@ export interface ExecuteOptions {
   /** The calling run and the path prefix of a subautomation's own nodes
    * (internal; hosts leave it unset): a nested call presents the key the
    * durable stepper gives the same call, `<run>:<parent>[<item>:<pass>]/<id>:…`.
-   * `docRef` names the document the nested nodes come from (`name@version`). */
-  within?: { runId: string; pathPrefix: string; docRef?: string };
+   * `docRef` names the document the nested nodes come from (`name@version`),
+   * and `mockState` is the run's own state in mock mode, which the outermost
+   * run creates and shares with every automation it calls (AUTO-R81). */
+  within?: {
+    runId: string;
+    pathPrefix: string;
+    docRef?: string;
+    mockState?: RunMockState;
+  };
   /**
    * Where the run's record goes: what each unit of work decided, read,
    * received and returned. Without one the run executes exactly as before
@@ -259,6 +267,7 @@ export async function execute(
     pathPrefix: opts.within?.pathPrefix ?? '',
     docRef: opts.within?.docRef,
     nesting: opts.nesting ?? 0,
+    mockState: opts.within?.mockState ?? new RunMockState(),
     maxExecutions: opts.maxNodes ?? DEFAULT_MAX_NODE_EXECUTIONS,
     startedAt,
     deadline: opts.deadline,

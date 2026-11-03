@@ -795,7 +795,10 @@ describe('run_automation picks a scenario an action ships', () => {
     expect(
       result.trace.find((entry) => entry.node === 'find'),
     ).not.toHaveProperty('bench');
-    expect(findMock).toHaveBeenCalledWith({ email: 'ada@example.com' });
+    expect(findMock).toHaveBeenCalledWith(
+      { email: 'ada@example.com' },
+      { state: expect.anything(), idempotencyKey: expect.any(String) },
+    );
   });
 
   it.each([

@@ -13,6 +13,7 @@
  */
 
 import type { Json } from './types';
+import type { RunMockState } from './walk/mock-state';
 
 export { setCodeRunner } from './runner';
 
@@ -39,17 +40,31 @@ export interface ConnectorLike {
   /** How a person reads a node of this type; never read by the engine. */
   display?: ConnectorActionDisplay;
   /**
-   * Deterministic mock: same input → same output, no IO.
+   * Deterministic mock: same input → same output, no IO. An action that
+   * keeps the run's own state (`mockState`) also answers from what the run
+   * wrote before: the same input and the same state give the same output
+   * (AUTO-R81).
    *
    * May return a promise — a connector authored in YAML runs its mock body
    * through the CodeRunner, which is async because the production backend is
    * wire-separated. Callers must await the result.
    */
-  mock(input: unknown): unknown;
+  mock(input: unknown, call?: MockCall): unknown;
   live?(input: unknown, ctx: ConnectorContext): Promise<unknown>;
   /** The cases a test can pick for a node of this type in a mock run,
    * instead of the mock's answer. */
   scenarios?: readonly ConnectorScenario[];
+}
+
+/**
+ * What a mock run hands a connector's mock beside its input: the run's own
+ * state, shared by the run and the automations it calls, and the key the
+ * call carries, under which an idempotent write's answer is recorded
+ * (AUTO-R81). Without it a mock keeps nothing past the call.
+ */
+export interface MockCall {
+  state: RunMockState;
+  idempotencyKey: string;
 }
 
 /**
@@ -68,7 +83,10 @@ export interface ConnectorScenario {
   description: string;
   when?: Readonly<Record<string, Json>>;
   output?: Json;
-  error?: { message: string; status?: number };
+  /** `applied`: the write reached the service before its answer was lost
+   * (an in-doubt write), so a mock run keeps what the action's mock writes
+   * before it fails. */
+  error?: { message: string; status?: number; applied?: boolean };
 }
 
 /**

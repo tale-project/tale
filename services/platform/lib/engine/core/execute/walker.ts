@@ -44,6 +44,7 @@ import {
 } from '../types';
 import { compileSchema } from '../validate/schema';
 import { MAX_SUBAUTOMATION_DEPTH, maxRepeatsOf } from '../walk/limits';
+import type { RunMockState } from '../walk/mock-state';
 import type { WalkPorts } from '../walk/ports';
 import type { SkipReason } from '../walk/progress';
 import {
@@ -126,7 +127,12 @@ type RunError = NonNullable<RunResult['error']>;
 export interface CalledRun {
   input: unknown;
   nesting: number;
-  within: { runId: string; pathPrefix: string; docRef: string };
+  within: {
+    runId: string;
+    pathPrefix: string;
+    docRef: string;
+    mockState: RunMockState;
+  };
 }
 
 /** One walk of a document's steps. */
@@ -148,6 +154,9 @@ export interface Walk {
   docRef: string | undefined;
   /** How deep in called automations the walk is. */
   nesting: number;
+  /** The run's own state in mock mode: the outermost run creates it, and
+   * every automation it calls shares it (AUTO-R81). */
+  mockState: RunMockState;
   /** The execution guard: step executions, items and passes included. */
   maxExecutions: number;
   /** When the run started, by `ports.clock.now()`. */
@@ -706,6 +715,7 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
                 pass,
               ),
               docRef: `${subName}@${found.version}`,
+              mockState: walk.mockState,
             },
           });
           // What the called automation did happened, whether it finished,
@@ -781,6 +791,22 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
           }
           const stood = standIn(extra);
           const live = ports.calls.connector(def.connector);
+          const idempotencyKey = connectorIdempotencyKey(
+            runId,
+            `${pathPrefix}${n.id}`,
+            Number(extra.index ?? 0),
+            pass,
+          );
+          const mockCall = { state: walk.mockState, idempotencyKey };
+          const effect = () => {
+            if (def.connector?.hasEffect !== true) return;
+            effects.push({
+              node: n.id,
+              connector: n.type,
+              input: resolved,
+              ...effectPlace(unit),
+            });
+          };
           const scenario =
             call.kind === 'scenario'
               ? call.scenarios[
@@ -791,15 +817,7 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
             out = stood.output;
           } else if (walk.mode === 'live' && live) {
             try {
-              out = await live(
-                resolved,
-                connectorIdempotencyKey(
-                  runId,
-                  `${pathPrefix}${n.id}`,
-                  Number(extra.index ?? 0),
-                  pass,
-                ),
-              );
+              out = await live(resolved, idempotencyKey);
             } catch (e) {
               // A failure names the connector by its slug, as the durable
               // runtime does; a test's own node type has none.
@@ -824,7 +842,15 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
             scenariosTaken += 1;
             if (scenario.error !== undefined) {
               markStandIn('failed');
-              const { message, status } = scenario.error;
+              const { message, status, applied } = scenario.error;
+              if (applied === true) {
+                // An in-doubt write: it reached the service before its
+                // answer was lost. The run keeps what the mock writes and
+                // the answer under the call's key, and the write happened,
+                // before the step fails as the scenario says.
+                await def.connector.mock(resolved, mockCall);
+                effect();
+              }
               const raised = Object.assign(
                 new Error(message),
                 status !== undefined ? { status } : {},
@@ -850,16 +876,9 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
                 ? 'no connector host supplied — deterministic mock used'
                 : 'live backend not implemented — deterministic mock used';
             }
-            out = await def.connector.mock(resolved);
+            out = await def.connector.mock(resolved, mockCall);
           }
-          if (def.connector.hasEffect) {
-            effects.push({
-              node: n.id,
-              connector: n.type,
-              input: resolved,
-              ...effectPlace(unit),
-            });
-          }
+          effect();
         } else {
           throw new ExprError(
             n.type,

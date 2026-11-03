@@ -25,3 +25,9 @@ export const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 export function maxRepeatsOf(n: Pick<NodeDef, 'maxRepeats'>): number {
   return Math.min(n.maxRepeats ?? 5, 20);
 }
+
+/** The most one connector's own state in a mock run may hold (AUTO-R81),
+ * the record of its writes' answers included, as UTF-8 JSON bytes — the
+ * ceiling one step's detail has. A mock call whose state would outgrow it
+ * fails and keeps nothing. */
+export const MOCK_STATE_MAX_BYTES = 256 * 1024;

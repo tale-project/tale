@@ -23,13 +23,9 @@ import type {
   Connector,
 } from '@tale/shared/schemas/connectors';
 
-import { codeRunner } from '../engine/core/runner';
 import { registerNodeType, type ConnectorLike } from '../engine/core/slots';
 import { loadConnectorDefinitions } from './catalog';
-
-/** Mock bodies are pure data reshaping; a generous ceiling still bounds a
- * runaway loop without failing a legitimately large fixture. */
-const MOCK_TIMEOUT_MS = 2000;
+import { runMock } from './mock-call';
 
 /** The node type a connector action is addressed by. */
 export function nodeTypeFor(connector: string, action: string): string {
@@ -53,14 +49,7 @@ function toConnector(
       ...(action.title !== undefined && { title: action.title }),
       ...(action.i18n !== undefined && { i18n: action.i18n }),
     },
-    mock: (input) =>
-      codeRunner().runBody(
-        action.mock,
-        { input },
-        {
-          timeoutMs: MOCK_TIMEOUT_MS,
-        },
-      ),
+    mock: (input, call) => runMock(connector.name, action, input, call),
     ...(action.scenarios !== undefined && { scenarios: action.scenarios }),
   };
 }
