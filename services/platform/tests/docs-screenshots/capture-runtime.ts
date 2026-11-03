@@ -27,8 +27,8 @@ export function captureRuntime(options: {
   const AUTH_STATE = path.join(STATE_DIR, 'auth.json');
   const ORG_STATE = path.join(STATE_DIR, 'org.json');
   const VIEWPORT = { width: 1440, height: 900 };
-  const MOCK_GATEWAY_URL =
-    process.env.TALE_MOCK_CONNECTORS_BASE ?? 'http://127.0.0.1:4141';
+  // The gateway listens on 127.0.0.1 at `MOCKS_PORT` (lib/mocks/start.ts).
+  const MOCK_GATEWAY_URL = `http://127.0.0.1:${process.env.MOCKS_PORT || '4141'}`;
   const ARGS = { configDir: options.configDir };
   async function preflight(): Promise<void> {
     const checks: Array<[string, string]> = [
