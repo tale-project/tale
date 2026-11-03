@@ -1,6 +1,7 @@
 /** Real HTTP + Postgres proof; mounted by backend/integration-check.ts. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -15,6 +16,7 @@ import {
   synchronizeConversation,
 } from './api-sync.ts';
 import { recoverStuckConversationSends } from './send.ts';
+import type { IntegrationViewer } from './service.ts';
 
 const snapshotResult = z.object({
   conversationId: z.string(),
@@ -87,16 +89,51 @@ export async function checkConversationApi(
     return z.object({ key: z.string() }).parse(await response.json()).key;
   };
   let key = await mint();
-  const machine = (path: string, body?: unknown, explicit = true) =>
+  const machineWithKey = (
+    credential: string,
+    path: string,
+    body?: unknown,
+    explicit = true,
+  ) =>
     fetch(`${base}/api/v1${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
-        authorization: `Bearer ${key}`,
+        authorization: `Bearer ${credential}`,
         'Content-Type': 'application/json',
         ...(explicit ? { 'X-Organization-Slug': slug } : {}),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const machine = (path: string, body?: unknown, explicit = true) =>
+    machineWithKey(key, path, body, explicit);
+  /** A key an Owner makes for a member, a team or the organization
+   * (`POST /api/app/api-keys`). */
+  const mintFor = async (name: string, owner: Record<string, unknown>) => {
+    const response = await fetch(
+      `${base}/api/app/api-keys?orgId=${ctx.orgId}`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: ctx.cookie,
+          origin: base,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, owner }),
+      },
+    );
+    assert.equal(response.status, 201);
+    return z
+      .object({ id: z.string(), key: z.string() })
+      .parse(await response.json());
+  };
+  /** Ends a key made for someone else; its owner row survives. */
+  const revokeKey = async (keyId: string) => {
+    const response = await fetch(
+      `${base}/api/app/api-keys/${keyId}?orgId=${ctx.orgId}`,
+      { method: 'DELETE', headers: { cookie: ctx.cookie, origin: base } },
+    );
+    assert.equal(response.status, 200);
+  };
   const app = (path: string, body: unknown) =>
     fetch(`${base}/api/app/conversations${path}?orgId=${ctx.orgId}`, {
       method: 'POST',
@@ -361,18 +398,23 @@ export async function checkConversationApi(
     ).status,
     400,
   );
-  const viewer = {
+  const viewer: IntegrationViewer = {
     organizationId: ctx.orgId,
     userId: ctx.userId,
     role: 'owner',
+    sourceOwner: { kind: 'user', id: ctx.userId },
   };
   await assert.rejects(
     synchronizeConversation(
       sql,
-      { ...viewer, userId: 'different-service' },
+      {
+        ...viewer,
+        userId: 'different-service',
+        sourceOwner: { kind: 'user', id: 'different-service' },
+      },
       { ...payload, version: 1 },
     ),
-    /another service user/,
+    /another integration/,
   );
   assert.equal(
     await apiSnapshotState(
@@ -383,17 +425,21 @@ export async function checkConversationApi(
     ),
     null,
   );
-  // A claim names a source this user mirrored: another service user's
+  // A claim names a source this integration mirrored: another integration's
   // source is theirs (403), a source no snapshot ever named is absent
   // (404) — never a healthy-looking empty queue.
   await assert.rejects(
     claimApiDeliveries(
       sql,
-      { ...viewer, userId: 'different-service' },
+      {
+        ...viewer,
+        userId: 'different-service',
+        sourceOwner: { kind: 'user', id: 'different-service' },
+      },
       'vatplus',
       100,
     ),
-    /another service user/,
+    /another integration/,
   );
   const unknownSource = await machine('/conversations/deliveries/claim', {
     source: `never-${suffix.slice(0, 8)}`,
@@ -417,7 +463,348 @@ export async function checkConversationApi(
   key = await mint();
   assert.equal((await machine('/conversations/sync', payload)).status, 200);
 
-  // Team assignment through the door: the key user owns this mirror and is
+  // A mirror belongs to the integration, not to the key (#5007). A key made
+  // for a team or the organization authenticates as a service identity of
+  // its own, and so does the key that replaces it: the replacement must
+  // continue the mirror, list it and claim the replies already queued for
+  // it, while a key of another owner reaches nothing of it. A key made for a
+  // member acts as that member, so another key for the same member is the
+  // same integration.
+  const rotationTag = suffix.slice(0, 8);
+  const rotationTeams = (
+    await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+      VALUES
+        (gen_random_uuid(), ${`Rotation A ${rotationTag}`}, ${ctx.orgId}, ${new Date()}),
+        (gen_random_uuid(), ${`Rotation B ${rotationTag}`}, ${ctx.orgId}, ${new Date()})
+      RETURNING "id"
+    `
+  ).map((row) => row.id);
+  const rotationMember = `rotation-member-${rotationTag}`;
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${rotationMember}, 'Rotation Member',
+            ${`${rotationMember}@example.com`}, true, ${new Date()},
+            ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${`m-${rotationMember}`}, ${ctx.orgId}, ${rotationMember}, 'editor',
+            ${new Date()})
+  `;
+  const rotations: {
+    label: string;
+    owner: Record<string, unknown>;
+    stranger: () => Promise<string>;
+  }[] = [
+    {
+      label: 'organization',
+      owner: { kind: 'organization', role: 'editor' },
+      // A person's key never owns what the organization's key mirrored.
+      stranger: async () => key,
+    },
+    {
+      label: 'team',
+      owner: { kind: 'team', teamId: rotationTeams[0], role: 'editor' },
+      stranger: async () =>
+        (
+          await mintFor('rotation-other-team', {
+            kind: 'team',
+            teamId: rotationTeams[1],
+            role: 'editor',
+          })
+        ).key,
+    },
+    {
+      label: 'member',
+      owner: { kind: 'member', userId: rotationMember },
+      stranger: async () =>
+        (
+          await mintFor('rotation-other-owner', {
+            kind: 'organization',
+            role: 'editor',
+          })
+        ).key,
+    },
+  ];
+  const rotated: string[] = [];
+  const rotationFacts: string[] = [];
+  for (const rotation of rotations) {
+    const source = `rot-${rotation.label}-${rotationTag}`;
+    // No attachment: the one `payload` carries was staged by the personal
+    // key's upload, which no other key may reference.
+    const snapshot = {
+      ...payload,
+      source,
+      externalId: `rot-thread-${rotation.label}-${suffix}`,
+      version: 0,
+      messages: payload.messages.map((message) => ({
+        ...message,
+        attachments: [],
+      })),
+    };
+    const first = await mintFor(`rotation-${rotation.label}-a`, rotation.owner);
+    const firstSync = await machineWithKey(
+      first.key,
+      '/conversations/sync',
+      snapshot,
+    );
+    assert.equal(
+      firstSync.status,
+      200,
+      `${rotation.label}: the first key syncs`,
+    );
+    const mirrorId = snapshotResult.parse(
+      await firstSync.json(),
+    ).conversationId;
+    rotated.push(mirrorId);
+    // A reply written in the Inbox before the key is replaced; the fixture
+    // timestamp skips the undo window instead of waiting it out.
+    const reply = await app(`/${mirrorId}/reply`, {
+      content: `<p>Queued before the ${rotation.label} key rotated</p>`,
+      sourceMarkdown: `Queued before the ${rotation.label} key rotated`,
+    });
+    assert.equal(reply.status, 201, `${rotation.label}: the reply queues`);
+    const replyId = z
+      .object({ messageId: z.string() })
+      .parse(await reply.json()).messageId;
+    await sql`UPDATE app.conversation_api_deliveries SET available_at_ms = ${Date.now() - 1}, retry_at_ms = 0 WHERE message_id = ${replyId}`;
+
+    const second = await mintFor(
+      `rotation-${rotation.label}-b`,
+      rotation.owner,
+    );
+    const continued = await machineWithKey(second.key, '/conversations/sync', {
+      ...snapshot,
+      version: 1,
+      subject: `Replacement ${rotation.label} key`,
+    });
+    assert.equal(
+      continued.status,
+      200,
+      `${rotation.label}: the replacement syncs`,
+    );
+    assert.equal(
+      snapshotResult.parse(await continued.json()).conversationId,
+      mirrorId,
+      `${rotation.label}: no duplicate conversation`,
+    );
+    // The first key goes, as it does when a key is rotated; its owner row
+    // survives, which the backfill below leans on.
+    await revokeKey(first.id);
+    const listed = await machineWithKey(
+      second.key,
+      `/conversations?${new URLSearchParams({ source })}`,
+    );
+    assert.equal(
+      listed.status,
+      200,
+      `${rotation.label}: the replacement lists`,
+    );
+    assert.deepEqual(
+      z
+        .object({
+          conversations: z.array(z.object({ conversationId: z.string() })),
+        })
+        .parse(await listed.json())
+        .conversations.map((row) => row.conversationId),
+      [mirrorId],
+    );
+    const claimed = claimResult.parse(
+      await (
+        await machineWithKey(second.key, '/conversations/deliveries/claim', {
+          source,
+        })
+      ).json(),
+    );
+    const delivery = claimed.deliveries.find(
+      (row) => row.messageId === replyId,
+    );
+    assert.equal(
+      delivery?.body,
+      `Queued before the ${rotation.label} key rotated`,
+      `${rotation.label}: the replacement claims the queued reply`,
+    );
+
+    // A key of another owner reaches nothing of the mirror.
+    const stranger = await rotation.stranger();
+    const asStranger = (path: string, body?: unknown) =>
+      machineWithKey(stranger, path, body);
+    const refusedWith = async (
+      what: string,
+      response: Response,
+      status: number,
+    ) => assert.equal(response.status, status, `${rotation.label}: ${what}`);
+    await refusedWith(
+      'sync is refused',
+      await asStranger('/conversations/sync', { ...snapshot, version: 2 }),
+      403,
+    );
+    await refusedWith(
+      'claim is refused',
+      await asStranger('/conversations/deliveries/claim', { source }),
+      403,
+    );
+    await refusedWith(
+      'the listing is refused',
+      await asStranger(`/conversations?${new URLSearchParams({ source })}`),
+      403,
+    );
+    await refusedWith(
+      'the queue peek is refused',
+      await asStranger(
+        `/conversations/deliveries?${new URLSearchParams({ source })}`,
+      ),
+      403,
+    );
+    const strangerState = await asStranger(
+      `/conversations/sync?${new URLSearchParams({ source, externalId: snapshot.externalId })}`,
+    );
+    await refusedWith('the receipt read answers', strangerState, 200);
+    assert.deepEqual(
+      await strangerState.json(),
+      { snapshot: null },
+      `${rotation.label}: the receipt read finds nothing`,
+    );
+    await refusedWith(
+      'an acknowledgement finds no delivery',
+      await asStranger(`/conversations/deliveries/${replyId}/ack`, {
+        receiptId: 'stranger-receipt',
+        sourceVersion: 1,
+      }),
+      404,
+    );
+    await refusedWith(
+      'a failure report finds no delivery',
+      await asStranger(`/conversations/deliveries/${replyId}/fail`, {
+        claimToken: delivery?.claimToken,
+        code: 'network_error',
+        permanent: false,
+      }),
+      404,
+    );
+    rotationFacts.push(rotation.label);
+  }
+  record(
+    'conversation API ownership follows whom the key belongs to across a key rotation (#5007)',
+    rotationFacts.length === rotations.length,
+    `A replacement key made for the ${rotationFacts.join(', ')} continues the mirror, lists it and claims the reply queued before the rotation, with no duplicate conversation; a key of another owner is refused on sync, claim, listing, peek, acknowledgement and failure report, and reads no receipt`,
+  );
+
+  interface PrincipalRow {
+    id: string;
+    kind: string;
+    principal: string;
+  }
+  const principalsOf = async (ids: string[]): Promise<PrincipalRow[]> => {
+    const found = await sql<PrincipalRow[]>`
+      SELECT conversation_id AS id, owner_principal_kind AS kind,
+             owner_principal_id AS principal
+      FROM app.conversation_api_bindings
+      WHERE conversation_id = ANY(${ids})
+      ORDER BY conversation_id
+    `;
+    return [...found];
+  };
+  const pairsText = (pairs: PrincipalRow[]) =>
+    pairs.map((pair) => `${pair.kind}:${pair.principal}`).join(' ');
+
+  // An older image still inserts bindings without the owner while a roll
+  // runs. The trigger gives each of them the owner the door writes for the
+  // same key (a member's key stays the member's), replaced here row by row
+  // the way that image would write it.
+  const beforeOlderImage = await principalsOf(rotated);
+  for (const mirrorId of rotated) {
+    const [binding] = await sql<
+      {
+        orgId: string;
+        source: string;
+        externalId: string;
+        externalContactId: string;
+        ownerUserId: string;
+      }[]
+    >`
+      SELECT org_id AS "orgId", source, external_id AS "externalId",
+             external_contact_id AS "externalContactId",
+             owner_user_id AS "ownerUserId"
+      FROM app.conversation_api_bindings WHERE conversation_id = ${mirrorId}
+    `;
+    assert.ok(binding);
+    await sql`DELETE FROM app.conversation_api_bindings WHERE conversation_id = ${mirrorId}`;
+    await sql`
+      INSERT INTO app.conversation_api_bindings (
+        conversation_id, org_id, source, external_id, external_contact_id,
+        owner_user_id
+      ) VALUES (
+        ${mirrorId}, ${binding.orgId}, ${binding.source}, ${binding.externalId},
+        ${binding.externalContactId}, ${binding.ownerUserId}
+      )
+    `;
+  }
+  const afterOlderImage = await principalsOf(rotated);
+  record(
+    'a binding an older image inserts gets the owner the door writes for the same key (#5007)',
+    beforeOlderImage.length === rotated.length &&
+      JSON.stringify(afterOlderImage) === JSON.stringify(beforeOlderImage),
+    `door ${pairsText(beforeOlderImage)}; older image ${pairsText(afterOlderImage)} (want the same pairs)`,
+  );
+
+  // Migration 0235 does the same for the rows already there. Replayed over
+  // the mirrors above and the personal key's, with their owner taken away
+  // (the first keys of the rotations are revoked by now), it derives the
+  // very pair each was written with, and a second run changes nothing. A
+  // binding of another organization never takes the owner of this
+  // organization's key row, even when the identities match.
+  const replayed = [conversationId, ...rotated];
+  const written = await principalsOf(replayed);
+  const [guardId] = rotated;
+  assert.ok(guardId);
+  const [guarded] = await sql<{ ownerUserId: string }[]>`
+    SELECT owner_user_id AS "ownerUserId"
+    FROM app.conversation_api_bindings WHERE conversation_id = ${guardId}
+  `;
+  const guardWritten = written.find((row) => row.id === guardId);
+  assert.ok(guarded && guardWritten);
+  const ownerMigration = await readFile(
+    new URL(
+      '../../db/migrations/0235_conversation_api_source_owners.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  let backfilled: PrincipalRow[] = [];
+  let backfilledAgain: PrincipalRow[] = [];
+  try {
+    await sql`ALTER TABLE app.conversation_api_bindings DISABLE TRIGGER conversation_api_binding_owner_principal`;
+    await sql`ALTER TABLE app.conversation_api_bindings ALTER COLUMN owner_principal_kind DROP NOT NULL, ALTER COLUMN owner_principal_id DROP NOT NULL`;
+    await sql`UPDATE app.conversation_api_bindings SET owner_principal_kind = NULL, owner_principal_id = NULL WHERE conversation_id = ANY(${replayed})`;
+    await sql`UPDATE app.conversation_api_bindings SET org_id = ${`other-org-${rotationTag}`} WHERE conversation_id = ${guardId}`;
+    await sql.unsafe(ownerMigration);
+    backfilled = await principalsOf(replayed);
+    await sql`UPDATE app.conversation_api_bindings SET org_id = ${ctx.orgId}, owner_principal_kind = ${guardWritten.kind}, owner_principal_id = ${guardWritten.principal} WHERE conversation_id = ${guardId}`;
+    await sql.unsafe(ownerMigration);
+    backfilledAgain = await principalsOf(replayed);
+  } finally {
+    // Whatever happened above, leave the schema as the migration makes it.
+    await sql.unsafe(ownerMigration);
+  }
+  const wantBackfilled = written.map((row) =>
+    row.id === guardId
+      ? { ...row, kind: 'user', principal: guarded.ownerUserId }
+      : row,
+  );
+  record(
+    'migration 0235 gives the bindings already there the owner the door writes, within their organization, idempotently',
+    written.length === replayed.length &&
+      JSON.stringify(backfilled) === JSON.stringify(wantBackfilled) &&
+      JSON.stringify(backfilledAgain) === JSON.stringify(written),
+    `written ${pairsText(written)}; backfilled ${pairsText(backfilled)} (want ${pairsText(wantBackfilled)}, the other organization's binding staying its key's user); again ${pairsText(backfilledAgain)} (want the written pairs)`,
+  );
+  await sql`DELETE FROM "member" WHERE "id" = ${`m-${rotationMember}`}`;
+  await sql`DELETE FROM "team" WHERE "id" = ANY(${rotationTeams})`;
+
+  // Team assignment through the door: the key's integration owns this mirror and is
   // an owner, so it may queue the conversation to a team, and clear it.
   const teamRows = await sql<{ id: string }[]>`
     INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
@@ -489,7 +876,7 @@ export async function checkConversationApi(
   await assert.rejects(
     assignApiConversationTeam(
       sql,
-      { organizationId: ctx.orgId, userId: ctx.userId, role: 'editor' },
+      { ...viewer, role: 'editor' },
       { source: 'vatplus', externalId, teamId: null },
     ),
     /Only admins and owners can assign conversations/,

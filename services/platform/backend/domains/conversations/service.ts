@@ -143,6 +143,27 @@ export interface ConversationViewer {
   role: string;
 }
 
+/** What owns an API-mirrored conversation. A `user` is a person, whichever
+ * of their keys acts; the others are the owner a service key was made for. */
+export interface ConversationSourceOwner {
+  kind: 'user' | 'team' | 'organization';
+  id: string;
+}
+
+/**
+ * Who calls over an API key: the caller shape of the mirror functions in
+ * `api-sync.ts`. The owner is required, never defaulted: a caller that left
+ * it out would stand on the key's own identity, and the replacement of a
+ * team's or the organization's key would strand every mirror again.
+ */
+export interface IntegrationViewer extends ConversationViewer {
+  /** Whom the key belongs to: the person for a personal key and for a key
+   * made for a member, the team or the organization for a key made for one.
+   * Every key of one owner is one integration, the replacement of a key
+   * included. */
+  sourceOwner: ConversationSourceOwner;
+}
+
 export function viewerIsAdmin(role: string): boolean {
   const normalized = role.toLowerCase();
   return normalized === 'owner' || normalized === 'admin';

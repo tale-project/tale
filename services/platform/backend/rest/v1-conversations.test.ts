@@ -6,6 +6,7 @@ import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import { apiSnapshotSchema } from '../../lib/shared/conversations/api-sync.ts';
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
 
@@ -32,50 +33,85 @@ vi.mock('../domains/collab/service.ts', () => ({
 function fakeSql(
   memberOf: string[],
   respond?: (text: string, values: unknown[]) => object[] | undefined,
-): { sql: Sql; queries: string[] } {
+): {
+  sql: Sql;
+  queries: string[];
+  calls: { text: string; values: unknown[] }[];
+} {
   const queries: string[] = [];
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+  const calls: { text: string; values: unknown[] }[] = [];
+  // What a statement was built from, by the promise a nested sql`` returned.
+  const parts = new WeakMap<object, { text: string; values: unknown[] }>();
+  const tag = (strings: TemplateStringsArray, ...embedded: unknown[]) => {
+    // A nested sql`` is part of the statement that embeds it, as in
+    // postgres.js: its text and its values are inlined, so an assertion on
+    // a statement sees the predicate the statement was really built with.
+    let joined = strings[0] ?? '';
+    const values: unknown[] = [];
+    embedded.forEach((value, index) => {
+      const nested =
+        typeof value === 'object' && value !== null
+          ? parts.get(value)
+          : undefined;
+      if (nested === undefined) {
+        joined += '$?';
+        values.push(value);
+      } else {
+        joined += nested.text;
+        values.push(...nested.values);
+      }
+      joined += strings[index + 1] ?? '';
+    });
+    const text = joined.replace(/\s+/g, ' ').trim();
     queries.push(text);
+    calls.push({ text, values });
+    const answer = (rows: object[]) => {
+      const promise = Promise.resolve(rows);
+      parts.set(promise, { text, values });
+      return promise;
+    };
     const scripted = respond?.(text, values);
-    if (scripted !== undefined) return Promise.resolve(scripted);
+    if (scripted !== undefined) return answer(scripted);
     if (text.includes('FROM "member" WHERE "userId"')) {
-      return Promise.resolve(
+      return answer(
         memberOf.map((organizationId) => ({ organizationId, role: 'admin' })),
       );
     }
     if (text.includes('FROM "organization" WHERE "id"')) {
-      return Promise.resolve([{ slug: 'acme' }]);
+      return answer([{ slug: 'acme' }]);
     }
-    return Promise.resolve([]);
+    return answer([]);
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   const sql = Object.assign(tag, {
     unsafe: (t: string) => t,
     begin: (fn: (tx: unknown) => Promise<unknown>) => fn(tag),
   }) as unknown as Sql;
-  return { sql, queries };
+  return { sql, queries, calls };
 }
 
 function mount(
   memberOf: string[],
   role = 'admin',
   respond?: (text: string, values: unknown[]) => object[] | undefined,
+  apiKeyOwner: ApiKeyOwner | null = null,
+  actingUserId = 'user-1',
 ) {
-  const { sql, queries } = fakeSql(memberOf, respond);
+  const { sql, queries, calls } = fakeSql(memberOf, respond);
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
-    c.set('userId', 'user-1');
+    c.set('userId', actingUserId);
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
     c.set('role', role);
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
+    c.set('apiKeyOwner', apiKeyOwner);
     return next();
   });
   app.route('/', createConversationRestRoutes({ sql }));
-  return { app, queries };
+  return { app, queries, calls };
 }
 
 const STATE =
@@ -109,6 +145,124 @@ describe('conversations door — organization rule', () => {
       code: 'INVALID_QUERY',
       data: { issues: [expect.objectContaining({ path: 'externalId' })] },
     });
+  });
+});
+
+/** The owner row of the key a request carries (`app.api_key_owners`). */
+function keyOwner(
+  kind: ApiKeyOwner['kind'],
+  fields: Partial<ApiKeyOwner> = {},
+): ApiKeyOwner {
+  return {
+    apiKeyId: 'key-1',
+    organizationId: 'org-1',
+    kind,
+    keyUserId: 'svc-key-1',
+    principalUserId: kind === 'member' ? 'user-1' : 'svc-key-1',
+    teamId: null,
+    projectId: null,
+    role: kind === 'member' ? null : 'member',
+    name: 'Billing sync',
+    createdBy: 'admin-1',
+    createdAt: 1,
+    revokedAt: null,
+    revokedBy: null,
+    ...fields,
+  };
+}
+
+/**
+ * A mirror belongs to the integration, not to the key: a replacement key
+ * made for the same team or organization authenticates as a new service
+ * identity of its own, and must still reach the mirrors and the
+ * queued replies of the one before (#5007). A person's own key and a key
+ * made for a member both act as that person.
+ */
+describe('conversations door — whom a mirror belongs to', () => {
+  const OWNER_PREDICATE =
+    'b.owner_principal_kind = $? AND b.owner_principal_id = $?';
+  const ownerOf = async (
+    apiKeyOwner: ApiKeyOwner | null,
+    actingUserId: string,
+  ) => {
+    const { app, calls } = mount(
+      ['org-1'],
+      'admin',
+      undefined,
+      apiKeyOwner,
+      actingUserId,
+    );
+    const res = await app.request(STATE);
+    expect(res.status).toBe(200);
+    // The statement that reads the mirror, with the owner predicate inlined.
+    return calls
+      .find(
+        (call) =>
+          call.text.includes('snapshot_version') &&
+          call.text.includes(OWNER_PREDICATE),
+      )
+      ?.values.slice(-2);
+  };
+
+  it.each([
+    ['a personal key', null, 'user-1', ['user', 'user-1']],
+    [
+      'a key made for a member, which acts as that member',
+      keyOwner('member', { principalUserId: 'user-1' }),
+      'user-1',
+      ['user', 'user-1'],
+    ],
+    [
+      'a key made for a team',
+      keyOwner('team', { teamId: 'team-9' }),
+      'svc-key-1',
+      ['team', 'team-9'],
+    ],
+    [
+      'a key made for the organization',
+      keyOwner('organization'),
+      'svc-key-1',
+      ['organization', 'org-1'],
+    ],
+  ])(
+    'reads %s as the owner of its mirrors [CONV-R14]',
+    async (_kind, apiKeyOwner, actingUserId, expected) => {
+      expect(await ownerOf(apiKeyOwner, actingUserId)).toEqual(expected);
+    },
+  );
+
+  it('gives a replacement key the owner of the key it replaces [CONV-R14]', async () => {
+    const first = await ownerOf(
+      keyOwner('organization', { apiKeyId: 'key-1', keyUserId: 'svc-key-1' }),
+      'svc-key-1',
+    );
+    const second = await ownerOf(
+      keyOwner('organization', { apiKeyId: 'key-2', keyUserId: 'svc-key-2' }),
+      'svc-key-2',
+    );
+    expect(second).toEqual(first);
+  });
+
+  it('keeps a team key without its team on the key’s own identity [CONV-R14]', async () => {
+    // The table refuses such a row; a read must not widen to the organization.
+    expect(
+      await ownerOf(keyOwner('team', { teamId: null }), 'svc-key-1'),
+    ).toEqual(['user', 'svc-key-1']);
+  });
+
+  it('keeps a project’s key on its own identity, which the door never lets this far [CONV-R14]', async () => {
+    expect(
+      await ownerOf(
+        keyOwner('project', { projectId: 'project-9' }),
+        'svc-key-1',
+      ),
+    ).toEqual(['user', 'svc-key-1']);
+  });
+
+  it('keeps two teams’ keys apart [CONV-R14]', async () => {
+    const a = await ownerOf(keyOwner('team', { teamId: 'team-a' }), 'svc-a');
+    const b = await ownerOf(keyOwner('team', { teamId: 'team-b' }), 'svc-b');
+    expect(a).not.toEqual(b);
   });
 });
 
@@ -359,11 +513,13 @@ describe('GET /conversations', () => {
       continueCursor: '',
     });
     const listing = queries.find((text) => text.includes('WITH mirrored AS'));
-    expect(listing).toContain('b.owner_user_id = $?');
     expect(listing).toContain(
       'ORDER BY "createdAt" DESC, "conversationId" DESC',
     );
     expect(listing).toContain('LEFT JOIN app.contacts c');
+    expect(listing).toContain(
+      'b.owner_principal_kind = $? AND b.owner_principal_id = $?',
+    );
   });
 
   it('narrows by contactStatus and refuses a value outside the vocabulary', async () => {
@@ -454,9 +610,11 @@ describe('GET /conversations/deliveries', () => {
     const listing = queries.find((text) =>
       text.includes('FROM app.conversation_api_deliveries d'),
     );
-    expect(listing).toContain('b.owner_user_id = $?');
     expect(listing).toContain("THEN 'leased'");
     expect(listing).toContain('ORDER BY retry_key, "messageId"');
+    expect(listing).toContain(
+      'b.owner_principal_kind = $? AND b.owner_principal_id = $?',
+    );
     // Neither the claim token nor the body is projected.
     expect(listing).not.toContain('claim_token AS');
     expect(listing).not.toContain('d.body');
@@ -599,8 +757,9 @@ describe('POST /conversations/deliveries/{id}/retry', () => {
 describe('GET /conversations/sync — the receipt after a teardown', () => {
   it('reports sourceDeleted and the Inbox status beside the contact [CONV-R15]', async () => {
     const { app, queries } = mount(['org-1'], 'admin', (text) =>
-      text.includes('FROM app.conversation_api_bindings WHERE') &&
-      text.includes('AND owner_user_id = $?')
+      text.includes(
+        'SELECT conversation_id AS "conversationId", snapshot_version',
+      )
         ? [
             {
               conversationId: 'c-1',
@@ -631,13 +790,15 @@ describe('GET /conversations/sync — the receipt after a teardown', () => {
         attachments: [],
       },
     });
-    expect(
-      queries.find(
-        (text) =>
-          text.includes('FROM app.conversation_api_bindings WHERE') &&
-          text.includes('AND owner_user_id = $?'),
+    const receipt = queries.find((text) =>
+      text.includes(
+        'SELECT conversation_id AS "conversationId", snapshot_version',
       ),
-    ).toContain('source_deleted AS "sourceDeleted"');
+    );
+    expect(receipt).toContain('source_deleted AS "sourceDeleted"');
+    expect(receipt).toContain(
+      'b.owner_principal_kind = $? AND b.owner_principal_id = $?',
+    );
   });
 });
 
@@ -674,6 +835,8 @@ describe('conversations door — team assignment', () => {
               {
                 conversationId: 'conv-1',
                 ownerUserId: options.owner ?? 'user-1',
+                ownerPrincipalKind: 'user',
+                ownerPrincipalId: options.owner ?? 'user-1',
               },
             ];
       }
@@ -710,7 +873,7 @@ describe('conversations door — team assignment', () => {
     expect(await res.json()).toMatchObject({ code: 'CONVERSATION_NOT_FOUND' });
   });
 
-  it("refuses another service user's mirror [CONV-R14]", async () => {
+  it("refuses another integration's mirror [CONV-R14]", async () => {
     const { app } = mount(['org-1'], 'admin', respond({ owner: 'user-2' }));
     const res = await post(app, BODY);
     expect(res.status).toBe(403);

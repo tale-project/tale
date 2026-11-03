@@ -861,3 +861,12 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   flight parks it in doubt), so a multi-host deployment needs synchronised clocks (2026-10).
   Paying it down means stamping and comparing leases with the database's clock
   (`clock_timestamp()`) in the claim, heartbeat, progress, park and sweep statements.
+- **Conversation bindings keep a trigger and an index for the previous image** — an API-mirrored
+  conversation belongs to whom the key that sent it belongs to
+  (`app.conversation_api_bindings.owner_principal_kind` / `owner_principal_id`, migration `0235`,
+  2026-11), so a replacement key continues it. `owner_user_id` stays the identity of the first
+  key and is still written, because the previous image compares it; the
+  `conversation_api_binding_owner_principal` trigger fills the principal for the rows that image
+  inserts during a roll. Paying it down means a migration, a release after every image reads the
+  principal, that drops the trigger, its function and the `conversation_api_bindings_owner`
+  index. `owner_user_id` stays as the audit trail.

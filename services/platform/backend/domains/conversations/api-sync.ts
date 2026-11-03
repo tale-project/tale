@@ -30,6 +30,7 @@ import {
   writeConversationTeam,
   type ConversationRow,
   type ConversationViewer,
+  type IntegrationViewer,
 } from './service.ts';
 
 export {
@@ -39,7 +40,8 @@ export {
 
 interface Binding {
   conversationId: string;
-  ownerUserId: string;
+  ownerPrincipalKind: string;
+  ownerPrincipalId: string;
   externalContactId: string;
   version: string;
   hash: string | null;
@@ -106,6 +108,33 @@ function requireWriter(viewer: ConversationViewer): void {
   }
 }
 
+/**
+ * A mirror belongs to the integration that created it — whom the key
+ * belongs to — never to the key: rotating a key, which makes a new service
+ * identity for a team or the organization, must not strand the mirrors
+ * and the queued replies of the one before. The predicate wants the binding
+ * aliased `b`.
+ */
+function bindingOwnerPredicate(
+  sql: Sql | TransactionSql,
+  viewer: IntegrationViewer,
+) {
+  const owner = viewer.sourceOwner;
+  return sql`b.owner_principal_kind = ${owner.kind}
+    AND b.owner_principal_id = ${owner.id}`;
+}
+
+function isBindingOwned(
+  binding: Pick<Binding, 'ownerPrincipalKind' | 'ownerPrincipalId'>,
+  viewer: IntegrationViewer,
+): boolean {
+  const owner = viewer.sourceOwner;
+  return (
+    binding.ownerPrincipalKind === owner.kind &&
+    binding.ownerPrincipalId === owner.id
+  );
+}
+
 function attachmentMetadata(
   attachments: z.infer<typeof apiAttachmentSchema>[],
 ) {
@@ -138,7 +167,7 @@ async function hint(
 /** A complete bounded source snapshot; source receipts fence its writes. */
 export async function synchronizeConversation(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   input: ApiSnapshot,
 ) {
   requireWriter(viewer);
@@ -151,7 +180,7 @@ export async function synchronizeConversation(
     JOIN app.conversation_api_messages r ON r.conversation_id = b.conversation_id
     JOIN app.conversation_messages m ON m.id = r.message_id AND m.org_id = b.org_id
     WHERE b.org_id = ${viewer.organizationId} AND b.source = ${input.source}
-      AND b.external_id = ${input.externalId} AND b.owner_user_id = ${viewer.userId}
+      AND b.external_id = ${input.externalId} AND ${bindingOwnerPredicate(sql, viewer)}
   `;
   const known = new Map<string, number>();
   for (const row of knownRows) {
@@ -179,7 +208,9 @@ export async function synchronizeConversation(
   return transactSerializable(sql, async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`conversation-api:${viewer.organizationId}:${input.source}:${input.externalId}`}, 0))`;
     const bindings = await tx<Binding[]>`
-      SELECT conversation_id AS "conversationId", owner_user_id AS "ownerUserId",
+      SELECT conversation_id AS "conversationId",
+             owner_principal_kind AS "ownerPrincipalKind",
+             owner_principal_id AS "ownerPrincipalId",
              external_contact_id AS "externalContactId",
              snapshot_version::text AS version, snapshot_hash AS hash,
              source_deleted AS "sourceDeleted"
@@ -188,10 +219,10 @@ export async function synchronizeConversation(
       FOR UPDATE
     `;
     let binding = bindings[0];
-    if (binding && binding.ownerUserId !== viewer.userId) {
+    if (binding && !isBindingOwned(binding, viewer)) {
       throw new ConversationError(
         'INTEGRATION_NOT_OWNED',
-        'This integration belongs to another service user',
+        'This mirror belongs to another integration',
         403,
       );
     }
@@ -326,9 +357,19 @@ export async function synchronizeConversation(
         connectorName: input.source,
         direction: 'inbound',
       });
+      // `owner_user_id` keeps the identity of the key that first sent the
+      // mirror, for the audit trail and for the image a roll still serves.
+      const owner = viewer.sourceOwner;
       await tx`
-        INSERT INTO app.conversation_api_bindings(conversation_id, org_id, source, external_id, external_contact_id, owner_user_id)
-        VALUES (${conversationId}, ${viewer.organizationId}, ${input.source}, ${input.externalId}, ${input.externalContactId}, ${viewer.userId})
+        INSERT INTO app.conversation_api_bindings(
+          conversation_id, org_id, source, external_id, external_contact_id,
+          owner_user_id, owner_principal_kind, owner_principal_id
+        )
+        VALUES (
+          ${conversationId}, ${viewer.organizationId}, ${input.source},
+          ${input.externalId}, ${input.externalContactId}, ${viewer.userId},
+          ${owner.kind}, ${owner.id}
+        )
       `;
       // Conversation routing (governance feature): a new mirror goes to the
       // team or person the rule for its source names, before its messages
@@ -346,7 +387,8 @@ export async function synchronizeConversation(
       });
       binding = {
         conversationId,
-        ownerUserId: viewer.userId,
+        ownerPrincipalKind: owner.kind,
+        ownerPrincipalId: owner.id,
         externalContactId: input.externalContactId,
         version: '-1',
         hash: null,
@@ -605,20 +647,20 @@ const DELIVERY_LEASE_MS = 5 * 60 * 1000;
 const DELIVERY_FAILURE_LIMIT = 10;
 
 /**
- * The source a claim names must be one this key user mirrored: a slug no
- * snapshot ever named is the absent resource (404 — a typo'd source used to
- * poll a healthy-looking empty queue forever), and one only other service
- * users own is theirs (403), the same refusal the snapshot lane gives.
+ * The source a claim names must be one this key's integration mirrored: a
+ * slug no snapshot ever named is the absent resource (404 — a typo'd source
+ * used to poll a healthy-looking empty queue forever), and one only other
+ * integrations own is theirs (403), the same refusal the snapshot lane gives.
  */
 async function assertOwnedSource(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   source: string,
 ): Promise<void> {
   const rows = await sql<{ owned: boolean | null }[]>`
-    SELECT bool_or(owner_user_id = ${viewer.userId}) AS owned
-    FROM app.conversation_api_bindings
-    WHERE org_id = ${viewer.organizationId} AND source = ${source}
+    SELECT bool_or(${bindingOwnerPredicate(sql, viewer)}) AS owned
+    FROM app.conversation_api_bindings b
+    WHERE b.org_id = ${viewer.organizationId} AND b.source = ${source}
   `;
   const owned = rows[0]?.owned ?? null;
   if (owned === null)
@@ -630,7 +672,7 @@ async function assertOwnedSource(
   if (!owned)
     throw new ConversationError(
       'INTEGRATION_NOT_OWNED',
-      'This integration belongs to another service user',
+      'This mirror belongs to another integration',
       403,
     );
 }
@@ -644,7 +686,7 @@ async function assertOwnedSource(
  */
 export async function claimApiDeliveries(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   source: string,
   limit: number,
 ) {
@@ -673,7 +715,7 @@ export async function claimApiDeliveries(
       FROM app.conversation_api_deliveries d
       JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
       JOIN app.conversation_messages m ON m.id = d.message_id AND m.org_id = d.org_id
-      WHERE d.org_id = ${viewer.organizationId} AND b.source = ${source} AND b.owner_user_id = ${viewer.userId}
+      WHERE d.org_id = ${viewer.organizationId} AND b.source = ${source} AND ${bindingOwnerPredicate(tx, viewer)}
         AND d.acknowledged_at_ms IS NULL AND d.failed_at_ms IS NULL
         AND d.available_at_ms <= ${now} AND d.retry_at_ms <= ${now}
       ORDER BY d.retry_at_ms, d.available_at_ms, d.message_id LIMIT ${limit}
@@ -731,8 +773,8 @@ export interface ApiDeliveryListRow {
 }
 
 /**
- * The queue as it stands for a source this key user mirrored — no lease
- * taken, nothing changed: what a consumer could otherwise learn only by
+ * The queue as it stands for a source this key's integration mirrored — no
+ * lease taken, nothing changed: what a consumer could otherwise learn only by
  * claiming. `status` is read off the stamps: `delivered` once
  * acknowledged, `failed` once dead-lettered (a permanent refusal or the
  * tenth transient one), `leased` while a claim's lease runs, `queued` for
@@ -742,7 +784,7 @@ export interface ApiDeliveryListRow {
  */
 export async function listApiDeliveries(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   source: string,
   options: {
     status?: ApiDeliveryStatus;
@@ -771,7 +813,7 @@ export async function listApiDeliveries(
         d.retry_at_ms AS retry_key
       FROM app.conversation_api_deliveries d
       JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
-      WHERE d.org_id = ${viewer.organizationId} AND b.source = ${source} AND b.owner_user_id = ${viewer.userId}
+      WHERE d.org_id = ${viewer.organizationId} AND b.source = ${source} AND ${bindingOwnerPredicate(sql, viewer)}
     )
     SELECT "messageId", "conversationId", "externalId", status, attempts, "availableAt", "retryAt",
       "claimedAt", "failedAt", "lastErrorCode", "acknowledgedAt", "receiptId"
@@ -829,16 +871,16 @@ export async function retryApiDeliveryAudited(
 }
 
 /**
- * The REST door's retry: a delivery of a source this key user owns that
- * dead-lettered goes back to `queued` and is claimable at once. A delivery
- * nobody owns under the id is absent (404 `DELIVERY_NOT_FOUND`); one that
- * is not dead-lettered — still queued, leased, or already delivered — or
- * whose conversation the source tore down or closed cannot be retried
+ * The REST door's retry: a delivery of a source this key's integration owns
+ * that dead-lettered goes back to `queued` and is claimable at once. A
+ * delivery nobody owns under the id is absent (404 `DELIVERY_NOT_FOUND`);
+ * one that is not dead-lettered — still queued, leased, or already delivered
+ * — or whose conversation the source tore down or closed cannot be retried
  * (409 `DELIVERY_RETRY_UNAVAILABLE`).
  */
 export async function retryApiDeliveryForSource(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   messageId: string,
   actorEmail?: string,
 ): Promise<{ ok: true }> {
@@ -848,7 +890,7 @@ export async function retryApiDeliveryForSource(
       SELECT d.conversation_id AS "conversationId"
       FROM app.conversation_api_deliveries d
       JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
-      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND ${bindingOwnerPredicate(tx, viewer)}
     `;
     const row = rows[0];
     if (!row)
@@ -873,7 +915,7 @@ export async function retryApiDeliveryForSource(
 /** Failure reports are idempotent per claim; a stale worker cannot fail a new lease. */
 export async function failApiDelivery(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   messageId: string,
   failure: z.infer<typeof apiDeliveryFailureSchema>,
 ) {
@@ -891,7 +933,7 @@ export async function failApiDelivery(
         d.acknowledged_at_ms::text AS "acknowledgedAt", d.attempt_count AS attempts
       FROM app.conversation_api_deliveries d
       JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
-      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND ${bindingOwnerPredicate(tx, viewer)}
       FOR UPDATE OF d
     `;
     const row = rows[0];
@@ -975,7 +1017,7 @@ async function retryApiDelivery(
 
 export async function acknowledgeApiDelivery(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   messageId: string,
   receiptId: string,
   sourceVersion: number,
@@ -987,7 +1029,7 @@ export async function acknowledgeApiDelivery(
     >`
       SELECT d.conversation_id AS "conversationId", d.receipt_id AS "receiptId"
       FROM app.conversation_api_deliveries d JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id
-      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+      WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND ${bindingOwnerPredicate(tx, viewer)}
         AND d.claimed_at_ms IS NOT NULL FOR UPDATE OF d
     `;
     const row = rows[0];
@@ -1036,7 +1078,7 @@ export async function acknowledgeApiDelivery(
  */
 export async function assignApiConversationTeam(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   input: { source: string; externalId: string; teamId: string | null },
 ): Promise<{ conversationId: string; assigneeTeamId: string | null }> {
   if (!viewerIsAdmin(viewer.role)) {
@@ -1054,10 +1096,15 @@ export async function assignApiConversationTeam(
     );
   return sql.begin(async (tx) => {
     const bindings = await tx<
-      { conversationId: string; ownerUserId: string }[]
+      {
+        conversationId: string;
+        ownerPrincipalKind: string;
+        ownerPrincipalId: string;
+      }[]
     >`
       SELECT conversation_id AS "conversationId",
-             owner_user_id AS "ownerUserId"
+             owner_principal_kind AS "ownerPrincipalKind",
+             owner_principal_id AS "ownerPrincipalId"
       FROM app.conversation_api_bindings
       WHERE org_id = ${viewer.organizationId}
         AND source = ${input.source} AND external_id = ${input.externalId}
@@ -1065,10 +1112,10 @@ export async function assignApiConversationTeam(
     `;
     const binding = bindings[0];
     if (!binding) throw notFound();
-    if (binding.ownerUserId !== viewer.userId) {
+    if (!isBindingOwned(binding, viewer)) {
       throw new ConversationError(
         'INTEGRATION_NOT_OWNED',
-        'This integration belongs to another service user',
+        'This mirror belongs to another integration',
         403,
       );
     }
@@ -1104,7 +1151,7 @@ export async function assignApiConversationTeam(
 
 export async function apiSnapshotState(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   source: string,
   externalId: string,
 ) {
@@ -1121,8 +1168,8 @@ export async function apiSnapshotState(
     SELECT conversation_id AS "conversationId", snapshot_version::float8 AS version,
            org_id AS "organizationId", external_contact_id AS "externalContactId",
            source_deleted AS "sourceDeleted"
-    FROM app.conversation_api_bindings
-    WHERE org_id = ${viewer.organizationId} AND source = ${source} AND external_id = ${externalId} AND owner_user_id = ${viewer.userId}
+    FROM app.conversation_api_bindings b
+    WHERE b.org_id = ${viewer.organizationId} AND b.source = ${source} AND b.external_id = ${externalId} AND ${bindingOwnerPredicate(sql, viewer)}
   `;
   const binding = bindings[0];
   if (!binding) return null;
@@ -1179,7 +1226,7 @@ export async function apiSnapshotState(
 
 export async function apiDeliveryAttachment(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   messageId: string,
   index: number,
 ) {
@@ -1188,7 +1235,7 @@ export async function apiDeliveryAttachment(
     SELECT m.metadata FROM app.conversation_api_deliveries d
     JOIN app.conversation_api_bindings b ON b.conversation_id = d.conversation_id AND b.org_id = d.org_id
     JOIN app.conversation_messages m ON m.id = d.message_id AND m.org_id = d.org_id
-    WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND b.owner_user_id = ${viewer.userId}
+    WHERE d.message_id = ${messageId} AND d.org_id = ${viewer.organizationId} AND ${bindingOwnerPredicate(sql, viewer)}
       AND d.claimed_at_ms IS NOT NULL
   `;
   // Two absences, two codes — the same split ack and fail answer: no
@@ -1238,7 +1285,7 @@ export interface ApiConversationListRow {
 export const API_CONTACT_STATUSES = ['active', 'trashed', 'missing'] as const;
 
 /**
- * Every conversation this key user mirrored under a source — the
+ * Every conversation this key's integration mirrored under a source — the
  * reconciliation door a mirror had none of: nothing listed mirrored
  * conversations, so a mirror wedged by a deleted contact could not even be
  * found (2026-09-14 evaluation, h6). Newest first (`createdAt`, then
@@ -1247,7 +1294,7 @@ export const API_CONTACT_STATUSES = ['active', 'trashed', 'missing'] as const;
  */
 export async function listApiConversations(
   sql: Sql,
-  viewer: ConversationViewer,
+  viewer: IntegrationViewer,
   source: string,
   options: {
     contactStatus?: (typeof API_CONTACT_STATUSES)[number];
@@ -1275,7 +1322,7 @@ export async function listApiConversations(
       JOIN app.conversations conv ON conv.id = b.conversation_id AND conv.org_id = b.org_id
       LEFT JOIN app.contacts c ON c.id = conv.contact_id AND c.org_id = b.org_id
       WHERE b.org_id = ${viewer.organizationId} AND b.source = ${source}
-        AND b.owner_user_id = ${viewer.userId}
+        AND ${bindingOwnerPredicate(sql, viewer)}
     )
     SELECT * FROM mirrored
     WHERE ${options.contactStatus === undefined ? sql`TRUE` : sql`"contactStatus" = ${options.contactStatus}`}

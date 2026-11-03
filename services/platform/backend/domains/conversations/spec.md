@@ -341,16 +341,32 @@ conversation as a whole, with a version number, and sends it again when it chang
 API a mirror can be sent, listed, closed and given a team (`CONV-R4`). Its messages cannot be
 read back; see Not yet.
 
-### CONV-R14 · Only the API key user that mirrored a conversation can change its mirror
+### CONV-R14 · A mirror belongs to the integration that created it, whichever of its keys acts
 
-A mirrored conversation belongs to the user whose API key first sent it. When another key
-user of the same organization sends that conversation again, closes it or assigns it, the
-call is refused (`INTEGRATION_NOT_OWNED`) and nothing changes. A key user's list of mirrors
-holds only their own.
+An API key belongs to a person, a team or the organization. A mirror belongs to whom the key
+that first sent it belongs to, not to the key: a replacement key made for the same team or
+organization, or another key of the same person, continues the mirror and claims the replies
+already queued for it. A key that belongs to anyone else, sending that conversation again,
+closing it, assigning it or claiming its replies, is refused (`INTEGRATION_NOT_OWNED`) and
+nothing changes. A key's list of mirrors holds only its own integration's. A project's key
+never gets this far: the API keeps it inside its project (`API_KEY_SCOPE_FORBIDDEN`).
 
-- **Example**: Two integrations of one organization run under two service users. The second
-  one sends a new version of a conversation that the first one mirrored → refused, and the
-  conversation is unchanged.
+Tale cannot tell a replacement key from a second integration, so two keys made for the same
+team or organization are one integration and share their mirrors. Integrations that must stay
+apart belong to different teams or members.
+
+- **Example**: Acme's support tool mirrors conversations with a key made for the organization.
+  Ada, an admin, replaces that key with a new one. The new key sends the next version of a
+  conversation and claims a reply that was queued before the swap → both succeed, and no
+  second conversation appears.
+- **Example**: The Support team and the Billing team each have a key. Billing's key sends a new
+  version of a conversation that Support's key mirrored → refused, and the conversation is
+  unchanged.
+- **Example**: Noah's own key mirrored a conversation. Ada makes a key for Noah, which acts as
+  Noah → it continues the mirror. A colleague's own key sends the same conversation → refused.
+- **Example**: Acme runs a second bridge with another key made for the organization. It claims
+  the replies that the support tool's key queued → they are handed over, because both keys are
+  the organization's one integration.
 
 ### CONV-R15 · A mirror its source closed keeps its messages and takes no new content
 

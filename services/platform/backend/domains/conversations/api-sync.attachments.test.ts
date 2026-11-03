@@ -33,7 +33,12 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
 const sql = (() => Promise.resolve([])) as unknown as Sql;
 
-const viewer = { organizationId: 'org-1', userId: 'user-1', role: 'admin' };
+const viewer = {
+  organizationId: 'org-1',
+  userId: 'user-1',
+  role: 'admin',
+  sourceOwner: { kind: 'user' as const, id: 'user-1' },
+};
 
 const attachment = {
   storageId: 'e4-crm-fake-storage-id-a',
