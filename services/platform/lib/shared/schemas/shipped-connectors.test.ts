@@ -78,7 +78,7 @@ const EXPECTED_SLUGS = [
  * effect needs (`MINIMUM_SCENARIO_KINDS`), each scenario with its proof in
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
-const SCENARIO_CONNECTORS = ['jev', 'slack', 'tavily'] as const;
+const SCENARIO_CONNECTORS = ['jev', 'slack', 'tavily', 'twilio'] as const;
 type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
 const runner = nodeVmRunner();
@@ -717,6 +717,294 @@ const TAVILY_PROOFS: Record<string, ProofAnswers> = {
   'extract/usage_limit': { [TAVILY_EXTRACT]: TAVILY_USAGE_LIMIT },
 };
 
+/** The account a synthetic credential names: Twilio's own placeholder SID,
+ * as GitHub's push protection takes a hex-shaped one for a real SID. */
+const TWILIO_ACCOUNT = 'ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+const TWILIO_API = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT}`;
+
+/** The one request each Twilio action makes with its example input: the
+ * credential's Account SID names the path, and a list's filters and page
+ * size ride in the query. */
+const TWILIO_REQUEST = {
+  send_sms: `POST ${TWILIO_API}/Messages.json`,
+  list_messages: `GET ${TWILIO_API}/Messages.json?To=%2B15551234567&PageSize=20`,
+  get_message: `GET ${TWILIO_API}/Messages/SM1234567890abcdef1234567890abcdef.json`,
+  list_calls: `GET ${TWILIO_API}/Calls.json?Status=completed&PageSize=20`,
+  make_call: `POST ${TWILIO_API}/Calls.json`,
+  get_account: `GET ${TWILIO_API}.json`,
+  list_phone_numbers: `GET ${TWILIO_API}/IncomingPhoneNumbers.json?PageSize=20`,
+};
+
+/** A call Twilio refused: the status, and the error body it answers with —
+ * its code, message, documentation link and the status again — which the
+ * live bodies hand on as text only for a status they do not name. */
+function twilioError(
+  status: number,
+  code: number,
+  message: string,
+): ServiceAnswer {
+  return {
+    status,
+    body: {
+      code,
+      message,
+      more_info: `https://www.twilio.com/docs/errors/${code}`,
+      status,
+    },
+  };
+}
+
+/** Twilio's answer to an Account SID and Auth Token it does not accept. */
+const TWILIO_UNAUTHORIZED = twilioError(
+  401,
+  20003,
+  'Authentication Error - invalid username',
+);
+
+/** Twilio's answer when the account has more requests in flight than its
+ * concurrency limit allows. */
+const TWILIO_RATE_LIMITED = twilioError(429, 20429, 'Too Many Requests');
+
+/**
+ * The proof of every Twilio scenario, keyed as Slack's are: Twilio's answer
+ * to the one request each action makes. A write answers HTTP 201, and a
+ * refusal comes as its HTTP status with Twilio's error body. An answer
+ * carries the members the action's output names; `list_messages`,
+ * `get_message` and `list_calls` hand Twilio's records on as they come, so
+ * the further members a real answer holds would ride along.
+ */
+const TWILIO_PROOFS: Record<string, ProofAnswers> = {
+  'send_sms/queued': {
+    [TWILIO_REQUEST.send_sms]: {
+      status: 201,
+      body: {
+        sid: 'SM00000000000000000000000000000001',
+        status: 'queued',
+        to: '+15551234567',
+        from: '+15559876543',
+      },
+    },
+  },
+  'send_sms/queued_again': {
+    [TWILIO_REQUEST.send_sms]: {
+      status: 201,
+      body: {
+        sid: 'SM00000000000000000000000000000002',
+        status: 'queued',
+        to: '+15551234567',
+        from: '+15559876543',
+      },
+    },
+  },
+  'send_sms/unsubscribed_recipient': {
+    [TWILIO_REQUEST.send_sms]: twilioError(
+      400,
+      21610,
+      'Attempt to send to unsubscribed recipient',
+    ),
+  },
+  'send_sms/rate_limited': {
+    [TWILIO_REQUEST.send_sms]: TWILIO_RATE_LIMITED,
+  },
+  'list_messages/two_messages': {
+    [TWILIO_REQUEST.list_messages]: {
+      status: 200,
+      body: {
+        messages: [
+          {
+            sid: 'SM00000000000000000000000000000002',
+            body: 'Your order is out for delivery.',
+            status: 'queued',
+            to: '+15551234567',
+            from: '+15559876543',
+            // A message Twilio has not sent yet has no date sent.
+            date_sent: null,
+          },
+          {
+            sid: 'SM00000000000000000000000000000001',
+            body: 'Your order has shipped.',
+            status: 'delivered',
+            to: '+15551234567',
+            from: '+15559876543',
+            date_sent: 'Mon, 06 Jan 2025 09:30:05 +0000',
+          },
+        ],
+        next_page_uri: null,
+      },
+    },
+  },
+  'list_messages/no_messages': {
+    [TWILIO_REQUEST.list_messages]: {
+      status: 200,
+      body: { messages: [], next_page_uri: null },
+    },
+  },
+  'list_messages/invalid_credentials': {
+    [TWILIO_REQUEST.list_messages]: TWILIO_UNAUTHORIZED,
+  },
+  'list_messages/rate_limited': {
+    [TWILIO_REQUEST.list_messages]: TWILIO_RATE_LIMITED,
+  },
+  'get_message/one_message': {
+    [TWILIO_REQUEST.get_message]: {
+      status: 200,
+      body: {
+        sid: 'SM1234567890abcdef1234567890abcdef',
+        body: 'Your order has shipped.',
+        status: 'delivered',
+        to: '+15551234567',
+        from: '+15559876543',
+        date_sent: 'Mon, 06 Jan 2025 09:30:05 +0000',
+      },
+    },
+  },
+  'get_message/not_sent_yet': {
+    [TWILIO_REQUEST.get_message]: {
+      status: 200,
+      body: {
+        sid: 'SM1234567890abcdef1234567890abcdef',
+        body: 'Your order has shipped.',
+        status: 'queued',
+        to: '+15551234567',
+        from: '+15559876543',
+        date_sent: null,
+      },
+    },
+  },
+  'get_message/message_not_found': {
+    [`GET ${TWILIO_API}/Messages/SM00000000000000000000000000000009.json`]:
+      twilioError(
+        404,
+        20404,
+        `The requested resource /2010-04-01/Accounts/${TWILIO_ACCOUNT}/Messages/SM00000000000000000000000000000009.json was not found`,
+      ),
+  },
+  'get_message/invalid_credentials': {
+    [TWILIO_REQUEST.get_message]: TWILIO_UNAUTHORIZED,
+  },
+  'list_calls/two_calls': {
+    [TWILIO_REQUEST.list_calls]: {
+      status: 200,
+      body: {
+        calls: [
+          {
+            sid: 'CA00000000000000000000000000000002',
+            status: 'completed',
+            to: '+15551234567',
+            from: '+15559876543',
+            duration: '17',
+          },
+          {
+            sid: 'CA00000000000000000000000000000001',
+            status: 'completed',
+            to: '+15551234568',
+            from: '+15559876543',
+            duration: '42',
+          },
+        ],
+        next_page_uri: null,
+      },
+    },
+  },
+  'list_calls/no_calls': {
+    [TWILIO_REQUEST.list_calls]: {
+      status: 200,
+      body: { calls: [], next_page_uri: null },
+    },
+  },
+  'list_calls/invalid_credentials': {
+    [TWILIO_REQUEST.list_calls]: TWILIO_UNAUTHORIZED,
+  },
+  'list_calls/rate_limited': {
+    [TWILIO_REQUEST.list_calls]: TWILIO_RATE_LIMITED,
+  },
+  'make_call/queued': {
+    [TWILIO_REQUEST.make_call]: {
+      status: 201,
+      body: {
+        sid: 'CA00000000000000000000000000000001',
+        status: 'queued',
+        to: '+15551234567',
+        from: '+15559876543',
+      },
+    },
+  },
+  'make_call/queued_again': {
+    [TWILIO_REQUEST.make_call]: {
+      status: 201,
+      body: {
+        sid: 'CA00000000000000000000000000000002',
+        status: 'queued',
+        to: '+15551234567',
+        from: '+15559876543',
+      },
+    },
+  },
+  'make_call/invalid_credentials': {
+    [TWILIO_REQUEST.make_call]: TWILIO_UNAUTHORIZED,
+  },
+  'make_call/rate_limited': {
+    [TWILIO_REQUEST.make_call]: TWILIO_RATE_LIMITED,
+  },
+  'get_account/active_account': {
+    [TWILIO_REQUEST.get_account]: {
+      status: 200,
+      body: {
+        sid: TWILIO_ACCOUNT,
+        friendly_name: 'Example Shop',
+        status: 'active',
+        type: 'Full',
+      },
+    },
+  },
+  'get_account/no_friendly_name': {
+    [TWILIO_REQUEST.get_account]: {
+      status: 200,
+      body: {
+        sid: TWILIO_ACCOUNT,
+        friendly_name: '',
+        status: 'active',
+        type: 'Full',
+      },
+    },
+  },
+  'get_account/invalid_credentials': {
+    [TWILIO_REQUEST.get_account]: TWILIO_UNAUTHORIZED,
+  },
+  'list_phone_numbers/two_numbers': {
+    [TWILIO_REQUEST.list_phone_numbers]: {
+      status: 200,
+      body: {
+        incoming_phone_numbers: [
+          {
+            sid: 'PN00000000000000000000000000000001',
+            phone_number: '+15559876543',
+            friendly_name: 'Main line',
+          },
+          {
+            sid: 'PN00000000000000000000000000000002',
+            phone_number: '+15559876544',
+            friendly_name: 'Support line',
+          },
+        ],
+        next_page_uri: null,
+      },
+    },
+  },
+  'list_phone_numbers/no_numbers': {
+    [TWILIO_REQUEST.list_phone_numbers]: {
+      status: 200,
+      body: { incoming_phone_numbers: [], next_page_uri: null },
+    },
+  },
+  'list_phone_numbers/invalid_credentials': {
+    [TWILIO_REQUEST.list_phone_numbers]: TWILIO_UNAUTHORIZED,
+  },
+  'list_phone_numbers/rate_limited': {
+    [TWILIO_REQUEST.list_phone_numbers]: TWILIO_RATE_LIMITED,
+  },
+};
+
 /**
  * Every listed connector's proofs, with the secrets its credential holds —
  * synthetic, as every answer is. A connector joins `SCENARIO_CONNECTORS` with
@@ -735,6 +1023,7 @@ const SCENARIO_PROOFS: Record<
     secrets: { apiKey: 'example-tavily-key' },
     proofs: TAVILY_PROOFS,
   },
+  twilio: { secrets: { username: TWILIO_ACCOUNT }, proofs: TWILIO_PROOFS },
 };
 
 /**
