@@ -1,11 +1,16 @@
 /**
  * The limits an automation's tests are held to: how many one automation
- * carries — every save and every deploy runs them all — and how long one
- * test, and a whole suite of them, may run.
+ * carries — every save and every deploy runs them all — how many scenarios
+ * one test lists for a node's calls, and how long one test, and a whole
+ * suite of them, may run.
  */
 
 /** The most tests one automation carries. */
 export const MAX_TESTS = 50;
+
+/** The most scenarios a test lists for one node's calls, which take them in
+ * order. */
+export const MAX_SCENARIO_ANSWERS = 50;
 
 /** How long one test may run before it is stopped and fails. */
 export const TEST_DEADLINE_MS = 10_000;

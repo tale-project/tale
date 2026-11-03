@@ -1457,3 +1457,383 @@ describe('a scenario’s error fails the step as the same live failure would [AU
     });
   });
 });
+
+/** The pages `orders.page` ships: the first, a middle and the last of the
+ * orders a step pages through, each saying whether more follow. */
+const ORDER_PAGES: ConnectorScenario[] = [
+  {
+    name: 'first_page',
+    kind: 'success',
+    description: 'The first page: two orders, and more to read.',
+    output: { orders: [{ id: 1 }, { id: 2 }], more: true },
+  },
+  {
+    name: 'middle_page',
+    kind: 'success',
+    description: 'A middle page: one order, and more to read.',
+    output: { orders: [{ id: 3 }], more: true },
+  },
+  {
+    name: 'last_page',
+    kind: 'success',
+    description: 'The last page: one order, and none after it.',
+    output: { orders: [{ id: 4 }], more: false },
+  },
+];
+
+/** The states `export.status` ships, for a step that polls an export until
+ * it is ready. */
+const EXPORT_STATES: ConnectorScenario[] = [
+  {
+    name: 'pending',
+    kind: 'success',
+    description: 'The export is still being written.',
+    output: { state: 'pending' },
+  },
+  {
+    name: 'ready',
+    kind: 'success',
+    description: 'The export is ready.',
+    output: { state: 'ready' },
+  },
+];
+
+/** each reads the sheets the input names, one per item, and goes on past
+ * an item that fails. */
+const EACH = doc(
+  [
+    {
+      id: 'each',
+      type: 'sheet.read',
+      forEach: '{{ input.sheets }}',
+      onItemError: 'continue',
+      input: { sheet: '{{ item }}' },
+    },
+  ],
+  { output: '{{ nodes.each.output }}' },
+);
+
+/** What `two_rows` and `q3_rows` answer. */
+const TWO = { rows: [{ n: 1 }, { n: 2 }] };
+const Q3 = { rows: [{ n: 3 }] };
+
+/** What each pass of a step (of one of its items, under forEach) answered,
+ * in the order the passes ran. */
+const passOutputs = (result: RunResult, path: string, item = -1) =>
+  result.record
+    ?.filter(
+      (r) => r.key.path === path && r.key.item === item && r.key.pass >= 0,
+    )
+    .map((r) => r.output?.value);
+
+/** A run's trace without its timings, which differ from run to run. */
+const untimed = (result: RunResult) =>
+  result.trace.map(({ ms: _ms, ...entry }) => entry);
+
+describe('a test lists scenarios for a step’s calls, and the calls take them in order [AUTO-R80]', () => {
+  beforeAll(() => {
+    registerNodeType({
+      type: 'orders.page',
+      kind: 'connector',
+      outputKind: 'structured',
+      description: 'test connector: read the next page of orders',
+      allowedFields: ['input'],
+      requiredFields: ['input'],
+      connector: {
+        name: 'orders.page',
+        description: 'read the next page of orders',
+        inputSchema: { type: 'object' },
+        outputSignature: '{ orders: Array<{ id: number }>, more: boolean }',
+        hasEffect: false,
+        mock: () => ({ orders: [], more: false }),
+        scenarios: ORDER_PAGES,
+      },
+    });
+    registerNodeType({
+      type: 'export.status',
+      kind: 'connector',
+      outputKind: 'structured',
+      description: 'test connector: read whether an export is ready',
+      allowedFields: ['input'],
+      requiredFields: ['input'],
+      connector: {
+        name: 'export.status',
+        description: 'read whether an export is ready',
+        inputSchema: { type: 'object' },
+        outputSignature: '{ state: string }',
+        hasEffect: false,
+        mock: () => ({ state: 'ready' }),
+        scenarios: EXPORT_STATES,
+      },
+    });
+  });
+
+  it('a step that pages gets the first, a middle and the last page, and stops after the last', async () => {
+    const d = doc(
+      [
+        {
+          id: 'page',
+          type: 'orders.page',
+          input: {},
+          repeatUntil: '{{ output.more === false }}',
+        },
+      ],
+      { output: '{{ nodes.page.output }}' },
+    );
+    const result = await recorded(
+      d,
+      { scenarios: { page: ['first_page', 'middle_page', 'last_page'] } },
+      {},
+    );
+    expect(result.status).toBe('success');
+    expect(passOutputs(result, 'page')).toEqual(
+      ORDER_PAGES.map((page) => page.output),
+    );
+    expect(result.output).toEqual({ orders: [{ id: 4 }], more: false });
+    expect(result.trace[0]).toMatchObject({
+      status: 'ok',
+      bench: 'mocked',
+      note: 'repeatUntil ran 3x',
+    });
+    expect(result.unusedMocks).toBeUndefined();
+
+    // Without the last page, the middle one answers every later call: the
+    // step pages until maxRepeats stops it, as it would against a service
+    // that never says it is done.
+    const endless = await recorded(
+      d,
+      { scenarios: { page: ['first_page', 'middle_page'] } },
+      {},
+    );
+    expect(passOutputs(endless, 'page')).toEqual([
+      ORDER_PAGES[0]?.output,
+      ...Array.from({ length: 4 }, () => ORDER_PAGES[1]?.output),
+    ]);
+    expect(endless.trace[0]?.note).toBe(
+      'repeatUntil ran 5x (maxRepeats hit before the condition became true)',
+    );
+  });
+
+  it('a step that polls per item takes the answers item by item, pass by pass', async () => {
+    const d = doc(
+      [
+        {
+          id: 'poll',
+          type: 'export.status',
+          forEach: '{{ input.exports }}',
+          input: { export: '{{ item }}' },
+          repeatUntil: '{{ output.state === "ready" }}',
+        },
+      ],
+      { output: '{{ nodes.poll.output }}' },
+    );
+    const result = await recorded(
+      d,
+      {
+        scenarios: {
+          poll: ['pending', 'ready', 'pending', 'pending', 'ready'],
+        },
+      },
+      { exports: ['e1', 'e2'] },
+    );
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual([{ state: 'ready' }, { state: 'ready' }]);
+    // The first export is ready on its second pass, the second on its third.
+    expect(passOutputs(result, 'poll', 0)).toEqual([
+      { state: 'pending' },
+      { state: 'ready' },
+    ]);
+    expect(passOutputs(result, 'poll', 1)).toEqual([
+      { state: 'pending' },
+      { state: 'pending' },
+      { state: 'ready' },
+    ]);
+  });
+
+  it('a call that fails takes its answer as any call does: the first item is rate limited, the second gets its rows', async () => {
+    const result = await recorded(
+      EACH,
+      { scenarios: { each: ['rate_limited', 'two_rows'] } },
+      { sheets: ['Q1', 'Q2'] },
+    );
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual([null, TWO]);
+    expect(
+      result.record?.find((r) => r.key.path === 'each' && r.key.item === 0),
+    ).toMatchObject({
+      status: 'failed',
+      failure: {
+        reason: 'CONNECTOR_RATE_LIMITED',
+        params: { connector: 'sheet', action: 'sheet.read', status: 429 },
+      },
+    });
+    // One of the step's calls failed: the step is marked failed, whichever
+    // of its answers came first.
+    expect(result.trace[0]).toMatchObject({
+      status: 'ok',
+      bench: 'failed',
+      note: 'onItemError: continue — 1 of 2 items failed (item 0)',
+    });
+    expect(stepRecord(result, 'each')?.meta.bench).toBe('failed');
+    expect(result.unusedMocks).toBeUndefined();
+
+    const later = await recorded(
+      EACH,
+      { scenarios: { each: ['two_rows', 'rate_limited'] } },
+      { sheets: ['Q1', 'Q2'] },
+    );
+    expect(later.output).toEqual([TWO, null]);
+    expect(later.trace[0]?.bench).toBe('failed');
+    expect(stepRecord(later, 'each')?.meta.bench).toBe('failed');
+  });
+
+  it('a write records the effect of each call its answer lets through', async () => {
+    const d = doc(
+      [
+        {
+          id: 'save',
+          type: 'sheet.append',
+          forEach: '{{ input.rows }}',
+          onItemError: 'continue',
+          input: { sheet: 'Q3', row: '{{ item }}' },
+        },
+      ],
+      { output: '{{ nodes.save.output }}' },
+    );
+    const result = await run(
+      d,
+      { scenarios: { save: ['protected', 'appended'] } },
+      { rows: [{ n: 1 }, { n: 2 }] },
+    );
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual([null, { row: 7 }]);
+    expect(result.effects).toEqual([
+      {
+        node: 'save',
+        connector: 'sheet.append',
+        input: { sheet: 'Q3', row: { n: 2 } },
+        item: 1,
+      },
+    ]);
+  });
+
+  it('a call whose input misses the next answer’s when gets the mock, and the next answer waits for a call it answers', async () => {
+    const result = await run(
+      EACH,
+      { scenarios: { each: ['q3_rows', 'two_rows'] } },
+      { sheets: ['Q2', 'Q3', 'Q4'] },
+    );
+    expect(result.output).toEqual([MOCK_ROWS, Q3, TWO]);
+    expect(result.trace[0]?.bench).toBe('mocked');
+
+    // two_rows answers any call, but no call reaches it: the step's only
+    // call missed q3_rows, so none of its calls took an answer.
+    const missed = await run(
+      EACH,
+      { scenarios: { each: ['q3_rows', 'two_rows'] } },
+      { sheets: ['Q2'] },
+    );
+    expect(missed.output).toEqual([MOCK_ROWS]);
+    expect(missed.trace[0]?.bench).toBeUndefined();
+    expect(missed.unusedMocks).toEqual(['each']);
+  });
+
+  it('the last answer answers every later call its when holds for', async () => {
+    const result = await run(
+      EACH,
+      { scenarios: { each: ['two_rows', 'q3_rows'] } },
+      { sheets: ['Q1', 'Q3', 'Q3', 'Q2'] },
+    );
+    expect(result.output).toEqual([TWO, Q3, Q3, MOCK_ROWS]);
+  });
+
+  it('a list of one scenario is that scenario', async () => {
+    for (const [d, input] of [
+      [ROWS, { sheet: 'Q3' }],
+      [ROWS, { sheet: 'Q2' }],
+      [EACH, { sheets: ['Q2', 'Q3', 'Q3'] }],
+    ] as const) {
+      const listed = await recorded(
+        d,
+        { scenarios: { [d.nodes[0]?.id ?? '']: ['q3_rows'] } },
+        input,
+      );
+      const named = await recorded(
+        d,
+        { scenarios: { [d.nodes[0]?.id ?? '']: 'q3_rows' } },
+        input,
+      );
+      expect(listed.output).toEqual(named.output);
+      expect(untimed(listed)).toEqual(untimed(named));
+      expect(listed.unusedMocks).toEqual(named.unusedMocks);
+    }
+  });
+
+  it('each run starts from the first answer, after a run that failed as after one that passed', async () => {
+    const failing: RunBench = {
+      scenarios: { rows: ['rate_limited', 'two_rows'] },
+    };
+    for (const result of [
+      await run(ROWS, failing, { sheet: 'Q2' }),
+      await run(ROWS, failing, { sheet: 'Q2' }),
+    ]) {
+      expect(result.status).toBe('error');
+      expect(result.error?.failure?.reason).toBe('CONNECTOR_RATE_LIMITED');
+    }
+    expect(failing).toEqual({
+      scenarios: { rows: ['rate_limited', 'two_rows'] },
+    });
+
+    const passing: RunBench = { scenarios: { each: ['two_rows', 'q3_rows'] } };
+    for (const result of [
+      await run(EACH, passing, { sheets: ['Q3'] }),
+      await run(EACH, passing, { sheets: ['Q3'] }),
+    ]) {
+      expect(result.output).toEqual([TWO]);
+    }
+  });
+
+  it('runs at the same time keep their own place in the list', async () => {
+    const bench: RunBench = {
+      scenarios: { each: ['two_rows', 'q3_rows', 'rate_limited'] },
+    };
+    const input = { sheets: ['Q3', 'Q3', 'Q3', 'Q3'] };
+    const alone = await run(EACH, bench, input);
+    expect(alone.output).toEqual([TWO, Q3, null, null]);
+    const together = await Promise.all(
+      Array.from({ length: 4 }, () => run(EACH, bench, input)),
+    );
+    for (const result of together) {
+      expect(result.output).toEqual(alone.output);
+    }
+  });
+
+  it('a scenario the action does not ship is refused at its place in the list, before anything runs', async () => {
+    const result = await run(
+      ROWS,
+      { scenarios: { rows: ['two_rows', 'rate_limit'] } },
+      { sheet: 'Q3' },
+    );
+    expect(result).toMatchObject({
+      status: 'invalid',
+      trace: [],
+      effects: [],
+      validation: {
+        errors: [
+          {
+            code: 'BENCH_UNKNOWN_SCENARIO',
+            at: { pointer: '/bench/scenarios/rows/1' },
+            params: {
+              node: 'rows',
+              type: 'sheet.read',
+              scenario: 'rate_limit',
+              scenarios: SHEET_SCENARIOS.map((s) => s.name),
+              suggestion: 'rate_limited',
+            },
+          },
+        ],
+        warnings: [],
+      },
+    });
+  });
+});

@@ -100,6 +100,17 @@ describe('where a test run’s input starts from', () => {
       scenarios: { post: 'channel_not_found' },
     });
     expect(benchOfTest({ scenarios: { post: 3 } })).toBeUndefined();
+    // So does a list of names, which the node's calls take in order; a
+    // list that is empty or holds what is no name stays behind.
+    expect(
+      benchOfTest({
+        scenarios: {
+          post: ['rate_limited', 'posted'],
+          fetch: [],
+          read: ['two_rows', 3],
+        },
+      }),
+    ).toEqual({ scenarios: { post: ['rate_limited', 'posted'] } });
   });
 
   it('remembers a test by its name, a run as the newest, and the rest by kind', () => {

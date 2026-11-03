@@ -451,11 +451,53 @@ describe('run_automation on stand-ins', () => {
         { store: store() },
       );
       expect(result).toEqual({
-        error: `params.scenarios must be an object of node ids and a scenario name each — got ${JSON.stringify(scenarios)}`,
+        error: `params.scenarios must be an object of node ids and a scenario name each, or a list of 1 to 50 of them — got ${JSON.stringify(scenarios)}`,
         code: 'INVALID_PARAMS',
         hint: expect.stringContaining(
-          'scenarios {node: a scenario its action ships}',
+          'scenarios {node: a scenario its action ships, or a list of 1 to 50 its calls take in order}',
         ),
+      });
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it('hands the scenarios it lists for a step’s calls to the run as written, up to 50 [AUTO-R80]', async () => {
+    const answers = Array.from({ length: 50 }, (_, k) =>
+      k === 0 ? 'busy' : 'quiet',
+    );
+    await dispatch(
+      'run_automation',
+      { automation: DOC, scenarios: { summary: answers, calc: ['found'] } },
+      { store: store() },
+    );
+    expect(execute).toHaveBeenCalledWith(
+      DOC,
+      expect.objectContaining({
+        mode: 'mock',
+        bench: { scenarios: { summary: answers, calc: ['found'] } },
+      }),
+    );
+  });
+
+  it.each([
+    ['an empty list', { summary: [] }],
+    [
+      'a list of more than 50',
+      { summary: Array.from({ length: 51 }, () => 'quiet') },
+    ],
+    ['a list holding what is no name', { summary: ['quiet', 1] }],
+  ])(
+    'refuses a step’s scenarios given as %s, naming the param, running nothing [AUTO-R80]',
+    async (_case, scenarios) => {
+      const result = await dispatch(
+        'run_automation',
+        { automation: DOC, scenarios },
+        { store: store() },
+      );
+      expect(result).toEqual({
+        error: `params.scenarios must be an object of node ids and a scenario name each, or a list of 1 to 50 of them — got ${JSON.stringify(scenarios)}`,
+        code: 'INVALID_PARAMS',
+        hint: expect.stringContaining('or a list of 1 to 50'),
       });
       expect(execute).not.toHaveBeenCalled();
     },
@@ -945,6 +987,86 @@ describe('run_automation picks a scenario an action ships', () => {
     );
     expect(connectorHost).not.toHaveBeenCalled();
     expect(findLive).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  /** Looks up each email it is given, and goes on past one it cannot. */
+  const FIND_ALL = {
+    version: 1,
+    name: 'crm/find-all',
+    nodes: [
+      {
+        id: 'find',
+        type: FIND,
+        forEach: '{{ input.emails }}',
+        onItemError: 'continue',
+        input: { email: '{{ item }}' },
+      },
+    ],
+    output: '{{ nodes.find.output }}',
+  };
+  const EMAILS = ['ada@example.com', 'bob@example.com', 'cy@example.com'];
+  const FOUND = { id: 'c_42', name: 'Ada Lovelace' };
+
+  const runAll = (scenarios: unknown, at: DispatchStore = store()) =>
+    dispatch(
+      'run_automation',
+      { automation: FIND_ALL, input: { emails: EMAILS }, scenarios },
+      { store: at },
+    );
+
+  it('answers the step’s calls with the scenarios it lists, in order, the last for every later call [AUTO-R80]', async () => {
+    const result = (await runAll({
+      find: ['rate_limited', 'found'],
+    })) as RunResult;
+    expect(result).toMatchObject({
+      status: 'success',
+      output: [null, FOUND, FOUND],
+      trace: [
+        {
+          node: 'find',
+          status: 'ok',
+          bench: 'failed',
+          note: 'onItemError: continue — 1 of 3 items failed (item 0)',
+        },
+      ],
+    });
+    expect(result).not.toHaveProperty('unusedMocks');
+    expect(findMock).not.toHaveBeenCalled();
+    expect(findLive).not.toHaveBeenCalled();
+  });
+
+  it('starts every run at the first answer: two organizations’ runs at the same time keep their own place [AUTO-R80]', async () => {
+    const scenarios = { find: ['found', 'rate_limited'] };
+    const alone = (await runAll(scenarios)) as RunResult;
+    expect(alone.output).toEqual([FOUND, null, null]);
+    // Each organization's store is its own; the runs share nothing else.
+    const [north, south] = (await Promise.all([
+      runAll(scenarios, store()),
+      runAll(scenarios, store()),
+    ])) as RunResult[];
+    expect(north?.output).toEqual(alone.output);
+    expect(south?.output).toEqual(alone.output);
+    expect(scenarios).toEqual({ find: ['found', 'rate_limited'] });
+  });
+
+  it('refuses a scenario the step’s action does not ship at its place in the list, running nothing [AUTO-R80]', async () => {
+    const result = await runAll({ find: ['found', 'not_fund'] });
+    expect(result).toEqual(
+      refusal({
+        code: 'BENCH_UNKNOWN_SCENARIO',
+        message: `the test picks the scenario "not_fund" for "find", which ${FIND} does not ship`,
+        hint: `did you mean "not_found"? scenarios of ${FIND}: ${NAMES.join(', ')}`,
+        at: { pointer: '/bench/scenarios/find/1' },
+        params: {
+          node: 'find',
+          type: FIND,
+          scenario: 'not_fund',
+          scenarios: NAMES,
+          suggestion: 'not_found',
+        },
+      }),
+    );
     expect(findMock).not.toHaveBeenCalled();
   });
 });

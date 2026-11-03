@@ -964,5 +964,18 @@
  * run a Member started; a change is on the task's timeline and in the audit
  * log under the agent's name. Additive: no existing agent holds the tool or
  * any label.
+ *
+ * 3.58.0 — 2026-11-02: a test can give a node a list of scenarios. Over
+ * MCP, `run_automation`'s `scenarios`, and each test's `scenarios` wherever
+ * its tests run, take for a node a scenario name as before, or a list of 1
+ * to 50 names its calls take in the order the run makes them: a call that
+ * matches the next one takes it and moves the list on, any other call gets
+ * the action's mock, and the last one answers every later call it matches.
+ * A list entry the action does not ship is refused as `BENCH_INVALID`, its
+ * `data.issue.at.pointer` naming the entry (`/bench/scenarios/<node>/<k>`),
+ * and `validate_automation` points `TESTS_SCENARIO_UNKNOWN` at it; a list
+ * that is empty, longer than 50 or holds anything but names is refused as
+ * `INVALID_ARGUMENTS`, and a test that gives one fails the document check
+ * (`TESTS_INVALID`). Additive: a single name answers as it did.
  */
-export const API_CONTRACT_VERSION = '3.57.0';
+export const API_CONTRACT_VERSION = '3.58.0';
