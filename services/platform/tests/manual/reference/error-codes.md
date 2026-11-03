@@ -343,6 +343,89 @@ Correct the configuration or restore the service, then explicitly retry the run.
 | `VISION_MODEL_UNAVAILABLE`        | Pin a missing/non-vision model, remove its provider or active gateway credential, or exclude it from the credential allowlist. Restore the exact pin's serving prerequisites. A text-only turn cannot substitute another provider or proceed without the required polyfill.  |
 | `VISION_MODEL_RESOLUTION_FAILED`  | Make the explicitly pinned provider, credential or catalog resolver fail. Restore that service and retry; its private response is not copied into the diagnostic.                                                                                                            |
 
+## Task run failures
+
+A project agent's run on a task that fails for good — its automatic retries
+spent, or a failure no retry changes — leaves the task at In progress. While the
+task is still assigned to that agent, the top of the task shows **The agent
+couldn't finish this task** (`tasks.agentRun.failureTitle`) and the sentence of
+the failure's class (`tasks.agentRun.failure.*`), picked from the code stored
+on the run (`lib/shared/task-run-failure.ts`); neither the code nor the run's
+own words appear there. **View** (`common.actions.view`) on the run's row in
+the task's conversation shows **What the run reported**
+(`tasks.agentRun.reported`). **Retry** (`tasks.agentRun.retry`) shows to whoever
+may start the agent. The person who started the run and the task's watchers who
+can still open the project get **Agent run failed** (`inbox.agentRunFailed`),
+also by email: four classes have a body of their own
+(`inbox.agentRunFailedBudgetBody`, `inbox.agentRunFailedPolicyBody`,
+`inbox.agentRunFailedSetupBody`, `inbox.agentRunFailedInputBody`), every other
+class reads `inbox.agentRunFailedBody`. A failure that retries shows neither
+while its retry is pending, and the notice comes once the last attempt fails
+(TASK-B35). Where a row says retried three times, the three count attempts one
+after another: an attempt that worked fifteen minutes or more, from its launch
+to its end, starts the count afresh unless it ran out of memory, so the notice
+may come after more attempts. The retry run itself, while it waits or works,
+carries the caption **Auto-retry n of 3** (`tasks.agentRun.autoRetrying`),
+from 1 again after such an attempt. A retry that spends no attempt after a
+refreshed token (`credential_rotated`) or a refusal for capacity
+(`model_capacity`, `sandbox_capacity`) shows the count of the run it replaces,
+or **Resumed after a token refresh** (`tasks.agentRun.resumedAfterTokenRefresh`)
+when that run showed no count, or worked fifteen minutes or more. An
+out-of-memory retry has no run while it waits its 2, 10 or 30 minutes, so no
+caption shows meanwhile.
+
+A run may wait twelve hours from its start; once it launches, it works up to
+twelve hours from its launch, and at most a day after its start. On a local
+stack only, date that limit back, and the watchdog, which looks every two
+minutes, fails the run with nothing retrying it (the task's id ends its page's
+address):
+`docker exec tale-db psql -U tale -d tale_app -c "UPDATE app.project_agent_runs SET deadline_at_ms = 0 WHERE task_id = '<task id>' AND status IN ('queued', 'running')"`.
+A setting of the sandbox service named below reaches only the sessions it
+creates after the change: set it in that service's environment, recreate the
+service, then **Destroy** the agent's workspace on
+`/dashboard/{org}/settings/sandboxes` (or use a new agent), and put the setting
+back afterwards.
+
+| Failure | Provocation and recovery |
+| --- | --- |
+| `tasks.agentRun.failure.budget` (`budget_exceeded`) | A cost rule that binds the person who starts the run and is already reached: a **User** rule at **Max cost** below what they spent this month, then **Start agent** (TASK-F57, TASK-B5); a cap reached during the turn ends the run the same way. No automatic retry; the bell's body is `inbox.agentRunFailedBudgetBody`. Raise or delete the rule, then **Retry**. |
+| `tasks.agentRun.failure.policy` (`policy_refused`) | A guardrail under **Governance** that blocks a word, and the project's standard agent started on a task whose description holds it (TASK-B53). No automatic retry; the bell's body is `inbox.agentRunFailedPolicyBody`. Remove the word or the guardrail, then **Retry**. |
+| `tasks.agentRun.failure.setup` (`equipment_missing`, `agent_model_missing`, `agent_deleted`) | Equip the agent with a skill, delete the skill or stop sharing it with the project, then **Start agent** → `equipment_missing`. A model the agent names that its provider no longer serves gives `agent_model_missing`; an agent deleted under its waiting run gives `agent_deleted`. No automatic retry; the bell's body is `inbox.agentRunFailedSetupBody`. Fix the agent on the project's Agents tab, then **Retry**. |
+| `tasks.agentRun.failure.input` (`input_missing`) | Attach a file to the task, delete its object from the object store behind Tale, then **Start agent**: the start fails, and **View** names the file. No automatic retry; the bell's body is `inbox.agentRunFailedInputBody`. Remove the attachment or upload it again, then **Retry**. |
+| `tasks.agentRun.failure.time_limit` (`deadline`) | A run still working twelve hours after its launch, or a day after its start; on a local stack, the update above while the agent works. No automatic retry. Split the task, or **Retry**. |
+| `tasks.agentRun.failure.capacity` (`park_deadline`) | A run still waiting twelve hours after its start for anything but its model — **Waiting for a worker**, **Waiting for room**, **Waiting for a workspace** or **Waiting for its sandbox** (TASK-B50, TASK-B58 and the refusals below); on a local stack, the update above while it waits. No automatic retry. Free a worker (**Manage agent workers**), then **Retry**. |
+| `tasks.agentRun.failure.model_capacity` (`model_capacity`) | A run still **Waiting for model capacity** twelve hours after its start (TASK-B59); on a local stack, the update above while it waits. A model at capacity during a turn fails the run as `model_capacity`, and its automatic retry spends no attempt. A run in a workspace holds the model: its retry parks on the hold, reading **Waiting for model capacity** until the hold runs out, unless the model has refused for twelve hours already, which ends the run with the notice and no automatic retry. A run without one (the standard agent on **Automatic**, started by a person, until it hands over) fails so when its model's provider answers a rate limit (`rate_limited`), and holds no model: its retry starts at once, with no wait and no twelve-hour stop. **Retry** later, or have an Admin check the provider. |
+| `tasks.agentRun.failure.model` (`harness_error`, `empty_turn`, `credential_rotated`, `credential_cooldown`) | A harness that exits before its turn is done (TASK-B6: a Codex agent whose `CODEX_HOME` is missing), a provider that answers an error, or a turn that ends before its work. Retried three times; the notice and the bell come when the fourth attempt fails. `credential_rotated` and `credential_cooldown` come from a subscription broker. `credential_rotated` is a token refreshed under the turn: its retry spends no attempt twice in a row, and the third in a row counts. `credential_cooldown` is a start that found every account cooling down after a rate limit: its wait spends no attempt only when the run it retried, of the same agent, ended on a rate limit (429). |
+| `tasks.agentRun.failure.start` (`start_failed`) | Stop the sandbox service (`docker stop tale-sandbox`), then **Start agent**: each attempt fails to create its session. Retried three times; start the service again (`docker start tale-sandbox`), then **Retry**. |
+| `tasks.agentRun.failure.interrupted` (`session_gone`, `turn_crashed`, `harvest_failed`, `steer_restart_failed`, `sandbox_capacity`) | Stop the agent's sandbox while it works (TASK-B35). Retried three times, each retry continuing the conversation where it can, or else starting afresh on the files the run left; the notice comes after the last. A comment's restart that runnerd refuses for room inside the run's session (the refusals below) ends as `sandbox_capacity` and retries 15 seconds later, whatever wait the refusal names, without spending an attempt. Only runnerd refuses a restart so: the restart starts its process in the session the run already holds, and asks the sandbox service for no session. |
+| `tasks.agentRun.failure.stalled` (`turn_stalled`) | Set `SANDBOX_EXEC_STALL_MINUTES=1` on the sandbox service, then give the agent a task that has it run `sleep 600`: the session ends a process that printed nothing and used almost no CPU for the window. No automatic retry; **View** shows what it printed last. The default window is 45 minutes, `0` turns it off. |
+| `tasks.agentRun.failure.out_of_memory` (`resource_exhausted`) | Set `SANDBOX_AGENT_MEMORY` on the sandbox service below what the harness needs (`256m`), then **Start agent**: the session's memory limit kills the agent. Retried after 2, 10, then 30 minutes, however long each attempt worked; the notice and the bell come when the third retry runs out of memory too. Give agents more memory, then **Retry**. |
+| `tasks.agentRun.failure.unknown` (no code, or one this build does not know) | A run failed before its code was stored, or by a newer build. On a local stack, give a failed run a code this build does not know and reload the task: `docker exec tale-db psql -U tale -d tale_app -c "UPDATE app.project_agent_runs SET failure_code = 'not_a_code' WHERE task_id = '<task id>' AND status = 'failed'"`. |
+
+## Sandbox refusals that park a run
+
+The sandbox service refuses to create a session, or to let a released one
+resume work, with a busy answer and the seconds to wait; inside a session,
+runnerd refuses a new process the same way. None of them fails a start: the run
+waits, offers **Cancel run** (`tasks.agentRun.cancel`), spends no automatic
+retry, and starts by itself once there is room. Each refusal below reads
+**Waiting for room** (`tasks.agentRun.waiting.host`) with
+`tasks.agentRun.waitingWhy.host` in the Run row and the timeline; runnerd's
+other refusal, its limit of four live processes in one session, reads
+**Waiting for its sandbox** instead (TASK-B58). Twelve hours after its start a
+waiting run fails as `tasks.agentRun.failure.capacity`. Each setting below
+belongs to the sandbox service, as the self-hosted environment reference
+describes it; put it back after the box.
+
+| Refusal | Provocation and recovery |
+| --- | --- |
+| `session_quota` | The deployment's session capacity is reached: set `SANDBOX_MAX_SESSIONS` at or below the sessions running, the ones still starting included, then **Start agent** (TASK-B50). The run starts once a session ends, or once the service stops a released idle session to make room. |
+| `host_memory` | On a local Docker host with `SANDBOX_MAX_SESSIONS` unset, set `SANDBOX_MIN_FREE_MEMORY` to about the host's available memory, below its total (a reserve at or above the total keeps the service from starting), then **Start agent**. The service first stops a released idle session, then answers busy; the run starts once memory frees. |
+| `host_cpu` | Under the `default` admission preset, set `SANDBOX_CPU_PRESSURE_PERCENT=1`, keep every CPU of the host busy (one `yes > /dev/null` per CPU) and start two agents at once: under pressure the service lets in one start every ten seconds, counted from the last one it let in, whether or not that one has finished, so the second waits for room about ten seconds, then starts by itself. |
+| `host_pressure` | Set `SANDBOX_ADMISSION_PRESET=conservative` and keep the host's load average at or above one per CPU (the same load), then **Start agent**: a start held back for load, memory or I/O pressure answers `host_pressure`. The project's dispatch holds its own starts on the same reading and says **The sandbox host is busy**. |
+| `host_disk` | Set `SANDBOX_MIN_FREE_DISK` above the free space of the disk that holds the session workspaces, then **Start agent**: the service refuses the session at once, since stopping a session frees no disk. The build-cache upkeep that follows the service's sweep every minute gives back what it can; the run starts once the free space is above the floor again. |
+| `session_memory_busy` (runnerd) | A session that still runs a process and uses 90 percent of its memory limit refuses the next one; an idle session never does, since what a turn leaves running ends with it. With `SANDBOX_AGENT_MEMORY` low, have the agent run a process that holds most of it and, while that turn works, comment on the task: the comment's restart is refused, and the run ends as `sandbox_capacity` (class `tasks.agentRun.failure.interrupted`) with a retry that spends no attempt, starts 15 seconds later, whatever wait the refusal names, and then waits for room like any start. A start refused so reads **Waiting for room**, never **Waiting for its sandbox**. |
+
 ## Server transcription model routing
 
 These bounded codes appear in model status and composer capability metadata.
