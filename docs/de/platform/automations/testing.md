@@ -49,7 +49,7 @@ expect:
 - `effects` listet Aktionen, die der Lauf ausführen muss, etwa eine E-Mail, die gesendet wird, nach Node-Typ; mit `absent: true` eine Aktion, die nicht stattfinden darf.
 - `failure` sagt, dass der Lauf fehlschlagen muss, auf Wunsch bei einem bestimmten Schritt und mit einer Meldung, die den angegebenen Text enthält.
 - `mocks` gibt einem Schritt eine Ausgabe, die er verwendet, statt seinen Dienst oder sein Modell aufzurufen, und `failures` lässt einen Schritt mit der angegebenen Meldung fehlschlagen.
-- `scenarios` gibt einem Schritt, der einen Connector aufruft, einen der Fälle, die seine Aktion mitliefert, wie [Ein Szenario eines Connectors wählen](#scenarios) beschreibt.
+- `scenarios` gibt einem Schritt, der einen Connector aufruft, einen der Fälle, die seine Aktion mitliefert, oder eine Liste davon, die seine Aufrufe der Reihe nach erhalten, wie [Ein Szenario eines Connectors wählen](#scenarios) beschreibt.
 
 Ohne `expect` besteht ein Test, wenn der Lauf erfolgreich ist. Im Menü einer Zeile kopierst du einen Test mit **Duplizieren** oder entfernst ihn mit **Löschen**; **Verwerfen** holt einen gelöschten Test zurück, solange du nicht gespeichert hast.
 
@@ -77,6 +77,25 @@ Die Eingabe des Schritts wird weiterhin ermittelt und geprüft. Ein Aufruf, dess
 Für einen Schritt springt der Test nur auf eine Weise ein: mit einem Szenario, einer simulierten Ausgabe oder einem simulierten Fehler.
 
 Unter **Einrichtung** bietet **Szenario für eine Node wählen** jeden Schritt an, dessen Aktion Szenarien mitliefert und für den der Test noch nicht einspringt, und gibt ihm das erste Szenario seiner Aktion. **Szenario für** den Schritt listet dann jedes Szenario, das die Aktion mitliefert, jeweils mit seiner Art (**Erfolg**, **Leer**, **Fehler**, **Ablehnung** oder **Duplikat**), mit dem, was der Dienst antwortet, und bei einem, das nur manche Aufrufe beantwortet, mit welchen. Art und Beschreibung des gewählten Szenarios stehen über der Liste. Ein Name, den die Aktion nicht mitliefert, bleibt so stehen, wie er geschrieben ist, bis du einen anderen wählst, und **Probleme** sagt, was daran nicht stimmt. Der Tab **Struktur** einer Node listet dieselben Szenarien. [Connectors](/de/develop/connectors#scenarios) erklärt, wie eine Aktion ihre Szenarien deklariert und wie ihre Fehler eingeordnet werden. Über den [MCP-Endpunkt](/de/develop/mcp-endpoint#authoring) listet `get_catalog` die Szenarien, die jede Aktion mitliefert.
+
+#### Die Aufrufe eines Schritts der Reihe nach beantworten {#scenario-lists}
+
+Ein Schritt, der seinen Connector mehr als einmal aufruft, einmal pro Element eines `forEach` oder bei jedem Durchgang eines `repeatUntil` erneut, kann statt eines Namens eine Liste von Szenarien erhalten: bis zu 50, die seine Aktion mitliefert, jedes so oft, wie du es brauchst. Die Aufrufe des Schritts erhalten sie der Reihe nach, so wie der Lauf die Aufrufe macht. So zeigt der Test einen Ablauf, etwa Seiten bis zur letzten oder einen Dienst, der einen Aufruf ablehnt und den nächsten beantwortet. In diesem Test sendet `post` jede Nachricht der Eingabe und macht nach einer, die fehlschlägt, mit der nächsten weiter (`onItemError: continue`). Slack lehnt die erste Nachricht mit einem Ratenlimit ab und sendet die zweite. Der Lauf ist also erfolgreich, und die Ausgabe des Schritts enthält `null` für die erste Nachricht:
+
+```yaml
+name: Slack refuses the first message, then posts the second
+input:
+  messages: [Hello, Goodbye]
+scenarios:
+  post: [rate_limited, posted]
+```
+
+- Ein Aufruf, der zum nächsten Szenario der Liste passt, erhält dessen Antwort, und die Liste rückt zum Szenario danach vor. Ein Aufruf, der nicht passt, erhält die übliche simulierte Antwort des Connectors, und das Szenario wartet auf einen Aufruf, der passt.
+- Das letzte Szenario beantwortet jeden späteren Aufruf, der dazu passt; eine Liste mit einem Szenario wirkt also wie sein Name allein.
+- Der Schritt trägt **Simulierter Fehler**, wenn einer seiner Aufrufe einen Fehler erhalten hat, auch wenn ein späterer erfolgreich war, und sonst **Simulierte Ausgabe**. Er steht unter **Nicht verwendet**, wenn keiner seiner Aufrufe ein Szenario der Liste erhalten hat.
+- Jeder Lauf des Tests beginnt wieder beim ersten Szenario.
+
+Unter **Einrichtung** fügt **Szenario für den nächsten Aufruf von Post hinzufügen** unter dem Szenario des Schritts eine Zeile mit einer Kopie des letzten hinzu. Die Zeilen heißen dann **Szenario für Post, Aufruf 1** und die letzte **Szenario für Post, ab Aufruf 2**. **Szenario für Aufruf 1 von Post entfernen** entfernt die Zeile dieses Aufrufs, und sobald nur noch eine Zeile übrig ist, hat der Schritt wieder ein einzelnes Szenario. Ein Szenario der Liste, das die Aktion nicht mitliefert, steht unter **Probleme**, und das Problem öffnet den Test an seiner Zeile.
 
 ### Vom Trigger oder einem Pfad ausgehen
 
