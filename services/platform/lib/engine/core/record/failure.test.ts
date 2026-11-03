@@ -249,6 +249,8 @@ describe('reasonFamily', () => {
     // A refused account or credential repeats at the next occurrence.
     ['KNOWLEDGE_UNAVAILABLE', { providerCode: 'EMBEDDING_CREDIT_EXHAUSTED' }],
     ['KNOWLEDGE_UNAVAILABLE', undefined],
+    // A test run's mock state over its cap is the same at every run (CONN-R36).
+    ['CONNECTOR_MOCK_STATE_TOO_LARGE', undefined],
   ])(
     'a refusal the next occurrence would repeat stays a connector failure: %s %j',
     (reason, params) => {

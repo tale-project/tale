@@ -45,7 +45,12 @@ export class MockStateRefusal extends ConnectorError {
     });
     this.failure = {
       reason: 'CONNECTOR_MOCK_STATE_TOO_LARGE',
-      params: { connector, action: nodeType, detail: message },
+      params: {
+        connector,
+        action: nodeType,
+        limit: Math.floor(sizes.limit / 1024),
+        detail: message,
+      },
     };
   }
 }

@@ -43,6 +43,7 @@ export const STEP_FAILURE_REASONS = [
   'CONNECTOR_RATE_LIMITED',
   'CONNECTOR_UNREACHABLE',
   'CONNECTOR_FAILED',
+  'CONNECTOR_MOCK_STATE_TOO_LARGE',
   'HTTP_STATUS',
   'HTTP_TIMEOUT',
   'HTTP_UNREACHABLE',
@@ -128,6 +129,12 @@ export const STEP_FAILURE_META: Readonly<
     params: ['connector', 'action'],
     optional: ['status', 'errorName', 'errorCode'],
     technical: ['detail', 'errorName', 'errorCode'],
+  },
+  // A test run's mock would have grown the state it keeps for its connector
+  // past the cap (CONN-R36); `limit` is that cap in KB.
+  CONNECTOR_MOCK_STATE_TOO_LARGE: {
+    params: ['connector', 'action', 'limit'],
+    technical: ['detail'],
   },
   // The HTTP connector's own causes. `host` is the address's host only and
   // `target` a URL without its query: a query may carry a value the author

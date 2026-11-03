@@ -259,6 +259,11 @@ runtime:
       explanation: Le service a répondu par une erreur.
       cause: '{status, select, none {{connectorLabel} a échoué sur {actionLabel}.} other {{connectorLabel} a répondu {status} à {actionLabel}.}}'
       fix: Les détails techniques donnent le message exact du service. Corrige l’entrée, ou réessaie.
+    CONNECTOR_MOCK_STATE_TOO_LARGE:
+      title: L’essai a trop écrit
+      explanation: Dans un essai, les réponses simulées d’un connector gardent ce que l’exécution écrit, comme les tâches qu’elle crée, pour que les étapes suivantes puissent le relire. Un essai garde une quantité limitée pour chaque connector.
+      cause: '{actionLabel} aurait fait dépasser {limit} Ko à ce que cet essai garde pour {connectorLabel}.'
+      fix: Appelle {connectorLabel} moins souvent dans un même test, par exemple avec moins d’éléments. Si tu as écrit le connector, ne garde dans l’état de ses mocks que ce que les appels suivants lisent.
     HTTP_STATUS:
       title: L’API a répondu par une erreur
       explanation: La requête a atteint le service, qui a répondu par un statut qui n’est pas un succès.

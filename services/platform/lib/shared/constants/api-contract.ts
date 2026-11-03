@@ -977,5 +977,20 @@
  * that is empty, longer than 50 or holds anything but names is refused as
  * `INVALID_ARGUMENTS`, and a test that gives one fails the document check
  * (`TESTS_INVALID`). Additive: a single name answers as it did.
+ *
+ * 3.59.0 — 2026-11-03: in a test run, a connector action's mock can keep
+ * what the run wrote (`mockState: true` on the action): one JSON value per
+ * connector per run, shared with the automations the run calls, dropped
+ * when the run ends and never shared between runs. A write that declares
+ * itself `idempotent` answers a key the run already used with the answer it
+ * gave the first time, without running its mock again, and a scenario whose
+ * error is `applied` (as `get_catalog` lists it) is a write that reached the
+ * service before its answer was lost: the run keeps what it wrote, then the
+ * step fails with the error. The shipped `task` connector's mocks keep the
+ * run's tasks, so `task.get` and `task.list` read back what `task.create`
+ * and `task.update_status` wrote in the same test run. `StepFailure.reason`
+ * gains `CONNECTOR_MOCK_STATE_TOO_LARGE`, for a mock that would grow what a
+ * test run keeps for its connector past 256 KB. Additive: a mock that keeps
+ * nothing answers as it did.
  */
-export const API_CONTRACT_VERSION = '3.58.0';
+export const API_CONTRACT_VERSION = '3.59.0';

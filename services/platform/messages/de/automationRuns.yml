@@ -259,6 +259,11 @@ runtime:
       explanation: Der Dienst antwortete mit einem Fehler.
       cause: '{status, select, none {{connectorLabel} ist bei {actionLabel} fehlgeschlagen.} other {{connectorLabel} antwortete auf {actionLabel} mit {status}.}}'
       fix: Die technischen Details enthalten den Wortlaut des Dienstes. Korrigiere die Eingabe oder versuche es erneut.
+    CONNECTOR_MOCK_STATE_TOO_LARGE:
+      title: Der Testlauf hat zu viel geschrieben
+      explanation: In einem Testlauf behalten die simulierten Antworten eines Connectors, was der Lauf schreibt, etwa die Aufgaben, die er anlegt, damit spätere Schritte es wieder lesen können. Ein Testlauf behält pro Connector nur eine begrenzte Menge.
+      cause: '{actionLabel} hätte das, was dieser Testlauf für {connectorLabel} behält, über {limit} KB anwachsen lassen.'
+      fix: Rufe {connectorLabel} in einem Test seltener auf, zum Beispiel mit weniger Elementen. Wenn du den Connector geschrieben hast, behalte im Zustand seiner Mocks nur, was spätere Aufrufe lesen.
     HTTP_STATUS:
       title: Die API hat mit einem Fehler geantwortet
       explanation: Die Anfrage hat den Dienst erreicht, und er hat mit einem Status geantwortet, der kein Erfolg ist.

@@ -259,6 +259,11 @@ runtime:
       explanation: The service answered with an error.
       cause: '{status, select, none {{connectorLabel} failed {actionLabel}.} other {{connectorLabel} answered {status} to {actionLabel}.}}'
       fix: The technical details have the service's own words. Fix the input, or try again.
+    CONNECTOR_MOCK_STATE_TOO_LARGE:
+      title: The test run wrote too much
+      explanation: In a test run, a connector's simulated answers keep what the run writes, such as the tasks it creates, so that later steps can read it back. A test run keeps a limited amount for each connector.
+      cause: '{actionLabel} would have grown what this test run keeps for {connectorLabel} past {limit} KB.'
+      fix: Make fewer calls to {connectorLabel} in one test, for example with fewer items. If you wrote the connector, keep only what later calls read in its mocks' state.
     HTTP_STATUS:
       title: The API answered with an error
       explanation: The request reached the service, and it answered with a status that isn't a success.
