@@ -88,7 +88,7 @@ At each occurrence, dispatch moves the task to **In progress** and starts the ag
 
 A gate holds the ready work it governs while a signal from outside says so — for example while your CI system's runner queue is full. Declare the gate under **Gates** in **Edit**: a **Key**, the **Labels it holds** (none holds all ready work), and either let a person hold and open it or let it judge a value with **Hold at** and **Open again below**. A held gate opens again only below the second value, half of the first unless you set it, so a signal near the threshold does not switch it back and forth.
 
-An external system reports on the gate through the [REST API](/develop/api-reference#dispatch); project administrators can also **Hold** and **Open** it under **Gates**. A gate nobody reports on within **Stale after (seconds)**, ten minutes by default, opens again, or holds when **When stale** says **Hold**. **Time between its starts (seconds)** lets one start of the gate's work through, then the next only after that time. Standing roles are never held by a gate.
+An external system reports on the gate through the [REST API](/develop/api-reference#dispatch), and an automation installed in the project with a [`task.report_gate` step](/platform/automations/add-tasks#report-gate); project administrators can also **Hold** and **Open** it under **Gates**. A gate nobody reports on within **Stale after (seconds)**, ten minutes by default, opens again, or holds when **When stale** says **Hold**. **Time between its starts (seconds)** lets one start of the gate's work through, then the next only after that time. Standing roles are never held by a gate.
 
 ## Serve other projects' boards {#sources}
 
