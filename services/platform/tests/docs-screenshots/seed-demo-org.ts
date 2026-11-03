@@ -948,10 +948,10 @@ async function ensureResearcherInstalled(orgId: string): Promise<void> {
 
 /**
  * Connect the Tavily connector so connector-bound builtin agents — the
- * Researcher — offer themselves in the chat agent picker. Outbound Tavily
- * The fixture supplies a synthetic credential for the settings capture.
- * Seeding does not execute Tavily requests; gateway availability alone does
- * not redirect runtime connector traffic.
+ * Researcher — offer themselves in the chat agent picker. The fixture
+ * supplies a synthetic credential for the settings capture. Seeding sends no
+ * Tavily request, and nothing stands in for Tavily: the mock gateway has no
+ * connector routes.
  */
 async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/connectors`);
