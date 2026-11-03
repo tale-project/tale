@@ -58,6 +58,21 @@ describe('parseRunCheckpoints', () => {
     });
   });
 
+  it('reads a mock run’s own state, and no state for none [AUTO-R81]', () => {
+    const mockState = {
+      task: { state: { tasks: [] }, answers: { k1: { id: 'tsk_mock_42' } } },
+    };
+    expect(
+      parseRunCheckpoints({ nodes: {}, executions: 1, mockState }),
+    ).toEqual({
+      ok: true,
+      checkpoints: { nodes: {}, executions: 1, mockState },
+    });
+    expect(
+      parseRunCheckpoints({ nodes: {}, executions: 1, mockState: null }),
+    ).toEqual({ ok: true, checkpoints: { nodes: {}, executions: 1 } });
+  });
+
   it('reads an agent turn parked on the cursor', () => {
     expect(
       parseRunCheckpoints({
@@ -127,6 +142,11 @@ describe('parseRunCheckpoints', () => {
       'an execution count that is not a number',
       { nodes: {}, executions: 'many' },
       'the execution count is not a number',
+    ],
+    [
+      'a mock run’s state that is not a state per connector',
+      { nodes: {}, mockState: { task: [] } },
+      "the mock run's own state is not a state per connector",
     ],
   ])('refuses %s', (_label, value, reason) => {
     expect(parseRunCheckpoints(value)).toEqual({ ok: false, reason });

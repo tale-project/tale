@@ -32,6 +32,11 @@ export type MockStateWrite =
   | { kept: true }
   | { kept: false; bytes: number; limit: number };
 
+/** Where a run's state stood at one moment, to go back to. */
+export interface MockStateMark {
+  readonly parts: ReadonlyMap<string, ConnectorMockState>;
+}
+
 export class RunMockState {
   readonly #parts = new Map<string, ConnectorMockState>();
   #revision = 0;
@@ -79,7 +84,24 @@ export class RunMockState {
     return { kept: true };
   }
 
-  /** How many writes the state kept since it was created: a holder that
+  /** Where the state stands now, to go back to (`restore`). */
+  mark(): MockStateMark {
+    // A kept part is never changed in place, so a copy of the map holds it.
+    return { parts: new Map(this.#parts) };
+  }
+
+  /** Back to where `mark` found the state, dropping every write kept since:
+   * what a step that is cut off, and runs again from its start, wrote. A
+   * change like any other: the revision moves on. */
+  restore(mark: MockStateMark): void {
+    this.#parts.clear();
+    for (const [connector, part] of mark.parts) {
+      this.#parts.set(connector, part);
+    }
+    this.#revision++;
+  }
+
+  /** How many changes the state kept since it was created: a holder that
    * commits it compares this with what it last committed. */
   get revision(): number {
     return this.#revision;

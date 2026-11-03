@@ -1,10 +1,11 @@
 // A stand-in for everything the stepper reaches through its ctx — the run
 // row, its fenced writes, the effect ledger, the saved automations and the
 // connector door — for the stepper suites that walk a run across several
-// turns. It keeps the run's checkpoints the way the store merges them, and
-// answers the ledger the way `domains/automations/node-attempts.ts` does, so
-// a suite can stop a run between two turns, change what the ledger holds,
-// and step it again. Test-only: never imported by shipped code.
+// turns. It keeps the run's checkpoints the way the store merges them (a mock
+// run's own state too), and answers the ledger the way
+// `domains/automations/node-attempts.ts` does, so a suite can stop a run
+// between two turns, change what the ledger holds, and step it again.
+// Test-only: never imported by shipped code.
 
 import {
   type NodeRunWrite,
@@ -137,6 +138,17 @@ export function fakeStepperWorld(options: {
       world.nodeRuns.set(unitKeyOf(write.record.key), clone(write.record));
       world.recordBytes += write.bytes;
     }
+  };
+  /** A mock run's own state as the store keeps it: the one a write brings
+   * replaces the stored one, and a write without one keeps it. */
+  const keptMockState = (
+    args: Record<string, unknown>,
+  ): { mockState?: unknown } => {
+    if (args.mockState !== undefined) {
+      return { mockState: clone(args.mockState) };
+    }
+    const stored = world.run.checkpoints.mockState;
+    return stored === undefined ? {} : { mockState: stored };
   };
   let nextAttemptId = 1;
 
@@ -280,6 +292,7 @@ export function fakeStepperWorld(options: {
           nodes,
           executions: args.executions,
           ...(args.cursor !== undefined && { cursor: clone(args.cursor) }),
+          ...keptMockState(args),
         };
         return { status: world.run.status };
       }
@@ -292,6 +305,7 @@ export function fakeStepperWorld(options: {
           nodes: world.run.checkpoints.nodes ?? {},
           executions: args.executions,
           ...(args.cursor !== undefined && { cursor: clone(args.cursor) }),
+          ...keptMockState(args),
         };
         return { suspended: true };
       }
@@ -305,6 +319,12 @@ export function fakeStepperWorld(options: {
         world.finished.push(clone(args));
         keepNodeRuns(args);
         world.run.status = text(args.status);
+        // The store keeps the finished steps and drops the rest: the cursor
+        // and a mock run's own state end with the run.
+        world.run.checkpoints = {
+          nodes: world.run.checkpoints.nodes ?? {},
+          executions: args.executions,
+        };
         return { status: args.status };
       }
       throw new Error(`unexpected mutation ${name}`);

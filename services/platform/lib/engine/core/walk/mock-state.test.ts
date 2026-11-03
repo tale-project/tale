@@ -77,6 +77,21 @@ describe('the run’s own state in mock mode [AUTO-R81]', () => {
     expect(state.write('github', { state: half }).kept).toBe(true);
   });
 
+  it('goes back to a mark, dropping what was kept since', () => {
+    const state = new RunMockState();
+    state.write('task', { state: { n: 1 } });
+    const mark = state.mark();
+    state.write('task', { state: { n: 2 }, answer: { key: 'k1', output: 1 } });
+    state.write('github', { state: 'x' });
+    state.restore(mark);
+    expect(state.snapshot()).toEqual({
+      task: { state: { n: 1 }, answers: {} },
+    });
+    // Going back is a change too: a holder that committed the later writes
+    // commits the earlier state again.
+    expect(state.revision).toBe(4);
+  });
+
   it('round-trips through a snapshot, sharing nothing with it', () => {
     const state = new RunMockState();
     state.write('task', {

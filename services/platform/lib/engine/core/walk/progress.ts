@@ -19,6 +19,7 @@
  */
 
 import type { Effect, NodeTrace } from '../types';
+import type { MockStateSnapshot } from './mock-state';
 
 /** Why a node produced no output. */
 export type SkipReason =
@@ -220,4 +221,10 @@ export interface RunCheckpoints {
    * re-entry: a counter that reset every turn would bound nothing.
    */
   executions: number;
+  /**
+   * A mock run's own state (AUTO-R81): what its connector mocks wrote, by
+   * connector, committed with the outcome of the step that wrote it. Absent
+   * before a mock wrote any, and on a live run; the run's end drops it.
+   */
+  mockState?: MockStateSnapshot;
 }

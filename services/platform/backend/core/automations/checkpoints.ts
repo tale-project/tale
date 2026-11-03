@@ -6,6 +6,7 @@
  */
 
 import type { Effect, NodeTrace } from '../../../lib/engine/core/types';
+import { readMockStateSnapshot } from '../../../lib/engine/core/walk/mock-state';
 import type {
   NodeCheckpoint,
   NodeCursor,
@@ -143,6 +144,20 @@ export function parseRunCheckpoints(
   if (value.executions !== undefined && !isCount(value.executions)) {
     return { ok: false, reason: 'the execution count is not a number' };
   }
+  // A mock run's own state: its mocks would answer as though the run had
+  // written nothing, so a state this engine cannot read fails the run too.
+  const storedMockState =
+    value.mockState === null ? undefined : value.mockState;
+  const mockState =
+    storedMockState === undefined
+      ? undefined
+      : readMockStateSnapshot(storedMockState);
+  if (storedMockState !== undefined && mockState === undefined) {
+    return {
+      ok: false,
+      reason: "the mock run's own state is not a state per connector",
+    };
+  }
   return {
     ok: true,
     checkpoints: {
@@ -154,6 +169,7 @@ export function parseRunCheckpoints(
           cursor: value.cursor as NodeCursor,
         }),
       executions: isCount(value.executions) ? value.executions : 0,
+      ...(mockState !== undefined && { mockState }),
     },
   };
 }

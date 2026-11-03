@@ -3761,6 +3761,10 @@ export async function cancelRunInTx(
         -- run is no longer in; detail is documented as "the failure or wait
         -- reason; null while the run has none" (2026-09-14 eval, g5-8).
         detail = NULL,
+        -- A mock run's own state ends with the run, as finishRun drops it
+        -- (AUTO-R81); the steps it finished stay.
+        checkpoints = CASE WHEN jsonb_typeof(checkpoints) = 'object'
+                           THEN checkpoints - 'mockState' ELSE checkpoints END,
         lease_owner = NULL, lease_expires_at_ms = NULL
       WHERE id = ${runId} AND org_id = ${organizationId}
         AND status IN ('queued', 'running', 'waiting')
@@ -4410,9 +4414,10 @@ function boundIncomingCheckpoint(checkpoint: unknown): unknown {
 /**
  * Record a walker's progress: one node's checkpoint merged into the stored
  * `nodes` (server-side, so two commits of one claim never drop each other's
- * node), the forEach cursor replaced or dropped, and the lease renewed. ONE
- * statement fenced by the walker's epoch and a live status; top-level keys
- * this engine does not know survive the write.
+ * node), the forEach cursor replaced or dropped, a mock run's own state
+ * replaced when it changed, and the lease renewed. ONE statement fenced by
+ * the walker's epoch and a live status; top-level keys this engine does not
+ * know survive the write.
  */
 export async function recordProgress(
   sql: Sql,
@@ -4424,6 +4429,9 @@ export async function recordProgress(
     checkpoint?: unknown;
     cursor?: unknown;
     executions: number;
+    /** A mock run's own state, when a step changed it since the last write
+     * (AUTO-R81); absent keeps the stored one. */
+    mockState?: unknown;
     /** The run-record rows the walker changed since its last write: written
      * with this progress, in its transaction, once the fence matched. */
     nodeRuns?: NodeRunWrite[];
@@ -4441,6 +4449,7 @@ export async function recordProgress(
         ? null
         : jsonParam(tx, boundIncomingCheckpoint(args.checkpoint));
     const cursor = jsonParam(tx, args.cursor);
+    const mockState = jsonParam(tx, args.mockState);
     const rows = await tx<{ status: string }[]>`
       UPDATE app.automation_runs SET
         checkpoints =
@@ -4455,7 +4464,9 @@ export async function recordProgress(
                    END),
                'executions', ${args.executions}::int)
           || (CASE WHEN ${cursor}::jsonb IS NULL THEN '{}'::jsonb
-                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
+                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END)
+          || (CASE WHEN ${mockState}::jsonb IS NULL THEN '{}'::jsonb
+                   ELSE jsonb_build_object('mockState', ${mockState}::jsonb) END),
         lease_expires_at_ms = CASE WHEN lease_expires_at_ms IS NULL THEN NULL
                                    ELSE ${now + RUN_LEASE_MS}::bigint END,
         wake_at_ms = ${now + RUN_LEASE_MS},
@@ -4508,6 +4519,9 @@ export async function suspendRun(
     detail: string;
     cursor?: unknown;
     executions: number;
+    /** A mock run's own state, when a step changed it since the last write
+     * (AUTO-R81); absent keeps the stored one. */
+    mockState?: unknown;
     resumeInMs: number;
     event?: { kind: RunEventKind; detail?: Record<string, unknown> };
     /** The run-record rows the walker changed since its last write: written
@@ -4534,6 +4548,7 @@ export async function suspendRun(
       }
     }
     const cursor = jsonParam(tx, parkCursor);
+    const mockState = jsonParam(tx, args.mockState);
     const rows = await tx<{ seq: number }[]>`
       UPDATE app.automation_runs SET
         status = 'waiting', detail = ${truncateRunDetail(args.detail)},
@@ -4546,7 +4561,9 @@ export async function suspendRun(
                     THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
                'executions', ${args.executions}::int)
           || (CASE WHEN ${cursor}::jsonb IS NULL THEN '{}'::jsonb
-                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
+                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END)
+          || (CASE WHEN ${mockState}::jsonb IS NULL THEN '{}'::jsonb
+                   ELSE jsonb_build_object('mockState', ${mockState}::jsonb) END),
         wake_at_ms = ${now + args.resumeInMs},
         chain_seq = chain_seq + 1,
         lease_owner = NULL, lease_expires_at_ms = NULL,

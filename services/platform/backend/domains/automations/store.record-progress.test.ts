@@ -217,9 +217,9 @@ describe('recordProgress', () => {
     await progress(without.sql);
     const update = updateOf(without.statements);
     expect(jsonValues(update)).toEqual([]);
-    // The node key (twice), its checkpoint and the cursor (twice) bind as
-    // SQL NULLs.
-    expect(update.values.filter((value) => value === null)).toHaveLength(5);
+    // The node key (twice), its checkpoint, the cursor (twice) and a mock
+    // run's own state (twice) bind as SQL NULLs.
+    expect(update.values.filter((value) => value === null)).toHaveLength(7);
   });
 
   it.each([

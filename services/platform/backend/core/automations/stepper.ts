@@ -64,6 +64,11 @@ import {
   maxRepeatsOf,
 } from '../../../lib/engine/core/walk/limits';
 import {
+  type MockStateMark,
+  type MockStateSnapshot,
+  RunMockState,
+} from '../../../lib/engine/core/walk/mock-state';
+import {
   inlineSink,
   type AutomationApprovalGate,
   type HandOffNote,
@@ -374,6 +379,11 @@ interface RunContext {
   /** Where a live run begins and records every call that reaches outside it
    * (`ledger.ts`); a mock run's records nothing. */
   ledger: RunLedger;
+  /** A mock run's own state (AUTO-R81): what its connector mocks wrote, read
+   * from its checkpoints when the turn starts and committed with each step's
+   * outcome. The automations it calls walk with this context, so they share
+   * it. Absent on a live run. */
+  mockState?: RunMockState;
   /** Aborted when a step body still running must stop: its server is
    * shutting down and the grace for finishing a step ran out, or the job
    * running this turn was given up on. Every call outside the run listens
@@ -828,6 +838,9 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         // still running when the server stops is cut instead of holding the
         // walker past its grace.
         signal: run.signal,
+        // In-process too: the state the door's mock reads and writes, which
+        // this walker commits with the step.
+        ...(run.mockState !== undefined && { mockState: run.mockState }),
       },
     );
     if (result.status !== 'ok') {
@@ -1262,6 +1275,9 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   // them with the node.
   let openItem: UnitKey | undefined;
   let openPass: UnitKey | undefined;
+  // Where a mock run's own state stood when the item or pass this turn is on
+  // began: one cut off runs again from there.
+  let itemMark: MockStateMark | undefined;
   // A long step (anything but a transform, or one that iterates) writes its
   // start on its own the first time it is entered, so a live view shows it
   // working before its first commit.
@@ -1453,6 +1469,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
 
     for (;;) {
       if (items !== null && index >= items.length) break;
+      itemMark = run.mockState?.mark();
 
       checkpoints.executions++;
       if (checkpoints.executions > DEFAULT_MAX_NODE_EXECUTIONS) {
@@ -1677,6 +1694,10 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // carried out whatever the server is doing.
     if (run.signal.aborted && !(error instanceof RunStopFailure)) {
       if (!sink.canPark) throw error;
+      // The item or pass it was on runs again from its start, so what that
+      // wrote to a mock run's own state is dropped, never committed with what
+      // came before it.
+      if (itemMark !== undefined) run.mockState?.restore(itemMark);
       if (
         placed &&
         (typeof node.forEach === 'string' ||
@@ -2489,6 +2510,9 @@ async function stepClaimedRun(
               epoch,
             })
           : passThroughLedger,
+      ...(loaded.run.mode === 'mock' && {
+        mockState: new RunMockState(checkpoints.mockState),
+      }),
       signal,
       yielding: () => shutdown.shuttingDown || draining(),
       shuttingDown: () => shutdown.shuttingDown,
@@ -2525,6 +2549,7 @@ async function stepClaimedRun(
       epoch,
       run.yielding,
       recorder,
+      run.mockState,
     );
     const order = (topoSort(automation.nodes) ?? automation.nodes).map(
       (node) => node.id,
@@ -2613,6 +2638,7 @@ function durableSink(
   epoch: number,
   yielding: () => boolean,
   recorder: RunRecorder,
+  mockState: RunMockState | undefined,
 ): RunSink {
   // The record's rows ride every write that commits progress: what a write
   // does not commit is not recorded either.
@@ -2620,8 +2646,26 @@ function durableSink(
     const rows = recorder.drain();
     return rows.length > 0 ? { nodeRuns: rows } : {};
   };
+  // So does a mock run's own state, when a step changed it since the last
+  // write that landed (AUTO-R81): a resumed step sees what the steps before
+  // it wrote, and nothing a step wrote that no write committed.
+  let committedRevision = mockState?.revision ?? 0;
+  const changedMockState = (): {
+    revision: number;
+    write: { mockState?: MockStateSnapshot };
+  } => {
+    const revision = mockState?.revision ?? committedRevision;
+    return {
+      revision,
+      write:
+        mockState === undefined || revision === committedRevision
+          ? {}
+          : { mockState: mockState.snapshot() },
+    };
+  };
   return {
     async commit(args) {
+      const state = changedMockState();
       const result = await ctx.runMutation(
         internal.automations.mutations.recordProgress,
         {
@@ -2634,14 +2678,18 @@ function durableSink(
           }),
           ...(args.cursor !== undefined && { cursor: args.cursor }),
           executions: args.executions,
+          ...state.write,
           ...nodeRuns(),
         },
       );
       // Only a live run keeps walking: a stop, a finish another walker
       // recorded, a newer claim or a run that is gone all end this walk.
-      return LIVE_STATUSES.has(result.status) ? 'running' : 'cancelled';
+      if (!LIVE_STATUSES.has(result.status)) return 'cancelled';
+      committedRevision = state.revision;
+      return 'running';
     },
     async wait(args) {
+      const state = changedMockState();
       const result = await ctx.runMutation(
         internal.automations.mutations.suspendRun,
         {
@@ -2653,10 +2701,13 @@ function durableSink(
           executions: args.executions,
           resumeInMs: args.resumeInMs,
           ...(args.event !== undefined && { event: args.event }),
+          ...state.write,
           ...nodeRuns(),
         },
       );
-      return result.suspended ? 'suspended' : 'cancelled';
+      if (!result.suspended) return 'cancelled';
+      committedRevision = state.revision;
+      return 'suspended';
     },
     shouldHandOff() {
       return Date.now() >= deadline || yielding();

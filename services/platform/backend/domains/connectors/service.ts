@@ -18,6 +18,7 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
 } from '../../../lib/connectors/natives/index.ts';
+import type { RunMockState } from '../../../lib/engine/core/walk/mock-state.ts';
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
   ingestEmails,
@@ -355,6 +356,12 @@ export interface RunConnectorArgs {
    * hands its arguments over untouched.
    */
   signal?: AbortSignal;
+  /**
+   * A mock run's own state (CONN-R36): an automation run's turn passes the
+   * run's, which the mock of an action that keeps it reads and writes and
+   * the turn commits with the step. In-process, as `signal` is.
+   */
+  mockState?: RunMockState;
 }
 
 /**
@@ -409,6 +416,7 @@ async function invokeConnector(
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
       ...(args.signal !== undefined ? { signal: args.signal } : {}),
+      ...(args.mockState !== undefined ? { mockState: args.mockState } : {}),
       // A live yaml-js body needs a host-capable runner: the in-process one,
       // never a `node -e` program in a sandbox session, whose command line
       // would carry the body's scope (credential secrets included) to every
