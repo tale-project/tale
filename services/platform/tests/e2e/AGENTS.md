@@ -50,12 +50,12 @@ When a manual case earns automation, bring it here under these rules.
 | [`helpers/env.ts`](helpers/env.ts)           | `BASE_URL`, `isMockLlmMode()`, `TIMEOUT`                                                                |
 
 The `lib/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in
-for every third-party API offline: a canned chat reply plus Prism-mocked AI
-endpoints and connector APIs. Keyword triggers in a message exercise specific
+offline for the AI provider and the enterprise-SSO IdP: a canned chat reply plus
+Prism-mocked AI and OIDC endpoints. Keyword triggers in a message exercise specific
 chat paths — see [`lib/mocks` canned content](../../lib/mocks/overrides/canned.ts):
-`e2e:reasoning`, `e2e:error`, `e2e:empty`, `e2e:length`, `e2e:stream-error`. Connector
-specs (`specs/connectors.spec.ts`) drive the real connector → gateway path via
-`TALE_MOCK_CONNECTORS_BASE`.
+`e2e:reasoning`, `e2e:error`, `e2e:empty`, `e2e:length`, `e2e:stream-error`. It has
+no connector stand-ins: a flow that runs a connector action without reaching the
+vendor picks one of the action's scenarios (CONN-R33, AUTO-R78).
 
 ## Adding a flow
 
