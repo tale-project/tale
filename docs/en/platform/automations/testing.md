@@ -49,7 +49,7 @@ expect:
 - `effects` lists actions the run must take, such as an email to send, by node type; with `absent: true`, an action that must not happen.
 - `failure` says the run must fail, optionally at a given step and with a message that contains the given text.
 - `mocks` gives a step an output to use instead of calling its service or model, and `failures` makes a step fail with the given message.
-- `scenarios` gives a step that calls a connector one of the cases its action ships, as [Pick a connector's scenario](#scenarios) describes.
+- `scenarios` gives a step that calls a connector one of the cases its action ships, or a list of them that its calls take in order, as [Pick a connector's scenario](#scenarios) describes.
 
 Without `expect`, a test passes when the run succeeds. A row's menu also copies a test with **Duplicate** or removes it with **Delete**; **Discard** brings back a deleted test until you save.
 
@@ -77,6 +77,25 @@ The step's input is still worked out and checked. A call whose input matches the
 A step takes one stand-in: a scenario, a simulated output or a simulated failure.
 
 In **Setup**, **Pick a scenario for a node** offers each step whose action ships scenarios and that has no other stand-in, and gives the step its action's first scenario. **Scenario for** the step then lists every scenario the action ships, each with its kind (**Success**, **Empty**, **Error**, **Refusal** or **Duplicate**), what the service answers and, for one that answers only some calls, which calls. The kind and description of the picked scenario show above the list. A name the action doesn't ship stays as written until you pick another, and **Problems** says what is wrong with it. A node's **Shape** tab lists the same scenarios. [Connectors](/develop/connectors#scenarios) explains how an action declares its scenarios and how their failures are classified. Over the [MCP endpoint](/develop/mcp-endpoint#authoring), `get_catalog` lists the scenarios each action ships.
+
+#### Answer a step's calls in order {#scenario-lists}
+
+A step that calls its connector more than once, once per item of a `forEach` or again on each pass of a `repeatUntil`, can take a list of scenarios instead of one name: up to 50 that its action ships, each as often as you need. The run gives them to the step's calls in the order it makes the calls, so the test shows a sequence, such as pages up to the last one, or a service that refuses a call and answers the next. In this test, `post` sends each message of the input and goes on past one that fails (`onItemError: continue`). Slack refuses the first message with a rate limit and posts the second, so the run succeeds, and the step's output holds `null` for the first message:
+
+```yaml
+name: Slack refuses the first message, then posts the second
+input:
+  messages: [Hello, Goodbye]
+scenarios:
+  post: [rate_limited, posted]
+```
+
+- A call that matches the next scenario of the list gets its answer, and the list moves on to the scenario after it. A call that doesn't match gets the connector's usual simulated answer, and the scenario waits for a call that does.
+- The last scenario answers every later call that matches it, so a list of one scenario works like its name.
+- The step carries **Simulated failure** when one of its calls got an error, even if a later call succeeded, and **Simulated output** otherwise. It shows under **Not used** when none of its calls took a scenario of the list.
+- Every run of the test starts again at the first scenario.
+
+In **Setup**, **Add a scenario for the next call of Post** adds a row under the step's scenario, holding a copy of the last one. The rows then read **Scenario for Post, call 1**, and the last one **Scenario for Post, call 2 and later**. **Remove the scenario for call 1 of Post** removes that call's row, and once one row is left, the step has a single scenario again. A scenario in the list that the action doesn't ship shows in **Problems**, which opens the test at its row.
 
 ### Start from the trigger or a path
 

@@ -49,7 +49,7 @@ expect:
 - `effects` liste des actions que l’exécution doit déclencher, comme un e-mail à envoyer, par type de nœud ; avec `absent: true`, une action qui ne doit pas avoir lieu.
 - `failure` indique que l’exécution doit échouer, si tu veux à une étape donnée et avec un message qui contient le texte indiqué.
 - `mocks` donne à une étape une sortie à utiliser au lieu d’appeler son service ou son modèle, et `failures` fait échouer une étape avec le message indiqué.
-- `scenarios` donne à une étape qui appelle un connector l’un des cas que fournit son action, comme le décrit [Choisir un scénario d’un connector](#scenarios).
+- `scenarios` donne à une étape qui appelle un connector l’un des cas que fournit son action, ou une liste de ces cas que ses appels reçoivent dans l’ordre, comme le décrit [Choisir un scénario d’un connector](#scenarios).
 
 Sans `expect`, un test réussit quand l’exécution réussit. Le menu d’une ligne copie aussi un test avec **Dupliquer** ou le retire avec **Supprimer** ; **Abandonner** fait revenir un test supprimé tant que tu n’as pas enregistré.
 
@@ -77,6 +77,25 @@ L’entrée de l’étape est toujours calculée et vérifiée. Un appel dont l�
 Une étape n’accepte qu’un seul remplacement : un scénario, une sortie simulée ou un échec simulé.
 
 Dans **Configuration**, **Choisir un scénario pour un nœud** propose chaque étape dont l’action fournit des scénarios et qui n’a pas d’autre remplacement, et lui donne le premier scénario de son action. **Scénario pour** l’étape liste ensuite chaque scénario que fournit l’action, avec son type (**Succès**, **Vide**, **Erreur**, **Refus** ou **Doublon**), ce que répond le service et, pour un scénario qui ne répond qu’à certains appels, lesquels. Le type et la description du scénario choisi s’affichent au-dessus de la liste. Un nom que l’action ne fournit pas reste tel quel jusqu’à ce que tu en choisisses un autre, et **Problèmes** dit ce qui ne va pas. L’onglet **Structure** d’un nœud liste les mêmes scénarios. [Connectors](/fr/develop/connectors#scenarios) explique comment une action déclare ses scénarios et comment leurs échecs sont classés. Par le [point d’accès MCP](/fr/develop/mcp-endpoint#authoring), `get_catalog` liste les scénarios que fournit chaque action.
+
+#### Répondre aux appels d’une étape dans l’ordre {#scenario-lists}
+
+Une étape qui appelle son connector plus d’une fois, une fois par élément d’un `forEach` ou à nouveau à chaque passage d’un `repeatUntil`, peut recevoir une liste de scénarios au lieu d’un seul nom : jusqu’à 50 que fournit son action, chacun autant de fois que tu en as besoin. Les appels de l’étape les reçoivent un à un, dans l’ordre où l’exécution effectue ces appels. Le test montre ainsi une suite, comme des pages jusqu’à la dernière, ou un service qui refuse un appel et répond au suivant. Dans ce test, `post` envoie chaque message de l’entrée et passe au suivant après un message en échec (`onItemError: continue`). Slack refuse le premier message avec une limite de débit et publie le second : l’exécution réussit donc, et la sortie de l’étape contient `null` pour le premier message :
+
+```yaml
+name: Slack refuses the first message, then posts the second
+input:
+  messages: [Hello, Goodbye]
+scenarios:
+  post: [rate_limited, posted]
+```
+
+- Un appel qui correspond au scénario suivant de la liste reçoit sa réponse, et la liste passe au scénario d’après. Un appel qui ne correspond pas reçoit la réponse simulée habituelle du connector, et le scénario attend un appel qui lui corresponde.
+- Le dernier scénario répond à chaque appel ultérieur qui lui correspond ; une liste d’un seul scénario équivaut donc à son nom seul.
+- L’étape porte **Échec simulé** quand l’un de ses appels a reçu une erreur, même si un appel ultérieur a réussi, et **Sortie simulée** sinon. Elle figure sous **Non utilisés** quand aucun de ses appels n’a reçu un scénario de la liste.
+- Chaque exécution du test recommence au premier scénario.
+
+Dans **Configuration**, **Ajouter un scénario pour l’appel suivant de Post** ajoute sous le scénario de l’étape une ligne qui contient une copie du dernier. Les lignes s’intitulent alors **Scénario pour Post, appel 1**, et la dernière **Scénario pour Post, appel 2 et suivants**. **Retirer le scénario de l’appel 1 de Post** retire la ligne de cet appel, et dès qu’il ne reste qu’une ligne, l’étape a de nouveau un seul scénario. Un scénario de la liste que l’action ne fournit pas figure dans **Problèmes**, et le problème ouvre le test à sa ligne.
 
 ### Partir du déclencheur ou d’un chemin
 

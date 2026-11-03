@@ -221,14 +221,27 @@
           }
         },
         "scenarios": {
-          "description": "Node id → the name of a scenario its connector action ships (get_catalog lists each action’s scenarios): a call whose input matches the scenario gets its output, or fails with its error, classified as a live failure; any other call gets the action’s mock.",
+          "description": "Node id → the name of a scenario its connector action ships (get_catalog lists each action’s scenarios): a call whose input matches the scenario gets its output, or fails with its error, classified as a live failure; any other call gets the action’s mock. Or a list of 1 to 50 names the node’s calls take in order: a call that matches the next one takes it and moves the list on, any other gets the mock, and the last one answers every later call it matches.",
           "type": "object",
           "propertyNames": {
             "type": "string"
           },
           "additionalProperties": {
-            "type": "string",
-            "maxLength": 50
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 50
+                }
+              }
+            ]
           }
         },
         "upTo": {

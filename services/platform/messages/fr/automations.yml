@@ -669,7 +669,7 @@ editor:
     readByOutput: La sortie de l’automatisation
     notRead: Rien ne lit sa sortie.
     scenarios: Scénarios
-    scenariosHint: Un test peut en choisir un pour ce nœud dans sa configuration. Le nœud répond alors comme décrit, au lieu d’appeler.
+    scenariosHint: Un test peut en choisir un pour ce nœud dans sa configuration, ou plusieurs que ses appels reçoivent dans l’ordre. Le nœud répond alors comme décrit, au lieu d’appeler.
     checking: Mise à jour…
     unavailable: Impossible de déterminer les structures. Elles apparaîtront après la prochaine vérification réussie.
     origin:
@@ -1314,9 +1314,12 @@ tests:
     failureDefault: échec simulé
     failuresAdd: Simuler un échec
     scenarios: Scénarios
-    scenariosHint: Le nœud répond comme dans un scénario fourni par son action, au lieu d’appeler.
+    scenariosHint: Le nœud répond comme dans un scénario fourni par son action, au lieu d’appeler. Avec plusieurs scénarios, ses appels les reçoivent dans l’ordre, et le dernier répond à tous les appels suivants.
     scenariosAdd: Choisir un scénario pour un nœud
     scenarioFor: 'Scénario pour {node}'
+    scenarioForCall: '{last, select, true {Scénario pour {node}, appel {call} et suivants} other {Scénario pour {node}, appel {call}}}'
+    scenarioAddCall: 'Ajouter un scénario pour l’appel suivant de {node}'
+    scenarioRemoveCall: 'Retirer le scénario de l’appel {call} de {node}'
     expect: Attentes
     outputModeLabel: Comment la sortie est vérifiée
     outputMode:

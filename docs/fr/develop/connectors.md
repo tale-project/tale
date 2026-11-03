@@ -69,7 +69,7 @@ Pour comprendre un résultat, lis aussi l'implémentation réelle. Par exemple, 
 
 ### Déclarer des scénarios pour les tests {#scenarios}
 
-Une action peut fournir des scénarios à côté de son `mock` : des cas nommés de ce que répond le service, comme un canal qui n’existe pas ou une limite de débit. Un test en choisit un pour une étape, et l’exécution en simulation répond avec lui à la place du mock, si bien que le test montre ce que fait l’automatisation dans ce cas. Liste-les sous `scenarios`, après `mock`. Cet extrait montre deux des scénarios que Slack fournit sur `get_channel`, l’action qui lit un canal ; les autres champs de l’action sont omis :
+Une action peut fournir des scénarios à côté de son `mock` : des cas nommés de ce que répond le service, comme un canal qui n’existe pas ou une limite de débit. Un test en choisit un pour une étape, ou une [liste que les appels de l’étape reçoivent dans l’ordre](/fr/platform/automations/testing#scenario-lists), et l’exécution en simulation répond avec le scénario à la place du mock, si bien que le test montre ce que fait l’automatisation dans ce cas. Liste-les sous `scenarios`, après `mock`. Cet extrait montre deux des scénarios que Slack fournit sur `get_channel`, l’action qui lit un canal ; les autres champs de l’action sont omis :
 
 ```yaml
 scenarios:
