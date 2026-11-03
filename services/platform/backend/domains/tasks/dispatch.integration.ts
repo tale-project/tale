@@ -25,6 +25,9 @@ import {
   writeGovernancePolicyFile,
 } from '../../lib/governance-policy-write.ts';
 import { clearOrgConfigCaches, resolveOrgSlug } from '../../lib/org-config.ts';
+import { getRun } from '../automations/store.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
+import { pgTaskStore } from '../connectors/task-store.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 import { failAgentRunFromTurn, settleAgentRun } from './agent-runs.ts';
 import { claimAgentWorker } from './agent-workers.ts';
@@ -725,6 +728,109 @@ export async function checkFleetDispatch(
         !ciGate.held &&
         ciGate.value === 25,
       `gate=${JSON.stringify(ciGate)}`,
+    );
+
+    // An automation installed in the project reports through its own step
+    // (`task.report_gate`), held to the API door's bar, and its report
+    // counts as any other: it restarts the stale window, goes stale in turn,
+    // and asks for a pass when it opens the gate. The gate names the run.
+    const reporterName = `itest/ci-queue-${suffix}`;
+    await sql`
+      INSERT INTO app.automation_project_bindings (
+        org_id, automation_name, project_id, bound_by, bound_at_ms
+      ) VALUES (${orgId}, ${reporterName}, ${projectId}, ${userId}, ${now})
+    `;
+    const seedScheduledRun = async (name: string) => {
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`
+          INSERT INTO app.automation_runs (org_id, name, version, project_id,
+            status, mode, started_by, input, checkpoints, started_at_ms)
+          VALUES (${orgId}, ${name}, 1, ${projectId}, 'success', 'live',
+            'trigger:itest-schedule', ${sql.json({})}, ${sql.json({})}, ${now})
+          RETURNING id
+        `;
+      });
+      const id = rows[0]?.id;
+      if (id === undefined) throw new Error('itest: reporter run missing');
+      return id;
+    };
+    const scheduledRun = await seedScheduledRun(reporterName);
+    const strangerRun = await seedScheduledRun(`itest/elsewhere-${suffix}`);
+    const taskStore = pgTaskStore(sql);
+    const stepReport = (runId: string, value: number) =>
+      taskStore.reportGate({
+        organizationId: orgId,
+        runId,
+        projectId,
+        key: 'ci',
+        report: { value, reason: 'queued CI jobs' },
+      });
+    const ciRow = async () =>
+      (
+        await sql<
+          { held: boolean; value: number | null; reportedBy: string }[]
+        >`
+          SELECT held, value::float8 AS value, reported_by AS "reportedBy"
+          FROM app.project_dispatch_gates
+          WHERE project_id = ${projectId} AND gate_key = 'ci'
+        `
+      )[0];
+    const ciStatus = async () =>
+      (await readProjectDispatchStatus(sql, auth, projectId)).gates.find(
+        (gate) => gate.key === 'ci',
+      );
+    const refusedStep = await stepReport(strangerRun, 3);
+    const afterRefusedStep = await ciRow();
+    const stepHold = await stepReport(scheduledRun, 31);
+    const stepHeldRow = await ciRow();
+    const stepHeldStatus = await ciStatus();
+    const reporterRun =
+      stepHeldRow === undefined
+        ? null
+        : await getRun(sql, orgId, stepHeldRow.reportedBy.slice('run:'.length));
+    await sql`
+      UPDATE app.project_dispatch_gates
+      SET reported_at_ms = ${Date.now() - 11 * 60_000}
+      WHERE project_id = ${projectId} AND gate_key = 'ci'
+    `;
+    const stepStaleStatus = await ciStatus();
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'tasks.dispatch_project'
+        AND data ->> 'projectId' = ${projectId} AND state = 'created'
+    `;
+    const stepOpen = await stepReport(scheduledRun, 4);
+    const stepGatePasses = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pgboss.job
+      WHERE name = 'tasks.dispatch_project'
+        AND data ->> 'projectId' = ${projectId}
+        AND data ->> 'trigger' = 'gate' AND state = 'created'
+    `;
+    record(
+      'fleet dispatch: an automation installed in the project reports on a gate as its run, and the report holds, restarts and runs out the stale window, and asks for a pass when it opens, as any report; one not installed there reports nothing [TASK-R51]',
+      !refusedStep.ok &&
+        refusedStep.refusal.kind === 'project' &&
+        refusedStep.refusal.code === 'AUTOMATION_PROJECT_FORBIDDEN' &&
+        afterRefusedStep?.value === 25 &&
+        afterRefusedStep.reportedBy === `user:${userId}` &&
+        stepHold.ok &&
+        stepHold.held &&
+        stepHold.reportedBy === `run:${scheduledRun}` &&
+        stepHeldRow?.reportedBy === `run:${scheduledRun}` &&
+        stepHeldRow.value === 31 &&
+        reporterRun?.name === reporterName &&
+        stepHeldStatus !== undefined &&
+        stepHeldStatus.held &&
+        !stepHeldStatus.stale &&
+        stepStaleStatus !== undefined &&
+        stepStaleStatus.stale &&
+        !stepStaleStatus.held &&
+        stepOpen.ok &&
+        !stepOpen.held &&
+        stepOpen.changed &&
+        stepGatePasses[0]?.n === 1,
+      `refused=${JSON.stringify(refusedStep)} afterRefused=${JSON.stringify(afterRefusedStep)} hold=${JSON.stringify(stepHold)} row=${JSON.stringify(stepHeldRow)} run=${reporterRun?.name} held=${JSON.stringify(stepHeldStatus)} stale=${JSON.stringify(stepStaleStatus)} open=${JSON.stringify(stepOpen)} gatePasses=${stepGatePasses[0]?.n}`,
     );
 
     // 10. A dispatch a newer version stored, in a shape this one cannot

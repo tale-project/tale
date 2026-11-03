@@ -79,6 +79,7 @@ export {
 } from './sandbox-script';
 export {
   type WorkflowAgentStart,
+  type WorkflowGateReportAnswer,
   type WorkflowTaskComment,
   type WorkflowTaskCreateAnswer,
   type WorkflowTaskCreated,
@@ -188,6 +189,7 @@ export const NATIVE_IMPL_IDS = [
   'task.get_import_cursor',
   'task.list_comments',
   'task.list_external_issues',
+  'task.report_gate',
   'task.save_import_cursor',
   'task.start_agent',
   'task.sync_issues',
