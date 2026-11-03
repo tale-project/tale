@@ -1,19 +1,21 @@
 /**
  * The unified mock gateway.
  *
- * One Bun HTTP server fronts every third-party API the platform calls, offline
- * and deterministically:
+ * One Bun HTTP server stands in for the AI provider and the enterprise-SSO
+ * identity provider, offline and deterministically:
  *
  *   - `GET  /health`                  → readiness probe (Playwright `webServer.url`).
  *   - `POST /v1/chat/completions`     → the chat override (SSE + scenarios) — the one
  *                                       route Prism can't serve.
+ *   - `POST /v1/embeddings`           → the embeddings override (real-shaped vectors).
  *   - `…/v1/*`                        → OpenAI-compatible AI endpoints, served from
  *                                       `specs/providers/openai-compat.openapi.yaml`.
- *   - `…/mock/<connector>/*`        → per-connector spec (GitHub, Slack, …).
+ *   - `…/mock/sso-idp/*`              → OIDC discovery, token and userinfo, served from
+ *                                       `specs/auth/oidc-idp.openapi.yaml`.
  *
  * Each spec is mounted at its `mountPrefix` (registry.ts); the prefix is stripped
  * before Prism matches an operation, so spec paths mirror the real upstream
- * (`/repos/{owner}/{repo}`, `/api/conversations.list`, …). Built once per spec at
+ * (`/models`, `/.well-known/openid-configuration`, …). Built once per spec at
  * boot; reused per request.
  */
 
@@ -55,9 +57,8 @@ function headersToObject(headers: Headers): Record<string, string> {
   const out: Record<string, string> = {};
   headers.forEach((value, key) => {
     // Drop the client's `Accept` header before handing the request to Prism.
-    // Real connectors send vendor media types (e.g. GitHub's
-    // `application/vnd.github+json`) that our spec responses declare as plain
-    // `application/json`, so Prism's content negotiation would 406
+    // A client may ask for a media type the matched operation does not
+    // declare, and Prism's content negotiation would then 406
     // ("NOT_ACCEPTABLE"). The gateway serves leniently — always return the
     // spec example — so let negotiation fall back to the default representation.
     if (key.toLowerCase() === 'accept') return;

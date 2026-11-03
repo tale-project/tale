@@ -19,9 +19,11 @@ Three modes. Pick by who's running and what's under test.
 canned replies are byte-stable, no keys, no cost.
 
 Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
-(OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
-reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
-connectors all work offline with no API keys and no cost. A new org is
+(OpenAPI-driven, port 4141) stands in for the AI provider and the enterprise-SSO
+IdP — a canned chat reply plus Prism-mocked AI and OIDC endpoints — so chat and
+AI work offline with no API keys and no cost. Connectors have no stand-in there:
+a check that must not reach a vendor runs the connector's action on one of its
+scenarios (CONN-R33), as an automation test does (AUTO-R78). A new org is
 **not** wired to the mock provider: wire it once per org before any chat box
 (**Wire the mock provider** below).
 (A new org starts with **no** automation in every mode, so the Automations
@@ -29,7 +31,7 @@ list opens on its empty state; the fixture dir's automation fixtures are in
 the retired pre-rewrite format besides — see automations.md Prerequisites.)
 
 ```bash
-# Terminal 1 — the mock gateway (chat SSE + AI + connector APIs on :4141)
+# Terminal 1 — the mock gateway (chat SSE + AI + OIDC on :4141)
 cd services/platform && bun lib/mocks/start.ts
 
 # Terminal 2 — platform dev pointed at the hermetic fixtures config
@@ -39,7 +41,6 @@ cd services/platform && \
   TALE_CONFIG_BUILTIN_DIR="$(pwd)/tests/e2e/fixtures/config/default" \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
-  TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
   TALE_CONTACT_SUPPORT_URL='https://support.example.com/help?source=tale' \
   TOTP_CLIENT_NAME='Example plus' \
   TOTP_ENVIRONMENT=e2e \
@@ -55,8 +56,7 @@ The scaffold seeds only the domains `lib/shared/config/registry.ts` gives a
 scaffold kind (today `governance/` and `skills/`, both empty in the
 fixture). Providers are not among them, so no org gets `e2e-mock` on its
 own, and the fixture's `agents/` dir seeds nothing: the chat assistant is
-built in (`lib/chat/assistant.ts`). `TALE_MOCK_CONNECTORS_BASE` redirects connectors'
-outbound HTTP to the gateway so you can connect/test connectors offline.
+built in (`lib/chat/assistant.ts`).
 `TALE_CONTACT_SUPPORT_URL` points the error screens' **contact support** link
 at a placeholder help desk, as `navigation.spec.ts` expects. `TOTP_CLIENT_NAME`
 and `TOTP_ENVIRONMENT` make the stack a synthetic client's test deployment:
@@ -299,10 +299,11 @@ gets the plain canned reply, byte-for-byte):
 | `e2e:gateway-route`    | an upstream named on every chunk, as OpenRouter does → Served by   |
 | `e2e:cloud-region`     | a region in an `x-ms-region` header, as Azure does → Region        |
 
-Connectors are deterministic too: connecting an API-key/token connector
-(Settings → Connectors) runs the connector's real `testConnection`, whose
-outbound HTTP the stack redirects to the gateway — so it succeeds offline against
-the spec-backed mock. See
+Connectors have no stand-in on the gateway. Adding an API-key or token
+credential (Settings → Connectors) only stores it — no connection test calls
+the vendor (see [connectors.md](suites/connectors.md)) — and a check that must
+not reach a vendor runs the connector's actions on their scenarios (CONN-R33,
+AUTO-R78). See
 [`lib/mocks/overrides/canned.ts`](../../lib/mocks/overrides/canned.ts)
 for the exact chat payloads, [`lib/mocks/README.md`](../../lib/mocks/README.md)
 for the gateway architecture, and
