@@ -37,9 +37,30 @@ actions:
     input:
       type: object
       properties: {}
-    output: '{ teams: Array<{ id: string, displayName: string, description: string }>, nextLink: string | null }'
+    output: '{ teams: Array<{ id: string, displayName: string, description: string | null }>, nextLink: string | null }'
     mock: |
       return { teams: [{ id: '19:team-demo@thread.tacv2', displayName: 'Demo Team', description: 'A mock team.' }], nextLink: null };
+    scenarios:
+      - name: two_teams
+        kind: success
+        description: 'Graph returns the two teams the user has joined, on a single page.'
+        output:
+          teams:
+            - { id: 00000000-0000-0000-0000-000000000001, displayName: Engineering, description: 'Builds and runs the product.' }
+            - { id: 00000000-0000-0000-0000-000000000002, displayName: Support, description: 'Answers customer questions.' }
+          nextLink: null
+      - name: no_teams
+        kind: empty
+        description: 'Graph returns no teams, as for a user who has joined none.'
+        output:
+          teams: []
+          nextLink: null
+      - name: token_expired
+        kind: error
+        description: 'Graph rejects the access token with HTTP 401 because it has expired.'
+        error:
+          message: 'Teams list_teams failed (401): authentication rejected — the access token may be expired, re-authorize'
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -64,9 +85,35 @@ actions:
         teamId:
           type: string
           description: 'Team ID.'
-    output: '{ team: { id: string, displayName: string, description: string, visibility: string } }'
+    output: '{ team: { id: string, displayName: string, description: string | null, visibility: string } }'
     mock: |
       return { team: { id: input.teamId, displayName: 'Demo Team', description: 'A mock team.', visibility: 'private' } };
+    scenarios:
+      - name: one_team
+        kind: success
+        description: 'Graph returns the team.'
+        output:
+          team:
+            id: 00000000-0000-0000-0000-000000000001
+            displayName: Engineering
+            description: 'Builds and runs the product.'
+            visibility: private
+      - name: no_description
+        kind: empty
+        description: 'Graph returns a team that has no description, its description null.'
+        output:
+          team:
+            id: 00000000-0000-0000-0000-000000000003
+            displayName: Sandbox
+            description: null
+            visibility: public
+      - name: team_not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no team has this id.'
+        when: { teamId: 00000000-0000-0000-0000-000000000009 }
+        error:
+          message: 'Teams get_team failed (404): team not found'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -90,9 +137,32 @@ actions:
         teamId:
           type: string
           description: 'Team ID.'
-    output: '{ channels: Array<{ id: string, displayName: string, description: string, membershipType: string }>, nextLink: string | null }'
+    output: '{ channels: Array<{ id: string, displayName: string, description: string | null, membershipType: string }>, nextLink: string | null }'
     mock: |
       return { channels: [{ id: '19:channel-general@thread.tacv2', displayName: 'General', description: 'A mock channel.', membershipType: 'standard' }], nextLink: null };
+    scenarios:
+      - name: two_channels
+        kind: success
+        description: 'Graph returns the two channels of the team, its General channel and a private one, on a single page.'
+        output:
+          channels:
+            - { id: '19:channel-general@thread.tacv2', displayName: General, description: 'Announcements for the whole team.', membershipType: standard }
+            - { id: '19:channel-deploys@thread.tacv2', displayName: Deploys, description: 'Release and deploy notices.', membershipType: private }
+          nextLink: null
+      - name: general_only
+        kind: empty
+        description: 'Graph returns only the General channel every team has, its description null, as for a team where no other channel was created.'
+        output:
+          channels:
+            - { id: '19:channel-general@thread.tacv2', displayName: General, description: null, membershipType: standard }
+          nextLink: null
+      - name: team_not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no team has this id.'
+        when: { teamId: 00000000-0000-0000-0000-000000000009 }
+        error:
+          message: 'Teams list_channels failed (404): team not found'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -120,9 +190,35 @@ actions:
         channelId:
           type: string
           description: 'Channel ID.'
-    output: '{ channel: { id: string, displayName: string, description: string, membershipType: string } }'
+    output: '{ channel: { id: string, displayName: string, description: string | null, membershipType: string } }'
     mock: |
       return { channel: { id: input.channelId, displayName: 'General', description: 'A mock channel.', membershipType: 'standard' } };
+    scenarios:
+      - name: one_channel
+        kind: success
+        description: 'Graph returns the channel.'
+        output:
+          channel:
+            id: '19:channel-general@thread.tacv2'
+            displayName: General
+            description: 'Announcements for the whole team.'
+            membershipType: standard
+      - name: no_description
+        kind: empty
+        description: 'Graph returns a channel that has no description, its description null.'
+        output:
+          channel:
+            id: '19:channel-general@thread.tacv2'
+            displayName: General
+            description: null
+            membershipType: standard
+      - name: channel_not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because the team has no channel with this id.'
+        when: { channelId: '19:channel-missing@thread.tacv2' }
+        error:
+          message: 'Teams get_channel failed (404): channel not found'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -162,6 +258,40 @@ actions:
         messages: [{ id: '1700000000001', body: { content: 'Hello from the mock channel.', contentType: 'text' }, from: { user: { id: 'user-demo', displayName: 'Demo User' } }, createdDateTime: '2024-01-01T00:00:00.000Z' }],
         nextLink: null,
       };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'Graph returns two messages of the channel, the latest first, on a single page: one sent as text, one written in Teams as HTML.'
+        output:
+          messages:
+            - id: '1700000600000'
+              body: { content: 'Deploy finished.', contentType: text }
+              from: { user: { id: 00000000-0000-0000-0000-0000000000a2, displayName: 'Sam Example' } }
+              createdDateTime: '2023-11-14T22:23:20.000Z'
+            - id: '1700000000000'
+              body: { content: '<p>Starting the deploy.</p>', contentType: html }
+              from: { user: { id: 00000000-0000-0000-0000-0000000000a1, displayName: 'Alex Example' } }
+              createdDateTime: '2023-11-14T22:13:20.000Z'
+          nextLink: null
+      - name: no_messages
+        kind: empty
+        description: 'Graph returns no messages, as for a channel where nothing has been posted.'
+        output:
+          messages: []
+          nextLink: null
+      - name: channel_not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because the team has no channel with this id.'
+        when: { channelId: '19:channel-missing@thread.tacv2' }
+        error:
+          message: 'Teams list_messages failed (404): channel not found'
+          status: 404
+      - name: rate_limited
+        kind: error
+        description: 'Graph throttles the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Teams list_messages failed (429): rate limited by Microsoft Graph — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -204,6 +334,38 @@ actions:
     output: '{ id: string, webUrl: string }'
     mock: |
       return { id: `170000000${String(input.content.length).padStart(4, '0')}`, webUrl: `https://teams.microsoft.com/l/message/${input.channelId}/mock` };
+    scenarios:
+      - name: sent
+        kind: success
+        description: 'Graph posts the message to the channel and returns its id and link.'
+        output:
+          id: '1700001200000'
+          webUrl: 'https://teams.microsoft.com/l/message/19%3Achannel-general%40thread.tacv2/1700001200000?groupId=00000000-0000-0000-0000-000000000001&tenantId=00000000-0000-0000-0000-0000000000f1&createdTime=1700001200000&parentMessageId=1700001200000'
+      - name: sent_again
+        kind: duplicate
+        description: 'Graph does not de-duplicate a repeated post, so the same message is posted a second time under a new id.'
+        output:
+          id: '1700001260000'
+          webUrl: 'https://teams.microsoft.com/l/message/19%3Achannel-general%40thread.tacv2/1700001260000?groupId=00000000-0000-0000-0000-000000000001&tenantId=00000000-0000-0000-0000-0000000000f1&createdTime=1700001260000&parentMessageId=1700001260000'
+      - name: missing_scope
+        kind: refusal
+        description: 'Graph refuses the post with HTTP 403 because the access token lacks the ChannelMessage.Send scope.'
+        error:
+          message: 'Teams send_message failed (403): permission denied — the app needs the ChannelMessage.Send scope'
+          status: 403
+      - name: channel_not_found
+        kind: refusal
+        description: 'Graph answers HTTP 404 because the team has no channel with this id, so nothing is posted.'
+        when: { channelId: '19:channel-missing@thread.tacv2' }
+        error:
+          message: 'Teams send_message failed (404): channel not found'
+          status: 404
+      - name: rate_limited
+        kind: refusal
+        description: 'Graph throttles the post with HTTP 429 and a Retry-After header, so nothing is posted.'
+        error:
+          message: 'Teams send_message failed (429): rate limited by Microsoft Graph — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -243,6 +405,34 @@ actions:
     output: '{ members: Array<{ id: string, displayName: string, email: string, roles: string[] }>, nextLink: string | null }'
     mock: |
       return { members: [{ id: 'member-demo', displayName: 'Demo User', email: 'demo.user@example.com', roles: ['owner'] }], nextLink: null };
+    scenarios:
+      - name: two_members
+        kind: success
+        description: 'Graph returns the two members of the team, its owner and a member without a role, on a single page.'
+        output:
+          members:
+            - id: 'MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIyMwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYTE='
+              displayName: 'Alex Example'
+              email: alex@example.com
+              roles: [owner]
+            - id: 'MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIyMwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYTI='
+              displayName: 'Sam Example'
+              email: sam@example.com
+              roles: []
+          nextLink: null
+      - name: no_members
+        kind: empty
+        description: 'Graph returns no members and no further page.'
+        output:
+          members: []
+          nextLink: null
+      - name: team_not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no team has this id.'
+        when: { teamId: 00000000-0000-0000-0000-000000000009 }
+        error:
+          message: 'Teams list_members failed (404): team not found'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -268,9 +458,30 @@ actions:
         top:
           type: number
           description: 'Number of chats to return (max 50, default 20).'
-    output: '{ chats: Array<{ id: string, topic: string, chatType: string }>, nextLink: string | null }'
+    output: '{ chats: Array<{ id: string, topic: string | null, chatType: string }>, nextLink: string | null }'
     mock: |
       return { chats: [{ id: '19:chat-demo@thread.v2', topic: 'Demo chat', chatType: 'group' }], nextLink: null };
+    scenarios:
+      - name: two_chats
+        kind: success
+        description: 'Graph returns the two chats of the user on a single page: a group chat with a topic and a one-on-one chat, whose topic is null.'
+        output:
+          chats:
+            - { id: '19:chat-release-planning@thread.v2', topic: 'Release planning', chatType: group }
+            - { id: '19:00000000-0000-0000-0000-0000000000a1_00000000-0000-0000-0000-0000000000a2@unq.gbl.spaces', topic: null, chatType: oneOnOne }
+          nextLink: null
+      - name: no_chats
+        kind: empty
+        description: 'Graph returns no chats, as for a user who is part of none.'
+        output:
+          chats: []
+          nextLink: null
+      - name: missing_scope
+        kind: error
+        description: 'Graph refuses the call with HTTP 403 because the access token lacks the Chat.Read scope.'
+        error:
+          message: 'Teams list_chats failed (403): permission denied — the app needs the Chat.Read scope'
+          status: 403
     backend:
       kind: yaml-js
       live: |
@@ -305,6 +516,34 @@ actions:
     output: '{ id: string, chatId: string }'
     mock: |
       return { id: `170000000${String(input.content.length).padStart(4, '0')}`, chatId: input.chatId };
+    scenarios:
+      - name: sent
+        kind: success
+        description: 'Graph posts the message to the chat and returns its id and the chat it was posted to.'
+        output: { id: '1700001800000', chatId: '19:chat-demo@thread.v2' }
+      - name: sent_again
+        kind: duplicate
+        description: 'Graph does not de-duplicate a repeated post, so the same message is posted a second time under a new id.'
+        output: { id: '1700001860000', chatId: '19:chat-demo@thread.v2' }
+      - name: missing_scope
+        kind: refusal
+        description: 'Graph refuses the post with HTTP 403 because the access token lacks the Chat.ReadWrite scope.'
+        error:
+          message: 'Teams send_chat_message failed (403): permission denied — the app needs the Chat.ReadWrite scope'
+          status: 403
+      - name: chat_not_found
+        kind: refusal
+        description: 'Graph answers HTTP 404 because the user is part of no chat with this id, so nothing is posted.'
+        when: { chatId: '19:chat-missing@thread.v2' }
+        error:
+          message: 'Teams send_chat_message failed (404): chat not found'
+          status: 404
+      - name: rate_limited
+        kind: refusal
+        description: 'Graph throttles the post with HTTP 429 and a Retry-After header, so nothing is posted.'
+        error:
+          message: 'Teams send_chat_message failed (429): rate limited by Microsoft Graph — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |

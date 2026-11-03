@@ -78,7 +78,13 @@ const EXPECTED_SLUGS = [
  * effect needs (`MINIMUM_SCENARIO_KINDS`), each scenario with its proof in
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
-const SCENARIO_CONNECTORS = ['jev', 'slack', 'tavily', 'twilio'] as const;
+const SCENARIO_CONNECTORS = [
+  'jev',
+  'slack',
+  'tavily',
+  'teams',
+  'twilio',
+] as const;
 type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
 const runner = nodeVmRunner();
@@ -717,6 +723,311 @@ const TAVILY_PROOFS: Record<string, ProofAnswers> = {
   'extract/usage_limit': { [TAVILY_EXTRACT]: TAVILY_USAGE_LIMIT },
 };
 
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+
+/** The team and the channel of the Teams actions' example input, as the live
+ * bodies encode them into a URL. */
+const GRAPH_TEAM = `${GRAPH}/teams/19%3Ateam-demo%40thread.tacv2`;
+const GRAPH_CHANNEL = `${GRAPH_TEAM}/channels/19%3Achannel-general%40thread.tacv2`;
+
+/** The team and the channel the `when` of a not-found scenario names. */
+const GRAPH_MISSING_TEAM = `${GRAPH}/teams/00000000-0000-0000-0000-000000000009`;
+const GRAPH_MISSING_CHANNEL = `${GRAPH_TEAM}/channels/19%3Achannel-missing%40thread.tacv2`;
+
+/** A read Graph carried out: HTTP 200 and the record, or a page of records
+ * under `value`. A last page carries no `@odata.nextLink`; the bodies answer
+ * null. */
+function graphOk(body: Record<string, unknown>): ServiceAnswer {
+  return { status: 200, body };
+}
+
+/** A message Graph posted: HTTP 201 and the message. Its id is the time it
+ * was created, in milliseconds since the epoch. */
+function graphCreated(body: Record<string, unknown>): ServiceAnswer {
+  return { status: 201, body };
+}
+
+/** A call Graph refused: the status, and Graph's error body, which the live
+ * bodies read only for a status they do not name. */
+function graphError(
+  status: number,
+  code: string,
+  message: string,
+): ServiceAnswer {
+  return { status, body: { error: { code, message } } };
+}
+
+/** Graph's answer for a team, a channel or a chat that does not exist. */
+const GRAPH_NOT_FOUND = graphError(
+  404,
+  'NotFound',
+  'The requested resource does not exist.',
+);
+
+/** Graph's answer to an access token that lacks the scope a call needs. */
+const GRAPH_MISSING_SCOPE = graphError(
+  403,
+  'Forbidden',
+  'Missing scope permissions on the request.',
+);
+
+/** Graph's throttling: 429, the seconds to wait in Retry-After, and the error
+ * body Graph's throttling guidance shows. */
+const GRAPH_RATE_LIMITED: ServiceAnswer = {
+  status: 429,
+  headers: { 'retry-after': '10' },
+  body: {
+    error: { code: 'TooManyRequests', message: 'Please retry again later.' },
+  },
+};
+
+/** A Teams link to a channel message of the example team, as Graph builds it
+ * from the channel, the message's id, the team's group and its tenant. */
+function teamsMessageUrl(id: string): string {
+  return (
+    `https://teams.microsoft.com/l/message/19%3Achannel-general%40thread.tacv2/${id}` +
+    `?groupId=00000000-0000-0000-0000-000000000001` +
+    `&tenantId=00000000-0000-0000-0000-0000000000f1` +
+    `&createdTime=${id}&parentMessageId=${id}`
+  );
+}
+
+/**
+ * The proof of every Teams scenario, keyed as Slack's are: Graph's answer to
+ * the one request each action makes. An answer carries the members the
+ * action's output names, as Slack's do; the bodies hand Graph's records on as
+ * they come, and throw a refusal with its status.
+ */
+const TEAMS_PROOFS: Record<string, ProofAnswers> = {
+  'list_teams/two_teams': {
+    [`GET ${GRAPH}/me/joinedTeams`]: graphOk({
+      value: [
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          displayName: 'Engineering',
+          description: 'Builds and runs the product.',
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000002',
+          displayName: 'Support',
+          description: 'Answers customer questions.',
+        },
+      ],
+    }),
+  },
+  'list_teams/no_teams': {
+    [`GET ${GRAPH}/me/joinedTeams`]: graphOk({ value: [] }),
+  },
+  'list_teams/token_expired': {
+    [`GET ${GRAPH}/me/joinedTeams`]: graphError(
+      401,
+      'InvalidAuthenticationToken',
+      'Access token has expired or is not yet valid.',
+    ),
+  },
+  'get_team/one_team': {
+    [`GET ${GRAPH_TEAM}`]: graphOk({
+      id: '00000000-0000-0000-0000-000000000001',
+      displayName: 'Engineering',
+      description: 'Builds and runs the product.',
+      visibility: 'private',
+    }),
+  },
+  'get_team/no_description': {
+    [`GET ${GRAPH_TEAM}`]: graphOk({
+      id: '00000000-0000-0000-0000-000000000003',
+      displayName: 'Sandbox',
+      description: null,
+      visibility: 'public',
+    }),
+  },
+  'get_team/team_not_found': {
+    [`GET ${GRAPH_MISSING_TEAM}`]: GRAPH_NOT_FOUND,
+  },
+  'list_channels/two_channels': {
+    [`GET ${GRAPH_TEAM}/channels`]: graphOk({
+      value: [
+        {
+          id: '19:channel-general@thread.tacv2',
+          displayName: 'General',
+          description: 'Announcements for the whole team.',
+          membershipType: 'standard',
+        },
+        {
+          id: '19:channel-deploys@thread.tacv2',
+          displayName: 'Deploys',
+          description: 'Release and deploy notices.',
+          membershipType: 'private',
+        },
+      ],
+    }),
+  },
+  'list_channels/general_only': {
+    [`GET ${GRAPH_TEAM}/channels`]: graphOk({
+      value: [
+        {
+          id: '19:channel-general@thread.tacv2',
+          displayName: 'General',
+          description: null,
+          membershipType: 'standard',
+        },
+      ],
+    }),
+  },
+  'list_channels/team_not_found': {
+    [`GET ${GRAPH_MISSING_TEAM}/channels`]: GRAPH_NOT_FOUND,
+  },
+  'get_channel/one_channel': {
+    [`GET ${GRAPH_CHANNEL}`]: graphOk({
+      id: '19:channel-general@thread.tacv2',
+      displayName: 'General',
+      description: 'Announcements for the whole team.',
+      membershipType: 'standard',
+    }),
+  },
+  'get_channel/no_description': {
+    [`GET ${GRAPH_CHANNEL}`]: graphOk({
+      id: '19:channel-general@thread.tacv2',
+      displayName: 'General',
+      description: null,
+      membershipType: 'standard',
+    }),
+  },
+  'get_channel/channel_not_found': {
+    [`GET ${GRAPH_MISSING_CHANNEL}`]: GRAPH_NOT_FOUND,
+  },
+  'list_messages/two_messages': {
+    [`GET ${GRAPH_CHANNEL}/messages?$top=20`]: graphOk({
+      value: [
+        {
+          id: '1700000600000',
+          body: { content: 'Deploy finished.', contentType: 'text' },
+          from: {
+            user: {
+              id: '00000000-0000-0000-0000-0000000000a2',
+              displayName: 'Sam Example',
+            },
+          },
+          createdDateTime: '2023-11-14T22:23:20.000Z',
+        },
+        {
+          id: '1700000000000',
+          body: { content: '<p>Starting the deploy.</p>', contentType: 'html' },
+          from: {
+            user: {
+              id: '00000000-0000-0000-0000-0000000000a1',
+              displayName: 'Alex Example',
+            },
+          },
+          createdDateTime: '2023-11-14T22:13:20.000Z',
+        },
+      ],
+    }),
+  },
+  'list_messages/no_messages': {
+    [`GET ${GRAPH_CHANNEL}/messages?$top=20`]: graphOk({ value: [] }),
+  },
+  'list_messages/channel_not_found': {
+    [`GET ${GRAPH_MISSING_CHANNEL}/messages?$top=20`]: GRAPH_NOT_FOUND,
+  },
+  'list_messages/rate_limited': {
+    [`GET ${GRAPH_CHANNEL}/messages?$top=20`]: GRAPH_RATE_LIMITED,
+  },
+  'send_message/sent': {
+    [`POST ${GRAPH_CHANNEL}/messages`]: graphCreated({
+      id: '1700001200000',
+      webUrl: teamsMessageUrl('1700001200000'),
+    }),
+  },
+  'send_message/sent_again': {
+    [`POST ${GRAPH_CHANNEL}/messages`]: graphCreated({
+      id: '1700001260000',
+      webUrl: teamsMessageUrl('1700001260000'),
+    }),
+  },
+  'send_message/missing_scope': {
+    [`POST ${GRAPH_CHANNEL}/messages`]: GRAPH_MISSING_SCOPE,
+  },
+  'send_message/channel_not_found': {
+    [`POST ${GRAPH_MISSING_CHANNEL}/messages`]: GRAPH_NOT_FOUND,
+  },
+  'send_message/rate_limited': {
+    [`POST ${GRAPH_CHANNEL}/messages`]: GRAPH_RATE_LIMITED,
+  },
+  'list_members/two_members': {
+    [`GET ${GRAPH_TEAM}/members?$top=100`]: graphOk({
+      value: [
+        {
+          // A member's id is the team's and the user's id, joined by `##`,
+          // in base64.
+          id: 'MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIyMwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYTE=',
+          displayName: 'Alex Example',
+          email: 'alex@example.com',
+          roles: ['owner'],
+        },
+        {
+          id: 'MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIyMwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwYTI=',
+          displayName: 'Sam Example',
+          email: 'sam@example.com',
+          roles: [],
+        },
+      ],
+    }),
+  },
+  'list_members/no_members': {
+    [`GET ${GRAPH_TEAM}/members?$top=100`]: graphOk({ value: [] }),
+  },
+  'list_members/team_not_found': {
+    [`GET ${GRAPH_MISSING_TEAM}/members?$top=100`]: GRAPH_NOT_FOUND,
+  },
+  'list_chats/two_chats': {
+    [`GET ${GRAPH}/me/chats?$top=20`]: graphOk({
+      value: [
+        {
+          id: '19:chat-release-planning@thread.v2',
+          topic: 'Release planning',
+          chatType: 'group',
+        },
+        {
+          id: '19:00000000-0000-0000-0000-0000000000a1_00000000-0000-0000-0000-0000000000a2@unq.gbl.spaces',
+          topic: null,
+          chatType: 'oneOnOne',
+        },
+      ],
+    }),
+  },
+  'list_chats/no_chats': {
+    [`GET ${GRAPH}/me/chats?$top=20`]: graphOk({ value: [] }),
+  },
+  'list_chats/missing_scope': {
+    [`GET ${GRAPH}/me/chats?$top=20`]: GRAPH_MISSING_SCOPE,
+  },
+  'send_chat_message/sent': {
+    [`POST ${GRAPH}/chats/19%3Achat-demo%40thread.v2/messages`]: graphCreated({
+      id: '1700001800000',
+      chatId: '19:chat-demo@thread.v2',
+    }),
+  },
+  'send_chat_message/sent_again': {
+    [`POST ${GRAPH}/chats/19%3Achat-demo%40thread.v2/messages`]: graphCreated({
+      id: '1700001860000',
+      chatId: '19:chat-demo@thread.v2',
+    }),
+  },
+  'send_chat_message/missing_scope': {
+    [`POST ${GRAPH}/chats/19%3Achat-demo%40thread.v2/messages`]:
+      GRAPH_MISSING_SCOPE,
+  },
+  'send_chat_message/chat_not_found': {
+    [`POST ${GRAPH}/chats/19%3Achat-missing%40thread.v2/messages`]:
+      GRAPH_NOT_FOUND,
+  },
+  'send_chat_message/rate_limited': {
+    [`POST ${GRAPH}/chats/19%3Achat-demo%40thread.v2/messages`]:
+      GRAPH_RATE_LIMITED,
+  },
+};
+
 /** The account a synthetic credential names: Twilio's own placeholder SID,
  * as GitHub's push protection takes a hex-shaped one for a real SID. */
 const TWILIO_ACCOUNT = 'ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
@@ -1023,6 +1334,7 @@ const SCENARIO_PROOFS: Record<
     secrets: { apiKey: 'example-tavily-key' },
     proofs: TAVILY_PROOFS,
   },
+  teams: { proofs: TEAMS_PROOFS },
   twilio: { secrets: { username: TWILIO_ACCOUNT }, proofs: TWILIO_PROOFS },
 };
 
