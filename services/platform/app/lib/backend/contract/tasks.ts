@@ -404,6 +404,9 @@ export interface TasksContract {
       /** Which engine drives the run: a native run has no harness working. */
       engine: 'native' | 'harness';
       model: string;
+      /** The provider that serves the model, when the run recorded one: the
+       * run's tooltip names the model by it (`shared/models/model-name.ts`). */
+      modelProvider?: string;
       agentName?: string;
       _id: string;
       status: 'queued' | 'running' | 'failed' | 'cancelled' | 'settled';
