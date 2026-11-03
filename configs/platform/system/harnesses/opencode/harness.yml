@@ -115,18 +115,15 @@ exec:
         - instructionsRef:
             path: instructions
             prefix: /agent/
-        # `environment`, not `env` — OpenCode's McpLocalConfig only knows
-        # `environment` (additionalProperties: false), so an `env` key never
-        # reaches the bridge process. The session key rides {env:…} like the
-        # provider apiKey above (config may get logged); TALE_GATEWAY_TOKEN
-        # is set in the exec env.
+        # The bridge is the platform's MCP server, a `remote` one reached
+        # over HTTP, so no relay process starts. The session key rides
+        # {env:…} in its bearer header like the provider apiKey above (config
+        # may get logged); TALE_GATEWAY_TOKEN is set in the exec env.
         - mcpServers:
             path: mcp
             serverShape: opencode-local
-            bridgeEnvField: environment
-            bridgeEnv:
-              TALE_CONNECTORS_URL: '${bridgeUrl}'
-              TALE_CONNECTORS_TOKEN: '{env:TALE_GATEWAY_TOKEN}'
+            bridgeHeaders:
+              Authorization: 'Bearer {env:TALE_GATEWAY_TOKEN}'
             # OpenCode gives up on an MCP call after 60 s: it asks for no
             # progress reports (no progress token on the call), so the
             # bridge's progress reports cannot keep the call alive, and an

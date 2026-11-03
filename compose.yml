@@ -533,7 +533,7 @@ services:
       traefik.http.routers.backend-api-streams.rule: 'PathRegexp(`(?i)^/api/.+/sync$$`)'
       traefik.http.routers.backend-api-streams.priority: '120'
       traefik.http.routers.backend-api-streams.service: 'backend-api'
-      traefik.http.routers.backend-api-quiet.rule: 'PathRegexp(`(?i)^/api/(tools/|connectors/(execute|status|hostcall)$$|connectors/slack/|automations/webhook/)`)'
+      traefik.http.routers.backend-api-quiet.rule: 'PathRegexp(`(?i)^/api/(tools/|connectors/(execute|status|hostcall|mcp)$$|connectors/slack/|automations/webhook/)`)'
       traefik.http.routers.backend-api-quiet.priority: '110'
       traefik.http.routers.backend-api-quiet.service: 'backend-api'
       traefik.http.routers.backend-api-quiet.middlewares: 'tale-compress@file'
