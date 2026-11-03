@@ -333,7 +333,9 @@ const jsonSchemaObjectSchema = z
  *  - `empty`     — it succeeds with nothing in it: an empty list, or the
  *                  record with its optional members empty (an output);
  *  - `error`     — a read fails: not found, refused credentials, a rate
- *                  limit, a service that does not answer (an error);
+ *                  limit, a service that does not answer (an error); or a
+ *                  write's answer is lost, which may have applied it
+ *                  (`error.applied`);
  *  - `refusal`   — the service refuses a write (an error);
  *  - `duplicate` — what the service answers when the same write comes
  *                  again: a second record, the first one, or a refusal.
@@ -393,6 +395,11 @@ export const connectorScenarioSchema = z
       .object({
         message: z.string().min(1).max(2000),
         status: z.number().int().min(400).max(599).optional(),
+        /** The write reached the service before its answer was lost: an
+         * in-doubt write that applied. A mock run keeps what the action's
+         * mock writes, and its answer under the call's key, then fails as
+         * the error says. An `error` scenario of a write action only. */
+        applied: z.boolean().optional(),
       })
       .strict()
       .optional(),
@@ -401,6 +408,13 @@ export const connectorScenarioSchema = z
   .superRefine((scenario, context) => {
     const hasOutput = scenario.output !== undefined;
     const hasError = scenario.error !== undefined;
+    if (scenario.error?.applied === true && scenario.kind !== 'error') {
+      context.addIssue({
+        code: 'custom',
+        message: `a${scenario.kind === 'empty' ? 'n' : ''} ${scenario.kind} scenario never applies a write: only an error scenario's write reached the service`,
+        path: ['error', 'applied'],
+      });
+    }
     if (hasOutput === hasError) {
       context.addIssue({
         code: 'custom',
@@ -454,6 +468,15 @@ export const connectorActionSchema = z
     /** Deterministic mock body (JS): `input` in scope, returns the mock
      * output. Required — the authoring/test loop runs on it. */
     mock: z.string().min(1),
+    /** Whether the mock keeps the run's own state for its connector, one
+     * JSON value per connector per mock run: the body also has `state` in
+     * scope (a copy, `null` before the run wrote any) and returns
+     * `{ output, state }` — the next state beside the output, kept when
+     * `state` is absent and cleared by `null`. A read returns no `state`.
+     * A repeated key of an `idempotent` write is answered from the run's
+     * record of its first answer, without running the body. Absent = the
+     * mock is a pure function of `input`. */
+    mockState: z.boolean().optional(),
     /** The cases a test can pick instead of the mock's answer; see
      * {@link connectorScenarioSchema}. */
     scenarios: z
@@ -468,7 +491,19 @@ export const connectorActionSchema = z
     /** Canonical example input for docs/example rendering. */
     exampleInput: z.record(z.string(), z.unknown()).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((action, context) => {
+    if (action.effects === 'write') return;
+    action.scenarios?.forEach((scenario, index) => {
+      if (scenario.error?.applied === true)
+        context.addIssue({
+          code: 'custom',
+          message:
+            'a read applies nothing: only a write action has an applied scenario',
+          path: ['scenarios', index, 'error', 'applied'],
+        });
+    });
+  });
 export type ConnectorAction = z.infer<typeof connectorActionSchema>;
 
 export const connectorSchema = z

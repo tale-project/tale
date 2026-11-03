@@ -1000,6 +1000,69 @@ describe('the scenarios an action ships [CONN-R33]', () => {
     expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
   });
 
+  it('takes an applied error on a write action: an in-doubt write [CONN-R36]', () => {
+    const github = connectorSchema.parse(GITHUB);
+    const [create, read] = github.actions;
+    const lost = {
+      name: 'answer_lost',
+      kind: 'error',
+      description: 'The issue is opened, but the answer never arrives.',
+      error: { message: 'Gateway Timeout', status: 504, applied: true },
+    };
+    const parsed = connectorSchema.parse({
+      ...github,
+      actions: [{ ...create, scenarios: [lost] }, read],
+    });
+    expect(parsed.actions[0]?.scenarios).toEqual([lost]);
+    // Not applied says what an absent flag says, on any kind.
+    expect(
+      connectorScenarioSchema.safeParse({
+        ...scenario('refused'),
+        kind: 'refusal',
+        output: undefined,
+        error: { ...ERROR, applied: false },
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each(['refusal', 'duplicate'])(
+    'refuses an applied %s: only an error scenario applied its write [CONN-R36]',
+    (kind) => {
+      const result = connectorScenarioSchema.safeParse({
+        name: 'refused',
+        kind,
+        description: 'The service refuses the issue.',
+        error: { ...ERROR, applied: true },
+      });
+      expect(result.error?.issues).toEqual([
+        expect.objectContaining({
+          path: ['error', 'applied'],
+          message: `a ${kind} scenario never applies a write: only an error scenario's write reached the service`,
+        }),
+      ]);
+    },
+  );
+
+  it('refuses an applied error on a read action, naming where [CONN-R36]', () => {
+    const result = connectorSchema.safeParse(
+      withScenarios([
+        {
+          name: 'answer_lost',
+          kind: 'error',
+          description: 'The answer never arrives.',
+          error: { message: 'Gateway Timeout', status: 504, applied: true },
+        },
+      ]),
+    );
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['actions', 1, 'scenarios', 0, 'error', 'applied'],
+        message:
+          'a read applies nothing: only a write action has an applied scenario',
+      }),
+    ]);
+  });
+
   it('names the kinds each action ships at least, by its effect', () => {
     expect(CONNECTOR_SCENARIO_KINDS).toEqual([
       'success',
@@ -1012,5 +1075,39 @@ describe('the scenarios an action ships [CONN-R33]', () => {
       read: ['success', 'empty', 'error'],
       write: ['success', 'refusal', 'duplicate'],
     });
+  });
+});
+
+describe("the run's own state a mock keeps [CONN-R36]", () => {
+  it('takes mockState on an action, which stays optional', () => {
+    const github = connectorSchema.parse(GITHUB);
+    const [create, read] = github.actions;
+    const parsed = connectorSchema.parse({
+      ...github,
+      actions: [
+        { ...create, mockState: true, idempotent: true },
+        { ...read, mockState: true },
+      ],
+    });
+    expect(parsed.actions.map((action) => action.mockState)).toEqual([
+      true,
+      true,
+    ]);
+    expect(github.actions[0]?.mockState).toBeUndefined();
+  });
+
+  it('refuses a mockState that is not a flag', () => {
+    const github = connectorSchema.parse(GITHUB);
+    const [create, read] = github.actions;
+    const result = connectorSchema.safeParse({
+      ...github,
+      actions: [{ ...create, mockState: 'yes' }, read],
+    });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['actions', 0, 'mockState'],
+        code: 'invalid_type',
+      }),
+    ]);
   });
 });
