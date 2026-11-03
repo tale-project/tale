@@ -151,8 +151,8 @@ export interface TestResult {
    * all be listed. */
   path?: { id: string; assignment: Record<string, boolean> };
   /** Nodes the test stands in for whose stand-in the run never used:
-   * skipped, never got to, or run over no items — or, for a scenario, no
-   * call whose input matched it. */
+   * skipped, never got to, or run over no items — or, for scenarios, none
+   * of the node's calls took one. */
   unusedMocks?: string[];
   /** With `detail`: what the run produced. */
   run?: TestRunDetail;

@@ -43,7 +43,10 @@ import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
 import { recordBudget, redactTrace } from '../core/record/value';
 import type { CoreNodeKind, StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
-import { BENCH_RUN_DEADLINE_MS } from '../core/test-limits';
+import {
+  BENCH_RUN_DEADLINE_MS,
+  MAX_SCENARIO_ANSWERS,
+} from '../core/test-limits';
 import {
   type Automation,
   isJson,
@@ -51,6 +54,7 @@ import {
   type Json,
   type RunBench,
   type RunResult,
+  type ScenarioPick,
 } from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
@@ -1160,7 +1164,7 @@ function benchParams(
   const refuse = (field: string, wants: string): ParamRefusal => ({
     error: `params.${field} must be ${wants} — got ${JSON.stringify(p[field])}`,
     code: 'INVALID_PARAMS',
-    hint: 'a run on stand-ins takes mocks {node: its simulated output}, failures {node: a message}, scenarios {node: a scenario its action ships}, upTo or only (a node id) and item (with only)',
+    hint: `a run on stand-ins takes mocks {node: its simulated output}, failures {node: a message}, scenarios {node: a scenario its action ships, or a list of 1 to ${MAX_SCENARIO_ANSWERS} its calls take in order}, upTo or only (a node id) and item (with only)`,
   });
   const { mocks, failures, scenarios, upTo, only, item } = p;
   if (mocks !== undefined && !isJsonRecord(mocks)) {
@@ -1172,10 +1176,10 @@ function benchParams(
   if (failures !== undefined && !isMessageRecord(failures)) {
     return refuse('failures', 'an object of node ids and a message each');
   }
-  if (scenarios !== undefined && !isMessageRecord(scenarios)) {
+  if (scenarios !== undefined && !isScenarioPicks(scenarios)) {
     return refuse(
       'scenarios',
-      'an object of node ids and a scenario name each',
+      `an object of node ids and a scenario name each, or a list of 1 to ${MAX_SCENARIO_ANSWERS} of them`,
     );
   }
   if (upTo !== undefined && typeof upTo !== 'string') {
@@ -1208,6 +1212,22 @@ function isJsonRecord(v: unknown): v is Record<string, Json> {
 function isMessageRecord(v: unknown): v is Record<string, string> {
   return (
     isRecord(v) && Object.values(v).every((value) => typeof value === 'string')
+  );
+}
+
+/** An object of scenario picks: a name, or a list of 1 to
+ * {@link MAX_SCENARIO_ANSWERS} names, each. */
+function isScenarioPicks(v: unknown): v is Record<string, ScenarioPick> {
+  return (
+    isRecord(v) &&
+    Object.values(v).every(
+      (pick) =>
+        typeof pick === 'string' ||
+        (Array.isArray(pick) &&
+          pick.length > 0 &&
+          pick.length <= MAX_SCENARIO_ANSWERS &&
+          pick.every((name) => typeof name === 'string')),
+    )
   );
 }
 

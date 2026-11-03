@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ConnectorScenario } from '../slots';
-import type { Json, NodeDef } from '../types';
+import type { Json, NodeDef, ScenarioPick } from '../types';
 import {
   ancestorsOf,
   benchFromTest,
@@ -496,7 +496,7 @@ describe('planBench — a scenario a test picks [AUTO-R78]', () => {
     expect(plan.standIns).toEqual(['rows', 'tally']);
     expect(plan.call('rows')).toEqual({
       kind: 'scenario',
-      scenario: RATE_LIMITED,
+      scenarios: [RATE_LIMITED],
     });
     expect(plan.call('tally')).toEqual({ kind: 'mock', output: 2 });
     expect(plan.call('save')).toEqual({ kind: 'call' });
@@ -514,7 +514,7 @@ describe('planBench — a scenario a test picks [AUTO-R78]', () => {
     expect(scoped.plan.standIns).toEqual(['rows', 'archive']);
     expect(scoped.plan.call('rows')).toEqual({
       kind: 'scenario',
-      scenario: TWO_ROWS,
+      scenarios: [TWO_ROWS],
     });
     expect(scoped.plan.call('archive')).toEqual({ kind: 'left-out' });
     expect(scoped.plan.call('save')).toEqual({ kind: 'left-out' });
@@ -586,6 +586,103 @@ describe('planBench — a scenario a test picks [AUTO-R78]', () => {
       type: 'sheets.write',
       scenario: 'two_rows',
       scenarios: [],
+    });
+  });
+});
+
+describe('planBench — scenarios a test lists for a step’s calls [AUTO-R80]', () => {
+  it('a list stands in for the step’s calls with its scenarios, in order, a repeated one each time', () => {
+    const planned = planBench(
+      SHEET_NODES,
+      { scenarios: { rows: ['rate_limited', 'two_rows', 'rate_limited'] } },
+      shippedOf,
+    );
+    if (!planned.ok) throw new Error('refused');
+    expect(planned.plan.standIns).toEqual(['rows']);
+    expect(planned.plan.call('rows')).toEqual({
+      kind: 'scenario',
+      scenarios: [RATE_LIMITED, TWO_ROWS, RATE_LIMITED],
+    });
+  });
+
+  it('a list that is empty or holds what is no name stands in for nothing: the document check refuses it before a test runs', () => {
+    // As a test's YAML or an agent's call can carry them.
+    const written: unknown[] = [[], ['two_rows', 3], 3];
+    for (const pick of written) {
+      const planned = planBench(
+        SHEET_NODES,
+        { scenarios: { rows: pick as ScenarioPick } },
+        shippedOf,
+      );
+      if (!planned.ok) throw new Error('refused');
+      expect(planned.plan.standIns).toEqual([]);
+      expect(planned.plan.call('rows')).toEqual({ kind: 'call' });
+    }
+  });
+
+  it('a list is one stand-in: beside an output or a failure for its step, it conflicts as a name does', () => {
+    expect(
+      refusedPick({ mocks: { rows: [] }, scenarios: { rows: ['two_rows'] } })
+        .refusal,
+    ).toEqual({
+      code: 'BENCH_CONFLICT',
+      node: 'rows',
+      fields: ['mocks', 'scenarios'],
+    });
+  });
+
+  it('a scenario the action does not ship is refused at its place in the list: the first such entry', () => {
+    const planned = refusedPick({
+      scenarios: { rows: ['two_rows', 'rate_limit', 'sheet_locked'] },
+    });
+    expect(planned).toEqual({
+      ok: false,
+      refusal: {
+        code: 'BENCH_UNKNOWN_SCENARIO',
+        node: 'rows',
+        type: 'sheets.read',
+        scenario: 'rate_limit',
+        scenarios: ['two_rows', 'rate_limited'],
+        answer: 1,
+        suggestion: 'rate_limited',
+      },
+      message:
+        'the test picks the scenario "rate_limit" for "rows", which sheets.read does not ship',
+      hint: 'did you mean "rate_limited"? scenarios of sheets.read: two_rows, rate_limited',
+    });
+    expect(refusalPath(planned.refusal)).toEqual(['scenarios', 'rows', 1]);
+    // The place says which entry; the facts are those of a name.
+    expect(refusalIssue(planned, '/tests/1/scenarios/rows/1')).toEqual({
+      level: 'error',
+      code: 'BENCH_UNKNOWN_SCENARIO',
+      message: planned.message,
+      hint: planned.hint,
+      at: { pointer: '/tests/1/scenarios/rows/1' },
+      params: {
+        node: 'rows',
+        type: 'sheets.read',
+        scenario: 'rate_limit',
+        scenarios: ['two_rows', 'rate_limited'],
+        suggestion: 'rate_limited',
+      },
+    });
+    const first = refusedPick({ scenarios: { save: ['two_rows'] } });
+    expect(refusalPath(first.refusal)).toEqual(['scenarios', 'save', 0]);
+  });
+
+  it('a test’s list is part of its bench, as written', () => {
+    expect(
+      benchFromTest(
+        {
+          name: 'busy, then fine',
+          input: {},
+          scenarios: { rows: ['rate_limited', 'two_rows'] },
+        },
+        2,
+      ),
+    ).toEqual({
+      scenarios: { rows: ['rate_limited', 'two_rows'] },
+      test: { name: 'busy, then fine', index: 2 },
     });
   });
 });

@@ -163,10 +163,17 @@ export interface AutomationTest {
   /** Node id → the scenario of its connector action that answers its
    * calls in this test: each call whose input matches the scenario's
    * `when` gets its output or fails with its error; any other call gets
-   * the action's mock. */
-  scenarios?: Record<string, string>;
+   * the action's mock. A list answers the node's calls in the order the
+   * run makes them: a call that matches the next scenario's `when` takes
+   * it, any other call gets the mock and leaves the list where it is, and
+   * the last scenario answers every later call it matches. */
+  scenarios?: Record<string, ScenarioPick>;
   expect?: TestExpectation;
 }
+
+/** The scenarios a node's calls answer with: one name, or a list the calls
+ * take in order (`AutomationTest.scenarios`). */
+export type ScenarioPick = string | string[];
 
 /** What happened to a node in a run, as a test expects it. `failed`: it
  * failed and the run went on (`onError: continue`). */
@@ -214,8 +221,9 @@ export interface TestExpectation {
 export interface RunBench {
   mocks?: Record<string, Json>;
   failures?: Record<string, string>;
-  /** Node id → the scenario of its connector action it answers with. */
-  scenarios?: Record<string, string>;
+  /** Node id → the scenario of its connector action it answers with, or
+   * the list of them its calls take in order. */
+  scenarios?: Record<string, ScenarioPick>;
   /** Run only what this node needs, then stop: the run's output is this
    * node's output. */
   upTo?: string;
@@ -391,6 +399,6 @@ export interface RunResult {
   stoppedBy?: 'time_limit' | 'cancelled';
   /** Nodes the bench stood in for whose stand-in the run never used: it
    * skipped them, left them out or never got to them, or they ran over no
-   * items — or, for a scenario, no call whose input matched it. */
+   * items — or, for scenarios, none of the node's calls took one. */
   unusedMocks?: string[];
 }

@@ -15,6 +15,7 @@ import { findSecrets } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
 import { ptr } from '../syntax/pointer';
+import { MAX_SCENARIO_ANSWERS } from '../test-limits';
 import type { Issue } from '../types';
 import { AUTOMATION_NAME_RULE, isValidAutomationName } from './name';
 import {
@@ -164,7 +165,7 @@ const MAX_SCENARIO_NAME = 50;
 
 /** The grammar a malformed test is pointed to. */
 const TEST_GRAMMAR =
-  'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}';
+  'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name> | [<scenario name>]}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}';
 
 /** Which part of a test is malformed — what a localized sentence names. */
 type TestPart =
@@ -257,7 +258,7 @@ function malformed(
 }
 
 /** A test's description and its stand-ins: text, and maps from node ids to
- * outputs, to failure messages and to scenario names. */
+ * outputs, to failure messages and to scenario names or lists of them. */
 function validateStandIns(
   i: number,
   t: Record<string, unknown>,
@@ -304,25 +305,39 @@ function validateStandIns(
     }
   }
   if (t.scenarios !== undefined) {
-    const entry = isRecord(t.scenarios)
-      ? Object.entries(t.scenarios).find(
-          ([, name]) =>
-            typeof name !== 'string' || name.length > MAX_SCENARIO_NAME,
-        )
-      : undefined;
-    if (!isRecord(t.scenarios) || entry !== undefined) {
+    let at: string | undefined;
+    if (isRecord(t.scenarios)) {
+      for (const [node, pick] of Object.entries(t.scenarios)) {
+        const fault = scenarioPickFault(pick);
+        if (fault === null) continue;
+        at = ptr('tests', i, 'scenarios', node, ...fault);
+        break;
+      }
+    }
+    if (!isRecord(t.scenarios) || at !== undefined) {
       issues.push(
         malformed(
           i,
           'scenarios',
-          `tests[${i}].scenarios must map node ids to the name of a scenario each node's connector action ships, as text of at most ${MAX_SCENARIO_NAME} characters`,
-          entry === undefined
-            ? ptr('tests', i, 'scenarios')
-            : ptr('tests', i, 'scenarios', entry[0]),
+          `tests[${i}].scenarios must map node ids to the name of a scenario each node's connector action ships, or to a list of 1 to ${MAX_SCENARIO_ANSWERS} of them its calls take in order, each text of at most ${MAX_SCENARIO_NAME} characters`,
+          at ?? ptr('tests', i, 'scenarios'),
         ),
       );
     }
   }
+}
+
+/** Where a test's scenario pick for one node is malformed, below the node:
+ * the pick itself (`[]`), or the first entry of its list that is no name
+ * (`[k]`). Null for a name, or a list of 1 to {@link MAX_SCENARIO_ANSWERS}
+ * names. */
+function scenarioPickFault(pick: unknown): number[] | null {
+  const isName = (name: unknown): boolean =>
+    typeof name === 'string' && name.length <= MAX_SCENARIO_NAME;
+  if (!Array.isArray(pick)) return isName(pick) ? null : [];
+  if (pick.length === 0 || pick.length > MAX_SCENARIO_ANSWERS) return [];
+  const entry = pick.findIndex((name) => !isName(name));
+  return entry === -1 ? null : [entry];
 }
 
 /** The parts of `expect` beside its keys: effect entries, node states and

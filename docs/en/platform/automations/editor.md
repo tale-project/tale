@@ -107,7 +107,7 @@ Select a box to open it. On a wide screen, the inspector opens beside the canvas
 Three tabs follow:
 
 - **Fields** holds what you can change. A `transform` has **Code**; an `llm` has **Prompt**, **System prompt**, **Model** and **Output schema**; an `agent` also has its agent runtime and equipment. **Input** contains the JSON values and references passed to the node.
-- **Shape** shows what the node receives and returns, where Tale got that shape from, and which nodes read its output. Select a reader to open it. **Show as TypeScript** shows the same shape as a type. For a connector action that ships scenarios, **Scenarios** lists them with their kind and what the service answers; a test picks one in its **Setup**, as [Pick a connector's scenario](/platform/automations/testing#scenarios) describes.
+- **Shape** shows what the node receives and returns, where Tale got that shape from, and which nodes read its output. Select a reader to open it. **Show as TypeScript** shows the same shape as a type. For a connector action that ships scenarios, **Scenarios** lists them with their kind and what the service answers; a test picks one in its **Setup**, or several that the step's calls take in order, as [Pick a connector's scenario](/platform/automations/testing#scenarios) describes.
 - **Last run** shows the node's **Resolved input**, **Output** and effects in the run shown on the canvas. It appears while the canvas shows a run, and is named **Unsaved test** for a [try of the draft](#try-the-draft) and **In this test** for a test's run.
 
 <Frame caption="The Shape tab: what Triage returns, where that shape comes from, and the nodes that read it.">

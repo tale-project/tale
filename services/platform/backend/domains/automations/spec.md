@@ -374,14 +374,15 @@ seconds; the tests a suite's 60 seconds do not reach are named as not run and co
 
 A connector action can ship scenarios: named answers of its service, such as an empty list, a
 refused write or a rate limit (`CONN-R33`). A test can pick one of them for a step that calls the
-action (`scenarios`), and so can an agent's run on stand-ins (`MCP-R34`). A call whose input holds
-every member of the scenario's `when`, with the same value, gets the scenario's answer; a scenario
-without `when` answers every call. An output becomes the step's output, marked as simulated, and a
-write still records what it would have sent; an error fails the step (`AUTO-R79`). Any other call
-gets the action's usual mock, and a step whose scenario no call took is named as not used. A step
-takes one stand-in: a simulated output, a simulated failure or a scenario (`BENCH_CONFLICT`). A
-scenario the step's action does not ship is refused, naming the closest one and those the action
-ships (`BENCH_UNKNOWN_SCENARIO`), and so is a scenario for a step the automation does not have
+action (`scenarios`), or a list of them its calls take in order (`AUTO-R80`), and so can an agent's
+run on stand-ins (`MCP-R34`). A call whose input holds every member of the scenario's `when`, with
+the same value, gets the scenario's answer; a scenario without `when` answers every call. An output
+becomes the step's output, marked as simulated, and a write still records what it would have sent;
+an error fails the step (`AUTO-R79`). Any other call gets the action's usual mock, and a step whose
+scenario no call took is named as not used. A step takes one stand-in: a simulated output, a
+simulated failure, or a scenario or a list of them (`BENCH_CONFLICT`). A scenario the step's action
+does not ship is refused, naming the closest one and those the action ships
+(`BENCH_UNKNOWN_SCENARIO`), and so is a scenario for a step the automation does not have
 (`BENCH_UNKNOWN_NODE`); checking the draft warns of each before a run (`TESTS_SCENARIO_UNKNOWN`,
 `TESTS_SCENARIO_CONFLICT`, `TESTS_MOCK_UNKNOWN_NODE`). Like every stand-in, a scenario applies to
 mock runs only (`BENCH_MOCK_ONLY`).
@@ -412,6 +413,35 @@ by the scenario and its action, and says the test simulated it.
 - **Example**: Slack answers an unknown channel with HTTP 200 and `ok: false`, so its
   `channel_not_found` scenario names no status, as the live call reports none → a step that picks
   it fails as a failed call, as the live call does, not as not found.
+
+### AUTO-R80 · A test can list scenarios for a step's calls, which take them in order
+
+Instead of one scenario, a test can give a step a list of the scenarios its action ships: 1 to 50
+names, each of which may repeat (`scenarios`), and so can an agent's run on stand-ins (`MCP-R34`).
+The step's calls take the list in the order the run makes them: item by item for a step that runs
+per item, and each repeated call (`repeatUntil`) after the one before. A call whose input holds the
+next scenario's `when` gets that scenario's answer, and the call after it is offered the scenario
+after; a call that does not hold it gets the action's usual mock and leaves the list where it is.
+Once the list is used up, its last scenario answers every later call whose input holds its `when`,
+so a list of one name answers as the name alone. So a test simulates a sequence: the pages a step
+reads until the last one, a service that refuses one call and answers the next, an answer of its own
+for each item. The step is marked as a simulated failure when one of its answers was an error, also
+when a later one succeeded, and as a simulated output otherwise. Every run starts at the first
+scenario of each list, and no run shares its place in a list with another, also when they run at the
+same time. An entry the step's action does not ship is refused at its place in the list,
+`/bench/scenarios/<step>/<k>` (`BENCH_UNKNOWN_SCENARIO`), and checking the draft warns of it there
+(`TESTS_SCENARIO_UNKNOWN`). A list that is empty, has more than 50 entries or holds what is no name
+is malformed (`TESTS_INVALID`), and an agent's run refuses it as invalid arguments before anything
+runs (`MCP-R7`).
+
+- **Example**: Mia's step *Post* sends each message of her input to Slack, one call per item,
+  and has `onItemError: continue`. Her test lists `[rate_limited, posted]` for *Post* → the
+  first message fails as rate limited, the second is posted, and the run goes on; *Post* is
+  marked as a simulated failure, for item 0.
+- **Example**: Noah's step *Fetch* reads a CRM's contacts page by page with `repeatUntil`, and
+  its action ships `first_page`, `middle_page` and `last_page`. His test lists the three for
+  *Fetch* → *Fetch* runs three times, and its output is the last page. Without `last_page`,
+  *Fetch* gets `middle_page` again and again, until it reaches its `maxRepeats`.
 
 ### AUTO-R50 · A version keeps what its latest test check found, and who made it
 

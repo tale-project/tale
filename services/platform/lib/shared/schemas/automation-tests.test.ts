@@ -377,6 +377,36 @@ describe('the test grammar', () => {
     },
   );
 
+  it.each<[string, unknown, boolean]>([
+    [
+      'as a list its calls take in order',
+      { a: ['failed', 'found', 'found'] },
+      true,
+    ],
+    [
+      'as a list of fifty',
+      { a: Array.from({ length: 50 }, () => 'found') },
+      true,
+    ],
+    ['as a list of the longest names', { a: [long(50), long(50)] }, true],
+    ['as an empty list', { a: [] }, false],
+    [
+      'as a list of fifty-one',
+      { a: Array.from({ length: 51 }, () => 'found') },
+      false,
+    ],
+    ['as a list holding a name too long', { a: ['found', long(51)] }, false],
+    ['as a list holding what is no name', { a: ['found', 1] }, false],
+    ['as a list of lists', { a: [['found']] }, false],
+  ])(
+    'reads scenarios picked %s as the engine check does [AUTO-R80]',
+    async (_label, scenarios, accepted) => {
+      const test = { name: 's', input: {}, scenarios };
+      expect(automationTestSchema.safeParse(test).success).toBe(accepted);
+      expect(await engineAccepts(test)).toBe(accepted);
+    },
+  );
+
   it('keeps the members a test does not define, and reads as the engine type', () => {
     const parsed: AutomationTest = automationTestSchema.parse({
       name: 'kept',
@@ -438,6 +468,32 @@ describe('the test grammar', () => {
       { scenarios: { notify: 1 } },
       { scenarios: ['refused'] },
       { scenarios: null },
+    ]) {
+      expect(runBenchSchema.safeParse(refused).success).toBe(false);
+    }
+  });
+
+  it('takes the scenarios a test lists for a node’s calls into the bench it runs with, in order [AUTO-R80]', () => {
+    const test: AutomationTest = automationTestSchema.parse({
+      name: 'lists',
+      input: { n: 1 },
+      scenarios: { notify: ['refused', 'sent', 'sent'] },
+    });
+    const bench: RunBench = runBenchSchema.parse(wire(benchFromTest(test, 3)));
+    expect(bench).toEqual({
+      scenarios: { notify: ['refused', 'sent', 'sent'] },
+      test: { name: 'lists', index: 3 },
+    });
+    expect(
+      runBenchSchema.safeParse({
+        scenarios: { notify: Array.from({ length: 50 }, () => long(50)) },
+      }).success,
+    ).toBe(true);
+    for (const refused of [
+      { scenarios: { notify: [] } },
+      { scenarios: { notify: Array.from({ length: 51 }, () => 'sent') } },
+      { scenarios: { notify: ['sent', long(51)] } },
+      { scenarios: { notify: ['sent', 1] } },
     ]) {
       expect(runBenchSchema.safeParse(refused).success).toBe(false);
     }
@@ -663,6 +719,26 @@ describe('a run made in one call', () => {
       },
     });
     expect(parsed).toEqual(answer);
+  });
+
+  it('parses a run on the scenarios it lists, and a refusal at the entry it names [AUTO-R80]', async () => {
+    // The node's one call takes the first answer of the list.
+    const listed = await tried({ scenarios: { notify: ['refused', 'sent'] } });
+    const parsed = transientRunSchema.parse(listed);
+    expect(parsed).toEqual(listed);
+    expect(parsed.trace.find((entry) => entry.node === 'notify')?.bench).toBe(
+      'failed',
+    );
+    expect(parsed.error?.failure).toMatchObject({ reason: 'CONNECTOR_AUTH' });
+    const answer = await tried({ scenarios: { notify: ['sent', 'sendt'] } });
+    const refused = transientRunSchema.parse(answer);
+    expect(refused.status).toBe('invalid');
+    expect(refused.validation?.errors[0]).toMatchObject({
+      code: 'BENCH_UNKNOWN_SCENARIO',
+      at: { pointer: '/bench/scenarios/notify/1' },
+      params: { node: 'notify', scenario: 'sendt', suggestion: 'sent' },
+    });
+    expect(refused).toEqual(answer);
   });
 });
 

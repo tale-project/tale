@@ -20,7 +20,11 @@
  * A scenario is a case the node's connector action ships (`scenarios` in
  * its catalog entry): it answers the calls whose input matches its `when`
  * with its output, or fails them with its error, classified as a live
- * call's failure; any other call of the node gets the action's mock.
+ * call's failure; any other call of the node gets the action's mock. A list
+ * of scenarios answers the node's calls in the order the run makes them:
+ * the next one answers a call it matches and the list moves on, a call it
+ * does not match gets the mock, and the last one answers every later call
+ * it matches.
  *
  * Stand-ins address the automation's own nodes; a simulated subautomation
  * node replaces the whole called automation. Pure and browser-safe: the
@@ -52,9 +56,11 @@ export type BenchCall =
   | { kind: 'mock'; output: Json }
   /** The input is resolved; then the node fails with this message. */
   | { kind: 'fail'; message: string }
-  /** The input is resolved and checked; a call it matches gets this
-   * scenario's answer, any other the action's mock. */
-  | { kind: 'scenario'; scenario: ConnectorScenario }
+  /** The input is resolved and checked; a call that matches the next of
+   * these scenarios gets its answer, any other the action's mock. A call
+   * answered moves on to the scenario after it; the last one answers every
+   * later call it matches. */
+  | { kind: 'scenario'; scenarios: readonly ConnectorScenario[] }
   /** `only`: this is the node's output; nothing of it is evaluated. */
   | { kind: 'pinned'; output: Json }
   /** Outside a step test's scope: the node does not run. */
@@ -104,6 +110,8 @@ export type BenchRefusal =
       type: string;
       scenario: string;
       scenarios: string[];
+      /** Where `scenario` is in the node's list, when it picks a list. */
+      answer?: number;
       suggestion?: string;
     }
   | { code: 'BENCH_PINS_MISSING'; node: string; missing: string[] }
@@ -138,11 +146,12 @@ function nodesById(nodes: readonly NodeDef[]): Map<string, NodeDef> {
 }
 
 /** The stand-ins a bench gives, kept only where they have the grammar's
- * shape (the document check refuses any other before a test runs). */
+ * shape (the document check refuses any other before a test runs): a
+ * scenario pick is one name, or a list of at least one. */
 function standInsOf(bench: RunBench): {
   mocks: Record<string, Json>;
   failures: Record<string, string>;
-  scenarios: Record<string, string>;
+  scenarios: Record<string, string | readonly string[]>;
 } {
   const mocks: Record<string, Json> = isRecord(bench.mocks)
     ? { ...bench.mocks }
@@ -155,10 +164,23 @@ function standInsOf(bench: RunBench): {
     }
     return kept;
   };
+  const picks: Record<string, string | readonly string[]> = {};
+  if (isRecord(bench.scenarios)) {
+    for (const [id, pick] of Object.entries(bench.scenarios)) {
+      if (
+        typeof pick === 'string' ||
+        (Array.isArray(pick) &&
+          pick.length > 0 &&
+          pick.every((name) => typeof name === 'string'))
+      ) {
+        picks[id] = pick;
+      }
+    }
+  }
   return {
     mocks,
     failures: texts(bench.failures),
-    scenarios: texts(bench.scenarios),
+    scenarios: picks,
   };
 }
 
@@ -424,8 +446,8 @@ export function planBench(
       );
     }
   }
-  const pickedScenarios = new Map<string, ConnectorScenario>();
-  for (const [id, name] of Object.entries(scenarios)) {
+  const pickedScenarios = new Map<string, readonly ConnectorScenario[]>();
+  for (const [id, pick] of Object.entries(scenarios)) {
     for (const field of ['mocks', 'failures'] as const) {
       const given = field === 'mocks' ? mocks : failures;
       if (!Object.hasOwn(given, id)) continue;
@@ -436,23 +458,29 @@ export function planBench(
     }
     const type = byId.get(id)?.type ?? '';
     const shipped = scenariosOf(type);
-    const scenario = shipped.find((s) => s.name === name);
-    if (scenario === undefined) {
-      const names = shipped.map((s) => s.name);
-      const suggestion = closestName(name, names);
-      return refused(
-        {
-          code: 'BENCH_UNKNOWN_SCENARIO',
-          node: id,
-          type,
-          scenario: name,
-          scenarios: names,
-          ...(suggestion !== undefined && { suggestion }),
-        },
-        ids,
-      );
+    const picked = typeof pick === 'string' ? [pick] : pick;
+    const answers: ConnectorScenario[] = [];
+    for (const [answer, name] of picked.entries()) {
+      const scenario = shipped.find((s) => s.name === name);
+      if (scenario === undefined) {
+        const names = shipped.map((s) => s.name);
+        const suggestion = closestName(name, names);
+        return refused(
+          {
+            code: 'BENCH_UNKNOWN_SCENARIO',
+            node: id,
+            type,
+            scenario: name,
+            scenarios: names,
+            ...(typeof pick !== 'string' && { answer }),
+            ...(suggestion !== undefined && { suggestion }),
+          },
+          ids,
+        );
+      }
+      answers.push(scenario);
     }
-    pickedScenarios.set(id, scenario);
+    pickedScenarios.set(id, answers);
   }
   if (upTo !== undefined && only !== undefined) {
     return refused({ code: 'BENCH_SCOPE_CONFLICT', field: 'upTo' }, ids);
@@ -518,8 +546,10 @@ export function planBench(
       if (Object.hasOwn(failures, nodeId)) {
         return { kind: 'fail', message: failures[nodeId] ?? '' };
       }
-      const scenario = pickedScenarios.get(nodeId);
-      if (scenario !== undefined) return { kind: 'scenario', scenario };
+      const answers = pickedScenarios.get(nodeId);
+      if (answers !== undefined) {
+        return { kind: 'scenario', scenarios: answers };
+      }
       return CALL_AS_WRITTEN;
     },
     itemOutputs(nodeId, items, picked) {
@@ -571,7 +601,9 @@ export function refusalPath(refusal: BenchRefusal): Array<string | number> {
     case 'BENCH_CONFLICT':
       return [refusal.fields[1], refusal.node];
     case 'BENCH_UNKNOWN_SCENARIO':
-      return ['scenarios', refusal.node];
+      return refusal.answer === undefined
+        ? ['scenarios', refusal.node]
+        : ['scenarios', refusal.node, refusal.answer];
     case 'BENCH_PINS_MISSING':
       return ['only'];
     case 'BENCH_ITEM_OUT_OF_RANGE':

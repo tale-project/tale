@@ -33,6 +33,10 @@ const NODE_ID_MAX = 50;
  * (`^[a-z][a-z0-9_]{0,49}$`). */
 const SCENARIO_NAME_MAX = 50;
 
+/** The most scenarios a bench lists for one node's calls, as the document
+ * check holds a test's list. */
+const SCENARIO_ANSWERS_MAX = 50;
+
 const count = z.number().int().nonnegative();
 
 /** Simulated outputs, by node id. */
@@ -44,11 +48,17 @@ export const failuresSchema = z.record(
   z.string().max(BENCH_LIMITS.failureChars),
 );
 
+const scenarioNameSchema = z.string().max(SCENARIO_NAME_MAX);
+
 /** The scenario each node's connector action answers with — its name, as
- * the action ships it — by node id. */
+ * the action ships it — or the list of them the node's calls take in
+ * order, by node id. */
 export const scenariosSchema = z.record(
   z.string(),
-  z.string().max(SCENARIO_NAME_MAX),
+  z.union([
+    scenarioNameSchema,
+    z.array(scenarioNameSchema).min(1).max(SCENARIO_ANSWERS_MAX),
+  ]),
 );
 
 /** The bench a run is given: a test's stand-ins, and a step test's scope.
