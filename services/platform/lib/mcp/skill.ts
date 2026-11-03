@@ -161,7 +161,7 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
     heading: 'Testing',
     lines: [
       {
-        text: '- run_automation runs a draft on the mocks. mocks and failures stand in for nodes (the outside world’s answers, or a failure); scenarios pick one of the cases a connector action ships (get_catalog lists them: an empty page, a refusal, a rate limit), its failures classified as live ones; upTo runs a node and what it needs, only runs one node on pinned data. The answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).',
+        text: '- run_automation runs a draft on the mocks. mocks and failures stand in for nodes (the outside world’s answers, or a failure); scenarios pick one of the cases a connector action ships (get_catalog lists them: an empty page, a refusal, a rate limit), or a list of them the node’s calls take in order (the first call refused and the next one answered, three pages), their failures classified as live ones; upTo runs a node and what it needs, only runs one node on pinned data. The answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).',
         tools: ['run_automation', 'get_catalog'],
       },
       {
