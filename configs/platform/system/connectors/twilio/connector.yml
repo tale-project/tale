@@ -40,6 +40,27 @@ actions:
     output: '{ sid: string, status: string, to: string, from: string }'
     mock: |
       return { sid: 'SM' + String(input.to.length + input.body.length).padStart(32, '0'), status: 'queued', to: input.to, from: input.from };
+    scenarios:
+      - name: queued
+        kind: success
+        description: 'Twilio accepts the message with HTTP 201 and queues it for sending.'
+        output: { sid: SM00000000000000000000000000000001, status: queued, to: '+15551234567', from: '+15559876543' }
+      - name: queued_again
+        kind: duplicate
+        description: 'Twilio does not de-duplicate a repeated send, so the same message is queued a second time under a new SID.'
+        output: { sid: SM00000000000000000000000000000002, status: queued, to: '+15551234567', from: '+15559876543' }
+      - name: unsubscribed_recipient
+        kind: refusal
+        description: 'Twilio refuses the send with HTTP 400 and error 21610 because the recipient replied STOP, so nothing is sent.'
+        error:
+          message: 'Twilio send_sms failed (400): {"code":21610,"message":"Attempt to send to unsubscribed recipient","more_info":"https://www.twilio.com/docs/errors/21610","status":400}'
+          status: 400
+      - name: rate_limited
+        kind: refusal
+        description: 'Twilio rate-limits the send with HTTP 429 because the account has too many requests in flight, so nothing is sent.'
+        error:
+          message: 'Twilio send_sms failed (429): rate limited by Twilio — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -85,12 +106,39 @@ actions:
         page:
           type: number
           description: 'Page number (0-based).'
-    output: '{ messages: Array<{ sid: string, body: string, status: string, to: string, from: string, date_sent: string }>, next_page_uri: string | null }'
+    output: '{ messages: Array<{ sid: string, body: string, status: string, to: string, from: string, date_sent: string | null }>, next_page_uri: string | null }'
     mock: |
       return {
         messages: [{ sid: 'SM' + '1'.padStart(32, '0'), body: 'Your order has shipped.', status: 'delivered', to: input.to || '+15551234567', from: input.from || '+15559876543', date_sent: '2024-01-01T00:00:00Z' }],
         next_page_uri: null,
       };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'Twilio returns the two messages sent to the number, newest first: one still queued, so not sent yet, and one delivered.'
+        output:
+          messages:
+            - { sid: SM00000000000000000000000000000002, body: 'Your order is out for delivery.', status: queued, to: '+15551234567', from: '+15559876543', date_sent: null }
+            - { sid: SM00000000000000000000000000000001, body: 'Your order has shipped.', status: delivered, to: '+15551234567', from: '+15559876543', date_sent: 'Mon, 06 Jan 2025 09:30:05 +0000' }
+          next_page_uri: null
+      - name: no_messages
+        kind: empty
+        description: 'Twilio returns no messages and no further page, as for a number nothing was sent to.'
+        output:
+          messages: []
+          next_page_uri: null
+      - name: invalid_credentials
+        kind: error
+        description: 'Twilio rejects the Account SID and Auth Token with HTTP 401.'
+        error:
+          message: 'Twilio list_messages failed (401): authentication rejected — verify the Account SID and Auth Token'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Twilio rate-limits the call with HTTP 429 because the account has too many requests in flight.'
+        error:
+          message: 'Twilio list_messages failed (429): rate limited by Twilio — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -123,9 +171,45 @@ actions:
         messageSid:
           type: string
           description: 'Twilio message SID (e.g. SM1234567890abcdef1234567890abcdef).'
-    output: '{ message: { sid: string, body: string, status: string, to: string, from: string, date_sent: string } }'
+    output: '{ message: { sid: string, body: string, status: string, to: string, from: string, date_sent: string | null } }'
     mock: |
       return { message: { sid: input.messageSid, body: 'Your order has shipped.', status: 'delivered', to: '+15551234567', from: '+15559876543', date_sent: '2024-01-01T00:00:00Z' } };
+    scenarios:
+      - name: one_message
+        kind: success
+        description: 'Twilio returns the message, delivered, with the date it was sent.'
+        output:
+          message:
+            sid: SM1234567890abcdef1234567890abcdef
+            body: 'Your order has shipped.'
+            status: delivered
+            to: '+15551234567'
+            from: '+15559876543'
+            date_sent: 'Mon, 06 Jan 2025 09:30:05 +0000'
+      - name: not_sent_yet
+        kind: empty
+        description: 'Twilio returns a message that is still queued, so it has no date sent yet.'
+        output:
+          message:
+            sid: SM1234567890abcdef1234567890abcdef
+            body: 'Your order has shipped.'
+            status: queued
+            to: '+15551234567'
+            from: '+15559876543'
+            date_sent: null
+      - name: message_not_found
+        kind: error
+        description: 'Twilio answers HTTP 404 because no message of the account has this SID.'
+        when: { messageSid: SM00000000000000000000000000000009 }
+        error:
+          message: 'Twilio get_message failed (404): message not found'
+          status: 404
+      - name: invalid_credentials
+        kind: error
+        description: 'Twilio rejects the Account SID and Auth Token with HTTP 401.'
+        error:
+          message: 'Twilio get_message failed (401): authentication rejected — verify the Account SID and Auth Token'
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -168,6 +252,33 @@ actions:
         calls: [{ sid: 'CA' + '1'.padStart(32, '0'), status: input.status || 'completed', to: input.to || '+15551234567', from: input.from || '+15559876543', duration: '42' }],
         next_page_uri: null,
       };
+    scenarios:
+      - name: two_calls
+        kind: success
+        description: 'Twilio returns the two completed calls of the account, newest first, each with its duration in seconds, and no further page.'
+        output:
+          calls:
+            - { sid: CA00000000000000000000000000000002, status: completed, to: '+15551234567', from: '+15559876543', duration: '17' }
+            - { sid: CA00000000000000000000000000000001, status: completed, to: '+15551234568', from: '+15559876543', duration: '42' }
+          next_page_uri: null
+      - name: no_calls
+        kind: empty
+        description: 'Twilio returns no calls and no further page, as for an account with no completed call.'
+        output:
+          calls: []
+          next_page_uri: null
+      - name: invalid_credentials
+        kind: error
+        description: 'Twilio rejects the Account SID and Auth Token with HTTP 401.'
+        error:
+          message: 'Twilio list_calls failed (401): authentication rejected — verify the Account SID and Auth Token'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Twilio rate-limits the call with HTTP 429 because the account has too many requests in flight.'
+        error:
+          message: 'Twilio list_calls failed (429): rate limited by Twilio — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -212,6 +323,27 @@ actions:
     output: '{ sid: string, status: string, to: string, from: string }'
     mock: |
       return { sid: 'CA' + String(input.to.length + input.url.length).padStart(32, '0'), status: 'queued', to: input.to, from: input.from };
+    scenarios:
+      - name: queued
+        kind: success
+        description: 'Twilio accepts the call with HTTP 201 and queues it for dialling.'
+        output: { sid: CA00000000000000000000000000000001, status: queued, to: '+15551234567', from: '+15559876543' }
+      - name: queued_again
+        kind: duplicate
+        description: 'Twilio does not de-duplicate a repeated call, so the same call is queued a second time under a new SID.'
+        output: { sid: CA00000000000000000000000000000002, status: queued, to: '+15551234567', from: '+15559876543' }
+      - name: invalid_credentials
+        kind: refusal
+        description: 'Twilio rejects the Account SID and Auth Token with HTTP 401, so no call is placed.'
+        error:
+          message: 'Twilio make_call failed (401): authentication rejected — verify the Account SID and Auth Token'
+          status: 401
+      - name: rate_limited
+        kind: refusal
+        description: 'Twilio rate-limits the call with HTTP 429 because the account has too many requests in flight, so no call is placed.'
+        error:
+          message: 'Twilio make_call failed (429): rate limited by Twilio — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -245,6 +377,23 @@ actions:
     output: '{ account: { sid: string, friendly_name: string, status: string, type: string } }'
     mock: |
       return { account: { sid: 'AC' + '1'.padStart(32, '0'), friendly_name: 'Demo Account', status: 'active', type: 'Full' } };
+    scenarios:
+      - name: active_account
+        kind: success
+        description: 'Twilio returns the account the credential belongs to, active and upgraded from a trial.'
+        output:
+          account: { sid: ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX, friendly_name: 'Example Shop', status: active, type: Full }
+      - name: no_friendly_name
+        kind: empty
+        description: 'Twilio returns an account that has no friendly name, its friendly_name empty.'
+        output:
+          account: { sid: ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX, friendly_name: '', status: active, type: Full }
+      - name: invalid_credentials
+        kind: error
+        description: 'Twilio rejects the Account SID and Auth Token with HTTP 401.'
+        error:
+          message: 'Twilio get_account failed (401): authentication rejected — verify the Account SID and Auth Token'
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -280,6 +429,33 @@ actions:
         phone_numbers: [{ sid: 'PN' + '1'.padStart(32, '0'), phone_number: '+15559876543', friendly_name: 'Main line' }],
         next_page_uri: null,
       };
+    scenarios:
+      - name: two_numbers
+        kind: success
+        description: 'Twilio returns the two incoming phone numbers the account owns, and no further page.'
+        output:
+          phone_numbers:
+            - { sid: PN00000000000000000000000000000001, phone_number: '+15559876543', friendly_name: 'Main line' }
+            - { sid: PN00000000000000000000000000000002, phone_number: '+15559876544', friendly_name: 'Support line' }
+          next_page_uri: null
+      - name: no_numbers
+        kind: empty
+        description: 'Twilio returns no phone numbers and no further page, as for an account that owns none yet.'
+        output:
+          phone_numbers: []
+          next_page_uri: null
+      - name: invalid_credentials
+        kind: error
+        description: 'Twilio rejects the Account SID and Auth Token with HTTP 401.'
+        error:
+          message: 'Twilio list_phone_numbers failed (401): authentication rejected — verify the Account SID and Auth Token'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Twilio rate-limits the call with HTTP 429 because the account has too many requests in flight.'
+        error:
+          message: 'Twilio list_phone_numbers failed (429): rate limited by Twilio — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
