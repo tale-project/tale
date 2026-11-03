@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentRoster, ModelOption } from '@/lib/shared/harness-offer';
+
 import {
   groupByProvider,
   modelName,
   modelOptionsByProvider,
   pickedModelName,
+  pinnedModelName,
   qualifiedModelName,
   sharedModelNames,
 } from './model-name';
@@ -181,6 +184,80 @@ describe('pickedModelName', () => {
         [lookalikes[1], lookalikes[2]],
       ),
     ).toBe('OpenAI · GPT 5.6 Luna');
+  });
+});
+
+describe('pinnedModelName', () => {
+  // OpenAI's Luna rides a subscription bound to Codex, OpenRouter's reads
+  // alike under another id, and EU Gateway's tools work only on the
+  // Responses API.
+  const served: ModelOption[] = [
+    {
+      id: 'gpt-5.6-luna',
+      label: 'GPT 5.6 Luna',
+      providerSlug: 'openai',
+      providerLabel: 'OpenAI',
+      subscription: { harness: 'codex' },
+    },
+    {
+      id: 'openai/gpt-5.6-luna',
+      label: 'GPT 5.6 Luna',
+      providerSlug: 'openrouter',
+      providerLabel: 'OpenRouter',
+    },
+    {
+      id: 'openai/gpt-5.6-luna',
+      label: 'GPT-5.6 Luna',
+      providerSlug: 'eu-gateway',
+      providerLabel: 'EU Gateway',
+      responsesOnly: true,
+    },
+  ];
+  const harnesses: AgentRoster['harnesses'] = [
+    { harness: 'claude-code', toolCallingWire: 'anthropic' },
+    { harness: 'codex', toolCallingWire: 'openai-responses' },
+  ];
+  const openRouter = {
+    id: 'openai/gpt-5.6-luna',
+    providerSlug: 'openrouter',
+  };
+
+  it('counts only the models the runtime is offered', () => {
+    // Claude Code is offered OpenRouter's Luna alone; Codex all three.
+    expect(pinnedModelName(openRouter, 'claude-code', served, harnesses)).toBe(
+      'GPT 5.6 Luna',
+    );
+    expect(pinnedModelName(openRouter, 'codex', served, harnesses)).toBe(
+      'OpenRouter · GPT 5.6 Luna',
+    );
+  });
+
+  it('offers no Responses-only model to a runtime whose wire is unknown', () => {
+    const shared = served.slice(1);
+    expect(pinnedModelName(openRouter, 'codex', shared, harnesses)).toBe(
+      'OpenRouter · GPT 5.6 Luna',
+    );
+    expect(pinnedModelName(openRouter, 'codex', shared)).toBe('GPT 5.6 Luna');
+  });
+
+  it('names the pinned row even where the runtime is not offered it', () => {
+    expect(
+      pinnedModelName(
+        { id: 'gpt-5.6-luna', providerSlug: 'openai' },
+        'claude-code',
+        served,
+        harnesses,
+      ),
+    ).toBe('OpenAI · GPT 5.6 Luna');
+    // A pick no row serves keeps its id.
+    expect(
+      pinnedModelName(
+        { id: 'gone-model', providerSlug: 'openai' },
+        'claude-code',
+        served,
+        harnesses,
+      ),
+    ).toBe('gone-model');
   });
 });
 

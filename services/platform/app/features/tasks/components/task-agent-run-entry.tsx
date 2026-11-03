@@ -26,8 +26,11 @@ import { Text } from '@tale/ui/text';
 import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { CheckCircle2, Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
 
+import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
+import { pinnedModelName } from '@/app/features/shared/models/model-name';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
+import { toModelOptions } from '@/lib/shared/harness-offer';
 
 import { useTaskAgentRunControls } from '../hooks/use-task-agent-run-controls';
 import {
@@ -74,6 +77,7 @@ export function TaskAgentRunEntry({
     { organizationId, taskId },
   );
   const { start, cancel, busy } = useTaskAgentRunControls(taskId);
+  const roster = useProjectHarnesses(organizationId).data;
 
   const run = runQuery.data;
   const readStatus =
@@ -142,6 +146,18 @@ export function TaskAgentRunEntry({
   const statusLabel = waiting
     ? t(`agentRun.waiting.${waitingCopyKey(run.waitingReason)}`)
     : t(`agentRun.status.${run.status}`);
+  // The model as its agent's picker names it, among the models the run's
+  // runtime is offered; a run that recorded no provider, or a roster not
+  // read yet, shows the id.
+  const modelName =
+    run.modelProvider === undefined
+      ? run.model
+      : pinnedModelName(
+          { id: run.model, providerSlug: run.modelProvider },
+          run.harness,
+          toModelOptions(roster?.models ?? []),
+          roster?.harnesses,
+        );
 
   return (
     <Stack gap={1} className="min-w-0">
@@ -178,8 +194,8 @@ export function TaskAgentRunEntry({
                 className="min-w-0 truncate font-medium"
                 title={
                   run.engine === 'native'
-                    ? run.model
-                    : `${run.harness} · ${run.model}`
+                    ? modelName
+                    : `${run.harness} · ${modelName}`
                 }
               >
                 {statusLabel}
