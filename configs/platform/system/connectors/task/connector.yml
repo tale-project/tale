@@ -86,13 +86,32 @@ actions:
             description: 'Label names; the project''s catalog gains those it lacks when the run''s starter may edit the project, or a trigger started the run.',
           }
     output: '{ taskId: string, number: number, title: string, url: string }'
+    # A mock run keeps the tasks it creates (CONN-R36), so its later steps
+    # read them back: the first is tsk_mock_1, number 42, and each next one
+    # counts on. The mock resolves no one: the assignee is kept as given.
+    mockState: true
     mock: |
+      const tasks = Array.isArray(state?.tasks) ? state.tasks : [];
       const title = String(input.title ?? '').trim();
-      return {
-        taskId: 'tsk_mock_1',
-        number: 42,
+      const task = {
+        taskId: 'tsk_mock_' + (tasks.length + 1),
+        number: 42 + tasks.length,
         title: title.length > 200 ? title.slice(0, 199) + '…' : title,
-        url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
+        status: input.status ?? 'backlog',
+        projectId: input.projectId,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        assignee: input.assignee ?? null,
+        dueDate: input.dueDate ?? null,
+        createdAtMs: 1791619200000 + tasks.length * 60000,
+      };
+      return {
+        output: {
+          taskId: task.taskId,
+          number: task.number,
+          title: task.title,
+          url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=' + task.taskId,
+        },
+        state: { tasks: [...tasks, task] },
       };
     backend:
       kind: native
@@ -131,16 +150,42 @@ actions:
         agentRunId:
           { type: string, minLength: 1, maxLength: 200, pattern: '\S', description: 'The exact run id on this task; never selects the latest run implicitly.' }
     output: '{ taskId: string, title: string, status: string, projectId: string, externalSystem?: string, externalId?: string, externalUrl?: string, description?: string, descriptionText?: string, agentRun?: { id: string, taskId: string, agentId: string, status: string, execId: string, startedAt: number, launchedAt: number | null, settledAt: number | null } | null }'
+    # A task the mock run created reads back as it stands; any other id
+    # answers the canned task.
+    mockState: true
     mock: |
+      const kept = Array.isArray(state?.tasks)
+        ? state.tasks.find((task) => task.taskId === String(input.taskId))
+        : undefined;
+      const agentRun = input.agentRunId !== undefined ? { agentRun: null } : {};
+      if (kept === undefined) {
+        return {
+          output: {
+            taskId: String(input.taskId),
+            title: 'Document batch — 2026Q1',
+            status: 'todo',
+            projectId: 'proj_mock',
+            externalSystem: 'acme',
+            externalId: 'fld_quarter',
+            externalUrl: 'fld_setup',
+            ...agentRun,
+          },
+        };
+      }
       return {
-        taskId: String(input.taskId),
-        title: 'Document batch — 2026Q1',
-        status: 'todo',
-        projectId: 'proj_mock',
-        externalSystem: 'acme',
-        externalId: 'fld_quarter',
-        externalUrl: 'fld_setup',
-        ...(input.agentRunId !== undefined ? { agentRun: null } : {}),
+        output: {
+          taskId: kept.taskId,
+          title: kept.title,
+          status: kept.status,
+          projectId: kept.projectId,
+          ...(kept.description !== undefined
+            ? {
+                description: kept.description,
+                descriptionText: kept.description.replace(/\[@([^\]]*)\]\(mention:[^)]*\)/g, '@$1'),
+              }
+            : {}),
+          ...agentRun,
+        },
       };
     backend:
       kind: native
@@ -215,22 +260,71 @@ actions:
             description: At most this many tasks; 50 when left out.,
           }
     output: '{ tasks: Array<{ taskId: string, number: number | null, title: string, status: string, priority: string | null, assignee: { type: string, id: string, name: string | null } | null, dueDate: string | null, createdAt: string, url: string }>, hasMore: boolean, next: string | null }'
+    # A mock run that created tasks lists those, narrowed and ordered as the
+    # live listing does; one that created none answers the canned task.
+    mockState: true
     mock: |
-      const statuses = Array.isArray(input.status) ? input.status : ['todo'];
-      const tasks = [
-        {
-          taskId: 'tsk_mock_1',
-          number: 7,
-          title: 'Draft the launch announcement',
-          status: statuses[0],
-          priority: 'p1',
-          assignee: { type: 'user', id: 'usr_mock_1', name: 'Mock Member' },
-          dueDate: '2026-10-17',
-          createdAt: '2026-10-10T08:00:00.000Z',
-          url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
+      const kept = Array.isArray(state?.tasks) ? state.tasks : [];
+      if (kept.length === 0) {
+        const statuses = Array.isArray(input.status) ? input.status : ['todo'];
+        const tasks = [
+          {
+            taskId: 'tsk_mock_1',
+            number: 7,
+            title: 'Draft the launch announcement',
+            status: statuses[0],
+            priority: 'p1',
+            assignee: { type: 'user', id: 'usr_mock_1', name: 'Mock Member' },
+            dueDate: '2026-10-17',
+            createdAt: '2026-10-10T08:00:00.000Z',
+            url: '/dashboard/org_mock/projects/' + input.projectId + '/tasks?task=tsk_mock_1',
+          },
+        ];
+        return {
+          output: { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false, next: null },
+        };
+      }
+      const ms = (moment) =>
+        moment === undefined ? undefined : typeof moment === 'number' ? moment : Date.parse(moment);
+      const since = ms(input.createdSince);
+      const before = ms(input.createdBefore);
+      const oldest = input.order === 'oldest';
+      const after = typeof input.after === 'string' && input.after !== '' ? input.after : null;
+      const afterMs = after === null ? 0 : Number(after.slice(0, after.indexOf(':')));
+      const afterId = after === null ? '' : after.slice(after.indexOf(':') + 1);
+      const matching = kept
+        .filter(
+          (task) =>
+            task.projectId === input.projectId &&
+            (!Array.isArray(input.status) || input.status.includes(task.status)) &&
+            (since === undefined || task.createdAtMs >= since) &&
+            (before === undefined || task.createdAtMs < before) &&
+            (after === null ||
+              task.createdAtMs > afterMs ||
+              (task.createdAtMs === afterMs && task.taskId > afterId)),
+        )
+        .sort((a, b) => (oldest ? 1 : -1) * (a.createdAtMs - b.createdAtMs));
+      const limit = input.limit ?? 50;
+      const page = matching.slice(0, limit);
+      const hasMore = matching.length > limit;
+      const last = page[page.length - 1];
+      return {
+        output: {
+          tasks: page.map((task) => ({
+            taskId: task.taskId,
+            number: task.number,
+            title: task.title,
+            status: task.status,
+            priority: null,
+            assignee: task.assignee === null ? null : { type: 'user', id: task.assignee, name: null },
+            dueDate: task.dueDate,
+            createdAt: new Date(task.createdAtMs).toISOString(),
+            url: '/dashboard/org_mock/projects/' + task.projectId + '/tasks?task=' + task.taskId,
+          })),
+          hasMore,
+          next: oldest && hasMore ? last.createdAtMs + ':' + last.taskId : null,
         },
-      ];
-      return { tasks: tasks.slice(0, input.limit ?? 50), hasMore: false, next: null };
+      };
     backend:
       kind: native
       impl: task.list
@@ -259,8 +353,23 @@ actions:
           type: string
           enum: [backlog, todo, in_progress, in_review, cancelled]
     output: '{ ok: boolean, status: string }'
+    # A task the mock run created moves to the new status; any other id
+    # answers as moved and changes nothing.
+    mockState: true
     mock: |
-      return { ok: true, status: String(input.status) };
+      const status = String(input.status);
+      const tasks = Array.isArray(state?.tasks) ? state.tasks : [];
+      if (!tasks.some((task) => task.taskId === String(input.taskId))) {
+        return { output: { ok: true, status } };
+      }
+      return {
+        output: { ok: true, status },
+        state: {
+          tasks: tasks.map((task) =>
+            task.taskId === String(input.taskId) ? { ...task, status } : task,
+          ),
+        },
+      };
     backend:
       kind: native
       impl: task.update_status

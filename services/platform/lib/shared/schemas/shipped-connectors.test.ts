@@ -28,7 +28,9 @@ import { describe, expect, it } from 'vitest';
 
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import { toConnectorResponse } from '../../connectors/live-host';
+import { runMock } from '../../connectors/mock-call';
 import { connectorFailureOf } from '../../engine/core/record/failure';
+import { setCodeRunner } from '../../engine/core/runner';
 import type {
   ConnectorContext,
   ConnectorHttpResponse,
@@ -83,6 +85,8 @@ type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
 const runner = nodeVmRunner();
 const LIMITS = { timeoutMs: 2000 };
+// Mocks run through runMock, which reaches the installed runner.
+setCodeRunner(runner);
 
 function loadConnector(slug: string): Connector {
   const file = path.join(CONNECTORS_DIR, slug, 'connector.yml');
@@ -157,8 +161,10 @@ describe('shipped connector catalog', () => {
     async (slug) => {
       for (const action of loadConnector(slug).actions) {
         const input = action.exampleInput ?? {};
-        const first = await runner.runBody(action.mock, { input }, LIMITS);
-        const second = await runner.runBody(action.mock, { input }, LIMITS);
+        // Each as a run's first call: a mock that keeps the run's state
+        // (CONN-R36) starts from none, and keeps the contract it returns in.
+        const first = await runMock(slug, action, input);
+        const second = await runMock(slug, action, input);
         expect(
           first,
           `${slug}.${action.name} mock returned nothing`,

@@ -12,8 +12,12 @@ import {
   TASK_TITLE_MAX,
   truncateImportedTitle,
 } from '../../../backend/core/tasks/helpers';
+import { setCodeRunner } from '../../engine/core/runner';
+import type { MockCall } from '../../engine/core/slots';
+import { RunMockState } from '../../engine/core/walk/mock-state';
 import { nodeVmRunner } from '../../engine/runners/node-vm';
 import { parseYamlOrThrow } from '../../shared/config/yaml';
+import { runMock } from '../mock-call';
 import { IssueSyncProjectRefusal, type IssueSourceReceipt } from './issue-sync';
 import { platformTaskNatives } from './platform-tasks';
 
@@ -412,6 +416,24 @@ describe('external issue task intake', () => {
   });
 });
 
+const taskConnector = connectorSchema.parse(
+  parseYamlOrThrow(
+    readFileSync(
+      path.join(
+        path.dirname(new URL(import.meta.url).pathname),
+        '../../../../../configs/platform/system/connectors/task/connector.yml',
+      ),
+      'utf8',
+    ),
+    { maxBytes: 1024 * 1024 },
+  ),
+);
+const taskAction = (name: string): ConnectorAction => {
+  const action = taskConnector.actions.find((entry) => entry.name === name);
+  if (action === undefined) throw new Error(`no task.${name} action`);
+  return action;
+};
+
 /**
  * A test run answers from the connector's mock, a live run from the task
  * domain. The two used to part at the title: the mocks echoed it as sent
@@ -420,42 +442,25 @@ describe('external issue task intake', () => {
  * domain uses.
  */
 describe('the task connector mocks mirror the import domain', () => {
-  const connector = connectorSchema.parse(
-    parseYamlOrThrow(
-      readFileSync(
-        path.join(
-          path.dirname(new URL(import.meta.url).pathname),
-          '../../../../../configs/platform/system/connectors/task/connector.yml',
-        ),
-        'utf8',
-      ),
-      { maxBytes: 1024 * 1024 },
-    ),
-  );
-  const mockOf = (name: string): ConnectorAction['mock'] => {
-    const action = connector.actions.find((entry) => entry.name === name);
-    if (action === undefined) throw new Error(`no task.${name} action`);
-    return action.mock;
-  };
+  const mockOf = (name: string): ConnectorAction['mock'] =>
+    taskAction(name).mock;
   const runner = nodeVmRunner();
+  // A mock that keeps the run's tasks runs through runMock, which reaches
+  // the installed runner.
+  setCodeRunner(runner);
   const limits = { timeoutMs: 2000 };
   const ref = { externalSystem: 'github', externalId: 'example/web#1' };
   const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
 
   it('catalog mocks preserve default reads and make optional identity explicit', async () => {
-    const task = await runner.runBody(
-      mockOf('get') ?? '',
-      { input: { taskId: 'task-1' } },
-      limits,
-    );
+    const task = await runMock('task', taskAction('get'), { taskId: 'task-1' });
     expect(task).not.toHaveProperty('agentRun');
     expect(task).toMatchObject({ taskId: 'task-1' });
     await expect(
-      runner.runBody(
-        mockOf('get') ?? '',
-        { input: { taskId: 'task-1', agentRunId: 'run-1' } },
-        limits,
-      ),
+      runMock('task', taskAction('get'), {
+        taskId: 'task-1',
+        agentRunId: 'run-1',
+      }),
     ).resolves.toMatchObject({ taskId: 'task-1', agentRun: null });
     const comments = await runner.runBody(
       mockOf('list_comments') ?? '',
@@ -540,6 +545,245 @@ describe('the task connector mocks mirror the import domain', () => {
         limits,
       ),
     ).rejects.toThrow(`issues.1: ${sentence ?? ''}`);
+  });
+});
+
+/**
+ * A mock run keeps the tasks its steps create (CONN-R36): each task mock
+ * answers from the run's own state, so a test proves create then read with
+ * no board behind it, and a repeated create is answered as the live action
+ * answers it.
+ */
+describe('the task connector mocks keep the run’s tasks [CONN-R36]', () => {
+  setCodeRunner(nodeVmRunner());
+  const call = (state: RunMockState, idempotencyKey: string): MockCall => ({
+    state,
+    idempotencyKey,
+  });
+
+  it('reads back, moves and lists the tasks the run created', async () => {
+    const state = new RunMockState();
+    const first = await runMock(
+      'task',
+      taskAction('create'),
+      {
+        projectId: 'prj_1',
+        title: 'Call back the customer',
+        description: 'Ask [@Ada](mention:user/usr_1) first',
+        assignee: 'ada@example.com',
+        status: 'todo',
+      },
+      call(state, 'run_1:create:0:0'),
+    );
+    // The run's first task answers as the mock always did.
+    expect(first).toEqual({
+      taskId: 'tsk_mock_1',
+      number: 42,
+      title: 'Call back the customer',
+      url: '/dashboard/org_mock/projects/prj_1/tasks?task=tsk_mock_1',
+    });
+    await expect(
+      runMock(
+        'task',
+        taskAction('create'),
+        { projectId: 'prj_1', title: 'Send the quote' },
+        call(state, 'run_1:create:0:1'),
+      ),
+    ).resolves.toMatchObject({ taskId: 'tsk_mock_2', number: 43 });
+
+    await expect(
+      runMock(
+        'task',
+        taskAction('get'),
+        { taskId: 'tsk_mock_1' },
+        call(state, 'run_1:get:0:0'),
+      ),
+    ).resolves.toEqual({
+      taskId: 'tsk_mock_1',
+      title: 'Call back the customer',
+      status: 'todo',
+      projectId: 'prj_1',
+      description: 'Ask [@Ada](mention:user/usr_1) first',
+      descriptionText: 'Ask @Ada first',
+    });
+    await expect(
+      runMock(
+        'task',
+        taskAction('update_status'),
+        { taskId: 'tsk_mock_2', status: 'done' },
+        call(state, 'run_1:move:0:0'),
+      ),
+    ).resolves.toEqual({ ok: true, status: 'done' });
+
+    await expect(
+      runMock(
+        'task',
+        taskAction('list'),
+        { projectId: 'prj_1' },
+        call(state, 'run_1:list:0:0'),
+      ),
+    ).resolves.toEqual({
+      tasks: [
+        {
+          taskId: 'tsk_mock_2',
+          number: 43,
+          title: 'Send the quote',
+          status: 'done',
+          priority: null,
+          assignee: null,
+          dueDate: null,
+          createdAt: '2026-10-10T08:01:00.000Z',
+          url: '/dashboard/org_mock/projects/prj_1/tasks?task=tsk_mock_2',
+        },
+        {
+          taskId: 'tsk_mock_1',
+          number: 42,
+          title: 'Call back the customer',
+          status: 'todo',
+          priority: null,
+          assignee: { type: 'user', id: 'ada@example.com', name: null },
+          dueDate: null,
+          createdAt: '2026-10-10T08:00:00.000Z',
+          url: '/dashboard/org_mock/projects/prj_1/tasks?task=tsk_mock_1',
+        },
+      ],
+      hasMore: false,
+      next: null,
+    });
+    await expect(
+      runMock(
+        'task',
+        taskAction('list'),
+        { projectId: 'prj_1', status: ['todo', 'in_progress'] },
+        call(state, 'run_1:list:1:0'),
+      ),
+    ).resolves.toMatchObject({ tasks: [{ taskId: 'tsk_mock_1' }] });
+    await expect(
+      runMock(
+        'task',
+        taskAction('list'),
+        { projectId: 'prj_2' },
+        call(state, 'run_1:list:2:0'),
+      ),
+    ).resolves.toEqual({ tasks: [], hasMore: false, next: null });
+  });
+
+  it('answers a repeated create from the run’s record: the first answer, one task', async () => {
+    const state = new RunMockState();
+    const first = await runMock(
+      'task',
+      taskAction('create'),
+      { projectId: 'prj_1', title: 'Call back' },
+      call(state, 'run_1:create:0:0'),
+    );
+    // A retry of the same execution carries its key: the mock does not run.
+    await expect(
+      runMock(
+        'task',
+        taskAction('create'),
+        { projectId: 'prj_1', title: 'Call back, again' },
+        call(state, 'run_1:create:0:0'),
+      ),
+    ).resolves.toEqual(first);
+    const listed = await runMock(
+      'task',
+      taskAction('list'),
+      { projectId: 'prj_1' },
+      call(state, 'run_1:list:0:0'),
+    );
+    expect(listed).toMatchObject({
+      tasks: [{ taskId: 'tsk_mock_1', title: 'Call back' }],
+    });
+    expect(listed).toHaveProperty('tasks.length', 1);
+  });
+
+  it('pages and windows the run’s tasks as the live listing does', async () => {
+    const state = new RunMockState();
+    for (const [n, title] of ['One', 'Two', 'Three'].entries()) {
+      await runMock(
+        'task',
+        taskAction('create'),
+        { projectId: 'prj_1', title },
+        call(state, `run_1:create:0:${n}`),
+      );
+    }
+    const list = (input: Record<string, unknown>): Promise<unknown> =>
+      runMock(
+        'task',
+        taskAction('list'),
+        { projectId: 'prj_1', ...input },
+        call(state, 'run_1:list:0:0'),
+      );
+    const page = await list({ order: 'oldest', limit: 2 });
+    expect(page).toMatchObject({
+      tasks: [{ title: 'One' }, { title: 'Two' }],
+      hasMore: true,
+      next: `${Date.parse('2026-10-10T08:01:00.000Z')}:tsk_mock_2`,
+    });
+    const next = (page as { next: string }).next;
+    await expect(
+      list({ order: 'oldest', limit: 2, after: next }),
+    ).resolves.toMatchObject({
+      tasks: [{ title: 'Three' }],
+      hasMore: false,
+      next: null,
+    });
+    // Newest first names no place to carry on from.
+    await expect(list({ limit: 2 })).resolves.toMatchObject({
+      tasks: [{ title: 'Three' }, { title: 'Two' }],
+      hasMore: true,
+      next: null,
+    });
+    await expect(
+      list({
+        createdSince: '2026-10-10T08:01:00.000Z',
+        createdBefore: Date.parse('2026-10-10T08:02:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ tasks: [{ title: 'Two' }] });
+  });
+
+  it('answers what the run did not create as the canned task, and keeps its own', async () => {
+    const state = new RunMockState();
+    await runMock(
+      'task',
+      taskAction('create'),
+      { projectId: 'prj_1', title: 'Mine' },
+      call(state, 'run_1:create:0:0'),
+    );
+    await expect(
+      runMock(
+        'task',
+        taskAction('get'),
+        { taskId: 'tsk_elsewhere' },
+        call(state, 'run_1:get:0:0'),
+      ),
+    ).resolves.toMatchObject({
+      taskId: 'tsk_elsewhere',
+      title: 'Document batch — 2026Q1',
+    });
+    await expect(
+      runMock(
+        'task',
+        taskAction('update_status'),
+        { taskId: 'tsk_elsewhere', status: 'done' },
+        call(state, 'run_1:move:0:0'),
+      ),
+    ).resolves.toEqual({ ok: true, status: 'done' });
+    expect(state.state('task')).toMatchObject({
+      tasks: [{ taskId: 'tsk_mock_1', status: 'backlog' }],
+    });
+    // A run that created none lists the canned task.
+    await expect(
+      runMock(
+        'task',
+        taskAction('list'),
+        { projectId: 'prj_1' },
+        call(new RunMockState(), 'run_2:list:0:0'),
+      ),
+    ).resolves.toMatchObject({
+      tasks: [{ taskId: 'tsk_mock_1', number: 7 }],
+      hasMore: false,
+    });
   });
 });
 
