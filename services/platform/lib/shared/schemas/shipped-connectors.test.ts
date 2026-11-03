@@ -78,7 +78,7 @@ const EXPECTED_SLUGS = [
  * effect needs (`MINIMUM_SCENARIO_KINDS`), each scenario with its proof in
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
-const SCENARIO_CONNECTORS = ['jev', 'slack'] as const;
+const SCENARIO_CONNECTORS = ['jev', 'slack', 'tavily'] as const;
 type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
 const runner = nodeVmRunner();
@@ -570,6 +570,153 @@ const JEV_PROOFS: Record<string, ProofAnswers> = {
   },
 };
 
+/** The one request each Tavily action makes: a POST that carries the API key
+ * in its JSON body. */
+const TAVILY_SEARCH = 'POST https://api.tavily.com/search';
+const TAVILY_EXTRACT = 'POST https://api.tavily.com/extract';
+
+/** The two results Tavily finds for the example query. */
+const TAVILY_RESULTS = [
+  {
+    title: 'A practical guide to retrieval-augmented generation',
+    url: 'https://example.com/rag-guide',
+    content:
+      'Retrieval-augmented generation grounds an answer in documents retrieved when the question is asked.',
+    score: 0.97,
+  },
+  {
+    title: 'Hybrid retrieval for RAG pipelines',
+    url: 'https://example.com/hybrid-retrieval',
+    content:
+      'Combining dense and keyword retrieval finds rare terms that either one alone misses.',
+    score: 0.91,
+  },
+];
+
+/** Tavily's answer to a search: the results, and an `answer` that is null
+ * unless the call asked for one. */
+function tavilySearched(
+  results: unknown[],
+  answer: string | null = null,
+): ServiceAnswer {
+  return {
+    status: 200,
+    body: {
+      query: 'latest advances in retrieval-augmented generation',
+      answer,
+      images: [],
+      results,
+      response_time: 1.42,
+    },
+  };
+}
+
+/** The page the example input asks Tavily to extract. */
+const TAVILY_PAGE = {
+  url: 'https://example.com/article',
+  raw_content:
+    'Retrieval-augmented generation pairs a retriever with a language model, which grounds its answer in the passages the retriever finds.',
+};
+
+/** Tavily's answer to an extraction: HTTP 200 whether or not it read every
+ * page, with the pages it read and, in `failed_results`, the URLs it could
+ * not read and why. */
+function tavilyExtracted(
+  results: unknown[],
+  failedResults: unknown[],
+): ServiceAnswer {
+  return {
+    status: 200,
+    body: { results, failed_results: failedResults, response_time: 0.5 },
+  };
+}
+
+/** A call Tavily refused: the status, and the `detail` that says why, which
+ * the live bodies put in their error's message as Tavily sent it. */
+function tavilyRefusal(
+  status: number,
+  detail: Record<string, unknown>,
+): ServiceAnswer {
+  return { status, body: { detail } };
+}
+
+const TAVILY_INVALID_KEY = tavilyRefusal(401, {
+  error: 'Unauthorized: missing or invalid API key.',
+});
+
+/** A rate limit, with the seconds to wait in Retry-After. */
+const TAVILY_RATE_LIMITED: ServiceAnswer = {
+  status: 429,
+  headers: { 'retry-after': '60' },
+  body: {
+    detail: {
+      error:
+        'Your request has been blocked due to excessive requests. Please reduce the rate of requests.',
+    },
+  },
+};
+
+/** Tavily's own status for a plan that has reached its usage limit. */
+const TAVILY_USAGE_LIMIT = tavilyRefusal(432, {
+  error:
+    "This request exceeds your plan's set usage limit. Please upgrade your plan or contact support@tavily.com",
+});
+
+/**
+ * The proof of every Tavily scenario, keyed as Slack's are: Tavily's answer
+ * to the one request each action makes. The bodies hand Tavily's records on
+ * as they come and throw a refusal with its status, so an answer carries the
+ * members the action's output names, and the further members a real record
+ * holds would ride along.
+ */
+const TAVILY_PROOFS: Record<string, ProofAnswers> = {
+  'search/two_results': { [TAVILY_SEARCH]: tavilySearched(TAVILY_RESULTS) },
+  'search/answered': {
+    [TAVILY_SEARCH]: tavilySearched(
+      TAVILY_RESULTS,
+      'Recent systems combine dense and keyword retrieval and re-rank the passages before the model answers.',
+    ),
+  },
+  'search/no_results': { [TAVILY_SEARCH]: tavilySearched([]) },
+  'search/invalid_key': { [TAVILY_SEARCH]: TAVILY_INVALID_KEY },
+  'search/rate_limited': { [TAVILY_SEARCH]: TAVILY_RATE_LIMITED },
+  'search/usage_limit': { [TAVILY_SEARCH]: TAVILY_USAGE_LIMIT },
+  'extract/one_page': { [TAVILY_EXTRACT]: tavilyExtracted([TAVILY_PAGE], []) },
+  'extract/partly_failed': {
+    [TAVILY_EXTRACT]: tavilyExtracted(
+      [TAVILY_PAGE],
+      [
+        {
+          url: 'https://example.com/unavailable',
+          error: 'Failed to retrieve content',
+        },
+      ],
+    ),
+  },
+  'extract/nothing_extracted': {
+    [TAVILY_EXTRACT]: tavilyExtracted(
+      [],
+      [
+        {
+          url: 'https://example.com/article',
+          error: 'Failed to retrieve content',
+        },
+      ],
+    ),
+  },
+  'extract/invalid_urls': {
+    [TAVILY_EXTRACT]: tavilyRefusal(400, {
+      error: 'All URLs failed validation.',
+      failed_results: [
+        { url: 'not-a-url', error: 'Validation Error: Invalid URL format' },
+      ],
+    }),
+  },
+  'extract/invalid_key': { [TAVILY_EXTRACT]: TAVILY_INVALID_KEY },
+  'extract/rate_limited': { [TAVILY_EXTRACT]: TAVILY_RATE_LIMITED },
+  'extract/usage_limit': { [TAVILY_EXTRACT]: TAVILY_USAGE_LIMIT },
+};
+
 /**
  * Every listed connector's proofs, with the secrets its credential holds —
  * synthetic, as every answer is. A connector joins `SCENARIO_CONNECTORS` with
@@ -584,6 +731,10 @@ const SCENARIO_PROOFS: Record<
     proofs: JEV_PROOFS,
   },
   slack: { proofs: SLACK_PROOFS },
+  tavily: {
+    secrets: { apiKey: 'example-tavily-key' },
+    proofs: TAVILY_PROOFS,
+  },
 };
 
 /**

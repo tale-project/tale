@@ -32,6 +32,11 @@ components:
       properties:
         url: { type: string }
         raw_content: { type: string }
+    ExtractFailure:
+      type: object
+      properties:
+        url: { type: string }
+        error: { type: string }
     ExtractResponse:
       type: object
       properties:
@@ -40,7 +45,7 @@ components:
           items: { $ref: '#/components/schemas/ExtractResult' }
         failed_results:
           type: array
-          items: { type: object }
+          items: { $ref: '#/components/schemas/ExtractFailure' }
         response_time: { type: number }
 paths:
   /search:
