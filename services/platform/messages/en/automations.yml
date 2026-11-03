@@ -664,7 +664,7 @@ editor:
     readByOutput: The automation output
     notRead: Nothing reads its output.
     scenarios: Scenarios
-    scenariosHint: A test can pick one of these for this node in its Setup. The node then answers as described instead of calling.
+    scenariosHint: A test can pick one of these for this node in its Setup, or several that its calls take in order. The node then answers as described instead of calling.
     checking: Updating…
     unavailable: "Couldn't work out the shapes. They appear after the next successful check."
     origin:
@@ -1303,9 +1303,12 @@ tests:
     failureDefault: simulated failure
     failuresAdd: Simulate a failure
     scenarios: Scenarios
-    scenariosHint: The node answers as in a scenario its action ships, instead of calling.
+    scenariosHint: The node answers as in a scenario its action ships, instead of calling. With several scenarios, its calls take them in order, and the last one answers every later call.
     scenariosAdd: Pick a scenario for a node
     scenarioFor: 'Scenario for {node}'
+    scenarioForCall: '{last, select, true {Scenario for {node}, call {call} and later} other {Scenario for {node}, call {call}}}'
+    scenarioAddCall: 'Add a scenario for the next call of {node}'
+    scenarioRemoveCall: 'Remove the scenario for call {call} of {node}'
     expect: Expectations
     outputModeLabel: How the output is checked
     outputMode:

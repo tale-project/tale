@@ -1706,6 +1706,23 @@ output:
       `scenarios: {lookup: <name>}`, and the step's Shape tab lists the same
       scenarios under `automations.editor.shape.scenarios`. Focus stays
       visible on every control.
+- [ ] `AUTO-F251` · **On a test of an automation whose For each step `post`
+      sends each of two messages with Slack's `send_message` and has
+      `onItemError: continue`, with the keyboard alone, under a screen
+      reader: pick `rate_limited` for `post` in Setup, use
+      `automations.tests.fields.scenarioAddCall`, pick `posted` in the new
+      row, and run the test** → the new row first holds a copy of
+      `rate_limited`; the rows read `automations.tests.fields.scenarioForCall`,
+      call 1 and call 2 and later, and are heard with those labels;
+      `automations.tests.inspector.editYaml` shows
+      `scenarios: {post: [rate_limited, posted]}`; the run succeeds, `post`
+      reads as succeeded with its first item failed as rate limited, its
+      output holds null in that item's place and Slack's posted answer in
+      the other's, and Show on the canvas marks `post` with
+      `automations.canvas.standIn.failed`. **Remove call 1 with
+      `automations.tests.fields.scenarioRemoveCall`** → one row is left, read
+      as `automations.tests.fields.scenarioFor`, and the YAML shows
+      `scenarios: {post: posted}`. Focus stays visible on every control.
 - [ ] `AUTO-F172` · **On an automation with a bound trigger and a condition,
       open Add test** → a menu offers `automations.tests.addFrom.blank`,
       `automations.tests.addFrom.trigger` and

@@ -69,7 +69,7 @@ When inspecting a result contract, read the live implementation too. For example
 
 ### Declare scenarios for tests {#scenarios}
 
-An action can ship scenarios beside its `mock`: named cases of what the service answers, such as a channel that doesn't exist or a rate limit. A test picks one for a step, and the mock run answers with it in place of the mock, so the test shows what the automation does in that case. List them under `scenarios`, after `mock`. This excerpt shows two of the scenarios Slack ships on `get_channel`, the action that reads a channel; the action's other fields are left out:
+An action can ship scenarios beside its `mock`: named cases of what the service answers, such as a channel that doesn't exist or a rate limit. A test picks one for a step, or a [list that the step's calls take in order](/platform/automations/testing#scenario-lists), and the mock run answers with the scenario in place of the mock, so the test shows what the automation does in that case. List them under `scenarios`, after `mock`. This excerpt shows two of the scenarios Slack ships on `get_channel`, the action that reads a channel; the action's other fields are left out:
 
 ```yaml
 scenarios:
