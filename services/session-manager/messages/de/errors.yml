@@ -1,0 +1,53 @@
+# One sentence per error code the backend answers with. The app words an error
+# from its code, in the person's language; a code that is missing here shows
+# `fallback`, never the backend's own English sentence. A few codes have more
+# sentences, `<code>_<what>`, for when the backend says why: the cause, how many
+# proxies failed, what the session is doing. The plain one is for when it does
+# not (older data, AI clients). A cause is the backend's English text in every
+# language, like the check error on the Proxies page. `server_error` and
+# `bad_answer` are made by the page, not sent by the backend: an answer that is
+# no JSON of the app (a gateway's error page), and one the page cannot read.
+# Beside a Try again button (a failed read) `readFailureText` and
+# `readFailureCause` leave out the sentences that only say to try again,
+# `internal_error`, `server_error`, `network` and `fallback`: a new sentence of
+# that kind belongs in their list (`app/lib/api/failure.ts`).
+fallback: Etwas ist schiefgelaufen. Versuche es erneut.
+internal_error: Etwas ist schiefgelaufen. Versuche es erneut.
+network: Session Manager ist nicht erreichbar. Prüfe, ob er läuft, und versuche es erneut.
+server_error: Session Manager hat mit einem Fehler geantwortet. Versuche es erneut.
+bad_answer: Session Manager hat eine Antwort geschickt, die diese Seite nicht lesen kann. Lade die Seite neu.
+forbidden_host: Öffne Session Manager über 127.0.0.1 oder localhost.
+forbidden_origin: Diese Anfrage kam von einer anderen Website und wurde blockiert.
+validation_error: Prüfe die Werte und versuche es erneut.
+session_not_found: Diese Sitzung gibt es nicht mehr.
+proxy_not_found: Diesen Proxy gibt es nicht mehr.
+secret_not_found: Dieses Secret gibt es nicht mehr.
+session_not_running: Diese Sitzung läuft nicht. Starte sie zuerst.
+session_running: Diese Sitzung läuft bereits.
+session_busy: Diese Sitzung ist gerade beschäftigt. Versuche es gleich noch einmal.
+session_busy_assigning_proxy: Dieser Sitzung wird gerade ein Proxy zugewiesen. Versuche es gleich noch einmal.
+session_busy_starting: Diese Sitzung startet gerade. Versuche es gleich noch einmal.
+session_busy_stopping: Diese Sitzung stoppt gerade. Versuche es gleich noch einmal.
+no_proxy: Diese Sitzung hat keinen Proxy.
+no_free_proxy: "Es ist kein freier Proxy verfügbar. Jede Sitzung braucht einen eigenen Proxy. Füge Proxies hinzu, um fortzufahren."
+no_working_proxy: Es ist kein funktionierender Proxy verfügbar. Füge Proxies hinzu oder prüfe die vorhandenen und versuche es dann erneut.
+no_working_proxy_failed: "Es ist kein funktionierender Proxy verfügbar ({failed, plural, one {# Proxy hat die Prüfung nicht bestanden} other {# Proxies haben die Prüfung nicht bestanden}}). Füge Proxies hinzu oder prüfe die vorhandenen und versuche es dann erneut."
+proxy_unreachable: Der Proxy dieser Sitzung funktioniert nicht. Wähle IP wechseln, damit die Sitzung einen anderen Proxy bekommt.
+proxy_unreachable_reason: "Der Proxy dieser Sitzung funktioniert nicht: {reason}. Wähle IP wechseln, damit die Sitzung einen anderen Proxy bekommt."
+proxy_busy: Eine Sitzung nutzt diesen Proxy gerade. Stoppe die Sitzung zuerst.
+proxy_in_use: Eine Sitzung nutzt diesen Proxy. Wenn du ihn löschst, bekommt die Sitzung beim nächsten Start einen anderen.
+ip_in_use: Eine andere laufende Sitzung nutzt diese Ausgangs-IP bereits.
+duplicate: Dieser Proxy ist bereits im Pool.
+invalid_proxy: Das ist kein gültiger Proxy.
+invalid_name: Der Name muss 1 bis 80 Zeichen lang sein.
+name_taken: Eine Sitzung mit diesem Namen gibt es bereits.
+invalid_secret: Prüfe die Werte dieses Secrets.
+invalid_kind: Diesen Secret-Typ gibt es nicht.
+invalid_scope: Diesen Bereich gibt es nicht.
+invalid_start_page: Die Startseite muss eine Webadresse sein, zum Beispiel https://www.google.com.
+browser_installing: Der Browser wird noch installiert. Versuche es erneut, sobald er bereit ist.
+browser_not_installed: Der Browser ist noch nicht installiert.
+fingerprint_exhausted: Es konnte kein neuer Fingerabdruck erzeugt werden, der sich von denen aller vorhandenen Sitzungen unterscheidet. Versuche es mit einem anderen Betriebssystem.
+unknown_ip_location: Zeitzone und Standort der Ausgangs-IP des Proxys konnten nicht ermittelt werden.
+unknown_ip_location_reason: "Zeitzone und Standort der Ausgangs-IP des Proxys konnten nicht ermittelt werden: {reason}."
+nothing_to_export: Noch keine Sitzung hat einen Proxy, es gibt also nichts zu exportieren.

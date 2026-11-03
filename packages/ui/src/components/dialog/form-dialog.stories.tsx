@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { Button } from '@tale/ui/button';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Input } from '../forms/input';
 import { Select } from '../forms/select';
@@ -111,6 +111,87 @@ export const WithTrigger: Story = {
     docs: {
       description: {
         story: 'Use the trigger prop to render a button that opens the dialog.',
+      },
+    },
+  },
+};
+
+export const StickyFooter: Story = {
+  render: function StickyFooterStory() {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <>
+        <Button onClick={() => setOpen(true)}>Open a long form</Button>
+        <FormDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="Edit forty values"
+          description="Scroll the fields: Cancel and Save stay where they are."
+          stickyFooter
+          onSubmit={(e) => {
+            e.preventDefault();
+            setOpen(false);
+          }}
+        >
+          {Array.from({ length: 40 }, (_, index) => (
+            <Input
+              key={index}
+              label={`Value ${index + 1}`}
+              defaultValue={`Sample value ${index + 1}`}
+            />
+          ))}
+        </FormDialog>
+      </>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'For a form whose length a person decides: the fields scroll in a box of their own and the buttons stay at the foot of the dialog, still inside the form so Enter submits.',
+      },
+    },
+  },
+};
+
+export const OpensOnTheTitle: Story = {
+  render: function OpensOnTheTitleStory() {
+    const [open, setOpen] = useState(false);
+    const title = useRef<HTMLInputElement>(null);
+
+    return (
+      <>
+        <Button onClick={() => setOpen(true)}>Add a secret</Button>
+        <FormDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="Add secret"
+          initialFocusRef={title}
+          onSubmit={(e) => {
+            e.preventDefault();
+            setOpen(false);
+          }}
+        >
+          <Select
+            label="Type"
+            defaultValue="credentials"
+            options={[
+              { value: 'credentials', label: 'Credentials' },
+              { value: 'card', label: 'Credit card' },
+              { value: 'note', label: 'Note' },
+            ]}
+          />
+          <Input ref={title} label="Title" placeholder="e.g. Example shop" />
+        </FormDialog>
+      </>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A form that begins with a `Select` opens on the field a person types in, not on the hidden native twin Radix draws beside the Select. Name that field with `initialFocusRef`.',
       },
     },
   },

@@ -1,0 +1,137 @@
+title: Proxies
+unknown: Unknown
+ping: "{ms, number} ms"
+actions:
+  add: Add proxy
+  addProxy: Manual entry
+  importProxies: Import a list
+  checkAll: Check all proxies
+table:
+  caption: Proxies in the pool
+  region: Proxy list
+search:
+  placeholder: Search proxies
+  clear: Clear search
+entity:
+  one: proxy
+  other: proxies
+summary:
+  line: "{total, plural, one {# proxy} other {# proxies}} · {free, number} free{failed, plural, =0 {} other { · {failed, number} not working}}"
+refreshFailed: Couldn't load the latest proxies. What's listed may be incomplete or out of date.
+listFailed: Couldn't load the proxies.
+columns:
+  proxy: Proxy
+  exit: Exit IP
+  ping: Ping
+  health: Health
+  session: Session
+health:
+  ok: Working
+  failed: Not working
+  checking: Checking
+  unchecked: Not checked
+  failedFallback: The check failed.
+  checked: Checked {when}
+  checkedAt: Checked {date}
+session:
+  free: Free
+  notAssigned: Not assigned
+  sameIp: "Same IP as {name}"
+  sameIpReason: Not assigned while the session "{name}" has a proxy with the same exit IP.
+  failedReason: A proxy that isn't working is never assigned to a session.
+row:
+  check: Check
+  actionsFor: "Actions for {proxy}"
+empty:
+  title: No proxies yet
+  description: Add proxies so every session can have one of its own.
+checkAll:
+  title: Starts a new check of every proxy. The results appear in the table.
+  busy: Every proxy is already being checked.
+scheme:
+  label: Proxy type
+  hint: Used when a proxy doesn't specify its own type.
+add:
+  title: Add proxy
+  description: The proxy is checked in the background once it is added.
+  label: Proxy
+  placeholder: "e.g. proxy.example.com:8080:user:pass"
+  hint: "Accepted formats: host:port, host:port:user:pass, user:pass:host:port, user:pass@host:port or a full address such as socks5://host:port."
+  required: Enter a proxy.
+  duplicateOf: "This proxy is already in the pool as {proxy}."
+  show: Show in list
+  submit: Add proxy
+import:
+  title: Import proxies
+  description: "Paste one proxy per line, or choose a .txt file. Blank lines and lines starting with # are skipped."
+  label: Proxies, one per line
+  placeholder: |-
+    proxy.example.com:8080
+    proxy.example.com:8080:user:pass
+    socks5://proxy.example.com:1080
+  chooseFile: Choose file
+  fileInput: Proxy list file (.txt)
+  fileLoaded: "{name} · {count, plural, one {# line} other {# lines}}"
+  fileFailed: "Couldn't read {name}."
+  required: Paste at least one proxy or choose a .txt file.
+  shortcut: "{shortcut} to import"
+  submit: Import proxies
+result:
+  summary: "{added, plural, =0 {No proxies added} one {# proxy added} other {# proxies added}}{duplicates, plural, =0 {} one {, # duplicate} other {, # duplicates}}{errors, plural, =0 {} one {, # error} other {, # errors}}"
+  errors: "{count, plural, one {# line couldn't be read} other {# lines couldn't be read}}"
+  duplicates: "{count, plural, one {# duplicate} other {# duplicates}}"
+  line: "Line {line}"
+  more: "…and {count, number} more"
+  show: Show in list
+  back: Edit list
+  done: Done
+delete:
+  title: Delete proxy?
+  description: "{proxy} is removed from the pool."
+  confirm: Delete proxy
+  inUseTitle: Delete a proxy in use?
+  inUseDescription: The session "{name}" uses {proxy}. If you delete the proxy, the session gets another one on its next start.
+  busyTitle: Stop the session first
+  busyDescription: The session "{name}" is using {proxy} right now. Stop the session, then delete the proxy.
+  openSession: Open session
+toasts:
+  added: Proxy added
+  addedDetail: It's being checked now.
+  imported: "{count, plural, one {# proxy added} other {# proxies added}}"
+  importedDetail: "{count, plural, one {It's being checked now.} other {They're being checked now.}}"
+  addFailed: Couldn't add the proxy
+  importFailed: Couldn't import the proxies
+  checking: Check started
+  checkFailed: Couldn't check the proxy
+  checkingAll: Check of all proxies started
+  checkAllFailed: Couldn't check the proxies
+  deleted: Proxy deleted
+  deleteFailed: Couldn't delete the proxy
+parseErrors:
+  empty: The line is empty.
+  whitespace: A proxy can't contain spaces or control characters.
+  unsupported_socks4: SOCKS4 proxies aren't supported (no authentication, IPv4 only). Use SOCKS5 or HTTP.
+  unsupported_socks4a: SOCKS4a proxies aren't supported. Use SOCKS5 or HTTP.
+  unsupported_scheme: This proxy type isn't supported. Use HTTP, HTTPS or SOCKS5.
+  invalid_port_value: Invalid port {port}. A port is a number from 1 to 65535.
+  url_has_path: A proxy address can't have a path, query or fragment.
+  bracketed_ipv6_unparsed: "Couldn't read the IPv6 proxy. Write it as [ipv6]:port or [ipv6]:port:user:pass."
+  missing_port: The port is missing. Write the proxy as host:port.
+  missing_port_ipv6: "The port is missing. Write the proxy as [ipv6]:port."
+  ipv6_needs_brackets: "Put an IPv6 address in brackets, for example [2001:db8::1]:8080."
+  unparsed_form: "Couldn't read this proxy. Use host:port, host:port:user:pass or user:pass:host:port."
+  unparsed_url_form: "Couldn't read this proxy. Use host:port, host:port:user:pass or scheme://user:pass@host:port."
+  ambiguous: "Can't tell the host from the username and password. Write it as scheme://user:pass@host:port."
+  invalid_port: The port must be a number from 1 to 65535.
+  host_port_not_found: Couldn't find a host and port.
+  unterminated_bracket: The bracket of the IPv6 address isn't closed.
+  invalid_after_ipv6: There are unexpected characters after the IPv6 address.
+  invalid_ipv6: This isn't a valid IPv6 address.
+  missing_host: The host is missing.
+  invalid_ipv4: This isn't a valid IPv4 address.
+  invalid_hostname: This isn't a valid host name.
+  password_without_username: A password needs a username.
+  username_has_colon: A username can't contain a colon.
+  credentials_control_chars: The username and password can't contain control characters.
+  socks_credentials_too_long: A SOCKS5 username and password are limited to 255 bytes each.
+  line_too_long: "The line is too long (over {max, number} characters)."

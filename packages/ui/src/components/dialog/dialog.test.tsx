@@ -1,9 +1,11 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { createRef, useRef, type ReactNode, type RefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
+import { Select } from '../forms/select';
 import { Dialog } from './dialog';
 
 describe('Dialog', () => {
@@ -144,6 +146,125 @@ describe('Dialog', () => {
         expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus();
       });
       expect(screen.getByRole('button', { name: 'Close' })).not.toHaveFocus();
+    });
+
+    describe('initialFocusRef', () => {
+      /** A form that begins with a Radix `Select`, as a record form does. */
+      function TypeThenTitle({
+        given,
+        children,
+      }: {
+        given?: RefObject<HTMLElement | null>;
+        children?: ReactNode;
+      }) {
+        return (
+          <Dialog
+            open
+            onOpenChange={vi.fn()}
+            title="Add secret"
+            initialFocusRef={given}
+          >
+            <form>
+              <Select
+                label="Type"
+                defaultValue="credentials"
+                options={[
+                  { value: 'credentials', label: 'Credentials' },
+                  { value: 'note', label: 'Note' },
+                ]}
+              />
+              {children}
+            </form>
+          </Dialog>
+        );
+      }
+
+      function GivenField() {
+        const title = useRef<HTMLInputElement>(null);
+        return (
+          <TypeThenTitle given={title}>
+            <label>
+              Notes
+              <input />
+            </label>
+            <label>
+              Title
+              <input ref={title} />
+            </label>
+          </TypeThenTitle>
+        );
+      }
+
+      it('opens on the field it is given, whatever comes before it in the form', async () => {
+        render(<GivenField />);
+        await waitFor(() => {
+          expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus();
+        });
+      });
+
+      it('opens on the first field while the element it names is not there', async () => {
+        const nothing = createRef<HTMLElement>();
+        render(
+          <Dialog
+            open
+            onOpenChange={vi.fn()}
+            title="Add contact"
+            initialFocusRef={nothing}
+          >
+            <label>
+              Name
+              <input />
+            </label>
+          </Dialog>,
+        );
+        await waitFor(() => {
+          expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus();
+        });
+      });
+
+      it('keeps the keyboard down on a touch screen, as the default does', async () => {
+        const original = window.matchMedia;
+        window.matchMedia = ((query: string) =>
+          ({
+            matches: query === '(pointer: coarse)',
+            media: query,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+          }) as unknown as MediaQueryList) as typeof window.matchMedia;
+        try {
+          render(<GivenField />);
+          await waitFor(() => {
+            expect(screen.getByRole('dialog')).toHaveFocus();
+          });
+          expect(
+            screen.getByRole('textbox', { name: 'Title' }),
+          ).not.toHaveFocus();
+        } finally {
+          window.matchMedia = original;
+        }
+      });
+
+      it('yields to openAutoFocus="container"', async () => {
+        const title = createRef<HTMLInputElement>();
+        render(
+          <Dialog
+            open
+            onOpenChange={vi.fn()}
+            title="Item"
+            openAutoFocus="container"
+            initialFocusRef={title}
+          >
+            <input aria-label="Title" ref={title} />
+          </Dialog>,
+        );
+        await waitFor(() => {
+          expect(
+            screen.getByRole('textbox', { name: 'Title' }),
+          ).not.toHaveFocus();
+        });
+      });
     });
 
     it('skips a file input and lands on the dialog when nothing else is typeable', async () => {

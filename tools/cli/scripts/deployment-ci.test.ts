@@ -506,7 +506,13 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         ].toSorted(),
       ).toEqual(filters.toSorted());
       expect(JSON.parse(candidate.list!)).toEqual(
-        expect.arrayContaining([...BUILT, 'web', 'docs', 'ui-docs']),
+        expect.arrayContaining([
+          ...BUILT,
+          'web',
+          'docs',
+          'ui-docs',
+          'session-manager',
+        ]),
       );
 
       // Any other run keeps what the filter found.
@@ -1387,6 +1393,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         );
         for (const [job, result] of [
           ['web-test', 'skipped'],
+          ['session-manager-test', 'cancelled'],
           ['smoke-test', 'cancelled'],
           ['image-validate', 'failure'],
           ['build', 'skipped'],
@@ -1612,7 +1619,7 @@ test.skipIf(process.platform === 'win32')(
 );
 
 describe('standalone container CI efficiency', () => {
-  const SERVICES = ['web', 'docs', 'ui-docs'] as const;
+  const SERVICES = ['web', 'docs', 'ui-docs', 'session-manager'] as const;
   const workflow = async () =>
     parse(
       await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
@@ -2647,7 +2654,7 @@ describe('E2E efficiency', () => {
       expect(install?.if).toBeUndefined();
       expect(install?.run).toContain('Acquire::http::Timeout "30"');
       expect(install?.run).toContain('Acquire::Retries "1"');
-      for (const service of ['platform', 'web', 'docs']) {
+      for (const service of ['platform', 'web', 'docs', 'session-manager']) {
         const config = await readFile(
           join(repository, 'services', service, 'playwright.config.ts'),
           'utf8',

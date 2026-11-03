@@ -82,9 +82,16 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `customHeader` | Replaces the visible header; the required title remains available to assistive technology. |
 | `hideClose` | Hides the close control; provide an accessible dismiss path unless the current operation deliberately blocks it. |
 | `className`, `headerClassName`, `bodyClassName`, `footerClassName` | Targeted layout adjustments. |
+| `initialFocusRef` | The element the dialog opens on, for a form whose first field is not where a person starts. Without it the dialog opens on the first text field in its body, which in a form that begins with a Radix `Select` is the hidden native twin the `Select` draws inside the `<form>`. `FormDialog` takes it too. Like the default it applies to a fine pointer only: on a touch screen the dialog itself takes focus, so the keyboard stays down. |
 | `restoreFocusRef` | Stable fallback when the captured opener unmounts or moves, for example a toolbar button the first row replaces. A dialog opened from a menu item needs none: it returns to that menu's button. |
 | `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. `ResponsiveDialogContent` takes it too, for a close that hands the reader on to another panel. |
 | `onCloseAutoFocus` | Called after the close focus handler runs. Available on `Dialog`, `ConfirmDialog` and `DeleteDialog`; use it to release a retained virtual row after focus returns to its opener. |
+
+## Keep the actions of a long form in reach
+
+<Demo name="dialog/sticky-footer" />
+
+`FormDialog` puts Cancel and the submit button after the fields, so a form whose length a person decides (a list of rows they add) leaves them far below the fold. Set `stickyFooter` and the fields scroll in a box of their own while the buttons stay at the foot of the dialog. They remain inside the `<form>`, so Enter in a field still submits, and the dialog body no longer scrolls by itself. A short form needs no help. Check it on a phone, where the dialog is a bottom sheet.
 
 ## Widgets that use Escape
 

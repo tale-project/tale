@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -115,6 +116,156 @@ describe('FormDialog', () => {
       fireEvent.click(cancel);
       expect(confirmSpy).not.toHaveBeenCalled();
       expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('stickyFooter', () => {
+    const fields = (
+      <>
+        <label htmlFor="first">First</label>
+        <input id="first" type="text" />
+        <label htmlFor="second">Second</label>
+        <input id="second" type="text" />
+      </>
+    );
+
+    /** The nearest ancestor of `element` (inside `root`) that scrolls on its own. */
+    function scroller(element: HTMLElement, root: HTMLElement) {
+      for (
+        let node = element.parentElement;
+        node !== null && node !== root;
+        node = node.parentElement
+      ) {
+        if (node.className.includes('overflow-y-auto')) return node;
+      }
+      return null;
+    }
+
+    it('puts the fields in a box that scrolls and the actions outside it, still inside the form', () => {
+      render(
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Add secret"
+          submitText="Add secret"
+          stickyFooter
+          onSubmit={vi.fn()}
+        >
+          {fields}
+        </FormDialog>,
+      );
+      const submit = screen.getByRole('button', { name: 'Add secret' });
+      const form = submit.closest('form');
+      if (form === null) throw new Error('no form rendered');
+      const box = scroller(screen.getByLabelText('First'), form);
+      expect(box).not.toBeNull();
+      expect(box).not.toContainElement(submit);
+      expect(box).not.toContainElement(
+        screen.getByRole('button', { name: 'Cancel' }),
+      );
+      // Enter in a field submits as it does anywhere: the buttons are the form's.
+      expect(form).toContainElement(submit);
+    });
+
+    it('leaves the scrolling of the dialog to the box, not to the dialog body', () => {
+      render(
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Add secret"
+          stickyFooter
+          onSubmit={vi.fn()}
+        >
+          {fields}
+        </FormDialog>,
+      );
+      const body = screen.getByRole('dialog').querySelector('[tabindex="-1"]');
+      expect(body).toHaveClass('overflow-y-hidden');
+    });
+
+    it('does nothing unless asked: the fields and the actions scroll together', () => {
+      render(
+        <FormDialog open onOpenChange={vi.fn()} title="Add secret">
+          {fields}
+        </FormDialog>,
+      );
+      const form = screen
+        .getByRole('button', { name: /save/i })
+        .closest('form');
+      if (form === null) throw new Error('no form rendered');
+      expect(scroller(screen.getByLabelText('First'), form)).toBeNull();
+      const body = screen.getByRole('dialog').querySelector('[tabindex="-1"]');
+      expect(body).not.toHaveClass('overflow-y-hidden');
+    });
+
+    it('submits with Enter in a field', async () => {
+      const onSubmit = vi.fn();
+      const { user } = render(
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Add secret"
+          stickyFooter
+          onSubmit={onSubmit}
+        >
+          {fields}
+        </FormDialog>,
+      );
+      await user.type(screen.getByLabelText('First'), 'x{Enter}');
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Add secret"
+          stickyFooter
+          onSubmit={vi.fn()}
+        >
+          {fields}
+        </FormDialog>,
+      );
+      await checkAccessibility(container);
+    });
+  });
+
+  describe('initialFocusRef', () => {
+    function Form({ named }: { named: boolean }) {
+      const title = useRef<HTMLInputElement>(null);
+      return (
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Add item"
+          onSubmit={vi.fn()}
+          initialFocusRef={named ? title : undefined}
+        >
+          <label>
+            Code
+            <input />
+          </label>
+          <label>
+            Title
+            <input ref={title} />
+          </label>
+        </FormDialog>
+      );
+    }
+
+    it('opens on the field it is given', async () => {
+      render(<Form named />);
+      await waitFor(() => {
+        expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus();
+      });
+    });
+
+    it('opens on the first field when it is given none', async () => {
+      render(<Form named={false} />);
+      await waitFor(() => {
+        expect(screen.getByRole('textbox', { name: 'Code' })).toHaveFocus();
+      });
     });
   });
 

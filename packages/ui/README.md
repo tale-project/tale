@@ -31,6 +31,17 @@ once per server bootstrap in memory. It allows an operator to correlate a captur
 local container with an origin response; it is public metadata, not authentication.
 `server/serving-identity` exposes the same producer for another HTTP server.
 
+A service that streams passes `startReactServer` a `websocket` option. Its `upgrade(request, url)`
+judges every request that asks for a WebSocket before any other route: return `{ data }` to
+upgrade (the data is each handler's `ws.data`), a `Response` to refuse it as given, or `null` for
+an address that is no socket, which then goes through the normal pipeline. `handler` is Bun's own
+WebSocket handler. Without the option an upgrade request is answered like any other request.
+`idleTimeout` raises Bun's 10-second silence limit for a route whose answer starts later.
+Allow-listing the `Host` and the `Origin` of a request is the service's job, in `upgrade` and in
+its own routes: the shared server does none. It only refuses a request whose `Host` header is no
+host name (there is no URL to route) with a 400, which carries the same security headers as every
+other answer.
+
 Browse interactive stories from a Tale source checkout:
 
 ```bash

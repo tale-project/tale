@@ -134,7 +134,9 @@ common:
     collapseRow: Réduire la ligne
     expandRow: Développer la ligne
     goToPage: Aller à la page
+    hiddenValue: Masqué
     hidePassword: Masquer le mot de passe
+    hideValue: Masquer la valeur
     invalid: invalide
     moreInfo: Plus d'informations
     moreTabs: Autres onglets
@@ -147,6 +149,7 @@ common:
     selectAll: Tout sélectionner
     selectRow: Sélectionner la ligne
     showPassword: Afficher le mot de passe
+    showValue: Afficher la valeur
     unsavedChanges: Modifications non enregistrées
     valid: valide
     validationRequirements: Exigences de validation

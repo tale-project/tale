@@ -112,7 +112,7 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
             ? 'skipped'
             : 'success',
         outputs: {
-          services: '["platform","web","docs","ui-docs"]',
+          services: '["platform","web","docs","ui-docs","session-manager"]',
           scannable_services: candidateEvent(stem, event)
             ? '[]'
             : '["platform"]',
@@ -121,7 +121,7 @@ const admission = (file: Workflow, stem: string, event: string): Admission => ({
           run: 'true',
           stack: 'true',
           platform: 'true',
-          static_services: '["web","docs"]',
+          static_services: '["web","docs","session-manager"]',
           sha: candidateEvent(stem, event) ? C : '',
           candidate_sha: candidateEvent(stem, event) ? C : '',
           source_sha:
@@ -370,7 +370,7 @@ describe('ordinary CI source admission', () => {
         }
       }
     }
-    expect(count).toBe(36);
+    expect(count).toBe(37);
   });
 
   test('direct source disposition and every other required predecessor fail closed', async () => {

@@ -2,7 +2,9 @@
 
 import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
+import { useT } from '@tale/ui/i18n/client';
 import { SkeletonBox } from '@tale/ui/skeleton';
+import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +15,13 @@ import {
 } from '../overlays/disabled-reason';
 import { FIELD_FOCUS, FIELD_INVALID } from './field-focus';
 import { FieldShell } from './field-shell';
+import {
+  CopyValueButton,
+  FIELD_ACTIONS_CORNER,
+  fieldActionsRoom,
+  RevealToggle,
+  type RevealLabels,
+} from './field-value-actions';
 import { Label } from './label';
 
 export interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
@@ -61,6 +70,43 @@ export interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'
    * selection and the caret stay the textarea's.
    */
   overlay?: React.ReactNode;
+  /**
+   * The text is a secret (a private key, a recovery phrase): it is masked by
+   * the browser until the toggle inside the field's corner shows it, and it is
+   * no password for the browser (no autofill, no save prompt, no spell check,
+   * capitalisation or correction). Showing it changes nothing about the value.
+   * `Input`'s `sensitive`, for several lines.
+   *
+   * Masking is visual only. A text area has no password form, so assistive
+   * technology reads every line of the text, masked or not. It keeps a secret
+   * off a screen that is shared or left unattended; it does not keep it out of
+   * the accessibility tree.
+   */
+  sensitive?: boolean;
+  /**
+   * Show the reveal toggle of a `sensitive` text (default). `false` leaves the
+   * text masked for good: text that was shown is masked again when the toggle
+   * goes.
+   */
+  passwordToggle?: boolean;
+  /** The words of the reveal toggle (default "Show value" / "Hide value"), for when they must say what is shown. */
+  revealLabels?: RevealLabels;
+  /**
+   * A copy button INSIDE the field's corner, beside the reveal toggle. It
+   * copies the whole text at that moment, shown or not, without showing it;
+   * nothing is copied from an empty field.
+   *
+   * Adding or removing the buttons (by `copyable`, or by `sensitive` with its
+   * toggle) or an `overlay` after the field mounted changes the frame the text
+   * area is drawn in, which remounts it: an uncontrolled field loses what was
+   * typed and its focus. Give the field a `key` that changes with them, or keep
+   * them constant.
+   */
+  copyable?: boolean;
+  /** The copy button's name (default "Copy"). */
+  copyLabel?: string;
+  /** What a screen reader hears once the text is copied (default "Copied"). */
+  copiedLabel?: string;
 }
 
 // Keep the textarea's native dimensions and value while its surface is masked.
@@ -81,12 +127,20 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       disabledReason,
       overlay,
       readOnly,
+      sensitive = false,
+      passwordToggle = true,
+      revealLabels,
+      copyable = false,
+      copyLabel,
+      copiedLabel,
+      style,
       id: providedId,
       'aria-describedby': callerDescribedBy,
       ...props
     },
     ref,
   ) => {
+    const { t } = useT('common');
     const generatedId = React.useId();
     const id = providedId ?? generatedId;
     const errorId = `${id}-error`;
@@ -129,6 +183,38 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         .filter(Boolean)
         .join(' ') || undefined;
     const [showShake, setShowShake] = React.useState(false);
+    const [show, setShow] = React.useState(false);
+    // While a Skeletonize around the field loads, its buttons are masked with it.
+    const loading = useSkeleton();
+    const showToggle = sensitive && passwordToggle;
+    // A reveal belongs to the masking that gave it. When the text stops being
+    // sensitive or loses its toggle, the reveal is forgotten, so masking that
+    // comes back starts hidden instead of showing text the person last saw
+    // masked.
+    if (show && !showToggle) setShow(false);
+    const revealed = show && showToggle;
+    const actionCount = (showToggle ? 1 : 0) + (copyable ? 1 : 0);
+    // A secret is masked by the browser (`-webkit-text-security`, which keeps
+    // the lines of the text) and is no password to it: no autofill, no prompt.
+    const securityStyle: { WebkitTextSecurity?: 'disc' | 'none' } | undefined =
+      sensitive
+        ? { WebkitTextSecurity: revealed ? 'none' : 'disc' }
+        : undefined;
+    const sensitiveAttrs = sensitive
+      ? {
+          autoComplete: 'off',
+          // Text drawn as dots is still text to the browser: it would
+          // spell-check the secret (enhanced spell checking sends the text to
+          // a server), capitalise it and correct it.
+          spellCheck: false,
+          autoCapitalize: 'off',
+          autoCorrect: 'off',
+          'data-1p-ignore': true,
+          'data-lpignore': 'true',
+          'data-form-type': 'other',
+          'data-bwignore': 'true',
+        }
+      : undefined;
 
     // Trigger shake animation when error appears
     React.useEffect(() => {
@@ -154,6 +240,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
               fillHeight && 'min-h-0 flex-1 resize-none',
               hasError && FIELD_INVALID,
               showShake && 'animate-shake',
+              fieldActionsRoom(actionCount),
               className,
             )}
             ref={(node) => {
@@ -168,11 +255,42 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             aria-invalid={hasError || undefined}
             aria-describedby={describedBy}
             aria-errormessage={hasError ? errorId : undefined}
+            {...sensitiveAttrs}
             {...props}
+            style={{ ...style, ...securityStyle }}
           />
         </SkeletonBox>
       </DisabledReasonTooltip>
     );
+    // The buttons and any overlay sit on the textarea's own box.
+    const actions =
+      actionCount > 0 ? (
+        <div
+          className={cn(FIELD_ACTIONS_CORNER, loading && 'invisible')}
+          aria-hidden={loading || undefined}
+          inert={loading || undefined}
+        >
+          {copyable && (
+            <CopyValueButton
+              getValue={() => innerRef.current?.value ?? ''}
+              label={copyLabel}
+              copiedLabel={copiedLabel}
+            />
+          )}
+          {showToggle && (
+            <RevealToggle
+              revealed={revealed}
+              onToggle={() => setShow((v) => !v)}
+              labels={
+                revealLabels ?? {
+                  show: t('aria.showValue'),
+                  hide: t('aria.hideValue'),
+                }
+              }
+            />
+          )}
+        </div>
+      ) : null;
 
     return (
       <FieldShell
@@ -213,7 +331,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             }
           : {})}
       >
-        {overlay === undefined ? (
+        {overlay === undefined && actions === null ? (
           control
         ) : (
           <div
@@ -224,6 +342,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           >
             {control}
             {overlay}
+            {actions}
           </div>
         )}
         {counterMax !== undefined && (

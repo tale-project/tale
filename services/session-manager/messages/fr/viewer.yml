@@ -1,0 +1,100 @@
+title: Session
+loading: Chargement de la session…
+actions:
+  start: Démarrer la session
+  stop: Arrêter la session
+  rotate: Changer d'IP
+  addProxies: Ajouter des proxys
+gone:
+  title: Session introuvable
+  description: La session a peut-être été supprimée, ou l'adresse est incorrecte.
+  back: Retour aux sessions
+loadFailed:
+  title: Impossible de charger la session
+chip:
+  inSync: Le fuseau horaire et la position de la session correspondent à cette IP.
+  outOfSync: Le proxy a maintenant une autre IP de sortie.
+details:
+  title: Détails de la session
+  source: La langue, le fuseau horaire et la position sont déduits de {ip}, l'IP de sortie du proxy au démarrage de la session.
+  copyIp: Copier l'IP de sortie
+card:
+  couldNotStart: Échec du démarrage
+  hint: Au démarrage, la session rouvre les onglets qu'elle avait au moment de son arrêt.
+  closed: Le navigateur s'est fermé
+  closedHint: La session apparaîtra comme arrêtée dans un instant.
+  system: Système d'exploitation
+  screen: Écran
+  language: Langue
+  timeZone: Fuseau horaire
+  location: Position
+  coordinates: "{latitude, number, ::.000} / {longitude, number, ::.000}"
+  ipAddress: IP de sortie
+  noProxyYet: Attribuée au démarrage de la session
+  notChecked: Pas encore vérifiée
+tabs:
+  label: Onglets ouverts
+  new: Nouvel onglet
+  untitled: Nouvel onglet
+  close: Fermer l'onglet « {title} »
+  closeLast: Fermer l'onglet « {title} » et arrêter la session
+  more: Autres onglets
+address:
+  label: Adresse
+  placeholder: Rechercher ou saisir une adresse
+  back: Aller à la page précédente
+  forward: Aller à la page suivante
+  reload: Recharger la page
+place:
+  warningTitle: L'IP de sortie a changé
+  warning: L'IP de sortie du proxy est maintenant {current}, mais cette session indique toujours le fuseau horaire et la position de {reported}.
+  warningUnknown: Le proxy a maintenant une autre IP de sortie, mais cette session indique toujours le fuseau horaire et la position de {reported}.
+  warningHint: Si cela se répète, le proxy change probablement d'IP. Utilise un proxy à IP fixe.
+  restart: Redémarrer la session
+stage:
+  canvas: Navigateur de la session
+  canvasHint: Tout ce que tu tapes est envoyé à la page. Appuie sur {shortcut} pour aller à la barre d'adresse.
+  keyboard: Saisie au clavier pour la page
+  keyboardHint: Tout ce que tu tapes est envoyé à la page. Appuie sur {shortcut} pour aller à la barre d'adresse.
+  connecting: Connexion au navigateur en cours…
+  lost: Impossible de joindre le navigateur. Reconnexion…
+  refusedTitle: Impossible d'afficher le navigateur
+notice:
+  title: Action impossible dans le navigateur
+  addressRefused: Impossible d'ouvrir cette adresse. Utilise une adresse qui commence par http:// ou https://.
+  tabGone: Cet onglet est déjà fermé.
+  tabNotOpened: "Impossible d'ouvrir un nouvel onglet : {detail}."
+  keyFailed: "Impossible d'envoyer cette touche à la page : {detail}."
+  actionFailed: "Le navigateur indique : {detail}."
+  pasteCutTitle: Impossible de coller tout le texte
+  pasteCut: Tu peux coller au maximum {max, number} caractères à la fois. Le reste a été ignoré.
+select:
+  label: Options
+dialog:
+  title: La page indique
+  leaveTitle: Quitter cette page ?
+  leaveBody: Cette page demande une confirmation avant que tu la quittes.
+  answer: Réponse
+  ok: OK
+  stay: Rester sur la page
+  leave: Quitter la page
+secrets:
+  button: Secrets
+  title: Secrets pour cette session
+  hint: Clique sur un champ dans la page, puis choisis une valeur pour la saisir.
+  loading: Chargement…
+  loadFailed: "Impossible de charger les secrets."
+  valuesFailed: "Impossible de charger les valeurs."
+  empty: Aucun secret disponible pour l'instant
+  emptyHint: Ajoute des identifiants, des cartes bancaires, des informations personnelles et des notes pour les saisir en un clic dans les pages.
+  add: Ajouter un secret pour {name}
+  manage: Gérer les secrets
+  forThis: Cette session
+  forEvery: Toutes les sessions
+  emptyValue: Vide
+  maskedValue: Valeur masquée
+  moreLines: "{count, plural, one {+# ligne} other {+# lignes}}"
+  show: Afficher « {label} »
+  copy: Copier « {label} »
+  typeLabel: Saisir « {label} » dans la page
+  type: Saisir

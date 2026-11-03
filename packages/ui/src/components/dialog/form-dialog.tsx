@@ -49,6 +49,14 @@ export interface FormDialogProps {
   customFooter?: React.ReactNode;
   /** Use large dialog variant with scroll support */
   large?: boolean;
+  /**
+   * Keep the Cancel/submit row in reach while a tall form scrolls. By default
+   * the footer is the form's last element and scrolls away with the fields; a
+   * form of forty values leaves the buttons a long way below. With this the
+   * fields scroll in a box of their own and the footer stays under them, still
+   * inside the `<form>` so Enter in a field submits as it does anywhere.
+   */
+  stickyFooter?: boolean;
   /** Forwarded to underlying Dialog. `wide` (1100px) is the right
    * choice for surfaces that host code editors / large tables. */
   size?: DialogSize;
@@ -63,6 +71,13 @@ export interface FormDialogProps {
    * close (e.g. a dropdown menu item).
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * The field the dialog opens on, for a form whose first field is not where a
+   * person starts typing. See `Dialog`'s `initialFocusRef`: a form that begins
+   * with a Radix `Select` would otherwise open on the hidden native twin the
+   * `Select` draws inside the `<form>`.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -87,11 +102,13 @@ export function FormDialog({
   customHeader,
   customFooter,
   large = false,
+  stickyFooter = false,
   size,
   trigger,
   enableErrorBoundary = true,
   onError,
   restoreFocusRef,
+  initialFocusRef,
 }: FormDialogProps) {
   const { t: tCommon } = useT('common');
   const { organizationId: orgId } = useErrorScope();
@@ -167,6 +184,12 @@ export function FormDialog({
     [onError],
   );
 
+  // The negative margin and the padding give a focus ring the room the
+  // scrolling box would otherwise clip (the dialog body does the same).
+  const fieldsClassName = stickyFooter
+    ? '-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1'
+    : undefined;
+
   const footer = customFooter ?? (
     <>
       <Button
@@ -198,11 +221,14 @@ export function FormDialog({
       trigger={trigger}
       customHeader={customHeader}
       restoreFocusRef={restoreFocusRef}
+      initialFocusRef={initialFocusRef}
+      // The fields scroll in their own box below; the dialog's body does not.
+      bodyClassName={stickyFooter ? 'overflow-y-hidden' : undefined}
     >
       {/* Keep actions after the fields, including in caller-sized forms. */}
       <form
         onSubmit={handleSubmit}
-        className="flex flex-1 flex-col gap-4"
+        className={cn('flex flex-1 flex-col gap-4', stickyFooter && 'min-h-0')}
         noValidate
       >
         {enableErrorBoundary ? (
@@ -210,12 +236,17 @@ export function FormDialog({
             organizationId={orgId}
             onError={handleBoundaryError}
           >
-            <Stack>{children}</Stack>
+            <Stack className={fieldsClassName}>{children}</Stack>
           </DialogErrorBoundary>
         ) : (
-          <Stack>{children}</Stack>
+          <Stack className={fieldsClassName}>{children}</Stack>
         )}
-        <div className="mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div
+          className={cn(
+            'mt-auto flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+            stickyFooter && 'shrink-0',
+          )}
+        >
           {footer}
         </div>
       </form>

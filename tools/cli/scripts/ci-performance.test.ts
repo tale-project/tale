@@ -352,9 +352,17 @@ describe('static-site build reuse', () => {
     },
   );
 
-  test.each(['web', 'docs'])(
+  // What each config serves, and the build it runs first unless supplied one:
+  // the sites preview their bundle; the session manager boots its fake backends
+  // (one per worker, started together by its launcher) over the page, which it
+  // builds through its own package script.
+  test.each([
+    ['web', 'vite preview', '../../packages/ui/bin/build-client.ts'],
+    ['docs', 'vite preview', '../../packages/ui/bin/build-client.ts'],
+    ['session-manager', 'bun tests/e2e/launcher.ts', 'bun run build'],
+  ])(
     '%s skips only its build when explicitly supplied a bundle',
-    async (service) => {
+    async (service, serves, builds) => {
       const configUrl = pathToFileURL(
         join(repository, 'services', service, 'playwright.config.ts'),
       ).href;
@@ -375,6 +383,17 @@ describe('static-site build reuse', () => {
             fileURLToPath,
             URL,
             createPlaywrightConfig: (config: unknown) => config,
+            // The session manager's config sizes its servers with its own
+            // settings module (`tests/e2e/servers.ts`, held by its unit
+            // tests); this test is about the command, not the ports.
+            availableParallelism: () => 4,
+            planFrom: () => ({
+              backendPort: 3204,
+              controlPort: 4204,
+              servers: 4,
+              workers: 4,
+            }),
+            healthUrl: () => 'http://localhost:3207/api/health',
           },
           { timeout: 1000 },
         ) as {
@@ -382,14 +401,13 @@ describe('static-site build reuse', () => {
         };
         const server = options.webServer;
         expect(server.reuseExistingServer).toBe(false);
-        expect(server.command).toContain('vite preview');
-        expect(server.command).toContain('--strictPort');
+        expect(server.command).toContain(serves);
+        if (serves === 'vite preview')
+          expect(server.command).toContain('--strictPort');
         if (reuse === '1') {
           expect(server.command).not.toContain('build');
         } else {
-          expect(server.command).toContain(
-            '../../packages/ui/bin/build-client.ts',
-          );
+          expect(server.command).toContain(builds);
           if (service === 'docs')
             expect(server.command).toContain('scripts/build-search-index.ts');
         }

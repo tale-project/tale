@@ -8,6 +8,11 @@ import {
 import { useMemo, useState } from 'react';
 import type { DecoratorFunction } from 'storybook/internal/types';
 
+import {
+  TooltipProvider,
+  TOOLTIP_DELAY_MS,
+  TOOLTIP_SKIP_DELAY_MS,
+} from '../src/components/overlays/tooltip';
 import { initServiceI18n } from '../src/i18n/init-service';
 import { uiMessages } from '../src/i18n/messages';
 import {
@@ -42,7 +47,10 @@ function createStoryRouter() {
 /**
  * Bridges addon-themes' html-class toggle into the React `ThemeContext` so
  * components reading `useTheme()` (CodeBlock, Mermaid, etc.) see the same
- * state Storybook shows, and provides a memory router for Link-based stories.
+ * state Storybook shows, and provides a memory router for Link-based stories
+ * and the one `TooltipProvider` the app shell gives every tree: a component
+ * with a `Tooltip` (a masked field's buttons, a copyable pill) throws without
+ * it, and the router's error boundary would show that instead of the story.
  */
 function WithProviders({
   Story,
@@ -64,7 +72,12 @@ function WithProviders({
   );
   return (
     <ThemeContext.Provider value={themeValue}>
-      <RouterProvider router={router} defaultComponent={() => <Story />} />
+      <TooltipProvider
+        delayDuration={TOOLTIP_DELAY_MS}
+        skipDelayDuration={TOOLTIP_SKIP_DELAY_MS}
+      >
+        <RouterProvider router={router} defaultComponent={() => <Story />} />
+      </TooltipProvider>
     </ThemeContext.Provider>
   );
 }

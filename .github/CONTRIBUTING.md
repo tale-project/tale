@@ -31,6 +31,9 @@ bun run --filter @tale/ui-docs dev
 ```
 
 These sites do not need the platform backend for their local content preview.
+The session manager does not need it either: `bun run --filter @tale/session-manager dev`
+serves it on port 3004, in front of a backend that drives real Camoufox browsers (it
+downloads them on first use).
 Use a separate terminal for each service you want to keep running.
 
 ## Make a reviewable change

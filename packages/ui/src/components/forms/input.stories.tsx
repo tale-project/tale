@@ -179,6 +179,63 @@ export const PasswordPreFilled: Story = {
   },
 };
 
+export const SecretWithCopy: Story = {
+  render: () => (
+    <Input
+      label="Card number"
+      type="password"
+      autoComplete="off"
+      data-1p-ignore
+      data-lpignore="true"
+      data-form-type="other"
+      data-bwignore="true"
+      copyable
+      defaultValue="0000 1111 2222 3333"
+      revealLabels={{ show: 'Show card number', hide: 'Hide card number' }}
+      copyLabel="Copy card number"
+      copiedLabel="Card number copied"
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A masked value with its two tools inside the field: copy (it copies the value without showing it) and the reveal toggle. Name the buttons for what they act on when several values stand together. This is the recipe for a single-line secret that must stay out of the accessibility tree: `type="password"` with an explicit `autoComplete` is a real password input, so a screen reader does not speak the value, and the opt-out hints keep password managers away. `sensitive` alone masks a text input with CSS, which assistive technology still reads.',
+      },
+    },
+  },
+};
+
+export const SecretsInAColumn: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <Input label="Website" defaultValue="https://shop.example" />
+      <Input
+        label="Password"
+        type="password"
+        autoComplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
+        data-bwignore="true"
+        copyable
+        defaultValue="sample-password"
+        revealLabels={{ show: 'Show Password', hide: 'Hide Password' }}
+        copyLabel="Copy Password"
+      />
+      <Input label="Token" copyable defaultValue="tok-sample-1234" />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The tools sit inside the field, so every field of a form ends on the same edge, with or without them. The password is a real password input (`type="password"` with an explicit `autoComplete`), so its value stays out of the accessibility tree.',
+      },
+    },
+  },
+};
+
 export const PasswordWithError: Story = {
   args: {
     label: 'Password',

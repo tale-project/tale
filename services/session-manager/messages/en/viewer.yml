@@ -1,0 +1,100 @@
+title: Session
+loading: Loading the session…
+actions:
+  start: Start session
+  stop: Stop session
+  rotate: Rotate IP
+  addProxies: Add proxies
+gone:
+  title: Session not found
+  description: The session may have been deleted, or the address may be wrong.
+  back: Back to sessions
+loadFailed:
+  title: Couldn't load the session
+chip:
+  inSync: The session's time zone and location match this IP.
+  outOfSync: The proxy now exits through another IP.
+details:
+  title: Session details
+  source: The language, time zone and location are taken from {ip}, the proxy's exit IP when the session started.
+  copyIp: Copy exit IP
+card:
+  couldNotStart: Start failed
+  hint: Starting the session reopens the tabs it had when it was stopped.
+  closed: The browser has closed
+  closedHint: The session will show as stopped in a moment.
+  system: Operating system
+  screen: Screen
+  language: Language
+  timeZone: Time zone
+  location: Location
+  coordinates: "{latitude, number, ::.000} / {longitude, number, ::.000}"
+  ipAddress: Exit IP
+  noProxyYet: Assigned when the session starts
+  notChecked: Not checked yet
+tabs:
+  label: Open tabs
+  new: New tab
+  untitled: New tab
+  close: Close tab "{title}"
+  closeLast: Close tab "{title}" and stop the session
+  more: More tabs
+address:
+  label: Address
+  placeholder: Search or enter an address
+  back: Go to previous page
+  forward: Go to next page
+  reload: Reload page
+place:
+  warningTitle: The exit IP has changed
+  warning: The proxy now exits through {current}, but this session still reports the time zone and location of {reported}.
+  warningUnknown: The proxy now exits through another IP, but this session still reports the time zone and location of {reported}.
+  warningHint: If this keeps happening, the proxy probably rotates its IP. Use a proxy with a fixed IP.
+  restart: Restart session
+stage:
+  canvas: Session browser
+  canvasHint: Everything you type goes to the page. To go to the address bar, press {shortcut}.
+  keyboard: Keyboard input for the page
+  keyboardHint: Everything you type goes to the page. To go to the address bar, press {shortcut}.
+  connecting: Connecting to the browser…
+  lost: Can't reach the browser. Reconnecting…
+  refusedTitle: Can't show the browser
+notice:
+  title: Couldn't do that in the browser
+  addressRefused: That address can't be opened. Use one that starts with http:// or https://.
+  tabGone: That tab is already closed.
+  tabNotOpened: "Couldn't open a new tab: {detail}."
+  keyFailed: "Couldn't send that key to the page: {detail}."
+  actionFailed: "The browser said: {detail}."
+  pasteCutTitle: Couldn't paste all of the text
+  pasteCut: You can paste up to {max, number} characters at once. The rest was left out.
+select:
+  label: Options
+dialog:
+  title: The page says
+  leaveTitle: Leave this page?
+  leaveBody: This page asks for confirmation before you leave it.
+  answer: Answer
+  ok: OK
+  stay: Stay on page
+  leave: Leave page
+secrets:
+  button: Secrets
+  title: Secrets for this session
+  hint: Click a field in the page, then choose a value to type into it.
+  loading: Loading…
+  loadFailed: "Couldn't load the secrets."
+  valuesFailed: "Couldn't load the values."
+  empty: No secrets for this session yet
+  emptyHint: Add logins, cards, personal details and notes to fill in pages with a click.
+  add: Add secret for {name}
+  manage: Manage secrets
+  forThis: This session
+  forEvery: Every session
+  emptyValue: Empty
+  maskedValue: Hidden value
+  moreLines: "{count, plural, one {+# line} other {+# lines}}"
+  show: Show {label}
+  copy: Copy {label}
+  typeLabel: Type {label} into the page
+  type: Type

@@ -1,0 +1,10 @@
+browser:
+  installing: The browser is being installed (about 1.3 GB to download). Sessions can start once it is ready.
+  installFailed: Couldn't install the browser
+  installFailedHint: Check your connection and restart Session Manager, or install the browser by hand with the command below. This page updates as soon as the browser is installed.
+  notInstalled: The browser isn't installed yet. Session Manager installs it when it starts.
+  issue: Technical details
+connection:
+  lost: Can't reach Session Manager. We're trying to reconnect.
+  failed: Session Manager answered with an error. We're trying again. If the problem persists, restart Session Manager.
+  tabTitle: Reconnecting

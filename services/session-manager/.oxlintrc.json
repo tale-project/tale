@@ -1,0 +1,27 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "rules": {
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "react-hook-form",
+            "importNames": ["useForm"],
+            "message": "Import { useForm } from '@tale/ui/use-form' so validation timing (mode: 'onTouched') stays consistent app-wide (#1943)."
+          }
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": [
+    ".turbo",
+    "node_modules",
+    "dist",
+    "dist-ssr",
+    "**/*.gen.ts",
+    "**/*.gen.tsx",
+    "public/**"
+  ]
+}

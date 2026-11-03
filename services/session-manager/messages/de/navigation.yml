@@ -1,0 +1,14 @@
+skipToContent: Zum Hauptinhalt springen
+landmark: Session-Manager-Seitenleiste
+sections:
+  sessions: Sitzungen
+  proxies: Proxies
+  secrets: Secrets
+  settings: Einstellungen
+aria:
+  main: Hauptnavigation
+  primary: Hauptnavigation
+notFound:
+  title: Seite nicht gefunden
+  description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
+  back: Zurück zu den Sitzungen

@@ -69,6 +69,7 @@ const versionInEnvironment = [
   'web',
   'docs',
   'ui-docs',
+  'session-manager',
 ];
 test.each([
   ...versionInEnvironment,
@@ -263,6 +264,13 @@ test.skipIf(process.platform === 'win32')(
       ['docs/en/index.md', ['docs'], false],
       ['services/web/app/index.tsx', ['web'], false],
       ['compose.ui-docs.test.yml', ['ui-docs'], false],
+      ['services/session-manager/backend/main.ts', ['session-manager'], false],
+      ['compose.session-manager.test.yml', ['session-manager'], false],
+      [
+        'services/platform/tests/integration/container-session-manager-test.ts',
+        ['session-manager'],
+        false,
+      ],
       ['services/platform/backend/server.ts', ['platform'], true],
       [
         'services/platform/tests/integration/container-docs-test.ts',
@@ -289,28 +297,48 @@ test.skipIf(process.platform === 'win32')(
       ['compose.yml', [], true],
       [
         'packages/ui/src/button.tsx',
-        ['platform', 'web', 'docs', 'ui-docs'],
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
         true,
       ],
       ['.github/scripts/pull-ci-images.sh', [], true],
-      ['bun.lock', ['platform', 'web', 'docs', 'ui-docs'], true],
-      ['package.json', ['platform', 'web', 'docs', 'ui-docs'], true],
-      ['tools/cli/package.json', ['platform', 'web', 'docs', 'ui-docs'], true],
       [
-        'packages/shared/src/index.ts',
-        ['platform', 'web', 'docs', 'ui-docs'],
+        'bun.lock',
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
         true,
       ],
-      ['patches/postgres.patch', ['platform', 'web', 'docs', 'ui-docs'], true],
-      ['tsconfig.dom.json', ['platform', 'web', 'docs', 'ui-docs'], true],
+      [
+        'package.json',
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
+        true,
+      ],
+      [
+        'tools/cli/package.json',
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
+        true,
+      ],
+      [
+        'packages/shared/src/index.ts',
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
+        true,
+      ],
+      [
+        'patches/postgres.patch',
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
+        true,
+      ],
+      [
+        'tsconfig.dom.json',
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
+        true,
+      ],
       [
         '.github/workflows/build.yml',
-        ['platform', 'web', 'docs', 'ui-docs'],
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
         true,
       ],
       [
         'tools/cli/scripts/check-sbom-hashes.ts',
-        ['platform', 'web', 'docs', 'ui-docs'],
+        ['platform', 'web', 'docs', 'ui-docs', 'session-manager'],
         true,
       ],
     ];
@@ -368,7 +396,7 @@ test.skipIf(process.platform === 'win32')(
   },
 );
 
-test.each(['web', 'docs', 'ui-docs'])(
+test.each(['web', 'docs', 'ui-docs', 'session-manager'])(
   '%s probes the locally loaded cached image with no implicit pull or rebuild',
   async (service) => {
     const file = await workflow('build');
@@ -507,7 +535,7 @@ test.skipIf(process.platform === 'win32')(
         expect(services).toEqual(['web', 'docs', 'ui-docs']);
       else {
         expect(services.slice(0, 2)).toEqual(['sandbox-runtime', 'platform']);
-        expect(new Set(services).size).toBe(11);
+        expect(new Set(services).size).toBe(12);
       }
     }
     expect(file.jobs.build?.strategy?.['max-parallel']).toBe(6);
@@ -1195,7 +1223,7 @@ describe.skipIf(process.platform === 'win32')(
       'sandbox-buildkitd',
       'sandbox-runtime',
     ];
-    // Exercise Release's real three- and eleven-image selections under
+    // Exercise Release's real three- and twelve-image selections under
     // macOS Bash 3.2 as well as the eight-image stack.
     const cases: [string, string, string, string, string[]][] = [
       [
@@ -1213,7 +1241,7 @@ describe.skipIf(process.platform === 'win32')(
         ['web', 'docs', 'ui-docs'],
       ],
       [
-        'Release full (11)',
+        'Release full (12)',
         'release',
         'container-test',
         'Pull release images',
@@ -1224,6 +1252,7 @@ describe.skipIf(process.platform === 'win32')(
           'web',
           'docs',
           'ui-docs',
+          'session-manager',
           'proxy',
           'sandbox-llm-gateway',
           'sandbox',
@@ -1350,7 +1379,7 @@ esac
 describe.skipIf(process.platform === 'win32')(
   'Build selects the affected container stacks',
   () => {
-    test.each(['web', 'docs', 'ui-docs', 'storybook'])(
+    test.each(['web', 'docs', 'ui-docs', 'session-manager', 'storybook'])(
       '%s changes do not build the unrelated platform stack',
       async (service) => {
         const matrix = findStep(
@@ -1444,7 +1473,13 @@ describe.skipIf(process.platform === 'win32')(
         expect(result.code, result.stdout + result.stderr).toBe(0);
         const values = outputs(result.output);
         const services = JSON.parse(values.list!) as string[];
-        for (const service of ['platform', 'web', 'docs', 'ui-docs'])
+        for (const service of [
+          'platform',
+          'web',
+          'docs',
+          'ui-docs',
+          'session-manager',
+        ])
           expect(services).toContain(service);
         expect(services).not.toContain('image_inputs');
         expect(values.stack).toBe('true');
@@ -1489,7 +1524,7 @@ describe.skipIf(process.platform === 'win32')(
 test('standalone container tests run for their own harness and shared stack inputs', async () => {
   const build = await workflow();
   const filters = await buildFilters();
-  for (const service of ['web', 'docs', 'ui-docs']) {
+  for (const service of ['web', 'docs', 'ui-docs', 'session-manager']) {
     for (const input of [
       `compose.${service}.yml`,
       `compose.${service}.test.yml`,
@@ -1533,7 +1568,7 @@ test('every declared workspace manifest selects the workspace image consumers', 
 
 test('standalone compose edits do not select the unrelated stack harness', async () => {
   const filters = await buildFilters();
-  for (const service of ['web', 'docs', 'ui-docs']) {
+  for (const service of ['web', 'docs', 'ui-docs', 'session-manager']) {
     for (const path of [
       `compose.${service}.yml`,
       `compose.${service}.test.yml`,

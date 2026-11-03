@@ -1,0 +1,120 @@
+toasts:
+  createFailed: Impossible d'ajouter la session
+  renameFailed: Impossible de renommer la session
+  startFailed: Impossible de démarrer la session
+  stopFailed: Impossible d'arrêter la session
+  restartFailed: Impossible de redémarrer la session
+  rotateFailed: Impossible de changer l'IP
+  checkIpFailed: Impossible de vérifier l'IP
+  deleteFailed: Impossible de supprimer la session
+  exportFailed: Impossible d'exporter les proxys
+status:
+  stopped: Arrêtée
+  assigning: Attribution du proxy
+  starting: Démarrage
+  running: En cours
+  stopping: Arrêt
+  error: Erreur
+# Le nom d'une session au milieu d'une phrase, entre les guillemets de la langue.
+quoted: "« {text} »"
+addProxies: Ajouter des proxys
+panel:
+  title: Sessions
+  add: Ajouter une session
+  more: Plus d'actions
+  export: Exporter les proxys des sessions en JSON
+  exportNote: Inclut les mots de passe des proxys.
+list:
+  label: Liste des sessions
+  loadFailed: "Impossible de charger les sessions."
+  refreshFailed: Impossible de charger les dernières sessions. La liste est peut-être incomplète ou obsolète.
+  loadingMore: Chargement de la suite…
+  total: "{count, plural, one {Affichage de # session au total} other {Affichage de # sessions au total}}"
+  partial: "Affichage de {loaded, number} sur {count, plural, one {# session} other {# sessions}}"
+empty:
+  title: Aucune session pour l'instant
+  description: Ajoute une session pour obtenir un navigateur isolé avec son propre profil et son propre proxy.
+  noProxies: Ajoute d'abord des proxys. Chaque session a besoin du sien.
+index:
+  title: Aucune session ouverte
+  choose: Choisis une session dans la liste pour l'ouvrir.
+  # Sans session, le panneau montre comment en ajouter une. Ceci dit où elles apparaîtront.
+  addFirst: Les sessions que tu ajoutes apparaissent à gauche.
+row:
+  start: Démarrer {name}
+  stop: Arrêter {name}
+  menu: Actions pour {name}
+  ipChanged: IP modifiée · à redémarrer
+block:
+  installing: "Le navigateur est en cours d'installation."
+  missing: "Le navigateur n'est pas encore installé."
+  busy: La session est occupée.
+  stopping: "La session est déjà en cours d'arrêt."
+menu:
+  rename: Renommer
+  restart: Redémarrer
+  restartOnlyRunning: Seule une session en cours peut être redémarrée.
+  rotate: Changer d'IP
+  rotateEffect: La session passe à un autre proxy fonctionnel.
+  rotateBusy: Attends que la session ait fini de démarrer ou de s'arrêter.
+  checkIp: Vérifier l'IP
+  checkIpOnlyRunning: Seule une session en cours peut être vérifiée.
+  checkIpNoProxy: "La session n'a pas de proxy."
+rename:
+  title: Renommer la session
+  label: Nom
+  submit: Renommer la session
+restart:
+  title: "Redémarrer {name} ?"
+  description: Le navigateur se ferme et se rouvre avec les mêmes onglets. Le fuseau horaire et la position correspondent ensuite à l'IP de sortie actuelle du proxy.
+  confirm: Redémarrer la session
+rotate:
+  title: "Changer l'IP de {name} ?"
+  description: Le navigateur redémarre avec un autre proxy fonctionnel. Les cookies et les connexions aux sites sont conservés.
+  confirm: Changer d'IP
+delete:
+  title: "Supprimer {name} ?"
+  description: Le profil de navigateur de la session (cookies, données de sites, historique) et ses propres secrets sont supprimés définitivement. Son proxy redevient libre.
+  descriptionBrowserOpen: Le profil de navigateur de la session (cookies, données de sites, historique) et ses propres secrets sont supprimés définitivement. Son proxy redevient libre. Le navigateur est d'abord fermé.
+  secrets: "{count, plural, one {# secret est supprimé avec la session.} other {# secrets sont supprimés avec la session.}}"
+  confirm: Supprimer la session
+add:
+  title: Ajouter une session
+  description: La session démarre tout de suite, avec son propre proxy.
+  name: Nom
+  nameHint: Laisse vide pour utiliser le prochain numéro libre.
+  system: Système d'exploitation
+  os:
+    random: Aléatoire
+    windows: Windows
+    macos: macOS
+    linux: Linux
+  submit: Ajouter la session
+sharedIp:
+  title: Même IP de sortie qu'une autre session
+  running: "{count, plural, one {La session en cours {names} utilise déjà l'IP de sortie {ip}.} other {Les sessions en cours {names} utilisent déjà l'IP de sortie {ip}.}}"
+  consequence: Si la session {name} démarre avec la même IP de sortie, les sites web peuvent détecter que ces sessions sont liées.
+  hint: "Si tu choisis Changer d'IP, la session {name} reçoit un autre proxy fonctionnel, puis démarre."
+  confirm: Démarrer quand même
+  rotate: Changer d'IP
+brokenProxy:
+  title: Le proxy de {name} ne fonctionne pas
+  reason: "La dernière vérification a échoué : {reason}."
+  hint: "Si tu choisis Changer d'IP, la session {name} reçoit un autre proxy fonctionnel, puis démarre."
+  rotate: Changer d'IP
+noProxy:
+  title: Aucun proxy libre disponible
+  intro:
+    start: Chaque session a besoin de son propre proxy, et aucun n'est libre pour le moment. Ajoute des proxys, et la session démarrera automatiquement.
+    rotate: Chaque session a besoin de son propre proxy, et aucun n'est libre pour le moment. Ajoute des proxys, et la session passera automatiquement à l'un d'eux.
+    create: Chaque session a besoin de son propre proxy, et aucun n'est libre pour le moment. Ajoute des proxys, et la session sera ajoutée automatiquement.
+noWorking:
+  title: Aucun proxy fonctionnel disponible
+  intro: "{sessions, plural, one {Dès que tu ajoutes des proxys, la session {names} en reçoit un automatiquement.} other {Dès que tu ajoutes des proxys, les sessions {names} en reçoivent chacune un automatiquement.}}"
+  introFailed: "{failed, plural, one {# proxy a échoué à la vérification.} other {# proxys ont échoué à la vérification.}} {sessions, plural, one {Dès que tu ajoutes des proxys, la session {names} en reçoit un automatiquement.} other {Dès que tu ajoutes des proxys, les sessions {names} en reçoivent chacune un automatiquement.}}"
+notices:
+  exported: "{filename} exporté"
+  ipSameTitle: IP de sortie inchangée
+  ipSame: L'IP de sortie du proxy est toujours {ip}. Le fuseau horaire et la position correspondent toujours à cette IP.
+  ipChangedTitle: IP de sortie modifiée
+  ipChanged: L'IP de sortie du proxy est maintenant {now}, et non plus {was}. Redémarre la session pour mettre à jour le fuseau horaire et la position.

@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { BUILD_FILTERS } from '../ci-ready';
 import { portWorkflow } from './port';
@@ -236,4 +238,18 @@ ${RUNS}    steps:
     expect(text).toContain('./.github/actions/ci-scope');
     expect(report.warnings).toHaveLength(1);
   });
+});
+
+describe('the workflows as they are', () => {
+  const workflows = join(import.meta.dir, '../../../../.github/workflows');
+
+  // An output of the scope action that the port was not taught stays a read of
+  // the job the port removes, and Forgejo then reads an empty answer.
+  test.each(readdirSync(workflows).filter((name) => name.endsWith('.yml')))(
+    '%s: nothing reads the scope job the port removes',
+    (name) => {
+      const { text } = port(readFileSync(join(workflows, name), 'utf8'), name);
+      expect(text).not.toContain('pr-scope');
+    },
+  );
 });

@@ -76,6 +76,70 @@ export const LongValue: Story = {
   },
 };
 
+export const Masked: Story = {
+  args: {
+    value: 'correct horse battery staple',
+    label: 'Password',
+    mono: false,
+    masked: true,
+    revealLabels: { show: 'Show Password', hide: 'Hide Password' },
+    copyAriaLabel: 'Copy Password',
+    copiedLabel: 'Password copied',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A secret: dots stand for it until the eye shows it, and copying never shows it. While it is masked the value is nowhere in the page. The pill holds two buttons, so it is no button itself.',
+      },
+    },
+  },
+};
+
+export const Wrapped: Story = {
+  args: {
+    value: 'Network: Studio-5G\nGuests use the guest network.',
+    label: 'Note',
+    mono: false,
+    wrap: true,
+    copyAriaLabel: 'Copy Note',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A value that is read, not just copied: shown whole, wrapped at the pill's edge, with its line breaks kept.",
+      },
+    },
+  },
+};
+
+export const SecretsOfASecret: Story = {
+  render: () => (
+    <div className="w-96 space-y-4">
+      {[
+        ['Website', 'https://shop.example', false],
+        ['Username', 'jane@example.com', false],
+        ['Password', 'sample-password', true],
+      ].map(([label, value, masked]) => (
+        <CopyableField
+          key={String(label)}
+          label={String(label)}
+          value={String(value)}
+          mono={false}
+          wrap
+          masked={masked === true}
+          copyAriaLabel={`Copy ${String(label)}`}
+          revealLabels={{
+            show: `Show ${String(label)}`,
+            hide: `Hide ${String(label)}`,
+          }}
+        />
+      ))}
+    </div>
+  ),
+};
+
 export const MultipleFields: Story = {
   render: () => (
     <div className="w-96 space-y-4">

@@ -1,0 +1,95 @@
+# The Settings section: its pages, the start page, how this device shows the
+# app, and AI access. Values with a colon followed by a space are quoted: a
+# plain one would be read as a mapping.
+nav:
+  label: Einstellungsseiten
+pages:
+  general:
+    title: Allgemein
+    documentTitle: Allgemeine Einstellungen
+    summary: Startseite und Version.
+  appearance:
+    title: Darstellung
+    summary: Design und Sprache.
+  aiAccess:
+    title: KI-Zugriff
+    summary: Erlaube KI-Assistenten, Session Manager zu nutzen.
+loadFailed: Die Einstellungen konnten nicht geladen werden.
+general:
+  sessions:
+    title: Neue Sitzungen
+  startPage:
+    label: Startseite
+    description: Neue Sitzungen öffnen diese Seite, ebenso eine Sitzung, deren letzten Tab du geschlossen hast. Eine Sitzung, die du stoppst, behält ihre Tabs.
+    hint: Leer lassen, um die Standard-Startseite zu verwenden.
+    useDefault: Standard-Startseite verwenden ({url})
+    remote:
+      message: Die Startseite wurde woanders geändert, zum Beispiel von einem KI-Assistenten.
+      showSaved: Gespeicherte Adresse anzeigen
+      keepEditing: Weiter bearbeiten
+  about:
+    title: Info
+    version: Version
+    browser: Browser
+    browserBuild: Camoufox {version}
+    installed: Browser installiert
+    installedYes: Ja
+    installedNo: Nein
+    installing: Wird installiert
+    unavailable: Nicht verfügbar
+appearance:
+  browser:
+    title: Dieses Gerät
+    description: Diese Einstellungen werden auf diesem Gerät gespeichert und gelten sofort.
+  theme:
+    label: Design
+    description: Hell, dunkel oder wie dein System.
+  language:
+    label: Sprache
+    description: Die Sprache, in der Session Manager angezeigt wird.
+aiAccess:
+  assistants:
+    title: KI-Assistenten
+    description: Erlaube einem KI-Assistenten wie Claude, Session Manager über MCP zu nutzen. Er kann Sitzungen steuern, darin surfen und Proxies, Secrets und Einstellungen für dich verwalten.
+  switch:
+    label: Verbindungen von KI-Assistenten erlauben
+    description: Wirkt sofort. Nur du kannst das ein- oder ausschalten, ein Assistent nicht.
+    changeFailed: KI-Zugriff konnte nicht geändert werden
+  warning:
+    lead: Ein verbundener Assistent kann jede Sitzung nutzen und jedes Secret lesen, auch Passwörter und Kartennummern.
+    detail: Verbinde nur Assistenten, denen du vertraust. Die Adresse funktioniert nur auf diesem Computer, aber jedes Programm darauf kann sie nutzen, solange der Zugriff eingeschaltet ist.
+  off:
+    description: Schalte den KI-Zugriff ein, um zu sehen, wie du Session Manager einem Assistenten hinzufügst.
+  connect:
+    title: Assistenten verbinden
+    description: Füge Session Manager deinem Assistenten als MCP-Server hinzu.
+    address: Adresse
+    addressHint: MCP über Streamable HTTP. Funktioniert nur auf diesem Computer.
+    clients: Assistent
+    clientClaudeCode: Claude Code
+    clientCursor: Cursor und andere Assistenten
+    clientClaudeDesktop: Claude Desktop
+    copyCommand: Befehl kopieren
+    copyConfig: Konfiguration kopieren
+    claudeCode: Füge Session Manager zu Claude Code hinzu. Führe das in deinem Terminal aus.
+    cursor: Trage diesen Server in die MCP-Konfiguration von Cursor, Windsurf und den meisten anderen Assistenten ein.
+    claudeDesktop: Trage das in die Konfiguration von Claude Desktop ein. Dafür muss Node.js installiert sein.
+  tools:
+    title: Was Assistenten tun können
+    description: Ein Assistent kann alles, was du in Session Manager kannst, außer den KI-Zugriff ein- oder auszuschalten. Du kannst ihm auf der Seite einer Sitzung bei der Arbeit zusehen und jederzeit übernehmen.
+    count: "{count, plural, one {# Tool} other {# Tools}}"
+    overview:
+      title: Übersicht und Einstellungen
+      description: Die Übersicht und die Einstellungen lesen und die Startseite ändern.
+    sessions:
+      title: Sitzungen
+      description: Sitzungen hinzufügen, starten, stoppen, neu starten, umbenennen und löschen, ihre Ausgangs-IP wechseln oder prüfen und ihre Proxies exportieren.
+    proxies:
+      title: Proxies
+      description: Proxies auflisten, hinzufügen, prüfen und löschen.
+    browser:
+      title: Der Browser einer laufenden Sitzung
+      description: "In einer laufenden Sitzung arbeiten: Tabs verwalten, navigieren, Seiteninhalt lesen, klicken, tippen, scrollen und auf Dialoge der Seite antworten."
+    secrets:
+      title: Secrets und Notizen
+      description: Secrets auflisten, lesen, hinzufügen, ändern und löschen. Ein Assistent kann außerdem einen Wert in eine Seite eintippen, ohne ihn zu sehen.

@@ -127,6 +127,25 @@ export const WithDefaultValue: Story = {
   },
 };
 
+export const SecretText: Story = {
+  args: {
+    label: 'Private key',
+    sensitive: true,
+    copyable: true,
+    defaultValue: 'sample-line-one\nsample-line-two\nsample-line-three',
+    revealLabels: { show: 'Show private key', hide: 'Hide private key' },
+    copyLabel: 'Copy private key',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Several lines that are masked by the browser until shown. The reveal toggle and the copy button sit in the field's corner; copying never shows the text. Masking is visual only: a text area has no password form, so a screen reader still reads every line. It keeps the text off a shared or unattended screen, not out of the accessibility tree.",
+      },
+    },
+  },
+};
+
 export const CustomRows: Story = {
   render: () => (
     <div className="flex flex-col gap-4">

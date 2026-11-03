@@ -11,10 +11,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
   the Postgres backend), `web` (marketing site), `docs` (docs site at docs.tale.dev), `ui-docs`
   (the design-system docs site at [ui.tale.dev](https://ui.tale.dev), port 3003:
-  app-language documentation at `/` and `/docs/*` with live `<Demo>` examples), plus `db`,
-  `proxy`, and the `sandbox*` family. `docs` and `ui-docs` render
-  one documentation frame, `@tale/ui/docs/*` (rail, header strip, article, outline, footer, 404,
-  search); a site feeds it content and never forks a piece of it.
+  app-language documentation at `/` and `/docs/*` with live `<Demo>` examples),
+  `session-manager` (the local manager for isolated Camoufox browser sessions, port 3004: no
+  login, so its compose stack publishes on the loopback only), plus `db`, `proxy`, and the
+  `sandbox*` family. `web`, `docs`, `ui-docs` and `session-manager` ship as images of their own
+  with the release cohort, each from its own compose stack and container test, outside the
+  platform stack; `session-manager` is no site, so a `sites_only` release leaves it out.
+  `docs` and `ui-docs` render one documentation frame, `@tale/ui/docs/*` (rail, header strip,
+  article, outline, footer, 404, search); a site feeds it content and never forks a piece of it.
 - `packages/` — `ui` (the design system: every reusable platform component, hook and UI util —
   the platform, docs and marketing site all build on it, and other repositories install it from
   GitHub), `marketing-ui` (the marketing design language — site chrome, marketing primitives,
@@ -133,7 +137,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   back by digest, and a release publishes one OCI image index per service with
   `docker buildx imagetools create`, never `docker manifest`. The plop service templates scaffold
   the same, and `tools/cli/scripts/oci-image-metadata.test.ts` holds every part of it.
-- **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
+- **Five manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/` each carry the
   standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
@@ -290,7 +294,7 @@ release fetching rewrites a tracked snapshot, so another Turbo prerequisite invo
 would rebuild different bytes. Historical candidates keep forced, uncached static builds
 because their browser configs can predate preview reuse and overwrite prerendered HTML.
 
-E2E pull requests first compute a fail-closed platform, web and docs service scope;
+E2E pull requests first compute a fail-closed platform, web, docs and session-manager service scope;
 candidates, nightly and manual runs select every service. Candidate receipts require
 the scope, the stable UI aggregate and every individual UI and E2E shard.
 
