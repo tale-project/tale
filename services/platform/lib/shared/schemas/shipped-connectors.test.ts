@@ -27,7 +27,11 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
-import { toConnectorResponse } from '../../connectors/live-host';
+import {
+  base64Decode,
+  base64Encode,
+  toConnectorResponse,
+} from '../../connectors/live-host';
 import { connectorFailureOf } from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
@@ -79,6 +83,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'gmail',
   'jev',
   'slack',
   'tavily',
@@ -1316,15 +1321,471 @@ const TWILIO_PROOFS: Record<string, ProofAnswers> = {
   },
 };
 
+const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
+
+/** The message of the Gmail actions' example input, which starts its own
+ * thread; a reply in that thread; a message with a scan too large to carry;
+ * and the id the `when` of a not-found scenario names. */
+const GMAIL_INVOICE = '18c1a2b3c4d5e6f7';
+const GMAIL_REPLY = '18c1a2b3c4d5e6f9';
+const GMAIL_SCANNED = '18c1a2b3c4d5e6fe';
+const GMAIL_MISSING = '18c0000000000009';
+
+/** The request each Gmail action makes for its example input, as the live
+ * bodies build it. A draft is always left out of a list of messages. */
+const GMAIL_REQUEST = {
+  list_messages: `GET ${GMAIL}/messages?maxResults=25&q=is%3Aunread%20-is%3Adraft`,
+  search_messages: `GET ${GMAIL}/messages?q=subject%3Ainvoice%20has%3Aattachment&maxResults=25`,
+  send_message: `POST ${GMAIL}/messages/send`,
+  get_profile: `GET ${GMAIL}/profile`,
+  list_labels: `GET ${GMAIL}/labels`,
+  list_drafts: `GET ${GMAIL}/drafts?maxResults=25`,
+};
+
+function gmailMessage(id: string): string {
+  return `GET ${GMAIL}/messages/${id}?format=full`;
+}
+
+function gmailThread(id: string): string {
+  return `GET ${GMAIL}/threads/${id}?format=full`;
+}
+
+function gmailAttachment(messageId: string, attachmentId: string): string {
+  return `GET ${GMAIL}/messages/${messageId}/attachments/${attachmentId}`;
+}
+
+/** A call Gmail carried out: HTTP 200 and the resource. A list with nothing
+ * in it carries no list at all, only its estimate. */
+function gmailOk(body: Record<string, unknown>): ServiceAnswer {
+  return { status: 200, body };
+}
+
+/** A call Gmail refused: the status, and Google's error body as Gmail sends
+ * it, pretty-printed and ending in a line break — the live bodies put the
+ * whole text into their message. */
+function gmailError(
+  code: number,
+  status: string,
+  message: string,
+  error: Record<string, string>,
+  headers: Record<string, string> = {},
+): ServiceAnswer {
+  const body = { error: { code, message, errors: [error], status } };
+  return {
+    status: code,
+    headers,
+    body: `${JSON.stringify(body, null, 2)}\n`,
+  };
+}
+
+/** Gmail's answer to an access token it no longer accepts. */
+const GMAIL_TOKEN_EXPIRED = gmailError(
+  401,
+  'UNAUTHENTICATED',
+  'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.',
+  {
+    message: 'Invalid Credentials',
+    domain: 'global',
+    reason: 'authError',
+    location: 'Authorization',
+    locationType: 'header',
+  },
+);
+
+/** Gmail's answer for a message or a thread that does not exist. */
+const GMAIL_NOT_FOUND = gmailError(
+  404,
+  'NOT_FOUND',
+  'Requested entity was not found.',
+  {
+    message: 'Requested entity was not found.',
+    domain: 'global',
+    reason: 'notFound',
+  },
+);
+
+/** Gmail's rate limit: 429, and the seconds to wait in Retry-After. */
+const GMAIL_RATE_LIMITED = gmailError(
+  429,
+  'RESOURCE_EXHAUSTED',
+  'Rate Limit Exceeded',
+  {
+    message: 'Rate Limit Exceeded',
+    domain: 'usageLimits',
+    reason: 'rateLimitExceeded',
+  },
+  { 'retry-after': '30' },
+);
+
+/** The bytes of the synthetic attachments. Gmail carries them base64url
+ * without padding, and a body hands the store padded base64: each needs
+ * padding and holds a character the two alphabets spell differently, so
+ * the stored files prove the conversion. */
+const INVOICE_PDF =
+  '%PDF-1.7\n% Synthetic invoice INV-2026-0042 >> 42.00 EUR\n%%EOF\n';
+const PAYMENTS_CSV = 'date;amount;note\n2026-10-01;42.00;paid?\n';
+
+/** Gmail's answer to a request for an attachment's bytes. */
+function gmailBytes(content: string): ServiceAnswer {
+  return gmailOk({
+    size: Buffer.byteLength(content),
+    data: Buffer.from(content).toString('base64url'),
+  });
+}
+
+/** A file as a Gmail body hands it to the store. */
+function gmailStored(
+  fileName: string,
+  contentType: string,
+  content: string,
+): StoredFile {
+  return {
+    fileName,
+    contentType,
+    encoding: 'base64',
+    data: Buffer.from(content).toString('base64'),
+  };
+}
+
+/** The body of a message part that carries its own text, base64url. */
+function gmailText(text: string): { size: number; data: string } {
+  return {
+    size: Buffer.byteLength(text),
+    data: Buffer.from(text).toString('base64url'),
+  };
+}
+
+const INVOICE_MESSAGE = {
+  id: GMAIL_INVOICE,
+  threadId: GMAIL_INVOICE,
+  labelIds: ['INBOX', 'UNREAD'],
+  snippet: 'Your invoice INV-2026-0042 for October is attached.',
+};
+
+const REPLY_MESSAGE = {
+  id: GMAIL_REPLY,
+  threadId: GMAIL_INVOICE,
+  labelIds: ['INBOX'],
+  snippet: 'Thanks, the payment arrived.',
+  payload: {
+    mimeType: 'text/plain',
+    filename: '',
+    body: gmailText('Thanks, the payment arrived.'),
+  },
+};
+
+const TEXT_PART = {
+  partId: '0',
+  mimeType: 'text/plain',
+  filename: '',
+  body: gmailText('See the attached invoice.'),
+};
+
+const INVOICE_PART = {
+  partId: '1',
+  mimeType: 'application/pdf',
+  filename: 'invoice-2026-10.pdf',
+  body: { attachmentId: 'ANGjdJ8AbC', size: Buffer.byteLength(INVOICE_PDF) },
+};
+
+const PAYMENTS_PART = {
+  partId: '2',
+  mimeType: 'text/csv',
+  filename: 'payments-2026-10.csv',
+  body: { attachmentId: 'ANGjdJ9XyZ', size: Buffer.byteLength(PAYMENTS_CSV) },
+};
+
+/** A part of 4 MiB, more than ctx.http can carry base64url inside JSON. */
+const SCAN_PART = {
+  partId: '1',
+  mimeType: 'application/pdf',
+  filename: 'scan-2026-10.pdf',
+  body: { attachmentId: 'ANGjdJ7BiG', size: 4 * 1024 * 1024 },
+};
+
+/**
+ * The proof of every Gmail scenario, keyed as Slack's are: Gmail's answer to
+ * each request the action makes. An answer carries the members the action's
+ * output names, as Slack's do, and what the body reads besides — a message's
+ * parts, where it walks them for attachments. The bodies hand a message or
+ * a thread on whole, and throw a refusal with its status and Gmail's text.
+ */
+const GMAIL_PROOFS: Record<string, ProofAnswers> = {
+  'list_messages/two_messages': {
+    [GMAIL_REQUEST.list_messages]: gmailOk({
+      messages: [
+        { id: GMAIL_INVOICE, threadId: GMAIL_INVOICE },
+        { id: '18c1a2b3c4d5e6f8', threadId: '18c1a2b3c4d5e6f0' },
+      ],
+      resultSizeEstimate: 2,
+    }),
+  },
+  'list_messages/no_messages': {
+    [GMAIL_REQUEST.list_messages]: gmailOk({ resultSizeEstimate: 0 }),
+  },
+  'list_messages/token_expired': {
+    [GMAIL_REQUEST.list_messages]: GMAIL_TOKEN_EXPIRED,
+  },
+  'list_messages/rate_limited': {
+    [GMAIL_REQUEST.list_messages]: GMAIL_RATE_LIMITED,
+  },
+  'get_message/one_message': {
+    [gmailMessage(GMAIL_INVOICE)]: gmailOk(INVOICE_MESSAGE),
+  },
+  'get_message/with_attachment': {
+    [gmailMessage(GMAIL_INVOICE)]: gmailOk({
+      ...INVOICE_MESSAGE,
+      payload: {
+        mimeType: 'multipart/mixed',
+        filename: '',
+        parts: [TEXT_PART, INVOICE_PART],
+      },
+    }),
+    [gmailAttachment(GMAIL_INVOICE, 'ANGjdJ8AbC')]: gmailBytes(INVOICE_PDF),
+  },
+  'get_message/no_attachments': {
+    [gmailMessage(GMAIL_REPLY)]: gmailOk(REPLY_MESSAGE),
+  },
+  'get_message/message_not_found': {
+    [gmailMessage(GMAIL_MISSING)]: GMAIL_NOT_FOUND,
+  },
+  'get_message/rate_limited': {
+    [gmailMessage(GMAIL_INVOICE)]: GMAIL_RATE_LIMITED,
+  },
+  'get_attachments/two_attachments': {
+    [gmailMessage(GMAIL_INVOICE)]: gmailOk({
+      ...INVOICE_MESSAGE,
+      payload: {
+        mimeType: 'multipart/mixed',
+        filename: '',
+        parts: [TEXT_PART, INVOICE_PART, PAYMENTS_PART],
+      },
+    }),
+    [gmailAttachment(GMAIL_INVOICE, 'ANGjdJ8AbC')]: gmailBytes(INVOICE_PDF),
+    [gmailAttachment(GMAIL_INVOICE, 'ANGjdJ9XyZ')]: gmailBytes(PAYMENTS_CSV),
+  },
+  'get_attachments/too_large': {
+    [gmailMessage(GMAIL_SCANNED)]: gmailOk({
+      id: GMAIL_SCANNED,
+      threadId: GMAIL_SCANNED,
+      labelIds: ['INBOX'],
+      snippet: 'The scan and the payments of October.',
+      payload: {
+        mimeType: 'multipart/mixed',
+        filename: '',
+        parts: [SCAN_PART, PAYMENTS_PART],
+      },
+    }),
+    [gmailAttachment(GMAIL_SCANNED, 'ANGjdJ9XyZ')]: gmailBytes(PAYMENTS_CSV),
+  },
+  'get_attachments/no_attachments': {
+    [gmailMessage(GMAIL_REPLY)]: gmailOk(REPLY_MESSAGE),
+  },
+  'get_attachments/message_not_found': {
+    [gmailMessage(GMAIL_MISSING)]: GMAIL_NOT_FOUND,
+  },
+  'search_messages/two_matches': {
+    [GMAIL_REQUEST.search_messages]: gmailOk({
+      messages: [
+        { id: GMAIL_INVOICE, threadId: GMAIL_INVOICE },
+        { id: GMAIL_SCANNED, threadId: GMAIL_SCANNED },
+      ],
+      resultSizeEstimate: 2,
+    }),
+  },
+  'search_messages/no_matches': {
+    [GMAIL_REQUEST.search_messages]: gmailOk({ resultSizeEstimate: 0 }),
+  },
+  'search_messages/token_expired': {
+    [GMAIL_REQUEST.search_messages]: GMAIL_TOKEN_EXPIRED,
+  },
+  'send_message/sent': {
+    [GMAIL_REQUEST.send_message]: gmailOk({
+      id: '18c1a2b3c4d5e6fa',
+      threadId: '18c1a2b3c4d5e6fa',
+      labelIds: ['SENT'],
+    }),
+  },
+  'send_message/sent_again': {
+    [GMAIL_REQUEST.send_message]: gmailOk({
+      id: '18c1a2b3c4d5e6fb',
+      threadId: '18c1a2b3c4d5e6fb',
+      labelIds: ['SENT'],
+    }),
+  },
+  'send_message/invalid_recipient': {
+    [GMAIL_REQUEST.send_message]: gmailError(
+      400,
+      'INVALID_ARGUMENT',
+      'Invalid To header',
+      {
+        message: 'Invalid To header',
+        domain: 'global',
+        reason: 'invalidArgument',
+      },
+    ),
+  },
+  'send_message/missing_scope': {
+    [GMAIL_REQUEST.send_message]: gmailError(
+      403,
+      'PERMISSION_DENIED',
+      'Request had insufficient authentication scopes.',
+      {
+        message: 'Insufficient Permission',
+        domain: 'global',
+        reason: 'insufficientPermissions',
+      },
+    ),
+  },
+  'get_profile/mailbox': {
+    [GMAIL_REQUEST.get_profile]: gmailOk({
+      emailAddress: 'mailbox@example.com',
+      messagesTotal: 1284,
+      threadsTotal: 977,
+      historyId: '4836519',
+    }),
+  },
+  'get_profile/empty_mailbox': {
+    [GMAIL_REQUEST.get_profile]: gmailOk({
+      emailAddress: 'new-mailbox@example.com',
+      messagesTotal: 0,
+      threadsTotal: 0,
+      historyId: '1',
+    }),
+  },
+  'get_profile/token_expired': {
+    [GMAIL_REQUEST.get_profile]: GMAIL_TOKEN_EXPIRED,
+  },
+  'list_labels/system_and_user_labels': {
+    [GMAIL_REQUEST.list_labels]: gmailOk({
+      labels: [
+        { id: 'INBOX', name: 'INBOX', type: 'system' },
+        { id: 'SENT', name: 'SENT', type: 'system' },
+        { id: 'TRASH', name: 'TRASH', type: 'system' },
+        { id: 'Label_1', name: 'Invoices', type: 'user' },
+      ],
+    }),
+  },
+  'list_labels/system_only': {
+    [GMAIL_REQUEST.list_labels]: gmailOk({
+      labels: [
+        { id: 'INBOX', name: 'INBOX', type: 'system' },
+        { id: 'SENT', name: 'SENT', type: 'system' },
+        { id: 'TRASH', name: 'TRASH', type: 'system' },
+      ],
+    }),
+  },
+  'list_labels/token_expired': {
+    [GMAIL_REQUEST.list_labels]: GMAIL_TOKEN_EXPIRED,
+  },
+  'get_thread/two_messages': {
+    [gmailThread(GMAIL_INVOICE)]: gmailOk({
+      id: GMAIL_INVOICE,
+      messages: [
+        {
+          id: GMAIL_INVOICE,
+          threadId: GMAIL_INVOICE,
+          snippet: INVOICE_MESSAGE.snippet,
+        },
+        {
+          id: GMAIL_REPLY,
+          threadId: GMAIL_INVOICE,
+          snippet: REPLY_MESSAGE.snippet,
+        },
+      ],
+    }),
+  },
+  'get_thread/no_replies': {
+    [gmailThread(GMAIL_INVOICE)]: gmailOk({
+      id: GMAIL_INVOICE,
+      messages: [
+        {
+          id: GMAIL_INVOICE,
+          threadId: GMAIL_INVOICE,
+          snippet: INVOICE_MESSAGE.snippet,
+        },
+      ],
+    }),
+  },
+  'get_thread/thread_not_found': {
+    [gmailThread(GMAIL_MISSING)]: GMAIL_NOT_FOUND,
+  },
+  'list_drafts/two_drafts': {
+    [GMAIL_REQUEST.list_drafts]: gmailOk({
+      drafts: [
+        {
+          id: 'r-1000000000000000001',
+          message: { id: '18c1a2b3c4d5e6fc', threadId: '18c1a2b3c4d5e6fc' },
+        },
+        {
+          id: 'r-1000000000000000002',
+          message: { id: '18c1a2b3c4d5e6fd', threadId: GMAIL_INVOICE },
+        },
+      ],
+      resultSizeEstimate: 2,
+    }),
+  },
+  'list_drafts/no_drafts': {
+    [GMAIL_REQUEST.list_drafts]: gmailOk({ resultSizeEstimate: 0 }),
+  },
+  'list_drafts/token_expired': {
+    [GMAIL_REQUEST.list_drafts]: GMAIL_TOKEN_EXPIRED,
+  },
+  'get_attachment/stored': {
+    [gmailAttachment(GMAIL_INVOICE, 'ANGjdJ8AbC')]: gmailBytes(INVOICE_PDF),
+  },
+  'get_attachment/no_link': {
+    [gmailAttachment(GMAIL_INVOICE, 'ANGjdJ8AbC')]: gmailBytes(INVOICE_PDF),
+  },
+  'get_attachment/message_not_found': {
+    [gmailAttachment(GMAIL_MISSING, 'ANGjdJ8AbC')]: GMAIL_NOT_FOUND,
+  },
+};
+
+/** The files each Gmail proof stores. `get_attachment` names its file for
+ * the attachment's id and stores it untyped. */
+const GMAIL_STORED: Record<string, StoredFile[]> = {
+  'get_message/with_attachment': [
+    gmailStored('invoice-2026-10.pdf', 'application/pdf', INVOICE_PDF),
+  ],
+  'get_attachments/two_attachments': [
+    gmailStored('invoice-2026-10.pdf', 'application/pdf', INVOICE_PDF),
+    gmailStored('payments-2026-10.csv', 'text/csv', PAYMENTS_CSV),
+  ],
+  'get_attachments/too_large': [
+    gmailStored('payments-2026-10.csv', 'text/csv', PAYMENTS_CSV),
+  ],
+  'get_attachment/stored': [
+    gmailStored(
+      'attachment-ANGjdJ8AbC',
+      'application/octet-stream',
+      INVOICE_PDF,
+    ),
+  ],
+  'get_attachment/no_link': [
+    gmailStored(
+      'attachment-ANGjdJ8AbC',
+      'application/octet-stream',
+      INVOICE_PDF,
+    ),
+  ],
+};
+
 /**
  * Every listed connector's proofs, with the secrets its credential holds —
- * synthetic, as every answer is. A connector joins `SCENARIO_CONNECTORS` with
- * its proofs, or this does not type-check.
+ * synthetic, as every answer is — and, by proof, the files its body stores,
+ * in their order; a proof it does not name stores none. A connector joins
+ * `SCENARIO_CONNECTORS` with its proofs, or this does not type-check.
  */
 const SCENARIO_PROOFS: Record<
   ScenarioConnector,
-  { secrets?: Record<string, string>; proofs: Record<string, ProofAnswers> }
+  {
+    secrets?: Record<string, string>;
+    proofs: Record<string, ProofAnswers>;
+    stored?: Record<string, StoredFile[]>;
+  }
 > = {
+  gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
     proofs: JEV_PROOFS,
@@ -1338,18 +1799,39 @@ const SCENARIO_PROOFS: Record<
   twilio: { secrets: { username: TWILIO_ACCOUNT }, proofs: TWILIO_PROOFS },
 };
 
+/** A file a live body handed `ctx.files.store`, as it handed it over. */
+interface StoredFile {
+  fileName: string;
+  contentType: string;
+  encoding: 'base64' | 'utf-8';
+  data: string;
+}
+
 /**
  * The host a live body calls, answering each request from `answers` with the
  * response the live host builds — the status, the headers, `text()`, and a
  * `json()` that throws on a body that is not JSON — so a refusal comes as
  * data rather than a throw, and noting each request made. A secret reads as
  * the credential holds it, and one it lacks as empty, as on a live call.
+ *
+ * It keeps files as a live call does by default, in the organization's
+ * store, and notes each file a body stores. The store answers as the
+ * platform's does — a ref, the file's name, type and size, and no link —
+ * with the n-th synthetic ref for the n-th file stored.
  */
 function proofHost(
   answers: ProofAnswers,
   secrets: Record<string, string> = {},
-): { ctx: Pick<ConnectorContext, 'http' | 'secrets'>; asked: string[] } {
+): {
+  ctx: Pick<
+    ConnectorContext,
+    'http' | 'secrets' | 'base64Encode' | 'base64Decode'
+  > & { files: Pick<NonNullable<ConnectorContext['files']>, 'store'> };
+  asked: string[];
+  stored: StoredFile[];
+} {
   const asked: string[] = [];
+  const stored: StoredFile[] = [];
   const answer =
     (method: string) =>
     async (url: string): Promise<ConnectorHttpResponse> => {
@@ -1374,8 +1856,26 @@ function proofHost(
       delete: answer('DELETE'),
     },
     secrets: { get: (name: string) => secrets[name] ?? '' },
+    files: {
+      store: async (
+        data: string,
+        { encoding, contentType, fileName }: Omit<StoredFile, 'data'>,
+      ) => {
+        stored.push({ fileName, contentType, encoding, data });
+        const n = String(stored.length).padStart(12, '0');
+        return {
+          id: `s3:example-org/00000000-0000-0000-0000-${n}`,
+          fileName,
+          contentType,
+          size: Buffer.from(data, encoding === 'base64' ? 'base64' : 'utf8')
+            .byteLength,
+        };
+      },
+    },
+    base64Encode,
+    base64Decode,
   };
-  return { ctx, asked };
+  return { ctx, asked, stored };
 }
 
 /** What a live body came to: the output it returned, or what it threw. */
@@ -1489,11 +1989,12 @@ describe('a connector scenario fits its action and answers as the live call woul
         ),
       );
       const proofs = Object.keys(SCENARIO_PROOFS[slug].proofs);
+      const storing = Object.keys(SCENARIO_PROOFS[slug].stored ?? {});
       const shipped = new Set(scenarios);
       const proven = new Set(proofs);
       expect({
         unproven: scenarios.filter((key) => !proven.has(key)),
-        stale: proofs.filter((key) => !shipped.has(key)),
+        stale: [...proofs, ...storing].filter((key) => !shipped.has(key)),
       }).toEqual({ unproven: [], stale: [] });
     },
   );
@@ -1521,9 +2022,9 @@ describe('a connector scenario fits its action and answers as the live call woul
           `${slug}.${actionName} has no live body or no ${scenarioName} scenario`,
         );
       }
-      const { secrets, proofs } = SCENARIO_PROOFS[slug];
+      const { secrets, proofs, stored: storing } = SCENARIO_PROOFS[slug];
       const answers = proofs[key];
-      const { ctx, asked } = proofHost(answers, secrets);
+      const { ctx, asked, stored } = proofHost(answers, secrets);
       const outcome = await outcomeOf(
         inProcessLiveRunner().runBody(
           connectorLiveBody(connector, action.backend.live),
@@ -1533,8 +2034,10 @@ describe('a connector scenario fits its action and answers as the live call woul
         ),
       );
 
-      // The body made every request the proof answers, in its order.
+      // The body made every request the proof answers, in its order, and
+      // stored the files the proof names, as it handed them over.
       expect(asked).toEqual(Object.keys(answers));
+      expect(stored).toEqual(storing?.[key] ?? []);
       if (scenario.error === undefined) {
         expect(outcome).toEqual({ output: scenario.output });
         return;
