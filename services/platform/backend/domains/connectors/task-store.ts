@@ -19,6 +19,7 @@ import type {
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import type {
   WorkflowAgentStart,
+  WorkflowGateReportAnswer,
   WorkflowTaskCreated,
   WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
@@ -45,6 +46,7 @@ import {
 } from '../automations/store.ts';
 import { currentMentionNames } from '../collab/mention-directory.ts';
 import {
+  assertWritable,
   getProjectAuthContext,
   loadProjectOrThrow,
   ProjectError,
@@ -62,6 +64,7 @@ import {
   startDelegatedAgentRun,
   withStartWait,
 } from '../tasks/delegated-start.ts';
+import { reportDispatchGate } from '../tasks/dispatch-gates.ts';
 import {
   automationOwnerOfWorkflowSlug,
   upsertTaskByExternalRef,
@@ -138,6 +141,36 @@ function asProjectRefusal(error: unknown): unknown {
     return new IssueSyncProjectRefusal(error.message);
   }
   return error;
+}
+
+/** Why a gate report was refused, in the words `task.report_gate` answers
+ * with — the run's reach on the project, or the gate itself — or null for
+ * any other failure (the database), which is passed on as it is. */
+function gateReportRefusal(
+  error: unknown,
+): Extract<WorkflowGateReportAnswer, { ok: false }>['refusal'] | null {
+  if (
+    error instanceof TaskError &&
+    (error.code === 'DISPATCH_GATE_UNKNOWN' ||
+      error.code === 'DISPATCH_GATE_VALUE_UNJUDGED')
+  ) {
+    return { kind: 'gate', code: error.code, detail: error.message };
+  }
+  if (
+    error instanceof TaskError ||
+    error instanceof ProjectError ||
+    error instanceof AutomationError
+  ) {
+    return { kind: 'project', code: error.code, detail: error.message };
+  }
+  if (error instanceof Error && error.name === 'ActorAuthError') {
+    return {
+      kind: 'project',
+      code: 'PROJECT_FORBIDDEN',
+      detail: error.message,
+    };
+  }
+  return null;
 }
 
 async function lockIssueImportQueue(
@@ -407,6 +440,73 @@ export function pgTaskStore(
     );
     assertTaskCreatable(project, person);
     return { project, person };
+  };
+  /**
+   * Who a run's gate report answers to, held to the API door's bar rather
+   * than a task write's: the run's automation is installed in the project
+   * and the project is active, and a run a person or an API key started
+   * reports only while that person may edit the project (null: a trigger's
+   * run, which answers to the installation alone). A run that answers to
+   * nobody — a dispatch's, or one whose starter is unknown — reports
+   * nothing.
+   */
+  const authorizeGateReport = async (
+    tx: TransactionSql,
+    organizationId: string,
+    projectId: string,
+    runId: string,
+  ): Promise<ProjectAuthContext | null> => {
+    const project = await loadProjectOrThrow(tx, projectId);
+    if (project.organizationId !== organizationId) {
+      throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
+    }
+    const run = await getRun(tx, organizationId, runId);
+    if (!run) {
+      throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
+    }
+    if (run.projectId !== null && run.projectId !== projectId) {
+      throw new TaskError(
+        'PROJECT_NOT_FOUND',
+        'The run works in another project.',
+        404,
+      );
+    }
+    // Not installed in the project: AUTOMATION_PROJECT_FORBIDDEN; archived:
+    // PROJECT_ARCHIVED.
+    await resolveRunProject(tx, {
+      organizationId,
+      name: run.name,
+      projectId,
+      requireProjectBinding: true,
+    });
+    const starter = parseRunStarter(run.startedBy);
+    if (starter.kind === 'trigger') return null;
+    if (starter.kind !== 'user' && starter.kind !== 'api-key') {
+      throw new TaskError(
+        'PROJECT_FORBIDDEN',
+        "The run answers to nobody who may report on the project's gates.",
+        403,
+      );
+    }
+    const person = await authorizeActorRun(
+      tx,
+      organizationId,
+      starter.userId,
+      'membership',
+    );
+    try {
+      assertWritable(project, person);
+    } catch (error) {
+      if (error instanceof ProjectError) {
+        throw new ProjectError(
+          error.code,
+          'The person who started the run may not edit the project.',
+          403,
+        );
+      }
+      throw error;
+    }
+    return person;
   };
   const persistIssue = async (
     tx: TransactionSql,
@@ -821,6 +921,42 @@ export function pgTaskStore(
           };
         }
         throw error;
+      }
+    },
+    async reportGate({ organizationId, runId, projectId, key, report }) {
+      const reportedBy = `run:${runId}`;
+      try {
+        const result = await transactSerializable(sql, async (tx) => {
+          const person = await authorizeGateReport(
+            tx,
+            organizationId,
+            projectId,
+            runId,
+          );
+          // A trigger's run reports as the API door's caller does once its
+          // reach is checked: the writer reads only the organization.
+          const auth =
+            person ??
+            (await getProjectAuthContext(tx, {
+              organizationId,
+              userId: 'system',
+              role: 'owner',
+            }));
+          return reportDispatchGate(tx, auth, {
+            projectId,
+            key,
+            report,
+            reporter: reportedBy,
+            access: 'checked',
+          });
+        });
+        return { ok: true, ...result, reportedBy };
+      } catch (error) {
+        // Refused before anything stayed written (the transaction rolled
+        // back): said in the run record's words, not as a crash.
+        const refusal = gateReportRefusal(error);
+        if (refusal === null) throw error;
+        return { ok: false, refusal };
       }
     },
     async get({ organizationId, taskId, agentRunId }) {
