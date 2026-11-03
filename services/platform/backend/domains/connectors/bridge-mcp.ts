@@ -47,7 +47,7 @@ const LONG_WORKSPACE_TOOLS = new Set(['generate_image']);
 
 /** The relay's four tools, word for word: the parity test holds the two
  * lists equal. */
-export const BRIDGE_MCP_TOOLS = [
+const BRIDGE_MCP_TOOLS = [
   {
     name: 'connector',
     description:
