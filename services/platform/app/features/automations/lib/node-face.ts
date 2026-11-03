@@ -25,12 +25,11 @@ import {
 } from 'lucide-react';
 import { createElement } from 'react';
 
-import { pickedModelName } from '@/app/features/shared/models/model-name';
+import { pinnedModelName } from '@/app/features/shared/models/model-name';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { isUnknown, toTs, type Shape } from '@/lib/engine/core/typing/shape';
 import {
   DEFAULT_HARNESS,
-  offeredToHarness,
   toModelOptions,
   type AgentRoster,
 } from '@/lib/shared/harness-offer';
@@ -94,18 +93,11 @@ export function servedModelLabel(roster: AgentRoster | undefined): ModelLabel {
     if (providerSlug === undefined) {
       return served.find((model) => model.id === id)?.label;
     }
-    const runtime = harness ?? DEFAULT_HARNESS;
-    const wire = roster?.harnesses.find(
-      (entry) => entry.harness === runtime,
-    )?.toolCallingWire;
-    // The pinned row names the model and its provider even where the
-    // runtime is not offered it.
-    const pinned = served.find(
-      (model) => model.id === id && model.providerSlug === providerSlug,
-    );
-    return pickedModelName(
-      pinned ?? { id, providerSlug },
-      served.filter((model) => offeredToHarness(model, runtime, wire)),
+    return pinnedModelName(
+      { id, providerSlug },
+      harness ?? DEFAULT_HARNESS,
+      served,
+      roster?.harnesses,
     );
   };
 }

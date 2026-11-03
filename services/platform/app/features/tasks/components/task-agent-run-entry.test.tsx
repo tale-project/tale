@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { cloneElement } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
@@ -119,6 +119,8 @@ const { state, refetchRun } = vi.hoisted(() => ({
     run: undefined as unknown,
     runIsError: false,
     runIsFetching: false,
+    /** The agent roster the tooltip names the run's model by. */
+    roster: undefined as unknown,
   },
   refetchRun: vi.fn(),
 }));
@@ -131,6 +133,10 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     error: state.runIsError ? new Error('503') : undefined,
     refetch: refetchRun,
   }),
+}));
+
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectHarnesses: () => ({ data: state.roster }),
 }));
 
 const taskId = 'task-1' as string;
@@ -707,5 +713,161 @@ describe('TaskAgentRunEntry with a missing agent', () => {
       title: 'The agent run could not start.',
       variant: 'destructive',
     });
+  });
+});
+
+describe('TaskAgentRunEntry — the model its tooltip names', () => {
+  const apiKey = { authMethod: 'api-key' } as const;
+  // Two providers serve Claude Sonnet 5 and one Claude Haiku 4.5; OpenAI's
+  // Luna rides a subscription bound to Codex, and OpenRouter's reads alike.
+  const roster = {
+    models: [
+      {
+        id: 'claude-sonnet-5',
+        label: 'Claude Sonnet 5',
+        providerSlug: 'anthropic',
+        providerLabel: 'Anthropic',
+        credential: apiKey,
+      },
+      {
+        id: 'claude-sonnet-5',
+        label: 'Claude Sonnet 5',
+        providerSlug: 'eu-gateway',
+        providerLabel: 'EU Gateway',
+        credential: apiKey,
+      },
+      {
+        id: 'claude-haiku-4-5',
+        label: 'Claude Haiku 4.5',
+        providerSlug: 'anthropic',
+        providerLabel: 'Anthropic',
+        credential: apiKey,
+      },
+      {
+        id: 'gpt-5.6-luna',
+        label: 'GPT 5.6 Luna',
+        providerSlug: 'openai',
+        providerLabel: 'OpenAI',
+        credential: {
+          authMethod: 'subscription-key',
+          constraints: { harness: 'codex' },
+        },
+      },
+      {
+        id: 'openai/gpt-5.6-luna',
+        label: 'GPT 5.6 Luna',
+        providerSlug: 'openrouter',
+        providerLabel: 'OpenRouter',
+        credential: apiKey,
+      },
+    ],
+    harnesses: [
+      {
+        harness: 'claude-code',
+        label: 'Claude Code',
+        toolCallingWire: 'anthropic',
+      },
+      { harness: 'codex', label: 'Codex', toolCallingWire: 'openai-responses' },
+    ],
+  };
+  const liveRun = (fields: Record<string, unknown>) => ({
+    ...settledRun(),
+    status: 'running',
+    settledAt: undefined,
+    engine: 'harness',
+    ...fields,
+  });
+  const entry = (
+    <TaskAgentRunEntry
+      organizationId="org-1"
+      taskId={taskId}
+      assigneeId="agent-1"
+      canEdit
+    />
+  );
+
+  beforeEach(() => {
+    state.roster = roster;
+  });
+
+  afterEach(() => {
+    state.roster = undefined;
+  });
+
+  it('leads with the provider when another provider offers the model', () => {
+    state.run = liveRun({
+      model: 'claude-sonnet-5',
+      modelProvider: 'eu-gateway',
+    });
+    const { rerender } = render(entry);
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'claude-code · EU Gateway · Claude Sonnet 5',
+    );
+    // A native run has no harness working: the model alone.
+    state.run = liveRun({
+      engine: 'native',
+      model: 'claude-sonnet-5',
+      modelProvider: 'eu-gateway',
+    });
+    rerender(cloneElement(entry));
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'EU Gateway · Claude Sonnet 5',
+    );
+  });
+
+  it('names the model alone when one provider offers it', () => {
+    state.run = liveRun({
+      model: 'claude-haiku-4-5',
+      modelProvider: 'anthropic',
+    });
+    render(entry);
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'claude-code · Claude Haiku 4.5',
+    );
+  });
+
+  it('counts only the models the run’s runtime is offered', () => {
+    // Claude Code is not offered OpenAI's Luna; Codex is.
+    state.run = liveRun({
+      model: 'openai/gpt-5.6-luna',
+      modelProvider: 'openrouter',
+    });
+    const { rerender } = render(entry);
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'claude-code · GPT 5.6 Luna',
+    );
+    state.run = liveRun({
+      harness: 'codex',
+      model: 'openai/gpt-5.6-luna',
+      modelProvider: 'openrouter',
+    });
+    rerender(cloneElement(entry));
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'codex · OpenRouter · GPT 5.6 Luna',
+    );
+  });
+
+  it('names a run without a provider, or before the roster is read, by its id', () => {
+    state.run = liveRun({ model: 'claude-sonnet-5' });
+    const { rerender } = render(entry);
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'claude-code · claude-sonnet-5',
+    );
+    state.roster = undefined;
+    state.run = liveRun({
+      model: 'claude-sonnet-5',
+      modelProvider: 'eu-gateway',
+    });
+    rerender(cloneElement(entry));
+    expect(screen.getByText('Working')).toHaveAttribute(
+      'title',
+      'claude-code · claude-sonnet-5',
+    );
   });
 });

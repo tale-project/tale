@@ -15,6 +15,12 @@
 
 import type { SearchableSelectOption } from '@tale/ui/searchable-select';
 
+import {
+  offeredToHarness,
+  type AgentRoster,
+  type ModelOption,
+} from '@/lib/shared/harness-offer';
+
 /** Between a provider and its model, in a name that stands alone. */
 const MODEL_NAME_SEPARATOR = ' · ';
 
@@ -122,6 +128,32 @@ export function pickedModelName(
       ?.providerLabel ||
     pick.providerSlug;
   return qualified(provider, own);
+}
+
+/**
+ * What a model pinned to a provider is called where it stands alone and its
+ * runtime decides what is offered (an agent's box on the canvas, a task's
+ * run): as the picker of `harness` names the pick (`pickedModelName`), among
+ * the `served` models that runtime is offered (`offeredToHarness`, by the
+ * wire `harnesses` give it). The row of the pinned pair names the model and
+ * its provider even where the runtime is not offered it.
+ */
+export function pinnedModelName(
+  pick: ProvidedModel,
+  harness: string,
+  served: readonly ModelOption[],
+  harnesses: AgentRoster['harnesses'] = [],
+): string {
+  const wire = harnesses.find(
+    (entry) => entry.harness === harness,
+  )?.toolCallingWire;
+  const pinned = served.find(
+    (model) => model.id === pick.id && model.providerSlug === pick.providerSlug,
+  );
+  return pickedModelName(
+    pinned ?? pick,
+    served.filter((model) => offeredToHarness(model, harness, wire)),
+  );
 }
 
 /** One provider's models, in the order its list offers them. */
