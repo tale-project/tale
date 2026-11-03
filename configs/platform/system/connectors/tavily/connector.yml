@@ -68,6 +68,58 @@ actions:
         ],
         ...(input.include_answer ? { answer: `A synthesized answer about ${input.query}.` } : {}),
       };
+    scenarios:
+      - name: two_results
+        kind: success
+        description: 'Tavily returns two results for the query, ranked by relevance.'
+        output:
+          results:
+            - title: 'A practical guide to retrieval-augmented generation'
+              url: 'https://example.com/rag-guide'
+              content: 'Retrieval-augmented generation grounds an answer in documents retrieved when the question is asked.'
+              score: 0.97
+            - title: 'Hybrid retrieval for RAG pipelines'
+              url: 'https://example.com/hybrid-retrieval'
+              content: 'Combining dense and keyword retrieval finds rare terms that either one alone misses.'
+              score: 0.91
+      - name: answered
+        kind: success
+        description: 'Asked for a direct answer, Tavily returns it with the two results.'
+        when: { include_answer: true }
+        output:
+          answer: 'Recent systems combine dense and keyword retrieval and re-rank the passages before the model answers.'
+          results:
+            - title: 'A practical guide to retrieval-augmented generation'
+              url: 'https://example.com/rag-guide'
+              content: 'Retrieval-augmented generation grounds an answer in documents retrieved when the question is asked.'
+              score: 0.97
+            - title: 'Hybrid retrieval for RAG pipelines'
+              url: 'https://example.com/hybrid-retrieval'
+              content: 'Combining dense and keyword retrieval finds rare terms that either one alone misses.'
+              score: 0.91
+      - name: no_results
+        kind: empty
+        description: 'Tavily finds nothing for the query and returns an empty result list.'
+        output:
+          results: []
+      - name: invalid_key
+        kind: error
+        description: 'Tavily rejects the API key with HTTP 401.'
+        error:
+          message: 'Tavily search failed (401): {"detail":{"error":"Unauthorized: missing or invalid API key."}}'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Tavily rate-limits the call with HTTP 429.'
+        error:
+          message: 'Tavily search failed (429): {"detail":{"error":"Your request has been blocked due to excessive requests. Please reduce the rate of requests."}}'
+          status: 429
+      - name: usage_limit
+        kind: error
+        description: 'Tavily refuses the call with HTTP 432 because the plan behind the API key has reached its usage limit.'
+        error:
+          message: 'Tavily search failed (432): {"detail":{"error":"This request exceeds your plan''s set usage limit. Please upgrade your plan or contact support@tavily.com"}}'
+          status: 432
     backend:
       kind: yaml-js
       live: |
@@ -112,13 +164,69 @@ actions:
             enum: [basic, advanced],
             description: "'basic' or 'advanced'.",
           }
-    output: '{ results: Array<{ url: string, raw_content: string }>, failed: string[] }'
+    # `failed` is Tavily's `failed_results` as it comes: each URL it could not
+    # read, with the reason.
+    output: '{ results: Array<{ url: string, raw_content: string }>, failed: Array<{ url: string, error: string }> }'
     mock: |
       const urls = (input.urls || []).slice(0, 5);
       return {
         results: urls.map((u) => ({ url: u, raw_content: `Extracted article text for ${u}.` })),
         failed: [],
       };
+    scenarios:
+      - name: one_page
+        kind: success
+        description: 'Tavily extracts the text of the page.'
+        output:
+          results:
+            - url: 'https://example.com/article'
+              raw_content: 'Retrieval-augmented generation pairs a retriever with a language model, which grounds its answer in the passages the retriever finds.'
+          failed: []
+      - name: partly_failed
+        kind: success
+        description: 'Of two pages, Tavily extracts one and lists the other as failed, with the reason.'
+        when:
+          { urls: ['https://example.com/article', 'https://example.com/unavailable'] }
+        output:
+          results:
+            - url: 'https://example.com/article'
+              raw_content: 'Retrieval-augmented generation pairs a retriever with a language model, which grounds its answer in the passages the retriever finds.'
+          failed:
+            - url: 'https://example.com/unavailable'
+              error: 'Failed to retrieve content'
+      - name: nothing_extracted
+        kind: empty
+        description: 'Tavily cannot retrieve the page, so it returns no results and lists the URL as failed.'
+        output:
+          results: []
+          failed:
+            - url: 'https://example.com/article'
+              error: 'Failed to retrieve content'
+      - name: invalid_urls
+        kind: error
+        description: 'Tavily refuses the call with HTTP 400 because no URL passes its validation.'
+        when: { urls: ['not-a-url'] }
+        error:
+          message: 'Tavily extract failed (400): {"detail":{"error":"All URLs failed validation.","failed_results":[{"url":"not-a-url","error":"Validation Error: Invalid URL format"}]}}'
+          status: 400
+      - name: invalid_key
+        kind: error
+        description: 'Tavily rejects the API key with HTTP 401.'
+        error:
+          message: 'Tavily extract failed (401): {"detail":{"error":"Unauthorized: missing or invalid API key."}}'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Tavily rate-limits the call with HTTP 429.'
+        error:
+          message: 'Tavily extract failed (429): {"detail":{"error":"Your request has been blocked due to excessive requests. Please reduce the rate of requests."}}'
+          status: 429
+      - name: usage_limit
+        kind: error
+        description: 'Tavily refuses the call with HTTP 432 because the plan behind the API key has reached its usage limit.'
+        error:
+          message: 'Tavily extract failed (432): {"detail":{"error":"This request exceeds your plan''s set usage limit. Please upgrade your plan or contact support@tavily.com"}}'
+          status: 432
     backend:
       kind: yaml-js
       live: |
