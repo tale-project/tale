@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formOwnsPlace,
   readTestForm,
+  scenarioAnswersOf,
   withDescription,
   withEffect,
   withFailure,
@@ -13,6 +14,7 @@ import {
   withNodeState,
   withOutput,
   withScenario,
+  withScenarioAnswers,
 } from './test-form';
 
 const TEST = {
@@ -75,6 +77,22 @@ describe('a test read for the form', () => {
       ['post', 'channel_not_found'],
       ['fetch', 3],
     ]);
+  });
+
+  it('reads a list of scenarios as the answers the calls take in order', () => {
+    expect(
+      readTestForm({ ...TEST, scenarios: { post: ['rate_limited', 'posted'] } })
+        .scenarios,
+    ).toEqual([['post', ['rate_limited', 'posted']]]);
+    expect(scenarioAnswersOf(['rate_limited', 'posted'])).toEqual([
+      'rate_limited',
+      'posted',
+    ]);
+    expect(scenarioAnswersOf('posted')).toEqual(['posted']);
+    // A pick that is no list of names keeps one row, where its problem
+    // shows: an empty list as well.
+    expect(scenarioAnswersOf([])).toEqual([[]]);
+    expect(scenarioAnswersOf(3)).toEqual([3]);
   });
 });
 
@@ -154,6 +172,19 @@ describe('a test written by the form', () => {
     expect('scenarios' in withScenario(changed, 'post', undefined)).toBe(false);
   });
 
+  it('writes the answers for the calls as a list, one as a name, none as no pick', () => {
+    const listed = withScenarioAnswers(TEST, 'post', [
+      'rate_limited',
+      'posted',
+    ]);
+    expect(listed.scenarios).toEqual({ post: ['rate_limited', 'posted'] });
+    expect(listed).toMatchObject({ note: 'a key this build does not know' });
+    expect(withScenarioAnswers(listed, 'post', ['posted']).scenarios).toEqual({
+      post: 'posted',
+    });
+    expect('scenarios' in withScenarioAnswers(listed, 'post', [])).toBe(false);
+  });
+
   it('keeps the scenarios a test picks through every other edit', () => {
     const picked = { ...TEST, scenarios: { post: 'channel_not_found' } };
     const edits = [
@@ -188,6 +219,7 @@ describe('which places the form has a control for', () => {
     ['/tests/0/mocks', false],
     ['/tests/0/failures/notify', true],
     ['/tests/0/scenarios/post', true],
+    ['/tests/0/scenarios/post/1', true],
     ['/tests/0/scenarios', false],
     ['/tests/0/expect/output/total', true],
     ['/tests/0/expect/outputIncludes', true],

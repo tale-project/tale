@@ -670,7 +670,7 @@ editor:
     readByOutput: Die Ausgabe der Automatisierung
     notRead: Nichts liest ihre Ausgabe.
     scenarios: Szenarien
-    scenariosHint: Ein Test kann in seiner Einrichtung eines davon für diese Node wählen. Die Node antwortet dann wie beschrieben, statt aufzurufen.
+    scenariosHint: Ein Test kann in seiner Einrichtung eines davon für diese Node wählen, oder mehrere, die ihre Aufrufe der Reihe nach erhalten. Die Node antwortet dann wie beschrieben, statt aufzurufen.
     checking: Wird aktualisiert…
     unavailable: Die Strukturen konnten nicht ermittelt werden. Sie erscheinen nach der nächsten erfolgreichen Prüfung.
     origin:
@@ -1312,9 +1312,12 @@ tests:
     failureDefault: simulierter Fehler
     failuresAdd: Fehler simulieren
     scenarios: Szenarien
-    scenariosHint: Die Node antwortet wie in einem Szenario, das ihre Aktion mitliefert, statt aufzurufen.
+    scenariosHint: Die Node antwortet wie in einem Szenario, das ihre Aktion mitliefert, statt aufzurufen. Bei mehreren Szenarien erhalten ihre Aufrufe sie der Reihe nach, und das letzte beantwortet jeden weiteren Aufruf.
     scenariosAdd: Szenario für eine Node wählen
     scenarioFor: 'Szenario für {node}'
+    scenarioForCall: '{last, select, true {Szenario für {node}, ab Aufruf {call}} other {Szenario für {node}, Aufruf {call}}}'
+    scenarioAddCall: 'Szenario für den nächsten Aufruf von {node} hinzufügen'
+    scenarioRemoveCall: 'Szenario für Aufruf {call} von {node} entfernen'
     expect: Erwartungen
     outputModeLabel: Wie die Ausgabe geprüft wird
     outputMode:

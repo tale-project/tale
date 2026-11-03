@@ -27,6 +27,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   isExpectedNodeState,
   readTestForm,
+  scenarioAnswersOf,
   withDescription,
   withEffect,
   withFailure,
@@ -37,6 +38,7 @@ import {
   withNodeState,
   withOutput,
   withScenario,
+  withScenarioAnswers,
   type EffectInputMode,
   type EffectRow,
   type OutputMode,
@@ -148,18 +150,19 @@ export function TestSetupForm({
       .filter((node) => !taken.has(node.id))
       .map((node) => ({ value: node.id, label: nodeTitle(node.id) }));
 
-  /** The problems at `pointer` or inside it, one line each. */
-  const linesAt = (pointer: string): FieldIssue[] =>
+  /** The problems whose place `holds` takes, one line each. */
+  const linesWhere = (holds: (at: string) => boolean): FieldIssue[] =>
     issues
-      .filter(({ issue }) => {
-        const at = issue.at?.pointer ?? '';
-        return at === pointer || at.startsWith(`${pointer}/`);
-      })
+      .filter(({ issue }) => holds(issue.at?.pointer ?? ''))
       .map((view) => ({
         id: view.issue.id,
         severity: view.issue.level,
         message: fieldIssueMessage(view, t),
       }));
+
+  /** The problems at `pointer` or inside it, one line each. */
+  const linesAt = (pointer: string): FieldIssue[] =>
+    linesWhere((at) => at === pointer || at.startsWith(`${pointer}/`));
 
   /** The same problems as one sentence, for a control with one error line. */
   const messageAt = (pointer: string): string | undefined => {
@@ -418,29 +421,113 @@ export function TestSetupForm({
           title={t('tests.fields.scenarios')}
           description={t('tests.fields.scenariosHint')}
         >
-          {values.scenarios.map(([node, name]) => (
-            <div key={node} className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <ScenarioField
-                  label={t('tests.fields.scenarioFor', {
-                    node: nodeTitle(node),
-                  })}
-                  value={name}
-                  scenarios={scenariosOfNode(node)}
-                  anchor={`${base}/scenarios/${node}`}
-                  issues={linesAt(`${base}/scenarios/${node}`)}
-                  readOnly={readOnly}
-                  onChange={(next) => onChange(withScenario(raw, node, next))}
-                />
+          {values.scenarios.map(([node, pick]) => {
+            const at = `${base}/scenarios/${node}`;
+            // A list gets a row per answer, each named for the call it
+            // answers; the first row holds the node's place too, so a
+            // problem with the whole list shows there.
+            const listed = Array.isArray(pick) && pick.length > 0;
+            const answers = scenarioAnswersOf(pick);
+            const last = answers.at(-1);
+            // A copy of the last answer answers the same calls as before,
+            // until another is picked.
+            const added =
+              typeof last === 'string' ? last : scenariosOfNode(node)[0]?.name;
+            return (
+              <div key={node} className="flex flex-col gap-2">
+                {answers.map((answer, k) => (
+                  // Its place is the call it answers.
+                  <div key={k} className="flex items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <ScenarioField
+                        label={
+                          listed
+                            ? t('tests.fields.scenarioForCall', {
+                                node: nodeTitle(node),
+                                call: k + 1,
+                                last:
+                                  k === answers.length - 1 ? 'true' : 'false',
+                              })
+                            : t('tests.fields.scenarioFor', {
+                                node: nodeTitle(node),
+                              })
+                        }
+                        value={answer}
+                        scenarios={scenariosOfNode(node)}
+                        anchor={k === 0 ? at : `${at}/${k}`}
+                        issues={
+                          !listed
+                            ? linesAt(at)
+                            : k === 0
+                              ? linesWhere(
+                                  (place) =>
+                                    place === at ||
+                                    place === `${at}/0` ||
+                                    place.startsWith(`${at}/0/`),
+                                )
+                              : linesAt(`${at}/${k}`)
+                        }
+                        readOnly={readOnly}
+                        onChange={(next) =>
+                          onChange(
+                            listed
+                              ? withScenarioAnswers(
+                                  raw,
+                                  node,
+                                  answers.with(k, next),
+                                )
+                              : withScenario(raw, node, next),
+                          )
+                        }
+                      />
+                    </div>
+                    {!readOnly && (
+                      <RemoveButton
+                        label={
+                          listed
+                            ? t('tests.fields.scenarioRemoveCall', {
+                                node: nodeTitle(node),
+                                call: k + 1,
+                              })
+                            : t('tests.fields.remove', {
+                                node: nodeTitle(node),
+                              })
+                        }
+                        onRemove={() =>
+                          onChange(
+                            listed
+                              ? withScenarioAnswers(
+                                  raw,
+                                  node,
+                                  answers.filter((_, i) => i !== k),
+                                )
+                              : withScenario(raw, node, undefined),
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+                {!readOnly && added !== undefined && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto self-start px-0"
+                    onClick={() =>
+                      onChange(
+                        withScenarioAnswers(raw, node, [...answers, added]),
+                      )
+                    }
+                  >
+                    {t('tests.fields.scenarioAddCall', {
+                      node: nodeTitle(node),
+                    })}
+                  </Button>
+                )}
               </div>
-              {!readOnly && (
-                <RemoveButton
-                  label={t('tests.fields.remove', { node: nodeTitle(node) })}
-                  onRemove={() => onChange(withScenario(raw, node, undefined))}
-                />
-              )}
-            </div>
-          ))}
+            );
+          })}
           {!readOnly && (
             <AddPicker
               label={t('tests.fields.scenariosAdd')}
@@ -737,8 +824,8 @@ function RemoveButton({
  * name starts with `_`. */
 const UNLISTED_SCENARIO = '__unlisted__';
 
-/** The scenario a test picks for one node, from those its connector action
- * ships: each with its kind and what it is. */
+/** The scenario a test picks for one node, or for one of its calls, from
+ * those its connector action ships: each with its kind and what it is. */
 function ScenarioField({
   label,
   value,
@@ -749,7 +836,7 @@ function ScenarioField({
   onChange,
 }: {
   label: string;
-  /** The pick as written: a name, or whatever else stands there. */
+  /** The answer as written: a name, or whatever else stands there. */
   value: unknown;
   scenarios: readonly ConnectorScenarioSummary[];
   anchor: string;

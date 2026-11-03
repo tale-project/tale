@@ -69,7 +69,7 @@ Lies bei Ergebnisverträgen auch die Live-Implementierung. Tavily beschreibt bei
 
 ### Szenarien für Tests deklarieren {#scenarios}
 
-Eine Aktion kann neben ihrem `mock` Szenarien mitliefern: benannte Fälle dessen, was der Dienst antwortet, etwa ein Kanal, den es nicht gibt, oder ein Ratenlimit. Ein Test wählt eines für einen Schritt, und der Lauf mit Mocks antwortet damit statt mit dem Mock. So zeigt der Test, was die Automatisierung in diesem Fall tut. Liste sie unter `scenarios` auf, nach `mock`. Dieser Ausschnitt zeigt zwei der Szenarien, die Slack bei `get_channel` mitliefert, der Aktion, die einen Kanal liest; die übrigen Felder der Aktion fehlen hier:
+Eine Aktion kann neben ihrem `mock` Szenarien mitliefern: benannte Fälle dessen, was der Dienst antwortet, etwa ein Kanal, den es nicht gibt, oder ein Ratenlimit. Ein Test wählt eines für einen Schritt oder eine [Liste, die die Aufrufe des Schritts der Reihe nach erhalten](/de/platform/automations/testing#scenario-lists), und der Lauf mit Mocks antwortet mit dem Szenario statt mit dem Mock. So zeigt der Test, was die Automatisierung in diesem Fall tut. Liste sie unter `scenarios` auf, nach `mock`. Dieser Ausschnitt zeigt zwei der Szenarien, die Slack bei `get_channel` mitliefert, der Aktion, die einen Kanal liest; die übrigen Felder der Aktion fehlen hier:
 
 ```yaml
 scenarios:

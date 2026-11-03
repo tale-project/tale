@@ -368,15 +368,26 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
       // A stand-in replaces the node's call, never the node: it applies
       // only once the skip rules let the node run, and it is marked where
       // it takes a call's place — a node that runs per item over no items
-      // makes no call, and its stand-in goes unused.
+      // makes no call, and its stand-in goes unused. A list of scenarios
+      // can fail a later call where an earlier one answered: once one of
+      // the node's calls failed, it is marked failed.
       const markStandIn = (
         mark: 'mocked' | 'failed' = call.kind === 'mock' ? 'mocked' : 'failed',
       ): void => {
-        if (used.has(n.id)) return;
+        if (
+          used.has(n.id) &&
+          !(mark === 'failed' && entry.bench === 'mocked')
+        ) {
+          return;
+        }
         used.add(n.id);
         entry.bench = mark;
         rec.meta(nodeKey, { bench: entry.bench });
       };
+      /** How many calls of the node took one of the scenarios the test
+       * picks for it: its next call can take the one after them, or the
+       * last once the list is used up. */
+      let scenariosTaken = 0;
 
       const connectorCheck = def.connector
         ? connectorValidator(def.connector)
@@ -770,6 +781,12 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
           }
           const stood = standIn(extra);
           const live = ports.calls.connector(def.connector);
+          const scenario =
+            call.kind === 'scenario'
+              ? call.scenarios[
+                  Math.min(scenariosTaken, call.scenarios.length - 1)
+                ]
+              : undefined;
           if (stood !== undefined) {
             out = stood.output;
           } else if (walk.mode === 'live' && live) {
@@ -796,14 +813,15 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
               );
             }
           } else if (
-            call.kind === 'scenario' &&
-            scenarioMatches(call.scenario, resolved)
+            scenario !== undefined &&
+            scenarioMatches(scenario, resolved)
           ) {
-            // The scenario the test picked answers in the mock's place: its
-            // output as the call's, or its error, classified as the live
-            // call's failure above is (by the status it names), so a test
-            // proves what the run does with that failure.
-            const { scenario } = call;
+            // The scenario the test picked answers in the mock's place, and
+            // the node's next call can take the one after it: its output as
+            // the call's, or its error, classified as the live call's
+            // failure above is (by the status it names), so a test proves
+            // what the run does with that failure.
+            scenariosTaken += 1;
             if (scenario.error !== undefined) {
               markStandIn('failed');
               const { message, status } = scenario.error;

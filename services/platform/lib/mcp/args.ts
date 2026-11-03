@@ -12,7 +12,7 @@ import { z } from 'zod';
 import type { Method } from '../engine/api/methods';
 import { REPORT_DETAILS } from '../engine/api/report-details';
 import { RUN_STATUSES } from '../engine/api/run-statuses';
-import { MAX_TESTS } from '../engine/core/test-limits';
+import { MAX_SCENARIO_ANSWERS, MAX_TESTS } from '../engine/core/test-limits';
 import { KNOWLEDGE_QUERY_MAX } from '../knowledge/types';
 import {
   BENCH_LIMITS,
@@ -128,7 +128,7 @@ const benchFields = {
     'Node id → a message: that node fails with it once its input is resolved, to see what the rest does (onError, the failure path).',
   ),
   scenarios: BENCH.scenarios.describe(
-    'Node id → the name of a scenario its connector action ships (get_catalog lists each action’s scenarios): a call whose input matches the scenario gets its output, or fails with its error, classified as a live failure; any other call gets the action’s mock.',
+    `Node id → the name of a scenario its connector action ships (get_catalog lists each action’s scenarios): a call whose input matches the scenario gets its output, or fails with its error, classified as a live failure; any other call gets the action’s mock. Or a list of 1 to ${MAX_SCENARIO_ANSWERS} names the node’s calls take in order: a call that matches the next one takes it and moves the list on, any other gets the mock, and the last one answers every later call it matches.`,
   ),
   upTo: BENCH.upTo.describe(
     'Run this node and everything it needs, and leave the rest out: the run’s output is this node’s output.',

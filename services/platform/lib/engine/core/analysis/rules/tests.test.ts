@@ -1109,3 +1109,161 @@ describe('scenarios a test picks that its run would refuse [AUTO-R78]', () => {
     ]);
   });
 });
+
+describe('scenarios a test lists for a node’s calls [AUTO-R80]', () => {
+  const rows: NodeDef = {
+    id: 'rows',
+    type: 'sheet.read',
+    input: { sheet: 'Q3' },
+  };
+  const SHIPPED = ['two_rows', 'no_rows', 'rate_limited'];
+
+  it('a list of names its action ships raises nothing, repeats included', async () => {
+    expect(
+      await testCodes(
+        doc(
+          [rows, send],
+          [
+            {
+              name: 'fails once, then reads',
+              input: {},
+              scenarios: { rows: ['rate_limited', 'two_rows', 'two_rows'] },
+            },
+          ],
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('TESTS_SCENARIO_UNKNOWN — once per entry the action does not ship, at that entry', async () => {
+    const found = await issues(
+      doc(
+        [rows, send],
+        [
+          {
+            name: 'paged',
+            input: {},
+            scenarios: {
+              rows: ['two_rows', 'rate_limit', 'no_rows', 'sheet_locked'],
+            },
+          },
+        ],
+      ),
+      'TESTS_SCENARIO_UNKNOWN',
+    );
+    expect(found.map((i) => [i.level, i.at, i.params, i.hint])).toEqual([
+      [
+        'warning',
+        { pointer: '/tests/0/scenarios/rows/1' },
+        {
+          test: 0,
+          name: 'paged',
+          node: 'rows',
+          type: 'sheet.read',
+          scenario: 'rate_limit',
+          scenarios: SHIPPED,
+          suggestion: 'rate_limited',
+        },
+        'did you mean "rate_limited"? scenarios of sheet.read: two_rows, no_rows, rate_limited',
+      ],
+      [
+        'warning',
+        { pointer: '/tests/0/scenarios/rows/3' },
+        {
+          test: 0,
+          name: 'paged',
+          node: 'rows',
+          type: 'sheet.read',
+          scenario: 'sheet_locked',
+          scenarios: SHIPPED,
+        },
+        'scenarios of sheet.read: two_rows, no_rows, rate_limited',
+      ],
+    ]);
+    // The message names the scenario as a lone pick's does; the pointer
+    // says which call's answer it is.
+    expect(found[0]?.message).toBe(
+      'tests[0] "paged" picks the scenario "rate_limit" for "rows", which sheet.read does not ship',
+    );
+  });
+
+  it('TESTS_SCENARIO_CONFLICT — a list beside an output for the same node, once at the node', async () => {
+    const d = doc(
+      [rows, send],
+      [
+        {
+          name: 'list and output',
+          input: {},
+          mocks: { rows: { rows: [] } },
+          scenarios: { rows: ['two_rows', 'sheet_locked'] },
+        },
+      ],
+    );
+    expect(
+      (await issues(d, 'TESTS_SCENARIO_CONFLICT')).map((i) => [i.at, i.params]),
+    ).toEqual([
+      [
+        { pointer: '/tests/0/scenarios/rows', subject: 'key' },
+        { test: 0, name: 'list and output', node: 'rows', field: 'mocks' },
+      ],
+    ]);
+    expect(await issues(d, 'TESTS_SCENARIO_UNKNOWN')).toEqual([]);
+  });
+
+  it('a list that is empty, too long or holds what is no name is the grammar’s to report', async () => {
+    const { errors, warnings } = await validate(
+      rawDoc(
+        [rows, send],
+        [
+          { name: 'empty', input: {}, scenarios: { rows: [] } },
+          {
+            name: 'too long',
+            input: {},
+            scenarios: { rows: Array.from({ length: 51 }, () => 'two_rows') },
+          },
+          {
+            name: 'not a name',
+            input: {},
+            scenarios: { rows: ['two_rows', 42, 'sheet_locked'] },
+          },
+          {
+            name: 'too long a name',
+            input: {},
+            scenarios: { rows: ['no_rows', 'x'.repeat(51)] },
+          },
+          {
+            name: 'fifty',
+            input: {},
+            scenarios: { rows: Array.from({ length: 50 }, () => 'no_rows') },
+          },
+        ],
+      ),
+    );
+    const invalid = errors.filter((i) => i.code === 'TESTS_INVALID');
+    expect(invalid.map((i) => [i.at, i.params])).toEqual([
+      [{ pointer: '/tests/0/scenarios/rows' }, { test: 0, part: 'scenarios' }],
+      [{ pointer: '/tests/1/scenarios/rows' }, { test: 1, part: 'scenarios' }],
+      [
+        { pointer: '/tests/2/scenarios/rows/1' },
+        { test: 2, part: 'scenarios' },
+      ],
+      [
+        { pointer: '/tests/3/scenarios/rows/1' },
+        { test: 3, part: 'scenarios' },
+      ],
+    ]);
+    expect(invalid[0]?.message).toBe(
+      "tests[0].scenarios must map node ids to the name of a scenario each node's connector action ships, or to a list of 1 to 50 of them its calls take in order, each text of at most 50 characters",
+    );
+    expect(invalid[0]?.hint).toContain(
+      'scenarios?: {<node>: <scenario name> | [<scenario name>]}',
+    );
+    // The entries that are text are still judged, the entry that is not
+    // is left to the grammar.
+    expect(
+      warnings
+        .filter((i) => i.code === 'TESTS_SCENARIO_UNKNOWN')
+        .map((i) => i.at?.pointer),
+    ).toEqual(['/tests/2/scenarios/rows/2', '/tests/3/scenarios/rows/1']);
+  });
+});
