@@ -229,7 +229,7 @@ describe('placeholder substitution safety', () => {
       managedSpec({ mcp: { browser: 'headless', bridgeUrl: 'http://b' } }),
     );
     expect(gemini.stdin).toContain(
-      '"TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"',
+      '"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"',
     );
     const opencode = buildHarnessExec(fact('opencode'), managedSpec());
     expect(opencode.env.OPENCODE_CONFIG_CONTENT).toContain(
@@ -375,6 +375,76 @@ describe("a CLI waits for the bridge's longest tool", () => {
       managedSpec({ mcp: { browser: 'headless' } }),
     );
     expect(execCarries(withoutBridge, 'requestTimeoutMs')).toBe(false);
+  });
+});
+
+describe("a CLI reaches the bridge as the platform's MCP server", () => {
+  const BRIDGE = { bridgeUrl: 'http://platform.internal/bridge' };
+  const SERVER = 'http://platform.internal/bridge/mcp';
+  const exec = (slug: string) =>
+    buildHarnessExec(fact(slug), managedSpec({ mcp: BRIDGE }));
+
+  // A CLI that mounts the platform's MCP server ([CONN-R34]) starts no relay
+  // process; its bearer token stays where the relay's env put it before:
+  // claude's argv JSON, codex's exec env, an env reference in the gemini
+  // family's settings and in OpenCode's config.
+  it('claude-code posts to it with the session key in its --mcp-config', () => {
+    const { argv } = exec('claude-code');
+    const config = JSON.parse(argv[argv.indexOf('--mcp-config') + 1]);
+    expect(config.mcpServers.connectors).toEqual({
+      type: 'http',
+      url: SERVER,
+      headers: { Authorization: `Bearer ${GOLDEN_GATEWAY.token}` },
+    });
+  });
+
+  it('codex reads its bearer token from the one exec env variable it names', () => {
+    const codex = exec('codex');
+    expect(codex.argv).toContain(`mcp_servers.connectors.url="${SERVER}"`);
+    expect(codex.argv).toContain(
+      'mcp_servers.connectors.bearer_token_env_var="TALE_CONNECTORS_TOKEN"',
+    );
+    expect(codex.env.TALE_CONNECTORS_TOKEN).toBe(GOLDEN_GATEWAY.token);
+    expect(codex.env).not.toHaveProperty('TALE_CONNECTORS_URL');
+    expect(execCarries(codex, 'mcp_servers.connectors.env_vars')).toBe(false);
+  });
+
+  it('opencode mounts a remote server whose header resolves the env key', () => {
+    const config = JSON.parse(exec('opencode').env.OPENCODE_CONFIG_CONTENT);
+    expect(config.mcp.connectors).toEqual({
+      type: 'remote',
+      url: SERVER,
+      headers: { Authorization: 'Bearer {env:TALE_GATEWAY_TOKEN}' },
+      oauth: false,
+      enabled: true,
+      timeout: 330_000,
+    });
+  });
+
+  it.each(['gemini', 'qwen-code'])(
+    '%s reads it from its settings with the env key as a reference',
+    (slug) => {
+      const { settings } = JSON.parse(exec(slug).stdin ?? '{}');
+      expect(settings.mcpServers.connectors).toEqual({
+        httpUrl: SERVER,
+        headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+      });
+    },
+  );
+
+  it.each(['claude-code', 'codex', 'gemini', 'qwen-code', 'opencode'])(
+    '%s starts no relay process',
+    (slug) => {
+      expect(execCarries(exec(slug), 'tale-connectors-mcp')).toBe(false);
+    },
+  );
+
+  // OpenClaw's wrapper writes the bridge env into the config it stages, a
+  // file the agent can read: its token would move there with a header, so
+  // it keeps the relay.
+  it('openclaw keeps the relay', () => {
+    expect(execCarries(exec('openclaw'), 'tale-connectors-mcp')).toBe(true);
+    expect(execCarries(exec('openclaw'), SERVER)).toBe(false);
   });
 });
 

@@ -47,6 +47,7 @@ import {
 } from './domains/cloud_import/routes.ts';
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
+import { createConnectorBridgeMcpRoutes } from './domains/connectors/bridge-mcp.ts';
 import { createConnectorBridgeRoutes } from './domains/connectors/bridge-routes.ts';
 import { createConnectorOauthAppRoutes } from './domains/connectors/oauth-app-routes.ts';
 import { createConnectorOauthRoutes } from './domains/connectors/oauth-routes.ts';
@@ -377,8 +378,19 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/sse', createSseAuthRoutes(deps));
   // In-sandbox workspace-tool dispatch (session-token bearer auth, not a
   // browser session) — the container-facing machine door.
-  app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
-  app.route('/api/connectors', createConnectorBridgeRoutes({ sql: deps.sql }));
+  const toolDoor = createToolDispatchRoutes({ sql: deps.sql });
+  const connectorDoor = createConnectorBridgeRoutes({ sql: deps.sql });
+  app.route('/api/tools', toolDoor);
+  app.route('/api/connectors', connectorDoor);
+  // The same two doors as one remote MCP server, for the harnesses that
+  // reach it without the in-sandbox stdio relay.
+  app.route(
+    '/api/connectors/mcp',
+    createConnectorBridgeMcpRoutes({
+      sql: deps.sql,
+      doors: { connectors: connectorDoor, tools: toolDoor },
+    }),
+  );
   // Org-bucket blob staging for sandbox sessions (HMAC stage-token gated,
   // not session auth) — the container-facing twin of the bridge above.
   app.route('/api/sandbox-blob', createSandboxBlobRoutes({ sql: deps.sql }));
