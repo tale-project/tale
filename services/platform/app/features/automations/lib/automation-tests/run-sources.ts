@@ -8,7 +8,7 @@
 
 import { jsonNormalize } from '@tale/ui/data/stable-stringify';
 
-import type { Json } from '@/lib/engine/core/types';
+import type { Json, ScenarioPick } from '@/lib/engine/core/types';
 
 import { missingRequiredFields, placeholderFor } from '../fixed-input';
 import { readTestForm } from './test-form';
@@ -18,8 +18,8 @@ export interface SourceBench {
   mocks?: Record<string, Json>;
   failures?: Record<string, string>;
   /** The scenario of its connector action each node answers with, by
-   * name. */
-  scenarios?: Record<string, string>;
+   * name, or the names its calls take in order. */
+  scenarios?: Record<string, ScenarioPick>;
 }
 
 /** A stand-in output as JSON: what the test's document holds. */
@@ -72,6 +72,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isScenarioPick(pick: unknown): pick is ScenarioPick {
+  return (
+    typeof pick === 'string' ||
+    (Array.isArray(pick) &&
+      pick.length > 0 &&
+      pick.every((name) => typeof name === 'string'))
+  );
+}
+
 /** What a test stands in for, as a try sends it; none without stand-ins. */
 export function benchOfTest(test: unknown): SourceBench | undefined {
   const form = readTestForm(test);
@@ -79,10 +88,11 @@ export function benchOfTest(test: unknown): SourceBench | undefined {
     form.mocks.map(([node, output]) => [node, asJson(output)]),
   );
   const failures = Object.fromEntries(form.failures);
-  // A pick that is not a name is left to the test's own checks.
+  // A pick that is neither a name nor a list of them is left to the
+  // test's own checks.
   const scenarios = Object.fromEntries(
-    form.scenarios.flatMap(([node, name]) =>
-      typeof name === 'string' ? [[node, name] as const] : [],
+    form.scenarios.flatMap(([node, pick]) =>
+      isScenarioPick(pick) ? [[node, pick] as const] : [],
     ),
   );
   const bench: SourceBench = {

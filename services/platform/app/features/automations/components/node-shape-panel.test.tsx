@@ -179,7 +179,7 @@ describe('NodeShapePanel', () => {
     );
     const section = screen.getByRole('region', { name: 'Scenarios' });
     expect(section).toHaveTextContent(
-      'A test can pick one of these for this node in its Setup. The node then answers as described instead of calling.',
+      'A test can pick one of these for this node in its Setup, or several that its calls take in order. The node then answers as described instead of calling.',
     );
     const [found, notFound, slow] = within(section).getAllByRole('listitem');
     expect(found).toHaveTextContent('one_channel');
