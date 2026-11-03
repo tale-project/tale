@@ -99,9 +99,9 @@ export class MockInstance {
     const logger = createLogger('mocks', { level: 'silent' });
     const config: IHttpConfig = {
       mock: { dynamic: false },
-      // The gateway serves the app/e2e leniently (always return the example);
-      // contract tests opt into strict request validation to catch a connector
-      // sending the wrong shape. Default strict.
+      // The gateway serves the app/e2e leniently (always return the example)
+      // by passing `validateRequest: false`. Any other caller gets strict
+      // request validation, which rejects a request of the wrong shape.
       validateRequest: options.validateRequest ?? true,
       // Response validation stays on: a spec example that violates its own
       // schema fails loudly at request time — the contract guard.

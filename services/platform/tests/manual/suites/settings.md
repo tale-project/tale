@@ -69,8 +69,8 @@ plus Enterprise SSO, Data residency, Governance, and Metrics need
 the API section need `developerSettings` read (**owner/admin/developer**), except that a member holding the **Call models over the API** right opens the API section's REST and Models tabs (SET-B26), and one who may connect a coding agent here, or still holds a live connection, opens Connected agents (SET-B38);
 Skills and the Personal group are open to every member. SET-B4–SET-B5 need a
 second account per role (mint via `POST /api/auth/sign-up/email`, add under
-Settings → Members); SET-F16 needs a second **already-existing** account. Mode
-A makes the connector add-credential smoke (SET-F25) deterministic. The model
+Settings → Members); SET-F16 needs a second **already-existing** account. The
+connector add-credential smoke (SET-F25) stores a credential and calls no vendor. The model
 endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
 endpoints switched on as in governance.md GOV-F41; a real answer needs mode B
 with the sandbox model gateway running. The Connected agents boxes (SET-F85–SET-F88, SET-B38, SET-A11)
@@ -348,8 +348,8 @@ Restore any toggled setting after the run.
   OAuth)
 - [ ] `SET-F25` · **Connector add-credential smoke** — Mode A. **Add
   credential** → pick an API-key connector (e.g. Tavily) → fill the key
-  (`settings.connectors.dialog.apiKey`) → create → The connect test runs
-  against the mock gateway and succeeds offline; toast
+  (`settings.connectors.dialog.apiKey`) → create → The credential is stored
+  without a connection test, so no vendor is called; toast
   `settings.credentials.createdToast` and the row is present after reload.
   Per-connector depth (OAuth consent, imap-smtp split SMTP, reconnect) is
   [connectors.md](connectors.md)'s job.
