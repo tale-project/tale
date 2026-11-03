@@ -937,6 +937,8 @@ const fixtures: Record<string, unknown> = {
         input: {},
         expect: { failure: { node: 'main', code: 1 }, output: 1 },
       },
+      // A list of scenarios points at its first entry that is no name.
+      { name: 'scenario list', input: {}, scenarios: { main: [7] } },
     ],
   }),
   'tests-too-many': flow({
@@ -999,6 +1001,12 @@ const fixtures: Record<string, unknown> = {
     ],
     tests: [
       { name: 'no city', input: {}, scenarios: { main: 'city_not_fund' } },
+      // In a list, at the entry that names it.
+      {
+        name: 'no city, then the city',
+        input: {},
+        scenarios: { main: ['city_not_found', 'city_not_fund'] },
+      },
     ],
   }),
   'tests-mock-not-list': flow({

@@ -119,7 +119,8 @@ goes ahead. The return from the outside system is never refused for coming from 
 
 A connector action can ship scenarios beside its mock: named answers its service gives, such as
 an empty list, a refused write or a rate limit, each an output or an error. A test picks one for a
-step to see what the automation does when the service answers that way (`AUTO-R78`, `AUTO-R79`).
+step, or a list of them the step's calls take in order, to see what the automation does when the
+service answers that way (`AUTO-R78`, `AUTO-R79`, `AUTO-R80`).
 
 ### CONN-R33 · An action's scenarios fit it, and a listed connector ships the minimum kinds
 

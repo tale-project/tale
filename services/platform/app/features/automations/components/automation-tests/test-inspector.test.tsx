@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { IssueFocusProvider, useRequestIssueFocus } from '@tale/ui/issue-focus';
+import { useState, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TransientRecord } from '@/lib/engine/core/record/transient';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type {
   AutomationTests,
   TestRow,
 } from '../../hooks/use-automation-tests';
+import {
+  toIssueView,
+  withIssueIds,
+  type AutomationIssueView,
+} from '../../lib/issues';
 import type { ConnectorScenarioSummary } from '../connector-scenario';
 import {
   TestFields,
@@ -116,6 +123,9 @@ function renderFields(
     readOnly?: boolean;
     lastRunOutputOf?: (nodeId: string) => unknown;
     scenariosOf?: TestFieldsProps['scenariosOf'];
+    issues?: readonly AutomationIssueView[];
+    /** Rendered before the fields, with them in one focus registry. */
+    extra?: ReactNode;
   } = {},
 ) {
   const onTabChange = vi.fn();
@@ -125,13 +135,13 @@ function renderFields(
     ...controller(row, options.replace),
     tests: [options.test ?? TEST],
   };
-  const view = render(
+  const fields = (
     <TestFields
       headingId="test-heading"
       tests={tests}
       index={0}
       settledTest={options.test ?? TEST}
-      issues={[]}
+      issues={options.issues ?? []}
       diagnosticsStatus="ready"
       readOnly={options.readOnly ?? false}
       tab={options.tab ?? 'result'}
@@ -146,9 +156,30 @@ function renderFields(
       scenariosOf={options.scenariosOf ?? (() => [])}
       onSelectNode={onSelectNode}
       {...(options.onShowRun !== undefined && { onShowRun: options.onShowRun })}
-    />,
+    />
+  );
+  const view = render(
+    options.extra === undefined ? (
+      fields
+    ) : (
+      <IssueFocusProvider>
+        {options.extra}
+        {fields}
+      </IssueFocusProvider>
+    ),
   );
   return { ...view, tests, onTabChange, onSelectNode, onSetupModeChange };
+}
+
+/** Asks the page's focus registry to go to a place, like the problem list
+ * does. */
+function GoTo({ anchor, label }: { anchor: string; label: string }) {
+  const request = useRequestIssueFocus();
+  return (
+    <button type="button" onClick={() => request(anchor)}>
+      {label}
+    </button>
+  );
 }
 
 /** A run's record as a test's result keeps it: only that it is kept
@@ -797,6 +828,141 @@ describe('a scenario in the test’s Setup', () => {
     expect(field).toHaveAccessibleDescription(
       'Error: Slack answers that no channel has this id. Only for calls whose input has channel: "C0000000009". Any other call gets the usual simulated answer.',
     );
+  });
+
+  /** The test answering the channel lookup's calls with these, in order. */
+  const answering = (...names: string[]) => ({
+    ...CHANNEL_TEST,
+    scenarios: { get_channel: names },
+  });
+
+  it('answers the calls in order with a list, a row named for each call', async () => {
+    const replace = vi.fn<Replace>();
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: answering('channel_not_found', 'one_channel'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    expect(screen.getByRole('region', { name: 'Scenarios' })).toHaveTextContent(
+      'With several scenarios, its calls take them in order, and the last one answers every later call.',
+    );
+    expect(
+      screen.getByRole('button', { name: /^Scenario for Get channel, call 1/ }),
+    ).toHaveTextContent('channel_not_found');
+    // The last one answers every call after it as well.
+    const later = screen.getByRole('button', {
+      name: /^Scenario for Get channel, call 2 and later/,
+    });
+    expect(later).toHaveTextContent('one_channel');
+    await user.click(later);
+    await user.click(
+      await screen.findByRole('option', { name: /^channel_not_found/ }),
+    );
+    expect(replace).toHaveBeenLastCalledWith(
+      0,
+      answering('channel_not_found', 'channel_not_found'),
+    );
+  });
+
+  it('adds the next call’s scenario as a copy of the last, and removes one call’s', async () => {
+    const replace = vi.fn<Replace>();
+    const { user, unmount } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: picking('channel_not_found'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    // A copy answers the calls the last one did, until another is picked.
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Add a scenario for the next call of Get channel',
+      }),
+    );
+    expect(replace).toHaveBeenLastCalledWith(
+      0,
+      answering('channel_not_found', 'channel_not_found'),
+    );
+    unmount();
+    const listed = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: answering('channel_not_found', 'one_channel'),
+      doc: SLACK_DOC,
+      scenariosOf,
+    });
+    expect(
+      screen.queryByRole('button', { name: 'Remove Get channel' }),
+    ).not.toBeInTheDocument();
+    await listed.user.click(
+      screen.getByRole('button', {
+        name: 'Remove the scenario for call 1 of Get channel',
+      }),
+    );
+    // The one answer left is a single pick again.
+    expect(replace).toHaveBeenLastCalledWith(0, picking('one_channel'));
+  });
+
+  it('shows a problem with one call at its row, and goes to it', async () => {
+    const test = answering('channel_not_found', 'archived');
+    const t = i18n.getFixedT('en', 'automations');
+    const issues = withIssueIds([
+      {
+        level: 'warning',
+        code: 'TESTS_SCENARIO_UNKNOWN',
+        message:
+          'tests[0] "finds the channel" picks the scenario "archived" for "get_channel", which slack.get_channel does not ship',
+        at: { pointer: '/tests/0/scenarios/get_channel/1' },
+        params: {
+          test: 0,
+          name: 'finds the channel',
+          node: 'get_channel',
+          type: 'slack.get_channel',
+          scenario: 'archived',
+          scenarios: ['one_channel', 'channel_not_found'],
+        },
+      },
+    ]).map((issue) =>
+      toIssueView(
+        issue,
+        { ...SLACK_DOC, tests: [test] },
+        { locale: 'en', t, controlsOf: () => new Set() },
+      ),
+    );
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      test,
+      doc: SLACK_DOC,
+      scenariosOf,
+      issues,
+      extra: (
+        <>
+          <GoTo
+            anchor="/tests/0/scenarios/get_channel/1"
+            label="Go to call 2"
+          />
+          <GoTo
+            anchor="/tests/0/scenarios/get_channel"
+            label="Go to the list"
+          />
+        </>
+      ),
+    });
+    const first = screen.getByRole('button', {
+      name: /^Scenario for Get channel, call 1/,
+    });
+    const second = screen.getByRole('button', {
+      name: /^Scenario for Get channel, call 2 and later/,
+    });
+    const line = screen.getByText(/picks "archived"/).closest('li');
+    expect(line?.id.startsWith(`${second.id}-`)).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Go to call 2' }));
+    await waitFor(() => expect(second).toHaveFocus());
+    // A problem with the list as a whole is the first call's.
+    await user.click(screen.getByRole('button', { name: 'Go to the list' }));
+    await waitFor(() => expect(first).toHaveFocus());
   });
 
   it('passes an accessibility audit with a pick and the picker', async () => {

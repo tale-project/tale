@@ -680,6 +680,49 @@ describe('stand-ins and tests picked by name over MCP', () => {
     expect(engine).not.toHaveBeenCalled();
   });
 
+  it('refuses scenarios that are no name and no list of 1 to 50 names at the door, each with its place, before anything runs [MCP-R34] [AUTO-R80]', async () => {
+    const engine = vi.fn(host.engine);
+    const refused = await answer(
+      run,
+      {
+        automation: DOC_EXAMPLE.automation,
+        scenarios: {
+          none: [],
+          many: Array.from({ length: 51 }, () => 'quiet'),
+          odd: ['quiet', 1],
+        },
+      },
+      { host: { ...host, engine } },
+    );
+    expect(refused.body.code).toBe('INVALID_ARGUMENTS');
+    expect(
+      refused.body.data.issues.map(
+        (issue: { path: string; code: string }) =>
+          `${issue.path} ${issue.code}`,
+      ),
+    ).toEqual([
+      'scenarios.many invalid_union',
+      'scenarios.none too_small',
+      'scenarios.odd invalid_union',
+    ]);
+    expect(engine).not.toHaveBeenCalled();
+
+    // A list of names passes the door, and the engine judges each entry.
+    const judged = await answer(run, {
+      automation: DOC_EXAMPLE.automation,
+      scenarios: { summary: ['quiet', 'quiet'] },
+    });
+    expect(judged.body).toMatchObject({
+      code: 'BENCH_INVALID',
+      data: {
+        issue: {
+          code: 'BENCH_UNKNOWN_SCENARIO',
+          at: { pointer: '/bench/scenarios/summary/0' },
+        },
+      },
+    });
+  });
+
   it('runs the tests named, and only those, answering what each returned when asked [MCP-R33]', async () => {
     const picked = await answer(test, {
       automation: WITH_TESTS,

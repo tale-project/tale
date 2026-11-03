@@ -376,7 +376,8 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
 
 /** The scenarios a test picks that its bench would refuse: one for a node
  * the test also gives an output or a failure, or one the node's connector
- * action does not ship (a node of another kind ships none). */
+ * action does not ship (a node of another kind ships none) — at the entry of
+ * a list that names it. */
 function scenarioPicks(
   cx: RuleContext,
   at: TestAt,
@@ -388,7 +389,7 @@ function scenarioPicks(
   out: Issue[],
 ): void {
   const { index, name } = at;
-  for (const [node, scenario] of Object.entries(given.scenarios)) {
+  for (const [node, pick] of Object.entries(given.scenarios)) {
     const def = cx.byId.get(node);
     if (def === undefined) continue;
     const field = Object.hasOwn(given.mocks, node)
@@ -413,34 +414,45 @@ function scenarioPicks(
       );
       continue;
     }
-    // A name that is no text is malformed, which the grammar reports.
-    if (typeof scenario !== 'string') continue;
+    // A name that is no text is malformed, in a list as anywhere, which
+    // the grammar reports.
+    const picked: Array<{ scenario: string; place: number[] }> = [];
+    if (typeof pick === 'string') picked.push({ scenario: pick, place: [] });
+    if (Array.isArray(pick)) {
+      for (const [k, entry] of pick.entries()) {
+        if (typeof entry === 'string') {
+          picked.push({ scenario: entry, place: [k] });
+        }
+      }
+    }
     const shipped = nodeTypes().get(def.type)?.connector?.scenarios ?? [];
-    if (shipped.some((s) => s.name === scenario)) continue;
     const scenarios = shipped.map((s) => s.name);
-    const suggestion = closestName(scenario, scenarios);
-    out.push(
-      warn(
-        'TESTS_SCENARIO_UNKNOWN',
-        `tests[${index}] "${name}" picks the scenario "${scenario}" for "${node}", which ${def.type} does not ship`,
-        {
-          hint:
-            scenarios.length === 0
-              ? `${def.type} ships no scenarios — simulate its output (mocks) or its failure (failures) instead`
-              : `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}scenarios of ${def.type}: ${scenarios.join(', ')}`,
-          at: { pointer: ptr('tests', index, 'scenarios', node) },
-          params: {
-            test: index,
-            name,
-            node,
-            type: def.type,
-            scenario,
-            scenarios,
-            ...(suggestion !== undefined && { suggestion }),
+    for (const { scenario, place } of picked) {
+      if (scenarios.includes(scenario)) continue;
+      const suggestion = closestName(scenario, scenarios);
+      out.push(
+        warn(
+          'TESTS_SCENARIO_UNKNOWN',
+          `tests[${index}] "${name}" picks the scenario "${scenario}" for "${node}", which ${def.type} does not ship`,
+          {
+            hint:
+              scenarios.length === 0
+                ? `${def.type} ships no scenarios — simulate its output (mocks) or its failure (failures) instead`
+                : `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}scenarios of ${def.type}: ${scenarios.join(', ')}`,
+            at: { pointer: ptr('tests', index, 'scenarios', node, ...place) },
+            params: {
+              test: index,
+              name,
+              node,
+              type: def.type,
+              scenario,
+              scenarios,
+              ...(suggestion !== undefined && { suggestion }),
+            },
           },
-        },
-      ),
-    );
+        ),
+      );
+    }
   }
 }
 

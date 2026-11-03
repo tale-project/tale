@@ -47,8 +47,9 @@ export interface TestFormValues {
   mocks: ReadonlyArray<readonly [string, unknown]>;
   /** Node id → the message it fails with in this test. */
   failures: ReadonlyArray<readonly [string, string]>;
-  /** Node id → the scenario the test picks for it, as written: a pick that
-   * is no name stays, so its problem has a place in the form. */
+  /** Node id → the scenario the test picks for it, or the list its calls
+   * take in order, as written: a pick that is neither stays, so its
+   * problem has a place in the form. */
   scenarios: ReadonlyArray<readonly [string, unknown]>;
   output: { mode: OutputMode; value: unknown };
   nodes: ReadonlyArray<readonly [string, ExpectedNodeState]>;
@@ -208,6 +209,32 @@ export function withScenario(
   name: string | undefined,
 ): Record<string, unknown> {
   return withEntry(test, 'scenarios', node, name);
+}
+
+/** The scenarios a pick answers with, in the order the node's calls take
+ * them: a list's entries, or the pick itself (a name, or whatever else
+ * stands there, an empty list included, so its problem has a place). */
+export function scenarioAnswersOf(pick: unknown): readonly unknown[] {
+  return Array.isArray(pick) && pick.length > 0 ? pick : [pick];
+}
+
+/** The test answering `node`'s calls with `answers`, in order: one stays a
+ * name, more make a list, none removes the pick. */
+export function withScenarioAnswers(
+  test: RawTest,
+  node: string,
+  answers: readonly unknown[],
+): Record<string, unknown> {
+  return withEntry(
+    test,
+    'scenarios',
+    node,
+    answers.length === 0
+      ? undefined
+      : answers.length === 1
+        ? answers[0]
+        : [...answers],
+  );
 }
 
 /** The test checking the output as `mode` says, against `value`. */
