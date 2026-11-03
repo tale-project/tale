@@ -73,10 +73,11 @@ beforeEach(() => {
 describe('WorkspaceCleanupEditor', () => {
   it('shows the defaults the cleanup applies while the organization has no policy file', () => {
     render(<EditorView />);
-    expect(query).toHaveBeenCalledWith('governance/queries:getPolicy', {
-      organizationId: 'org-1',
-      policyType: 'sandbox_workspaces',
-    });
+    expect(query).toHaveBeenCalledWith(
+      'governance/queries:getPolicy',
+      { organizationId: 'org-1', policyType: 'sandbox_workspaces' },
+      undefined,
+    );
     expect(
       screen.getByRole('heading', { name: 'Workspace cleanup' }),
     ).toBeInTheDocument();
