@@ -1,8 +1,9 @@
 /**
- * The two image-generation dialects, pinned to the shapes the providers
- * document (read 2026-09-29): OpenRouter's Image API and OpenAI's images
- * API. No network and no paid call — the request is built and a recorded
- * reply shape parsed.
+ * The three image-generation dialects, pinned to the shapes the providers
+ * document (read 2026-09-29) — OpenRouter's Image API and OpenAI's images
+ * API — and to an AI gateway's chat replies (recorded 2026-11-03). No
+ * network and no paid call — the request is built and a recorded reply
+ * shape parsed.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -349,6 +350,68 @@ describe('buildImageRequest — OpenAI images API', () => {
   });
 });
 
+describe('buildImageRequest — chat completions', () => {
+  it('asks for an image alone, with the shape in words', () => {
+    const request = buildImageRequest({
+      wire: 'chat-images',
+      baseUrl: 'https://gateway.example.com/v1/',
+      apiKey: 'sk-gw',
+      modelId: 'antigravity/gemini-3.1-flash-image',
+      prompt: 'A lighthouse at dawn',
+      size: 'landscape',
+      references: [],
+    });
+    expect(request.url).toBe('https://gateway.example.com/v1/chat/completions');
+    expect(request.headers).toEqual({
+      authorization: 'Bearer sk-gw',
+      'content-type': 'application/json',
+    });
+    expect(jsonBody(request)).toEqual({
+      model: 'antigravity/gemini-3.1-flash-image',
+      messages: [
+        {
+          role: 'user',
+          content: 'A lighthouse at dawn\n\nAspect ratio: 3:2 (landscape).',
+        },
+      ],
+      modalities: ['image'],
+    });
+  });
+
+  it('asks a model that writes text for both, and sends references as image parts', () => {
+    const request = buildImageRequest({
+      wire: 'chat-images',
+      baseUrl: 'https://gateway.example.com/v1',
+      apiKey: 'sk-gw',
+      modelId: 'openrouter/google/gemini-2.5-flash-image',
+      prompt: 'Turn this logo blue',
+      size: 'portrait',
+      references: [REFERENCE],
+      aspectRatios: ['1:1', '3:4', '4:3'],
+      writesText: true,
+    });
+    expect(jsonBody(request)).toEqual({
+      model: 'openrouter/google/gemini-2.5-flash-image',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Turn this logo blue\n\nAspect ratio: 3:4 (portrait).',
+            },
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/png;base64,${b64(PNG)}` },
+            },
+          ],
+        },
+      ],
+      modalities: ['image', 'text'],
+    });
+  });
+});
+
 describe('parseImageReply', () => {
   it('reads OpenRouter images and the charge it reports', () => {
     const reply = parseImageReply('openrouter-images', {
@@ -466,6 +529,263 @@ describe('parseImageReply', () => {
   ])('refuses a reply without a stored image: %j', (payload) => {
     expect(() => parseImageReply('openai-images', payload)).toThrow(
       ImageReplyError,
+    );
+  });
+});
+
+describe('parseImageReply — chat completions', () => {
+  /** Images with a header their size is read from: an image read out of a
+   * chat reply must have one. */
+  const IMAGE_PNG = pngHeader(1024, 1024);
+  const IMAGE_JPEG = jpegHeader(1408, 768);
+
+  /** A chat reply's first choice carrying `message`. */
+  function chatReply(message: Record<string, unknown>, usage?: unknown) {
+    return {
+      object: 'chat.completion',
+      choices: [{ index: 0, finish_reason: 'stop', message }],
+      ...(usage !== undefined && { usage }),
+    };
+  }
+
+  /** The error a reply is refused with. */
+  function refusalOf(payload: unknown): ImageReplyError {
+    try {
+      parseImageReply('chat-images', payload);
+    } catch (error) {
+      if (error instanceof ImageReplyError) return error;
+      throw error;
+    }
+    throw new Error('expected the reply to be refused');
+  }
+
+  it('reads the images OpenRouter sends beside the text, and the charge it reports', () => {
+    const reply = parseImageReply(
+      'chat-images',
+      chatReply(
+        {
+          role: 'assistant',
+          content: 'Here is your lighthouse.',
+          images: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/png;base64,${b64(IMAGE_PNG)}` },
+            },
+          ],
+        },
+        { prompt_tokens: 12, completion_tokens: 1290, cost: 0.039 },
+      ),
+    );
+    expect(reply).toEqual({
+      images: [
+        { bytes: IMAGE_PNG, mediaType: 'image/png', width: 1024, height: 1024 },
+      ],
+      refusedFormats: 0,
+      costUsd: 0.039,
+    });
+  });
+
+  it('reads the charge Bifrost relays as an object', () => {
+    // OpenRouter's reply through Bifrost v2.4.0 (2026-11-03): the image as
+    // OpenRouter sent it, the charge moved into `total_cost`.
+    const reply = parseImageReply(
+      'chat-images',
+      chatReply(
+        {
+          role: 'assistant',
+          content: 'Here is your lighthouse.',
+          refusal: null,
+          images: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/png;base64,${b64(IMAGE_PNG)}` },
+            },
+          ],
+        },
+        {
+          prompt_tokens: 20,
+          completion_tokens: 1300,
+          total_tokens: 1320,
+          cost: { total_cost: 0.039 },
+        },
+      ),
+    );
+    expect(reply.costUsd).toBe(0.039);
+    expect(reply).not.toHaveProperty('usage');
+    // An object without a total is no charge: the token counts stand in.
+    expect(
+      parseImageReply(
+        'chat-images',
+        chatReply(
+          {
+            images: [
+              {
+                type: 'image_url',
+                image_url: { url: `data:image/png;base64,${b64(IMAGE_PNG)}` },
+              },
+            ],
+          },
+          { prompt_tokens: 20, completion_tokens: 1300, cost: {} },
+        ),
+      ),
+    ).toMatchObject({
+      usage: { textInputTokens: 20, imageInputTokens: 0, outputTokens: 1300 },
+    });
+  });
+
+  it('reads an image written into the text as Markdown, and the token counts', () => {
+    // A Gemini backend's reply, as a gateway relayed it (2026-11-03): one
+    // Markdown image and nothing else, and no charge.
+    const reply = parseImageReply(
+      'chat-images',
+      chatReply(
+        {
+          role: 'assistant',
+          content: `![image](data:image/jpeg;base64,${b64(IMAGE_JPEG)})`,
+        },
+        { prompt_tokens: 266, completion_tokens: 1517, total_tokens: 1783 },
+      ),
+    );
+    expect(reply).toEqual({
+      images: [
+        {
+          bytes: IMAGE_JPEG,
+          mediaType: 'image/jpeg',
+          width: 1408,
+          height: 768,
+        },
+      ],
+      refusedFormats: 0,
+      usage: { textInputTokens: 266, imageInputTokens: 0, outputTokens: 1517 },
+    });
+    // The prompt's image tokens, where the reply counts them apart.
+    expect(
+      parseImageReply(
+        'chat-images',
+        chatReply(
+          { content: `![image](data:image/jpeg;base64,${b64(IMAGE_JPEG)})` },
+          {
+            prompt_tokens: 300,
+            prompt_tokens_details: { image_tokens: 258 },
+            completion_tokens: 1290,
+          },
+        ),
+      ).usage,
+    ).toEqual({
+      textInputTokens: 42,
+      imageInputTokens: 258,
+      outputTokens: 1290,
+    });
+  });
+
+  it('reads image parts of the content, and each image once', () => {
+    const png = `data:image/png;base64,${b64(IMAGE_PNG)}`;
+    const reply = parseImageReply(
+      'chat-images',
+      chatReply({
+        content: [
+          { type: 'text', text: `Done: ![lighthouse](${png})` },
+          { type: 'image_url', image_url: { url: png } },
+          {
+            type: 'image_url',
+            image_url: `data:image/jpeg;base64,${b64(IMAGE_JPEG)}`,
+          },
+        ],
+        images: [{ type: 'image_url', image_url: { url: png } }],
+      }),
+    );
+    expect(reply.images.map((image) => image.mediaType)).toEqual([
+      'image/png',
+      'image/jpeg',
+    ]);
+  });
+
+  it('says what the model wrote instead of an image', () => {
+    const words = refusalOf(
+      chatReply(
+        { content: 'I can only describe a lighthouse.' },
+        { prompt_tokens: 20, completion_tokens: 9 },
+      ),
+    );
+    expect(words.message).toBe(
+      'the model answered in words without an image: "I can only describe a lighthouse."',
+    );
+    // What the words cost is carried all the same.
+    expect(words.charge).toEqual({
+      usage: { textInputTokens: 20, imageInputTokens: 0, outputTokens: 9 },
+    });
+    const long = refusalOf(chatReply({ content: 'word '.repeat(100) }));
+    expect(long.message).toMatch(/: "(word ){59}word…"$/);
+    expect(refusalOf(chatReply({ content: null })).message).toBe(
+      'the model answered without an image',
+    );
+  });
+
+  it('fetches no image a reply links to, and says so', () => {
+    expect(
+      refusalOf(
+        chatReply({
+          content: '![image](https://cdn.example.com/lighthouse.png)',
+        }),
+      ).message,
+    ).toMatch(/link to an image rather than the image itself/);
+    expect(
+      refusalOf(
+        chatReply({
+          images: [
+            {
+              type: 'image_url',
+              image_url: { url: 'https://cdn.example.com/lighthouse.png' },
+            },
+          ],
+        }),
+      ).message,
+    ).toMatch(/fetches no address a model names/);
+  });
+
+  it('stores no sample data URL the model writes among its words', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A PNG signature and nothing more: no header to read a size from.
+    const sample = refusalOf(
+      chatReply({
+        content: `A PNG starts like data:image/png;base64,${b64(PNG)} and so on.`,
+      }),
+    );
+    expect(sample.message).toBe(
+      'the model answered in words without an image: "A PNG starts like and so on."',
+    );
+    warn.mockRestore();
+  });
+
+  it('reads a reply full of unclosed Markdown at once', () => {
+    // Read whole, each of these took seconds: 200 KB of `![` held the
+    // process for about 11 s. The bound is far above what a linear read
+    // takes and far below what a quadratic one does.
+    for (const filler of ['![', '![a](data:', '![a](https://']) {
+      const started = performance.now();
+      const error = refusalOf(chatReply({ content: filler.repeat(200_000) }));
+      expect(error.message).toMatch(/^the model answered /);
+      expect(performance.now() - started).toBeLessThan(2000);
+    }
+  });
+
+  it('refuses a vector image, a refusal on a 200 and a reply without a message', () => {
+    expect(
+      refusalOf(
+        chatReply({
+          content: `![logo](data:image/svg+xml;base64,${b64(SVG)})`,
+        }),
+      ).message,
+    ).toMatch(/does not store/);
+    expect(
+      refusalOf({ error: { code: 400, message: 'Unsupported modality' } })
+        .message,
+    ).toBe('Unsupported modality');
+    expect(refusalOf({ choices: [] }).message).toBe(
+      'the provider answered without a chat message',
+    );
+    expect(refusalOf(null).message).toBe(
+      'the provider answered without a chat message',
     );
   });
 });

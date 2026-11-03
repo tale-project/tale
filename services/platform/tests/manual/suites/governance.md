@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 99 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 102 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -791,6 +791,19 @@ agent.
   `generate_image` call answers `ok`, and the delivered image is 1216 × 896
   (4:3, the closest shape Recraft draws), never a refusal of 3:2. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F83` · **A gateway's image model draws over chat** — Mode B with a
+  **Custom provider** (`settings.providers.custom.pickerTitle`) for a Bifrost
+  2.4.0 or later that routes OpenRouter (its API root, ending in /v1, as the
+  base URL) and lists an image model by its id alone (e.g.
+  `gemini-3.1-flash-image`): turn **Image generation** on and open **Image
+  model** (`governance.imageGeneration.label`) → the gateway's image models
+  are listed, its OpenRouter one and the id-only one, and neither appears in
+  the chat model picker. Pin the OpenRouter one (GOV-F39) and ask a new chat
+  "Generate an image of a lighthouse at sunset" → the picture appears under
+  the reply, never "image_generation is not supported by openrouter
+  provider"; the backend log carries one `[image-generation] … asking chat
+  completions` warning, and a second request draws without a new one.
+  Restore: pick **Automatic**, **Save**, and switch image generation off.
 - [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
   Member whose own run of a project agent is listed on Sandboxes
   (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the

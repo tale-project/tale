@@ -43,10 +43,12 @@ vi.mock('../files/service.ts', () => ({ getOrgBlobBytes: vi.fn() }));
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const MODEL: ResolvedImageModel = {
+  organizationId: 'org_1',
   providerSlug: 'openrouter',
   providerDisplayName: 'OpenRouter',
   modelId: 'google/gemini-2.5-flash-image',
   wire: 'openrouter-images',
+  writesText: true,
   baseUrl: 'https://openrouter.ai/api/v1',
   apiKey: 'sk-test',
   attribution: {},

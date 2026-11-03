@@ -88,6 +88,7 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
+import { GATEWAY_REFUSAL_STATUSES } from '../lib/providers/gateway_refusal';
 import {
   resolveChatModel,
   type ChatAutoResolutionRefusal,
@@ -107,7 +108,6 @@ import {
   isOpenAiGateway,
   noteArgumentsLost,
   noteResponsesRefused,
-  RESPONSES_REFUSAL_STATUSES,
   toolMissingInput,
   type GatewayModel,
 } from './gateway_wire';
@@ -703,7 +703,7 @@ export function createDirectModelCall(
     let responses = required || viaGateway;
     let sent = requestOn(responses);
     let response = await send(sent);
-    if (viaGateway && RESPONSES_REFUSAL_STATUSES.has(response.status)) {
+    if (viaGateway && GATEWAY_REFUSAL_STATUSES.has(response.status)) {
       // The gateway takes no Responses request for this model: the round
       // asks it on Chat Completions, as before the gateway rule. The refusal
       // consumed nothing.

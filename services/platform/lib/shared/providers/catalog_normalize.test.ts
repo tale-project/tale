@@ -801,6 +801,122 @@ describe('normalizeCatalogModel — undescribed gateway entries', () => {
     });
   });
 
+  it('offers a model Tale knows draws images as the image generator it is', () => {
+    /** Abridged real row from a Bifrost gateway's `/v1/models` (2026-11-03):
+     * an image model with a price and no window. */
+    const flare = normalizeCatalogModel(
+      {
+        id: 'openai/gpt-image-2.5-flare',
+        normalized_name: 'Gpt Image 2.5 Flare',
+        created: 1788825600,
+        pricing: { prompt: '0.0000050000', completion: '0.0000300000' },
+        owned_by: 'openai',
+      },
+      'bifrost',
+      {
+        ...CUSTOM,
+        knownModel: () => ({
+          tags: [IMAGE_GENERATION_TAG],
+          supportsTools: false,
+          supportsVision: true,
+        }),
+      },
+    );
+    expect(flare).toMatchObject({
+      id: 'openai/gpt-image-2.5-flare',
+      tags: ['vision', IMAGE_GENERATION_TAG],
+      supportsTools: false,
+      supportsVision: true,
+      outputsMedia: true,
+    });
+    expect(flare).not.toHaveProperty('reasoning');
+    // One Tale knows takes no images draws from words alone.
+    expect(
+      normalizeCatalogModel(
+        { ...GATEWAY_GPT, id: 'openai/gpt-image-2' },
+        'bifrost',
+        {
+          ...CUSTOM,
+          knownModel: () => ({
+            tags: [IMAGE_GENERATION_TAG],
+            supportsTools: false,
+            supportsVision: false,
+          }),
+        },
+      ),
+    ).toMatchObject({ tags: [IMAGE_GENERATION_TAG], supportsVision: false });
+  });
+
+  it('reads an unknown entry whose id names an image generator as one, and sees no images for it', () => {
+    /** Real row from a Bifrost gateway's `/v1/models` (2026-11-03): a Gemini
+     * image model it reaches over chat completions alone, with nothing but
+     * its id. */
+    const FLASH_IMAGE = {
+      id: 'antigravity/gemini-3.1-flash-image',
+      owned_by: '',
+    };
+    expect(normalizeCatalogModel(FLASH_IMAGE, 'bifrost', CUSTOM)).toEqual({
+      id: 'antigravity/gemini-3.1-flash-image',
+      provider: 'bifrost',
+      tags: [IMAGE_GENERATION_TAG],
+      supportsTools: false,
+      supportsVision: false,
+      outputsMedia: true,
+      contextWindow: 128_000,
+    });
+    const tagsOf = (id: string) =>
+      normalizeCatalogModel({ ...FLASH_IMAGE, id }, 'bifrost', CUSTOM)?.tags;
+    expect(tagsOf('xai/grok-2-image')).toEqual([IMAGE_GENERATION_TAG]);
+    expect(tagsOf('vertex/imagen-4.0-generate-001')).toEqual([
+      IMAGE_GENERATION_TAG,
+    ]);
+    // A model that turns words or an image into an image draws.
+    expect(tagsOf('fal/flux/text-to-image')).toEqual([IMAGE_GENERATION_TAG]);
+    expect(tagsOf('fal/qwen-image-edit/image-to-image')).toEqual([
+      IMAGE_GENERATION_TAG,
+    ]);
+    // The name is read from the id's last part, as whole words: a provider
+    // called after images, a model that only imagines, one that embeds or
+    // captions images and one that turns an image into a video are chat
+    // models as before.
+    expect(tagsOf('image-lab/llama-4-scout')).toEqual(['chat']);
+    expect(tagsOf('xai/grok-imagine-video')).toEqual(['chat']);
+    expect(tagsOf('bedrock/amazon.titan-embed-image-v1')).toEqual(['chat']);
+    expect(tagsOf('salesforce/blip-image-captioning-large')).toEqual(['chat']);
+    expect(tagsOf('fal/kling-video/v2.1/image-to-video')).toEqual(['chat']);
+  });
+
+  it('reads no id as an image generator where a catalog or the row says otherwise', () => {
+    const FLASH_IMAGE = { id: 'antigravity/gemini-3.1-flash-image' };
+    // Tale's catalogs know the model as a chat model.
+    expect(
+      normalizeCatalogModel(FLASH_IMAGE, 'bifrost', {
+        ...CUSTOM,
+        knownModel: () => knownGpt,
+      }),
+    ).toMatchObject({ tags: ['chat', 'vision'], supportsTools: true });
+    // The row describes the model, and says it writes text.
+    expect(
+      normalizeCatalogModel(
+        {
+          ...FLASH_IMAGE,
+          context_length: 32_000,
+          architecture: {
+            input_modalities: ['text'],
+            output_modalities: ['text'],
+          },
+        },
+        'bifrost',
+        CUSTOM,
+      )?.tags,
+    ).toEqual(['chat']);
+    // Outside a custom provider's listing nothing is assumed from a name.
+    expect(
+      normalizeCatalogModel({ ...FLASH_IMAGE, context_length: 32_000 }, 'p')
+        ?.tags,
+    ).toEqual(['chat']);
+  });
+
   it('leaves an entry the listing describes to the listing', () => {
     const knownModel = () => knownGpt;
     // Parameters stated, tools not among them.

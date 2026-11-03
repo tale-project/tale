@@ -21,9 +21,9 @@
  * The capability facts come from the source — or, for an entry the source
  * names without describing (a gateway's row for a vendor model), from what
  * Tale's own catalogs know about that model (`knownModel`), and otherwise
- * from neutral assumptions. The only local inference is the reasoning KNOB
- * — sources report reasoning yes/no but not which wire parameter the model
- * accepts — and it is always `effort`: a named level is
+ * from neutral assumptions. Two facts are inferred locally. One is the
+ * reasoning KNOB — sources report reasoning yes/no but not which wire
+ * parameter the model accepts — and it is always `effort`: a named level is
  * what every wire spells (`reasoning_effort` on an OpenAI-compatible body,
  * `output_config.effort` on the Anthropic one), whatever the model family.
  * The thinking-token budget is the Anthropic wire's legacy manual mode — the
@@ -32,7 +32,13 @@
  * declares it deliberately, for a model known to take nothing else. Keying
  * the knob on the model's name instead is how every Claude on OpenRouter
  * ended up declaring a knob its connector could not spell, which silently
- * dropped the user's pick from the body.
+ * dropped the user's pick from the body. The other is what a model is when
+ * its listing row describes nothing and none of Tale's catalogs knows it: an
+ * image generator when its id says so ({@link namesImageGenerator} —
+ * `gemini-3.1-flash-image`, `gpt-image-2`), the way vendors name the models
+ * that draw. Read as the neutral chat model instead, it would be offered to
+ * every chat, which sends it tools it cannot use, and never to the image
+ * tool, which it can serve.
  *
  * No embedding model's vector width is read from a listing. A gateway's row
  * for a model one of Tale's shipped catalogs curates a width for takes that
@@ -163,6 +169,31 @@ function deriveTags(args: {
   if (args.supportsVision) tags.push('vision');
   if (generatesImages) tags.push(IMAGE_GENERATION_TAG);
   return tags;
+}
+
+/**
+ * Whether a model id names an image generator the way vendors name them:
+ * the last part of the id has `image` as a word (`gemini-3.1-flash-image`,
+ * `gpt-image-2`, `grok-2-image`, `qwen-image`) or `imagen`, Google's image
+ * family — unless the image is what the model takes rather than makes
+ * (`image-to-video`, while `text-to-image` and `image-to-image` draw), or
+ * the id names an embedding or a captioning model as well
+ * (`amazon.titan-embed-image-v1`, `blip-image-captioning-large`).
+ */
+function namesImageGenerator(id: string): boolean {
+  const words = (id.slice(id.lastIndexOf('/') + 1) || id)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/);
+  if (
+    words.some((word) => word.startsWith('embed') || word.startsWith('caption'))
+  ) {
+    return false;
+  }
+  return words.some(
+    (word, index) =>
+      (word === 'image' || word === 'imagen') &&
+      (words[index + 1] !== 'to' || words[index - 1] === 'to'),
+  );
 }
 
 export interface NormalizedCatalog {
@@ -301,8 +332,14 @@ export function normalizeCatalogModel(
   // image model) is not offered as one. One they know as an embedding model
   // is offered as that: the embeddings call it serves is the same on every
   // OpenAI-compatible endpoint, and the width of each vector it answers is
-  // checked. A speech or image model is offered as nothing, since using one
-  // takes facts about the endpoint's own API that its row does not carry.
+  // checked. One they know as an image generator is offered as that too, and
+  // so is a model they do not know whose id names one (see the module doc):
+  // the image call asks the endpoint's images API, and its chat completions
+  // where that API refuses (`backend/core/lib/providers/image_generation.ts`),
+  // so it takes no fact about the endpoint that the row does not carry. Such
+  // a generator sees images only where Tale's catalogs say it does. A speech
+  // model is offered as nothing, since using one takes facts about the
+  // endpoint's own speech API that its row does not carry.
   const undescribed =
     entryType === undefined &&
     architecture === null &&
@@ -312,22 +349,29 @@ export function normalizeCatalogModel(
   const known = undescribed ? options.knownModel?.(m.id) : undefined;
   const knownNotChat = known !== undefined && !known.tags.includes('chat');
   const knownEmbedding = knownNotChat && known.tags.includes('embedding');
+  const imageGenerator =
+    known !== undefined
+      ? knownNotChat && known.tags.includes(IMAGE_GENERATION_TAG)
+      : undescribed && customListing && namesImageGenerator(m.id);
+  const notChat = knownNotChat || imageGenerator;
 
   const supportsVision =
     !isTranscription &&
-    !knownNotChat &&
-    (inputModalities.includes('image') || known?.supportsVision === true);
+    (imageGenerator
+      ? known?.supportsVision === true
+      : !knownNotChat &&
+        (inputModalities.includes('image') || known?.supportsVision === true));
 
   const supportedParameters = asStringArray(m.supported_parameters);
   const supportsTools =
     !isTranscription &&
-    !knownNotChat &&
+    !notChat &&
     (supportedParameters.includes('tools') ||
       supportedParameters.includes('tool_choice') ||
       (undescribed && (known?.supportsTools ?? customListing)));
   const reportsReasoning =
     !isTranscription &&
-    !knownNotChat &&
+    !notChat &&
     (supportedParameters.includes('reasoning') ||
       supportedParameters.includes('reasoning_effort') ||
       supportedParameters.includes('include_reasoning') ||
@@ -375,17 +419,19 @@ export function normalizeCatalogModel(
     pricing?.input_cache_write,
   );
 
-  const tags = knownNotChat
-    ? knownEmbedding
-      ? ['embedding']
-      : []
-    : deriveTags({
-        inputModalities,
-        outputModalities,
-        entryType,
-        supportsVision,
-        isTranscription,
-      });
+  const tags = imageGenerator
+    ? [...(supportsVision ? ['vision'] : []), IMAGE_GENERATION_TAG]
+    : knownNotChat
+      ? knownEmbedding
+        ? ['embedding']
+        : []
+      : deriveTags({
+          inputModalities,
+          outputModalities,
+          entryType,
+          supportsVision,
+          isTranscription,
+        });
   // The width a shipped catalog curates for this very model — asked only of
   // an entry that is an embedding model here (see the module doc).
   const embeddingWidth = tags.includes('embedding')
@@ -398,7 +444,7 @@ export function normalizeCatalogModel(
     tags,
     supportsTools,
     supportsVision,
-    ...(outputsMedia && { outputsMedia }),
+    ...((outputsMedia || imageGenerator) && { outputsMedia: true }),
     // The named-level knob, whatever the family — see the module doc.
     ...(reportsReasoning && { reasoning: { knob: 'effort' as const } }),
     contextWindow,

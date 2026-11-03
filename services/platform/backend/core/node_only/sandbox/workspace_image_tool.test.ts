@@ -80,11 +80,13 @@ const GIF = new TextEncoder().encode('GIF89a......');
 const MIB = 1024 * 1024;
 
 const MODEL = {
+  organizationId: 'org_1',
   providerSlug: 'openrouter',
   providerDisplayName: 'OpenRouter',
   modelId: 'google/gemini-2.5-flash-image',
   source: 'preferred',
   wire: 'openrouter-images',
+  writesText: true,
   baseUrl: 'https://openrouter.ai/api/v1',
   apiKey: 'sk-or-secret',
   attribution: {},

@@ -4,13 +4,15 @@
  * failure as a plain account that names no host, and the ledger figure is
  * the provider's reported charge or the catalog price of the tokens it
  * reported — for a reply without a usable image too, since the provider
- * billed it. `safeFetch` is stubbed — no paid call is made.
+ * billed it. A gateway that refuses its images API for a model is asked
+ * over chat completions. `safeFetch` is stubbed — no paid call is made.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import {
+  forgetServedImageWires,
   generateOneImage,
   ImageProviderError,
   prepareImageRequest,
@@ -44,11 +46,13 @@ function reply(status: number, body: unknown) {
 }
 
 const OPENROUTER_MODEL: ResolvedImageModel = {
+  organizationId: 'org_1',
   providerSlug: 'openrouter',
   providerDisplayName: 'OpenRouter',
   modelId: 'google/gemini-2.5-flash-image',
   source: 'preferred',
   wire: 'openrouter-images',
+  writesText: true,
   baseUrl: 'https://openrouter.ai/api/v1',
   apiKey: 'sk-or-secret',
   attribution: { 'HTTP-Referer': 'https://tale.dev', 'X-Title': 'Tale' },
@@ -56,11 +60,13 @@ const OPENROUTER_MODEL: ResolvedImageModel = {
 };
 
 const OPENAI_MODEL: ResolvedImageModel = {
+  organizationId: 'org_1',
   providerSlug: 'openai',
   providerDisplayName: 'OpenAI',
   modelId: 'gpt-image-1',
   source: 'pinned',
   wire: 'openai-images',
+  writesText: false,
   baseUrl: 'https://api.openai.com/v1',
   apiKey: 'sk-oa-secret',
   attribution: {},
@@ -72,11 +78,75 @@ const OPENAI_MODEL: ResolvedImageModel = {
   },
 };
 
+/** A gateway's image model: its images API is the platform's guess, and
+ * chat completions the fallback. */
+const GATEWAY_MODEL: ResolvedImageModel = {
+  organizationId: 'org_1',
+  providerSlug: 'gateway',
+  providerDisplayName: 'Gateway',
+  modelId: 'openrouter/google/gemini-2.5-flash-image',
+  source: 'pinned',
+  wire: 'openai-images',
+  fallbackWire: 'chat-images',
+  writesText: true,
+  baseUrl: 'https://gateway.example.com/v1',
+  apiKey: 'sk-gw-secret',
+  attribution: {},
+  acceptsImageInput: true,
+};
+
+/** A 1 × 1 PNG: an image read out of a chat reply must have a header its
+ * size is read from. */
+const CHAT_PNG = new Uint8Array(
+  Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+);
+
+/** A chat reply carrying one image, the way OpenRouter sends it. */
+const CHAT_IMAGE = {
+  object: 'chat.completion',
+  choices: [
+    {
+      index: 0,
+      message: {
+        role: 'assistant',
+        content: '',
+        images: [
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/png;base64,${Buffer.from(CHAT_PNG).toString('base64')}`,
+            },
+          },
+        ],
+      },
+    },
+  ],
+  usage: { prompt_tokens: 10, completion_tokens: 1290, cost: 0.039 },
+};
+
+/** Bifrost's answer to an images request for a model of a provider it
+ * implements no images API for (2026-11-03). */
+const UNSUPPORTED = {
+  is_bifrost_error: true,
+  error: {
+    type: 'unsupported_operation',
+    message: 'image_generation is not supported by openrouter provider',
+  },
+};
+
 const ARGS = {
   prompt: 'A lighthouse',
   size: 'square',
   references: [],
 } as const;
+
+/** The URLs the calls so far were sent to. */
+function sentUrls(): unknown[] {
+  return mockedFetch.mock.calls.map(([url]) => url);
+}
 
 function send(model: ResolvedImageModel) {
   return generateOneImage(model, prepareImageRequest(model, ARGS));
@@ -93,6 +163,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
+  forgetServedImageWires();
 });
 
 describe('prepareImageRequest', () => {
@@ -300,5 +371,191 @@ describe('generateOneImage', () => {
     await expect(send(OPENROUTER_MODEL)).rejects.toThrow(
       'OpenRouter did not answer within 3 minutes',
     );
+  });
+});
+
+describe('generateOneImage — a gateway that serves a model over chat alone', () => {
+  it('asks chat completions when the images API refuses the model, and there first from then on', async () => {
+    mockedFetch
+      .mockResolvedValueOnce(reply(400, UNSUPPORTED))
+      .mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+    const result = await send(GATEWAY_MODEL);
+    expect(result).toEqual({
+      images: [
+        { bytes: CHAT_PNG, mediaType: 'image/png', width: 1, height: 1 },
+      ],
+      costCents: 3.9,
+    });
+    expect(sentUrls()).toEqual([
+      'https://gateway.example.com/v1/images/generations',
+      'https://gateway.example.com/v1/chat/completions',
+    ]);
+    const chatBody = mockedFetch.mock.calls[1]?.[1]?.body;
+    if (typeof chatBody !== 'string') {
+      throw new Error('expected a JSON chat request body');
+    }
+    expect(JSON.parse(chatBody)).toMatchObject({
+      model: 'openrouter/google/gemini-2.5-flash-image',
+      modalities: ['image', 'text'],
+    });
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'image_generation is not supported by openrouter provider; asking chat completions',
+      ),
+    );
+
+    mockedFetch.mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+    await send(GATEWAY_MODEL);
+    expect(sentUrls()).toHaveLength(3);
+    expect(sentUrls()[2]).toBe(
+      'https://gateway.example.com/v1/chat/completions',
+    );
+  });
+
+  it.each([403, 404, 405, 501])(
+    'takes a %i as a gateway that cannot serve the images API for the model',
+    async (status) => {
+      mockedFetch
+        .mockResolvedValueOnce(
+          reply(status, {
+            error: { message: 'Images API is not supported for this platform' },
+          }),
+        )
+        .mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+      await expect(send(GATEWAY_MODEL)).resolves.toMatchObject({
+        costCents: 3.9,
+      });
+      expect(sentUrls()).toHaveLength(2);
+    },
+  );
+
+  it('asks nothing more of a limit, an outage or a billed answer', async () => {
+    for (const answer of [
+      reply(429, { error: { message: 'Rate limit exceeded' } }),
+      reply(503, { error: { message: 'Upstream unavailable' } }),
+      reply(200, { data: [] }),
+    ]) {
+      mockedFetch.mockReset();
+      mockedFetch.mockResolvedValueOnce(answer);
+      const error = await failureOf(GATEWAY_MODEL);
+      expect(error).toBeInstanceOf(ImageProviderError);
+      expect(sentUrls()).toEqual([
+        'https://gateway.example.com/v1/images/generations',
+      ]);
+    }
+  });
+
+  it("keeps each organization's gateway memory its own", async () => {
+    mockedFetch
+      .mockResolvedValueOnce(reply(400, UNSUPPORTED))
+      .mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+    await send(GATEWAY_MODEL);
+    // Another organization's key may reach routes this one does not.
+    mockedFetch.mockResolvedValueOnce(
+      reply(200, { data: [{ b64_json: Buffer.from(PNG).toString('base64') }] }),
+    );
+    await send({ ...GATEWAY_MODEL, organizationId: 'org_2' });
+    expect(sentUrls()[2]).toBe(
+      'https://gateway.example.com/v1/images/generations',
+    );
+  });
+
+  it('goes back to the images API once chat completions refuses the model', async () => {
+    mockedFetch
+      .mockResolvedValueOnce(reply(400, UNSUPPORTED))
+      .mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+    await send(GATEWAY_MODEL);
+    // The gateway changed: chat refuses, the images API serves.
+    mockedFetch
+      .mockResolvedValueOnce(
+        reply(400, { error: { message: 'modalities not supported' } }),
+      )
+      .mockResolvedValueOnce(
+        reply(200, {
+          data: [{ b64_json: Buffer.from(PNG).toString('base64') }],
+        }),
+      );
+    await send(GATEWAY_MODEL);
+    mockedFetch.mockResolvedValueOnce(
+      reply(200, { data: [{ b64_json: Buffer.from(PNG).toString('base64') }] }),
+    );
+    await send(GATEWAY_MODEL);
+    expect(sentUrls().slice(2)).toEqual([
+      'https://gateway.example.com/v1/chat/completions',
+      'https://gateway.example.com/v1/images/generations',
+      'https://gateway.example.com/v1/images/generations',
+    ]);
+  });
+
+  it('says what both APIs answered, and books what the second billed', async () => {
+    mockedFetch
+      .mockResolvedValueOnce(reply(400, UNSUPPORTED))
+      .mockResolvedValueOnce(
+        reply(200, {
+          choices: [
+            { message: { content: 'I can only describe a lighthouse.' } },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 9, cost: 0.002 },
+        }),
+      );
+    const error = await failureOf(GATEWAY_MODEL);
+    expect(error).toBeInstanceOf(ImageProviderError);
+    expect((error as ImageProviderError).message).toBe(
+      'Gateway refused the image request (400): image_generation is not supported by openrouter provider. Asked over chat completions instead: Gateway returned no usable image: the model answered in words without an image: "I can only describe a lighthouse."',
+    );
+    expect((error as ImageProviderError).charge).toEqual({ costCents: 0.2 });
+    // Neither wire served, so the next call starts on the images API again.
+    mockedFetch.mockResolvedValueOnce(
+      reply(200, { data: [{ b64_json: Buffer.from(PNG).toString('base64') }] }),
+    );
+    await send(GATEWAY_MODEL);
+    expect(sentUrls()[2]).toBe(
+      'https://gateway.example.com/v1/images/generations',
+    );
+  });
+
+  it('asks no other API of a prompt the provider refused on its content', async () => {
+    mockedFetch.mockResolvedValueOnce(
+      reply(400, {
+        error: {
+          message: 'Your request was rejected by the safety system.',
+          type: 'image_generation_user_error',
+          code: 'moderation_blocked',
+        },
+      }),
+    );
+    const error = await failureOf(GATEWAY_MODEL);
+    expect(String(error)).toContain(
+      'Gateway refused the image request (400): Your request was rejected by the safety system.',
+    );
+    expect((error as ImageProviderError).refusedCode).toBe(
+      'moderation_blocked',
+    );
+    expect(sentUrls()).toEqual([
+      'https://gateway.example.com/v1/images/generations',
+    ]);
+  });
+
+  it('asks no other wire of a model that carries none', async () => {
+    mockedFetch.mockResolvedValueOnce(
+      reply(404, { error: { message: 'No endpoints found' } }),
+    );
+    const error = await failureOf(OPENROUTER_MODEL);
+    expect(String(error)).toContain(
+      'OpenRouter refused the image request (404)',
+    );
+    expect(sentUrls()).toHaveLength(1);
+  });
+
+  it('builds the chat request once, and only when it is asked', () => {
+    const request = prepareImageRequest(GATEWAY_MODEL, ARGS);
+    expect(request.wire).toBe('openai-images');
+    const fallback = request.fallback?.();
+    expect(fallback?.wire).toBe('chat-images');
+    expect(fallback?.url).toBe(
+      'https://gateway.example.com/v1/chat/completions',
+    );
+    expect(request.fallback?.()).toBe(fallback);
+    expect(prepareImageRequest(OPENAI_MODEL, ARGS).fallback).toBeUndefined();
   });
 });
