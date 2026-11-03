@@ -14,6 +14,7 @@ describe('relayAllows', () => {
     ['api', '/api/tools', true],
     ['api', '/api/tools/list', true],
     ['api', '/api/connectors/execute', true],
+    ['api', '/api/connectors/mcp', true],
     ['api', '/api/connectors/hostcall', true],
     ['api', '/api/sandbox-blob?token=abc', true],
     ['api', '/api/toolsx', false],

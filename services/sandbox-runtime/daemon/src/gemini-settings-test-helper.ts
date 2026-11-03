@@ -23,8 +23,7 @@ export function geminiPayload(
       continue;
     delete settings.context;
     if (options.bridgeUrl)
-      settings.mcpServers.connectors.env.TALE_CONNECTORS_URL =
-        options.bridgeUrl;
+      settings.mcpServers.connectors.httpUrl = `${options.bridgeUrl}/mcp`;
     return JSON.stringify({
       prompt: options.prompt ?? 'p',
       system_prompt:

@@ -51,6 +51,8 @@ from typing import NoReturn
 
 SETTINGS_DIR = Path(__file__).resolve().parent.parent / "share/tale/gemini-settings"
 BRIDGE_URL_VAR = "${TALE_GEMINI_BRIDGE_URL}"
+# The platform's MCP server under the bridge URL (exec-builder's BRIDGE_MCP_PATH).
+BRIDGE_MCP_PATH = "/mcp"
 # tale-context-<pid of the exec that staged it>-<uuid4 hex>.md
 CONTEXT_FILE = re.compile(r"tale-context-(?P<pid>[1-9][0-9]{0,6})-[0-9a-f]{32}\.md")
 
@@ -64,16 +66,15 @@ def select_settings(settings: dict, env: dict) -> str:
     servers = normalized.get("mcpServers")
     if isinstance(servers, dict) and "connectors" in servers:
         bridge = servers["connectors"]
-        bridge_env = bridge.get("env") if isinstance(bridge, dict) else None
-        url = (
-            bridge_env.get("TALE_CONNECTORS_URL")
-            if isinstance(bridge_env, dict)
-            else None
-        )
-        if not isinstance(url, str) or not url:
+        url = bridge.get("httpUrl") if isinstance(bridge, dict) else None
+        if (
+            not isinstance(url, str)
+            or not url.endswith(BRIDGE_MCP_PATH)
+            or url == BRIDGE_MCP_PATH
+        ):
             raise ValueError("connector settings must contain a bridge URL")
-        env["TALE_GEMINI_BRIDGE_URL"] = url
-        bridge_env["TALE_CONNECTORS_URL"] = BRIDGE_URL_VAR
+        env["TALE_GEMINI_BRIDGE_URL"] = url[: -len(BRIDGE_MCP_PATH)]
+        bridge["httpUrl"] = BRIDGE_URL_VAR + BRIDGE_MCP_PATH
     fingerprint = hashlib.sha256(
         json.dumps(
             normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False

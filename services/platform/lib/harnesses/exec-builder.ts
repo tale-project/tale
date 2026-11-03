@@ -218,6 +218,22 @@ const BRIDGE_MCP_COMMAND = 'tale-connectors-mcp';
  * the bridge's 30 s bound. */
 const BRIDGE_TOOL_TIMEOUT_SEC = 330;
 
+/** The platform serves the bridge as an MCP server of its own under the
+ * bridge URL (backend/domains/connectors/bridge-mcp.ts). A harness that
+ * mounts the bridge by its request headers reaches it there, straight from
+ * the CLI, and no relay process starts in the sandbox. */
+const BRIDGE_MCP_PATH = '/mcp';
+
+/** A CLI's remote mount of the platform's MCP server: the request headers it
+ * sends with each call, and the dialect its config reads a remote server in
+ * (`claude-flag`: claude's `--mcp-config` argv; `command-args`: the gemini
+ * family's settings; `opencode-local`: OpenCode's config). A channel mounts
+ * the bridge one way: this remote form, or the stdio relay (`bridgeEnv`). */
+interface BridgeRemote {
+  readonly headers: Readonly<Record<string, string>>;
+  readonly dialect: 'claude-flag' | 'command-args' | 'opencode-local';
+}
+
 // ---------------------------------------------------------------------------
 // Placeholder substitution
 // ---------------------------------------------------------------------------
@@ -526,14 +542,21 @@ export function buildHarnessExec(
   /** The requested MCP server table in one harness dialect, or undefined
    * when nothing mounts. Browser first, then the managed-only bridge —
    * matching the retired per-slug insertion order. `serverFields` close
-   * every server's entry (Pi's `exposure`). */
+   * every server's entry (Pi's `exposure`). A channel that declares the
+   * remote mount takes the platform's MCP server in its CLI's remote form:
+   * claude's `--mcp-config` an `http` server, the gemini family's settings
+   * an `httpUrl` (qwen-code reads a `url` as SSE), OpenCode a `remote` one
+   * without its OAuth discovery (the bridge takes the session's bearer
+   * token). Any other channel mounts the stdio relay with `bridgeEnv` as its
+   * child env under `bridgeEnvField`. */
   const buildMcpServers = (
     serverShape: 'command-args' | 'opencode-local',
-    bridgeEnvField: string,
-    bridgeEnv: Readonly<Record<string, string>>,
+    bridgeEnvField: string | undefined,
+    bridgeEnv: Readonly<Record<string, string>> | undefined,
     visionOmitsImages: boolean,
     bridgeCallTimeout?: { field: string; unit: 'ms' | 's' },
     serverFields: Readonly<Record<string, unknown>> = {},
+    bridgeRemote?: BridgeRemote,
   ): DocTree | undefined => {
     const servers: DocTree = {};
     if (spec.mcp?.browser) {
@@ -554,7 +577,6 @@ export function buildHarnessExec(
             };
     }
     if (spec.mcp?.bridgeUrl && managed) {
-      const env = substituteMap(bridgeEnv, subs);
       const timeout =
         bridgeCallTimeout === undefined
           ? {}
@@ -564,22 +586,43 @@ export function buildHarnessExec(
                   ? BRIDGE_TOOL_TIMEOUT_SEC * 1000
                   : BRIDGE_TOOL_TIMEOUT_SEC,
             };
-      servers.connectors =
-        serverShape === 'command-args'
-          ? {
-              command: BRIDGE_MCP_COMMAND,
-              [bridgeEnvField]: env,
-              ...timeout,
-              ...serverFields,
-            }
-          : {
-              type: 'local',
-              command: [BRIDGE_MCP_COMMAND],
-              [bridgeEnvField]: env,
-              enabled: true,
-              ...timeout,
-              ...serverFields,
-            };
+      if (bridgeRemote !== undefined) {
+        const url = `${spec.mcp.bridgeUrl}${BRIDGE_MCP_PATH}`;
+        const headers = substituteMap(bridgeRemote.headers, subs);
+        servers.connectors =
+          bridgeRemote.dialect === 'claude-flag'
+            ? { type: 'http', url, headers, ...timeout, ...serverFields }
+            : bridgeRemote.dialect === 'command-args'
+              ? { httpUrl: url, headers, ...timeout, ...serverFields }
+              : {
+                  type: 'remote',
+                  url,
+                  headers,
+                  oauth: false,
+                  enabled: true,
+                  ...timeout,
+                  ...serverFields,
+                };
+      } else {
+        const env = substituteMap(bridgeEnv ?? {}, subs);
+        const envField = bridgeEnvField ?? 'env';
+        servers.connectors =
+          serverShape === 'command-args'
+            ? {
+                command: BRIDGE_MCP_COMMAND,
+                [envField]: env,
+                ...timeout,
+                ...serverFields,
+              }
+            : {
+                type: 'local',
+                command: [BRIDGE_MCP_COMMAND],
+                [envField]: env,
+                enabled: true,
+                ...timeout,
+                ...serverFields,
+              };
+      }
     }
     return Object.keys(servers).length > 0 ? servers : undefined;
   };
@@ -604,6 +647,9 @@ export function buildHarnessExec(
           false,
           f.bridgeCallTimeout,
           f.serverFields,
+          f.bridgeHeaders === undefined
+            ? undefined
+            : { headers: f.bridgeHeaders, dialect: f.serverShape },
         );
         if (servers) setPath(doc, f.path, servers);
       } else if ('instructionsRef' in fragment) {
@@ -684,11 +730,17 @@ export function buildHarnessExec(
     } else if ('mcp' in slot) {
       const m = slot.mcp;
       if (m.delivery === 'config-json-flag') {
+        // The argv delivery sets no call timeout and no server fields.
         const servers = buildMcpServers(
           'command-args',
           'env',
           m.bridgeEnv,
           m.omitImagesOnVision === true,
+          undefined,
+          {},
+          m.bridgeHeaders === undefined
+            ? undefined
+            : { headers: m.bridgeHeaders, dialect: 'claude-flag' },
         );
         if (servers) {
           argv.push(
@@ -698,10 +750,12 @@ export function buildHarnessExec(
           );
         }
       } else {
-        // codex-config-flags: `-c mcp_servers.*` TOML pairs; the bridge
-        // child env rides codex's env_vars whitelist — codex forwards ONLY
-        // whitelisted vars from its own process env to MCP stdio servers —
-        // so the session key stays out of argv and lands in the exec env.
+        // codex-config-flags: `-c mcp_servers.*` TOML pairs. The session
+        // key stays out of argv and lands in the exec env: the relay's child
+        // env rides codex's env_vars whitelist (codex forwards ONLY
+        // whitelisted vars from its own process env to MCP stdio servers),
+        // and the platform's MCP server reads its bearer token from the one
+        // variable `bearer_token_env_var` names.
         const tomlStringArray = (values: readonly string[]): string =>
           `[${values.map((v) => JSON.stringify(v)).join(',')}]`;
         if (spec.mcp?.browser) {
@@ -715,15 +769,31 @@ export function buildHarnessExec(
           );
         }
         if (spec.mcp?.bridgeUrl && managed) {
+          if (m.bridgeBearerEnv !== undefined) {
+            const [tokenVar = ''] = Object.keys(m.bridgeBearerEnv);
+            argv.push(
+              '-c',
+              `mcp_servers.connectors.url=${JSON.stringify(
+                `${spec.mcp.bridgeUrl}${BRIDGE_MCP_PATH}`,
+              )}`,
+              '-c',
+              `mcp_servers.connectors.bearer_token_env_var=${JSON.stringify(tokenVar)}`,
+            );
+            Object.assign(slotEnv, substituteMap(m.bridgeBearerEnv, subs));
+          } else {
+            const bridgeEnv = m.bridgeEnv ?? {};
+            argv.push(
+              '-c',
+              `mcp_servers.connectors.command=${JSON.stringify(BRIDGE_MCP_COMMAND)}`,
+              '-c',
+              `mcp_servers.connectors.env_vars=${tomlStringArray(Object.keys(bridgeEnv))}`,
+            );
+            Object.assign(slotEnv, substituteMap(bridgeEnv, subs));
+          }
           argv.push(
-            '-c',
-            `mcp_servers.connectors.command=${JSON.stringify(BRIDGE_MCP_COMMAND)}`,
-            '-c',
-            `mcp_servers.connectors.env_vars=${tomlStringArray(Object.keys(m.bridgeEnv))}`,
             '-c',
             `mcp_servers.connectors.tool_timeout_sec=${BRIDGE_TOOL_TIMEOUT_SEC}`,
           );
-          Object.assign(slotEnv, substituteMap(m.bridgeEnv, subs));
         }
       }
     } else if ('toolDeny' in slot) {

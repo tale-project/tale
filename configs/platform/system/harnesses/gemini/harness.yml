@@ -118,18 +118,17 @@ exec:
               set:
                 tools:
                   exclude: [google_web_search, web_fetch]
-            # MCP servers via the settings `mcpServers` map (stdio:
-            # command/args/env — the CLI's MCPServerConfig). The bridge
-            # token rides `${TALE_GATEWAY_TOKEN}`: settings string values
-            # are env-resolved by the CLI at load, so the staged settings
-            # file never contains the key itself.
+            # MCP servers via the settings `mcpServers` map (the CLI's
+            # MCPServerConfig). The bridge is the platform's MCP server,
+            # reached over HTTP (`httpUrl`), so no relay process starts. Its
+            # bearer token rides `${TALE_GATEWAY_TOKEN}`: settings string
+            # values are env-resolved by the CLI at load, so the staged
+            # settings file never contains the key itself.
             - mcpServers:
                 path: mcpServers
                 serverShape: command-args
-                bridgeEnvField: env
-                bridgeEnv:
-                  TALE_CONNECTORS_URL: '${bridgeUrl}'
-                  TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                bridgeHeaders:
+                  Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}'
       - instructions: { key: system_prompt }
   env:
     # MANAGED: Google GenAI-compatible route on the platform gateway; the
