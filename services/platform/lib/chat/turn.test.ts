@@ -27,6 +27,7 @@ import {
   fixedLocaleNotice,
   LAST_TOOL_ROUND_NOTICE,
   MAX_TOOL_ROUNDS,
+  MAX_TURN_CANDIDATES,
   MAX_WORK_TOOL_ROUNDS,
   runTurn,
   ThreadBusyError,
@@ -36,6 +37,7 @@ import {
   type ModelCall,
   type ModelCallRequest,
   type ModelStreamChunk,
+  type RefusedCandidate,
   type TurnDeps,
   type TurnRequest,
   type TurnStore,
@@ -3858,5 +3860,368 @@ describe('attachArtifact', () => {
     expect(
       parts.map((part) => part.type === 'artifact' && part.fileId),
     ).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('runTurn — another provider’s model after a refusal [CHAT-R36]', () => {
+  const SPENT =
+    'The model provider answered 402: {"error":{"message":"This request requires more credits, or fewer max_tokens."}}';
+  const OTHER = modelCatalogEntrySchema.parse({
+    id: 'gpt-5.5',
+    provider: 'openai',
+    tags: ['chat'],
+    supportsTools: true,
+    supportsVision: true,
+    contextWindow: 100_000,
+  });
+  const THIRD = { ...OTHER, id: 'gemini-3.6-flash', provider: 'google' };
+  const FOURTH = { ...OTHER, id: 'grok-4.5', provider: 'xai' };
+  const BUDGET = { maxTokens: 100_000, reserveOutputTokens: 4_000 };
+
+  /** A provider that turns the request away before accepting it, as the
+   * wire does on a non-OK status. */
+  function refusing(status: number, message = SPENT): ModelCall {
+    return async function* stream() {
+      yield* [];
+      throw Object.assign(new Error(message), { status });
+    };
+  }
+
+  /** A host that offers `candidates` in order, one per refusal, and
+   * records what each ask was told. */
+  function rerouting(
+    ...candidates: ReadonlyArray<{ model: typeof MODEL; call: ModelCall }>
+  ): {
+    reroute: NonNullable<TurnDeps['reroute']>;
+    asked: Array<readonly RefusedCandidate[]>;
+  } {
+    const asked: Array<readonly RefusedCandidate[]> = [];
+    return {
+      asked,
+      reroute: (refused) => {
+        asked.push(refused);
+        const next = candidates[refused.length - 1];
+        return Promise.resolve(
+          next === undefined
+            ? undefined
+            : { model: next.model, budget: BUDGET, call: next.call },
+        );
+      },
+    };
+  }
+
+  it('answers on the next model when the first provider refuses for credit before accepting', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const port = rerouting({
+      model: OTHER,
+      call: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: 'Within 30 days.' };
+        yield {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+        };
+      },
+    });
+    const d = deps({ model: refusing(402), reroute: port.reroute });
+    const holds: number[] = [];
+    d.deps.store.holdNextRound = (round) => {
+      holds.push(round.tokens);
+      return Promise.resolve();
+    };
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Within 30 days.',
+    });
+    expect(port.asked).toEqual([
+      [
+        {
+          providerSlug: 'anthropic',
+          modelId: 'claude-fable-5',
+          reason: expect.stringContaining('402'),
+        },
+      ],
+    ]);
+    // The reply says which model answered, and only that one is booked.
+    const settled = d.store.finalized.at(-1);
+    expect(settled).toMatchObject({ model: 'gpt-5.5', providerSlug: 'openai' });
+    expect(settled).not.toHaveProperty('error');
+    expect(d.usage).toEqual([
+      expect.objectContaining({
+        model: 'gpt-5.5',
+        provider: 'openai',
+        totalTokens: 105,
+      }),
+    ]);
+    // The hold rose to the replacement's worst case before it ran, by what
+    // that exceeds the refused model's: its output reserve, the prompt
+    // being the same.
+    expect(holds).toEqual([BUDGET.reserveOutputTokens]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'anthropic/claude-fable-5 refused the turn before accepting it (credit_exhausted); trying openai/gpt-5.5',
+      ),
+    );
+  });
+
+  it('holds the costliest candidate’s worst case, never the sum of both', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const port = rerouting({ model: OTHER, call: streamingModel(['Yes.']) });
+    const d = deps({ model: refusing(402), reroute: port.reroute });
+    const holds: Array<{ tokens: number; costCents: number }> = [];
+    d.deps.store.holdNextRound = (round) => {
+      holds.push({ tokens: round.tokens, costCents: round.costCents });
+      return Promise.resolve();
+    };
+
+    await expect(
+      runTurn(request({ budget: BUDGET }), d.deps),
+    ).resolves.toMatchObject({ status: 'completed', text: 'Yes.' });
+
+    // The opening already held a worst case as large as the replacement's.
+    expect(holds).toEqual([]);
+  });
+
+  it('also moves on from a rate limit, a refused key and a plan that lacks the model', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const refusals = [
+      {
+        status: 429,
+        message: 'The model provider answered 429: slow down',
+        code: 'rate_limited',
+      },
+      {
+        status: 401,
+        message: 'The model provider answered 401: invalid key',
+        code: 'auth_error',
+      },
+      {
+        status: 429,
+        message:
+          'The model provider answered 429: {"error":{"code":"1311","message":"Your current subscription plan does not yet include access to GLM-5"}}',
+        code: 'model_not_entitled',
+      },
+    ];
+    for (const { status, message, code } of refusals) {
+      warn.mockClear();
+      const port = rerouting({ model: OTHER, call: streamingModel(['Yes.']) });
+      const d = deps({
+        model: refusing(status, message),
+        reroute: port.reroute,
+      });
+      await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+        status: 'completed',
+        text: 'Yes.',
+      });
+      expect(port.asked).toHaveLength(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(`(${code}); trying openai/gpt-5.5`),
+      );
+    }
+  });
+
+  it('never tries another model once the provider accepted the round', async () => {
+    const port = rerouting({ model: OTHER, call: streamingModel(['never']) });
+    const d = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield* [];
+        throw Object.assign(new Error(SPENT), { status: 402 });
+      },
+      reroute: port.reroute,
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(port.asked).toEqual([]);
+    expect(d.store.finalized.at(-1)).toMatchObject({
+      model: 'claude-fable-5',
+      providerSlug: 'anthropic',
+    });
+  });
+
+  it('ends the turn on a refusal of the request itself or a provider fault', async () => {
+    for (const status of [400, 404, 500]) {
+      const port = rerouting({ model: OTHER, call: streamingModel(['never']) });
+      const d = deps({
+        model: refusing(status, `The model provider answered ${status}: no`),
+        reroute: port.reroute,
+      });
+      await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+        status: 'refused',
+        step: 'stream',
+      });
+      expect(port.asked).toEqual([]);
+    }
+  });
+
+  it('never offers another provider a message refused for its content or its shape', async () => {
+    const refusals = [
+      // OpenRouter answers a moderation or guardrail block as a 403, the
+      // status a refused key has.
+      {
+        status: 403,
+        message:
+          'The model provider answered 403: {"error":{"code":403,"message":"Your chosen model requires moderation and your input was flagged for harassment"}}',
+      },
+      {
+        status: 403,
+        message:
+          'The model provider answered 403: {"error":{"code":403,"message":"Blocked by guardrail: prompt injection detected"}}',
+      },
+      // A 400 is about the request, whatever key or number its text names.
+      {
+        status: 400,
+        message:
+          'The model provider answered 400: Invalid schema for function: unknown key "strict"',
+      },
+      {
+        status: 400,
+        message:
+          'The model provider answered 400: messages.402.content: field required',
+      },
+    ];
+    for (const { status, message } of refusals) {
+      const port = rerouting({ model: OTHER, call: streamingModel(['never']) });
+      const d = deps({
+        model: refusing(status, message),
+        reroute: port.reroute,
+      });
+      await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+        status: 'refused',
+        step: 'stream',
+      });
+      expect(port.asked).toEqual([]);
+    }
+  });
+
+  it('tries no other model for a round after the first', async () => {
+    let rounds = 0;
+    const port = rerouting({ model: OTHER, call: streamingModel(['never']) });
+    const d = deps({
+      model: async function* stream() {
+        rounds += 1;
+        if (rounds === 1) {
+          yield {
+            text: '',
+            toolCalls: [{ id: 'call_1', name: 'rag_search', input: {} }],
+          };
+          return;
+        }
+        throw Object.assign(new Error(SPENT), { status: 402 });
+      },
+      tools: {
+        wireTools: [
+          {
+            name: 'rag_search',
+            description: 'Search the knowledge.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute: () => Promise.resolve({ status: 'ok', results: [] }),
+      },
+      reroute: port.reroute,
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(rounds).toBe(2);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(port.asked).toEqual([]);
+  });
+
+  it('explains the refusal, naming every model tried, when the replacements refuse too', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const port = rerouting({
+      model: OTHER,
+      call: refusing(429, 'The model provider answered 429: slow down'),
+    });
+    const d = deps({ model: refusing(402), reroute: port.reroute });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    // Asked again after the replacement refused: it had nothing left.
+    expect(port.asked).toHaveLength(2);
+    const settled = d.store.finalized.at(-1);
+    expect(settled).toMatchObject({ model: 'gpt-5.5', providerSlug: 'openai' });
+    const error = decodeChatError(settled?.error as string);
+    expect(error).toMatchObject({
+      code: 'rate_limited',
+      provider: 'openai',
+      model: 'gpt-5.5',
+      triedCount: 2,
+    });
+    expect(error.raw?.split('\n')).toEqual([
+      expect.stringMatching(/^anthropic\/claude-fable-5: .*402/),
+      expect.stringMatching(/^openai\/gpt-5\.5: .*429/),
+    ]);
+    expect(d.usage).toEqual([]);
+  });
+
+  it(`runs at most ${MAX_TURN_CANDIDATES} models in one turn`, async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const ran: string[] = [];
+    const refusingAs =
+      (name: string): ModelCall =>
+      (call) => {
+        ran.push(name);
+        return refusing(402)(call);
+      };
+    const port = rerouting(
+      { model: OTHER, call: refusingAs('openai') },
+      { model: THIRD, call: refusingAs('google') },
+      { model: FOURTH, call: refusingAs('xai') },
+    );
+    const d = deps({ model: refusingAs('anthropic'), reroute: port.reroute });
+
+    await runTurn(request(), d.deps);
+
+    expect(ran).toEqual(['anthropic', 'openai', 'google']);
+    expect(port.asked).toHaveLength(MAX_TURN_CANDIDATES - 1);
+    const error = decodeChatError(d.store.finalized.at(-1)?.error as string);
+    expect(error).toMatchObject({
+      code: 'credit_exhausted',
+      provider: 'google',
+      triedCount: MAX_TURN_CANDIDATES,
+    });
+  });
+
+  it('keeps the first refusal when the host cannot name another model', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const d = deps({
+      model: refusing(402),
+      reroute: () => Promise.reject(new Error('catalog unavailable')),
+    });
+    await runTurn(request(), d.deps);
+    const error = decodeChatError(d.store.finalized.at(-1)?.error as string);
+    expect(error).toMatchObject({
+      code: 'credit_exhausted',
+      provider: 'anthropic',
+      raw: SPENT,
+    });
+    expect(error.triedCount).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'no model could replace anthropic/claude-fable-5',
+      ),
+      expect.any(Error),
+    );
+  });
+
+  it('ends the turn on its first refusal when the host offers no replacement port', async () => {
+    const d = deps({ model: refusing(402) });
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'refused',
+      step: 'stream',
+    });
+    const error = decodeChatError(d.store.finalized.at(-1)?.error as string);
+    expect(error).toMatchObject({
+      code: 'credit_exhausted',
+      provider: 'anthropic',
+      model: 'claude-fable-5',
+      raw: SPENT,
+    });
+    expect(error.triedCount).toBeUndefined();
   });
 });

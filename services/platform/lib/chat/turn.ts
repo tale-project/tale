@@ -22,8 +22,12 @@
  * may run — a credential whose auth method binds it to a vendor's own
  * tooling forces sandbox mode with that harness, and refuses anything else.
  * The chat lane's opt-in Auto is a step BEFORE this pipeline
- * (`convex/lib/providers/resolve_chat_model.ts`): it resolves to a concrete
- * pair or refuses; it never reaches in.
+ * (`backend/core/lib/providers/resolve_chat_model.ts`): it resolves to a
+ * concrete pair or refuses. Its one way in is {@link TurnDeps.reroute}: when
+ * the provider refuses the first round before accepting it (a spent credit,
+ * a rate limit, a refused key), the host may name another concrete pair —
+ * {@link MAX_TURN_CANDIDATES} in all — and the turn runs on that one
+ * instead, stamped with the model that answered.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -33,6 +37,7 @@ import {
   classifyChatErrorCode,
   describeChatError,
   encodeChatError,
+  isAccountRefusal,
   isProviderRequestRefusal,
 } from '../shared/chat-errors';
 import {
@@ -543,6 +548,44 @@ export interface TurnRequest {
   readonly workToolsUnavailable?: WorkToolsUnavailableReason;
 }
 
+/** The most models one turn may run on: the first and the replacements
+ * {@link TurnDeps.reroute} names after a refusal. */
+export const MAX_TURN_CANDIDATES = 3;
+
+/** A model whose provider refused this turn before accepting it. */
+export interface RefusedCandidate {
+  readonly providerSlug: string;
+  readonly modelId: string;
+  /** The refusal as the provider said it, redacted (`describeChatError`). */
+  readonly reason: string;
+}
+
+/** Another concrete pair to run the turn on: its catalog entry, the context
+ * budget fitted to it, and the call that reaches it. */
+export interface TurnReroute {
+  readonly model: ModelCatalogEntry;
+  readonly budget: ContextBudget;
+  readonly call: ModelCall;
+}
+
+/** A first round's worst case: the prompt as assembled plus the output
+ * reserve, priced at the model's rates — what a turn holds against the caps
+ * before the round runs. */
+function firstRoundWorstCase(
+  request: TurnRequest,
+  promptTokens: number,
+): { tokens: number; costCents: number } {
+  const reserveOutput = request.budget?.reserveOutputTokens ?? 0;
+  return {
+    tokens: promptTokens + reserveOutput,
+    costCents: estimateCostCents(
+      promptTokens,
+      reserveOutput,
+      request.model.pricing,
+    ),
+  };
+}
+
 export interface TurnDeps {
   /** The harness catalog a SANDBOX host resolves execution against. A
    * direct-only host (chat) omits it — the direct arm never consults it. */
@@ -563,6 +606,16 @@ export interface TurnDeps {
   readonly now?: () => Date;
   /** Called with every cleared chunk — how a host forwards the stream. */
   readonly onChunk?: (text: string) => void;
+  /**
+   * Another model for a turn whose provider refused its first round before
+   * accepting it, for the account ({@link isAccountRefusal}), given every
+   * model refused so far, the newest last; `undefined` when none is left.
+   * Only the chat lane's Auto passes it: a model the person named is the one
+   * they asked for, and its refusal ends the turn.
+   */
+  readonly reroute?: (
+    refused: readonly RefusedCandidate[],
+  ) => Promise<TurnReroute | undefined>;
 }
 
 export type TurnOutcome =
@@ -1496,7 +1549,7 @@ export async function runTurn(
   }
 
   steps.push('resolve-execution');
-  const { execution } = resolveAgentAndExecution(request, deps);
+  let { execution } = resolveAgentAndExecution(request, deps);
   if (execution.mode === 'refused') {
     return refuse('resolve-execution', execution.reason, input.text);
   }
@@ -1521,7 +1574,7 @@ export async function runTurn(
         });
 
   steps.push('assemble-context');
-  const context = assembleTurnContext(request, input.text, now(), chosenTokens);
+  let context = assembleTurnContext(request, input.text, now(), chosenTokens);
 
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
@@ -1534,6 +1587,12 @@ export async function runTurn(
   const titleText = withoutLeadingSkillNames(
     input.text,
     new Set(request.chosenSkills ?? []),
+  );
+  // What the first round holds: the opening's worst case, raised when a
+  // replacement model's is larger.
+  let firstRoundHeld = firstRoundWorstCase(
+    request,
+    context.estimatedTokens + chosenTokens,
   );
   const opened = await deps.store.beginTurn({
     organizationId: request.organizationId,
@@ -1556,15 +1615,7 @@ export async function runTurn(
       userId: request.userId,
       projectIds: request.projectId !== undefined ? [request.projectId] : [],
       ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
-      tokens:
-        context.estimatedTokens +
-        chosenTokens +
-        (request.budget?.reserveOutputTokens ?? 0),
-      costCents: estimateCostCents(
-        context.estimatedTokens + chosenTokens,
-        request.budget?.reserveOutputTokens ?? 0,
-        request.model.pricing,
-      ),
+      ...firstRoundHeld,
     },
   });
   const placeholder = opened.assistantMessage;
@@ -1602,7 +1653,7 @@ export async function runTurn(
   let roundsSummed = 0;
   /** Where the rounds were served, as their responses said — stamped beside
    * the counts, on a failed reply too. */
-  const serving = createServingTally(request.model.id);
+  let serving = createServingTally(request.model.id);
   const servingStamp = (): { serving?: NonNullable<TurnUsage['serving']> } => {
     const stamp = serving.stamp();
     return stamp !== undefined ? { serving: stamp } : {};
@@ -1630,6 +1681,9 @@ export async function runTurn(
   /** The turn's usage went to the ledger (or was attempted) on the way to
    * a settle — a failure after that books nothing a second time. */
   let usageBooked = false;
+  /** The models whose providers refused this turn before the one running
+   * now, in the order they ran (`deps.reroute`). */
+  const refused: RefusedCandidate[] = [];
 
   try {
     steps.push('stream');
@@ -1766,24 +1820,119 @@ export async function runTurn(
         reasoning: '',
       };
       inFlight = { observed, wire };
-      streamed = await streamWithOutputGuardrails(
-        request,
-        context,
-        execution,
-        roundSampling,
-        deps,
-        placeholder.id,
-        {
-          messages: roundMessages,
-          ...(offeredTools !== undefined ? { tools: offeredTools } : {}),
-          ...(withheldTools !== undefined
-            ? { tools: withheldTools, toolsWithheld: true }
-            : {}),
-          signal: roundSignal,
-          onCancelRequested: () => cancel.abort(),
-          observed,
-        },
-      );
+      try {
+        streamed = await streamWithOutputGuardrails(
+          request,
+          context,
+          execution,
+          roundSampling,
+          deps,
+          placeholder.id,
+          {
+            messages: roundMessages,
+            ...(offeredTools !== undefined ? { tools: offeredTools } : {}),
+            ...(withheldTools !== undefined
+              ? { tools: withheldTools, toolsWithheld: true }
+              : {}),
+            signal: roundSignal,
+            onCancelRequested: () => cancel.abort(),
+            observed,
+          },
+        );
+      } catch (err) {
+        // A refusal before the provider accepted the first round: nothing
+        // was read, written or billed, so another provider's model may
+        // answer the same turn. Anything later, or any other failure, is
+        // the turn's failure.
+        if (
+          deps.reroute === undefined ||
+          roundsSummed > 0 ||
+          observed.accepted ||
+          roundSignal.aborted ||
+          refused.length + 1 >= MAX_TURN_CANDIDATES ||
+          !isAccountRefusal(err)
+        ) {
+          throw err;
+        }
+        const current: RefusedCandidate = {
+          providerSlug: request.model.provider,
+          modelId: request.model.id,
+          reason: describeChatError(err, 'The model provider refused.'),
+        };
+        const next = await deps
+          .reroute([...refused, current])
+          .catch((rerouteError: unknown) => {
+            console.warn(
+              `[chat] no model could replace ${current.providerSlug}/${current.modelId}:`,
+              rerouteError,
+            );
+            return undefined;
+          });
+        if (next === undefined) throw err;
+        const nextRequest: TurnRequest = {
+          ...request,
+          model: next.model,
+          budget: next.budget,
+        };
+        const nextDeps: TurnDeps = { ...deps, model: next.call };
+        const nextExecution = resolveAgentAndExecution(
+          nextRequest,
+          nextDeps,
+        ).execution;
+        if (nextExecution.mode === 'refused') throw err;
+        console.warn(
+          `[chat] ${current.providerSlug}/${current.modelId} refused the turn before accepting it (${classifyChatErrorCode(err)}); trying ${next.model.provider}/${next.model.id}`,
+        );
+        refused.push(current);
+        request = nextRequest;
+        deps = nextDeps;
+        execution = nextExecution;
+        context = assembleTurnContext(request, input.text, now(), chosenTokens);
+        roundSampling = fitSamplingToWindow(
+          resolveTurnSampling(
+            request.model,
+            request.reasoningEffort,
+            outputCap(request.maxOutputTokens),
+          ),
+          request.budget?.maxTokens ?? request.model.contextWindow,
+        );
+        serving = createServingTally(request.model.id);
+        // A refused round spent nothing, so the hold covers the costliest
+        // candidate's worst case, never their sum: the replacement raises it
+        // only by what its own exceeds it, and a send racing this turn
+        // counts what it may spend and no more. Best-effort, like every
+        // later round's hold.
+        const worst = firstRoundWorstCase(
+          request,
+          context.estimatedTokens + chosenTokens,
+        );
+        const raise = {
+          tokens: Math.max(0, worst.tokens - firstRoundHeld.tokens),
+          costCents: Math.max(0, worst.costCents - firstRoundHeld.costCents),
+        };
+        firstRoundHeld = {
+          tokens: Math.max(worst.tokens, firstRoundHeld.tokens),
+          costCents: Math.max(worst.costCents, firstRoundHeld.costCents),
+        };
+        if (
+          deps.store.holdNextRound !== undefined &&
+          (raise.tokens > 0 || raise.costCents > 0)
+        ) {
+          await deps.store
+            .holdNextRound({
+              organizationId: request.organizationId,
+              threadId: request.threadId,
+              ...raise,
+            })
+            .catch((error: unknown) => {
+              console.warn(
+                `[chat] raising the hold of thread ${request.threadId} for its replacement model failed:`,
+                error,
+              );
+            });
+        }
+        continue;
+      }
       inFlight = undefined;
       if (streamed.finishReason === 'length') anyRoundLength = true;
       firstChunkAtMs ??= streamed.firstChunkAtMs;
@@ -2217,11 +2366,24 @@ export async function runTurn(
       model: request.model.id,
       providerSlug: request.model.provider,
       ...(consumed !== undefined ? { usage: consumed } : {}),
+      // A turn that ran out of replacements names the model that refused
+      // last; the details keep every refusal, in the order they came.
       error: encodeChatError({
         code: classifyChatErrorCode(err),
         provider: request.model.provider,
         model: request.model.id,
-        raw: reason,
+        ...(refused.length > 0
+          ? {
+              triedCount: refused.length + 1,
+              raw: [
+                ...refused.map(
+                  (candidate) =>
+                    `${candidate.providerSlug}/${candidate.modelId}: ${candidate.reason}`,
+                ),
+                `${request.model.provider}/${request.model.id}: ${reason}`,
+              ].join('\n'),
+            }
+          : { raw: reason }),
       }),
     });
     return {

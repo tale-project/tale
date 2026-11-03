@@ -504,8 +504,8 @@ errorHintContentFilter: Le message a été signalé par le filtre de contenu.
   Essaie de reformuler ton message.
 errorHintContextLength: La conversation est trop longue pour la fenêtre de
   contexte du modèle. Essaie de démarrer un nouveau chat.
-errorHintCreditExhausted: Le plafond de crédits du fournisseur d'IA a été
-  dépassé. Contacte ton administrateur pour ajouter des crédits.
+errorHintCreditExhausted: Le fournisseur d'IA n'a plus de crédits. Choisis un
+  modèle d'un autre fournisseur ou demande à ton administrateur d'ajouter des crédits.
 errorHintMissingApiKey: Aucune clé API configurée pour ce workspace.
 errorHintModelNotFound: Le modèle sélectionné est introuvable ou indisponible.
   Contacte ton administrateur.
@@ -533,8 +533,8 @@ errorHintUnsupportedParameter: Le modèle a rejeté l'un des paramètres de la
 errorHintProviderUnreachable: Le fournisseur d'IA est injoignable. Il est
   peut-être hors ligne ou mal configuré. Réessaie ou contacte ton
   administrateur.
-errorHintCreditExhaustedNamed: "{provider} n'a plus de crédits. Contacte ton
-  administrateur pour ajouter des crédits ou changer de fournisseur."
+errorHintCreditExhaustedNamed: "{provider} n'a plus de crédits. Choisis un
+  modèle d'un autre fournisseur ou demande à ton administrateur d'ajouter des crédits."
 errorHintAuthErrorNamed: La clé API de {provider} est invalide ou expirée.
   Contacte ton administrateur pour la mettre à jour.
 errorHintProviderUnreachableNamed: '{provider} est injoignable. Le fournisseur

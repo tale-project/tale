@@ -504,8 +504,8 @@ errorHintContentFilter: Die Nachricht wurde vom Inhaltsfilter markiert.
 errorHintContextLength:
   Die Konversation ist zu lang für das Kontextfenster des
   Modells. Versuche, einen neuen Chat zu starten.
-errorHintCreditExhausted: Das Guthaben des KI-Anbieters wurde überschritten.
-  Kontaktiere deinen Administrator, um Guthaben aufzuladen.
+errorHintCreditExhausted: Der KI-Anbieter hat kein Guthaben mehr. Wähl ein
+  Modell eines anderen Anbieters oder lass deinen Administrator Guthaben aufladen.
 errorHintMissingApiKey: Für diesen Arbeitsbereich ist noch kein API-Schlüssel konfiguriert.
 errorHintModelNotFound: Das ausgewählte Modell wurde nicht gefunden oder ist
   nicht verfügbar. Kontaktiere deinen Administrator.
@@ -534,8 +534,8 @@ errorHintUnsupportedParameter: Das Modell hat einen der Anfrageparameter
 errorHintProviderUnreachable: Der KI-Anbieter konnte nicht erreicht werden. Er
   ist möglicherweise offline oder falsch konfiguriert. Versuche es erneut oder
   kontaktiere deinen Administrator.
-errorHintCreditExhaustedNamed: '{provider} hat kein Guthaben mehr. Kontaktiere
-  deinen Administrator, um Guthaben aufzuladen oder den Anbieter zu wechseln.'
+errorHintCreditExhaustedNamed: '{provider} hat kein Guthaben mehr. Wähl ein
+  Modell eines anderen Anbieters oder lass deinen Administrator Guthaben aufladen.'
 errorHintAuthErrorNamed: Der API-Schlüssel für {provider} ist ungültig oder
   abgelaufen. Kontaktiere deinen Administrator, um ihn zu aktualisieren.
 errorHintProviderUnreachableNamed:

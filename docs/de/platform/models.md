@@ -7,7 +7,7 @@ Die Modellauswahl zeigt, was deine Organisation derzeit nutzen kann, nicht alle 
 
 ## Automatisch oder gezielt auswählen
 
-Im Chat wählt **Auto** für jede Nachricht ein Modell anhand ihres Textes: Es achtet etwa auf die Länge, auf enthaltenen Code und darauf, ob es um rechtliche, medizinische oder finanzielle Fragen geht. Anhänge ändern die Wahl nicht; nur braucht ein angehängtes Bild ein Modell, das Bilder lesen kann. Dafür dient eine einfache Heuristik, kein zweiter KI-Aufruf. Die Details einer Antwort zeigen, welches Modell tatsächlich geantwortet hat.
+Im Chat wählt **Auto** für jede Nachricht ein Modell anhand ihres Textes: Es achtet etwa auf die Länge, auf enthaltenen Code und darauf, ob es um rechtliche, medizinische oder finanzielle Fragen geht. Anhänge ändern die Wahl nicht; nur braucht ein angehängtes Bild ein Modell, das Bilder lesen kann. Dafür dient eine einfache Heuristik, kein zweiter KI-Aufruf. Lehnt der Anbieter des gewählten Modells die Nachricht von vornherein ab, etwa weil sein Guthaben aufgebraucht ist oder er Anfragen drosselt, versucht Auto ein Modell eines anderen Anbieters, insgesamt bis zu drei Modelle. Die Details einer Antwort zeigen, welches Modell tatsächlich geantwortet hat.
 
 Wähle im Eingabebereich ein bestimmtes Modell, wenn du Ergebnisse vergleichen, die Auswahl kontrollieren oder eine bekannte Aufgabe gezielt bearbeiten möchtest. Diese Auswahl bleibt, bis du sie änderst oder zu Auto zurückkehrst. In der [Arena](/de/platform/chat/arena-mode) vergleichst du zwei verfügbare Modelle mit derselben Nachricht.
 

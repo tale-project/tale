@@ -365,3 +365,91 @@ describe('resolveChatModel — candidate world', () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining('high-stakes'));
   });
 });
+
+describe('resolveChatModel — a provider that refused this turn', () => {
+  const twoProviders = [
+    entry({ id: 'claude-sonnet-5', provider: 'openrouter', outputPrice: 1000 }),
+    entry({ id: 'claude-sonnet-5', provider: 'anthropic', outputPrice: 1000 }),
+    entry({ id: 'unknown-cheap', provider: 'openrouter', outputPrice: 5 }),
+  ];
+  const credentials: CredentialFacts[] = [
+    { providerSlug: 'openrouter', authMethod: 'api-key' },
+    { providerSlug: 'anthropic', authMethod: 'api-key' },
+  ];
+
+  it('picks the same model on the other provider once the first is excluded', async () => {
+    mockedWalk.mockResolvedValue(twoProviders.map(hit));
+    const first = await resolveChatModel(fakeCtx(credentials), {
+      ...BASE_ARGS,
+      promptText: 'Refactor this function to stream rows.',
+    });
+    expect(first).toMatchObject({
+      ok: true,
+      pick: { providerSlug: 'openrouter', modelId: 'claude-sonnet-5' },
+    });
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const second = await resolveChatModel(fakeCtx(credentials), {
+      ...BASE_ARGS,
+      promptText: 'Refactor this function to stream rows.',
+      excludeProviders: ['openrouter'],
+    });
+    expect(second).toMatchObject({
+      ok: true,
+      pick: {
+        providerSlug: 'anthropic',
+        modelId: 'claude-sonnet-5',
+        source: 'preferred',
+      },
+    });
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('excluding openrouter'),
+    );
+  });
+
+  it('asks governance about the remaining models only', async () => {
+    mockedWalk.mockResolvedValue(twoProviders.map(hit));
+    const ctx = fakeCtx(credentials, { accessible: ['unknown-cheap'] });
+    const result = await resolveChatModel(ctx, {
+      ...BASE_ARGS,
+      promptText: 'hi',
+      excludeProviders: ['openrouter'],
+    });
+    // The only model governance allows lives on the excluded provider, so
+    // the policy — not the catalog — leaves nothing to answer.
+    expect(result).toEqual({ ok: false, refusal: 'no-accessible-model' });
+    expect(vi.mocked(ctx).runQuery.mock.calls).toContainEqual([
+      expect.anything(),
+      expect.objectContaining({ supportedModels: ['claude-sonnet-5'] }),
+    ]);
+  });
+
+  it('passes over a pin on the excluded provider', async () => {
+    mockedWalk.mockResolvedValue(twoProviders.map(hit));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await resolveChatModel(
+      fakeCtx(credentials, {
+        defaultModel: { providerName: 'openrouter', modelId: 'unknown-cheap' },
+      }),
+      { ...BASE_ARGS, promptText: 'hi', excludeProviders: ['openrouter'] },
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      pick: { providerSlug: 'anthropic', modelId: 'claude-sonnet-5' },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('pinned default openrouter/unknown-cheap'),
+    );
+  });
+
+  it('refuses when every provider is excluded', async () => {
+    mockedWalk.mockResolvedValue(twoProviders.map(hit));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await resolveChatModel(fakeCtx(credentials), {
+      ...BASE_ARGS,
+      promptText: 'hi',
+      excludeProviders: ['openrouter', 'anthropic'],
+    });
+    expect(result).toEqual({ ok: false, refusal: 'no-chat-model' });
+  });
+});
