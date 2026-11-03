@@ -36,6 +36,7 @@ import {
   SquarePen,
 } from 'lucide-react';
 import {
+  memo,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -155,21 +156,30 @@ const NO_HELD = new Set<string>();
  * clip, not a reflow. Folded, its right border stays: the shell drops its
  * own line to the rail while a section panel stands, so that border is the
  * sidebar's edge to the page, and it travels with the fold.
+ *
+ * Memoised, and it reads only the part of the address it shows: the shell
+ * around it renders again on every navigation, a board's task dialog opening
+ * and closing (`?task=`) among them, and the whole panel rendered with it
+ * (#3974).
  */
-export function HomePanel({ organizationId }: { organizationId: string }) {
+export const HomePanel = memo(function HomePanel({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
   const { t } = useT('home');
   const {
     open: storedOpen,
     setOpen: setStoredOpen,
     setMounted,
   } = useHomePanel();
-  const { pathname, search } = useLocation();
   // Only a page whose header carries the toggle (a chat, a task, an open
   // conversation, a project's page) may fold the panel away; everywhere else
   // in Home it stays, or it could not be brought back.
-  const collapsible = isPanelCollapsible(
-    readHomeLocation(pathname, search, organizationId),
-  );
+  const collapsible = useLocation({
+    select: ({ pathname, search }) =>
+      isPanelCollapsible(readHomeLocation(pathname, search, organizationId)),
+  });
   const open = storedOpen || !collapsible;
   const panelRef = useRef<HTMLDivElement>(null);
   const [storedWidth, setWidth] = usePersistedState(
@@ -258,7 +268,7 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
       )}
     </SubPanel>
   );
-}
+});
 
 /**
  * Everything Home lists — the view switcher, the projects, and the stream of
@@ -280,8 +290,22 @@ export function HomeNavigator({
   variant?: 'panel' | 'screen';
 }) {
   const { t } = useT('home');
-  const { pathname, search: locationSearch } = useLocation();
-  const location = readHomeLocation(pathname, locationSearch, organizationId);
+  // What the address says is open, shared while it holds: a query parameter
+  // the panel does not read, such as a board's `?task=`, renders nothing here.
+  const location = useLocation({
+    select: ({ pathname, search }) =>
+      readHomeLocation(pathname, search, organizationId),
+    structuralSharing: true,
+  });
+  // The project a new chat is started in, which files its draft row there.
+  const draftProjectId = useLocation({
+    select: ({ search }) => {
+      const searchRecord: Record<string, unknown> = search;
+      return typeof searchRecord.projectId === 'string'
+        ? searchRecord.projectId
+        : undefined;
+    },
+  });
 
   // ⌥↑/⌥↓ open the previous or next item of the list on screen from
   // anywhere but a text field — through chats, tasks and conversations
@@ -696,12 +720,6 @@ export function HomeNavigator({
     () => new Map(listedProjects.map((project) => [project.id, project])),
     [listedProjects],
   );
-
-  const searchRecord: Record<string, unknown> = locationSearch;
-  const draftProjectId =
-    typeof searchRecord.projectId === 'string'
-      ? searchRecord.projectId
-      : undefined;
 
   const switcherOptions = [
     { view: 'all' as const, attention: 0 },
