@@ -5,6 +5,7 @@ import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
 import { estimateTokens } from '../../../lib/chat/types';
+import { answersChatTurns } from '../../../lib/shared/providers/chat_turn_models';
 import { logDetail } from '../../db/unavailable';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
@@ -164,7 +165,11 @@ export async function resolveDirectModel(
 
     let catalog: readonly ModelCatalogEntry[];
     try {
-      catalog = await getServableCatalog(connector, credential.modelAllowlist);
+      // Only models a chat turn runs on: a gateway lists its image models
+      // beside the chat ones, and a name or a rewrite is no job for one.
+      catalog = (
+        await getServableCatalog(connector, credential.modelAllowlist)
+      ).filter(answersChatTurns);
     } catch (error) {
       // One connector's unreachable /models endpoint must not cost the title;
       // skip it loudly and try the next.

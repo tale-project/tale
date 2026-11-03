@@ -201,6 +201,31 @@ describe('generateThreadTitleImpl — model choice', () => {
     );
   });
 
+  it('never names a thread on a gateway’s image model, even when its id sorts first', async () => {
+    catalogMock.mockResolvedValue([
+      { id: 'vendor/image-model', tags: ['image-generation'] },
+      chatEntry('vendor/text-model'),
+    ]);
+    const { ctx } = fakeCtx({
+      preferredModelId: 'vendor/image-model',
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+    });
+
+    await generateThreadTitleImpl(ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: 'What should we do this weekend?',
+    });
+
+    expect(createBuilderModelMock).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'vendor/text-model' },
+      }),
+    );
+  });
+
   /**
    * A thinking-by-default model (an effort knob with no off literal) spends
    * the title's 48-token budget reasoning and answers nothing — a paid miss
