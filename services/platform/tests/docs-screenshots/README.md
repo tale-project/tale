@@ -43,7 +43,6 @@ TALE_DEV_OPEN=0 \
   TALE_CONFIG_BUILTIN_DIR="$(pwd)/tests/e2e/fixtures/config/docs-demo" \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
-  TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
   bun scripts/dev.ts
 ```
 
@@ -347,13 +346,13 @@ availability.
 | A model identifier is absent from the visible option label                        | Search by the API identifier, then select the matching friendly model name.                                                     |
 | `settings-sandboxes` or `sandbox-infrastructure-capacity` never reaches readiness | Supply a connected Docker spawner with matching `SANDBOX_URL` and `SANDBOX_TOKEN`. These shots require a real host observation. |
 
-Use `E2E_BASE_URL` for another app origin and `TALE_MOCK_CONNECTORS_BASE` for another mock gateway.
-Shots that print the deployment's address replace the page's own origin, so a stack on another port
-still publishes the production-shaped host. The provider fixtures under
-`tests/e2e/fixtures/config/{default,docs-demo}/providers/e2e-mock.yml` name the gateway at
-`127.0.0.1:4141`. For another gateway port, copy `tests/e2e/fixtures/config` with `cp -RL` (its
-`docs-demo` links are relative), point the copied `e2e-mock.yml` files at the port, and run the
-platform and the capture on the copy (`TALE_CONFIG_DIR`, `TALE_CONFIG_BUILTIN_DIR` and
-`--config-dir`). The seeder copies the demo org's provider definition from that root, so the tracked
-fixtures never change.
+Use `E2E_BASE_URL` for another app origin. Shots that print the deployment's address replace the
+page's own origin, so a stack on another port still publishes the production-shaped host. The
+provider fixtures under `tests/e2e/fixtures/config/{default,docs-demo}/providers/e2e-mock.yml` name
+the gateway at `127.0.0.1:4141`. For another gateway port, start the gateway and run the capture
+with that port as `MOCKS_PORT` (the capture's preflight probes it), copy `tests/e2e/fixtures/config`
+with `cp -RL` (its `docs-demo` links are relative), point the copied `e2e-mock.yml` files at the
+port, and run the platform and the capture on the copy (`TALE_CONFIG_DIR`, `TALE_CONFIG_BUILTIN_DIR`
+and `--config-dir`). The seeder copies the demo org's provider definition from that root, so the
+tracked fixtures never change.
 The manifest is the complete shot inventory; a subset capture does not verify all screenshots.
