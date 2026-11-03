@@ -226,3 +226,33 @@ schema-level errors to the issues they name, advertising type arrays under a new
 `API_CONTRACT_VERSION`, and marking `.optional()` every object key that may be missing. A hunk can
 go on its own: regenerate the rest with `bun patch`, and keep the proof test's cases for the
 behaviours that stay.
+
+## `@vitest/browser-playwright@4.1.10.patch`
+
+**Why.** The platform's browser tests (`bun run test:browser`) serve every `vi.mock` through a
+Playwright route on the browser context. When a test file ends, its cleanup unroutes the mocks, and
+a handler still awaiting a mock factory then calls `route.fulfill` on a route Playwright has already
+settled: `Error: route.fulfill: Route is already handled!`. Nothing awaits the handler, so it is an
+unhandled rejection, which fails the run after every test has passed. It struck the Browser job of
+Checks on `main`, on a Renovate branch and on `feature-train` within three hours on 2026-11-03,
+and `main`'s next run passed unchanged. Upstream tracks the family of races in the provider's mock
+routes as [vitest-dev/vitest#10819](https://github.com/vitest-dev/vitest/issues/10819) and
+[#11467](https://github.com/vitest-dev/vitest/issues/11467); the handler is unguarded in 5.1.0 too.
+
+**What.** In `dist/index.js`, `createMocker`'s `register`: the route handler's body moves into
+`serve`, and the handler ignores a rejection whose message is `Route is already handled` (logged
+under `DEBUG=vitest:browser:playwright`) and rethrows every other. The hunks are marked `Tale:`.
+
+**Proof.** `services/platform/tests/guards/vitest-browser-mock-route.guard.test.ts` registers a manual
+mock on the real provider with a stand-in page. A `fulfill` that rejects with the message settles; one
+that rejects otherwise still rejects; an unhandled route is still answered. Unpatched, the first case
+fails with the rejection. The race itself needs a file's cleanup to land inside a factory's wait, so
+no test provokes it on purpose.
+
+**Behaviour change.** None beyond the missing rejection: a request whose route was already handled has
+been served by Playwright, and its test file has ended.
+
+**Remove it when** `@vitest/browser-playwright` guards that `fulfill` itself, or a release on which
+the proof test passes unpatched. Bump `vitest` and the `@vitest/*` packages together (the lockfile
+holds `vitest` 4.1.11 beside 4.1.10 of the browser packages today), delete this entry and its
+`patchedDependencies` line, and keep the test.

@@ -1,0 +1,30 @@
+diff --git a/dist/index.js b/dist/index.js
+index c37e31e6e145ceffe47da38dfd53ca39fe73a359..c00a05b717cba9e3f62aeafa64ca46e9b0fe881e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -994,7 +994,9 @@ class PlaywrightBrowserProvider {
+ 				ids.add(moduleUrl);
+ 				sessionIds.set(sessionId, ids);
+ 				idPredicates.set(key, predicate);
+-				await page.context().route(predicate, async (route) => {
++				// Tale: a handler still awaiting a factory can find its route handled when the
++				// file's cleanup unroutes it, so it settles the answer instead of rejecting.
++				const serve = async (route) => {
+ 					if (module.type === "manual") {
+ 						const exports$1 = Object.keys(await module.resolve());
+ 						const body = createManualModuleSource(module.url, exports$1);
+@@ -1043,7 +1045,13 @@ class PlaywrightBrowserProvider {
+ 							headers: { Location: url.href }
+ 						});
+ 					} else ;
+-				});
++				};
++				await page.context().route(predicate, (route) => serve(route).catch((error) => {
++					if (!/Route is already handled/.test(String(error?.message))) {
++						throw error;
++					}
++					debug?.("[%s] the mock route of %s was already handled", this.browserName, module.url);
++				}));
+ 			},
+ 			delete: async (sessionId, id) => {
+ 				const page = this.getPage(sessionId);
