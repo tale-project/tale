@@ -33884,7 +33884,12 @@ async function checkConversationRouting(
       );
     return assignment(out.conversationId);
   };
-  const viewer = { organizationId: orgId, userId, role: 'owner' };
+  const viewer = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    sourceOwner: { kind: 'user' as const, id: userId },
+  };
   const mirror = async (externalId: string) => {
     const synced = z
       .object({ conversationId: z.string() })

@@ -1833,9 +1833,9 @@ export function buildSpec(): Json {
   const conversationErrors = {
     ...standardErrors,
     '403': errorResponse(
-      'A read-only role (`ROLE_FORBIDDEN`), an integration another ' +
-        'service user owns (`INTEGRATION_NOT_OWNED`), an attachment that is ' +
-        'not this integration’s upload (`ATTACHMENT_NOT_OWNED`), or an ' +
+      'A read-only role (`ROLE_FORBIDDEN`), a mirror that belongs to ' +
+        'another integration (`INTEGRATION_NOT_OWNED`), an attachment this ' +
+        'key did not stage (`ATTACHMENT_NOT_OWNED`), or an ' +
         'unverified author (`AUTHOR_UNVERIFIED`)',
     ),
     '404': errorResponse(
@@ -2028,7 +2028,7 @@ export function buildSpec(): Json {
       operationId: 'synchronizeConversationSource',
       summary: 'Apply a complete native Inbox source snapshot',
       description:
-        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: it is bound to a contact ROW, so a contact re-keyed in the CRM (a PATCH of its `externalId`) keeps its conversations — a snapshot naming the contact’s current id applies and the receipt follows it — while an `externalContactId` that names a different contact, or no live one, answers 409 `CONVERSATION_CONTACT_CONFLICT` naming the id the conversation is bound to; deleting the contact and recreating it under the same `externalId` (a common CRM re-import) is a different row and never transfers the thread to the new person. A content snapshot for a conversation whose contact has been moved to the trash answers 409 `CONVERSATION_CONTACT_TRASHED` — restore the contact (`POST /api/v1/contacts/{id}/restore`) to continue it; a `deleted` teardown closes the mirror but does not reopen it, so a later content snapshot answers the same 409 while the contact stays in the trash; the `contactStatus` on the `GET` receipt reports this. Source + externalId is owned by the API key user; key rotation preserves ownership. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down; the messages the source mirrored stay in the Inbox as the closed conversation’s record — a teardown never deletes them (`DELETE /api/v1/contacts/{id}` and the erasure lane are the deletion doors). A torn-down mirror stays down: a later content snapshot at any version answers 409 `CONVERSATION_CLOSED` (the receipt’s `sourceDeleted` says so) — mirror the source conversation under a new `externalId` to start again. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
+        'Creates an API-channel Inbox conversation linked to exactly one contact.externalId — a contact that must already exist: `externalContactId` names the `externalId` of a contact in this organization (create it through `POST /api/v1/contacts` first); an id no contact carries answers 404 `CONTACT_NOT_FOUND` and one that more than one contact carries 409 `CONTACT_AMBIGUOUS`, nothing applied. A snapshot never re-homes a conversation: it is bound to a contact ROW, so a contact re-keyed in the CRM (a PATCH of its `externalId`) keeps its conversations — a snapshot naming the contact’s current id applies and the receipt follows it — while an `externalContactId` that names a different contact, or no live one, answers 409 `CONVERSATION_CONTACT_CONFLICT` naming the id the conversation is bound to; deleting the contact and recreating it under the same `externalId` (a common CRM re-import) is a different row and never transfers the thread to the new person. A content snapshot for a conversation whose contact has been moved to the trash answers 409 `CONVERSATION_CONTACT_TRASHED` — restore the contact (`POST /api/v1/contacts/{id}/restore`) to continue it; a `deleted` teardown closes the mirror but does not reopen it, so a later content snapshot answers the same 409 while the contact stays in the trash; the `contactStatus` on the `GET` receipt reports this. Source + externalId belongs to whom the key belongs to — the person for a personal key or a key made for a member, the team or the organization for a key made for one — not to the key, so key rotation preserves ownership; keys made for the same team or organization are one integration, and an upload stays with the key that staged it. A newer integer version replaces only source-receipted messages; an older version does nothing; the same version with different content returns 409. Message IDs must be unique. A message that began life as a native Inbox reply — one this integration claimed through the deliveries lane — carries `taleMessageId`, that reply’s `messageId`, and must have been acknowledged under its `externalId` first (409 `DELIVERY_UNACKNOWLEDGED` otherwise); a message without `taleMessageId` is the source’s own, whatever `isCustomer` says. Every attachment a message names must have been staged through `POST /api/v1/conversations/uploads` by this key user and still be within its window — one never staged, lapsed, malformed or another organization’s answers 400 `ATTACHMENT_NOT_STAGED`, another service user’s upload in this organization 403 `ATTACHMENT_NOT_OWNED` — at the declared `size` (400 `ATTACHMENT_SIZE_MISMATCH` when the landed bytes disagree) — nothing of the snapshot is applied on any of these refusals. `replyConstraints` bounds what a person’s Inbox reply to the conversation may carry — body length, attachment count, size and extensions — and is enforced when that reply is written, never against a snapshot. A deleted snapshot closes the source and has no messages: it is not content, so it applies at the stored version or any higher one (a source whose versions ran out can still tear its mirror down) and replays as a no-op once the source is torn down; the messages the source mirrored stay in the Inbox as the closed conversation’s record — a teardown never deletes them (`DELETE /api/v1/contacts/{id}` and the erasure lane are the deletion doors). A torn-down mirror stays down: a later content snapshot at any version answers 409 `CONVERSATION_CLOSED` (the receipt’s `sourceDeleted` says so) — mirror the source conversation under a new `externalId` to start again. Unacknowledged office replies are preserved. Unknown keys are refused. JSON is limited to 8 MiB.',
       requestBody: jsonBody(
         z.toJSONSchema(apiSnapshotSchema, {
           target: 'openapi-3.0',
@@ -2057,7 +2057,7 @@ export function buildSpec(): Json {
       operationId: 'assignConversationTeam',
       summary: 'Queue a mirrored conversation to a team',
       description:
-        'Sets the team a conversation this key user mirrored is queued to, or clears it with `teamId: null` — the team’s members can then open it in the Inbox, and each of them is notified. The conversation is named like every mirror route, by `source` and its `externalId`; team ids come from `GET /api/v1/teams`. Admin and owner keys only — the Inbox’s own rule for who may assign; an editor key answers 403 `ROLE_FORBIDDEN` and can route by a governance rule for its source instead. A team outside the organization answers 400 `TEAM_NOT_IN_ORG`; a mirror no snapshot created answers 404 `CONVERSATION_NOT_FOUND`, one another service user owns 403 `INTEGRATION_NOT_OWNED`. Setting the team it already has changes nothing. The person assignee is not touched. Unknown keys are refused.',
+        'Sets the team a conversation this key’s integration mirrored is queued to, or clears it with `teamId: null` — the team’s members can then open it in the Inbox, and each of them is notified. The conversation is named like every mirror route, by `source` and its `externalId`; team ids come from `GET /api/v1/teams`. Admin and owner keys only — the Inbox’s own rule for who may assign; an editor key answers 403 `ROLE_FORBIDDEN` and can route by a governance rule for its source instead. A team outside the organization answers 400 `TEAM_NOT_IN_ORG`; a mirror no snapshot created answers 404 `CONVERSATION_NOT_FOUND`, one that belongs to another integration 403 `INTEGRATION_NOT_OWNED`. Setting the team it already has changes nothing. The person assignee is not touched. Unknown keys are refused.',
       requestBody: jsonBody({
         type: 'object',
         required: ['source', 'externalId', 'teamId'],
@@ -2092,7 +2092,7 @@ export function buildSpec(): Json {
           'Invalid body (`INVALID_BODY`), or a team outside this organization (`TEAM_NOT_IN_ORG`)',
         ),
         '403': errorResponse(
-          'A role below admin (`ROLE_FORBIDDEN`), or an integration another service user owns (`INTEGRATION_NOT_OWNED`)',
+          'A role below admin (`ROLE_FORBIDDEN`), or a mirror that belongs to another integration (`INTEGRATION_NOT_OWNED`)',
         ),
         '404': errorResponse(
           'No conversation is mirrored under that `source` and `externalId` (`CONVERSATION_NOT_FOUND`)',
@@ -2106,7 +2106,7 @@ export function buildSpec(): Json {
       operationId: 'listConversations',
       summary: 'List the conversations you mirrored',
       description:
-        'Every conversation this key user mirrored under a source, newest first — the reconciliation read: `conversationId`, the source `externalId`, the bound contact (`contactId`, the row; `externalContactId`, its current external id) and its `contactStatus`, the stored `version`, whether the source tore the mirror down (`sourceDeleted`), and the Inbox `status` and `subject`. `contactStatus=trashed` finds the mirrors a deleted contact froze. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`.',
+        'Every conversation this key’s integration mirrored under a source, newest first — the reconciliation read: `conversationId`, the source `externalId`, the bound contact (`contactId`, the row; `externalContactId`, its current external id) and its `contactStatus`, the stored `version`, whether the source tore the mirror down (`sourceDeleted`), and the Inbox `status` and `subject`. `contactStatus=trashed` finds the mirrors a deleted contact froze. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one that belongs only to other integrations 403 `INTEGRATION_NOT_OWNED`.',
       parameters: [
         conversationOrg,
         {
@@ -2148,7 +2148,7 @@ export function buildSpec(): Json {
       operationId: 'listConversationDeliveries',
       summary: 'Peek at the delivery queue',
       description:
-        'The queue of a source this key user mirrored, as it stands — no lease taken, nothing changed: every native reply queued for the source with its `status` (`queued` — the undo window, a backoff, a lapsed lease; `leased` while a claim’s lease runs; `failed` once dead-lettered; `delivered` once acknowledged), its attempt count and stamps, and never the claim token or the body — those only a claim earns. Oldest-due first (`retryAt`, then `messageId`), the order a claim drains it in; `status` narrows to one state. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`.',
+        'The queue of a source this key’s integration mirrored, as it stands — no lease taken, nothing changed: every native reply queued for the source with its `status` (`queued` — the undo window, a backoff, a lapsed lease; `leased` while a claim’s lease runs; `failed` once dead-lettered; `delivered` once acknowledged), its attempt count and stamps, and never the claim token or the body — those only a claim earns. Oldest-due first (`retryAt`, then `messageId`), the order a claim drains it in; `status` narrows to one state. Paginated: pass `continueCursor` back as `cursor` until `isDone`. A source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one that belongs only to other integrations 403 `INTEGRATION_NOT_OWNED`.',
       parameters: [
         conversationOrg,
         {
@@ -2190,7 +2190,7 @@ export function buildSpec(): Json {
       operationId: 'retryConversationDelivery',
       summary: 'Re-drive a dead-lettered delivery',
       description:
-        'Puts a delivery that dead-lettered — a permanent refusal, or ten transient failure reports — back in the queue, claimable at once with its attempt count reset: the same audited action as the Inbox’s Retry. No body. A delivery this key user does not own under the id is absent (404 `DELIVERY_NOT_FOUND`); one that is not dead-lettered — still queued or leased, already delivered — or whose conversation the source tore down or closed answers 409 `DELIVERY_RETRY_UNAVAILABLE`.',
+        'Puts a delivery that dead-lettered — a permanent refusal, or ten transient failure reports — back in the queue, claimable at once with its attempt count reset: the same audited action as the Inbox’s Retry. No body. A delivery this key’s integration does not own under the id is absent (404 `DELIVERY_NOT_FOUND`); one that is not dead-lettered — still queued or leased, already delivered — or whose conversation the source tore down or closed answers 409 `DELIVERY_RETRY_UNAVAILABLE`.',
       parameters: [
         conversationOrg,
         pathParam('id', 'The native message ID the delivery carries'),
@@ -2203,7 +2203,7 @@ export function buildSpec(): Json {
         }),
         ...conversationErrors,
         '404': errorResponse(
-          'No delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+          'No delivery of this key’s integration (`DELIVERY_NOT_FOUND`)',
         ),
         '409': errorResponse(
           'Not dead-lettered, or its conversation is gone (`DELIVERY_RETRY_UNAVAILABLE`)',
@@ -2217,7 +2217,7 @@ export function buildSpec(): Json {
       operationId: 'claimConversationDeliveries',
       summary: 'Poll queued native Inbox replies',
       description:
-        'Claims up to 100 due replies for a source owned by this API key user — a source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one only other service users own 403 `INTEGRATION_NOT_OWNED`, so a mistyped source never polls a healthy-looking empty queue. Claim closes undo and grants a five-minute visibility lease. Unacknowledged deliveries become eligible again after their lease/backoff, in `retryAt`, `availableAt`, `messageId` order — the stamps `GET /api/v1/conversations/deliveries` shows without claiming. Each item says where it stands: `attempts` (failure reports so far), `leaseExpiresAt` (when this claim’s lease ends), `lastErrorCode` (the last failure’s code, `null` before one) and `firstClaimedAt`. Use stable messageId as the destination idempotency key and claimToken when reporting a failure. JSON is limited to 64 KiB.',
+        'Claims up to 100 due replies for a source this key’s integration mirrored — a source no snapshot ever named answers 404 `CONVERSATION_SOURCE_NOT_FOUND`, one that belongs only to other integrations 403 `INTEGRATION_NOT_OWNED`, so a mistyped source never polls a healthy-looking empty queue. Claim closes undo and grants a five-minute visibility lease. Unacknowledged deliveries become eligible again after their lease/backoff, in `retryAt`, `availableAt`, `messageId` order — the stamps `GET /api/v1/conversations/deliveries` shows without claiming. Each item says where it stands: `attempts` (failure reports so far), `leaseExpiresAt` (when this claim’s lease ends), `lastErrorCode` (the last failure’s code, `null` before one) and `firstClaimedAt`. Use stable messageId as the destination idempotency key and claimToken when reporting a failure. JSON is limited to 64 KiB.',
       requestBody: jsonBody({
         type: 'object',
         required: ['source'],
@@ -2324,7 +2324,7 @@ export function buildSpec(): Json {
         }),
         ...conversationErrors,
         '404': errorResponse(
-          'No delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+          'No delivery of this key’s integration (`DELIVERY_NOT_FOUND`)',
         ),
         '413': errorResponse(
           'The body exceeds 64 KiB — this operation’s own cap, below the door’s 1 MiB default (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
@@ -2368,7 +2368,7 @@ export function buildSpec(): Json {
         }),
         ...conversationErrors,
         '404': errorResponse(
-          'No claimed delivery owned by this user (`DELIVERY_NOT_FOUND`)',
+          'No claimed delivery of this key’s integration (`DELIVERY_NOT_FOUND`)',
         ),
         '413': errorResponse(
           'The body exceeds 64 KiB — this operation’s own cap, below the door’s 1 MiB default (`BODY_TOO_LARGE`); the envelope carries a `requestId`',
@@ -2381,7 +2381,7 @@ export function buildSpec(): Json {
       ...conversationOperation,
       operationId: 'downloadConversationDeliveryAttachment',
       description:
-        'The bytes of one attachment of a delivery this key user claimed, at its position in the delivery’s attachment list; the stored content type rides with them and the response is private and uncacheable.',
+        'The bytes of one attachment of a delivery this key’s integration claimed, at its position in the delivery’s attachment list; the stored content type rides with them and the response is private and uncacheable.',
       summary: 'Download a claimed reply attachment',
       parameters: [
         conversationOrg,

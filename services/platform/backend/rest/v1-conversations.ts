@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -7,6 +7,7 @@ import {
   apiDeliveryFailureSchema,
   apiExternalIdSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
   acknowledgeApiDelivery,
   apiDeliveryAttachment,
@@ -24,7 +25,8 @@ import {
 } from '../domains/conversations/api-sync.ts';
 import {
   viewerCanWrite,
-  type ConversationViewer,
+  type ConversationSourceOwner,
+  type IntegrationViewer,
 } from '../domains/conversations/service.ts';
 import { readBodyBounded } from '../domains/files/bounded-body.ts';
 import {
@@ -72,12 +74,33 @@ export function createConversationRestRoutes(deps: {
       );
     return next();
   });
-  const viewer = (c: {
-    get: (key: 'organizationId' | 'userId' | 'role') => string;
-  }): ConversationViewer => ({
+  /**
+   * Whom a mirror belongs to. A person's own key, and a key an Owner or
+   * Admin made for a member, act as that person. A key made for a team or
+   * the organization acts as that owner, which a replacement key has again,
+   * though it authenticates as an identity of its own. A project's key never
+   * gets this far (the door keeps it inside its project), and a team key row
+   * missing its team, which the table's checks refuse, would stay on the
+   * key's own identity rather than widen to the organization.
+   */
+  const integrationOwner = (
+    owner: ApiKeyOwner | null | undefined,
+    userId: string,
+  ): ConversationSourceOwner => {
+    if (owner?.kind === 'team' && owner.teamId !== null) {
+      return { kind: 'team', id: owner.teamId };
+    }
+    if (owner?.kind === 'organization') {
+      return { kind: 'organization', id: owner.organizationId };
+    }
+    return { kind: 'user', id: userId };
+  };
+
+  const viewer = (c: Context<RestEnv>): IntegrationViewer => ({
     organizationId: c.get('organizationId'),
     userId: c.get('userId'),
     role: c.get('role'),
+    sourceOwner: integrationOwner(c.get('apiKeyOwner'), c.get('userId')),
   });
 
   app.get('/conversations/sync', async (c) => {
@@ -100,7 +123,7 @@ export function createConversationRestRoutes(deps: {
     }
   });
   /**
-   * Every conversation this key user mirrored under a source — the
+   * Every conversation this key's integration mirrored under a source — the
    * reconciliation read the mirror had none of (2026-09-14 evaluation,
    * h6). Newest first; the cursor is signed under the source, so one
    * source's page never redeems on another's; `contactStatus` narrows

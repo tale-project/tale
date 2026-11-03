@@ -20,6 +20,7 @@ vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 
 import { apiSnapshotSchema, synchronizeConversation } from './api-sync.ts';
+import type { IntegrationViewer } from './service.ts';
 
 interface Statement {
   text: string;
@@ -30,7 +31,11 @@ interface Statement {
  * version 2 (or that mirror as `binding` changes it) and recording every
  * statement the sync issues. */
 function txDouble(
-  binding: { ownerUserId?: string; sourceDeleted?: boolean } = {},
+  binding: {
+    ownerPrincipalKind?: string;
+    ownerPrincipalId?: string;
+    sourceDeleted?: boolean;
+  } = {},
 ) {
   const statements: Statement[] = [];
   const tag = (
@@ -43,7 +48,8 @@ function txDouble(
       return Promise.resolve([
         {
           conversationId: 'conv-1',
-          ownerUserId: 'user-1',
+          ownerPrincipalKind: 'user',
+          ownerPrincipalId: 'user-1',
           externalContactId: 'crm:contact-1',
           version: '2',
           hash: 'h2',
@@ -66,7 +72,12 @@ function txDouble(
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
 const sql = (() => Promise.resolve([])) as unknown as Sql;
 
-const viewer = { organizationId: 'org-1', userId: 'user-1', role: 'admin' };
+const viewer: IntegrationViewer = {
+  organizationId: 'org-1',
+  userId: 'user-1',
+  role: 'admin',
+  sourceOwner: { kind: 'user', id: 'user-1' },
+};
 
 const teardown = apiSnapshotSchema.parse({
   source: 'crm',
@@ -133,11 +144,15 @@ const content = apiSnapshotSchema.parse({
 });
 
 /** Runs the sync on `tx` and answers what it refused with. */
-function refusal(tx: TransactionSql, snapshot: typeof content) {
+function refusal(
+  tx: TransactionSql,
+  snapshot: typeof content,
+  who: IntegrationViewer = viewer,
+) {
   transactSerializable.mockImplementation(
     async (_sql: Sql, run: (tx: TransactionSql) => Promise<unknown>) => run(tx),
   );
-  return synchronizeConversation(sql, viewer, snapshot).then(
+  return synchronizeConversation(sql, who, snapshot).then(
     () => undefined,
     (error: unknown) => error,
   );
@@ -160,12 +175,12 @@ describe('a mirror its source closed', () => {
   });
 });
 
-describe('a mirror another API key user created', () => {
+describe('a mirror another integration created', () => {
   it.each([
     ['a content snapshot', content],
     ['a teardown', teardown],
   ])('refuses %s and changes nothing [CONV-R14]', async (_kind, snapshot) => {
-    const { tx, statements } = txDouble({ ownerUserId: 'user-2' });
+    const { tx, statements } = txDouble({ ownerPrincipalId: 'user-2' });
 
     expect(await refusal(tx, snapshot)).toMatchObject({
       name: 'ConversationError',
@@ -173,5 +188,107 @@ describe('a mirror another API key user created', () => {
       status: 403,
     });
     expect(wrote(statements)).toBe(false);
+  });
+
+  it.each([
+    ['a team', 'team', 'team-1'],
+    ['the organization', 'organization', 'org-1'],
+  ])(
+    'refuses a person’s key for a mirror %s owns [CONV-R14]',
+    async (_owner, ownerPrincipalKind, ownerPrincipalId) => {
+      const { tx, statements } = txDouble({
+        ownerPrincipalKind,
+        ownerPrincipalId,
+      });
+
+      expect(await refusal(tx, content)).toMatchObject({
+        code: 'INTEGRATION_NOT_OWNED',
+      });
+      expect(wrote(statements)).toBe(false);
+    },
+  );
+
+  it('tells an owner by its kind as well as its id [CONV-R14]', async () => {
+    // A team and the organization never share an owner, whatever their ids.
+    const { tx, statements } = txDouble({
+      ownerPrincipalKind: 'team',
+      ownerPrincipalId: 'org-1',
+    });
+    const organization: IntegrationViewer = {
+      ...viewer,
+      userId: 'svc-org-1',
+      sourceOwner: { kind: 'organization', id: 'org-1' },
+    };
+
+    expect(await refusal(tx, content, organization)).toMatchObject({
+      code: 'INTEGRATION_NOT_OWNED',
+    });
+    expect(wrote(statements)).toBe(false);
+  });
+});
+
+describe('a replacement key of the integration that created a mirror', () => {
+  it('continues the mirror though its service identity is new [CONV-R14]', async () => {
+    // The first key authenticated as `svc-org-1`; its replacement is a new
+    // identity (`svc-org-2`) made for the same organization.
+    const { tx, statements } = txDouble({
+      ownerPrincipalKind: 'organization',
+      ownerPrincipalId: 'org-1',
+    });
+    transactSerializable.mockImplementation(
+      async (_sql: Sql, run: (tx: TransactionSql) => Promise<unknown>) =>
+        run(tx),
+    );
+    const replacement: IntegrationViewer = {
+      ...viewer,
+      userId: 'svc-org-2',
+      sourceOwner: { kind: 'organization', id: 'org-1' },
+    };
+
+    await expect(
+      synchronizeConversation(sql, replacement, teardown),
+    ).resolves.toEqual({ conversationId: 'conv-1', applied: true });
+    expect(wrote(statements)).toBe(true);
+  });
+
+  it('reads the mirror’s attachments under the integration, not the key [CONV-R14]', async () => {
+    const { tx, statements } = txDouble({
+      ownerPrincipalKind: 'team',
+      ownerPrincipalId: 'team-1',
+    });
+    const calls: Statement[] = [];
+    // The pre-transaction read of known attachment sizes runs on `sql`.
+    const reading = Object.assign(
+      (strings: TemplateStringsArray, ...values: unknown[]) => {
+        calls.push({
+          text: strings.join('?').replace(/\s+/g, ' ').trim(),
+          values,
+        });
+        return Promise.resolve([]);
+      },
+      { unsafe: (text: string) => text },
+    );
+    transactSerializable.mockImplementation(
+      async (_sql: Sql, run: (tx: TransactionSql) => Promise<unknown>) =>
+        run(tx),
+    );
+    const replacement: IntegrationViewer = {
+      ...viewer,
+      userId: 'svc-team-2',
+      sourceOwner: { kind: 'team', id: 'team-1' },
+    };
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    await synchronizeConversation(
+      reading as unknown as Sql,
+      replacement,
+      teardown,
+    );
+
+    const predicate = calls.find((call) =>
+      call.text.includes('b.owner_principal_kind ='),
+    );
+    expect(predicate?.values).toEqual(['team', 'team-1']);
+    expect(wrote(statements)).toBe(true);
   });
 });
