@@ -28,7 +28,7 @@ import {
  * provider whose `baseUrl` is the OpenAPI-driven mock gateway in the
  * `lib/mocks` package), so chat assertions never depend on a live LLM. The
  * gateway serves the deterministic chat-completions override plus Prism-mocked
- * AI endpoints and third-party connector APIs (all offline). Set
+ * AI and enterprise-SSO (OIDC) endpoints (all offline). Set
  * `E2E_MOCK_LLM=0` to run the suite against an already-running dev stack with
  * real provider keys — canned-text assertions are skipped in that mode.
  */
@@ -36,11 +36,9 @@ import {
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
-// The mock gateway (lib/mocks) was retired with the
-// provider stack and returns in the providers phase. Until then the
-// hermetic mock boot is additionally gated on the entrypoint existing, so
-// the suite can still run its non-AI subset instead of failing at webServer
-// startup.
+// Boot the hermetic mock gateway (lib/mocks) unless `E2E_MOCK_LLM=0` targets
+// a live stack. The entrypoint check keeps a checkout without the gateway
+// from failing at webServer startup.
 const useMockLlm =
   process.env.E2E_MOCK_LLM !== '0' &&
   fs.existsSync(
@@ -107,8 +105,8 @@ export default createPlaywrightConfig({
       ? [
           {
             // OpenAPI-driven mock gateway (lib/mocks): the deterministic
-            // chat-completions override + Prism-mocked AI endpoints and
-            // third-party connector APIs, all offline.
+            // chat-completions override + Prism-mocked AI and enterprise-SSO
+            // (OIDC) endpoints, all offline.
             command: 'bun lib/mocks/start.ts',
             url: `http://127.0.0.1:${MOCK_LLM_PORT}/health`,
             reuseExistingServer: !process.env.CI,
@@ -174,9 +172,8 @@ export default createPlaywrightConfig({
           '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
         // `tests/manual/setup.md` §1A's mode-A command block mirrors this exact
         // env set (TALE_CONFIG_DIR, TALE_CONFIG_BUILTIN_DIR, TALE_PROVIDER_KEY_
-        // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_CONNECTORS_
-        // BASE, TALE_CONTACT_SUPPORT_URL and the two TOTP_ settings above) for
-        // AI/manual testers —
+        // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_CONTACT_SUPPORT_URL
+        // and the two TOTP_ settings above) for AI/manual testers —
         // when you change a value or add/remove a var here, update that doc in
         // the same change (#2633 was a drift here).
         ...(useMockLlm
@@ -201,12 +198,8 @@ export default createPlaywrightConfig({
               TALE_PROVIDER_KEY_E2E_MOCK: 'tale-e2e-mock-key',
               // The mock gateway lives on 127.0.0.1, which the provider host
               // policy blocks by default (SSRF defence) — opt in for the E2E
-              // stack. Also authorizes the loopback connector-mock host.
+              // stack.
               TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
-              // Redirect third-party connector calls (Slack/GitHub/
-              // …) to the mock gateway so connector flows run offline too.
-              // Consumed by the sandbox URL rewrite (`mock_rewrite.ts`).
-              TALE_MOCK_CONNECTORS_BASE: `http://127.0.0.1:${MOCK_LLM_PORT}`,
             }
           : {}),
       },

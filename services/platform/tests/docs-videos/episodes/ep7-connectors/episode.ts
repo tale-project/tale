@@ -25,8 +25,8 @@ import type { EpisodeSpec, Locale } from '../../lib/episode';
 
 /**
  * The token typed into the connector's credential field — scene DATA, one
- * ASCII literal for every locale. Outbound GitHub HTTP is rewritten to the
- * mock gateway, so the value is arbitrary and nothing leaves the machine.
+ * ASCII literal for every locale. A placeholder, not a GitHub token: nothing
+ * stands in for GitHub, since the mock gateway has no connector routes.
  */
 export const GITHUB_TOKEN = 'ghp_docs-demo-mock-token';
 
@@ -132,8 +132,8 @@ export const EP7_CONNECTORS: EpisodeSpec = {
     {
       // Task 2, the centerpiece: the token in, Connect verifying it live.
       // The pitfall is LOCATED here: a wrong token fails on this panel,
-      // before anything persists (on-camera failure is impossible against
-      // the mock — it accepts any bearer; see the report's rehearsal risks).
+      // before anything persists (no stand-in answers for GitHub: the mock
+      // gateway has no connector routes; see the report's rehearsal risks).
       id: 'connect',
       chapterByLocale: {
         en: 'Connect it',

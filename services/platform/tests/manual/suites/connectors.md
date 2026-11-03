@@ -49,9 +49,8 @@ facet**
 ## Preconditions
 
 Bring the stack up and sign in per [SETUP.md](../setup.md), **mode A
-(deterministic, offline)**. `TALE_MOCK_CONNECTORS_BASE` redirects connector
-outbound HTTP to the mock gateway (`:4141`), but note this page never probes a
-vendor — see the agent note.
+(deterministic, offline)**. The mock gateway has no connector stand-ins, and
+this page never probes a vendor — see the agent note.
 
 Sign in as an owner/admin — the page requires the `developerSettings` ability
 (read), else it renders `AccessDenied` (`accessDenied.connectors`).
