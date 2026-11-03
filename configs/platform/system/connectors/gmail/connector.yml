@@ -49,6 +49,63 @@ actions:
     output: '{ messages: Array<{ id: string, threadId: string }>, nextPageToken: string }'
     mock: |
       return { messages: [{ id: 'msg-1', threadId: 'thread-1' }], nextPageToken: '' };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'Gmail returns two unread messages, the second one in a thread an earlier message started, on a single page.'
+        output:
+          messages:
+            - { id: '18c1a2b3c4d5e6f7', threadId: '18c1a2b3c4d5e6f7' }
+            - { id: '18c1a2b3c4d5e6f8', threadId: '18c1a2b3c4d5e6f0' }
+          nextPageToken: ''
+      - name: no_messages
+        kind: empty
+        description: 'Gmail finds no message, and its answer then carries no list of messages at all.'
+        output:
+          messages: []
+          nextPageToken: ''
+      - name: token_expired
+        kind: error
+        description: 'Gmail rejects the access token with HTTP 401, as when it has expired.'
+        error:
+          message: |
+            Gmail list_messages failed (401): {
+              "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+                "errors": [
+                  {
+                    "message": "Invalid Credentials",
+                    "domain": "global",
+                    "reason": "authError",
+                    "location": "Authorization",
+                    "locationType": "header"
+                  }
+                ],
+                "status": "UNAUTHENTICATED"
+              }
+            }
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Gmail rate-limits the mailbox with HTTP 429 and asks to wait 30 seconds, which the message names.'
+        error:
+          message: |
+            Gmail list_messages failed (429, retry after 30s): {
+              "error": {
+                "code": 429,
+                "message": "Rate Limit Exceeded",
+                "errors": [
+                  {
+                    "message": "Rate Limit Exceeded",
+                    "domain": "usageLimits",
+                    "reason": "rateLimitExceeded"
+                  }
+                ],
+                "status": "RESOURCE_EXHAUSTED"
+              }
+            }
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -90,6 +147,91 @@ actions:
     output: '{ message: { id: string, threadId: string, labelIds: Array<string>, snippet: string }, attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId?: string, url?: string, truncated?: boolean }> }'
     mock: |
       return { message: { id: input.messageId, threadId: 'thread-' + input.messageId, labelIds: ['INBOX'], snippet: 'Mock message snippet.' }, attachments: [] };
+    scenarios:
+      - name: one_message
+        kind: success
+        description: 'Gmail returns the message, which starts its own thread; no attachment was asked for, so none is stored.'
+        output:
+          message:
+            id: '18c1a2b3c4d5e6f7'
+            threadId: '18c1a2b3c4d5e6f7'
+            labelIds: [INBOX, UNREAD]
+            snippet: 'Your invoice INV-2026-0042 for October is attached.'
+          attachments: []
+      - name: with_attachment
+        kind: success
+        description: 'Gmail returns a message with a text part and a PDF attachment, and then the attachment bytes, which the file store keeps under a new file id and without a link, as the platform store does.'
+        when: { includeAttachments: true }
+        output:
+          message:
+            id: '18c1a2b3c4d5e6f7'
+            threadId: '18c1a2b3c4d5e6f7'
+            labelIds: [INBOX, UNREAD]
+            snippet: 'Your invoice INV-2026-0042 for October is attached.'
+            payload:
+              mimeType: multipart/mixed
+              filename: ''
+              parts:
+                - { partId: '0', mimeType: text/plain, filename: '', body: { size: 25, data: U2VlIHRoZSBhdHRhY2hlZCBpbnZvaWNlLg } }
+                - { partId: '1', mimeType: application/pdf, filename: invoice-2026-10.pdf, body: { attachmentId: ANGjdJ8AbC, size: 62 } }
+          attachments:
+            - { id: ANGjdJ8AbC, filename: invoice-2026-10.pdf, contentType: application/pdf, size: 62, fileId: 's3:example-org/00000000-0000-0000-0000-000000000001' }
+      - name: no_attachments
+        kind: empty
+        description: 'Attachments are asked for, but Gmail returns a reply of a single text part, so nothing is stored and the list of attachments is empty.'
+        when: { messageId: '18c1a2b3c4d5e6f9', includeAttachments: true }
+        output:
+          message:
+            id: '18c1a2b3c4d5e6f9'
+            threadId: '18c1a2b3c4d5e6f7'
+            labelIds: [INBOX]
+            snippet: 'Thanks, the payment arrived.'
+            payload:
+              mimeType: text/plain
+              filename: ''
+              body: { size: 28, data: VGhhbmtzLCB0aGUgcGF5bWVudCBhcnJpdmVkLg }
+          attachments: []
+      - name: message_not_found
+        kind: error
+        description: 'Gmail answers HTTP 404, as for a message that does not exist or was deleted.'
+        when: { messageId: '18c0000000000009' }
+        error:
+          message: |
+            Gmail get_message failed (404): {
+              "error": {
+                "code": 404,
+                "message": "Requested entity was not found.",
+                "errors": [
+                  {
+                    "message": "Requested entity was not found.",
+                    "domain": "global",
+                    "reason": "notFound"
+                  }
+                ],
+                "status": "NOT_FOUND"
+              }
+            }
+          status: 404
+      - name: rate_limited
+        kind: error
+        description: 'Gmail rate-limits the mailbox with HTTP 429 and asks to wait 30 seconds, which the message names.'
+        error:
+          message: |
+            Gmail get_message failed (429, retry after 30s): {
+              "error": {
+                "code": 429,
+                "message": "Rate Limit Exceeded",
+                "errors": [
+                  {
+                    "message": "Rate Limit Exceeded",
+                    "domain": "usageLimits",
+                    "reason": "rateLimitExceeded"
+                  }
+                ],
+                "status": "RESOURCE_EXHAUSTED"
+              }
+            }
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -142,6 +284,49 @@ actions:
     output: '{ attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId?: string, url?: string, truncated?: boolean }> }'
     mock: |
       return { attachments: [{ id: 'att-1', filename: 'document.pdf', contentType: 'application/pdf', size: 1024, fileId: 'file-att-1', url: 'https://files.example.com/file-att-1' }] };
+    scenarios:
+      - name: two_attachments
+        kind: success
+        description: 'Gmail returns a message with a text part and two attachments, a PDF and a CSV file, and then the bytes of each, which the file store keeps under new file ids and without links, as the platform store does.'
+        output:
+          attachments:
+            - { id: ANGjdJ8AbC, filename: invoice-2026-10.pdf, contentType: application/pdf, size: 62, fileId: 's3:example-org/00000000-0000-0000-0000-000000000001' }
+            - { id: ANGjdJ9XyZ, filename: payments-2026-10.csv, contentType: text/csv, size: 40, fileId: 's3:example-org/00000000-0000-0000-0000-000000000002' }
+      - name: too_large
+        kind: success
+        description: 'Gmail returns a message with a scan of 4 MiB and a CSV file: the scan is too large to carry, so it is listed as truncated and not fetched, and only the CSV file is stored.'
+        when: { messageId: '18c1a2b3c4d5e6fe' }
+        output:
+          attachments:
+            - { id: ANGjdJ7BiG, filename: scan-2026-10.pdf, contentType: application/pdf, size: 4194304, truncated: true }
+            - { id: ANGjdJ9XyZ, filename: payments-2026-10.csv, contentType: text/csv, size: 40, fileId: 's3:example-org/00000000-0000-0000-0000-000000000001' }
+      - name: no_attachments
+        kind: empty
+        description: 'Gmail returns a reply of a single text part, so nothing is stored and the list of attachments is empty.'
+        when: { messageId: '18c1a2b3c4d5e6f9' }
+        output:
+          attachments: []
+      - name: message_not_found
+        kind: error
+        description: 'Gmail answers HTTP 404, as for a message that does not exist or was deleted.'
+        when: { messageId: '18c0000000000009' }
+        error:
+          message: |
+            Gmail get_attachments failed (404): {
+              "error": {
+                "code": 404,
+                "message": "Requested entity was not found.",
+                "errors": [
+                  {
+                    "message": "Requested entity was not found.",
+                    "domain": "global",
+                    "reason": "notFound"
+                  }
+                ],
+                "status": "NOT_FOUND"
+              }
+            }
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -195,6 +380,43 @@ actions:
     output: '{ messages: Array<{ id: string, threadId: string }>, nextPageToken: string }'
     mock: |
       return { messages: [{ id: 'msg-1', threadId: 'thread-1' }], nextPageToken: '' };
+    scenarios:
+      - name: two_matches
+        kind: success
+        description: 'Gmail returns the two messages the query matches, on a single page.'
+        output:
+          messages:
+            - { id: '18c1a2b3c4d5e6f7', threadId: '18c1a2b3c4d5e6f7' }
+            - { id: '18c1a2b3c4d5e6fe', threadId: '18c1a2b3c4d5e6fe' }
+          nextPageToken: ''
+      - name: no_matches
+        kind: empty
+        description: 'The query matches no message, and the answer of Gmail then carries no list of messages at all.'
+        output:
+          messages: []
+          nextPageToken: ''
+      - name: token_expired
+        kind: error
+        description: 'Gmail rejects the access token with HTTP 401, as when it has expired.'
+        error:
+          message: |
+            Gmail search_messages failed (401): {
+              "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+                "errors": [
+                  {
+                    "message": "Invalid Credentials",
+                    "domain": "global",
+                    "reason": "authError",
+                    "location": "Authorization",
+                    "locationType": "header"
+                  }
+                ],
+                "status": "UNAUTHENTICATED"
+              }
+            }
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -253,6 +475,60 @@ actions:
     mock: |
       const id = 'msg-' + (input.subject ? input.subject.length : 0);
       return { id, threadId: input.threadId || 'thread-' + id };
+    scenarios:
+      - name: sent
+        kind: success
+        description: 'Gmail sends the message, which starts a thread of its own, and returns its ids.'
+        output:
+          id: '18c1a2b3c4d5e6fa'
+          threadId: '18c1a2b3c4d5e6fa'
+      - name: sent_again
+        kind: duplicate
+        description: 'Gmail does not recognize a message sent again: the same send makes a second message, with ids of its own, in a thread of its own.'
+        output:
+          id: '18c1a2b3c4d5e6fb'
+          threadId: '18c1a2b3c4d5e6fb'
+      - name: invalid_recipient
+        kind: refusal
+        description: 'Gmail refuses with HTTP 400 a message whose To header names no valid address.'
+        when: { to: not-an-address }
+        error:
+          message: |
+            Gmail send_message failed (400): {
+              "error": {
+                "code": 400,
+                "message": "Invalid To header",
+                "errors": [
+                  {
+                    "message": "Invalid To header",
+                    "domain": "global",
+                    "reason": "invalidArgument"
+                  }
+                ],
+                "status": "INVALID_ARGUMENT"
+              }
+            }
+          status: 400
+      - name: missing_scope
+        kind: refusal
+        description: 'Gmail refuses the send with HTTP 403 because the access token was granted without the scope to send mail.'
+        error:
+          message: |
+            Gmail send_message failed (403): {
+              "error": {
+                "code": 403,
+                "message": "Request had insufficient authentication scopes.",
+                "errors": [
+                  {
+                    "message": "Insufficient Permission",
+                    "domain": "global",
+                    "reason": "insufficientPermissions"
+                  }
+                ],
+                "status": "PERMISSION_DENIED"
+              }
+            }
+          status: 403
     backend:
       kind: yaml-js
       live: |
@@ -323,6 +599,39 @@ actions:
     output: '{ emailAddress: string }'
     mock: |
       return { emailAddress: 'mailbox@example.com' };
+    scenarios:
+      - name: mailbox
+        kind: success
+        description: 'Gmail returns the profile of the mailbox the credential authorizes, its address among its counts.'
+        output:
+          emailAddress: mailbox@example.com
+      - name: empty_mailbox
+        kind: empty
+        description: 'Gmail returns the profile of a mailbox that holds no message and no thread yet; the address is all the action returns.'
+        output:
+          emailAddress: new-mailbox@example.com
+      - name: token_expired
+        kind: error
+        description: 'Gmail rejects the access token with HTTP 401, as when it has expired.'
+        error:
+          message: |
+            Gmail get_profile failed (401): {
+              "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+                "errors": [
+                  {
+                    "message": "Invalid Credentials",
+                    "domain": "global",
+                    "reason": "authError",
+                    "location": "Authorization",
+                    "locationType": "header"
+                  }
+                ],
+                "status": "UNAUTHENTICATED"
+              }
+            }
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -346,6 +655,46 @@ actions:
     output: '{ labels: Array<{ id: string, name: string, type: string }> }'
     mock: |
       return { labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }, { id: 'Label_1', name: 'Work', type: 'user' }] };
+    scenarios:
+      - name: system_and_user_labels
+        kind: success
+        description: 'Gmail returns the system labels every mailbox has and a label the user created.'
+        output:
+          labels:
+            - { id: INBOX, name: INBOX, type: system }
+            - { id: SENT, name: SENT, type: system }
+            - { id: TRASH, name: TRASH, type: system }
+            - { id: Label_1, name: Invoices, type: user }
+      - name: system_only
+        kind: empty
+        description: 'Gmail returns only the system labels every mailbox has, as for a mailbox where the user created no label.'
+        output:
+          labels:
+            - { id: INBOX, name: INBOX, type: system }
+            - { id: SENT, name: SENT, type: system }
+            - { id: TRASH, name: TRASH, type: system }
+      - name: token_expired
+        kind: error
+        description: 'Gmail rejects the access token with HTTP 401, as when it has expired.'
+        error:
+          message: |
+            Gmail list_labels failed (401): {
+              "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+                "errors": [
+                  {
+                    "message": "Invalid Credentials",
+                    "domain": "global",
+                    "reason": "authError",
+                    "location": "Authorization",
+                    "locationType": "header"
+                  }
+                ],
+                "status": "UNAUTHENTICATED"
+              }
+            }
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -376,6 +725,45 @@ actions:
     output: '{ thread: { id: string, messages: Array<{ id: string, threadId: string, snippet: string }> } }'
     mock: |
       return { thread: { id: input.threadId, messages: [{ id: 'msg-1', threadId: input.threadId, snippet: 'Mock message snippet.' }] } };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'Gmail returns the thread with its first message and a reply, oldest first.'
+        output:
+          thread:
+            id: '18c1a2b3c4d5e6f7'
+            messages:
+              - { id: '18c1a2b3c4d5e6f7', threadId: '18c1a2b3c4d5e6f7', snippet: 'Your invoice INV-2026-0042 for October is attached.' }
+              - { id: '18c1a2b3c4d5e6f9', threadId: '18c1a2b3c4d5e6f7', snippet: 'Thanks, the payment arrived.' }
+      - name: no_replies
+        kind: empty
+        description: 'Gmail returns a thread that holds only the message that started it, as when nobody has replied yet.'
+        output:
+          thread:
+            id: '18c1a2b3c4d5e6f7'
+            messages:
+              - { id: '18c1a2b3c4d5e6f7', threadId: '18c1a2b3c4d5e6f7', snippet: 'Your invoice INV-2026-0042 for October is attached.' }
+      - name: thread_not_found
+        kind: error
+        description: 'Gmail answers HTTP 404, as for a thread that does not exist or was deleted.'
+        when: { threadId: '18c0000000000009' }
+        error:
+          message: |
+            Gmail get_thread failed (404): {
+              "error": {
+                "code": 404,
+                "message": "Requested entity was not found.",
+                "errors": [
+                  {
+                    "message": "Requested entity was not found.",
+                    "domain": "global",
+                    "reason": "notFound"
+                  }
+                ],
+                "status": "NOT_FOUND"
+              }
+            }
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -405,6 +793,43 @@ actions:
     output: '{ drafts: Array<{ id: string, message: { id: string, threadId: string } }>, nextPageToken: string }'
     mock: |
       return { drafts: [{ id: 'draft-1', message: { id: 'msg-1', threadId: 'thread-1' } }], nextPageToken: '' };
+    scenarios:
+      - name: two_drafts
+        kind: success
+        description: 'Gmail returns two drafts, a new message and a reply in an existing thread, on a single page.'
+        output:
+          drafts:
+            - { id: r-1000000000000000001, message: { id: '18c1a2b3c4d5e6fc', threadId: '18c1a2b3c4d5e6fc' } }
+            - { id: r-1000000000000000002, message: { id: '18c1a2b3c4d5e6fd', threadId: '18c1a2b3c4d5e6f7' } }
+          nextPageToken: ''
+      - name: no_drafts
+        kind: empty
+        description: 'The mailbox holds no draft, and the answer of Gmail then carries no list of drafts at all.'
+        output:
+          drafts: []
+          nextPageToken: ''
+      - name: token_expired
+        kind: error
+        description: 'Gmail rejects the access token with HTTP 401, as when it has expired.'
+        error:
+          message: |
+            Gmail list_drafts failed (401): {
+              "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+                "errors": [
+                  {
+                    "message": "Invalid Credentials",
+                    "domain": "global",
+                    "reason": "authError",
+                    "location": "Authorization",
+                    "locationType": "header"
+                  }
+                ],
+                "status": "UNAUTHENTICATED"
+              }
+            }
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -438,6 +863,44 @@ actions:
     output: '{ attachment: { attachmentId: string, size: number, fileId: string, url?: string } }'
     mock: |
       return { attachment: { attachmentId: input.attachmentId, size: 1024, fileId: 'file-' + input.attachmentId, url: 'https://files.example.com/file-' + input.attachmentId } };
+    scenarios:
+      - name: stored
+        kind: success
+        description: 'Gmail returns the bytes of the attachment, a PDF of 62 bytes, which the file store keeps under a new file id.'
+        output:
+          attachment:
+            attachmentId: ANGjdJ8AbC
+            size: 62
+            fileId: 's3:example-org/00000000-0000-0000-0000-000000000001'
+      - name: no_link
+        kind: empty
+        description: 'The record with its optional member empty: the file store keeps the bytes but gives no link to fetch them by, as the platform store never does, so the output carries no url.'
+        output:
+          attachment:
+            attachmentId: ANGjdJ8AbC
+            size: 62
+            fileId: 's3:example-org/00000000-0000-0000-0000-000000000001'
+      - name: message_not_found
+        kind: error
+        description: 'Gmail answers HTTP 404, as for a message that does not exist or was deleted.'
+        when: { messageId: '18c0000000000009' }
+        error:
+          message: |
+            Gmail get_attachment failed (404): {
+              "error": {
+                "code": 404,
+                "message": "Requested entity was not found.",
+                "errors": [
+                  {
+                    "message": "Requested entity was not found.",
+                    "domain": "global",
+                    "reason": "notFound"
+                  }
+                ],
+                "status": "NOT_FOUND"
+              }
+            }
+          status: 404
     backend:
       kind: yaml-js
       live: |
