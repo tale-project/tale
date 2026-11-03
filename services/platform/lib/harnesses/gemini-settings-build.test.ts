@@ -18,8 +18,7 @@ describe('Gemini image policy coverage', () => {
       const envelope = JSON.parse(buildHarnessExec(fact, spec).stdin!);
       const settings = envelope.settings;
       if (settings.mcpServers?.connectors) {
-        settings.mcpServers.connectors.env.TALE_CONNECTORS_URL =
-          GEMINI_BRIDGE_URL;
+        settings.mcpServers.connectors.httpUrl = `${GEMINI_BRIDGE_URL}/mcp`;
       }
       expect(policies).toContainEqual({
         ...settings,
