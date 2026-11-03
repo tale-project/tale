@@ -183,36 +183,52 @@ const backend = vi.hoisted(() => ({
 
 // Browser ESM links named imports eagerly, so every mocked module keeps its
 // real exports and overrides only what the panel reads.
-vi.mock('@tanstack/react-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  Link: ({
-    children,
-    to,
-    params,
-    search: _search,
-    ...rest
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
-    children: ReactNode;
-    to: string;
-    params?: Record<string, string>;
-    search?: unknown;
-  }) => {
-    let href = to;
-    for (const [key, value] of Object.entries(params ?? {})) {
-      href = href.replace(`$${key}`, value);
-    }
-    return (
-      <a href={href} {...rest}>
-        {children}
-      </a>
-    );
-  },
-  useNavigate: () => backend.navigate,
-  useLocation: () => backend.location,
-  useParams: () => ({
-    threadId: /\/chat\/([^/]+)$/.exec(backend.location.pathname)?.[1],
-  }),
-}));
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const router =
+    await importOriginal<typeof import('@tanstack/react-router')>();
+  const { stubUseLocation } =
+    await import('@/tests/utils/router-location-stub');
+  return {
+    ...router,
+    Link: ({
+      children,
+      to,
+      params,
+      search: _search,
+      ...rest
+    }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+      children: ReactNode;
+      to: string;
+      params?: Record<string, string>;
+      search?: unknown;
+    }) => {
+      let href = to;
+      for (const [key, value] of Object.entries(params ?? {})) {
+        href = href.replace(`$${key}`, value);
+      }
+      return (
+        <a href={href} {...rest}>
+          {children}
+        </a>
+      );
+    },
+    useNavigate: () => backend.navigate,
+    // The cases move the address before they render, so a reader takes it
+    // up on its next render.
+    useLocation: stubUseLocation(
+      {
+        get current() {
+          return backend.location;
+        },
+        subscribe: () => () => undefined,
+      },
+      router.replaceEqualDeep,
+    ),
+    useParams: () => ({
+      threadId: /\/chat\/([^/]+)$/.exec(backend.location.pathname)?.[1],
+    }),
+  };
+});
 
 // The Inbox view's own list reads the conversations backend; the cases here
 // judge the panel around it.
