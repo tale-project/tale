@@ -1100,6 +1100,18 @@ providers:
       Nach dem Löschen stehen Dokumentindexierung und Suche für die ganze
       Organisation still. Wähle zuerst unter Einstellungen → Datenresidenz
       → Embedding-Modell andere Zugangsdaten.
+    deleteSettingsWarning: >-
+      Für {provider} gibt es keine weiteren aktiven Zugangsdaten, daher werden
+      die Modelle dieses Anbieters nicht mehr angeboten. Diese Einstellungen
+      nennen sie weiterhin und bleiben unverändert: {settings}.
+    dependentSettings:
+      defaultModels: 'Standardmodelle ({count, plural, one {# Regel} other {# Regeln}})'
+      modelAccess: 'Modellzugriff ({count, plural, one {# Modell} other {# Modelle}})'
+      visionModel: Modell für Bilder
+      transcriptionModel: Modell für Audiotranskription
+      imageGeneration: Bildgenerierung
+      standardAgent: Standard-Agent
+      projectAgents: '{count, plural, one {# Projekt-Agent} other {# Projekt-Agenten}}'
     inUseByEmbedding: >-
       Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten.
       Wähle dafür unter Einstellungen → Datenresidenz → Embedding-Modell

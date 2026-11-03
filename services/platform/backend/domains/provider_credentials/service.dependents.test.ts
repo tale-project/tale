@@ -9,13 +9,19 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { readOrgEmbeddingConfig, resolveOrgSlug, createAuditLog } = vi.hoisted(
-  () => ({
-    readOrgEmbeddingConfig: vi.fn(),
-    resolveOrgSlug: vi.fn(async (): Promise<string | null> => 'acme'),
-    createAuditLog: vi.fn(async () => 'audit-1'),
-  }),
-);
+const {
+  readOrgEmbeddingConfig,
+  resolveOrgSlug,
+  readGovernancePolicy,
+  createAuditLog,
+} = vi.hoisted(() => ({
+  readOrgEmbeddingConfig: vi.fn(),
+  resolveOrgSlug: vi.fn(async (): Promise<string | null> => 'acme'),
+  readGovernancePolicy: vi.fn(
+    async (_slug: string, _type: string): Promise<unknown> => null,
+  ),
+  createAuditLog: vi.fn(async () => 'audit-1'),
+}));
 
 vi.mock('../../core/knowledge/connection.ts', async (importOriginal) => ({
   ...(await importOriginal<
@@ -26,6 +32,7 @@ vi.mock('../../core/knowledge/connection.ts', async (importOriginal) => ({
 vi.mock('../../lib/org-config.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/org-config.ts')>()),
   resolveOrgSlug,
+  readGovernancePolicy,
 }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({
@@ -34,6 +41,7 @@ vi.mock('../../realtime/outbox.ts', () => ({
 
 import {
   credentialDependents,
+  credentialSettingDependents,
   deleteCredential,
   isCredentialSelectionResolvable,
   updateCredential,
@@ -96,6 +104,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resolveOrgSlug.mockResolvedValue('acme');
   readOrgEmbeddingConfig.mockResolvedValue(null);
+  readGovernancePolicy.mockResolvedValue(null);
 });
 
 describe('credentialDependents', () => {
@@ -174,6 +183,155 @@ describe('credentialDependents', () => {
   it('is an admin read', async () => {
     await expect(
       credentialDependents(harness({}).sql, { ...scope, role: 'member' }, 'x'),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('credentialSettingDependents [PCRED-R7]', () => {
+  function settingsHarness(options: {
+    row?: {
+      providerSlug: string;
+      status: string;
+      othersActive: boolean;
+    } | null;
+    projectAgents?: number;
+  }) {
+    return recordingSql((text) => {
+      if (text.includes('AS "othersActive"'))
+        return options.row === null
+          ? []
+          : [
+              options.row ?? {
+                providerSlug: 'openai',
+                status: 'active',
+                othersActive: false,
+              },
+            ];
+      if (text.includes('FROM app.project_agents'))
+        return [{ count: options.projectAgents ?? 0 }];
+      return [];
+    });
+  }
+  const policies: Record<string, unknown> = {
+    default_models: {
+      enabled: true,
+      rules: [
+        { scope: 'default', providerName: 'openai', modelId: 'gpt-4o' },
+        {
+          scope: 'team',
+          scopeId: 't-1',
+          providerName: 'openai',
+          modelId: 'gpt-4o-mini',
+        },
+        {
+          scope: 'role',
+          scopeId: 'member',
+          providerName: 'mistral',
+          modelId: 'mistral-large',
+        },
+      ],
+    },
+    vision_model: { providerSlug: 'openai', modelId: 'gpt-4o' },
+    transcription_model: { providerSlug: 'mistral', modelId: 'voxtral' },
+    image_generation: {
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-image-1',
+    },
+    standard_agent: {
+      enabled: false,
+      providerSlug: 'openai',
+      modelId: 'gpt-4o',
+    },
+  };
+
+  it('names each setting in force that names the provider when its last active credential goes', async () => {
+    readGovernancePolicy.mockImplementation(
+      async (_slug: string, type: string) => policies[type] ?? null,
+    );
+    const { sql, statements } = settingsHarness({ projectAgents: 3 });
+    expect(await credentialSettingDependents(sql, scope, 'cred-1')).toEqual([
+      { setting: 'default-models', count: 2 },
+      { setting: 'vision-model', count: 1 },
+      { setting: 'image-generation', count: 1 },
+      { setting: 'project-agents', count: 3 },
+    ]);
+    expect(readGovernancePolicy).toHaveBeenCalledWith('acme', 'default_models');
+    const agents = statements.find((s) =>
+      s.text.includes('FROM app.project_agents'),
+    );
+    expect(agents?.values).toEqual(['org-1', 'openai']);
+  });
+
+  it('names nothing while another active credential of the provider is left', async () => {
+    readGovernancePolicy.mockImplementation(
+      async (_slug: string, type: string) => policies[type] ?? null,
+    );
+    const { sql, statements } = settingsHarness({
+      row: { providerSlug: 'openai', status: 'active', othersActive: true },
+      projectAgents: 3,
+    });
+    expect(await credentialSettingDependents(sql, scope, 'cred-1')).toEqual([]);
+    expect(readGovernancePolicy).not.toHaveBeenCalled();
+    expect(
+      statements.some((s) => s.text.includes('FROM app.project_agents')),
+    ).toBe(false);
+    // The sibling counts only while it is active.
+    const sibling = statements[0]?.text ?? '';
+    expect(sibling).toContain("o.status = 'active'");
+    expect(sibling).toContain('o.id <> c.id');
+  });
+
+  it('names nothing for a disabled credential, whose delete takes nothing offered away', async () => {
+    readGovernancePolicy.mockImplementation(
+      async (_slug: string, type: string) => policies[type] ?? null,
+    );
+    const { sql, statements } = settingsHarness({
+      row: { providerSlug: 'openai', status: 'disabled', othersActive: false },
+      projectAgents: 3,
+    });
+    expect(await credentialSettingDependents(sql, scope, 'cred-1')).toEqual([]);
+    expect(readGovernancePolicy).not.toHaveBeenCalled();
+    expect(statements).toHaveLength(1);
+  });
+
+  it('skips a switched-off section, and answers nothing for an unknown credential or a gone org', async () => {
+    readGovernancePolicy.mockImplementation(
+      async (_slug: string, type: string) =>
+        type === 'default_models'
+          ? {
+              enabled: false,
+              rules: [
+                { scope: 'default', providerName: 'openai', modelId: 'gpt-4o' },
+              ],
+            }
+          : type === 'standard_agent'
+            ? { enabled: true, providerSlug: 'openai', modelId: 'gpt-4o' }
+            : null,
+    );
+    expect(
+      await credentialSettingDependents(settingsHarness({}).sql, scope, 'c'),
+    ).toEqual([{ setting: 'standard-agent', count: 1 }]);
+    expect(
+      await credentialSettingDependents(
+        settingsHarness({ row: null }).sql,
+        scope,
+        'c',
+      ),
+    ).toEqual([]);
+    resolveOrgSlug.mockResolvedValue(null);
+    expect(
+      await credentialSettingDependents(settingsHarness({}).sql, scope, 'c'),
+    ).toEqual([]);
+  });
+
+  it('is an admin read', async () => {
+    await expect(
+      credentialSettingDependents(
+        settingsHarness({}).sql,
+        { ...scope, role: 'member' },
+        'x',
+      ),
     ).rejects.toMatchObject({ status: 403 });
   });
 });

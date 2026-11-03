@@ -120,6 +120,15 @@ export interface MultiSelectProps {
    */
   removeChipLabel?: (option: MultiSelectOption) => string;
   /**
+   * Builds the chip of a selected value that no option matches — a stored
+   * value whose option is gone, such as a model no provider offers any
+   * more. Without it such a value gets no chip, which suits options that
+   * load after the value; with it the value keeps a chip, marked as
+   * unmatched (put what that means in its label), and can be removed like
+   * any other.
+   */
+  unmatchedOption?: (value: string) => MultiSelectOption;
+  /**
    * Optional action element rendered on the right side of each option row
    * (mirrors `SearchableSelect`'s `optionAction`). The element must stop
    * click propagation itself so activating it doesn't toggle the option.
@@ -198,6 +207,7 @@ function MultiSelectBase({
   'aria-describedby': ariaDescribedBy,
   filterFn,
   removeChipLabel,
+  unmatchedOption,
   optionAction,
   modal = false,
   chipsMaxHeightClassName,
@@ -222,12 +232,17 @@ function MultiSelectBase({
   const valueSet = useMemo(() => new Set(value), [value]);
 
   // Preserve selection order so chips read in the order the user picked them.
+  // A value no option matches keeps a chip only when the caller builds one.
   const selectedOptions = useMemo(
     () =>
-      value
-        .map((v) => options.find((o) => o.value === v))
-        .filter((o): o is MultiSelectOption => o !== undefined),
-    [value, options],
+      value.flatMap((v) => {
+        const option = options.find((o) => o.value === v);
+        if (option !== undefined) return [{ option, unmatched: false }];
+        return unmatchedOption === undefined
+          ? []
+          : [{ option: { ...unmatchedOption(v), value: v }, unmatched: true }];
+      }),
+    [value, options, unmatchedOption],
   );
 
   const isControlled = controlledOpen !== undefined;
@@ -350,10 +365,14 @@ function MultiSelectBase({
         placeholder
       )
     ) : (
-      selectedOptions.map((option) => (
+      selectedOptions.map(({ option, unmatched }) => (
         <span
           key={option.value}
-          className="bg-muted inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+          data-unmatched={unmatched || undefined}
+          className={cn(
+            'bg-muted inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium',
+            unmatched && 'border-muted-foreground border border-dashed',
+          )}
         >
           {option.label}
           {!disabled && (

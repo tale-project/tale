@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 149 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 150 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1479,6 +1479,20 @@ Restore any toggled setting after the run.
   `settings.providers.custom.errors.catalogUnreachable` in German with the
   connection's words after it, never a URL; the backend log names each
   attempt on a line that starts with `[catalog]`.
+- [ ] `SET-B50` · **Deleting a provider's last active credential names what
+  still uses its models** — With provider P's only active credential C (the
+  embedding model on another provider), a **Default models** rule on a P
+  model, a **Model access** allowlist rule naming a model only P offers, the
+  **Vision model** pinned to a P model and one project agent on a P model, go
+  to `/dashboard/{org}/settings/providers` → C's **Actions** → **Delete** →
+  the dialog reads `settings.providers.credential.deleteSettingsWarning`
+  ("P has no other active credential, so its models will no longer be
+  offered…") naming **Default models (1 rule)**, **Model access (1 model)**,
+  **Vision model** and **1 project agent**, in that order; the same in German
+  and French. **Delete** → C is gone, and the rules, the pin and the project
+  agent still name their P models (Governance › Models: `GOV-B29`). With a
+  second active credential of P, or for a disabled C, the dialog names none
+  of them.
 
 ## Accessibility (WCAG 2.1 AA)
 

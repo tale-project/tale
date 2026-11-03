@@ -43,14 +43,19 @@ function parseUploadPolicyConfig(
   return null;
 }
 
+/** One stored policy. A reader that only needs it in some states (the
+ * provider delete dialog, while open) passes `enabled`; the key stays shared
+ * with the policy's editor. */
 export function useGovernancePolicy(
   organizationId: string,
   policyType: PolicyType,
+  options?: { enabled?: boolean },
 ) {
-  return useBackendQuery('governance/queries:getPolicy', {
-    organizationId,
-    policyType,
-  });
+  return useBackendQuery(
+    'governance/queries:getPolicy',
+    { organizationId, policyType },
+    options,
+  );
 }
 
 export function useDsarPolicyForUi(organizationId: string) {

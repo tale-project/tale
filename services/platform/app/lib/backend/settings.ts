@@ -498,7 +498,9 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     };
   },
   // Keyed under the credential entity: a credential write (or the embedding
-  // settings' own hint) refetches it with the list.
+  // settings' own hint) refetches it with the list. Stale at once, so each
+  // opening of the delete dialog reads the settings as they are now: a
+  // governance or project agent write hints no credential.
   'provider_credentials/queries:getCredentialDependents': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined || typeof args.credentialId !== 'string') {
@@ -513,10 +515,13 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         credentialId,
       ),
       queryFn: () =>
-        backendFetch<{ usedBy: string[] }>(
+        backendFetch<
+          ReturnsOf<'provider_credentials/queries:getCredentialDependents'>
+        >(
           `/provider-credentials/${encodeURIComponent(credentialId)}/dependents`,
           { orgId },
         ),
+      staleTime: 0,
     };
   },
   'provider_credentials/queries:listCredentials': (args, ctx) => {

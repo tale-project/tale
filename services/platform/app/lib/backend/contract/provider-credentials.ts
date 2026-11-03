@@ -7,7 +7,10 @@
  * actually serve them.
  */
 
-import type { ProviderDefinition } from '@tale/shared/schemas/providers';
+import type {
+  CredentialSettingDependentKind,
+  ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 
 export interface ProviderCredentialsContract {
   'provider_credentials/actions:createCredential': {
@@ -88,8 +91,16 @@ export interface ProviderCredentialsContract {
   'provider_credentials/queries:getCredentialDependents': {
     kind: 'query';
     args: { organizationId: string; credentialId: string };
-    /** What resolves its key through the credential (`embedding`). */
-    returns: { usedBy: string[] };
+    /** What resolves its key through the credential (`embedding`), and
+     * the settings in force left naming the provider's models when it is
+     * the provider's last active credential. */
+    returns: {
+      usedBy: string[];
+      settings: Array<{
+        setting: CredentialSettingDependentKind;
+        count: number;
+      }>;
+    };
   };
   'provider_credentials/queries:listCredentials': {
     kind: 'query';

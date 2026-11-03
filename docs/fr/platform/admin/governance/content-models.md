@@ -14,6 +14,8 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modè
 
 Le modèle par défaut s’applique lorsqu’aucun modèle n’a été choisi explicitement. Une règle d’équipe passe avant une règle de rôle, puis vient la valeur par défaut générale ; si une personne appartient à plusieurs équipes dotées d’une règle, la première règle d’équipe correspondante du tableau l’emporte (voir [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine)). Elle n’empêche pas de sélectionner un autre modèle autorisé.
 
+Une règle dont le fournisseur n’a plus d’identifiant actif affiche **(indisponible)** après le fournisseur, et un modèle que son fournisseur ne propose plus l’affiche après le modèle. Un avis au-dessus du tableau indique que ces règles passent à **Automatique** jusqu’à ce que tu les modifies ou les supprimes ; Tale les garde telles qu’enregistrées.
+
 La liste propose les modèles capables de répondre dans le chat. Un modèle d’images qui ne peut pas utiliser d’outils, comme Gemini 2.5 Flash Image, n’y figure pas, pas plus que dans le sélecteur de modèle du chat : le chat envoie chaque message avec des outils, par exemple une recherche dans les documents. Choisis un tel modèle sous [génération d’images](#let-agents-generate-images), et l’assistant crée des images avec lui.
 
 ## Limiter l’accès aux modèles
@@ -30,6 +32,8 @@ Les anciennes règles enregistrées sans cible restent visibles avec **Cible man
 | Liste de blocage | Les modèles sont permis sauf s’ils figurent parmi les modèles bloqués. |
 
 Les règles individuelles passent avant celles des équipes, puis des rôles et enfin la règle par défaut. Plusieurs règles d’équipe correspondantes combinent leurs listes ; un blocage explicite reste prioritaire pour le modèle. Si aucune règle ne correspond, la politique ne restreint pas cette personne. Ajoute une règle de base pour couvrir tout le monde.
+
+Un modèle qu’aucun fournisseur disposant d’un identifiant actif ne propose plus reste dans sa règle et affiche **(indisponible)**, dans le tableau et dans le champ des modèles de la règle, où tu peux le retirer. Tale le garde tel qu’enregistré.
 
 Pour le chat, l’accès est vérifié à l’utilisation, même pour un modèle choisi explicitement ou fixé. Le modèle par défaut doit aussi passer cette vérification. S’il est refusé, la sélection automatique peut se rabattre sur un modèle autorisé. L’éditeur signale les contradictions entre modèle par défaut et accès. Corrige-les pour que le modèle par défaut prévu soit réellement utilisé.
 

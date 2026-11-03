@@ -137,4 +137,6 @@ Use the row's replacement action to rotate a secret while keeping its name and r
 
 Deleting a credential removes access for callers that depend on it. Move those callers first. If you delete the default, select a replacement default so unnamed requests can resolve a credential. A credential the knowledge embedding model resolves — the one named under **Settings > Data residency > Embedding model**, or that provider's last active default — cannot be deleted: the delete dialog names the dependency and Tale refuses the delete. Choose another credential for the embedding model first.
 
+Deleting a provider's last active credential also stops its models from being offered. If settings still name them — default models, model access, the vision, audio transcription or image generation model, the standard agent, or project agents — the delete dialog lists them. The delete still goes through and leaves those settings as they are; choose other models for them afterwards (see [Models](/platform/admin/governance/content-models)).
+
 </Warning>

@@ -1130,6 +1130,18 @@ providers:
       recherche pour toute l'organisation. Choisis d'abord d'autres
       identifiants sous Paramètres → Résidence des données → Modèle
       d'embedding.
+    deleteSettingsWarning: >-
+      {provider} n'a pas d'autre identifiant actif : ses modèles ne seront
+      donc plus proposés. Ces paramètres les nomment toujours et restent tels
+      quels : {settings}.
+    dependentSettings:
+      defaultModels: 'Modèles par défaut ({count, plural, one {# règle} other {# règles}})'
+      modelAccess: 'Accès aux modèles ({count, plural, one {# modèle} other {# modèles}})'
+      visionModel: Modèle pour les images
+      transcriptionModel: Modèle de transcription audio
+      imageGeneration: Génération d'images
+      standardAgent: Agent standard
+      projectAgents: '{count, plural, one {# agent de projet} other {# agents de projet}}'
     inUseByEmbedding: >-
       Le modèle d'embedding de la recherche de connaissances utilise ces
       identifiants. Choisis-en d'autres pour lui sous Paramètres →

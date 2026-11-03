@@ -28,6 +28,7 @@ import {
   CredentialAdminError,
   createCredential,
   credentialDependents,
+  credentialSettingDependents,
   deleteCredential,
   listCredentials,
   updateCredential,
@@ -112,16 +113,17 @@ export function createProviderCredentialRoutes(deps: {
   });
 
   // What depends on a credential — read by the delete dialog, so the
-  // dependency is named before the delete is refused for it.
+  // dependency is named before the delete is refused for it, and the
+  // settings left naming the provider's models are named before it goes.
   app.get('/:credentialId/dependents', async (c) => {
     try {
-      return c.json(
-        await credentialDependents(
-          deps.sql,
-          scopeOf(c),
-          c.req.param('credentialId'),
-        ),
-      );
+      const scope = scopeOf(c);
+      const credentialId = c.req.param('credentialId');
+      const [{ usedBy }, settings] = await Promise.all([
+        credentialDependents(deps.sql, scope, credentialId),
+        credentialSettingDependents(deps.sql, scope, credentialId),
+      ]);
+      return c.json({ usedBy, settings });
     } catch (error) {
       return handleError(c, error);
     }

@@ -42,7 +42,7 @@ const { state, members, teams, providers, mailboxes, backendQuery } =
     },
     members: { members: [{ userId: 'user-1', displayName: 'Alice' }] },
     teams: { teams: [{ id: 'team-1', name: 'Finance' }] },
-    providers: { providers: [] },
+    providers: { providers: [], offered: null },
     mailboxes: { mailboxes: [] },
     backendQuery: { data: [], isLoading: false },
   }));
@@ -56,7 +56,8 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => teams,
 }));
-vi.mock('../hooks/model-catalog', () => ({
+vi.mock('../hooks/model-catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/model-catalog')>()),
   useListProviders: () => providers,
   useModelCapabilities: () => new Map(),
 }));

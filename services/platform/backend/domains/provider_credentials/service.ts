@@ -6,6 +6,7 @@ import {
   providerCredentialCreateSchema,
   providerCredentialUpdateSchema,
   type BrokerCredentialData,
+  type CredentialSettingDependentKind,
   type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 import type { Sql, TransactionSql } from 'postgres';
@@ -34,6 +35,7 @@ import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
   orgAdapterShimHandlers,
+  readGovernancePolicy,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -934,6 +936,79 @@ export async function credentialDependents(
     row.isDefault &&
     row.status === 'active';
   return { usedBy: isActiveDefault ? ['embedding'] : [] };
+}
+
+/** A setting in force that names a provider's models by the provider, and
+ * how many of its entries do. */
+export interface CredentialSettingDependent {
+  setting: CredentialSettingDependentKind;
+  count: number;
+}
+
+/**
+ * The settings that name this credential's provider and point at models no
+ * longer offered once it goes — read by the delete dialog to say so before
+ * the delete, never a reason to refuse it: each degrades on its own (a
+ * default model to automatic selection, the vision lane to its fallback).
+ * Empty while another active credential of the provider is left, which
+ * keeps the provider and its models offered, and for a disabled credential,
+ * whose delete takes nothing offered away. Model access rules name bare
+ * model ids, no provider (#5178), so they are not attributed here.
+ */
+export async function credentialSettingDependents(
+  db: Sql | TransactionSql,
+  scope: CredentialScope,
+  credentialId: string,
+): Promise<CredentialSettingDependent[]> {
+  assertCredentialAdmin(scope);
+  const organizationId = scope.organizationId;
+  const [row] = await db<
+    { providerSlug: string; status: string; othersActive: boolean }[]
+  >`
+    SELECT c.provider_slug AS "providerSlug", c.status,
+      EXISTS (
+        SELECT 1 FROM app.provider_credentials o
+        WHERE o.org_id = c.org_id AND o.provider_slug = c.provider_slug
+          AND o.id <> c.id AND o.status = 'active'
+      ) AS "othersActive"
+    FROM app.provider_credentials c
+    WHERE c.id = ${credentialId} AND c.org_id = ${organizationId}
+    LIMIT 1
+  `;
+  if (!row || row.status !== 'active' || row.othersActive) return [];
+  const orgSlug = await resolveOrgSlug(db, organizationId);
+  if (orgSlug === null) return [];
+  const slug = row.providerSlug;
+  const [defaults, vision, transcription, image, standard, agents] =
+    await Promise.all([
+      readGovernancePolicy(orgSlug, 'default_models'),
+      readGovernancePolicy(orgSlug, 'vision_model'),
+      readGovernancePolicy(orgSlug, 'transcription_model'),
+      readGovernancePolicy(orgSlug, 'image_generation'),
+      readGovernancePolicy(orgSlug, 'standard_agent'),
+      db<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM app.project_agents
+        WHERE org_id = ${organizationId} AND model_provider = ${slug}
+      `,
+    ]);
+  const settings: CredentialSettingDependent[] = [];
+  const defaultRules = defaults?.enabled
+    ? defaults.rules.filter((rule) => rule.providerName === slug).length
+    : 0;
+  if (defaultRules > 0)
+    settings.push({ setting: 'default-models', count: defaultRules });
+  if (vision?.providerSlug === slug)
+    settings.push({ setting: 'vision-model', count: 1 });
+  if (transcription?.providerSlug === slug)
+    settings.push({ setting: 'transcription-model', count: 1 });
+  if (image?.enabled && image.providerSlug === slug)
+    settings.push({ setting: 'image-generation', count: 1 });
+  if (standard?.enabled && standard.providerSlug === slug)
+    settings.push({ setting: 'standard-agent', count: 1 });
+  const agentCount = agents[0]?.count ?? 0;
+  if (agentCount > 0)
+    settings.push({ setting: 'project-agents', count: agentCount });
+  return settings;
 }
 
 /** The refusal of a write that would leave what depends on a credential

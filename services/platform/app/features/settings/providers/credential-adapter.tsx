@@ -4,6 +4,7 @@ import {
   providerBaseUrlSchema,
   SECRETS_ENV_PREFIX,
 } from '@tale/shared/schemas/providers';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { RadioGroup } from '@tale/ui/radio-group';
@@ -53,6 +54,10 @@ import {
   type ProviderCatalog,
   useCredentialDependents,
 } from './hooks/queries';
+import {
+  settingLeftBehindLabel,
+  useSettingsLeftBehind,
+} from './hooks/settings-left-behind';
 import {
   apiFormatLabel,
   authMethodLabel,
@@ -547,13 +552,39 @@ export const providerCredentialAdapter: CredentialAdapter<
   // The embedding model resolves its key through a credential: deleting
   // that one takes knowledge indexing and search down, so the dialog says
   // so up front (the server refuses the delete with `CREDENTIAL_IN_USE`).
-  useDeleteWarning: ({ t, credential, organizationId, open }) => {
+  // The provider's last active credential also takes its models away from
+  // the settings that name them: the dialog names those too, and the delete
+  // leaves them as they are (PCRED-R7).
+  useDeleteWarning: ({ t, credential, vendor, organizationId, open }) => {
+    const { locale } = useLocale();
     const dependents = useCredentialDependents(organizationId, credential.id, {
       enabled: open,
     });
-    return dependents.data?.usedBy.includes('embedding')
-      ? t('providers.credential.deleteEmbeddingWarning')
-      : undefined;
+    const settings = useSettingsLeftBehind({
+      organizationId,
+      credential,
+      open,
+      serverSettings: dependents.data?.settings,
+    });
+    return (
+      [
+        dependents.data?.usedBy.includes('embedding')
+          ? t('providers.credential.deleteEmbeddingWarning')
+          : undefined,
+        settings.length > 0
+          ? t('providers.credential.deleteSettingsWarning', {
+              provider: vendor?.displayName ?? credential.providerSlug,
+              settings: new Intl.ListFormat(locale, {
+                type: 'conjunction',
+              }).format(
+                settings.map((item) => settingLeftBehindLabel(t, item)),
+              ),
+            })
+          : undefined,
+      ]
+        .filter((line) => line !== undefined)
+        .join(' ') || undefined
+    );
   },
 
   // "Check models" on a custom provider's row: list its endpoint afresh, with

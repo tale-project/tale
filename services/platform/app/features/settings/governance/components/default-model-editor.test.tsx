@@ -13,7 +13,10 @@ vi.mock('@tale/ui/use-toast', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: state.mutateAsync,
+    isPending: false,
+  }),
 }));
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
@@ -36,8 +39,15 @@ const { state } = vi.hoisted(() => ({
     accessConfig: null as Record<string, unknown> | null,
     result: undefined as unknown,
     accessResult: undefined as unknown,
+    // What the providers with an active credential offer; `null` while unknown.
+    offered: null as ReadonlyMap<string, ReadonlySet<string>> | null,
+    mutateAsync: vi.fn(async (_args: unknown) => undefined),
   },
 }));
+
+const OFFERED_OPENAI = new Map([
+  ['openai', new Set(['openai/gpt-4o', 'openai/gpt-5-image-mini'])],
+]);
 
 function refreshPolicy() {
   state.result = {
@@ -89,6 +99,7 @@ vi.mock('../hooks/model-catalog', () => ({
         ],
       },
     ],
+    offered: state.offered,
     isLoading: false,
   }),
 }));
@@ -103,6 +114,8 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 
 function setLoaded() {
   state.isLoading = false;
+  state.offered = OFFERED_OPENAI;
+  state.mutateAsync.mockClear();
   state.config = {
     enabled: true,
     rules: [
@@ -114,6 +127,7 @@ function setLoaded() {
 }
 function setLoading() {
   state.isLoading = true;
+  state.offered = null;
   state.config = null;
   state.accessConfig = null;
   refreshPolicy();
@@ -245,6 +259,87 @@ describe('DefaultModelEditor', () => {
     expect(
       screen.queryByRole('option', { name: 'GPT-5 Image Mini' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('marks a rule whose provider is gone, shows it in the dialog and saves it unchanged', async () => {
+    setLoaded();
+    const removed = {
+      scope: 'default',
+      providerName: 'anthropic',
+      modelId: 'anthropic/claude-sonnet-4',
+    };
+    state.config = { enabled: true, rules: [removed] };
+    refreshPolicy();
+    const { user } = render(<DefaultModelEditor organizationId="org-1" />);
+    expect(
+      screen.getByRole('cell', { name: 'anthropic (unavailable)' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('cell', { name: 'anthropic/claude-sonnet-4' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Some rules name a provider or model that no provider with an active credential offers any more. They are marked unavailable and fall back to Automatic until you edit or remove them.',
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByRole('button', { name: 'Provider' })).toHaveTextContent(
+      'anthropic (unavailable)',
+    );
+    expect(dialog.getByRole('button', { name: 'Model' })).toHaveTextContent(
+      'anthropic/claude-sonnet-4',
+    );
+    await user.click(dialog.getByRole('button', { name: 'Confirm' }));
+    expect(state.mutateAsync).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      policyType: 'default_models',
+      config: { enabled: true, rules: [removed] },
+    });
+  });
+
+  it('marks a model its provider no longer offers', () => {
+    setLoaded();
+    state.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', providerName: 'openai', modelId: 'openai/gpt-3.5' },
+      ],
+    };
+    refreshPolicy();
+    render(<DefaultModelEditor organizationId="org-1" />);
+    expect(screen.getByRole('cell', { name: 'OpenAI' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('cell', { name: 'openai/gpt-3.5 (unavailable)' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/They are marked unavailable/)).toBeInTheDocument();
+  });
+
+  it('marks nothing while what the providers offer is unknown', () => {
+    setLoaded();
+    state.offered = null;
+    state.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'default',
+          providerName: 'anthropic',
+          modelId: 'anthropic/claude-sonnet-4',
+        },
+      ],
+    };
+    refreshPolicy();
+    render(<DefaultModelEditor organizationId="org-1" />);
+    expect(screen.getByRole('cell', { name: 'anthropic' })).toBeInTheDocument();
+    expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
+  });
+
+  it('marks nothing for a rule on a model still offered', () => {
+    setLoaded();
+    render(<DefaultModelEditor organizationId="org-1" />);
+    expect(screen.getByRole('cell', { name: 'GPT-4o' })).toBeInTheDocument();
+    expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
   });
 
   describe('loaded state', () => {

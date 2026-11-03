@@ -166,6 +166,28 @@ describe('MultiSelect', () => {
       ).toBeInTheDocument();
     });
 
+    // A stored value whose option is gone (a model no provider offers any
+    // more) stays selected either way; only `unmatchedOption` gives it a chip.
+    it('drops the chip of a value no option matches by default', () => {
+      renderDefault({ value: ['apple', 'durian'] });
+      expect(screen.getByText('Apple')).toBeInTheDocument();
+      expect(screen.queryByText(/durian/i)).not.toBeInTheDocument();
+    });
+
+    it('keeps a marked, removable chip for a value no option matches when asked', async () => {
+      const { user, onValueChange } = renderDefault({
+        value: ['apple', 'durian'],
+        unmatchedOption: (value) => ({ value, label: `${value} (gone)` }),
+      });
+      const chip = screen.getByText('durian (gone)');
+      expect(chip).toHaveAttribute('data-unmatched', 'true');
+      expect(screen.getByText('Apple')).not.toHaveAttribute('data-unmatched');
+      await user.click(
+        screen.getByRole('button', { name: 'Remove durian (gone)' }),
+      );
+      expect(onValueChange).toHaveBeenCalledWith(['apple']);
+    });
+
     // A settings row shows the label and help itself, next to the picker; the
     // combobox (and its listbox) must still be named and described by them.
     it('takes its name and description from elements the caller renders', async () => {

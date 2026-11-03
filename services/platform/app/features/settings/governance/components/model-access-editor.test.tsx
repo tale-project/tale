@@ -74,6 +74,7 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => STABLE_TEAMS,
 }));
 
+const OFFERED_OPENAI = new Map([['openai', new Set(['openai/gpt-4o'])]]);
 const STABLE_PROVIDERS = {
   providers: [
     {
@@ -82,8 +83,11 @@ const STABLE_PROVIDERS = {
       models: [{ id: 'openai/gpt-4o', displayName: 'GPT-4o', tags: ['chat'] }],
     },
   ],
+  // What the providers with an active credential offer; `null` while unknown.
+  offered: OFFERED_OPENAI as ReadonlyMap<string, ReadonlySet<string>> | null,
 };
-vi.mock('../hooks/model-catalog', () => ({
+vi.mock('../hooks/model-catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/model-catalog')>()),
   useListProviders: () => STABLE_PROVIDERS,
   useModelCapabilities: () => new Map(),
 }));
@@ -119,6 +123,7 @@ describe('ModelAccessEditor', () => {
     upsert.isPending = false;
     toast.mockClear();
     state.defaultConfig = null;
+    STABLE_PROVIDERS.offered = OFFERED_OPENAI;
   });
 
   describe('immediate saves and server readback', () => {
@@ -813,6 +818,106 @@ describe('ModelAccessEditor', () => {
       expect(upsert.mutateAsync).not.toHaveBeenCalled();
     },
   );
+
+  describe('a model no provider offers any more', () => {
+    const REMOVED = 'anthropic/claude-sonnet-4';
+    function nameRemovedModel(mode: 'allowlist' | 'blocklist') {
+      setLoaded();
+      const models = ['openai/gpt-4o', REMOVED];
+      state.config = {
+        enabled: true,
+        mode,
+        rules: [
+          {
+            scope: 'default',
+            allowedModels: mode === 'allowlist' ? models : [],
+            blockedModels: mode === 'blocklist' ? models : [],
+          },
+        ],
+      };
+    }
+    const savedModels = (mode: 'allowlist' | 'blocklist') => {
+      const call = upsert.mutateAsync.mock.calls[0]?.[0];
+      if (!isRecord(call)) throw new Error('Expected policy arguments');
+      const config = modelAccessConfigSchema.parse(call.config);
+      return mode === 'allowlist'
+        ? config.rules[0]?.allowedModels
+        : config.rules[0]?.blockedModels;
+    };
+
+    it.each(['allowlist', 'blocklist'] as const)(
+      'is marked in the %s, keeps its chip and is saved unchanged',
+      async (mode) => {
+        nameRemovedModel(mode);
+        const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+        expect(
+          screen.getByRole('cell', {
+            name: `GPT-4o, ${REMOVED} (unavailable)`,
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            'Some rules name models that no provider with an active credential offers any more. They are marked unavailable; edit a rule to remove them.',
+          ),
+        ).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Edit rule' }));
+        const dialog = within(screen.getByRole('dialog'));
+        expect(dialog.getByText(`${REMOVED} (unavailable)`)).toHaveAttribute(
+          'data-unmatched',
+          'true',
+        );
+        expect(dialog.getByText('GPT-4o')).not.toHaveAttribute(
+          'data-unmatched',
+        );
+        await user.click(dialog.getByRole('button', { name: 'Confirm' }));
+        expect(upsert.mutateAsync).toHaveBeenCalledOnce();
+        expect(savedModels(mode)).toEqual(['openai/gpt-4o', REMOVED]);
+      },
+    );
+
+    it('can be removed from the rule, which keeps the rest', async () => {
+      nameRemovedModel('allowlist');
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: 'Edit rule' }));
+      const dialog = within(screen.getByRole('dialog'));
+      await user.click(
+        dialog.getByRole('button', { name: `Remove ${REMOVED} (unavailable)` }),
+      );
+      expect(
+        dialog.queryByText(`${REMOVED} (unavailable)`),
+      ).not.toBeInTheDocument();
+      await user.click(dialog.getByRole('button', { name: 'Confirm' }));
+      expect(savedModels('allowlist')).toEqual(['openai/gpt-4o']);
+    });
+
+    it('keeps its chip unmarked while what the providers offer is unknown', async () => {
+      nameRemovedModel('allowlist');
+      STABLE_PROVIDERS.offered = null;
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('cell', { name: `GPT-4o, ${REMOVED}` }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Edit rule' }));
+      expect(
+        within(screen.getByRole('dialog')).getByText(REMOVED),
+      ).toHaveAttribute('data-unmatched', 'true');
+    });
+
+    it('is not marked when another provider offers it under a qualifier', () => {
+      nameRemovedModel('allowlist');
+      STABLE_PROVIDERS.offered = new Map([
+        ['openai', new Set(['openai/gpt-4o'])],
+        ['proxy', new Set([`proxy:${REMOVED}`])],
+      ]);
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('cell', { name: `GPT-4o, ${REMOVED}` }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
+    });
+  });
 
   describe('loaded state', () => {
     it('renders the real enable switch (in the a11y tree)', () => {

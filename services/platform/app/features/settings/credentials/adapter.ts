@@ -342,6 +342,7 @@ export interface CredentialAdapter<
   useDeleteWarning: (context: {
     t: Translator;
     credential: Cred;
+    vendor: V | null;
     organizationId: string;
     open: boolean;
   }) => string | undefined;

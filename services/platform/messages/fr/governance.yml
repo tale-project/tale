@@ -166,6 +166,13 @@ defaultModels:
     developer: Développeur
     editor: Éditeur
     member: Membre
+  unavailableProvider: '{provider} (indisponible)'
+  unavailableModel: '{model} (indisponible)'
+  unavailableHint: >-
+    Certaines règles nomment un fournisseur ou un modèle qu'aucun fournisseur
+    disposant d'un identifiant actif ne propose plus. Elles sont marquées
+    indisponibles et passent à Automatique jusqu'à ce que tu les modifies ou
+    les supprimes.
 visionModel:
   title: Modèle pour les images
   description:
@@ -1494,6 +1501,11 @@ modelAccess:
       et passent par les garde-fous d'entrée ; les réponses des modèles ne
       sont pas filtrées.
     enabled: Activer les endpoints de modèles pour les clés API
+  unavailableModel: '{model} (indisponible)'
+  unavailableModelsHint: >-
+    Certaines règles nomment des modèles qu'aucun fournisseur disposant d'un
+    identifiant actif ne propose plus. Ils sont marqués indisponibles ;
+    modifie une règle pour les retirer.
 dataSubjectRequests:
   title: Demandes de personnes concernées
   entityLabel: demandes
