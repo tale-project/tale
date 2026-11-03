@@ -119,15 +119,17 @@ exec:
     # reproducible regardless of repo contents. omitImagesOnVision: with the
     # vision polyfill armed, browser tools save screenshots to disk instead
     # of returning them inline (an inline image bypasses the Read hook and
-    # 400s on the text-only model).
+    # 400s on the text-only model). The bridge is the platform's MCP server,
+    # reached over HTTP with the session key as its bearer token: the key
+    # stays in the argv JSON it already rode as the relay's env, and no relay
+    # process starts.
     - mcp:
         delivery: config-json-flag
         flag: '--mcp-config'
         trailingArgs: ['--strict-mcp-config']
         omitImagesOnVision: true
-        bridgeEnv:
-          TALE_CONNECTORS_URL: '${bridgeUrl}'
-          TALE_CONNECTORS_TOKEN: '${gateway.token}'
+        bridgeHeaders:
+          Authorization: 'Bearer ${gateway.token}'
     # A deny rule with a bare built-in name removes the tool from the
     # model's context entirely (verified against the permissions docs).
     # AskUserQuestion: there is NO answer path in our chat surface — the
