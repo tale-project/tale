@@ -1,0 +1,496 @@
+'use client';
+
+import * as Dialog from '@radix-ui/react-dialog';
+import {
+  AnimatePresence,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+} from 'framer-motion';
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+} from 'react';
+
+import { useRestoreFocus } from '../../hooks/use-restore-focus';
+import { cn } from '../../lib/cn';
+import { PagePointerPin } from '../overlays/page-pointer-pin';
+import { FALLBACK_GROUP, humanizeGroupKey } from './group-by';
+import { SearchCommandInput } from './search-command-input';
+import { SearchEmpty } from './search-empty';
+import { SearchFooter } from './search-footer';
+import { type RenderResultArgs, SearchResultList } from './search-result-list';
+import type {
+  BreadcrumbResolver,
+  ResultIconResolver,
+} from './search-result-row';
+import { SearchRetry } from './search-retry';
+import { SearchSkeleton } from './search-skeleton';
+import type { SearchCommandLabels, SearchResult, SearchSource } from './types';
+import { useSearchCommand } from './use-search-command';
+import { useSearchCommandLabels } from './use-search-command-labels';
+
+export interface SearchCommandProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Pluggable data source (a hook). See {@link SearchSource}. */
+  source: SearchSource;
+  /** Caller-owned navigation when a result is chosen. */
+  onSelect: (result: SearchResult) => void;
+  /** Override surface-specific labels; the rest come from the `search` i18n
+   *  namespace via {@link useSearchCommandLabels}. */
+  labels?: Partial<SearchCommandLabels>;
+  minQueryLength?: number;
+  debounceMs?: number;
+  /** Reset query, debounce, results and recents when their owner changes.
+   *  The dialog and its captured opener stay mounted. Exclude same-owner
+   *  scope changes that should retain the query. */
+  resetKey?: string;
+  /** localStorage namespace for recents (e.g. `tale.platform.chat.…`). Omit
+   *  to disable recents for this surface. */
+  recentsStorageKey?: string;
+  getGroupKey?: (result: SearchResult) => string;
+  getGroupLabel?: (key: string) => string;
+  resultIcon?: ResultIconResolver;
+  getBreadcrumb?: BreadcrumbResolver;
+  renderResult?: (args: RenderResultArgs) => React.ReactNode;
+  /** Optional row under the query input — e.g. a Chats / Everything scope
+   *  toggle. Keeps the query and results in one palette. */
+  toolbar?: React.ReactNode;
+  /** Optional row between the results list and the keyboard footer. */
+  footerAccessory?: React.ReactNode;
+}
+
+/**
+ * Shared search command palette. Surface-agnostic: the {@link SearchSource}
+ * decides where results come from (static MiniSearch index, a Convex
+ * paginated query, a RAG action). Used by both the docs site and the platform
+ * so every search "works the same way".
+ */
+export function SearchCommand({
+  open,
+  onOpenChange,
+  labels: labelOverrides,
+  resetKey,
+  ...props
+}: SearchCommandProps) {
+  const labels = useSearchCommandLabels(labelOverrides);
+  const reduceMotion = useReducedMotion() ?? false;
+  // Keep the dialog's focus scope and opener stable when search ownership
+  // changes. Only the body below owns query, debounce and result state.
+  const restoreFocus = useRestoreFocus(open);
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <AnimatePresence>
+        {open ? (
+          <Dialog.Portal forceMount>
+            <Dialog.Overlay asChild>
+              <motion.div
+                key="search-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  duration: reduceMotion ? 0 : 0.18,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                // Dimmed, not blurred: a backdrop blur is re-rendered for
+                // every frame the panel changes in, and without GPU
+                // compositing that was 200–450 ms per keystroke (#4348).
+                className="fixed inset-0 z-50 bg-black/50"
+              />
+            </Dialog.Overlay>
+            <Dialog.Content
+              asChild
+              aria-modal="true"
+              aria-label={labels.title}
+              onCloseAutoFocus={restoreFocus}
+            >
+              <motion.div
+                key="search-dialog"
+                initial={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: -8, scale: 0.98 }
+                }
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, y: -4, scale: 0.99 }
+                }
+                transition={{
+                  duration: reduceMotion ? 0 : 0.22,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className={cn(
+                  // An opaque panel, so nothing behind it has to be blurred
+                  // while the results change under every keystroke.
+                  'border-border-base bg-bg-base fixed top-[12vh] left-1/2 z-50 flex w-[min(680px,calc(100vw-2rem))]',
+                  '-translate-x-1/2 flex-col overflow-hidden rounded-2xl border shadow-2xl',
+                )}
+              >
+                <PagePointerPin />
+                <Dialog.Title className="sr-only">{labels.title}</Dialog.Title>
+                <Dialog.Description className="sr-only">
+                  {labels.emptyHint}
+                </Dialog.Description>
+
+                <SearchCommandBody
+                  key={resetKey}
+                  {...props}
+                  open={open}
+                  onOpenChange={onOpenChange}
+                  labels={labels}
+                  reduceMotion={reduceMotion}
+                />
+              </motion.div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        ) : null}
+      </AnimatePresence>
+    </Dialog.Root>
+  );
+}
+
+type SearchCommandBodyProps = Omit<
+  SearchCommandProps,
+  'labels' | 'resetKey'
+> & {
+  labels: SearchCommandLabels;
+  reduceMotion: boolean;
+};
+
+function SearchCommandBody({
+  open,
+  onOpenChange,
+  source,
+  onSelect,
+  labels,
+  reduceMotion,
+  minQueryLength = 2,
+  debounceMs = 250,
+  recentsStorageKey,
+  getGroupKey,
+  getGroupLabel,
+  resultIcon,
+  getBreadcrumb,
+  renderResult,
+  toolbar,
+  footerAccessory,
+}: SearchCommandBodyProps) {
+  // AnimatePresence retains the exiting body with its last props. Stop the
+  // source immediately on close, before the panel's animation finishes.
+  const isPresent = useIsPresent();
+  const controllerOpen = open && isPresent;
+
+  const select = useCallback(
+    (result: SearchResult) => {
+      onOpenChange(false);
+      onSelect(result);
+    },
+    [onOpenChange, onSelect],
+  );
+
+  // Localise the catch-all group header while delegating real keys to the
+  // caller's resolver (docs maps section slugs to titles; others humanise).
+  const resolveGroupLabel = useCallback(
+    (key: string): string =>
+      key === FALLBACK_GROUP
+        ? labels.resultsGroup
+        : getGroupLabel
+          ? getGroupLabel(key)
+          : humanizeGroupKey(key),
+    [getGroupLabel, labels.resultsGroup],
+  );
+
+  const controller = useSearchCommand({
+    source,
+    open: controllerOpen,
+    minQueryLength,
+    debounceMs,
+    getGroupKey,
+    getGroupLabel: resolveGroupLabel,
+    recentsStorageKey,
+    onSelect: select,
+  });
+
+  const {
+    query,
+    setQuery,
+    effectiveQuery,
+    status,
+    results,
+    groups,
+    visualResults,
+    terms,
+    activeIndex,
+    setActiveIndex,
+    select: onResultSelect,
+    recents,
+    pickRecent,
+    removeRecent,
+    clearRecents,
+    canLoadMore,
+    loadMore,
+    isLoadingMore,
+    isShortQuery,
+    showEmptyState,
+    showSkeleton,
+    showNoResults,
+    showError,
+    showPartialFailure,
+    retry,
+    retrying,
+    failureKey,
+  } = controller;
+
+  const listboxId = useId();
+  const optionIdPrefix = useId();
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listboxRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // An answer that replaces a focused Try again hands the focus back to the
+  // query, where typing and the arrow keys carry on.
+  const focusInput = useCallback(() => inputRef.current?.focus(), []);
+
+  // Reset scroll to the top when the result *set* changes (new query). Done
+  // explicitly on the container — NOT via scrollIntoView on activeIndex —
+  // because the latter would fire on hover too and steal scroll mid-scroll.
+  useEffect(() => {
+    const lb = listboxRef.current;
+    if (lb) lb.scrollTop = 0;
+  }, [effectiveQuery]);
+
+  // Scroll a row into view only on intentional keyboard nav (RAF lets the
+  // row position settle after the state update).
+  const scrollRowIntoView = (index: number) => {
+    requestAnimationFrame(() => {
+      const node = optionRefs.current[index];
+      if (node) node.scrollIntoView({ block: 'nearest' });
+    });
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (visualResults.length === 0) return;
+      const next = Math.min(activeIndex + 1, visualResults.length - 1);
+      setActiveIndex(next);
+      scrollRowIntoView(next);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (visualResults.length === 0) return;
+      const next = Math.max(activeIndex - 1, 0);
+      setActiveIndex(next);
+      scrollRowIntoView(next);
+    } else if (event.key === 'Enter') {
+      // Ignore Enter while an IME composition is in progress, so composing
+      // users can commit candidate text without it selecting a result.
+      if (event.nativeEvent.isComposing) return;
+      event.preventDefault();
+      const target = visualResults[activeIndex];
+      if (target) onResultSelect(target);
+    }
+  };
+
+  // Paginated sources: load the next page when the sentinel scrolls into view.
+  useEffect(() => {
+    if (!controllerOpen || !canLoadMore || !loadMore || isLoadingMore)
+      return undefined;
+    const sentinel = loadMoreRef.current;
+    const root = listboxRef.current;
+    if (!sentinel || !root) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Guard against firing a second page while one is already in flight.
+        if (entries.some((e) => e.isIntersecting) && !isLoadingMore) loadMore();
+      },
+      { root, rootMargin: '120px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [
+    controllerOpen,
+    canLoadMore,
+    loadMore,
+    isLoadingMore,
+    visualResults.length,
+  ]);
+
+  return (
+    <>
+      <SearchCommandInput
+        query={query}
+        setQuery={setQuery}
+        status={status}
+        closeLabel={labels.close}
+        placeholder={labels.placeholder}
+        loadingLabel={labels.loading}
+        listboxId={listboxId}
+        optionIdPrefix={optionIdPrefix}
+        activeIndex={activeIndex}
+        resultCount={results.length}
+        onKeyDown={onKeyDown}
+        inputRef={inputRef}
+      />
+
+      {toolbar}
+
+      <div
+        ref={listboxRef}
+        id={listboxId}
+        role="listbox"
+        aria-label={labels.title}
+        aria-busy={status === 'loading'}
+        // A failed search has no options to list: its alert stands in the
+        // listbox's place, outside it, so its Try again is not read as one.
+        hidden={showError}
+        className="max-h-[58vh] min-h-72 overflow-y-auto"
+      >
+        {showEmptyState ? (
+          <motion.div
+            key="empty"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.15 }}
+          >
+            <SearchEmpty
+              recents={recents}
+              shortQuery={isShortQuery ? query.trim() : undefined}
+              onPickRecent={pickRecent}
+              onRemoveRecent={removeRecent}
+              onClearRecents={clearRecents}
+              labels={labels}
+              reduceMotion={reduceMotion}
+            />
+          </motion.div>
+        ) : showSkeleton ? (
+          <motion.div
+            key="skeleton"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.12 }}
+            aria-hidden
+            data-testid="search-skeleton"
+          >
+            <SearchSkeleton
+              reduceMotion={reduceMotion}
+              showBreadcrumb={getBreadcrumb !== undefined}
+            />
+          </motion.div>
+        ) : showError ? null : showNoResults ? (
+          <motion.div
+            key="no-results"
+            initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18 }}
+            className="text-fg-muted flex min-h-72 flex-col items-center justify-center px-6 text-center"
+            aria-live="polite"
+          >
+            <p className="text-fg-base text-sm font-medium">
+              {labels.noResultsTitle}
+            </p>
+            <p className="text-fg-subtle mt-1 text-xs">
+              {labels.noResultsHint}
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="results"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.15 }}
+          >
+            <SearchResultList
+              groups={groups}
+              terms={terms}
+              activeIndex={activeIndex}
+              setActiveIndex={setActiveIndex}
+              onSelect={onResultSelect}
+              optionIdPrefix={optionIdPrefix}
+              optionRefs={optionRefs}
+              resultIcon={resultIcon}
+              getBreadcrumb={getBreadcrumb}
+              renderResult={renderResult}
+            />
+            {canLoadMore ? (
+              <div ref={loadMoreRef} aria-hidden className="h-1" />
+            ) : null}
+          </motion.div>
+        )}
+      </div>
+
+      {showError ? (
+        <motion.div
+          key="error"
+          initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+          className="text-fg-muted flex min-h-72 flex-col items-center justify-center px-6 text-center"
+          role="alert"
+        >
+          {/* Written afresh when a retry settles still failing, so the
+              alert is read out again rather than falling silent. */}
+          <p key={failureKey} className="text-fg-base text-sm font-medium">
+            {labels.errorTitle}
+          </p>
+          <p className="text-fg-subtle mt-1 text-xs">{labels.errorHint}</p>
+          {retry ? (
+            <div className="mt-3">
+              <SearchRetry
+                label={labels.retry}
+                retrying={retrying}
+                onRetry={retry}
+                onFocusLost={focusInput}
+              />
+            </div>
+          ) : null}
+        </motion.div>
+      ) : null}
+
+      {/* Mounted throughout, so the line is announced when it appears. It
+          sits outside the listbox: it is about the results, not one. */}
+      <div
+        role="status"
+        className={cn(
+          showPartialFailure &&
+            'border-border-base text-fg-muted flex items-center gap-3 border-t px-4 py-2 text-xs',
+        )}
+      >
+        {showPartialFailure ? (
+          <>
+            <span key={failureKey}>{labels.partialFailure}</span>
+            {retry ? (
+              <SearchRetry
+                label={labels.retry}
+                retrying={retrying}
+                onRetry={retry}
+                onFocusLost={focusInput}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </div>
+
+      {footerAccessory}
+
+      <SearchFooter
+        resultCount={
+          controller.showResults && status === 'ready' ? results.length : null
+        }
+        resultCountLabel={labels.resultCount}
+        tips={{
+          navigate: labels.tipNavigate,
+          select: labels.tipSelect,
+          close: labels.tipClose,
+        }}
+      />
+    </>
+  );
+}
