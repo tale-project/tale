@@ -1780,6 +1780,58 @@ describe('the run card tells a final failure from one about to be retried', () =
   });
 });
 
+describe('the run card names the provider that served its model', () => {
+  const runRow = (modelProvider: string | null) => ({
+    id: 'run-1',
+    status: 'running',
+    agentId: 'agent-1',
+    agentName: 'Scribe',
+    harness: 'claude-code',
+    engine: 'harness',
+    model: 'claude-sonnet-5',
+    modelProvider,
+    error: null,
+    failureCode: null,
+    resultText: null,
+    waitingForCapacityAt: null,
+    waitingReason: null,
+    sessionId: null,
+    sessionClaimedAt: null,
+    trigger: 'manual',
+    autoRetryAttempt: null,
+    startedBy: 'user-ada',
+    startedAt: 1,
+    settledAt: null,
+  });
+  const cardOf = async (modelProvider: string | null) => {
+    const { sql, calls } = fakeSql((text) =>
+      text.includes('LEFT JOIN app.project_agents a')
+        ? [runRow(modelProvider)]
+        : [],
+    );
+    const card = await getLatestAgentRunCardForTask(sql, 'org-1', 'task-1');
+    return { card, calls };
+  };
+
+  it('carries the provider the run recorded', async () => {
+    const { card, calls } = await cardOf('eu-gateway');
+    expect(card).toMatchObject({
+      model: 'claude-sonnet-5',
+      modelProvider: 'eu-gateway',
+    });
+    const read = calls.find((call) =>
+      call.text.includes('LEFT JOIN app.project_agents a'),
+    );
+    expect(read?.text).toContain('r.model_provider AS "modelProvider"');
+  });
+
+  it('names no provider for a run that recorded none', async () => {
+    const { card } = await cardOf(null);
+    expect(card?.model).toBe('claude-sonnet-5');
+    expect(card).not.toHaveProperty('modelProvider');
+  });
+});
+
 describe('the worker a run reads as working in [TASK-R24]', () => {
   const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
   const run = {

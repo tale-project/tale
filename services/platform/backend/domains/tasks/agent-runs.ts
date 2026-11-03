@@ -1473,6 +1473,10 @@ export interface TaskAgentRunCard {
    * one the harness drives. */
   engine: AgentRunEngine;
   model: string;
+  /** The provider that serves the model, when the run recorded one: with
+   * the organization's roster it names the model as its agent's picker
+   * does (`shared/models/model-name.ts`). */
+  modelProvider?: string;
   error?: string;
   /** The producer's classification of a failed run — what the card words
    * its reason by (`lib/shared/task-run-failure.ts`); `error` stays the raw
@@ -1511,6 +1515,7 @@ export async function getLatestAgentRunCardForTask(
       harness: string;
       engine: AgentRunEngine;
       model: string;
+      modelProvider: string | null;
       error: string | null;
       failureCode: string | null;
       resultText: string | null;
@@ -1526,7 +1531,8 @@ export async function getLatestAgentRunCardForTask(
     }[]
   >`
     SELECT r.id, r.status, r.agent_id AS "agentId", a.name AS "agentName",
-           r.harness, r.engine, r.model, r.error,
+           r.harness, r.engine, r.model,
+           r.model_provider AS "modelProvider", r.error,
            r.failure_code AS "failureCode", r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
            ${sql.unsafe(parkedWaitingReasonSql('r'))} AS "waitingReason",
@@ -1557,6 +1563,7 @@ export async function getLatestAgentRunCardForTask(
     harness: run.harness,
     engine: run.engine,
     model: run.model,
+    ...(run.modelProvider !== null ? { modelProvider: run.modelProvider } : {}),
     ...(run.error !== null ? { error: run.error } : {}),
     ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
     ...(retryPending ? { retryPending: true } : {}),
