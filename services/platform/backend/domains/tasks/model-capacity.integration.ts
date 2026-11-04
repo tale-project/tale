@@ -1,9 +1,11 @@
 /** Real PostgreSQL custody of a model at capacity: the run the provider
  * refused fails once, opens the model's hold and arms a free retry; a run on
- * the held model parks instead of starting; a run that settles on the model
- * clears the hold and wakes it; the hourly circuit counts none of it. Tasks
- * stay To do so normal retry workers refuse them, and every start the lane
- * kicks waits an hour in the queue, so no worker can launch a fixture. */
+ * the held model parks instead of starting; a probe whose harness retries a
+ * refused call holds the model until its own refusal doubles the wait; a run
+ * that settles on the model clears the hold and wakes it; the hourly circuit
+ * counts none of it. Tasks stay To do so normal retry workers refuse them,
+ * and every start the lane kicks waits an hour in the queue, so no worker can
+ * launch a fixture. */
 import { randomUUID } from 'node:crypto';
 
 import type { PgBoss } from 'pg-boss';
@@ -14,18 +16,22 @@ import { bossDbInTx } from '../../jobs/enqueue.ts';
 import {
   failAgentRunFromTurn,
   kickAgentRun,
+  renewAgentRunCapacityProbe,
   settleAgentRun,
 } from './agent-runs.ts';
 import { claimAgentWorker } from './agent-workers.ts';
 import { admitAutomatedStart } from './delegated-start.ts';
 import { loadTaskRetryHistory, resolveTaskKickStartArgs } from './kick-plan.ts';
 import {
+  admitModelCapacityInTx,
   MODEL_CAPACITY_MAX_WAIT_MS,
+  MODEL_CAPACITY_PROBE_PROOF_MS,
   MODEL_CAPACITY_WAKE_SPACING_MS,
   modelCapacityKey,
   PARKED_ON_HELD_MODEL_SQL,
   readModelCapacityHold,
   readModelCapacityRamps,
+  renewModelCapacityProbeInTx,
 } from './model-capacity-holds.ts';
 
 export async function checkModelCapacityRetry(
@@ -227,6 +233,136 @@ export async function checkModelCapacityRetry(
         burst.heldUntilMs === hold.heldUntilMs &&
         admission.admitted,
       `burst=${JSON.stringify(burst)} admission=${JSON.stringify(admission)}`,
+    );
+
+    // The probe's harness meets the refusal and retries the call itself, the
+    // way Claude Code 2.1.285 retries a 503: each retry at its offset into
+    // the claim, with its wait before the next call. Three minutes in, its
+    // eleventh call is refused too and it gives up. The clock is the hold's:
+    // the probe claims as the hold runs out.
+    const probe = await addRun(otherTaskId);
+    const claimedAt = hold.heldUntilMs;
+    const probing = await sql.begin((tx) =>
+      admitModelCapacityInTx(tx, {
+        ...key,
+        runId: probe.runId,
+        now: claimedAt,
+      }),
+    );
+    const renew = async (at: number, retryDelayMs: number) => {
+      const renewed = await sql.begin((tx) =>
+        renewModelCapacityProbeInTx(tx, {
+          ...key,
+          runId: probe.runId,
+          retryDelayMs,
+          now: claimedAt + at,
+        }),
+      );
+      const renewedHold = await readModelCapacityHold(sql, key);
+      return renewed ? (renewedHold?.probeClaimedAtMs ?? null) : null;
+    };
+    // A run on the model whose wake comes due meanwhile.
+    const neighbourRunId = randomUUID();
+    const neighbourClaims = (at: number) =>
+      sql.begin((tx) =>
+        admitModelCapacityInTx(tx, {
+          ...key,
+          runId: neighbourRunId,
+          now: claimedAt + at,
+        }),
+      );
+    const claims: Array<number | null> = [];
+    for (const [at, retryDelayMs] of [
+      // A wait printed with a fraction is credited in whole milliseconds.
+      [0, 600.4],
+      [600, 1_100],
+      [1_700, 2_200],
+      [3_900, 4_500],
+      [8_400, 9_000],
+      [17_400, 18_000],
+      [35_400, 36_000],
+      [71_400, 36_000],
+      [107_400, 36_000],
+    ] as const) {
+      claims.push(await renew(at, retryDelayMs));
+    }
+    // Two minutes in: a probe nothing renewed would have proved the model.
+    const atTwoMinutes = await neighbourClaims(2 * 60_000);
+    claims.push(await renew(143_400, 36_600));
+    const asItGivesUp = await neighbourClaims(3 * 60_000);
+    const standing = await readModelCapacityHold(sql, key);
+    const renewedClaims = [
+      600, 1_700, 3_900, 8_400, 17_400, 35_400, 71_400, 107_400, 143_400,
+      180_000,
+    ].map((at) => claimedAt + at);
+    record(
+      'model capacity: a probe its harness retries holds the model, and the others wait until two minutes past its last refused call [TASK-R40]',
+      probing.admitted &&
+        probing.probe &&
+        JSON.stringify(claims) === JSON.stringify(renewedClaims) &&
+        !atTwoMinutes.admitted &&
+        atTwoMinutes.wakeAtMs ===
+          claimedAt + 143_400 + MODEL_CAPACITY_PROBE_PROOF_MS &&
+        !asItGivesUp.admitted &&
+        asItGivesUp.wakeAtMs ===
+          claimedAt + 180_000 + MODEL_CAPACITY_PROBE_PROOF_MS &&
+        standing !== null &&
+        standing.probeRunId === probe.runId &&
+        standing.consecutive === 1,
+      `probing=${JSON.stringify(probing)} claims=${JSON.stringify(claims)} claimedAt=${claimedAt} atTwoMinutes=${JSON.stringify(atTwoMinutes)} asItGivesUp=${JSON.stringify(asItGivesUp)} standing=${JSON.stringify(standing)}`,
+    );
+
+    // The turn host's renewal: only the probe's current exec renews, and a
+    // renewal never moves the claim earlier.
+    const staleRenewal = await renewAgentRunCapacityProbe(sql, {
+      runId: probe.runId,
+      execId: 'stale-exec',
+      retryDelayMs: 566,
+    });
+    const liveRenewal = await renewAgentRunCapacityProbe(sql, {
+      runId: probe.runId,
+      execId: probe.execId,
+      retryDelayMs: 566,
+    });
+    const kept = await readModelCapacityHold(sql, key);
+    record(
+      'model capacity: only the probe’s current exec renews its claim, and never to earlier [TASK-R40]',
+      !staleRenewal &&
+        liveRenewal &&
+        kept?.probeClaimedAtMs === claimedAt + 180_000,
+      `stale=${staleRenewal} live=${liveRenewal} kept=${JSON.stringify(kept)}`,
+    );
+
+    // The probe's own refusal, as its harness gives up, finds the hold: the
+    // wait doubles, and the twelve hours still count from the first refusal.
+    const gaveUp = await fail(probe);
+    const doubled = await readModelCapacityHold(sql, key);
+    const probeRows = await sql<{ armed: boolean }[]>`
+      SELECT auto_retry_armed_at_ms IS NOT NULL AS armed
+      FROM app.project_agent_runs WHERE id = ${probe.runId}
+    `;
+    const afterRefusal = await renewAgentRunCapacityProbe(sql, {
+      runId: probe.runId,
+      execId: probe.execId,
+      retryDelayMs: 566,
+    });
+    const doubledWait =
+      doubled === null ? null : doubled.heldUntilMs - doubled.lastRefusedAtMs;
+    record(
+      'model capacity: the probe’s refusal when its harness gives up doubles the wait of the same hold [TASK-R40]',
+      gaveUp &&
+        doubled !== null &&
+        doubled.consecutive === 2 &&
+        doubled.firstRefusedAtMs === hold.firstRefusedAtMs &&
+        doubled.probeRunId === null &&
+        doubled.probeClaimedAtMs === null &&
+        doubledWait !== null &&
+        doubledWait >= 108_000 &&
+        doubledWait <= 132_000 &&
+        probeRows[0] !== undefined &&
+        probeRows[0].armed &&
+        !afterRefusal,
+      `gaveUp=${gaveUp} doubled=${JSON.stringify(doubled)} firstRefusedAt=${hold.firstRefusedAtMs} probe=${JSON.stringify(probeRows)} afterRefusal=${afterRefusal}`,
     );
 
     // A run on the model that settles proves it answers: the hold goes and

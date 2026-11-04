@@ -23,7 +23,10 @@ import { requestOrganizationDispatchPassesInTx } from './dispatch-requests.ts';
  *   — which clears the hold ({@link clearModelCapacityHoldInTx}) and wakes
  *   them in waves ({@link modelCapacityWakeDelaysMs}), so the model is not
  *   met by every waiter at once and hundreds of waiters still start within
- *   minutes.
+ *   minutes. A probe whose harness retries a refused call itself is still
+ *   being refused: each retry renews its claim
+ *   ({@link renewModelCapacityProbeInTx}), so its working time counts from
+ *   its last refused call, and its own refusal finds the hold.
  * - The clear also records when the model answered again (migration 0215):
  *   for as long as the waves of {@link MODEL_CAPACITY_WAKES_MAX} runs take,
  *   dispatch starts no more new work on the model than those waves have let
@@ -50,7 +53,8 @@ const MODEL_CAPACITY_BACKOFF_MS = [
 export const MODEL_CAPACITY_MAX_WAIT_MS = 12 * 60 * 60_000;
 
 /** A probe that has worked this long without being refused proves the model
- * answers again. */
+ * answers again — counted from its claim, or from the last refused call its
+ * harness retried ({@link renewModelCapacityProbeInTx}). */
 export const MODEL_CAPACITY_PROBE_PROOF_MS = 2 * 60_000;
 
 /** The runs one cleared hold wakes itself: as many as an organization may
@@ -346,6 +350,7 @@ export type ModelCapacityAdmission =
  * yes when no hold stands; no while the hold lasts, or while another run
  * probes the model; yes, as the probe, for the first claim after the hold
  * ran out. A probe that has worked for {@link MODEL_CAPACITY_PROBE_PROOF_MS}
+ * since its claim, or since its last refused call its harness retried,
  * proved the model: its hold is cleared and the claim goes ahead. A probe
  * that never launched in that time (parked for another reason, cancelled)
  * gives its place to this claim.
@@ -396,6 +401,63 @@ export async function admitModelCapacityInTx(
       AND model_provider = ${providerKey(args)} AND model = ${args.model}
   `;
   return { admitted: true, probe: true };
+}
+
+/** The longest wait before a retried call that a renewal credits: the
+ * longest a hold waits after a refusal. */
+const MODEL_CAPACITY_RETRY_CREDIT_MAX_MS = Math.max(
+  ...MODEL_CAPACITY_BACKOFF_MS,
+);
+
+/**
+ * The provider refused a call of `runId` because the model is at capacity,
+ * and its harness retries the call itself after `retryDelayMs`: if the run
+ * probes the model's hold, the probe is still being refused and proves
+ * nothing yet. Its claim is renewed to the retry, so the others wait until
+ * it has worked {@link MODEL_CAPACITY_PROBE_PROOF_MS} past its last refused
+ * call, and its own refusal, when the harness gives up, still finds the
+ * hold and doubles the wait. The claim only moves later, and the retry's
+ * wait counts up to the longest a hold waits. False, and nothing written,
+ * when the run does not probe the model (another run does, or no hold
+ * stands).
+ */
+export async function renewModelCapacityProbeInTx(
+  tx: TransactionSql,
+  args: ModelCapacityKey & {
+    runId: string;
+    retryDelayMs: number;
+    now?: number;
+  },
+): Promise<boolean> {
+  const now = args.now ?? Date.now();
+  const hold = await readModelCapacityHold(tx, args);
+  if (hold?.probeRunId !== args.runId) return false;
+  await tx`
+    SELECT pg_advisory_xact_lock(hashtextextended(
+      'model-capacity:' || ${args.organizationId} || ':' ||
+      ${providerKey(args)} || ':' || ${args.model}, 0))
+  `;
+  // Re-read under the lock: a refusal or a clear may have landed meanwhile.
+  const current = await readModelCapacityHold(tx, args);
+  if (current?.probeRunId !== args.runId) return false;
+  // In whole milliseconds: the claim is a bigint column.
+  const credit = Number.isFinite(args.retryDelayMs)
+    ? Math.round(
+        Math.min(
+          Math.max(args.retryDelayMs, 0),
+          MODEL_CAPACITY_RETRY_CREDIT_MAX_MS,
+        ),
+      )
+    : 0;
+  const claimedAt = Math.max(current.probeClaimedAtMs ?? now, now + credit);
+  await tx`
+    UPDATE app.model_capacity_holds SET
+      probe_claimed_at_ms = ${claimedAt}, updated_at_ms = ${now}
+    WHERE org_id = ${args.organizationId}
+      AND model_provider = ${providerKey(args)} AND model = ${args.model}
+      AND probe_run_id = ${args.runId}
+  `;
+  return true;
 }
 
 /**

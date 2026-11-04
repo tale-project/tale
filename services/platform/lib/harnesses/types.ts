@@ -324,6 +324,15 @@ export type HarnessEvent =
       providerErrorKind?: 'model_capacity' | 'subscription_access_disabled';
     }
   | { type: 'error'; message: string; raw?: unknown }
+  /** The provider refused a call because the model is at capacity, and the
+   * harness retries the call itself after `retryDelayMs` instead of ending
+   * the turn (Claude Code's `api_retry` on a 503 or 529): the turn is still
+   * being refused (TASK-R40). */
+  | {
+      type: 'model-capacity-retry';
+      apiErrorStatus: number;
+      retryDelayMs: number;
+    }
   /** A queued user message was injected into the RUNNING turn by the
    * in-sandbox steer hook. Only the Stop-hook delivery path surfaces in the
    * output stream — the platform's terminal reconciliation stays

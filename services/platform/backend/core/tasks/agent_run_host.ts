@@ -296,6 +296,51 @@ interface TurnKeys {
 }
 
 /**
+ * A run's live progress sink, and the renewal of its probe's claim: each call
+ * the provider refuses because the model is at capacity, and that the
+ * harness retries itself, renews the claim the model's hold took when this
+ * run probed it, so the others wait until the run has worked two minutes
+ * past its last refused call (TASK-R40). The renewals run in order, and the
+ * flush the settle path awaits waits for them too; a renewal that fails is
+ * logged and never fails the turn.
+ */
+function taskProgressSink(
+  ctx: ActionCtx,
+  keys: Pick<TurnKeys, 'organizationId' | 'sessionId' | 'execId' | 'runId'>,
+  visionModelRef?: string,
+): ReturnType<typeof liveProgressSink> & {
+  onModelCapacityRetry: (retryDelayMs: number) => void;
+} {
+  const live = liveProgressSink(ctx, keys, 'task-agent', visionModelRef);
+  let renewals = Promise.resolve();
+  return {
+    onText: live.onText,
+    onTimeline: live.onTimeline,
+    onModelCapacityRetry: (retryDelayMs) => {
+      renewals = renewals.then(() =>
+        ctx
+          .runMutation(
+            internal.tasks.agent_runs.renewTaskAgentRunCapacityProbe,
+            { runId: keys.runId, execId: keys.execId, retryDelayMs },
+          )
+          .then(
+            () => undefined,
+            (err: unknown) =>
+              console.warn(
+                `[task-agent] renewing the capacity probe of run ${keys.runId} failed:`,
+                err,
+              ),
+          ),
+      );
+    },
+    flush: async () => {
+      await live.flush();
+      await renewals;
+    },
+  };
+}
+
+/**
  * Ensure the run's worker — the sandbox session its turn job claimed —
  * exists (AGENT profile), with shared admission and recovery. Unlike the
  * per-run workflow session it is NEVER torn down here — idle
@@ -1729,10 +1774,9 @@ export async function startTaskAgentTurnImpl(
           : {}),
       });
 
-      const progress = liveProgressSink(
+      const progress = taskProgressSink(
         ctx,
         args,
-        'task-agent',
         prepared.visionPolyfillReads === true
           ? prepared.visionModelRef
           : undefined,
@@ -1751,6 +1795,7 @@ export async function startTaskAgentTurnImpl(
         }),
         onText: progress.onText,
         onTimeline: progress.onTimeline,
+        onModelCapacityRetry: progress.onModelCapacityRetry,
       });
       throwIfExecPlacesTaken(window, args);
       if (resume !== undefined && isResumeLaunchFailure(window, resume)) {
@@ -1786,6 +1831,7 @@ export async function startTaskAgentTurnImpl(
             }),
             onText: progress.onText,
             onTimeline: progress.onTimeline,
+            onModelCapacityRetry: progress.onModelCapacityRetry,
           });
           throwIfExecPlacesTaken(window, args);
         }
@@ -1930,7 +1976,7 @@ export async function driveTaskAgentTurnImpl(
       return null;
     }
 
-    const progress = liveProgressSink(ctx, args, 'task-agent');
+    const progress = taskProgressSink(ctx, args);
     let window;
     try {
       window = await drainHarnessWindow({
@@ -1939,6 +1985,7 @@ export async function driveTaskAgentTurnImpl(
         harness: args.harness,
         onText: progress.onText,
         onTimeline: progress.onTimeline,
+        onModelCapacityRetry: progress.onModelCapacityRetry,
         ...(options.signal !== undefined && { signal: options.signal }),
         ...(args.spawnerOutageSince !== undefined && {
           spawnerOutageSince: args.spawnerOutageSince,
@@ -3036,12 +3083,7 @@ export async function steerTaskAgentTurnImpl(
       `[task-agent] restarted turn ${args.execId} as ${execId} to take a task comment (${resume !== undefined ? 'resumed conversation' : 'fresh conversation'})`,
     );
     const keys = { ...args, execId };
-    const progress = liveProgressSink(
-      ctx,
-      keys,
-      'task-agent',
-      prepared.visionModelRef,
-    );
+    const progress = taskProgressSink(ctx, keys, prepared.visionModelRef);
     const window = await drainHarnessWindow({
       sessionId: args.sessionId,
       execId,
@@ -3049,6 +3091,7 @@ export async function steerTaskAgentTurnImpl(
       start: exec,
       onText: progress.onText,
       onTimeline: progress.onTimeline,
+      onModelCapacityRetry: progress.onModelCapacityRetry,
     });
     throwIfExecPlacesTaken(window, keys);
     await progress.flush();

@@ -44,6 +44,7 @@ import {
   MODEL_CAPACITY_MAX_WAIT_MS,
   PARKED_ON_HELD_MODEL_SQL,
   recordModelCapacityRefusalInTx,
+  renewModelCapacityProbeInTx,
 } from './model-capacity-holds.ts';
 import { readReviewBatch, reviewBatchFeedback } from './review-batch-store.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
@@ -725,6 +726,38 @@ export async function launchAgentRun(
     if (run === undefined) return false;
     await emitTaskRunHint(tx, run);
     return true;
+  });
+}
+
+/**
+ * The turn host's mark that its harness retries a call the provider refused
+ * because the model is at capacity: a run that probes its model's hold is
+ * still being refused, and renews the probe's claim
+ * ({@link renewModelCapacityProbeInTx}). Exec-fenced, and only while the run
+ * is running: a superseded chain or a run that already ended renews nothing.
+ * Returns whether the claim was renewed.
+ */
+export async function renewAgentRunCapacityProbe(
+  sql: Sql,
+  args: { runId: string; execId: string; retryDelayMs: number },
+): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const rows = await tx<
+      { organizationId: string; model: string; modelProvider: string | null }[]
+    >`
+      SELECT org_id AS "organizationId", model,
+             model_provider AS "modelProvider"
+      FROM app.project_agent_runs
+      WHERE id = ${args.runId} AND exec_id = ${args.execId}
+        AND status = 'running'
+    `;
+    const run = rows[0];
+    if (run === undefined) return false;
+    return renewModelCapacityProbeInTx(tx, {
+      ...run,
+      runId: args.runId,
+      retryDelayMs: args.retryDelayMs,
+    });
   });
 }
 

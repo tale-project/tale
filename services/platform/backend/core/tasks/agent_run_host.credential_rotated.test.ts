@@ -94,7 +94,8 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-function makeCtx(run: RunState) {
+/** A ctx whose mutation `failing` throws, as when the database is down. */
+function makeCtx(run: RunState, failing?: string) {
   const mutations: Call[] = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
@@ -105,6 +106,7 @@ function makeCtx(run: RunState) {
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
       mutations.push({ name, args });
+      if (name === failing) throw new Error(`${name} failed`);
       if (name === 'tasks/agent_runs:markTaskAgentRunFailed') {
         run.status = 'failed';
       }
@@ -639,6 +641,11 @@ function claudeRefused(status: number, words: string) {
   return { text, stdout };
 }
 
+const RENEW_PROBE = 'tasks/agent_runs:renewTaskAgentRunCapacityProbe';
+
+const probeRenewals = (mutations: Call[]) =>
+  mutations.filter((m) => m.name === RENEW_PROBE);
+
 const brokerFeedback = (mutations: Call[]) =>
   mutations.filter(
     (m) =>
@@ -680,6 +687,76 @@ describe('a Claude Code turn the provider refused', () => {
       expect(brokerFeedback(mutations)).toEqual([]);
     },
   );
+
+  it.each([
+    [503, 'No available accounts'],
+    [529, 'Overloaded'],
+  ] as const)(
+    'renews its probe’s claim on each %i the CLI retries, before the refusal settles [TASK-R40]',
+    async (status, words) => {
+      io.stdout = claudeRefused(status, words).stdout;
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+        brokerTokenHash: 'selected-account',
+      });
+
+      await driveTaskAgentTurnImpl(ctx, KEYS);
+
+      const renewals = probeRenewals(mutations);
+      // The model still refuses the run: a hold it probes waits on.
+      expect(renewals).toEqual(
+        [566, 38_839].map((retryDelayMs) => ({
+          name: RENEW_PROBE,
+          args: { runId: 'run-1', execId: 'exec-1', retryDelayMs },
+        })),
+      );
+      // So the refusal that ends the turn still finds the hold.
+      expect(mutations.indexOf(renewals[1]!)).toBeLessThan(
+        mutations.indexOf(failedMarks(mutations)[0]!),
+      );
+    },
+  );
+
+  it.each([
+    [500, 'Internal server error'],
+    [429, 'Rate limited'],
+  ] as const)(
+    'renews no claim on a %i the CLI retries: no model at capacity [TASK-R40]',
+    async (status, words) => {
+      io.stdout = claudeRefused(status, words).stdout;
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+        brokerTokenHash: 'selected-account',
+      });
+
+      await driveTaskAgentTurnImpl(ctx, KEYS);
+
+      expect(probeRenewals(mutations)).toEqual([]);
+      expect(failedMarks(mutations)).toHaveLength(1);
+    },
+  );
+
+  it('settles the refusal all the same when a renewal fails [TASK-R40]', async () => {
+    io.stdout = claudeRefused(503, 'No available accounts').stdout;
+    const { ctx, mutations } = makeCtx(
+      { status: 'running', execId: 'exec-1' },
+      RENEW_PROBE,
+    );
+
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+
+    expect(probeRenewals(mutations)).toHaveLength(2);
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'model_capacity',
+      apiErrorStatus: 503,
+    });
+    expect(console.warn).toHaveBeenCalledWith(
+      '[task-agent] renewing the capacity probe of run run-1 failed:',
+      expect.any(Error),
+    );
+  });
 
   it('settles any other status as a harness error, a 500 among them [TASK-R40]', async () => {
     const refused = claudeRefused(500, 'Internal server error');

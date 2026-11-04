@@ -13,7 +13,8 @@
 //                                          tool_use_id, is_error} ] } }
 //   { type: "result", subtype: "success"|"error_max_turns"|..., session_id,
 //                      total_cost_usd, usage, result }
-//   { type: "system", subtype: "api_retry", ... }  → raw
+//   { type: "system", subtype: "api_retry", error_status, retry_delay_ms }
+//     → model-capacity-retry on a 503 or 529 (Claude Code), else raw
 //
 // Usage rides on assistant messages and is deduped by message.id: when the
 // model uses tools in parallel the same message id repeats, and counting each
@@ -195,7 +196,29 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
           return [{ type: 'task-settled', taskId, status }];
         }
       }
-      // api_retry and other system events: pass through for observability.
+      // A call refused with 503 or 529, which the CLI retries itself before
+      // it gives up on the turn (the result's `model_capacity` below): the
+      // model is still at capacity, so a probe of its hold proves nothing
+      // yet (TASK-R40). `retry_delay_ms` is the wait before the next
+      // attempt: 0.5 s doubling to about 40 s, or the refusal's
+      // `retry-after` up to 60 s (the pinned CLI ends the turn on a longer
+      // one).
+      const retryStatus = ev.error_status;
+      if (
+        subtype === 'api_retry' &&
+        (this.slug === 'claude-code' || this.slug === 'claude-code-compact') &&
+        (retryStatus === 503 || retryStatus === 529)
+      ) {
+        const delay = asNumber(ev.retry_delay_ms);
+        return [
+          {
+            type: 'model-capacity-retry',
+            apiErrorStatus: retryStatus,
+            retryDelayMs: delay !== undefined && delay > 0 ? delay : 0,
+          },
+        ];
+      }
+      // Other api_retry and system events: pass through for observability.
       return [{ type: 'raw', harness: this.slug, payload: ev }];
     }
 

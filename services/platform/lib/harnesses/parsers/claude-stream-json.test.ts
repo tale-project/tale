@@ -145,6 +145,79 @@ describe('claude-stream-json parser', () => {
     },
   );
 
+  /**
+   * A retry the pinned CLI (2.1.285) printed when a stand-in gateway refused
+   * the call with `status`: ten over about three minutes, waiting 0.5 s
+   * doubling to about 40 s, before the result above ends the turn.
+   */
+  const retryLine = (status: unknown, delayMs: unknown) => ({
+    type: 'system',
+    subtype: 'api_retry',
+    attempt: 1,
+    max_retries: 10,
+    retry_delay_ms: delayMs,
+    error_status: status,
+    error:
+      status === 529
+        ? 'overloaded'
+        : status === 429
+          ? 'rate_limit'
+          : 'server_error',
+    session_id: 'conv-refused',
+  });
+
+  it.each([
+    ['claude-code', 503],
+    ['claude-code', 529],
+    ['claude-code-compact', 503],
+    ['claude-code-compact', 529],
+  ] as const)(
+    '%s types a %i the CLI retries itself as the model still at capacity [TASK-R40]',
+    (harness, status) => {
+      const events = collectEvents(
+        createParser(harness),
+        JSON.stringify(retryLine(status, 566)),
+      );
+      expect(events).toEqual([
+        {
+          type: 'model-capacity-retry',
+          apiErrorStatus: status,
+          retryDelayMs: 566,
+        },
+      ]);
+    },
+  );
+
+  it.each([undefined, null, -1, '566', 0])(
+    'counts a retry wait it cannot read as none [TASK-R40]: %j',
+    (delayMs) => {
+      const events = collectEvents(
+        createParser('claude-code'),
+        JSON.stringify(retryLine(503, delayMs)),
+      );
+      expect(events).toEqual([
+        { type: 'model-capacity-retry', apiErrorStatus: 503, retryDelayMs: 0 },
+      ]);
+    },
+  );
+
+  it.each([
+    // An account's own rate limit, and other failures: no model at capacity.
+    ['claude-code', retryLine(429, 566)],
+    ['claude-code', retryLine(500, 566)],
+    ['claude-code', retryLine(null, 566)],
+    ['claude-code', retryLine('503', 566)],
+    // Qwen reports its provider errors in its own words.
+    ['qwen-code', retryLine(503, 566)],
+  ] as const)(
+    '%s passes any other retry through as raw [TASK-R40]: %j',
+    (harness, line) => {
+      expect(
+        collectEvents(createParser(harness), JSON.stringify(line)),
+      ).toEqual([{ type: 'raw', harness, payload: line }]);
+    },
+  );
+
   it('normalizes the issue-to-pr stream (usage deduped by message id)', () => {
     const events = collectEvents(
       createParser('claude-code'),

@@ -576,6 +576,12 @@ export async function drainHarnessWindow(args: {
    * the persisted message; a run has no message, so its lane persists this
    * onto the session op and the run views read it back. */
   onTimeline?: (parts: HarnessTimelinePart[]) => void;
+  /** Called for each call the provider refused because the model is at
+   * capacity and the harness retries itself (`model-capacity-retry`), with
+   * the wait before its next attempt — also while the window replays events
+   * past its checkpoint, which are news to it. The task lane renews its
+   * probe's claim on the model's hold with it (TASK-R40). Must not throw. */
+  onModelCapacityRetry?: (retryDelayMs: number) => void;
   /** Called once on a start window, after staging and just before the exec
    * launches — the moment "queued" stops being true. */
   onStarted?: () => Promise<void>;
@@ -835,6 +841,8 @@ export async function drainHarnessWindow(args: {
       disarmTurnEndedCut();
     } else if (e.type === 'task-settled') {
       pendingTasks.delete(e.taskId);
+    } else if (e.type === 'model-capacity-retry') {
+      args.onModelCapacityRetry?.(e.retryDelayMs);
     } else if (e.type === 'turn-ended') {
       ended = e;
       agentSessionId ??= e.sessionId;

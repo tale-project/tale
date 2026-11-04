@@ -19,6 +19,7 @@ import {
   listTaskAgentRunSummaries,
   parkedRunSql,
   parkedWaitingReasonSql,
+  renewAgentRunCapacityProbe,
   settleAgentRun,
   wakeAgentParkedAgentRun,
   wakeOrganizationParkedAgentRun,
@@ -26,7 +27,10 @@ import {
   withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import { agentReachesProject } from './dispatch-reach.ts';
-import { recordModelCapacityRefusalInTx } from './model-capacity-holds.ts';
+import {
+  recordModelCapacityRefusalInTx,
+  renewModelCapacityProbeInTx,
+} from './model-capacity-holds.ts';
 import {
   announceAgentRunFailed,
   withdrawAgentRunFailedNotices,
@@ -49,6 +53,7 @@ vi.mock('./model-capacity-holds.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./model-capacity-holds.ts')>()),
   recordModelCapacityRefusalInTx: vi.fn(),
   clearModelCapacityHoldInTx: vi.fn(),
+  renewModelCapacityProbeInTx: vi.fn(),
 }));
 vi.mock('./dispatch-reach.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./dispatch-reach.ts')>()),
@@ -671,6 +676,80 @@ describe('launchAgentRun — the running flip is exec-fenced', () => {
       launchAgentRun(sql, { runId: 'run-1', execId: 'exec-stale' }),
     ).resolves.toBe(false);
     expect(statements.some((text) => text.startsWith(TASK_HINT))).toBe(false);
+  });
+});
+
+describe('renewAgentRunCapacityProbe — only the run’s current exec renews [TASK-R40]', () => {
+  /** The run's read, as its statement opens. */
+  const RUN_READ =
+    'SELECT org_id AS "organizationId", model, model_provider AS "modelProvider" FROM app.project_agent_runs';
+
+  beforeEach(() => {
+    vi.mocked(renewModelCapacityProbeInTx).mockReset().mockResolvedValue(true);
+  });
+
+  it('renews the claim on the model of a running run still owned by this exec', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(RUN_READ)
+        ? [
+            {
+              organizationId: 'org-1',
+              model: 'claude-opus-5-5',
+              modelProvider: 'anthropic',
+            },
+          ]
+        : [],
+    );
+    await expect(
+      renewAgentRunCapacityProbe(sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        retryDelayMs: 566,
+      }),
+    ).resolves.toBe(true);
+    // The exec and the status are part of the read itself: a chain a
+    // restart-steer superseded, or a run that already ended, renews nothing.
+    expect(calls).toEqual([
+      {
+        text: `${RUN_READ} WHERE id = ? AND exec_id = ? AND status = 'running'`,
+        values: ['run-1', 'exec-1'],
+      },
+    ]);
+    expect(renewModelCapacityProbeInTx).toHaveBeenCalledWith(sql, {
+      organizationId: 'org-1',
+      model: 'claude-opus-5-5',
+      modelProvider: 'anthropic',
+      runId: 'run-1',
+      retryDelayMs: 566,
+    });
+  });
+
+  it('says whether the hold took the renewal: a run that probes nothing renews nothing', async () => {
+    vi.mocked(renewModelCapacityProbeInTx).mockResolvedValue(false);
+    const { sql } = fakeSql((text) =>
+      text.startsWith(RUN_READ)
+        ? [{ organizationId: 'org-1', model: 'gpt-6', modelProvider: null }]
+        : [],
+    );
+    await expect(
+      renewAgentRunCapacityProbe(sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        retryDelayMs: 0,
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('touches no hold for a superseded exec or a run no longer running', async () => {
+    const { sql } = fakeSql(() => []);
+    await expect(
+      renewAgentRunCapacityProbe(sql, {
+        runId: 'run-1',
+        execId: 'exec-stale',
+        retryDelayMs: 566,
+      }),
+    ).resolves.toBe(false);
+    expect(renewModelCapacityProbeInTx).not.toHaveBeenCalled();
   });
 });
 

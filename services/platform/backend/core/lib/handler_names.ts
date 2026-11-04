@@ -350,6 +350,7 @@ interface HandlerNames {
       markTaskAgentRunFailed: FunctionRef;
       markTaskAgentRunSettled: FunctionRef;
       parkTaskAgentRunForCapacity: FunctionRef;
+      renewTaskAgentRunCapacityProbe: FunctionRef;
       rotateTaskAgentRunExec: FunctionRef;
       setTaskAgentRunRunning: FunctionRef;
       snapshotTaskAgentRunInstructions: FunctionRef;
