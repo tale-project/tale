@@ -31,7 +31,9 @@ beforeAll(() => {
         required: ['text'],
         additionalProperties: false,
       },
-      outputSignature: '{ id: string }',
+      // The live body answers the key and the secret it was given, so the
+      // tests below read them; a call hands on only what it declares.
+      outputSignature: '{ id: string, key?: string, secret?: string }',
       hasEffect: true,
       mock: (input) => ({
         id: `note_${String((input as { text: string }).text.length)}`,
@@ -893,6 +895,79 @@ describe('live connectors', () => {
       key: string;
     }>;
     expect(outs[1]?.key).toMatch(/^[^:]+:call\[1:0\]\/log:0$/);
+  });
+
+  // Whoever answers the call, the step gets the members its action declares
+  // and nothing else, as the durable runtime's dispatcher hands them on.
+  describe('a call hands on only what its action declares [CONN-R36]', () => {
+    /** What the service adds: a token beside each repository and the list. */
+    const answer = (name: string) => ({
+      repos: [{ name, token: `${name}-token` }],
+      token: `${name}-token`,
+      raw: { token: 'left open' },
+    });
+
+    beforeAll(() => {
+      registerNodeType({
+        type: 'repos.list',
+        kind: 'connector',
+        outputKind: 'structured',
+        description: 'test connector: lists repositories',
+        allowedFields: ['input'],
+        requiredFields: ['input'],
+        connector: {
+          name: 'repos.list',
+          description: 'list repositories',
+          inputSchema: { type: 'object' },
+          outputSignature: '{ repos: Array<{ name: string }>, raw: object }',
+          hasEffect: false,
+          mock: () => answer('mock'),
+          live: async () => answer('live'),
+          scenarios: [
+            {
+              name: 'one_repo',
+              kind: 'success',
+              description: 'One repository.',
+              output: answer('scenario'),
+            },
+          ],
+        },
+      });
+    });
+
+    const listing = automationDoc(
+      [{ id: 'list', type: 'repos.list', input: {} }],
+      { output: '{{ nodes.list.output }}' },
+    );
+
+    it.each([
+      ['the mock', 'mock', {}],
+      [
+        'a test’s stand-in',
+        'stand-in',
+        { mocks: { list: answer('stand-in') } },
+      ],
+      ['a scenario', 'scenario', { scenarios: { list: 'one_repo' } }],
+    ])('cuts the answer of %s', async (_, name, bench) => {
+      const result = await execute(listing, { input: {}, bench });
+      expect(result.status).toBe('success');
+      const cut = { repos: [{ name }], raw: { token: 'left open' } };
+      expect(result.trace.find((t) => t.node === 'list')?.output).toEqual(cut);
+      expect(result.output).toEqual(cut);
+    });
+
+    it('cuts the answer of a live body', async () => {
+      const result = await execute(listing, {
+        input: {},
+        mode: 'live',
+        connectorHost: () => testHost(),
+      });
+      expect(result.status).toBe('success');
+      expect(result.output).toEqual({
+        repos: [{ name: 'live' }],
+        raw: { token: 'left open' },
+      });
+    });
   });
 
   // A vendor that is busy (429, 5xx) is the service unavailable, which never

@@ -96,7 +96,7 @@ describe('inferTypes — node kinds', () => {
       ]),
     );
     expect(tsOf(types, 'issues')).toBe(
-      '{ issues: Array<{ number: number, title: string, state: string, html_url: string }> }',
+      '{ issues: Array<{ number: number, title: string, state: string, html_url: string, body: string | null, labels: Array<string | { name: string }>, user: { login: string } | null, created_at: string, updated_at: string, pull_request?: { html_url: string, merged_at: string | null } }> }',
     );
     expect(types.nodes.issues.origin).toBe('signature');
     expect(types.nodes.odd).toMatchObject({ ts: 'unknown', origin: 'unknown' });
@@ -116,7 +116,7 @@ describe('inferTypes — node kinds', () => {
       ]),
     );
     expect(toTs(types.nodes.each.item ?? {})).toBe(
-      '{ number: number, title: string, state: string, html_url: string }',
+      '{ number: number, title: string, state: string, html_url: string, body: string | null, labels: Array<string | { name: string }>, user: { login: string } | null, created_at: string, updated_at: string, pull_request?: { html_url: string, merged_at: string | null } }',
     );
     expect(toTs(types.nodes.each.input ?? {})).toBe(
       '{ title: string, at: number }',

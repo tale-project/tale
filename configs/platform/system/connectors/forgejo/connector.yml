@@ -75,7 +75,10 @@ actions:
         created_by: { type: string, maxLength: 100, description: 'Only items this user opened.' }
         page: { type: integer, minimum: 1, description: 'Page number, from 1.' }
         limit: { type: integer, minimum: 1, maximum: 50, description: 'Results per page (at most 50).' }
-    output: '{ issues: Array<{ number: number, title: string, state: string, html_url: string }> }'
+    output: >-
+      { issues: Array<{ number: number, title: string, state: string, html_url: string,
+      body: string, labels: Array<{ name: string }>, user: { login: string },
+      created_at: string, updated_at: string, pull_request: { merged: boolean, merged_at: string | null } | null }> }
     mock: |
       return { issues: [{ number: 1, title: 'Example issue', state: input.state || 'open', html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/1' }] };
     backend:
@@ -104,7 +107,11 @@ actions:
         owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
         repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
         issue_number: { type: integer, minimum: 1, description: Issue number. }
-    output: '{ issue: { number: number, title: string, state: string, body: string, html_url: string } }'
+    output: >-
+      { issue: { number: number, title: string, state: string, body: string, html_url: string,
+      labels: Array<{ name: string }>, user: { login: string },
+      created_at: string, updated_at: string, closed_at: string | null,
+      pull_request: { merged: boolean, merged_at: string | null } | null } }
     mock: |
       return { issue: { number: input.issue_number, title: 'Example issue', state: 'open', body: 'Mock issue body.', html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + input.issue_number } };
     backend:
@@ -199,7 +206,7 @@ actions:
         owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
         repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
         issue_number: { type: integer, minimum: 1, description: Issue or pull request number. }
-    output: '{ comments: Array<{ id: number, body: string, user: object, html_url: string }> }'
+    output: '{ comments: Array<{ id: number, body: string, user: { login: string }, html_url: string }> }'
     mock: |
       return { comments: [{ id: 1, body: 'Mock comment.', user: { login: 'example' }, html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/issues/' + input.issue_number + '#issuecomment-1' }] };
     backend:
@@ -259,7 +266,11 @@ actions:
         sort: { type: string, enum: [oldest, recentupdate, leastupdate, mostcomment, leastcomment, priority], description: 'Sort order; newest first when left out.' }
         page: { type: integer, minimum: 1, description: 'Page number, from 1.' }
         limit: { type: integer, minimum: 1, maximum: 50, description: 'Results per page (at most 50).' }
-    output: '{ pull_requests: Array<{ number: number, title: string, state: string, html_url: string }> }'
+    output: >-
+      { pull_requests: Array<{ number: number, title: string, state: string, html_url: string,
+      body: string, user: { login: string }, draft?: boolean,
+      head: { label: string, ref: string, sha: string }, base: { label: string, ref: string, sha: string },
+      created_at: string, updated_at: string, merged: boolean, merged_at: string | null }> }
     mock: |
       return { pull_requests: [{ number: 1, title: 'Example pull request', state: input.state || 'open', html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/pulls/1' }] };
     backend:
@@ -288,7 +299,12 @@ actions:
         owner: { type: string, minLength: 1, maxLength: 100, description: 'Repository owner (user or organization).' }
         repo: { type: string, minLength: 1, maxLength: 100, description: Repository name. }
         pull_number: { type: integer, minimum: 1, description: Pull request number. }
-    output: '{ pull_request: { number: number, title: string, state: string, merged: boolean, html_url: string } }'
+    output: >-
+      { pull_request: { number: number, title: string, state: string, merged: boolean, html_url: string,
+      body: string, user: { login: string }, draft?: boolean,
+      head: { label: string, ref: string, sha: string }, base: { label: string, ref: string, sha: string },
+      mergeable: boolean, merged_at: string | null, merge_commit_sha: string | null,
+      created_at: string, updated_at: string } }
     mock: |
       return { pull_request: { number: input.pull_number, title: 'Example pull request', state: 'open', merged: false, html_url: 'https://codeberg.org/' + input.owner + '/' + input.repo + '/pulls/' + input.pull_number } };
     backend:
@@ -375,9 +391,9 @@ actions:
         issues: { type: array, maxItems: 500, items: { type: object } }
         repositoryId: { type: integer, minimum: 1 }
         report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the issues alone.' }
-    # `report: true` answers { issues, failed, notRead, retryAfter } instead
-    # (the issue sync's own reading); the signature types the plain answer.
-    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
+    # The second branch is the answer to `report: true`, the issue sync's own
+    # reading.
+    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }> | { issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, failed: Array<{ externalId: string, error: string, status?: number }>, notRead: number, retryAfter: number | null }'
     mock: |
       const issues = input.issues.map((issue) => ({ externalSystem: 'forgejo', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
       return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;

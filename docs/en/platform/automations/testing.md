@@ -23,7 +23,7 @@ Each row is one test, in the order the document lists them: its status, its name
 2. In **Setup**, fill in the test: its **Name**, the **Input** the run receives as JSON, the **Simulated outputs**, **Simulated failures** and **Scenarios** that stand in for steps, and under **Expectations** what the run must do. **Scenarios** shows when a step's connector action ships some. Your changes go into the draft as you type.
 3. Save the draft to keep the test. Saving runs every test and records the result with the version.
 
-Adding a simulated output starts it empty: `{}` for a node, or `[]` when it runs once per item. **Use the last run's output** copies the output from the run on the canvas when you choose it. Review that value before saving.
+Adding a simulated output starts it empty: `{}` for a node, or `[]` when it runs once per item. **Use the last run's output** copies the output from the run on the canvas when you choose it. Review that value before saving. A step that calls a connector keeps only the fields its action's output declares, as in a live run: a field the output doesn't list is left out, whether the test, a scenario or the connector's usual simulated answer gives it.
 
 <Frame caption="A test's Setup: the run's input as JSON, the steps it simulates, and what it expects of the run.">
 

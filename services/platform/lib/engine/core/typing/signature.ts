@@ -19,6 +19,10 @@
  * exact (`x-origin: 'signature'`); `object` is an open bag, `unknown` and
  * `any` are UNKNOWN, `undefined` is an absent value (null).
  *
+ * The signature is also what a call hands on: the dispatcher projects every
+ * output onto it (`project.ts`), so a member it does not declare never
+ * leaves the connector layer.
+ *
  * Connector definitions are the system catalog — the same for every
  * organization — so the parsed shape is cached per definition object, and a
  * re-registered catalog drops its entries with the old objects.
@@ -315,17 +319,27 @@ export function parseSignature(text: string): SignatureResult {
   }
 }
 
-const cache = new WeakMap<ConnectorLike, Shape>();
+const cache = new WeakMap<object, Shape>();
+
+function cachedShape(definition: object, signature: string): Shape {
+  let shape = cache.get(definition);
+  if (shape === undefined) {
+    const parsed = parseSignature(signature);
+    shape = 'shape' in parsed ? parsed.shape : UNKNOWN;
+    cache.set(definition, shape);
+  }
+  return shape;
+}
 
 /** The output shape a connector action documents; UNKNOWN when its
  * signature does not read (the catalog guard test keeps that from
  * shipping). */
 export function connectorOutputShape(connector: ConnectorLike): Shape {
-  let shape = cache.get(connector);
-  if (shape === undefined) {
-    const parsed = parseSignature(connector.outputSignature);
-    shape = 'shape' in parsed ? parsed.shape : UNKNOWN;
-    cache.set(connector, shape);
-  }
-  return shape;
+  return cachedShape(connector, connector.outputSignature);
+}
+
+/** The same shape, read from a catalog action, whose `output` is its
+ * signature: what the dispatcher hands on (`project.ts`). */
+export function actionOutputShape(action: { output: string }): Shape {
+  return cachedShape(action, action.output);
 }

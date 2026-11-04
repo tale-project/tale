@@ -341,8 +341,8 @@ const SLACK_UPLOADED: ServiceAnswer = { status: 200, body: 'OK - 48' };
  * Slack gives each POST the live body makes, in the order the body makes
  * them, when its input is the action's example input with the scenario's
  * `when` laid over it. An answer carries the members the action's output
- * names; the bodies hand Slack's records on as they come, so the further
- * members a real answer holds would ride along.
+ * names; the bodies hand Slack's records on as they come, and the call
+ * leaves out the further members a real answer holds (CONN-R36).
  */
 const SLACK_PROOFS: Record<string, ProofAnswers> = {
   'list_channels/two_channels': {
@@ -677,8 +677,8 @@ const TAVILY_USAGE_LIMIT = tavilyRefusal(432, {
  * The proof of every Tavily scenario, keyed as Slack's are: Tavily's answer
  * to the one request each action makes. The bodies hand Tavily's records on
  * as they come and throw a refusal with its status, so an answer carries the
- * members the action's output names, and the further members a real record
- * holds would ride along.
+ * members the action's output names; the call leaves out the further members
+ * a real record holds (CONN-R36).
  */
 const TAVILY_PROOFS: Record<string, ProofAnswers> = {
   'search/two_results': { [TAVILY_SEARCH]: tavilySearched(TAVILY_RESULTS) },
@@ -1086,8 +1086,8 @@ const TWILIO_RATE_LIMITED = twilioError(429, 20429, 'Too Many Requests');
  * to the one request each action makes. A write answers HTTP 201, and a
  * refusal comes as its HTTP status with Twilio's error body. An answer
  * carries the members the action's output names; `list_messages`,
- * `get_message` and `list_calls` hand Twilio's records on as they come, so
- * the further members a real answer holds would ride along.
+ * `get_message` and `list_calls` hand Twilio's records on as they come, and
+ * the call leaves out the further members a real answer holds (CONN-R36).
  */
 const TWILIO_PROOFS: Record<string, ProofAnswers> = {
   'send_sms/queued': {

@@ -56,7 +56,7 @@ actions:
         includeSent:
           type: boolean
           description: Also read the Sent folder, so a thread holds both sides (default true).
-    output: '{ listed: number, inbound: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, sent?: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, mailboxes: Array<{ mailbox: string, ok: boolean, listed: number, fetched: number, ingested: number, duplicates: number, skipped: number, vanished: number, capped: boolean, rateLimited?: boolean, retryAfter?: string, error?: string, resumeFrom?: { inbox?: string, sent?: string } }> }'
+    output: '{ listed: number, inbound: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[], reason?: string }, sent?: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, mailboxes: Array<{ mailbox: string, ok: boolean, listed: number, fetched: number, ingested: number, duplicates: number, skipped: number, vanished: number, capped: boolean, rateLimited?: boolean, retryAfter?: string, error?: string, resumeFrom?: { inbox?: string, sent?: string } }> }'
     mock: |
       return {
         listed: 1,

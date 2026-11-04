@@ -21,8 +21,9 @@
  *                  the catalog and docs list it like any other action.
  *
  * Input is JSON Schema (machine-validated). Output is a TS-style signature
- * string — documentation only, the vocabulary the engine's output-typing rule
- * reads; a connector action is `structured` by construction.
+ * string — the vocabulary the engine's output-typing rule reads, and the
+ * bound of what a call hands on: only the members it declares (CONN-R36),
+ * their types unchecked; a connector action is `structured` by construction.
  */
 
 import { z } from 'zod/v4';
@@ -441,8 +442,8 @@ export const connectorActionSchema = z
     description: z.string().min(1).max(2000),
     /** JSON Schema for the action's `input` — machine-validated. */
     input: jsonSchemaObjectSchema,
-    /** TS-style output signature, e.g. `{ number: number, url: string }` —
-     * documentation only (the engine reads it as the output vocabulary). */
+    /** TS-style output signature, e.g. `{ number: number, url: string }`: the
+     * output vocabulary the engine reads, and all a call hands on (CONN-R36). */
     output: z.string().min(1).max(2000),
     effects: effectSchema,
     /** Calling it twice with the same `ctx.idempotencyKey` has the effect of
