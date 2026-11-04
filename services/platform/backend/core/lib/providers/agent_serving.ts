@@ -397,7 +397,7 @@ export async function walkDirectServing(
 /** The wire a harness speaks to the sandbox gateway on the managed lane: its
  * declaration, else derived — a harness that points ANTHROPIC_BASE_URL at the
  * gateway's `/anthropic` path speaks Anthropic, every other one chat. */
-export function harnessGatewayWire(harness: string): HarnessGatewayWire {
+function harnessGatewayWire(harness: string): HarnessGatewayWire {
   const def = loadHarnesses().find((entry) => entry.slug === harness);
   return harnessToolCallingWire(def);
 }
