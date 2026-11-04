@@ -28,6 +28,14 @@ credentialEnvKeys:
   - OPENAI_API_KEY
   - OPENAI_BASE_URL
   - TALE_GATEWAY_TOKEN
+# The CLI sends a tool that takes no arguments (get_goal, list_agents)
+# without `parameters`, as OpenAI's chat wire allows. Translated onto
+# Anthropic's Messages API — by the gateway for an `apiFormat: anthropic`
+# connector, by an upstream gateway serving a Claude model — such a tool
+# arrives without the `input_schema` Anthropic requires, and every turn fails
+# with a 400 (#5353: Qwen Code 0.24.7, Bifrost through 2026-11). No model
+# served through that API runs on it.
+anthropicModels: false
 modelIdDialect: vendor-native
 promptTransport: stdin-ndjson
 capabilities:

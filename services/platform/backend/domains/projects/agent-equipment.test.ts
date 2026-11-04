@@ -144,16 +144,19 @@ describe('agentModelRefusal [PROJ-R9]', () => {
           harness: 'claude-code',
           label: 'Claude Code',
           toolCallingWire: 'anthropic',
+          anthropicModels: true,
         },
         {
           harness: 'codex',
           label: 'Codex',
           toolCallingWire: 'openai-responses',
+          anthropicModels: true,
         },
         {
           harness: 'opencode',
           label: 'OpenCode',
           toolCallingWire: 'openai-chat',
+          anthropicModels: true,
         },
       ],
       voice: { ttsAvailable: false, transcriptionAvailable: false },
@@ -176,6 +179,54 @@ describe('agentModelRefusal [PROJ-R9]', () => {
       code: 'PROJECT_AGENT_MODEL_INVALID',
       message:
         'Model "gpt-6.1-sol" takes tools only through the Responses API, which the opencode harness does not speak. Run it on codex, or pick another model. GET /api/v1/models lists the models and providers this organization can call.',
+    });
+  });
+
+  it('holds a model served through Anthropic’s API off Qwen Code [#5353]', async () => {
+    composer.listComposerModels.mockResolvedValue({
+      models: [
+        {
+          id: 'anthropic/claude-haiku-5-5',
+          label: 'Claude Haiku 5.5',
+          providerSlug: 'gateway',
+          providerLabel: 'Gateway',
+          credential: { authMethod: 'api-key' },
+          tools: true,
+          anthropicApi: true,
+          contextWindow: 200_000,
+          tags: ['chat'],
+        },
+      ],
+      harnesses: [
+        {
+          harness: 'opencode',
+          label: 'OpenCode',
+          toolCallingWire: 'openai-chat',
+          anthropicModels: true,
+        },
+        {
+          harness: 'qwen-code',
+          label: 'Qwen Code',
+          toolCallingWire: 'openai-chat',
+          anthropicModels: false,
+        },
+      ],
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
+    });
+    const pick = {
+      ...org,
+      model: 'anthropic/claude-haiku-5-5',
+      modelProvider: 'gateway',
+    };
+    await expect(
+      agentModelRefusal(sql, { ...pick, harness: 'opencode' }),
+    ).resolves.toBeNull();
+    await expect(
+      agentModelRefusal(sql, { ...pick, harness: 'qwen-code' }),
+    ).resolves.toEqual({
+      code: 'PROJECT_AGENT_MODEL_INVALID',
+      message:
+        'Model "anthropic/claude-haiku-5-5" is served through Anthropic\'s API, which the qwen-code harness cannot run: its tools lose their input schema there. Run it on another harness, or pick another model. GET /api/v1/models lists the models and providers this organization can call.',
     });
   });
 });

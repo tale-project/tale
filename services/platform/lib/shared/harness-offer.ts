@@ -32,10 +32,21 @@ export interface ModelOption {
   /** Present when the model's tools work only on the Responses API — usable
    * only by a harness that speaks it. */
   responsesOnly?: true;
+  /** Present when a harness calling it reaches Anthropic's Messages API —
+   * usable only by a harness that runs such a model. */
+  anthropicApi?: true;
 }
 
 /** The wire a harness speaks to the gateway, as the listing carries it. */
 export type HarnessToolWire = HarnessGatewayWire;
+
+/** What a runtime row of the listing says about the models it runs. */
+export interface HarnessModelFacts {
+  /** The wire it speaks to the gateway. */
+  toolCallingWire?: HarnessToolWire;
+  /** It runs a model served through Anthropic's Messages API. */
+  anthropicModels?: boolean;
+}
 
 /** A `listComposerModels` row, narrowed to the fields the mapping reads. */
 export interface ComposerModelListingRow {
@@ -44,6 +55,7 @@ export interface ComposerModelListingRow {
   providerSlug: string;
   providerLabel: string;
   toolCallingApi?: 'responses';
+  anthropicApi?: true;
   credential:
     | { authMethod: 'api-key' | 'env' }
     | {
@@ -71,21 +83,24 @@ export function toModelOptions(
       option.subscription = { harness: row.credential.constraints.harness };
     }
     if (row.toolCallingApi === 'responses') option.responsesOnly = true;
+    if (row.anthropicApi === true) option.anthropicApi = true;
     return option;
   });
 }
 
 /**
- * Whether a picker offers `option` to an agent on `harness`, which speaks
- * `wire`: a subscription-served entry only to the harness its credential is
- * bound to, and a Responses-only entry only to a harness that speaks the
- * Responses API. An unknown wire (the roster still loading) offers no
- * Responses-only entry.
+ * Whether a picker offers `option` to an agent on `harness`, whose listing
+ * row is `runtime`: a subscription-served entry only to the harness its
+ * credential is bound to, a Responses-only entry only to a harness that
+ * speaks the Responses API, and an entry served through Anthropic's API not
+ * to a harness that cannot run one (Qwen Code). An unknown wire (the roster
+ * still loading) offers no Responses-only entry; an unknown fit keeps the
+ * Anthropic entries, which every other runtime runs.
  */
 export function offeredToHarness(
   option: ModelOption,
   harness: string,
-  wire: HarnessToolWire | undefined,
+  runtime: HarnessModelFacts | undefined,
 ): boolean {
   if (
     option.subscription !== undefined &&
@@ -93,7 +108,13 @@ export function offeredToHarness(
   ) {
     return false;
   }
-  return option.responsesOnly !== true || wire === 'openai-responses';
+  if (option.anthropicApi === true && runtime?.anthropicModels === false) {
+    return false;
+  }
+  return (
+    option.responsesOnly !== true ||
+    runtime?.toolCallingWire === 'openai-responses'
+  );
 }
 
 /** The offered option matching a saved pick: the exact (provider, id) pair,

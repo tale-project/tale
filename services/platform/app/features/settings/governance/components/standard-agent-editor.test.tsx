@@ -77,6 +77,12 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
       harnesses: [
         { harness: 'claude-code', label: 'Claude Code' },
         { harness: 'codex', label: 'Codex' },
+        {
+          harness: 'qwen-code',
+          label: 'Qwen Code',
+          toolCallingWire: 'openai-chat',
+          anthropicModels: false,
+        },
       ],
       models: [
         {
@@ -84,6 +90,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
           label: 'Claude Sonnet 5',
           providerSlug: 'anthropic',
           providerLabel: 'Anthropic',
+          anthropicApi: true,
           credential: { authMethod: 'api-key' },
         },
         {
@@ -239,6 +246,22 @@ describe('standard agent settings', () => {
         },
       }),
     );
+  });
+
+  it("offers no model served through Anthropic's API on Qwen Code, whose tools lose their schema there", async () => {
+    state.config = { enabled: true };
+    const { user } = await renderEditor();
+
+    await user.click(screen.getByRole('button', { name: HARNESS }));
+    await user.click(screen.getByRole('option', { name: 'Qwen Code' }));
+    await user.click(screen.getByRole('button', { name: MODEL }));
+
+    expect(
+      screen.getByRole('option', { name: 'OpenAI · GPT-5.5' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Anthropic · Claude Sonnet 5' }),
+    ).not.toBeInTheDocument();
   });
 
   it('says why it cannot run for you, with the way to AI providers', async () => {

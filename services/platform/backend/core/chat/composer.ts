@@ -21,6 +21,7 @@
  */
 
 import { answersChatTurns } from '../../../lib/shared/providers/chat_turn_models';
+import { servedByAnthropicApi } from '../lib/providers/anthropic_api';
 import { walkChatCatalog } from '../lib/providers/chat_catalog';
 
 /** The vendor names a model id spells in lower case. */
@@ -119,6 +120,10 @@ export interface ComposerModelOption {
    * when it speaks that wire, and the Chat Completions model endpoints not
    * at all. */
   toolCallingApi?: 'responses';
+  /** A harness calling it reaches Anthropic's Messages API (the connector
+   * speaks Anthropic, or it is a Claude model — `servedByAnthropicApi`): an
+   * agent harness whose tools do not survive that API is not offered it. */
+  anthropicApi?: true;
   /** Total context window in tokens (catalog `contextWindow`). */
   contextWindow: number;
   maxOutputTokens?: number;
@@ -188,6 +193,9 @@ export function collectComposerOptions(
       tools: entry.supportsTools,
       ...(entry.toolCallingApi !== undefined
         ? { toolCallingApi: entry.toolCallingApi }
+        : {}),
+      ...(servedByAnthropicApi(connector, entry.id)
+        ? { anthropicApi: true as const }
         : {}),
       contextWindow: entry.contextWindow,
       ...(entry.maxOutputTokens !== undefined

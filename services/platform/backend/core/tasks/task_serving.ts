@@ -18,13 +18,13 @@
  *
  * Unpinned agents (rows saved before the picker carried providers) keep the
  * legacy direct-only connector walk via {@link resolveServingTarget}, with
- * their harness's tool wire checked just as for a pinned agent.
+ * what their harness runs checked just as for a pinned agent.
  */
 
 import { resolveServingTarget } from '../automations/llm_call';
 import type { ActionCtx } from '../lib/ctx';
 import {
-  harnessGatewayWire,
+  harnessModelFitFor,
   resolvePinnedAgentServing,
   type AgentTurnServing,
 } from '../lib/providers/agent_serving';
@@ -50,7 +50,7 @@ export async function resolveTaskServing(
       ctx,
       args.organizationId,
       args.model,
-      harnessGatewayWire(args.harness),
+      harnessModelFitFor(args.harness),
     );
     return { lane: 'gateway', ...target };
   }

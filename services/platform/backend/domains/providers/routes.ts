@@ -325,6 +325,7 @@ export function createProviderSettingRoutes(deps: {
           id?: unknown;
           credential?: { authMethod?: unknown };
           toolCallingApi?: unknown;
+          anthropicApi?: unknown;
         };
         if (
           typeof candidate.id !== 'string' ||
@@ -334,14 +335,26 @@ export function createProviderSettingRoutes(deps: {
           return null;
         }
         // A model whose tools need the Responses API counts only for a
-        // harness that speaks it.
-        return candidate.toolCallingApi === 'responses'
-          ? { id: candidate.id, toolCallingApi: 'responses' as const }
-          : { id: candidate.id };
+        // harness that speaks it, and a model served through Anthropic's
+        // API only for a harness that runs one.
+        return {
+          id: candidate.id,
+          ...(candidate.toolCallingApi === 'responses'
+            ? { toolCallingApi: 'responses' as const }
+            : {}),
+          ...(candidate.anthropicApi === true
+            ? { anthropicApi: true as const }
+            : {}),
+        };
       })
       .filter(
-        (entry): entry is { id: string; toolCallingApi?: 'responses' } =>
-          entry !== null,
+        (
+          entry,
+        ): entry is {
+          id: string;
+          toolCallingApi?: 'responses';
+          anthropicApi?: true;
+        } => entry !== null,
       );
     const credentials = await listCredentials(deps.sql, {
       organizationId,

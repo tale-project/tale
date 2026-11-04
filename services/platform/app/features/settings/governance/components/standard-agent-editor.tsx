@@ -205,13 +205,14 @@ export function StandardAgentEditor({
     return rows;
   }, [harness, roster.data?.harnesses, t]);
 
-  // A subscription's model runs only on the runtime it is bound to, and a
-  // Responses-only model only on a runtime that speaks that API: with a
+  // A subscription's model runs only on the runtime it is bound to, a
+  // Responses-only model only on a runtime that speaks that API, and a model
+  // served through Anthropic's API only on a runtime that runs one: with a
   // runtime chosen, offer what it can run. Automatic picks the runtime.
   const modelOptions = useMemo<SearchableSelectOption[]>(() => {
-    const harnessWire = roster.data?.harnesses.find(
+    const harnessRow = roster.data?.harnesses.find(
       (entry) => entry.harness === harness,
-    )?.toolCallingWire;
+    );
     const runnable = (roster.data?.models ?? []).filter((model) => {
       if (harness === AUTOMATIC) return true;
       const credential = model.credential;
@@ -222,7 +223,8 @@ export function StandardAgentEditor({
       return (
         bound &&
         (model.toolCallingApi !== 'responses' ||
-          harnessWire === 'openai-responses')
+          harnessRow?.toolCallingWire === 'openai-responses') &&
+        (model.anthropicApi !== true || harnessRow?.anthropicModels !== false)
       );
     });
     const rows: SearchableSelectOption[] = [

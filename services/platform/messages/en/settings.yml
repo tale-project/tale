@@ -1017,9 +1017,10 @@ providers:
       environment credential above.
     noCompatibleModel:
       An agent runtime without a model can run none of the directly served models
-      — they take tools only through the Responses API, which only Codex
-      speaks. Allow another model for those agent runtimes, or run the agent on
-      Codex.
+      — they take tools only through the Responses API, which only Codex speaks,
+      or are served through the Anthropic Messages API, which Qwen Code cannot
+      use. Allow another model for those agent runtimes, or run the agent on
+      another agent runtime.
     noModel: No model yet
     degraded: Recently failing
     subscriptionVia: Subscription · {provider}

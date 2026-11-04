@@ -125,13 +125,13 @@ describe('HarnessStatusSection', () => {
     expect(screen.getAllByText('No model yet')).toHaveLength(2);
   });
 
-  it('says why a runtime has no model when models exist but need the Responses API', () => {
+  it('says why a runtime has no model when models exist but need the Responses API or Anthropic Messages API [#5353]', () => {
     const [available] = ROWS;
     fixtures.status = [
       ...(available ? [available] : []),
       {
-        slug: 'opencode',
-        label: 'OpenCode',
+        slug: 'qwen-code',
+        label: 'Qwen Code',
         managed: { available: false, reason: 'no-compatible-model' },
         subscriptions: [],
       },
@@ -142,7 +142,9 @@ describe('HarnessStatusSection', () => {
     renderSection();
 
     expect(
-      screen.getByText(/only Codex speaks\. Allow another model/),
+      screen.getByText(
+        /only Codex speaks, or are served through the Anthropic Messages API, which Qwen Code cannot use\. Allow another model/,
+      ),
     ).toBeInTheDocument();
     // Adding a credential would not help, so the credential note stays away.
     expect(

@@ -109,6 +109,41 @@ export function harnessToolCallingWire(
   );
 }
 
+/** What a harness can run, read from its yml: the wire its tools ride, and
+ * whether its tools survive a translation onto Anthropic's Messages API
+ * (`anthropicModels`; Qwen Code's do not). */
+export interface HarnessModelFit {
+  readonly wire: HarnessGatewayWire;
+  readonly anthropicModels: boolean;
+}
+
+export function harnessModelFit(
+  harness: HarnessDefinition | undefined,
+): HarnessModelFit {
+  return {
+    wire: harnessToolCallingWire(harness),
+    anthropicModels: harness?.anthropicModels !== false,
+  };
+}
+
+/** Whether a harness can run a model on a connector: the model's tools on
+ * the harness's wire ({@link supportsToolCallingWire}), and a model served
+ * through Anthropic's Messages API (`anthropicApi`, which only the backend
+ * can tell: it knows the connector) only on a harness whose tools survive
+ * that translation. Agent serving, the agent pickers and harness status ask
+ * here. */
+export function harnessRunsModel(
+  model: Pick<ModelCatalogEntry, 'toolCallingApi'> & {
+    readonly anthropicApi?: boolean;
+  },
+  fit: HarnessModelFit,
+): boolean {
+  return (
+    supportsToolCallingWire(model, fit.wire) &&
+    (model.anthropicApi !== true || fit.anthropicModels)
+  );
+}
+
 export type ExecutionResolution =
   | { readonly mode: 'direct' }
   | { readonly mode: 'sandbox'; readonly harness: HarnessDefinition }

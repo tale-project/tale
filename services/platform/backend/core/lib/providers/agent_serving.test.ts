@@ -265,6 +265,81 @@ describe('shipped Sol 6.1 serving', () => {
   );
 });
 
+// #5353: Qwen Code's tools that take no arguments lose their input schema on
+// Anthropic's API, so the shipped harness runs no model served through it —
+// a Claude model behind an OpenAI-compatible connector, or any model of an
+// Anthropic-format one. The refusal names the runtime and the model, where
+// the turn used to fail at its first call with the upstream 400.
+describe('shipped Qwen Code serving', () => {
+  const REFUSAL =
+    'is served through Anthropic\'s API, which the "qwen-code" harness cannot run: its tools lose their input schema there — run the agent on another harness, or pick another model';
+
+  async function shippedHarnesses() {
+    const actual = await vi.importActual<typeof import('./load_system_config')>(
+      './load_system_config',
+    );
+    loadHarnesses.mockReturnValue(actual.loadHarnesses());
+  }
+
+  it.each([undefined, 'openrouter'])(
+    'refuses a Claude model behind an OpenAI-compatible connector with provider pin %s',
+    async (modelProvider) => {
+      await shippedHarnesses();
+      credentials = { openrouter: DIRECT };
+      resolveConnectors.mockResolvedValue([OPENROUTER]);
+      getProviderCatalog.mockResolvedValue([
+        { id: 'anthropic/claude-haiku-5-5', tags: ['chat'] },
+      ]);
+      const turn = {
+        organizationId: ORG,
+        model: 'anthropic/claude-haiku-5-5',
+        modelProvider,
+      };
+
+      await expect(
+        resolveWorkflowAgentServing(ctx, { ...turn, harness: 'qwen-code' }),
+      ).rejects.toThrow(`model "anthropic/claude-haiku-5-5" ${REFUSAL}`);
+      await expect(
+        resolveWorkflowAgentServing(ctx, { ...turn, harness: 'opencode' }),
+      ).resolves.toMatchObject({ lane: 'gateway', providerSlug: 'openrouter' });
+    },
+  );
+
+  it('refuses any model of an Anthropic-format connector, and serves another', async () => {
+    await shippedHarnesses();
+    credentials = { anthropic: DIRECT, openrouter: DIRECT };
+    resolveConnectors.mockResolvedValue([ANTHROPIC, OPENROUTER]);
+    getProviderCatalog.mockImplementation(
+      (connector: { name: string }): Promise<Array<{ id: string }>> =>
+        Promise.resolve(
+          connector.name === 'anthropic'
+            ? [{ id: 'm-1', tags: ['chat'] }]
+            : [{ id: 'qwen/qwen3-coder', tags: ['chat'] }],
+        ),
+    );
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'm-1',
+        modelProvider: 'anthropic',
+        harness: 'qwen-code',
+      }),
+    ).rejects.toThrow(`model "m-1" ${REFUSAL}`);
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'qwen/qwen3-coder',
+        harness: 'qwen-code',
+      }),
+    ).resolves.toEqual({
+      lane: 'gateway',
+      providerSlug: 'openrouter',
+      modelId: 'qwen/qwen3-coder',
+    });
+  });
+});
+
 describe('resolveWorkflowAgentServing — direct pass', () => {
   it('serves a directly-served model on the gateway lane', async () => {
     credentials = { openrouter: DIRECT };

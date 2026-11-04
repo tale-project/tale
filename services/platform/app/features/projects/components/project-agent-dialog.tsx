@@ -66,6 +66,9 @@ export interface HarnessOption {
   /** The wire it speaks to the gateway — decides whether a Responses-only
    * model is offered. */
   toolCallingWire?: HarnessToolWire;
+  /** Whether it runs a model served through Anthropic's API — decides
+   * whether such a model is offered. */
+  anthropicModels?: boolean;
 }
 
 interface ProjectAgentDialogProps {
@@ -280,16 +283,15 @@ export function ProjectAgentDialog({
 
   const canSubmit = name.trim().length > 0 && harness !== '' && model !== '';
 
-  // Subscription-served entries are bound to their forced harness, and a
-  // Responses-only model needs a harness that speaks that API — offer each
-  // only where it can run. Other direct-served entries fit every harness.
-  const harnessWire = harnesses.find(
-    (option) => option.harness === harness,
-  )?.toolCallingWire;
+  // Subscription-served entries are bound to their forced harness, a
+  // Responses-only model needs a harness that speaks that API, and a model
+  // served through Anthropic's API a harness that runs one — offer each only
+  // where it can run. Other direct-served entries fit every harness.
+  const harnessRow = harnesses.find((option) => option.harness === harness);
   const offeredModels = useMemo(
     () =>
-      models.filter((option) => offeredToHarness(option, harness, harnessWire)),
-    [models, harness, harnessWire],
+      models.filter((option) => offeredToHarness(option, harness, harnessRow)),
+    [models, harness, harnessRow],
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   // A pick saved before providers were part of it names a model but no

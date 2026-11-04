@@ -2,7 +2,7 @@ import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
 import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import type { Sql } from 'postgres';
 
-import { harnessToolCallingWire } from '../../../lib/shared/providers/resolve_execution.ts';
+import { harnessModelFit } from '../../../lib/shared/providers/resolve_execution.ts';
 import {
   collectComposerOptions,
   type ComposerModelOption,
@@ -228,21 +228,27 @@ export interface ComposerHarnessRow {
   /** The wire the harness speaks to the gateway (its declaration, else
    * derived). */
   toolCallingWire: HarnessGatewayWire;
+  /** It runs a model served through Anthropic's Messages API (its yml's
+   * `anthropicModels`, absent = true). */
+  anthropicModels: boolean;
 }
 
 /** The harnesses the managed lane can actually run, each with the wire it
  * speaks to the gateway — the agent pickers' runtime list, and what an
  * automation's agent step may name. A model whose tools need the Responses
- * API is offered only to a harness that speaks it. */
+ * API is offered only to a harness that speaks it, and a model served
+ * through Anthropic's API only to a harness that runs one. */
 export function listManagedHarnesses(): ComposerHarnessRow[] {
   return loadHarnesses()
     .filter((harness) => harness.credentialPolicy.managed)
     .map((harness) => {
       const iconUrl = readSystemEntryIcon('harnesses', harness.slug);
+      const fit = harnessModelFit(harness);
       const row: ComposerHarnessRow = {
         harness: harness.slug,
         label: harness.displayName,
-        toolCallingWire: harnessToolCallingWire(harness),
+        toolCallingWire: fit.wire,
+        anthropicModels: fit.anthropicModels,
       };
       if (iconUrl !== undefined) row.iconUrl = iconUrl;
       return row;

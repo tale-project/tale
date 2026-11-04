@@ -76,7 +76,9 @@ export const CACHE_AFFINITY_GATEWAY_HEADER = 'x-bf-eh-x-tale-cache-affinity';
  * `default`. The maximum-reasoning levers below are Claude levers; a
  * foreign model reached through a gateway's dialect translation does NOT
  * ignore them (the design assumption of the image's effort floor), and a
- * weak one collapses under them. Exported for its unit test. */
+ * weak one collapses under them. Exported for its unit test, and for the
+ * serving rule that keeps a Claude model off a harness whose tools do not
+ * survive Anthropic's API (`backend/core/lib/providers/anthropic_api.ts`). */
 export function isClaudeModelRef(model: string | undefined): boolean {
   if (model === undefined || model === 'default') return true;
   return model.toLowerCase().includes('claude');

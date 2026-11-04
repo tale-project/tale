@@ -665,6 +665,31 @@ describe('resolveServingTarget', () => {
       resolveServingTarget(ctx, ORG, 'vendor/shared'),
     ).resolves.toEqual({ providerSlug: 'first', modelId: 'vendor/shared' });
   });
+
+  it('refuses a Claude model to a legacy agent whose harness runs none [#5353]', async () => {
+    credentials = { first: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'anthropic/claude-haiku-5-5', tags: ['chat'], pricing: PRICING },
+    ]);
+
+    await expect(
+      resolveServingTarget(ctx, ORG, 'anthropic/claude-haiku-5-5', {
+        wire: 'openai-chat',
+        anthropicModels: false,
+      }),
+    ).rejects.toThrow(
+      `model "anthropic/claude-haiku-5-5" is served through Anthropic's API, which this agent's harness cannot run`,
+    );
+    await expect(
+      resolveServingTarget(ctx, ORG, 'anthropic/claude-haiku-5-5', {
+        wire: 'openai-chat',
+        anthropicModels: true,
+      }),
+    ).resolves.toEqual({
+      providerSlug: 'first',
+      modelId: 'anthropic/claude-haiku-5-5',
+    });
+  });
 });
 
 // The validator's model check rides this walk, so what it warns about is

@@ -9,7 +9,7 @@ An agent runtime is the coding program that runs an agent’s session in a sandb
 
 In a project’s **Agents** tab, open an agent and choose **Agent runtime**. An automation’s agent node uses the same **Agent runtime** field. Then choose the model and provider. Under **Settings > AI providers**, **Agent runtimes** shows which execution paths the organization can currently serve.
 
-A runtime needs both compatible credentials and [sandbox capacity](/platform/admin/sandboxes). A working chat model is not enough. If a runtime is missing or has no models, inspect its status and provider credential before changing the task prompt. A model whose tool calls need OpenAI’s Responses API, such as GPT-6 Astra or GPT-6.1 Sol, runs only on Codex, so the model picker offers it for no other runtime.
+A runtime needs both compatible credentials and [sandbox capacity](/platform/admin/sandboxes). A working chat model is not enough. If a runtime is missing or has no models, inspect its status and provider credential before changing the task prompt. A model whose tool calls need OpenAI’s Responses API, such as GPT-6 Astra or GPT-6.1 Sol, runs only on Codex, so the model picker offers it for no other runtime. Qwen Code cannot run a model served through Anthropic’s Messages API: a Claude model, or any model of a provider whose **API format** is **Anthropic Messages API**. Its tools that take no arguments lose their schema on that API, so every call would fail. The model picker does not offer such a model for Qwen Code, and Tale refuses to start a Qwen Code run that names one.
 
 ## Compare supported runtimes
 
