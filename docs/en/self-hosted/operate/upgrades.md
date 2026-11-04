@@ -91,6 +91,26 @@ tale rollback
 
 `tale rollback` swaps the application images of `platform`, `backend-api`, and `backend-worker` only. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
 
+## From the Caddy proxy to Traefik
+
+From Tale 0.6, the proxy runs Traefik instead of Caddy. On its first start, the Traefik proxy takes over the certificates that the Caddy proxy kept in its `caddy-data` volume, so the installation goes on serving HTTPS for its domains without a manual step:
+
+- With `TLS_MODE=selfsigned`, the proxy adopts the Caddy proxy's local CA and issues its own certificates under it. Devices that already trust that root certificate keep trusting the proxy. For a new device, copy the root certificate from `/data/pki/root.crt` in the proxy container; it is the same certificate.
+- With `TLS_MODE=letsencrypt`, the proxy takes over each Let's Encrypt certificate that names its host, has not expired and comes with its key, and renews it itself before it expires, so its first start orders nothing. Any other host, for example one whose certificate has expired or came from another issuer, gets a new certificate: one order per host, well within Let's Encrypt's rate limits. The proxy registers its own ACME account when it first orders.
+- With `TLS_MODE=external`, a proxy in front of Tale terminates TLS, and there is nothing to take over.
+
+The proxy's log lines that start with `TLS:` say what it took over and why it left anything out. If it cannot use the Caddy CA, it creates a new one, and devices then have to trust the new root certificate.
+
+`tale deploy` replaces a running Caddy proxy without `--stop`: the Caddy proxy serves until traffic is on the new application colour, then the Traefik proxy replaces it. Requests fail while the new container starts. With the repository's `compose.yml`, `docker compose up -d` replaces the proxy with the other services. A Compose file of your own needs the new `proxy` service that [Run Compose yourself](/self-hosted/install/own-compose) describes, with `proxy-data` at `/data` and `caddy-data` read-only at `/caddy-data`. Without that mount, the proxy finds nothing to take over and starts with a new CA and new certificates.
+
+The proxy mounts `caddy-data` read-only and never writes to it, so a 0.5 release still finds the volume as it was. Returning to 0.5 crosses a minor boundary: restore the snapshot taken before the upgrade and deploy the 0.5 release, as [Choose a rollback path](#choose-a-rollback-path) describes. The Caddy proxy then serves again with its own certificates.
+
+Keep `caddy-data` and `caddy-config` as they are until you have accepted the upgrade and no longer plan to return to 0.5. After that the proxy needs neither: it keeps what it took over in `proxy-data`. `tale deploy` and the repository's `compose.yml` still declare both volumes and would create a removed one again, so empty them instead. `<id>` is the `id` in `tale.json`, or the Compose project name:
+
+```bash
+docker run --rm -v <id>_caddy-data:/caddy-data -v <id>_caddy-config:/caddy-config alpine:3.22 find /caddy-data /caddy-config -mindepth 1 -delete
+```
+
 ## Upgrade from v0.5.77 or earlier
 
 Releases from v0.5.78 on write automation runs with writer protocol 2. Their migration `0163` puts every run that is still queued, running or waiting **On hold**, and a held run never resumes. The first upgrade from v0.5.77 therefore stops the old backend while no run is unfinished, and only then starts the new version. `tale deploy` does this itself, once.

@@ -91,6 +91,26 @@ tale rollback
 
 `tale rollback` remplace uniquement les images applicatives de `platform`, `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement ordinaire (sans `--services`) qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
 
+## Du proxy Caddy à Traefik
+
+À partir de Tale 0.6, le proxy tourne sous Traefik et non plus sous Caddy. À son premier démarrage, le proxy Traefik reprend les certificats que le proxy Caddy conservait dans son volume `caddy-data` : ton installation continue donc de servir ses domaines en HTTPS sans intervention manuelle.
+
+- Avec `TLS_MODE=selfsigned`, le proxy adopte la CA locale du proxy Caddy et émet ses propres certificats sous cette CA. Les appareils qui font déjà confiance à ce certificat racine continuent de faire confiance au proxy. Pour un nouvel appareil, copie le certificat racine depuis `/data/pki/root.crt` dans le conteneur proxy : c’est le même certificat.
+- Avec `TLS_MODE=letsencrypt`, le proxy reprend chaque certificat Let's Encrypt qui nomme son hôte, n’a pas expiré et s’accompagne de sa clé, puis le renouvelle lui-même avant son expiration : son premier démarrage ne commande donc rien. Tout autre hôte, par exemple un hôte dont le certificat a expiré ou provient d’un autre émetteur, reçoit un nouveau certificat, à raison d’une commande par hôte, bien en deçà des limites de débit de Let's Encrypt. Le proxy enregistre son propre compte ACME lors de sa première commande.
+- Avec `TLS_MODE=external`, un proxy placé devant Tale termine TLS, et il n’y a rien à reprendre.
+
+Les lignes du journal du proxy qui commencent par `TLS:` indiquent ce qu’il a repris et pourquoi il a laissé quelque chose de côté. S’il ne peut pas utiliser la CA de Caddy, il en crée une nouvelle, et les appareils doivent alors faire confiance au nouveau certificat racine.
+
+`tale deploy` remplace un proxy Caddy en cours d’exécution sans `--stop` : le proxy Caddy sert jusqu’à ce que le trafic passe par la nouvelle couleur applicative, puis le proxy Traefik le remplace. Les requêtes échouent pendant le démarrage du nouveau conteneur. Avec le `compose.yml` du dépôt, `docker compose up -d` remplace le proxy en même temps que les autres services. Ton propre fichier Compose a besoin du nouveau service `proxy` que décrit [Gérer Compose toi-même](/fr/self-hosted/install/own-compose), avec `proxy-data` sur `/data` et `caddy-data` en lecture seule sur `/caddy-data`. Sans ce montage, le proxy ne trouve rien à reprendre et démarre avec une nouvelle CA et de nouveaux certificats.
+
+Le proxy monte `caddy-data` en lecture seule et n’y écrit jamais : une release 0.5 retrouve donc le volume tel qu’il était. Revenir à 0.5 franchit une limite mineure : restaure le snapshot pris avant la mise à niveau et déploie la release 0.5, comme le décrit [Choisir un retour arrière](#choisir-un-retour-arriere). Le proxy Caddy sert alors de nouveau avec ses propres certificats.
+
+Garde `caddy-data` et `caddy-config` tels quels jusqu’à ce que tu aies validé la mise à niveau et que tu ne prévoies plus de revenir à 0.5. Ensuite, le proxy n’a plus besoin ni de l’un ni de l’autre : il conserve ce qu’il a repris dans `proxy-data`. `tale deploy` et le `compose.yml` du dépôt déclarent toujours ces deux volumes et recréeraient un volume supprimé ; vide-les donc au lieu de les supprimer. `<id>` est l’`id` de `tale.json`, ou le nom du projet Compose :
+
+```bash
+docker run --rm -v <id>_caddy-data:/caddy-data -v <id>_caddy-config:/caddy-config alpine:3.22 find /caddy-data /caddy-config -mindepth 1 -delete
+```
+
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
 À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.

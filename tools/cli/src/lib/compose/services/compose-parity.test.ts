@@ -686,6 +686,28 @@ describe('read-only Docker API proxy parity', () => {
       'test-project test-project-blue test-project-green',
     );
   });
+
+  test.each([
+    ['compose.yml', compose],
+    ['tale deploy', deployed],
+  ] as const)(
+    "%s hands the edge the Caddy edge's data read-only, where it looks",
+    (_, file) => {
+      // The edge takes over the certificates the Caddy edge kept and never
+      // writes them, so a rollback to it finds them as they were
+      // (services/proxy/render/caddy.js).
+      expect(file.services.proxy?.volumes).toEqual([
+        'proxy-data:/data',
+        'caddy-data:/caddy-data:ro',
+      ]);
+      expect(
+        readFileSync(
+          resolve(repoRoot, 'services/proxy/render/main.js'),
+          'utf8',
+        ),
+      ).toContain("caddy: '/caddy-data',");
+    },
+  );
 });
 
 describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () => {

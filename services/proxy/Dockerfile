@@ -25,8 +25,8 @@ ENV HOST=localhost \
 
 # The renderer, the Docker API proxy and the maintenance page, shown while
 # no platform answers (e.g. during a blue-green deployment)
-COPY services/proxy/render/config.js services/proxy/render/pki.js services/proxy/render/main.js \
-     /usr/share/tale-proxy/render/
+COPY services/proxy/render/config.js services/proxy/render/pki.js services/proxy/render/caddy.js \
+     services/proxy/render/main.js /usr/share/tale-proxy/render/
 COPY services/proxy/docker-api/nginx.conf services/proxy/docker-api/strip-env.js \
      /usr/share/tale-proxy/docker-api/
 COPY services/proxy/maintenance.html /usr/share/tale-proxy/maintenance.html

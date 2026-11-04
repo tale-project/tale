@@ -56,6 +56,7 @@ import { composeCreatedContainerFilters } from '../docker/list-service-container
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import { pullImage } from '../docker/pull-image';
 import { probeCgroupVersion } from '../docker/setup-checks';
+import { volumeMountedAt } from '../docker/volume-mounted-at';
 import { waitForHealthy } from '../docker/wait-for-healthy';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
 import { discoverOrgs } from '../project/org-dirs';
@@ -256,6 +257,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // Determine which services to deploy
       let rotatableToUpdate: RotatableService[];
       let statefulToUpdate: StatefulService[];
+      let afterSwitch: StopGatedService[] = [];
 
       if (services && services.length > 0) {
         // User specified explicit services
@@ -276,17 +278,30 @@ export async function deploy(options: DeployOptions): Promise<void> {
             await isContainerRunning(`${getProjectId()}-${service}`),
           );
         }
+        // The Caddy edge of Tale 0.5 kept its state in `caddy-data` at
+        // `/data`; the Traefik edge keeps its own in `proxy-data` there.
+        const isCaddyEdge =
+          runningState.get('proxy') === true &&
+          (await volumeMountedAt(`${getProjectId()}-proxy`, '/data')) ===
+            `${getProjectId()}_caddy-data`;
         const selection = selectDefaultServices({
           isFirstDeploy,
           stop,
           isStopGatedRunning: (s) => runningState.get(s) ?? false,
+          isCaddyEdge,
         });
         rotatableToUpdate = selection.rotatable;
         statefulToUpdate = selection.stateful;
+        afterSwitch = selection.afterSwitch;
 
         if (isFirstDeploy) {
           logger.notice(
             'First deployment detected — including infrastructure services',
+          );
+        }
+        if (afterSwitch.length > 0) {
+          logger.notice(
+            'The proxy is the Caddy edge of Tale 0.5: once traffic is on the new colour, the Traefik edge replaces it and takes over its certificates. The caddy-data volume stays as it is, for a rollback.',
           );
         }
         if (selection.leftRunning.length > 0) {
@@ -298,7 +313,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
       }
 
       const keepHost = origin
-        ? servicesKeepingHost([...rotatableToUpdate, ...statefulToUpdate])
+        ? servicesKeepingHost([
+            ...rotatableToUpdate,
+            ...statefulToUpdate,
+            ...afterSwitch,
+          ])
         : [];
       if (origin && keepHost.length > 0) {
         logger.warn(
@@ -327,6 +346,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
       logger.info(
         `Stateful services: ${statefulToUpdate.join(', ') || 'none'}`,
       );
+      if (afterSwitch.length > 0) {
+        logger.info(`After the switch: ${afterSwitch.join(', ')}`);
+      }
 
       const serviceConfig: ServiceConfig = {
         version,
@@ -348,7 +370,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
       logger.step(`${prefix}Pulling images...`);
       const imagesToPull = [
         ...new Set(
-          [...rotatableToUpdate, ...statefulToUpdate].map((s) =>
+          [...rotatableToUpdate, ...statefulToUpdate, ...afterSwitch].map((s) =>
             imageRef(serviceConfig, s),
           ),
         ),
@@ -924,6 +946,49 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
 
             await clearFlipPending(env.DEPLOY_DIR);
+          }
+        }
+      }
+
+      // The Caddy edge served until now: it routes to the colours by their
+      // aliases, the new colour's too, while the Traefik edge routes only
+      // labelled containers, which the retired colour was not. Replacing it
+      // here costs the moment its container takes to restart, and the new
+      // edge takes over its certificates read-only from caddy-data.
+      if (afterSwitch.length > 0) {
+        logger.step(
+          `${prefix}Replacing the Caddy edge with the Traefik edge...`,
+        );
+        if (dryRun) {
+          for (const service of afterSwitch) {
+            logger.info(`${prefix}Would deploy stateful service: ${service}`);
+          }
+        } else {
+          const result = await dockerCompose(
+            generateStatefulCompose(serviceConfig, hostAlias, origin),
+            [
+              'up',
+              '-d',
+              ...(options.forceRecreate ? ['--force-recreate'] : []),
+              ...afterSwitch,
+            ],
+            { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
+          );
+          if (!result.success) {
+            logger.error('Failed to replace the Caddy edge');
+            logger.error(result.stderr);
+            throw new Error(
+              `Edge replacement failed: ${result.stderr.trim().slice(0, 500) || 'no stderr captured'}`,
+            );
+          }
+          for (const service of afterSwitch) {
+            const healthy = await waitForHealthy(
+              `${getProjectId()}-${service}`,
+              { timeout: env.HEALTH_CHECK_TIMEOUT, streamLogs },
+            );
+            if (!healthy) {
+              throw new Error(`Service ${service} failed health check`);
+            }
           }
         }
       }

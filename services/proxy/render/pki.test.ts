@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { X509Certificate } from 'node:crypto';
+import {
+  createPrivateKey,
+  createPublicKey,
+  X509Certificate,
+} from 'node:crypto';
 
+import { caddyCa, type KeyPair } from './caddy-fixture';
 import { ensureCertificates, ipBytes, LEAF_DAYS, RENEW_DAYS } from './pki.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -103,6 +108,122 @@ describe('ensureCertificates', () => {
     const result = await issue(io, ['tale.example.com']);
     expect(result.actions).toHaveLength(2);
     expect(result.actions[1]).toBe('issued a leaf for tale.example.com');
+  });
+});
+
+describe('ensureCertificates with a CA to adopt', () => {
+  // OpenSSL dates the fixtures from the clock, so these runs do too.
+  const adopting = (
+    io: ReturnType<typeof memory>['io'],
+    adopt: KeyPair,
+    now = Date.now(),
+  ) =>
+    ensureCertificates({
+      dir: '/data/pki',
+      hosts: ['tale.example.com'],
+      now,
+      io,
+      crypto,
+      adopt: { ...adopt, source: 'the Caddy proxy' },
+    });
+
+  it("adopts the Caddy edge's CA, so who trusts it trusts the leaf", async () => {
+    const { files, io } = memory();
+    const caddy = caddyCa();
+    const result = await adopting(io, caddy);
+    expect(result.actions).toEqual([
+      'adopted the local CA of the Caddy proxy',
+      'issued a leaf for tale.example.com',
+    ]);
+
+    const root = new X509Certificate(caddy.cert);
+    const kept = files.get('/data/pki/root.crt')?.text ?? '';
+    expect(new X509Certificate(kept).fingerprint256).toBe(root.fingerprint256);
+    const key = files.get('/data/pki/root.key');
+    expect(key?.mode).toBe(0o600);
+    expect(key?.text).toStartWith('-----BEGIN PRIVATE KEY-----\n');
+    expect(
+      createPublicKey(createPrivateKey(key?.text ?? '')).export({
+        type: 'spki',
+        format: 'der',
+      }),
+    ).toEqual(root.publicKey.export({ type: 'spki', format: 'der' }));
+
+    const leaf = new X509Certificate(result.cert);
+    expect(leaf.issuer).toBe(root.subject);
+    expect(leaf.checkIssued(root)).toBe(true);
+    expect(leaf.verify(root.publicKey)).toBe(true);
+    expect(leaf.checkHost('tale.example.com')).toBe('tale.example.com');
+  });
+
+  it('keeps the CA it has, whatever it is offered', async () => {
+    const { files, io } = memory();
+    const now = Date.now();
+    await issue(io, ['tale.example.com'], now);
+    const rootBefore = files.get('/data/pki/root.crt')?.text;
+
+    const result = await adopting(io, caddyCa(), now + DAY);
+    expect(result.actions).toEqual([]);
+    expect(files.get('/data/pki/root.crt')?.text).toBe(rootBefore);
+  });
+
+  it('creates a CA when the offered one cannot sign, and says why', async () => {
+    const valid = caddyCa();
+    const cases: [KeyPair, string][] = [
+      [
+        { key: valid.key, cert: caddyCa().cert },
+        'its private key does not belong to it',
+      ],
+      [
+        { key: 'no key', cert: valid.cert },
+        'its private key does not belong to it',
+      ],
+      [caddyCa({ curve: 'secp384r1' }), 'its key is not ECDSA P-256'],
+      [
+        caddyCa({ extensions: ['basicConstraints=critical,CA:FALSE'] }),
+        'it is no CA certificate',
+      ],
+      [
+        caddyCa({
+          extensions: [
+            'basicConstraints=critical,CA:TRUE',
+            'keyUsage=critical,digitalSignature',
+          ],
+        }),
+        'it is no CA certificate',
+      ],
+      [
+        caddyCa({
+          extensions: [
+            'basicConstraints=critical,CA:TRUE',
+            'subjectKeyIdentifier=none',
+            'authorityKeyIdentifier=none',
+          ],
+        }),
+        'it has no key identifier',
+      ],
+      [caddyCa({ days: LEAF_DAYS }), 'it is valid from '],
+      [{ key: valid.key, cert: 'no certificate' }, 'it has no certificate'],
+      [
+        {
+          key: valid.key,
+          cert: '-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n',
+        },
+        'it cannot be read (',
+      ],
+    ];
+    for (const [adopt, reason] of cases) {
+      const { files, io } = memory();
+      const result = await adopting(io, adopt);
+      expect(result.actions[0]).toStartWith(
+        `created the local CA: the one of the Caddy proxy cannot sign, ${reason}`,
+      );
+      const root = new X509Certificate(
+        files.get('/data/pki/root.crt')?.text ?? '',
+      );
+      expect(root.subject).toBe('O=Tale\nCN=Tale Local CA');
+      expect(new X509Certificate(result.cert).checkIssued(root)).toBe(true);
+    }
   });
 });
 

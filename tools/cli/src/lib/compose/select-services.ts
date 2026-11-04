@@ -14,6 +14,12 @@ interface DefaultServiceSelection {
   stateful: StatefulService[];
   /** Running stop-gated services deliberately left untouched (operator must pass --stop). */
   leftRunning: StopGatedService[];
+  /**
+   * Running stop-gated services replaced only once traffic is on the new
+   * colour: the Caddy edge of Tale 0.5, which routes to the colours by their
+   * aliases, while the Traefik edge routes only the labelled new colour.
+   */
+  afterSwitch: StopGatedService[];
 }
 
 /**
@@ -30,6 +36,9 @@ interface DefaultServiceSelection {
  *  - stop-gated (`db`, `proxy`) → only when already stopped, on a first deploy,
  *    or when the operator opts into the downtime with `--stop`; otherwise left
  *    running and surfaced in `leftRunning` so the caller can warn.
+ *  - a running Caddy edge (`isCaddyEdge`) → always, but only after the
+ *    switch, surfaced in `afterSwitch`: the upgrade to the Traefik edge needs
+ *    no `--stop`, and the Caddy edge serves until the new colour does.
  *
  * Pure (the running-state probe is injected) so it's unit-testable without Docker.
  */
@@ -37,12 +46,19 @@ export function selectDefaultServices(opts: {
   isFirstDeploy: boolean;
   stop: boolean;
   isStopGatedRunning: (service: StopGatedService) => boolean;
+  /** Is the running proxy the Caddy edge of Tale 0.5? */
+  isCaddyEdge?: boolean;
 }): DefaultServiceSelection {
   const stopGatedToUpdate: StopGatedService[] = [];
   const leftRunning: StopGatedService[] = [];
+  const afterSwitch: StopGatedService[] = [];
 
   for (const service of STOP_GATED_SERVICES) {
-    if (opts.isFirstDeploy || opts.stop || !opts.isStopGatedRunning(service)) {
+    if (opts.isFirstDeploy || !opts.isStopGatedRunning(service)) {
+      stopGatedToUpdate.push(service);
+    } else if (service === 'proxy' && opts.isCaddyEdge === true) {
+      afterSwitch.push(service);
+    } else if (opts.stop) {
       stopGatedToUpdate.push(service);
     } else {
       leftRunning.push(service);
@@ -53,6 +69,7 @@ export function selectDefaultServices(opts: {
     rotatable: [...ROTATABLE_SERVICES],
     stateful: [...ALWAYS_ROLL_SERVICES, ...stopGatedToUpdate],
     leftRunning,
+    afterSwitch,
   };
 }
 

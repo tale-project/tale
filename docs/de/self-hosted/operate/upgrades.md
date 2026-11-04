@@ -95,6 +95,26 @@ tale rollback
 
 `tale rollback` tauscht nur die Anwendungs-Images von `platform`, `backend-api` und `backend-worker` aus. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein gewöhnlicher Deploy (ohne `--services`) an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
 
+## Vom Caddy-Proxy zu Traefik
+
+Ab Tale 0.6 läuft der Proxy mit Traefik statt mit Caddy. Beim ersten Start übernimmt der Traefik-Proxy die Zertifikate, die der Caddy-Proxy in seinem Volume `caddy-data` abgelegt hat. Deine Installation liefert ihre Domains also ohne Handgriff weiter über HTTPS aus:
+
+- Mit `TLS_MODE=selfsigned` übernimmt der Proxy die lokale CA des Caddy-Proxys und stellt seine eigenen Zertifikate mit ihr aus. Geräte, die diesem Stammzertifikat schon vertrauen, vertrauen auch dem Proxy weiter. Für ein neues Gerät kopierst du das Stammzertifikat aus `/data/pki/root.crt` im Proxy-Container; es ist dasselbe Zertifikat.
+- Mit `TLS_MODE=letsencrypt` übernimmt der Proxy jedes Let's-Encrypt-Zertifikat, das seinen Host nennt, noch gültig ist und mit seinem Schlüssel vorliegt, und erneuert es vor dem Ablauf selbst. Beim ersten Start bestellt er deshalb nichts. Jeder andere Host, etwa einer mit abgelaufenem Zertifikat oder einem Zertifikat eines anderen Ausstellers, bekommt ein neues: eine Bestellung pro Host, weit innerhalb der Rate-Limits von Let's Encrypt. Sein eigenes ACME-Konto registriert der Proxy bei der ersten Bestellung.
+- Mit `TLS_MODE=external` beendet ein vorgeschalteter Proxy TLS, und es gibt nichts zu übernehmen.
+
+Die Zeilen im Log des Proxys, die mit `TLS:` beginnen, nennen, was er übernommen hat und warum er etwas ausgelassen hat. Kann er die Caddy-CA nicht verwenden, legt er eine neue an; dann müssen die Geräte dem neuen Stammzertifikat vertrauen.
+
+`tale deploy` ersetzt einen laufenden Caddy-Proxy ohne `--stop`: Der Caddy-Proxy bedient weiter, bis der Verkehr auf der neuen Anwendungsfarbe liegt, danach ersetzt ihn der Traefik-Proxy. Solange der neue Container startet, schlagen Anfragen fehl. Mit der `compose.yml` des Repositorys ersetzt `docker compose up -d` den Proxy zusammen mit den anderen Diensten. Eine eigene Compose-Datei braucht den neuen Dienst `proxy`, wie ihn [Compose selbst betreiben](/de/self-hosted/install/own-compose) beschreibt, mit `proxy-data` unter `/data` und `caddy-data` schreibgeschützt unter `/caddy-data`. Ohne diesen Mount findet der Proxy nichts zum Übernehmen und startet mit einer neuen CA und neuen Zertifikaten.
+
+Der Proxy bindet `caddy-data` schreibgeschützt ein und schreibt nie hinein, sodass ein 0.5-Release das Volume unverändert vorfindet. Die Rückkehr zu 0.5 überschreitet eine Minor-Grenze: Stelle den Snapshot von vor dem Upgrade wieder her und stelle das 0.5-Release bereit, wie [Rollback-Weg wählen](#rollback-weg-waehlen) beschreibt. Danach bedient wieder der Caddy-Proxy, mit seinen eigenen Zertifikaten.
+
+Lass `caddy-data` und `caddy-config` unverändert, bis du das Upgrade angenommen hast und nicht mehr zu 0.5 zurückkehren willst. Danach braucht der Proxy keins von beiden: Was er übernommen hat, hält er in `proxy-data`. `tale deploy` und die `compose.yml` des Repositorys deklarieren beide Volumes weiterhin und würden ein entferntes Volume neu anlegen. Leere sie deshalb, statt sie zu entfernen. `<id>` ist die `id` in `tale.json` oder der Name des Compose-Projekts:
+
+```bash
+docker run --rm -v <id>_caddy-data:/caddy-data -v <id>_caddy-config:/caddy-config alpine:3.22 find /caddy-data /caddy-config -mindepth 1 -delete
+```
+
 ## Upgrade von v0.5.77 oder älter
 
 Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.

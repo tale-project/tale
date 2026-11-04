@@ -665,6 +665,13 @@ jobs:
           SKIP_BUILD: 'true'
           PULL_POLICY: never
 
+      # An install of Tale 0.5 upgraded from its Caddy edge keeps its
+      # certificates and can roll back (services/proxy/render/caddy.js).
+      - name: Run proxy upgrade test
+        run: bun services/platform/tests/integration/container-proxy-upgrade-test.ts
+        env:
+          PULL_POLICY: never
+
       - name: Log disk after image checks
         if: always()
         run: &log-pulled-disk |
@@ -742,6 +749,9 @@ jobs:
         run: bun services/platform/tests/integration/container-smoke-test.ts
         env:
           SMOKE_TEST_TIMEOUT: 300
+
+      - name: Run proxy upgrade test (local build)
+        run: bun services/platform/tests/integration/container-proxy-upgrade-test.ts
 
       - name: Dump container logs on failure
         if: failure()

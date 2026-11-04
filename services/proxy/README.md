@@ -71,6 +71,16 @@ in `acme.json`, and the self-signed root and leaf in `pki/`. The leaf names ever
 docs host, and is issued again within 30 days of its end. With `letsencrypt`, the proxy asks for a
 host's certificate again once the host's DNS points at this server.
 
+An install upgraded from the Caddy edge of Tale 0.5 also mounts that edge's `caddy-data` volume,
+read-only, at `/caddy-data`, and the proxy takes over what Caddy kept there before it first writes
+its own: the self-signed mode adopts Caddy's local CA as its root while `pki/` has none, so devices
+that trust that CA keep trusting the edge, and `letsencrypt` writes each site host's Let's Encrypt
+certificate into `acme.json` while that file does not exist yet, so Traefik renews it instead of
+ordering it again. The proxy never writes to `/caddy-data`, so the previous release still finds
+the volume as it left it; the
+[upgrade guide](../../docs/en/self-hosted/operate/upgrades.md#from-the-caddy-proxy-to-traefik) says
+when to remove it.
+
 Behind an external TLS terminator, the edge serves plain HTTP on the published port 80 and learns
 the browser's scheme and address only from the terminator's `X-Forwarded-Proto` and
 `X-Forwarded-For`, which it accepts from trusted peers alone. Send both and keep the original

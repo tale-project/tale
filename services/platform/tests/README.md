@@ -33,6 +33,7 @@ contracts. They require Docker and the dependencies described in each script's h
 | `bun run docker:test:ui-docs` | `integration/container-ui-docs-test.ts` |
 | `bun run docker:test:session-manager` | `integration/container-session-manager-test.ts` |
 | `bun run docker:test:sandbox-runtime` | `integration/container-sandbox-runtime-test.ts` |
+| `bun run docker:test:proxy-upgrade` | `integration/container-proxy-upgrade-test.ts` |
 | `bun run docker:test:vulnerability` | `integration/container-vulnerability-scan.ts` |
 | `bun run docker:e2e` | `integration/master-e2e-test.ts` |
 

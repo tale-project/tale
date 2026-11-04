@@ -6,9 +6,12 @@
 // It writes Traefik's static configuration, the edge's dynamic files and
 // the responder's nginx configuration under TALE_PROXY_RUN_DIR, and `ready`
 // last. A refusal prints its lines to stderr and writes no `ready`, which
-// tale-proxy turns into exit 1: njs has no process.exit.
+// tale-proxy turns into exit 1: njs has no process.exit. On an install
+// upgraded from the Caddy edge it first takes over that edge's certificates
+// (caddy.js).
 import fs from 'fs';
 
+import { caddyAcme, caddyRoot } from './caddy.js';
 import {
   ConfigError,
   describe,
@@ -19,6 +22,7 @@ import {
   renderResponder,
   renderStatic,
   renderTls,
+  RESOLVER,
 } from './config.js';
 import { ensureCertificates } from './pki.js';
 
@@ -28,6 +32,8 @@ const paths = {
   run,
   dynamic: `${run}/dynamic`,
   data: env.TALE_PROXY_DATA_DIR || '/data',
+  // The Caddy edge's data volume, mounted read-only (compose.yml).
+  caddy: '/caddy-data',
   share: env.TALE_PROXY_SHARE_DIR || '/usr/share/tale-proxy',
 };
 
@@ -39,6 +45,16 @@ function read(path) {
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;
+  }
+}
+
+/** Reads a file of the Caddy volume; one it cannot read counts as absent. */
+function readCaddy(path) {
+  try {
+    return read(path);
+  } catch (error) {
+    stderr(`TLS: ${path} cannot be read (${error.message}), left out.`);
+    return null;
   }
 }
 
@@ -77,11 +93,30 @@ async function main() {
       now: Date.now(),
       io: { read, write },
       crypto,
+      adopt: caddyRoot({ dir: paths.caddy, io: { read: readCaddy } }),
     });
     for (const action of leaf.actions) console.log(`TLS: ${action}`);
     console.log(
       `TLS: the leaf is valid until ${new Date(leaf.notAfter).toISOString()}`,
     );
+  }
+
+  // acme.json is absent until Traefik first starts on this volume and
+  // writes it: what the Caddy edge kept is taken over once, before that.
+  const acme = `${paths.data}/acme.json`;
+  if (settings.mode === 'letsencrypt' && read(acme) === null) {
+    const carried = await caddyAcme({
+      dir: paths.caddy,
+      hosts: settings.hostnames,
+      resolver: RESOLVER,
+      now: Date.now(),
+      io: { read: readCaddy },
+      crypto,
+    });
+    for (const action of carried.actions) console.log(`TLS: ${action}`);
+    if (carried.storage) {
+      write(acme, `${JSON.stringify(carried.storage, null, 2)}\n`, 0o600);
+    }
   }
 
   write(`${paths.run}/traefik.yml`, yaml(renderStatic(settings, paths)));

@@ -104,6 +104,65 @@ describe('selectDefaultServices', () => {
   });
 });
 
+describe('a running Caddy edge', () => {
+  // The Caddy edge of Tale 0.5 routes to the colours by their aliases, so it
+  // serves the new colour too; the Traefik edge routes only labelled
+  // containers, which the old colour is not. It is replaced once traffic is
+  // on the new colour, and never left running: the upgrade needs no --stop.
+  test('is replaced after the switch, the other stop-gated left running', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: ALL_RUNNING,
+      isCaddyEdge: true,
+    });
+    expect(sel.afterSwitch).toEqual(['proxy']);
+    expect(sel.stateful).not.toContain('proxy');
+    expect(sel.leftRunning).toEqual(['db', 'object-store', 'docker-api']);
+  });
+
+  test('is replaced after the switch with --stop too', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: true,
+      isStopGatedRunning: ALL_RUNNING,
+      isCaddyEdge: true,
+    });
+    expect(sel.afterSwitch).toEqual(['proxy']);
+    expect(sel.leftRunning).toEqual([]);
+    expect(sel.stateful).toEqual([
+      'sandbox-llm-gateway',
+      'sandbox',
+      'sandbox-egress',
+      'db',
+      'object-store',
+      'docker-api',
+    ]);
+  });
+
+  test('a stopped one is replaced with the stateful tier, as any stopped proxy', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: (s) => s !== 'proxy',
+      isCaddyEdge: true,
+    });
+    expect(sel.afterSwitch).toEqual([]);
+    expect(sel.stateful).toContain('proxy');
+  });
+
+  test('a running Traefik edge is left running, as before', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: ALL_RUNNING,
+      isCaddyEdge: false,
+    });
+    expect(sel.afterSwitch).toEqual([]);
+    expect(sel.leftRunning).toContain('proxy');
+  });
+});
+
 describe('the application backend tier', () => {
   // It ships the SAME image as the web tier and shares its wire contracts,
   // so the two must never version-skew: they rotate in one colour, and the
@@ -137,6 +196,22 @@ describe('servicesKeepingHost', () => {
     expect(
       servicesKeepingHost(recreated({ isFirstDeploy: false, stop: false })),
     ).toEqual(['proxy']);
+  });
+
+  test('a deploy that replaces the Caddy edge reaches the proxy too', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: ALL_RUNNING,
+      isCaddyEdge: true,
+    });
+    expect(
+      servicesKeepingHost([
+        ...sel.rotatable,
+        ...sel.stateful,
+        ...sel.afterSwitch,
+      ]),
+    ).toEqual([]);
   });
 
   test('--stop and a first deploy reach every service that serves the host', () => {

@@ -47,6 +47,8 @@ export const SNAPSHOT_VOLUMES = [
   'knowledge-db-data',
   CONFIG_VOLUME,
   BLOB_VOLUME,
+  // The Caddy edge's certificates and state: a rollback to it needs them,
+  // and the edge takes them over on its first start.
   'caddy-data',
   'caddy-config',
   // The edge's ACME account and certificates, and the self-signed CA a

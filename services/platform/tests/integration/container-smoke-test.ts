@@ -16,7 +16,6 @@
 // =============================================================================
 import { createHash, createHmac } from 'node:crypto';
 import { copyFileSync, existsSync, rmSync } from 'node:fs';
-import { connect } from 'node:tls';
 
 import {
   Compose,
@@ -35,6 +34,7 @@ import {
 } from './lib/docker';
 import { capture, projectRoot } from './lib/exec';
 import { BOLD, CYAN, GREEN, header, NC, RED, Results, YELLOW } from './lib/log';
+import { rawTlsRequest } from './lib/tls';
 
 const PROJECT_ROOT = projectRoot();
 const TIMEOUT = Number(process.env.SMOKE_TEST_TIMEOUT ?? 300);
@@ -547,34 +547,19 @@ async function main(): Promise<number> {
 }
 
 /**
- * Sends bytes as written to the proxy's published HTTPS port, past any HTTP
- * client that would frame them itself, and returns what came back. The
- * proxy's own root (its self-signed mode) verifies the edge.
+ * Sends bytes as written to the proxy's published HTTPS port and returns
+ * what came back. The proxy's own root (its self-signed mode) verifies the
+ * edge.
  */
-function rawProxyRequest(request: string, ca: string): Promise<string> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    const socket = connect({
-      host: '127.0.0.1',
-      port: 10443,
-      servername: 'localhost',
-      ca,
-      ALPNProtocols: ['http/1.1'],
-    });
-    const done = () => {
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(Buffer.concat(chunks).toString('utf8'));
-    };
-    const timer = setTimeout(done, 10_000);
-    socket.on('secureConnect', () => socket.write(request));
-    socket.on('data', (chunk: Buffer) => chunks.push(chunk));
-    socket.on('end', done);
-    socket.on('error', (error: Error) => {
-      console.warn(`Raw proxy request failed: ${error.message}`);
-      done();
-    });
+async function rawProxyRequest(request: string, ca: string): Promise<string> {
+  const { response, error } = await rawTlsRequest({
+    port: 10443,
+    servername: 'localhost',
+    ca,
+    request,
   });
+  if (error) console.warn(`Raw proxy request failed: ${error}`);
+  return response;
 }
 
 async function egressLifecycleProbe(container: string): Promise<void> {

@@ -664,10 +664,13 @@ services:
 
     # Volume mounts
     # The ACME account and certificates, and the self-signed CA. The Caddy
-    # edge's volumes stay declared below, unmounted, until the upgrade moves
-    # them (tale-project/tale#5209).
+    # edge's data, read-only: on an install upgraded from it, the proxy takes
+    # over its certificates and local CA on its first start and leaves the
+    # volume as it was, so the previous release can still be rolled back to
+    # (services/proxy/render/caddy.js).
     volumes:
       - proxy-data:/data
+      - caddy-data:/caddy-data:ro
 
     # Environment file (optional — see env_file note below)
     # Override HOST/SITE_URL/TLS_MODE via .env; dev defaults live in compose.dev.yml.
@@ -1181,8 +1184,8 @@ volumes:
   proxy-data:
     driver: local
 
-  # The Caddy edge's data and configuration, no longer mounted: kept until the
-  # upgrade moves them (tale-project/tale#5209)
+  # The Caddy edge's data and configuration, kept for a rollback to it: the
+  # proxy reads caddy-data once, read-only, and mounts caddy-config no more
   caddy-data:
     driver: local
   caddy-config:

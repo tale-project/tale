@@ -271,6 +271,9 @@ export function describe(s) {
   return lines;
 }
 
+/** Traefik's ACME resolver of TLS_MODE=letsencrypt, which names its storage. */
+export const RESOLVER = 'letsencrypt';
+
 /** The entrypoint public requests arrive on. */
 const publicEntryPoint = (s) => (s.mode === 'external' ? 'web' : 'websecure');
 
@@ -324,7 +327,7 @@ export function renderStatic(s, paths) {
     const tls =
       s.mode === 'letsencrypt'
         ? {
-            certResolver: 'letsencrypt',
+            certResolver: RESOLVER,
             domains: s.hostnames.map((main) => ({ main })),
           }
         : {};
@@ -377,7 +380,7 @@ export function renderStatic(s, paths) {
   };
   if (s.mode === 'letsencrypt') {
     config.certificatesResolvers = {
-      letsencrypt: {
+      [RESOLVER]: {
         acme: {
           email: s.email,
           storage: `${paths.data}/acme.json`,
@@ -675,7 +678,7 @@ export function renderTls(s, leaf) {
         stores: {
           default: {
             defaultGeneratedCert: {
-              resolver: 'letsencrypt',
+              resolver: RESOLVER,
               domain: { main: s.hostnames[0] },
             },
           },

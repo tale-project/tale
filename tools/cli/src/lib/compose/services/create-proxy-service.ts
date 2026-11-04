@@ -28,9 +28,11 @@ export function createProxyService(
     container_name: `${getProjectId()}-proxy`,
     ports: ['80:80', '443:443'],
     // The ACME account and certificates, and the self-signed CA. The Caddy
-    // volumes stay declared beside it, untouched, until the upgrade moves
-    // them (tale-project/tale#5209).
-    volumes: ['proxy-data:/data'],
+    // edge's data, read-only: on an install upgraded from it, the proxy takes
+    // over its certificates and local CA on its first start and leaves the
+    // volume as it was, so the previous release can still be rolled back to
+    // (services/proxy/render/caddy.js).
+    volumes: ['proxy-data:/data', 'caddy-data:/caddy-data:ro'],
     env_file: ['.env'],
     environment: { TALE_PROXY_PROJECTS: projects.join(' ') },
     restart: 'unless-stopped',
