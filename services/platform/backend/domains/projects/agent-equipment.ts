@@ -98,11 +98,16 @@ export async function agentModelRefusal(
       : credential.constraints.harness === args.harness;
   });
   if (harnessFits.length > 0) {
-    const row = harnesses.find((entry) => entry.harness === args.harness);
+    const harnessRow = harnesses.find(
+      (entry) => entry.harness === args.harness,
+    );
     const fit: HarnessModelFit =
-      row === undefined
+      harnessRow === undefined
         ? harnessModelFit(undefined)
-        : { wire: row.toolCallingWire, anthropicModels: row.anthropicModels };
+        : {
+            wire: harnessRow.toolCallingWire,
+            anthropicModels: harnessRow.anthropicModels,
+          };
     if (harnessFits.some((option) => harnessRunsModel(option, fit))) {
       return null;
     }

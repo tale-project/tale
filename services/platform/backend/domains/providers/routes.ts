@@ -337,15 +337,18 @@ export function createProviderSettingRoutes(deps: {
         // A model whose tools need the Responses API counts only for a
         // harness that speaks it, and a model served through Anthropic's
         // API only for a harness that runs one.
-        return {
-          id: candidate.id,
-          ...(candidate.toolCallingApi === 'responses'
-            ? { toolCallingApi: 'responses' as const }
-            : {}),
-          ...(candidate.anthropicApi === true
-            ? { anthropicApi: true as const }
-            : {}),
-        };
+        const direct: {
+          id: string;
+          toolCallingApi?: 'responses';
+          anthropicApi?: true;
+        } = { id: candidate.id };
+        if (candidate.toolCallingApi === 'responses') {
+          direct.toolCallingApi = 'responses';
+        }
+        if (candidate.anthropicApi === true) {
+          direct.anthropicApi = true;
+        }
+        return direct;
       })
       .filter(
         (
