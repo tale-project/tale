@@ -81,6 +81,70 @@ describe('claude-stream-json parser', () => {
       expect(event).not.toHaveProperty('providerErrorKind');
   });
 
+  /**
+   * The result the pinned CLI (2.1.285) printed when a stand-in gateway
+   * refused the turn with `status`: sub2api answers 503 "No available
+   * accounts" when every account behind it is at its limit, Anthropic 529
+   * "Overloaded".
+   */
+  const refusal = (status: number, words: string) => ({
+    type: 'result',
+    subtype: 'success',
+    is_error: true,
+    api_error_status: status,
+    terminal_reason: 'api_error',
+    result: `API Error: ${status} ${words}. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (gateway.example.com).`,
+  });
+
+  it.each([
+    ['claude-code', 503, 'No available accounts'],
+    ['claude-code', 529, 'Overloaded'],
+    ['claude-code-compact', 503, 'No available accounts'],
+    ['claude-code-compact', 529, 'Overloaded'],
+  ] as const)(
+    '%s types the provider’s terminal %i as a model at capacity [TASK-R40]',
+    (harness, status, words) => {
+      const events = collectEvents(
+        createParser(harness),
+        JSON.stringify(refusal(status, words)),
+      );
+      expect(events).toEqual([
+        {
+          type: 'turn-ended',
+          status: 'completed',
+          finalText: refusal(status, words).result,
+          isError: true,
+          apiErrorStatus: status,
+          providerErrorKind: 'model_capacity',
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    // An account's own rate limit: the broker cools that account down.
+    ['claude-code', refusal(429, 'Rate limited')],
+    ['claude-code', refusal(500, 'Internal server error')],
+    ['claude-code', refusal(502, 'Bad Gateway')],
+    [
+      'claude-code',
+      { ...refusal(503, 'No available accounts'), is_error: false },
+    ],
+    ['claude-code', { ...refusal(529, 'Overloaded'), api_error_status: null }],
+    // Qwen reports its provider errors in its own words (below).
+    ['qwen-code', refusal(503, 'No available accounts')],
+  ] as const)(
+    '%s calls no model at capacity for another result envelope [TASK-R40]: %j',
+    (harness, result) => {
+      const events = collectEvents(
+        createParser(harness),
+        JSON.stringify(result),
+      );
+      for (const event of events)
+        expect(event).not.toHaveProperty('providerErrorKind');
+    },
+  );
+
   it('normalizes the issue-to-pr stream (usage deduped by message id)', () => {
     const events = collectEvents(
       createParser('claude-code'),

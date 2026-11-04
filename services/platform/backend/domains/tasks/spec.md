@@ -471,6 +471,11 @@ waited too long.
   reads "Waiting for model capacity" and takes no worker. At 10:01 the retry of "Changelog"
   starts first; at 10:03 it is still working → "Press kit" starts. Had 256 runs been waiting,
   the last of them would have started at 10:07:45.
+- **Example**: Scribe works on Claude Code through a gateway, and every account behind it is at
+  its limit. The gateway answers the run on "Changelog" with 503 → the run fails as at capacity
+  and its retry waits as above; so does a run Anthropic answers with 529 because it is
+  overloaded. A run the gateway answers with 500 fails like any other failed run, and its
+  retry uses an attempt.
 
 ### TASK-R86 · A worker deletes a task's directory once the task is closed or a week old
 

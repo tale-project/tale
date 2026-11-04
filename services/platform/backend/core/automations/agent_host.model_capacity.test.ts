@@ -10,6 +10,9 @@
  * invented 429, never from text the agent or a tool printed — keeps its
  * conversation, and cools no account down. The re-kick's start waits out
  * the delay with the claim of the walker that kicked it.
+ *
+ * Claude Code says so with its result's provider status (pinned CLI
+ * 2.1.285): a gateway with no account free answers 503, Anthropic 529.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -93,7 +96,7 @@ interface Call {
 }
 
 /** The run parked on this turn, served by the broker's `healthy-account`. */
-function makeCtx(parked: { resumedFrom?: string } = {}) {
+function makeCtx(parked: { resumedFrom?: string } = {}, keys = KEYS) {
   const mutations: Call[] = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
@@ -102,14 +105,14 @@ function makeCtx(parked: { resumedFrom?: string } = {}) {
         return {
           status: 'waiting',
           cursor: {
-            node: KEYS.nodeId,
+            node: keys.nodeId,
             agent: {
-              execId: KEYS.execId,
-              sessionId: KEYS.sessionId,
-              deadlineAt: KEYS.deadlineAt,
-              providerSlug: KEYS.providerSlug,
-              gatewayModel: KEYS.gatewayModel,
-              harness: KEYS.harness,
+              execId: keys.execId,
+              sessionId: keys.sessionId,
+              deadlineAt: keys.deadlineAt,
+              providerSlug: keys.providerSlug,
+              gatewayModel: keys.gatewayModel,
+              harness: keys.harness,
               brokerTokenHash: 'healthy-account',
               ...parked,
               input: {},
@@ -119,7 +122,7 @@ function makeCtx(parked: { resumedFrom?: string } = {}) {
       }
       if (name === 'automations/human_asks:getPendingAskForExec') return null;
       if (name === 'sandbox/session_queries:getExternalTurnOpForFinalize') {
-        return { execId: KEYS.execId };
+        return { execId: keys.execId };
       }
       throw new Error(`unexpected query ${name}`);
     },
@@ -314,6 +317,102 @@ describe('an automation agent turn Codex ends because the model is at capacity',
     >;
     expect(result).toMatchObject({ errored: false, text: 'Triaged.' });
     expect(result).not.toHaveProperty('failureCode');
+  });
+});
+
+describe('an automation agent turn Claude Code ends on its provider’s refusal', () => {
+  const CLAUDE_KEYS = {
+    ...KEYS,
+    harness: 'claude-code',
+    providerSlug: 'anthropic',
+    gatewayModel: 'claude-opus-5-5',
+  };
+
+  /**
+   * The CLI's first and last retry of the request, the refusal and the
+   * result that ends the turn on it, as printed.
+   */
+  function refused(status: number, words: string) {
+    const text = `API Error: ${status} ${words}. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (gateway.example.com).`;
+    const retried = (attempt: number, delayMs: number) => ({
+      type: 'system',
+      subtype: 'api_retry',
+      attempt,
+      max_retries: 10,
+      retry_delay_ms: delayMs,
+      error_status: status,
+      error: status === 529 ? 'overloaded' : 'server_error',
+      session_id: 'conv-refused',
+    });
+    io.stdout = jsonl([
+      { type: 'system', subtype: 'init', session_id: 'conv-refused' },
+      retried(1, 566),
+      retried(10, 38_839),
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg_1',
+          model: '<synthetic>',
+          content: [{ type: 'text', text }],
+        },
+        error: 'server_error',
+        is_api_error_message: true,
+        session_id: 'conv-refused',
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: true,
+        api_error_status: status,
+        terminal_reason: 'api_error',
+        result: text,
+        session_id: 'conv-refused',
+      },
+    ]);
+    return text;
+  }
+
+  it.each([
+    [503, 'No available accounts'],
+    [529, 'Overloaded'],
+  ] as const)(
+    'settles a %i as model_capacity with its status, conversation and words, and cools no account down',
+    async (status, words) => {
+      const text = refused(status, words);
+      const { ctx, mutations } = makeCtx({}, CLAUDE_KEYS);
+
+      await driveWorkflowAgentTurnImpl(ctx, CLAUDE_KEYS);
+
+      const settled = settledOf(mutations);
+      expect(settled).toHaveLength(1);
+      expect(settled[0]?.args).toMatchObject({
+        execId: KEYS.execId,
+        result: {
+          errored: true,
+          failureCode: 'model_capacity',
+          apiErrorStatus: status,
+          text,
+          agentSessionId: 'conv-refused',
+        },
+      });
+      expect(cooledDown(mutations)).toBe(false);
+    },
+  );
+
+  it('settles any other status as a harness error, a 500 among them', async () => {
+    refused(500, 'Internal server error');
+    const { ctx, mutations } = makeCtx({}, CLAUDE_KEYS);
+
+    await driveWorkflowAgentTurnImpl(ctx, CLAUDE_KEYS);
+
+    expect(settledOf(mutations)[0]?.args).toMatchObject({
+      result: {
+        errored: true,
+        failureCode: 'harness_error',
+        apiErrorStatus: 500,
+      },
+    });
+    expect(cooledDown(mutations)).toBe(false);
   });
 });
 
