@@ -11,9 +11,9 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const RUNTIME = resolve(import.meta.dir, '../..');
-const config = JSON.parse(
+const config: unknown = JSON.parse(
   readFileSync(join(RUNTIME, 'mmdc-puppeteer.json'), 'utf8'),
-) as Record<string, unknown>;
+);
 const wrapper = readFileSync(join(RUNTIME, 'mmdc'), 'utf8');
 const dockerfile = readFileSync(join(RUNTIME, 'Dockerfile'), 'utf8');
 
@@ -38,14 +38,13 @@ describe("the puppeteer launch options of the image's mmdc", () => {
   });
 
   test('open no debugging port, keep web security and name no browser of their own', () => {
-    const args = config['args'] as string[];
-    expect(
-      args.filter((arg) =>
-        /^--(remote-debugging-(address|port)|disable-web-security)(=|$)/.test(
-          arg,
+    expect(config).toMatchObject({
+      args: expect.not.arrayContaining([
+        expect.stringMatching(
+          /^--(remote-debugging-(address|port)|disable-web-security)(=|$)/,
         ),
-      ),
-    ).toEqual([]);
+      ]),
+    });
     // The browser comes from PUPPETEER_EXECUTABLE_PATH alone, so mmdc and a
     // script's own require('puppeteer') launch the same baked shell.
     expect(config).not.toHaveProperty('executablePath');
