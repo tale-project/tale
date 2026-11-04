@@ -199,7 +199,8 @@ added to either lock follow the repository's Renovate release-age policy:
 be younger.
 
 The Node libraries the skills `require()` — docx, pptxgenjs, and react,
-react-dom, react-icons and sharp for the icon recipe in `pptxgenjs.md` — are
+react-dom, react-icons and sharp for the icon recipe in `pptxgenjs.md` — and
+Mermaid's CLI (`@mermaid-js/mermaid-cli`) with the puppeteer it drives are
 locked with integrity hashes in [`document-node/`](document-node/) and installed
 with `npm ci --ignore-scripts` into `/opt/tale/document-node`. The image's
 `NODE_PATH` names that directory, and a session puts its own npm prefix
@@ -212,12 +213,38 @@ that directory; to take a younger security release, set it and run the same
 command without `--before`, which keeps the other locked versions. Check the
 result with `npm audit --package-lock-only`. The repository's Trivy gate
 scans this lock, and a change to it alone triggers the security workflow.
-The `overrides` entry lifts image-size, which pptxgenjs declares but never
-loads, to a release without its denial-of-service advisories. The skills' own
+The `overrides` entries lift transitive packages past their advisories, each
+to an exact version: image-size, which pptxgenjs declares but never loads, to a
+release without its denial-of-service advisories, and, for Mermaid's CLI, to
+the first release that fixes them, mermaid 11.16.1 (GHSA-rhh3-jpg6-66xh,
+GHSA-3rrr-jr9j-h3q3, GHSA-c4c3-pg64-4m4v, GHSA-6x64-9x62-f2gx,
+GHSA-2v8p-3f2j-5mp7), the dompurify 3.4.17 mermaid sanitizes with
+(GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f) and the zod
+4.6.6 puppeteer's chromium-bidi validates with (GHSA-mrhx-c7xc-m3w5).
+`npm audit` still reports one low advisory, KaTeX's GHSA-238p-pmpm-9mq7: its
+fix, 0.18.2, lies outside the `^0.16` range mermaid declares. The skills' own
 `npm install -g` and `pip install` lines stay as they are: with registry access
 they refresh the session copy, without it they fail while the baked library
 keeps working. OCR is not baked: the pdf skill's pytesseract route needs a
 tesseract binary the image does not carry.
+
+Puppeteer launches the image's one browser, the Playwright headless shell, and
+never downloads one of its own: `PUPPETEER_SKIP_DOWNLOAD` is set at the install
+and in the runtime, and `PUPPETEER_EXECUTABLE_PATH` names
+`/opt/tale/puppeteer/headless-shell`, a link the `playwright-build` stage makes
+to the executable `/opt/tale/playwright-mcp/browser.json` records, so it
+follows the MCP's revision. `mmdc` on `PATH` is a wrapper ([`mmdc`](mmdc)) that
+hands the baked CLI the launch options in
+[`mmdc-puppeteer.json`](mmdc-puppeteer.json): the headless shell over a pipe,
+so no debugging port opens, with `--no-sandbox` (Chromium's own sandbox needs
+user namespaces a session does not have; the session container is the
+boundary) and `--disable-dev-shm-usage` (a default session's `/dev/shm` is
+64 MB). A caller's own `-p` replaces them. A script's own
+`require('puppeteer').launch()` passes the same two arguments, as the chat's
+`run_code` tool tells the model. `daemon/src/mmdc-puppeteer.test.ts` holds
+these settings, and `container-sandbox-runtime-test.ts` renders a flowchart
+with `mmdc` to PNG and SVG, and HTML with puppeteer to PNG and PDF, as uid
+65534 with no network on a read-only root.
 
 Both default and agent sessions can import these libraries without installing
 packages during a run. Existing per-session dependencies remain on the Python
@@ -393,7 +420,8 @@ at run time.
 The image remains shared by concurrent sessions.
 
 Headless Chromium is the only baked browser. Playwright scripts use their usual
-`chromium.launch({ headless: true })`; the MCP launcher selects that same pinned
+`chromium.launch({ headless: true })`, puppeteer and `mmdc` reach the same shell
+through `PUPPETEER_EXECUTABLE_PATH`, and the MCP launcher selects that same pinned
 executable and answers `browser_install` without downloading another browser
 when the baked browser is present. Explicit browser, executable and configuration
 overrides keep the real server's installation behavior. Office, PDF, CJK fonts,

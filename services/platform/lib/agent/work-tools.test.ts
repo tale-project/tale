@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { isRecord } from '../utils/type-utils';
@@ -165,6 +169,28 @@ describe('work tools', () => {
       workWireTool('load_skill', { createFile: true, runCode: false })
         .description,
     ).toMatch(/scripts cannot run here/);
+  });
+
+  it('names the Mermaid CLI and the headless Chromium run_code has, with their launch', () => {
+    // Without them a model asked for a diagram as a PNG tried to download a
+    // browser, which a sandbox's read-only root and egress filter refuse.
+    const description = workWireTool('run_code').description;
+    expect(description).toMatch(/mmdc, the Mermaid CLI, for diagrams as PNG/);
+    expect(description).toMatch(/headless Chromium is installed/);
+    expect(description).toMatch(/puppeteer launches it with no browser/);
+    // The args the image's own mmdc launches that Chromium with.
+    const mmdc = JSON.parse(
+      readFileSync(
+        path.resolve(
+          path.dirname(fileURLToPath(import.meta.url)),
+          '../../../sandbox-runtime/mmdc-puppeteer.json',
+        ),
+        'utf8',
+      ),
+    ) as { args: string[] };
+    expect(description).toContain(
+      `pass args [${mmdc.args.map((arg) => `'${arg}'`).join(', ')}]`,
+    );
   });
 
   it('fills every slot of a description', () => {

@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 140 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 141 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -12,7 +12,7 @@ agent picker** anymore: the composer picks a **model**, a reasoning effort and
 the skills a reply reads (CHAT-F73–CHAT-F75, CHAT-F83, CHAT-F84); agents and
 connectors are equipped per **project** (see [projects.md](projects.md)); chat
 reads skills from the person's own skill library and makes files with its own
-tools (CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77). The Home panel itself — its
+tools (CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77, CHAT-F86). The Home panel itself — its
 views, bands and row anatomy — is [navigation.md](navigation.md)'s; there is
 no chat list of its own any more.
 
@@ -878,6 +878,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   no such line shows under that reply. Send "Write planets.csv with the eight
   planets in order from the sun" → a **planets.csv** card arrives under the
   reply and no such line shows.
+- [ ] `CHAT-F86` · **A Mermaid diagram as a PNG** — Mode B with the sandbox
+  service: in a new chat send "Render this Mermaid diagram as a PNG:" and on
+  the next lines `flowchart LR`, `A[Start] --> B{Ready?}`,
+  `B -->|yes| C[Ship]` and `B -->|no| A` → The timeline shows one **Running …
+  in a light sandbox** step (`chat.thinking.runningCode`) and no step that
+  installs a package or downloads a browser; a `.png` card arrives under the
+  reply, and its preview draws Start, Ready? and Ship joined by arrows. Ask
+  "Now the same diagram as an SVG" → an **SVG** card whose preview draws the
+  same diagram.
 
 ## Boundary & error tests
 

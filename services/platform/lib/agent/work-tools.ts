@@ -381,12 +381,17 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
   run_code:
     'Run Python, Node.js or Bash in a light sandbox — an isolated Linux ' +
     'machine that starts in about a second — to make files and compute ' +
-    'results: Word, Excel, PowerPoint and PDF documents, charts, data ' +
-    'analysis, conversions, and edits of files the user uploaded. ' +
+    'results: Word, Excel, PowerPoint and PDF documents, charts, diagrams, ' +
+    'data analysis, conversions, and edits of files the user uploaded. ' +
     'Preinstalled: Python 3.12 with pandas, numpy, openpyxl, xlsxwriter, ' +
     'python-pptx, python-docx, reportlab, pypdf, pdfplumber, Pillow and ' +
-    'matplotlib; Node.js 24 with docx and pptxgenjs; LibreOffice ' +
-    '(soffice), pandoc with XeLaTeX, and poppler (pdftoppm, pdftotext). ' +
+    'matplotlib; Node.js 24 with docx, pptxgenjs and puppeteer; LibreOffice ' +
+    '(soffice), pandoc with XeLaTeX, poppler (pdftoppm, pdftotext), and ' +
+    'mmdc, the Mermaid CLI, for diagrams as PNG, SVG or PDF ' +
+    '(mmdc -i diagram.mmd -o /agent/output/diagram.png). A headless ' +
+    'Chromium is installed too: puppeteer launches it with no browser to ' +
+    "download — pass args ['--no-sandbox', '--disable-dev-shm-usage'] — to " +
+    'render HTML to PNG or PDF. ' +
     'Installing other packages works but is slow — prefer what is there. ' +
     'Write each file the user should receive to /agent/output/: when the ' +
     'call ends, every file there that is new or changed is attached to the ' +
@@ -418,7 +423,7 @@ const DOCS: Record<WorkToolName, string> = {
   load_skill: "read a skill's instructions and file list",
   read_skill_file: 'read a text file bundled with a skill',
   run_code:
-    'run Python, Node.js or Bash in a light sandbox to make documents, charts and other files',
+    'run Python, Node.js or Bash in a light sandbox to make documents, charts, diagrams and other files',
   use_workspace:
     'hand the task to the full workspace (shell, git, browser) when the work needs it',
 };
