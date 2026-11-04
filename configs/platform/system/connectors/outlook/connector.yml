@@ -149,14 +149,30 @@ actions:
           description: 'OData $orderby expression (default "receivedDateTime desc").'
         select:
           type: string
-          description: 'Comma-separated list of fields to return.'
+          description: 'Comma-separated list of fields to return. A field the output does not declare is left out.'
         expand:
           type: string
           description: 'OData $expand expression, e.g. "attachments($select=id,name,contentType,size)" to include attachment metadata.'
         format:
           type: string
           description: 'Set to "email" to map each message onto the standard email shape (messageId, from, to, cc, bcc, subject, date, text, html, flags, headers).'
-    output: '{ messages: Array<{ id: string, subject: string, from: object, receivedDateTime: string, isRead: boolean, hasAttachments: boolean }>, nextLink: string }'
+    output: >-
+      { messages: Array<{ id: string, internetMessageId?: string, conversationId?: string,
+      subject: string, from: { emailAddress: { name: string, address: string } }, sender?: { emailAddress: { name: string, address: string } },
+      toRecipients?: Array<{ emailAddress: { name: string, address: string } }>, ccRecipients?: Array<{ emailAddress: { name: string, address: string } }>,
+      bccRecipients?: Array<{ emailAddress: { name: string, address: string } }>, replyTo?: Array<{ emailAddress: { name: string, address: string } }>,
+      receivedDateTime: string, sentDateTime?: string, isRead: boolean, isDraft?: boolean,
+      hasAttachments: boolean, importance?: string, bodyPreview?: string,
+      body?: { contentType: string, content: string },
+      internetMessageHeaders?: Array<{ name: string, value: string }>,
+      attachments?: Array<{ "@odata.type"?: string, id: string, name: string, contentType: string,
+      size: number, contentId?: string }> }
+      | { messageId: string, from: Array<{ name: string, address: string }>, to: Array<{ name: string, address: string }>,
+      cc: Array<{ name: string, address: string }>, bcc: Array<{ name: string, address: string }>, subject: string, date: string,
+      text: string, html: string, flags: Array<string>, headers: Record<string, string>,
+      attachments: Array<{ id: string, filename: string, contentType: string, size: number,
+      contentId?: string }>, hasAttachments: boolean, conversationId: string,
+      direction: "inbound" | "outbound" }>, nextLink: string }
     mock: |
       if (input.format === 'email') {
         return {
@@ -286,7 +302,17 @@ actions:
           type: boolean
           description: 'When true, downloads and stores every file attachment. Each one is returned with a fileId and URL.'
       required: [messageId]
-    output: '{ message: { id: string, internetMessageId: string, subject: string, from: object, receivedDateTime: string, body: { contentType: string, content: string } }, attachments: Array<{ id: string, name: string, contentType: string, size: number, fileId: string, url?: string }> }'
+    output: >-
+      { message: { id: string, conversationId: string, internetMessageId: string,
+      internetMessageHeaders?: Array<{ name: string, value: string }>, subject: string,
+      bodyPreview: string, body: { contentType: string, content: string },
+      from: { emailAddress: { name: string, address: string } }, sender: { emailAddress: { name: string, address: string } },
+      toRecipients: Array<{ emailAddress: { name: string, address: string } }>, ccRecipients: Array<{ emailAddress: { name: string, address: string } }>,
+      bccRecipients: Array<{ emailAddress: { name: string, address: string } }>, replyTo: Array<{ emailAddress: { name: string, address: string } }>,
+      receivedDateTime: string, sentDateTime: string, hasAttachments: boolean, isRead: boolean,
+      isDraft: boolean, importance: string },
+      attachments: Array<{ id: string, name: string, contentType: string, size: number,
+      fileId: string, url?: string, contentId?: string }> }
     mock: |
       return {
         message: {
@@ -403,7 +429,11 @@ actions:
           type: number
           description: 'Number of results to return (max 100, default 25).'
       required: [query]
-    output: '{ messages: Array<{ id: string, subject: string, from: object, receivedDateTime: string, hasAttachments: boolean }>, nextLink: string }'
+    output: >-
+      { messages: Array<{ id: string, internetMessageId: string, subject: string,
+      from: { emailAddress: { name: string, address: string } }, toRecipients: Array<{ emailAddress: { name: string, address: string } }>,
+      receivedDateTime: string, isRead: boolean, hasAttachments: boolean, bodyPreview: string }>,
+      nextLink: string }
     mock: |
       return {
         messages: [{
@@ -555,7 +585,10 @@ actions:
         top:
           type: number
           description: 'Number of events to return (max 100, default 25).'
-    output: '{ events: Array<{ id: string, subject: string, start: { dateTime: string, timeZone: string }, end: { dateTime: string, timeZone: string }, location: object, isAllDay: boolean }>, nextLink: string }'
+    output: >-
+      { events: Array<{ id: string, subject: string, start: { dateTime: string, timeZone: string },
+      end: { dateTime: string, timeZone: string }, location: { displayName: string, locationType?: string, locationUri?: string, address?: { street?: string, city?: string, state?: string, countryOrRegion?: string, postalCode?: string } },
+      organizer: { emailAddress: { name: string, address: string } }, isAllDay: boolean, bodyPreview: string }>, nextLink: string }
     mock: |
       return {
         events: [{
@@ -609,7 +642,13 @@ actions:
           type: string
           description: 'The calendar event ID returned from list_events.'
       required: [eventId]
-    output: '{ event: { id: string, subject: string, start: { dateTime: string, timeZone: string }, end: { dateTime: string, timeZone: string }, location: object, attendees: Array<object>, isAllDay: boolean } }'
+    output: >-
+      { event: { id: string, subject: string, start: { dateTime: string, timeZone: string },
+      end: { dateTime: string, timeZone: string }, location: { displayName: string, locationType?: string, locationUri?: string, address?: { street?: string, city?: string, state?: string, countryOrRegion?: string, postalCode?: string } },
+      attendees: Array<{ type: string, status?: { response: string, time: string },
+      emailAddress: { name: string, address: string } }>,
+      organizer: { emailAddress: { name: string, address: string } }, isAllDay: boolean, bodyPreview: string,
+      body: { contentType: string, content: string }, webLink: string } }
     mock: |
       return {
         event: {
@@ -731,7 +770,7 @@ actions:
         search:
           type: string
           description: 'Match contacts whose display name, first name, or last name starts with this value.'
-    output: '{ contacts: Array<{ id: string, displayName: string, givenName: string, surname: string, emailAddresses: Array<{ name: string, address: string }>, companyName: string, jobTitle: string }>, nextLink: string }'
+    output: '{ contacts: Array<{ id: string, displayName: string, givenName: string, surname: string, emailAddresses: Array<{ name: string, address: string }>, businessPhones: Array<string>, mobilePhone: string | null, companyName: string, jobTitle: string }>, nextLink: string }'
     mock: |
       return {
         contacts: [{
@@ -783,7 +822,7 @@ actions:
           type: string
           description: 'The contact ID returned from list_contacts.'
       required: [contactId]
-    output: '{ contact: { id: string, displayName: string, givenName: string, surname: string, emailAddresses: Array<{ name: string, address: string }>, companyName: string, jobTitle: string } }'
+    output: '{ contact: { id: string, displayName: string, givenName: string, surname: string, emailAddresses: Array<{ name: string, address: string }>, businessPhones: Array<string>, mobilePhone: string | null, companyName: string, jobTitle: string } }'
     mock: |
       return {
         contact: {

@@ -59,7 +59,7 @@ Disabling a credential retains its configuration but stops use through it. Repla
 
 ## Understand reads and writes
 
-Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. GlitchTip and Jev decisions only read: the issue sync writes Tale tasks and never changes the upstream issue, pull request or security alert, and a Jev decision answers each question with its probabilities and writes nothing. Each decision is billed to the OpenRouter account whose key the credential holds. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
+Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. A call hands on only what the output declares: anything else the outside system answers stays with the connector. GlitchTip and Jev decisions only read: the issue sync writes Tale tasks and never changes the upstream issue, pull request or security alert, and a Jev decision answers each question with its probabilities and writes nothing. Each decision is billed to the OpenRouter account whose key the credential holds. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
 
 Equipped project agents receive supported read actions through Tale’s connector broker. It keeps those connector credentials outside the sandbox and returns results. The broker refuses connector writes. Direct GitHub tooling or explicit agent secrets use separate paths and must be reviewed separately.
 

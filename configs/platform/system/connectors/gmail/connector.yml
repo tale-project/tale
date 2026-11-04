@@ -144,7 +144,7 @@ actions:
           type: boolean
           description: 'When true, downloads and stores all file attachments. Each attachment is returned with a fileId and URL; one too large to carry (over 3.5 MB) is listed with truncated: true and no fileId.'
       required: [messageId]
-    output: '{ message: { id: string, threadId: string, labelIds: Array<string>, snippet: string }, attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId?: string, url?: string, truncated?: boolean }> }'
+    output: '{ message: { id: string, threadId: string, labelIds: Array<string>, snippet: string, historyId?: string, internalDate?: string, sizeEstimate?: number, payload?: { partId?: string, mimeType: string, filename?: string, headers?: Array<{ name: string, value: string }>, body?: { size: number, data?: string, attachmentId?: string }, parts?: Array<object> }, raw?: string }, attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId?: string, url?: string, truncated?: boolean }> }'
     mock: |
       return { message: { id: input.messageId, threadId: 'thread-' + input.messageId, labelIds: ['INBOX'], snippet: 'Mock message snippet.' }, attachments: [] };
     scenarios:
@@ -722,7 +722,7 @@ actions:
           type: string
           description: 'Response format: full (default), metadata, or minimal.'
       required: [threadId]
-    output: '{ thread: { id: string, messages: Array<{ id: string, threadId: string, snippet: string }> } }'
+    output: '{ thread: { id: string, historyId?: string, messages: Array<{ id: string, threadId: string, labelIds?: Array<string>, snippet: string, historyId?: string, internalDate?: string, sizeEstimate?: number, payload?: { partId?: string, mimeType: string, filename?: string, headers?: Array<{ name: string, value: string }>, body?: { size: number, data?: string, attachmentId?: string }, parts?: Array<object> } }> } }'
     mock: |
       return { thread: { id: input.threadId, messages: [{ id: 'msg-1', threadId: input.threadId, snippet: 'Mock message snippet.' }] } };
     scenarios:

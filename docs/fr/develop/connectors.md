@@ -53,7 +53,7 @@ Ajouter un connector demande une contribution au code source. L'exécution lit l
 | `name`, `description` | Nom stable en snake_case et explication de l'usage de l'action |
 | `title`, `i18n` | L’action en mots pour les personnes : un `title` anglais court, avec une seule majuscule initiale et sans le nom du connector (« List issues »), plus `i18n.de.title` et `i18n.fr.title` (et `de-CH` quand l’orthographe suisse diffère). Le canevas d’automatisation affiche un nœud sous la forme « GitHub · Lister les issues » dans la langue du lecteur ; une action fournie à laquelle il en manque un fait échouer les tests du catalogue |
 | `input` | Schéma JSON objet, validé avant exécution ; décrire les champs et signaler ceux requis |
-| `output` | Signature du résultat au style TypeScript ; documentation, pas validation des sorties à l'exécution |
+| `output` | Signature du résultat au style TypeScript, et tout ce qu’un appel transmet : un champ qu’elle ne déclare pas est laissé de côté à toute profondeur, déclare donc chaque champ qu’un appelant lit. `object`, `unknown` et `any` transmettent ce que le service y répond, et le test du catalogue `services/platform/lib/connectors/output-signatures.test.ts` nomme chacun de ces endroits avec sa raison. Les types des champs ne sont pas vérifiés à l’exécution |
 | `effects` | `read` ou `write` ; les écritures passent par la politique d'approbation |
 | `mock` | JavaScript déterministe obligatoire : même entrée, même sortie, sans accès réseau |
 | `scenarios` | Cas nommés facultatifs de ce que répond le service, parmi lesquels un test peut en choisir un pour une étape d’une exécution en simulation ; des données, jamais du code. Voir [Déclarer des scénarios pour les tests](#scenarios) |

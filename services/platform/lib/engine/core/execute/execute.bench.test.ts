@@ -126,7 +126,7 @@ beforeAll(() => {
       name: 'inbox.list',
       description: 'list conversations',
       inputSchema: { type: 'object' },
-      outputSignature: '{ conversations: Array<{ id: string }> }',
+      outputSignature: '{ conversations: Array<{ id: string, from: string }> }',
       hasEffect: false,
       mock: () => ({ conversations: [{ id: 'c1', from: 'ada@example.test' }] }),
     },
@@ -166,7 +166,7 @@ beforeAll(() => {
         required: ['sheet'],
         additionalProperties: false,
       },
-      outputSignature: '{ rows: Array<{ n: number }> }',
+      outputSignature: '{ rows: Array<{ n: number }>, answered?: string }',
       hasEffect: false,
       display: { connector: 'sheet' },
       mock: () => ({ rows: [], answered: 'mock' }),
@@ -512,16 +512,16 @@ describe('a test replaces only the calls it names; everything else runs as writt
         ],
         { output: '{{ nodes.poll.output }}' },
       );
-    const never = await run(d('{{ output.done }}'), {
-      mocks: { poll: { done: false } },
+    const never = await run(d('{{ output.ok }}'), {
+      mocks: { poll: { ok: false } },
     });
     expect(never.status).toBe('success');
     expect(never.effects).toHaveLength(3);
     expect(never.trace[0]?.note).toBe(
       'repeatUntil ran 3x (maxRepeats hit before the condition became true)',
     );
-    const once = await run(d('{{ output.done }}'), {
-      mocks: { poll: { done: true } },
+    const once = await run(d('{{ output.ok }}'), {
+      mocks: { poll: { ok: true } },
     });
     expect(once.effects).toHaveLength(1);
   });

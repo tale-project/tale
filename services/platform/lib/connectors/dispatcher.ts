@@ -6,8 +6,9 @@
  * notifications all arrive here, so the rules that make a connector call
  * safe are written once: the action's JSON Schema is enforced before anything
  * leaves the process, live traffic is mediated by the host (allowlist,
- * https-only, host-owned Authorization), and the caller mode decides what
- * approval and audit obligations apply. A caller that reaches a vendor API by
+ * https-only, host-owned Authorization), the output is cut down to the
+ * members its signature declares before anyone sees it, and the caller mode
+ * decides what approval and audit obligations apply. A caller that reaches a vendor API by
  * some other route is bypassing all of that, which is exactly what this module
  * exists to make unnecessary.
  *
@@ -45,6 +46,8 @@ import { stableStringify } from '../engine/api/tests';
 import { vendorStatusOf } from '../engine/core/record/failure';
 import { codeRunner, type CodeRunner } from '../engine/core/runner';
 import type { ConnectorContext } from '../engine/core/slots';
+import { projectOntoShape } from '../engine/core/typing/project';
+import { actionOutputShape } from '../engine/core/typing/signature';
 import { closestName } from '../engine/core/validate/similar';
 import { ConnectorError } from './errors';
 import { createLiveHost, type ConnectorBlobSink } from './live-host';
@@ -384,6 +387,8 @@ export type ConnectorDispatchResult =
       /** Which body actually ran — never inferred by the caller. */
       backend: 'mock' | 'yaml-js' | 'native';
       effects: ConnectorEffect;
+      /** What the body returned, with every member the action's output
+       * signature does not declare left out (`CONN-R36`). */
       output: unknown;
       credentialId?: string;
     }
@@ -692,7 +697,7 @@ export async function executeConnectorAction(
       mode,
       backend: 'mock',
       effects: action.effects,
-      output,
+      output: projectOntoShape(output, actionOutputShape(action)),
     };
   }
 
@@ -997,7 +1002,8 @@ export async function executeConnectorAction(
     mode,
     backend: backend.kind,
     effects: action.effects,
-    output,
+    // Whatever the service added to its answer, now or later, stays here.
+    output: projectOntoShape(output, actionOutputShape(action)),
     credentialId: credential.credentialId,
   };
 }
