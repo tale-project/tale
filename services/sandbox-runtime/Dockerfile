@@ -99,18 +99,22 @@ RUN python3 -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
       -r /opt/tale/document-python-requirements.txt
 
 # The Node libraries the builtin document skills `require()` (docx, pptxgenjs,
-# and the icon set pptxgenjs.md renders through react/react-dom/sharp), for the
-# same egress-restricted deployments. `npm ci` installs exactly the committed
-# lock and checks every tarball against its integrity hash, and
-# --ignore-scripts keeps every package's install script from running (none of
-# these needs one). NODE_PATH makes them resolvable from any working directory;
-# the session entrypoint puts the per-session npm prefix in front of it, so a
-# skill's own `npm install -g` still wins over the baked copy.
+# and the icon set pptxgenjs.md renders through react/react-dom/sharp), plus
+# Mermaid's CLI (mmdc) and the puppeteer it drives, for the same
+# egress-restricted deployments. `npm ci` installs exactly the committed lock
+# and checks every tarball against its integrity hash, and --ignore-scripts
+# keeps every package's install script from running (puppeteer's alone has
+# one, and it would download a browser: puppeteer launches the Playwright
+# headless shell below instead). NODE_PATH makes them resolvable from any
+# working directory; the session entrypoint puts the per-session npm prefix in
+# front of it, so a skill's own `npm install -g` still wins over the baked copy.
 FROM harness-base AS document-node-build
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY services/sandbox-runtime/document-node/package.json services/sandbox-runtime/document-node/package-lock.json /opt/tale/document-node/
 RUN npm ci --prefix /opt/tale/document-node --ignore-scripts --omit=dev --no-audit --no-fund \
     && npm cache clean --force \
-    && NODE_PATH=/opt/tale/document-node/node_modules node -e "for (const m of ['docx', 'pptxgenjs', 'react', 'react-dom/server', 'react-icons/fa', 'sharp']) require(m)"
+    && NODE_PATH=/opt/tale/document-node/node_modules node -e "for (const m of ['docx', 'pptxgenjs', 'puppeteer', 'react', 'react-dom/server', 'react-icons/fa', 'sharp']) require(m)" \
+    && /opt/tale/document-node/node_modules/.bin/mmdc --version
 
 # --- stable shared toolchain ------------------------------------------------
 # Harness pins are declared only in their independent install stages below.
@@ -355,6 +359,10 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
     && node -e "const fs=require('fs'); const manifest=require('/opt/tale/playwright-mcp/browser.json'); fs.accessSync(manifest.executablePath, fs.constants.X_OK)" \
     && chmod 1777 /opt/ms-playwright \
     && rm /tmp/install-playwright-browsers.sh
+# The same shell for puppeteer (mmdc, and a script's own require('puppeteer')):
+# a link at a fixed path to the manifest's executable, so it follows the MCP's
+# revision and architecture. The runtime names it in PUPPETEER_EXECUTABLE_PATH.
+RUN node -e "const fs=require('fs'); const manifest=require('/opt/tale/playwright-mcp/browser.json'); fs.mkdirSync('/opt/tale/puppeteer'); fs.symlinkSync(manifest.executablePath, '/opt/tale/puppeteer/headless-shell'); fs.accessSync('/opt/tale/puppeteer/headless-shell', fs.constants.X_OK)"
 
 # --- visual-aspect-analyzer builtin skill -----------------------------------
 # Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
@@ -609,6 +617,12 @@ ENV CLAUDE_CODE_WORKFLOWS=1
 ENV CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
 
 ENV NODE_PATH=/opt/tale/document-node/node_modules
+# Puppeteer (mmdc, and a script's own require('puppeteer')) launches the baked
+# Playwright headless shell through its link (playwright-build above) and never
+# downloads a browser of its own, which a session's read-only root and egress
+# filter would refuse anyway.
+ENV PUPPETEER_EXECUTABLE_PATH=/opt/tale/puppeteer/headless-shell
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 # The builtin document skills' libraries (see their build stages above).
 COPY --link --from=document-python-build /opt/tale-document-python/ /usr/local/
@@ -626,6 +640,7 @@ COPY --link --from=openclaw-build /opt/agents/ /opt/agents/
 COPY --link --from=qwen-build /opt/agents/ /opt/agents/
 COPY --link --from=playwright-build /opt/ms-playwright/ /opt/ms-playwright/
 COPY --link --from=playwright-build /opt/tale/playwright-mcp/browser.json /opt/tale/playwright-mcp/browser.json
+COPY --link --from=playwright-build /opt/tale/puppeteer/ /opt/tale/puppeteer/
 COPY --link --from=baked-skills-build /opt/agents/skills/ /opt/agents/skills/
 COPY --link --from=gh-build /usr/local/bin/gh /usr/local/bin/gh
 COPY --link --from=hermes-build /opt/tale-hermes/ /usr/local/
@@ -638,6 +653,11 @@ COPY --from=gemini-settings-build /gemini-settings/ /usr/local/share/tale/gemini
 COPY --chmod=755 services/sandbox-runtime/tale-pi-run /usr/local/bin/tale-pi-run
 COPY --chmod=755 services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
 COPY --chmod=755 services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run
+
+# Mermaid's CLI on PATH: the wrapper runs the baked mmdc with the puppeteer
+# launch options a session needs (mmdc-puppeteer.json, held by its test).
+COPY services/sandbox-runtime/mmdc-puppeteer.json /opt/tale/puppeteer/mmdc.json
+COPY --chmod=755 services/sandbox-runtime/mmdc /usr/local/bin/mmdc
 
 # runnerd — the session control daemon, bundled to a single file in the
 # daemon-build stage and run by the image's Node 24 (session mode only) — the
