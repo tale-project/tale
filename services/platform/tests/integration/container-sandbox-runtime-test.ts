@@ -347,6 +347,96 @@ const { chromium } = require('/opt/agents/lib/node_modules/@playwright/mcp/node_
 NODEEOF`,
   );
 }
+// Mermaid's CLI and a script's own puppeteer drive that same headless shell as
+// a default-profile session runs them (DEFAULT_SESSION_PROFILE in
+// services/sandbox/src/session/session-profile.ts): uid 65534 on a read-only
+// root, its memory, process, file and /dev/shm caps, /tmp a small tmpfs, and
+// here no network at all. Puppeteer has no browser of its own to download; it
+// launches the Playwright shell through PUPPETEER_EXECUTABLE_PATH, with the
+// args run_code's description gives a script.
+{
+  const script = String.raw`
+set -e
+cd /workspace
+cat > flow.mmd <<'EOF'
+flowchart LR
+  A[Start] --> B{Ready?}
+  B -->|yes| C[Ship]
+  B -->|no| A
+EOF
+mmdc -i flow.mmd -o flow.png
+mmdc -i flow.mmd -o flow.svg
+node <<'NODEEOF'
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const png = fs.readFileSync('flow.png');
+assert.equal(png.subarray(1, 4).toString(), 'PNG');
+assert.ok(png.readUInt32BE(16) > 0 && png.readUInt32BE(20) > 0, 'the PNG has no pixels');
+const svg = fs.readFileSync('flow.svg', 'utf8');
+assert.match(svg, /^<svg[\s>]/);
+for (const label of ['Start', 'Ready?', 'Ship']) assert.ok(svg.includes(label), label);
+assert.equal(process.env.PUPPETEER_SKIP_DOWNLOAD, 'true');
+assert.equal(
+  fs.realpathSync(process.env.PUPPETEER_EXECUTABLE_PATH),
+  fs.realpathSync(require('/opt/tale/playwright-mcp/browser.json').executablePath),
+);
+(async () => {
+  const browser = await require('puppeteer').launch({
+    args: ['--no-sandbox', '--disable-dev-shm-usage'],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<h1>Rendered by puppeteer</h1>');
+    const shot = Buffer.from(await page.screenshot({ type: 'png' }));
+    assert.equal(shot.subarray(1, 4).toString(), 'PNG');
+    const pdf = Buffer.from(await page.pdf());
+    assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  } finally {
+    await browser.close();
+  }
+  assert.equal(fs.existsSync(path.join(os.homedir(), '.cache', 'puppeteer')), false);
+  console.log('MERMAID_PUPPETEER_OK');
+})().catch((error) => { console.error(error); process.exitCode = 1; });
+NODEEOF
+`;
+  const result = await capture([
+    'docker',
+    'run',
+    '--rm',
+    '--network=none',
+    '--read-only',
+    '--cap-drop=ALL',
+    '--security-opt=no-new-privileges',
+    '--user=65534:65534',
+    '--memory=1500m',
+    '--memory-swap=1500m',
+    '--pids-limit=512',
+    '--ulimit=nofile=1024:4096',
+    '--ulimit=fsize=104857600',
+    '--shm-size=64m',
+    '--tmpfs=/tmp:exec,nosuid,nodev,size=128m',
+    '--tmpfs=/workspace:uid=65534,gid=65534',
+    '--env=HOME=/workspace',
+    '--entrypoint=sh',
+    IMAGE,
+    '-c',
+    script,
+  ]);
+  if (
+    result.exitCode === 0 &&
+    result.combined.includes('MERMAID_PUPPETEER_OK')
+  ) {
+    pass(
+      'mmdc renders Mermaid to PNG and SVG, and puppeteer HTML to PNG and PDF, as uid 65534 offline on a read-only root',
+    );
+  } else {
+    fail(
+      `mmdc and puppeteer render on the baked headless shell (got: ${result.combined.slice(-600)})`,
+    );
+  }
+}
 // Every bundled harness must start offline from an empty HOME as the agent,
 // report its exact source pin, and finish within a generous cold-start bound.
 // Print timings so upgrades expose startup regressions without a noisy

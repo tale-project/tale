@@ -387,13 +387,23 @@ export async function checkDocumentTools(
       ),
       'utf8',
     ),
-  ) as { dependencies: Record<string, string> };
+  ) as {
+    dependencies: Record<string, string>;
+    overrides?: Record<string, string>;
+  };
   const nodeVersions: Record<string, string> = {};
   for (const [name, version] of Object.entries(nodeManifest.dependencies)) {
     if (!/^\d+\.\d+\.\d+$/.test(version)) {
       throw new Error(`Unpinned document Node package: ${name}@${version}`);
     }
     nodeVersions[name] = version;
+  }
+  // An override decides a transitive package's version (an advisory's fixed
+  // release), so it is pinned exactly too.
+  for (const [name, version] of Object.entries(nodeManifest.overrides ?? {})) {
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+      throw new Error(`Unpinned document Node override: ${name}@${version}`);
+    }
   }
   return await capture(
     [
