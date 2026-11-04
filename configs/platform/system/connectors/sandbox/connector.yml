@@ -78,7 +78,11 @@ actions:
         timeoutMs:
           type: number
           description: Per-run ceiling in milliseconds; the host bounds it.
-    output: '{ ok: boolean, status: string, result?: unknown, resultError?: string, files: Array<{ name: string, storageId: string, size: number, contentType: string }>, exitCode?: number, stdoutPreview: string, stderrPreview: string, durationMs: number }'
+    output: >-
+      { ok: boolean, status: string, result?: unknown, resultError?: string,
+      files: Array<{ name: string, storageId: string, size: number, contentType: string }>,
+      harvestSkipped?: Array<{ path: string, reason: string, reasonByLocale?: Record<string, string> }>,
+      exitCode?: number, errorMessage?: string, stdoutPreview: string, stderrPreview: string, durationMs: number }
     mock: |
       const skill = String(input.skill ?? '');
       const entry = String(input.entry ?? '');
