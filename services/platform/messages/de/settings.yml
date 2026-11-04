@@ -1068,8 +1068,9 @@ providers:
     noCompatibleModel:
       Eine Agent-Laufzeit ohne Modell kann keines der direkt bereitgestellten
       Modelle ausführen — diese rufen Tools nur über die Responses-API auf,
-      die nur Codex spricht. Erlaube für diese Agent-Laufzeiten ein anderes Modell
-      oder führe den Agenten auf Codex aus.
+      die nur Codex spricht, oder laufen über die Anthropic-Messages-API, die
+      Qwen Code nicht nutzen kann. Erlaube für diese Agent-Laufzeiten ein
+      anderes Modell oder führe den Agenten auf einer anderen Agent-Laufzeit aus.
     noModel: Noch kein Modell
     degraded: Zuletzt fehlerhaft
     subscriptionVia: Abo · {provider}

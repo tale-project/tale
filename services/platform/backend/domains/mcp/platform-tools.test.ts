@@ -91,8 +91,14 @@ beforeEach(() => {
       harness: 'claude-code',
       label: 'Claude Code',
       toolCallingWire: 'anthropic',
+      anthropicModels: true,
     },
-    { harness: 'codex', label: 'Codex', toolCallingWire: 'openai-responses' },
+    {
+      harness: 'codex',
+      label: 'Codex',
+      toolCallingWire: 'openai-responses',
+      anthropicModels: true,
+    },
   ]);
   mocks.listGovernedChatModels.mockResolvedValue([
     {
@@ -180,6 +186,62 @@ describe('list_models', () => {
     expect(
       (claude.models as Array<{ id: string }>).map((model) => model.id),
     ).toEqual(['gpt-6-luna', 'claude-fable-5']);
+  });
+
+  it("does not offer a model served through Anthropic's API to Qwen Code [#5353]", async () => {
+    mocks.listManagedHarnesses.mockReturnValue([
+      {
+        harness: 'opencode',
+        label: 'OpenCode',
+        toolCallingWire: 'openai-chat',
+        anthropicModels: true,
+      },
+      {
+        harness: 'qwen-code',
+        label: 'Qwen Code',
+        toolCallingWire: 'openai-chat',
+        anthropicModels: false,
+      },
+    ]);
+    mocks.listGovernedChatModels.mockResolvedValue([
+      {
+        id: 'anthropic/claude-haiku-5-5',
+        label: 'Claude Haiku 5.5',
+        providerSlug: 'gateway',
+        providerLabel: 'Gateway',
+        anthropicApi: true,
+        credential: { authMethod: 'api-key' },
+        contextWindow: 200_000,
+        tools: true,
+        tags: [],
+      },
+      {
+        id: 'openai/gpt-6-luna',
+        label: 'GPT 6 Luna',
+        providerSlug: 'gateway',
+        providerLabel: 'Gateway',
+        credential: { authMethod: 'api-key' },
+        contextWindow: 200_000,
+        tools: true,
+        tags: [],
+      },
+    ]);
+
+    const answer = await call(ada, 'list_models');
+    expect(answer.models).toEqual([
+      expect.objectContaining({
+        id: 'anthropic/claude-haiku-5-5',
+        harnesses: ['opencode'],
+      }),
+      expect.objectContaining({
+        id: 'openai/gpt-6-luna',
+        harnesses: ['opencode', 'qwen-code'],
+      }),
+    ]);
+    const qwen = await call(ada, 'list_models', { harness: 'qwen-code' });
+    expect(
+      (qwen.models as Array<{ id: string }>).map((model) => model.id),
+    ).toEqual(['openai/gpt-6-luna']);
   });
 
   it('answers no model for a runtime this deployment does not run, and says where to look', async () => {

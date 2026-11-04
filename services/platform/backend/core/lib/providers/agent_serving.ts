@@ -42,6 +42,9 @@ import { answersChatTurns } from '../../../../lib/shared/providers/chat_turn_mod
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
   buildHarnessTable,
+  type HarnessModelFit,
+  harnessModelFit,
+  harnessRunsModel,
   harnessToolCallingWire,
   resolveExecution,
   supportsToolCallingWire,
@@ -49,6 +52,7 @@ import {
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
+import { servedByAnthropicApi } from './anthropic_api';
 import { credentialAuthFor } from './credential_auth';
 import { directActiveCredential } from './direct_credential';
 import { loadHarnesses } from './load_system_config';
@@ -259,6 +263,9 @@ export interface DirectServingWalk {
   /** Connectors whose catalog lists the model with tools on the Responses
    * API alone, which the turn's wire cannot carry. */
   wireRefused: string[];
+  /** Connectors that serve the model through Anthropic's API, which the
+   * turn's harness cannot run (its yml's `anthropicModels: false`). */
+  anthropicRefused: string[];
   rows: Map<string, unknown>;
 }
 
@@ -287,6 +294,19 @@ export function responsesToolsRefusal(model: string, harness?: string): string {
   return `model "${model}" takes tools only through the Responses API, which ${speaker} does not speak — ${way}`;
 }
 
+/** Why a turn on a harness that runs no model served through Anthropic's
+ * API (Qwen Code) refuses one: its tools that take no arguments reach that
+ * API without the input schema it requires, so the model's first call would
+ * fail with a 400 (#5353). */
+export function anthropicModelsRefusal(
+  model: string,
+  harness?: string,
+): string {
+  const runner =
+    harness === undefined ? "this agent's harness" : `the "${harness}" harness`;
+  return `model "${model}" is served through Anthropic's API, which ${runner} cannot run: its tools lose their input schema there — run the agent on another harness, or pick another model`;
+}
+
 /**
  * The direct-credential connector walk (the llm node's, the legacy task
  * walk's, and the agent walk's first pass — ONE implementation so they can
@@ -302,11 +322,13 @@ export async function walkDirectServing(
   organizationId: string,
   modelId: string,
   connectors: readonly ProviderDefinition[],
-  /** Absent for a plain no-tools LLM call; agent turns pass their harness wire. */
-  toolCallingWire?: HarnessGatewayWire,
+  /** Absent for a plain no-tools LLM call; agent turns pass what their
+   * harness runs. */
+  fit?: HarnessModelFit,
 ): Promise<DirectServingWalk> {
   const unreachable: string[] = [];
   const wireRefused: string[] = [];
+  const anthropicRefused: string[] = [];
   const rows = new Map<string, unknown>();
   for (const connector of connectors) {
     const row: unknown = await ctx.runQuery(
@@ -333,22 +355,32 @@ export async function walkDirectServing(
     const entry = findChatModel(catalog, modelId);
     if (entry === undefined) continue;
     if (
-      toolCallingWire !== undefined &&
-      !supportsToolCallingWire(entry, toolCallingWire)
+      fit !== undefined &&
+      !harnessRunsModel(
+        {
+          toolCallingApi: entry.toolCallingApi,
+          anthropicApi: servedByAnthropicApi(connector, entry.id),
+        },
+        fit,
+      )
     ) {
-      // Listed, but not on a wire this turn speaks: say so if nothing else
-      // serves it, rather than reporting the model as missing.
-      wireRefused.push(connector.name);
+      // Listed, but not runnable on this turn's harness: say why if nothing
+      // else serves it, rather than reporting the model as missing.
+      (supportsToolCallingWire(entry, fit.wire)
+        ? anthropicRefused
+        : wireRefused
+      ).push(connector.name);
       continue;
     }
     return {
       target: { providerSlug: connector.name, modelId: entry.id },
       unreachable,
       wireRefused,
+      anthropicRefused,
       rows,
     };
   }
-  return { target: null, unreachable, wireRefused, rows };
+  return { target: null, unreachable, wireRefused, anthropicRefused, rows };
 }
 
 /**
@@ -368,6 +400,14 @@ export async function walkDirectServing(
 export function harnessGatewayWire(harness: string): HarnessGatewayWire {
   const def = loadHarnesses().find((entry) => entry.slug === harness);
   return harnessToolCallingWire(def);
+}
+
+/** What a harness runs on the managed lane ({@link harnessModelFit}): its
+ * gateway wire, and whether it runs a model served through Anthropic's API. */
+export function harnessModelFitFor(harness: string): HarnessModelFit {
+  return harnessModelFit(
+    loadHarnesses().find((entry) => entry.slug === harness),
+  );
 }
 
 /** The gateway serving of a client speaking `wire` should ride the
@@ -445,7 +485,7 @@ export async function resolvePinnedAgentServing(
       args.organizationId,
       args.model,
       [connector],
-      harnessGatewayWire(args.harness),
+      harnessModelFitFor(args.harness),
     );
     if (walk.target !== null) {
       return {
@@ -458,6 +498,9 @@ export async function resolvePinnedAgentServing(
     }
     if (walk.wireRefused.length > 0) {
       throw new Error(responsesToolsRefusal(args.model, args.harness));
+    }
+    if (walk.anthropicRefused.length > 0) {
+      throw new Error(anthropicModelsRefusal(args.model, args.harness));
     }
     const detail =
       walk.unreachable.length > 0
@@ -561,7 +604,7 @@ export async function resolveWorkflowAgentServing(
     args.organizationId,
     args.model,
     connectors,
-    harnessGatewayWire(args.harness),
+    harnessModelFitFor(args.harness),
   );
   if (direct.target !== null) {
     const chosen = connectors.find(
@@ -657,6 +700,11 @@ export async function resolveWorkflowAgentServing(
   if (direct.wireRefused.length > 0) {
     throw new Error(
       `${responsesToolsRefusal(args.model, args.harness)}${unreachableDetail}${refusalDetail}`,
+    );
+  }
+  if (direct.anthropicRefused.length > 0) {
+    throw new Error(
+      `${anthropicModelsRefusal(args.model, args.harness)}${unreachableDetail}${refusalDetail}`,
     );
   }
   throw new Error(

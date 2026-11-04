@@ -28,9 +28,9 @@ import type {
 
 import {
   buildHarnessTable,
-  harnessToolCallingWire,
+  harnessModelFit,
+  harnessRunsModel,
   resolveExecution,
-  supportsToolCallingWire,
   type CredentialAuth,
 } from '../../../../lib/shared/providers/resolve_execution';
 
@@ -45,8 +45,9 @@ export type HarnessManagedStatus =
   | {
       available: false;
       /** `no-direct-credential`: nothing is direct-served at all.
-       * `no-compatible-model`: models are, but none this harness's wire can
-       * carry (their tools need the Responses API). */
+       * `no-compatible-model`: models are, but none this harness can run
+       * (their tools need the Responses API, or they are served through
+       * Anthropic's API, which Qwen Code cannot run). */
       reason: 'no-direct-credential' | 'no-compatible-model';
     };
 
@@ -93,9 +94,12 @@ export function deriveHarnessStatus(inputs: {
   harnesses: readonly HarnessDefinition[];
   /** Direct-served composer models, in the order the picker lists them —
    * the first a harness can run is the kick's fallback default. A model
-   * whose tools need the Responses API counts only for a harness that
-   * speaks it. */
-  directModels: readonly { id: string; toolCallingApi?: 'responses' }[];
+   * counts only for a harness that runs it (`harnessRunsModel`). */
+  directModels: readonly {
+    id: string;
+    toolCallingApi?: 'responses';
+    anthropicApi?: true;
+  }[];
   subscriptions: readonly SubscriptionCredentialFact[];
 }): HarnessStatusEntry[] {
   const table = buildHarnessTable(inputs.harnesses);
@@ -105,9 +109,9 @@ export function deriveHarnessStatus(inputs: {
     .filter((harness) => harness.credentialPolicy.managed)
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
     .map((harness) => {
-      const wire = harnessToolCallingWire(harness);
+      const fit = harnessModelFit(harness);
       const pool = inputs.directModels.filter((model) =>
-        supportsToolCallingWire(model, wire),
+        harnessRunsModel(model, fit),
       );
       const firstDirect = pool[0];
       const managed: HarnessStatusEntry['managed'] =

@@ -20,14 +20,12 @@
  * one wire for thread titles and llm nodes.
  */
 
-import type {
-  HarnessGatewayWire,
-  ModelCatalogEntry,
-} from '@tale/shared/schemas/providers';
+import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
 import { estimateCostCents } from '../../../lib/chat/turn';
 import { estimateTokens } from '../../../lib/chat/types';
 import { compileSchema } from '../../../lib/engine/core/validate/schema';
+import type { HarnessModelFit } from '../../../lib/shared/providers/resolve_execution';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import {
   createBuilderModel,
@@ -38,6 +36,7 @@ import {
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import {
+  anthropicModelsRefusal,
   responsesToolsRefusal,
   walkDirectServing,
   type DirectServingWalk,
@@ -97,24 +96,23 @@ export async function resolveServingTarget(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
-  /** Legacy task agents share this direct-only walk but carry tools. */
-  toolCallingWire?: HarnessGatewayWire,
+  /** Legacy task agents share this direct-only walk but carry tools: what
+   * their harness runs. */
+  fit?: HarnessModelFit,
 ): Promise<BuilderModelTarget> {
-  const walk = await walkLlmServing(
-    ctx,
-    organizationId,
-    modelId,
-    toolCallingWire,
-  );
+  const walk = await walkLlmServing(ctx, organizationId, modelId, fit);
   if (walk.target !== null) return walk.target;
   const detail =
     walk.unreachable.length > 0
       ? ` (the catalog for ${walk.unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
       : '';
-  // Only an agent turn passes a wire; its model was listed, but its tools
-  // need the Responses API.
+  // Only an agent turn passes a fit; its model was listed, but its tools
+  // need the Responses API, or it is served through Anthropic's API.
   if (walk.wireRefused.length > 0) {
     throw new Error(`${responsesToolsRefusal(modelId)}${detail}`);
+  }
+  if (walk.anthropicRefused.length > 0) {
+    throw new Error(`${anthropicModelsRefusal(modelId)}${detail}`);
   }
   throw new Error(
     `no configured provider serves model "${modelId}" — an llm node's model must be listed in a connected provider's catalog and permitted by its credential${detail}`,
@@ -131,16 +129,10 @@ export async function walkLlmServing(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
-  toolCallingWire?: HarnessGatewayWire,
+  fit?: HarnessModelFit,
 ): Promise<DirectServingWalk> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
-  return walkDirectServing(
-    ctx,
-    organizationId,
-    modelId,
-    connectors,
-    toolCallingWire,
-  );
+  return walkDirectServing(ctx, organizationId, modelId, connectors, fit);
 }
 
 const MISS = Symbol('not json');

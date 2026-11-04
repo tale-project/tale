@@ -110,20 +110,21 @@ export function AgentNodeFields({
     () => toModelOptions(roster.data?.models ?? []),
     [roster.data],
   );
-  // Subscription-served entries are bound to their forced harness, and a
-  // Responses-only model needs a harness that speaks that API — offer each
-  // only when the node's EFFECTIVE harness (the host default when the field
-  // is unset) can run it. Other direct-served entries fit every harness.
+  // Subscription-served entries are bound to their forced harness, a
+  // Responses-only model needs a harness that speaks that API, and a model
+  // served through Anthropic's API a harness that runs one — offer each only
+  // when the node's EFFECTIVE harness (the host default when the field is
+  // unset) can run it. Other direct-served entries fit every harness.
   const effectiveHarness = harness === '' ? DEFAULT_HARNESS : harness;
-  const harnessWire = roster.data?.harnesses.find(
+  const harnessRow = roster.data?.harnesses.find(
     (entry) => entry.harness === effectiveHarness,
-  )?.toolCallingWire;
+  );
   const offeredModels = useMemo(
     () =>
       models.filter((option) =>
-        offeredToHarness(option, effectiveHarness, harnessWire),
+        offeredToHarness(option, effectiveHarness, harnessRow),
       ),
-    [models, effectiveHarness, harnessWire],
+    [models, effectiveHarness, harnessRow],
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   // Only claim "not offered" once the listing has answered — an empty roster

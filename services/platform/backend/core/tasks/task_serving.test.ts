@@ -48,6 +48,7 @@ function harness(
   slug: string,
   policy: { managed: boolean; byo: boolean },
   withSubscriptionDelivery: boolean,
+  anthropicModels?: boolean,
 ) {
   return harnessDefinitionSchema.parse({
     slug,
@@ -78,6 +79,7 @@ function harness(
         baseUrlVar: 'ANTHROPIC_BASE_URL',
       },
     }),
+    ...(anthropicModels !== undefined && { anthropicModels }),
   });
 }
 
@@ -166,7 +168,7 @@ describe('resolveTaskServing — gateway lane', () => {
       ctx,
       ORG,
       'anthropic/claude-sonnet-4.6',
-      'openai-chat',
+      { wire: 'openai-chat', anthropicModels: true },
     );
   });
 
@@ -188,6 +190,24 @@ describe('resolveTaskServing — gateway lane', () => {
       modelId: 'claude-sonnet-4-6',
     });
     expect(resolveServingTarget).not.toHaveBeenCalled();
+  });
+
+  it('refuses a Claude model on Qwen Code by name, not with the upstream 400 [#5353]', async () => {
+    credentials = { openrouter: { status: 'active', authMethod: 'env' } };
+    loadHarnesses.mockReturnValue([
+      harness('qwen-code', { managed: true, byo: true }, false, false),
+    ]);
+
+    await expect(
+      resolveTaskServing(ctx, {
+        organizationId: ORG,
+        model: 'anthropic/claude-sonnet-4.6',
+        modelProvider: 'openrouter',
+        harness: 'qwen-code',
+      }),
+    ).rejects.toThrow(
+      'model "anthropic/claude-sonnet-4.6" is served through Anthropic\'s API, which the "qwen-code" harness cannot run: its tools lose their input schema there — run the agent on another harness, or pick another model',
+    );
   });
 
   it('throws when the pin names an unconfigured provider', async () => {

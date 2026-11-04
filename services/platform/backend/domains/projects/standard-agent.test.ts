@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { HarnessModelFit } from '../../../lib/shared/providers/resolve_execution.ts';
 import type { ComposerModelOption } from '../../core/chat/composer.ts';
 
 const {
@@ -63,8 +64,14 @@ import {
 } from './standard-agent.ts';
 
 const ELIGIBLE = ['claude-code', 'codex', 'opencode'];
-// The shipped harness that speaks the Responses API.
-const RESPONSES_SPEAKERS: ReadonlySet<string> = new Set(['codex']);
+// What the shipped harnesses run: Codex speaks the Responses API, and Qwen
+// Code runs no model served through Anthropic's API.
+const FITS: ReadonlyMap<string, HarnessModelFit> = new Map([
+  ['claude-code', { wire: 'anthropic', anthropicModels: true }],
+  ['codex', { wire: 'openai-responses', anthropicModels: true }],
+  ['opencode', { wire: 'openai-chat', anthropicModels: true }],
+  ['qwen-code', { wire: 'openai-chat', anthropicModels: false }],
+]);
 
 function option(
   id: string,
@@ -109,7 +116,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ],
       {},
       ELIGIBLE,
-      RESPONSES_SPEAKERS,
+      FITS,
     );
 
     expect(serving).toEqual({
@@ -134,7 +141,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ],
       {},
       ELIGIBLE,
-      RESPONSES_SPEAKERS,
+      FITS,
     );
 
     expect(serving).toMatchObject({
@@ -149,7 +156,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       [subscription('gpt-5.5', 'openai', 'codex')],
       {},
       ELIGIBLE,
-      RESPONSES_SPEAKERS,
+      FITS,
     );
 
     expect(serving).toMatchObject({
@@ -168,7 +175,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ],
       { harness: 'codex' },
       ELIGIBLE,
-      RESPONSES_SPEAKERS,
+      FITS,
     );
 
     expect(serving).toMatchObject({
@@ -184,7 +191,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('gpt-5.5', 'openai'), option('claude-sonnet-5', 'anthropic')],
         { providerSlug: 'openai', modelId: 'gpt-5.5' },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toEqual({
       ok: true,
@@ -199,7 +206,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [subscription('gpt-5.5', 'openai', 'codex')],
         { providerSlug: 'openai', modelId: 'gpt-5.5' },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toMatchObject({
       ok: true,
@@ -215,7 +222,6 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       toolCallingApi: 'responses',
       pricing: { inputCentsPerMillion: 1, outputCentsPerMillion: 1 },
     });
-    const speakers = new Set(['codex']);
     // Pinned with no runtime: the default runtime cannot carry its tools,
     // so the first one that can runs it.
     expect(
@@ -223,7 +229,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [responsesOnly],
         { providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
         ELIGIBLE,
-        speakers,
+        FITS,
       ),
     ).toEqual({
       ok: true,
@@ -240,7 +246,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [responsesOnly],
         { harness: 'opencode', providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
         ELIGIBLE,
-        speakers,
+        FITS,
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
     // Automatic on the default runtime: the cheaper Responses-only model is
@@ -250,7 +256,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [responsesOnly, option('modest', 'acme')],
         {},
         ELIGIBLE,
-        speakers,
+        FITS,
       ),
     ).toMatchObject({ ok: true, harness: 'claude-code', model: 'modest' });
     // Without any runtime that speaks it, nothing runs it.
@@ -259,9 +265,63 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [responsesOnly],
         { providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
         ELIGIBLE,
-        new Set(),
+        new Map(),
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
+  });
+
+  it('runs a model served through Anthropic’s API on any runtime but Qwen Code [#5353]', () => {
+    const claude = option('anthropic/claude-haiku-5-5', 'gateway', {
+      anthropicApi: true,
+      pricing: { inputCentsPerMillion: 1, outputCentsPerMillion: 1 },
+    });
+    const eligible = [...ELIGIBLE, 'qwen-code'];
+    // Automatic on a pinned Qwen Code: the cheaper Claude model is passed
+    // over for one Qwen Code can run.
+    expect(
+      chooseStandardAgentServing(
+        [claude, option('openai/gpt-6-luna', 'gateway')],
+        { harness: 'qwen-code' },
+        eligible,
+        FITS,
+      ),
+    ).toMatchObject({
+      ok: true,
+      harness: 'qwen-code',
+      model: 'openai/gpt-6-luna',
+      engine: 'harness',
+    });
+    // Nothing else to run: no model, not a run failing at its first call.
+    expect(
+      chooseStandardAgentServing(
+        [claude],
+        { harness: 'qwen-code' },
+        eligible,
+        FITS,
+      ),
+    ).toEqual({ ok: false, refusal: 'no-model' });
+    // Pinned onto Qwen Code: refused, never swapped.
+    const pin = {
+      providerSlug: 'gateway',
+      modelId: 'anthropic/claude-haiku-5-5',
+    };
+    expect(
+      chooseStandardAgentServing(
+        [claude],
+        { harness: 'qwen-code', ...pin },
+        eligible,
+        FITS,
+      ),
+    ).toEqual({ ok: false, refusal: 'pin-unavailable' });
+    // Every other runtime runs it.
+    expect(
+      chooseStandardAgentServing(
+        [claude],
+        { harness: 'opencode', ...pin },
+        eligible,
+        FITS,
+      ),
+    ).toMatchObject({ ok: true, harness: 'opencode', engine: 'harness' });
   });
 
   it('never starts native on a runtime an Admin pinned, or on a model only a runtime can run [TASK-R30]', () => {
@@ -271,7 +331,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('claude-sonnet-5', 'anthropic')],
         { harness: 'codex' },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toMatchObject({ ok: true, harness: 'codex', engine: 'harness' });
     // An organization with only a subscription has no direct path at all.
@@ -280,7 +340,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [subscription('gpt-5.5', 'openai', 'codex')],
         {},
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toMatchObject({ ok: true, harness: 'codex', engine: 'harness' });
     // Direct models win the automatic pool, so a mixed organization is native.
@@ -289,7 +349,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [subscription('gpt-5.5', 'openai', 'codex'), option('m', 'acme')],
         {},
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toMatchObject({ ok: true, engine: 'native' });
   });
@@ -300,7 +360,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('claude-sonnet-5', 'anthropic')],
         { providerSlug: 'openai', modelId: 'gpt-5.5' },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
     expect(
@@ -312,7 +372,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
           modelId: 'claude-sonnet-5',
         },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toEqual({ ok: false, refusal: 'pin-unavailable' });
   });
@@ -323,12 +383,10 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [option('gpt-5.5', 'openai')],
         { harness: 'cursor' },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toEqual({ ok: false, refusal: 'harness-invalid' });
-    expect(
-      chooseStandardAgentServing([], {}, ELIGIBLE, RESPONSES_SPEAKERS),
-    ).toEqual({
+    expect(chooseStandardAgentServing([], {}, ELIGIBLE, FITS)).toEqual({
       ok: false,
       refusal: 'no-model',
     });
@@ -337,7 +395,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         [subscription('claude-sonnet-5', 'anthropic', 'claude-code')],
         { harness: 'codex' },
         ELIGIBLE,
-        RESPONSES_SPEAKERS,
+        FITS,
       ),
     ).toEqual({ ok: false, refusal: 'no-model' });
   });

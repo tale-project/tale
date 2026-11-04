@@ -665,6 +665,15 @@ describe('shipped harnesses', () => {
     });
     expect(table.get('qwen-code')?.subscription).toBeUndefined();
   });
+
+  it("holds Qwen Code alone off models served through Anthropic's API [#5353]", () => {
+    // Its tools without arguments reach Anthropic without the input_schema
+    // that API requires; every other runtime runs a Claude model.
+    const refusing = loadHarnesses()
+      .filter((harness) => harness.anthropicModels === false)
+      .map((harness) => harness.slug);
+    expect(refusing).toEqual(['qwen-code']);
+  });
 });
 
 describe('registry-completeness posture (fixture tree)', () => {

@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildHarnessTable,
+  harnessModelFit,
+  harnessRunsModel,
   resolveExecution,
   type CredentialAuth,
   type ExecutionSelection,
@@ -306,5 +308,50 @@ describe('buildHarnessTable', () => {
     ]);
     expect(table.get('pi')?.slug).toBe('pi');
     expect(table.size).toBe(1);
+  });
+});
+
+describe('harnessRunsModel', () => {
+  const chat = harness('opencode', { managed: true, byo: false });
+  const codex = {
+    ...harness('codex', { managed: true, byo: true }),
+    gatewayWire: 'openai-responses' as const,
+  };
+  const qwen = {
+    ...harness('qwen-code', { managed: true, byo: true }),
+    anthropicModels: false,
+  };
+
+  it('reads the wire and the Anthropic fit from the harness yml', () => {
+    expect(harnessModelFit(chat)).toEqual({
+      wire: 'openai-chat',
+      anthropicModels: true,
+    });
+    expect(harnessModelFit(codex)).toEqual({
+      wire: 'openai-responses',
+      anthropicModels: true,
+    });
+    expect(harnessModelFit(qwen)).toEqual({
+      wire: 'openai-chat',
+      anthropicModels: false,
+    });
+    expect(harnessModelFit(undefined)).toEqual({
+      wire: 'openai-chat',
+      anthropicModels: true,
+    });
+  });
+
+  it('keeps a model served through Anthropic off a harness that declares it cannot run one', () => {
+    const anthropic = { anthropicApi: true };
+    expect(harnessRunsModel(anthropic, harnessModelFit(qwen))).toBe(false);
+    expect(harnessRunsModel(anthropic, harnessModelFit(chat))).toBe(true);
+    expect(harnessRunsModel({}, harnessModelFit(qwen))).toBe(true);
+  });
+
+  it('keeps a Responses-only model on a Responses harness', () => {
+    const responses = { toolCallingApi: 'responses' as const };
+    expect(harnessRunsModel(responses, harnessModelFit(codex))).toBe(true);
+    expect(harnessRunsModel(responses, harnessModelFit(chat))).toBe(false);
+    expect(harnessRunsModel(responses, harnessModelFit(qwen))).toBe(false);
   });
 });

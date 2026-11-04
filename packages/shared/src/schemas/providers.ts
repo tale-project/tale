@@ -1387,6 +1387,16 @@ export const harnessDefinitionSchema = z
      * onto a chat-only upstream loses the model's thinking between calls.
      */
     gatewayWire: harnessGatewayWireSchema.optional(),
+    /**
+     * Whether the harness runs a model served through Anthropic's Messages
+     * API: one a connector with `apiFormat: anthropic` serves, or a Claude
+     * model, which an OpenAI-compatible upstream also translates onto that
+     * API. Absent = it does. `false` for a CLI whose tool definitions do not
+     * survive the translation: the pickers leave such a model out for it and
+     * its turns refuse one, as a Responses-only model is kept off the other
+     * wires.
+     */
+    anthropicModels: z.boolean().optional(),
     modelIdDialect: modelIdDialectSchema,
     promptTransport: promptTransportSchema,
     capabilities: z

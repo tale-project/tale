@@ -118,9 +118,7 @@ async function listModels(
     if (option === undefined) return [];
     const lane = laneOf(row.credential.authMethod);
     const harnesses = runtimes
-      .filter((runtime) =>
-        offeredToHarness(option, runtime.harness, runtime.toolCallingWire),
-      )
+      .filter((runtime) => offeredToHarness(option, runtime.harness, runtime))
       .map((runtime) => runtime.harness);
     const nodeTypes = [
       ...(lane === 'direct' ? ['llm'] : []),

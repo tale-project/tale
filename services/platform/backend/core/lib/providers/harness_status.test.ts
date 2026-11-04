@@ -94,6 +94,48 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     });
   });
 
+  it("counts a model served through Anthropic's API for every harness but Qwen Code [#5353]", () => {
+    const rows = deriveHarnessStatus({
+      harnesses: HARNESSES,
+      directModels: [
+        { id: 'anthropic/claude-haiku-5-5', anthropicApi: true },
+        ...DIRECT,
+      ],
+      subscriptions: [],
+    });
+
+    // Qwen Code's argument-less tools lose their schema on that API: the
+    // model neither counts nor becomes its default.
+    expect(entryOf(rows, 'qwen-code').managed).toEqual({
+      available: true,
+      modelCount: 2,
+      defaultModelId: 'deepseek/deepseek-v3.2',
+    });
+    expect(entryOf(rows, 'opencode').managed).toEqual({
+      available: true,
+      modelCount: 3,
+      defaultModelId: 'anthropic/claude-haiku-5-5',
+    });
+  });
+
+  it("says Qwen Code has no model it can carry when every direct model is served through Anthropic's API", () => {
+    const rows = deriveHarnessStatus({
+      harnesses: HARNESSES,
+      directModels: [{ id: 'anthropic/claude-haiku-5-5', anthropicApi: true }],
+      subscriptions: [],
+    });
+
+    expect(entryOf(rows, 'qwen-code').managed).toEqual({
+      available: false,
+      reason: 'no-compatible-model',
+    });
+    expect(entryOf(rows, 'claude-code').managed).toEqual({
+      available: true,
+      modelCount: 1,
+      defaultModelId: 'anthropic/claude-haiku-5-5',
+    });
+  });
+
   it('omits byo-only harnesses (cursor) from the status list', () => {
     const rows = deriveHarnessStatus({
       harnesses: HARNESSES,

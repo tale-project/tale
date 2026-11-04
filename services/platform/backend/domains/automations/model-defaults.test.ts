@@ -22,6 +22,7 @@ function walk(answer: Partial<DirectServingWalk>): DirectServingWalk {
     target: null,
     unreachable: [],
     wireRefused: [],
+    anthropicRefused: [],
     rows: new Map(),
     ...answer,
   };

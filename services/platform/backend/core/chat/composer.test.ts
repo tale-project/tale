@@ -75,6 +75,7 @@ describe('collectComposerOptions', () => {
       providerLabel: 'Z.ai (GLM)',
     });
     expect(byId.get('zai glm-5v-turbo')).not.toHaveProperty('toolCallingApi');
+    expect(byId.get('zai glm-5v-turbo')).not.toHaveProperty('anthropicApi');
   });
 
   it('carries the Responses tool API, which decides the harnesses an agent picker offers it to', () => {
@@ -98,6 +99,54 @@ describe('collectComposerOptions', () => {
       id: 'gpt-6.1-sol',
       toolCallingApi: 'responses',
     });
+  });
+
+  it("flags a model a harness reaches through Anthropic's API, which an agent picker keeps off Qwen Code", () => {
+    const hit = (
+      connector: { name: string; displayName: string; apiFormat: string },
+      id: string,
+    ) => ({
+      connector,
+      credential: { authMethod: 'api-key' },
+      credentialAuth: { authMethod: 'api-key' as const },
+      entry: {
+        id,
+        provider: connector.name,
+        tags: ['chat'],
+        supportsTools: true,
+        supportsVision: true,
+        contextWindow: 200_000,
+      },
+    });
+    const anthropic = {
+      name: 'anthropic',
+      displayName: 'Anthropic',
+      apiFormat: 'anthropic',
+    };
+    // An OpenAI-compatible custom provider whose upstream gateway serves
+    // Claude by translating the chat call onto Anthropic's API (#5353).
+    const custom = {
+      name: 'custom-gateway',
+      displayName: 'Gateway',
+      apiFormat: 'openai',
+    };
+    const { byId } = collectComposerOptions([
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk's hit shape, narrowed to what the projection reads
+      hit(anthropic, 'claude-haiku-5-5') as never,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk's hit shape, narrowed to what the projection reads
+      hit(custom, 'anthropic/claude-haiku-5-5') as never,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk's hit shape, narrowed to what the projection reads
+      hit(custom, 'openai/gpt-6-luna') as never,
+    ]);
+    expect(byId.get('anthropic claude-haiku-5-5')).toMatchObject({
+      anthropicApi: true,
+    });
+    expect(byId.get('custom-gateway anthropic/claude-haiku-5-5')).toMatchObject(
+      { anthropicApi: true },
+    );
+    expect(byId.get('custom-gateway openai/gpt-6-luna')).not.toHaveProperty(
+      'anthropicApi',
+    );
   });
 
   it('leaves out an image generator that takes no tools, which every turn would send it', () => {

@@ -1,5 +1,11 @@
 import type { Sql } from 'postgres';
 
+import {
+  type HarnessModelFit,
+  harnessModelFit,
+  harnessRunsModel,
+  supportsToolCallingWire,
+} from '../../../lib/shared/providers/resolve_execution.ts';
 import { AGENT_TOOL_CATALOG } from '../../core/sandbox/tool_names.ts';
 import {
   listComposerModels,
@@ -41,7 +47,8 @@ export const AGENT_TOOL_GRANT_NAMES: readonly string[] = AGENT_TOOL_CATALOG.map(
  * the configuring user). A subscription-served entry runs only in the
  * harness its credential is bound to, so it counts only for that harness;
  * an entry whose tools work only on the Responses API counts only for a
- * harness that speaks it.
+ * harness that speaks it, and an entry served through Anthropic's API only
+ * for a harness that runs one (`harnessRunsModel`).
  */
 export async function agentModelRefusal(
   sql: Sql,
@@ -91,14 +98,21 @@ export async function agentModelRefusal(
       : credential.constraints.harness === args.harness;
   });
   if (harnessFits.length > 0) {
-    const wire = harnesses.find(
-      (row) => row.harness === args.harness,
-    )?.toolCallingWire;
-    if (
-      wire === 'openai-responses' ||
-      harnessFits.some((option) => option.toolCallingApi !== 'responses')
-    ) {
+    const row = harnesses.find((entry) => entry.harness === args.harness);
+    const fit: HarnessModelFit =
+      row === undefined
+        ? harnessModelFit(undefined)
+        : { wire: row.toolCallingWire, anthropicModels: row.anthropicModels };
+    if (harnessFits.some((option) => harnessRunsModel(option, fit))) {
       return null;
+    }
+    if (
+      harnessFits.some((option) => supportsToolCallingWire(option, fit.wire))
+    ) {
+      return {
+        code: 'PROJECT_AGENT_MODEL_INVALID',
+        message: `Model "${args.model}" is served through Anthropic's API, which the ${args.harness} harness cannot run: its tools lose their input schema there. Run it on another harness, or pick another model. ${hint}`,
+      };
     }
     const capable = harnesses
       .filter((row) => row.toolCallingWire === 'openai-responses')

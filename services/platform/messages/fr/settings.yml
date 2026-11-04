@@ -1097,8 +1097,9 @@ providers:
     noCompatibleModel:
       Un environnement d'agent sans modèle ne peut exécuter aucun des modèles servis
       directement — ils n'appellent des outils que via l'API Responses, que
-      seul Codex parle. Autorise un autre modèle pour ces environnements d'agent, ou
-      exécute l'agent sur Codex.
+      seul Codex parle, ou passent par l'API Anthropic Messages, que Qwen Code ne
+      peut pas utiliser. Autorise un autre modèle pour ces environnements d'agent,
+      ou exécute l'agent sur un autre environnement d'agent.
     noModel: Pas encore de modèle
     degraded: En échec récemment
     subscriptionVia: Abonnement · {provider}

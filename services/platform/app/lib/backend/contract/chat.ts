@@ -67,6 +67,8 @@ export interface ChatContract {
         vision?: boolean;
         /** Its function tools work only on the Responses API. */
         toolCallingApi?: 'responses';
+        /** A harness calling it reaches Anthropic's Messages API. */
+        anthropicApi?: true;
         id: string;
         providerSlug: string;
         label: string;
@@ -89,6 +91,8 @@ export interface ChatContract {
         iconUrl: undefined | string;
         /** The wire the harness speaks to the gateway. */
         toolCallingWire: 'anthropic' | 'openai-chat' | 'openai-responses';
+        /** It runs a model served through Anthropic's Messages API. */
+        anthropicModels: boolean;
       }>;
       voice: {
         ttsAvailable: boolean;
