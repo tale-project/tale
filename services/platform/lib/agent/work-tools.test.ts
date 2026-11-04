@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { isRecord } from '../utils/type-utils';
 import {
+  GENERATE_IMAGE_INPUTS_MAX,
+  type ImageModelInputs,
   isWorkToolName,
   RUN_CODE_LANGUAGES,
   RUN_CODE_MAX_TIMEOUT_SECONDS,
@@ -65,6 +67,82 @@ describe('work tools', () => {
   it('keeps charts and documents away from the image model', () => {
     expect(workWireTool('generate_image').description).toMatch(
       /Not for charts, diagrams or documents/,
+    );
+  });
+
+  it('asks only for the pictures the turn’s image model takes', () => {
+    const peers = { createFile: true, runCode: true };
+    const imageTool = (image: ImageModelInputs) => {
+      const { description, parameters } = workWireTool(
+        'generate_image',
+        peers,
+        image,
+      );
+      if (!isRecord(parameters) || !isRecord(parameters.properties)) {
+        throw new Error('schema is not an object');
+      }
+      return {
+        description,
+        required: parameters.required,
+        inputImages: parameters.properties.inputImages,
+      };
+    };
+
+    // A model that draws from the prompt alone is offered no picture, so a
+    // call cannot pass one for the tool to refuse.
+    const promptOnly = imageTool({ acceptsImageInput: false });
+    expect(promptOnly.inputImages).toBeUndefined();
+    expect(promptOnly.description).toMatch(
+      /draws from the prompt alone: it cannot edit a picture/,
+    );
+    expect(promptOnly.description).not.toMatch(/[{}]/);
+
+    // A model that takes pictures is offered as many as its catalog says,
+    // and never more than Tale's own limit.
+    expect(
+      imageTool({ acceptsImageInput: true, maxReferenceImages: 3 }).inputImages,
+    ).toMatchObject({
+      maxItems: 3,
+      description: expect.stringMatching(/: at most 3\.$/),
+    });
+    for (const image of [
+      { acceptsImageInput: true },
+      { acceptsImageInput: true, maxReferenceImages: 16 },
+    ]) {
+      expect(imageTool(image).inputImages).toMatchObject({
+        maxItems: GENERATE_IMAGE_INPUTS_MAX,
+      });
+      expect(imageTool(image).inputImages).not.toHaveProperty('minItems');
+      expect(imageTool(image).required).toEqual(['prompt']);
+    }
+
+    // A model that only edits needs a picture in every call.
+    const edit = imageTool({ acceptsImageInput: true, minReferenceImages: 1 });
+    expect(edit.inputImages).toMatchObject({
+      minItems: 1,
+      maxItems: GENERATE_IMAGE_INPUTS_MAX,
+      description: expect.stringMatching(/: at least 1, at most 4\.$/),
+    });
+    expect(edit.required).toEqual(['prompt', 'inputImages']);
+    expect(edit.description).toMatch(
+      /every call needs at least 1 picture to start from in "inputImages"/,
+    );
+
+    // A catalog's least beyond its most, or beyond Tale's four, still states
+    // a range a call can meet: a provider may refuse a schema that cannot.
+    for (const image of [
+      { acceptsImageInput: true, minReferenceImages: 3, maxReferenceImages: 2 },
+      { acceptsImageInput: true, minReferenceImages: 6 },
+    ]) {
+      const { inputImages } = imageTool(image);
+      if (!isRecord(inputImages)) throw new Error('no inputImages');
+      expect(inputImages.minItems).toBe(inputImages.maxItems);
+    }
+
+    // Without a model, nothing is said of one.
+    expect(schemaOf('generate_image').properties).toHaveProperty(
+      'inputImages.maxItems',
+      GENERATE_IMAGE_INPUTS_MAX,
     );
   });
 

@@ -159,38 +159,99 @@ const CREATE_FILE_SCHEMA = object(
   ['name', 'content'],
 );
 
-const GENERATE_IMAGE_SCHEMA = object(
-  {
-    prompt: {
-      type: 'string',
-      description:
-        'What to draw: subject, style, composition, colours, and any text ' +
-        `the image must show. At most ${GENERATE_IMAGE_PROMPT_MAX_CHARS} ` +
-        'characters.',
-    },
-    size: {
-      type: 'string',
-      description:
-        '"square" (default), "landscape" (3:2) or "portrait" (2:3), or the ' +
-        "image model's closest shape when it draws no such one; a shape " +
-        'such as "16:9" is read by its orientation. The result gives each ' +
-        "image's size in pixels.",
-    },
-    count: {
-      type: 'integer',
-      minimum: 1,
-      maximum: GENERATE_IMAGE_COUNT_MAX,
-      description: `How many images to create (default 1, at most ${GENERATE_IMAGE_COUNT_MAX}).`,
-    },
-    inputImages: refList(
-      'Refs of images already in this conversation — an uploaded image or ' +
-        'one created earlier — to edit or take as reference, as many as ' +
-        'the image model takes.',
-      GENERATE_IMAGE_INPUTS_MAX,
-    ),
+const GENERATE_IMAGE_PROPERTIES = {
+  prompt: {
+    type: 'string',
+    description:
+      'What to draw: subject, style, composition, colours, and any text ' +
+      `the image must show. At most ${GENERATE_IMAGE_PROMPT_MAX_CHARS} ` +
+      'characters.',
   },
-  ['prompt'],
-);
+  size: {
+    type: 'string',
+    description:
+      '"square" (default), "landscape" (3:2) or "portrait" (2:3), or the ' +
+      "image model's closest shape when it draws no such one; a shape " +
+      'such as "16:9" is read by its orientation. The result gives each ' +
+      "image's size in pixels.",
+  },
+  count: {
+    type: 'integer',
+    minimum: 1,
+    maximum: GENERATE_IMAGE_COUNT_MAX,
+    description: `How many images to create (default 1, at most ${GENERATE_IMAGE_COUNT_MAX}).`,
+  },
+};
+
+const INPUT_IMAGES_DESCRIPTION =
+  'Refs of images already in this conversation — an uploaded image or ' +
+  'one created earlier — to edit or take as reference';
+
+/** What the turn's image model takes to start from, as its catalog says:
+ * whether it takes pictures at all, and how many. The resolved image
+ * model's own fields, so a turn hands its model over as it is. */
+export interface ImageModelInputs {
+  readonly acceptsImageInput: boolean;
+  readonly minReferenceImages?: number;
+  readonly maxReferenceImages?: number;
+}
+
+/** How many pictures a call may pass the turn's image model, within Tale's
+ * own limit, or `null` when it takes none. The least never exceeds the most,
+ * so the range a schema states can always be met. */
+function referenceRange(
+  image: ImageModelInputs,
+): { min: number; max: number } | null {
+  if (!image.acceptsImageInput) return null;
+  const max = Math.min(
+    image.maxReferenceImages ?? GENERATE_IMAGE_INPUTS_MAX,
+    GENERATE_IMAGE_INPUTS_MAX,
+  );
+  return { min: Math.min(image.minReferenceImages ?? 0, max), max };
+}
+
+/**
+ * `generate_image`'s parameters for the turn's image model. The tool refuses
+ * a picture to a model that draws from the prompt alone, more pictures than
+ * its catalog allows, and a call without one to a model that only edits; a
+ * call that only knew "as many as the image model takes" could not tell. So
+ * a model that takes no picture is offered no "inputImages", and one that
+ * does is offered its range within Tale's own.
+ */
+function generateImageSchema(
+  image: ImageModelInputs | undefined,
+): Record<string, unknown> {
+  if (image === undefined) {
+    return object(
+      {
+        ...GENERATE_IMAGE_PROPERTIES,
+        inputImages: refList(
+          `${INPUT_IMAGES_DESCRIPTION}, as many as the image model takes.`,
+          GENERATE_IMAGE_INPUTS_MAX,
+        ),
+      },
+      ['prompt'],
+    );
+  }
+  const range = referenceRange(image);
+  if (range === null) return object(GENERATE_IMAGE_PROPERTIES, ['prompt']);
+  const { min, max } = range;
+  return object(
+    {
+      ...GENERATE_IMAGE_PROPERTIES,
+      inputImages: {
+        ...refList(
+          `${INPUT_IMAGES_DESCRIPTION}: ${min > 0 ? `at least ${min}, ` : ''}at most ${max}.`,
+          max,
+        ),
+        ...(min > 0 && { minItems: min }),
+      },
+    },
+    min > 0 ? ['prompt', 'inputImages'] : ['prompt'],
+  );
+}
+
+const GENERATE_IMAGE_SCHEMA = generateImageSchema(undefined);
 
 const LOAD_SKILL_SCHEMA = object(
   {
@@ -299,7 +360,7 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
     "Create images with the organization's image model and attach them " +
     'to the conversation. For pictures: illustrations, photographs, ' +
     'artwork, logos, mock-ups. Not for charts, diagrams or documents' +
-    '{drawing}. No ' +
+    '{drawing}.{references} No ' +
     'sandbox starts, but generation can take a minute. Answers with each ' +
     "image's ref and its size in pixels — report those, not the size you " +
     'asked for.',
@@ -413,20 +474,52 @@ function peerPhrases(peers: WorkToolPeers): Record<string, string> {
   };
 }
 
+/** What `generate_image`'s description says of the turn's image model where
+ * its parameters cannot: that it takes no picture, or one in every call. */
+function referencesPhrase(image: ImageModelInputs | undefined): string {
+  if (image === undefined) return '';
+  const range = referenceRange(image);
+  if (range === null) {
+    return (
+      ' The image model draws from the prompt alone: it cannot edit a ' +
+      'picture or start from one, so the prompt must describe everything ' +
+      'the image shows. If the user wants a picture changed, tell them it ' +
+      'can only draw a new one.'
+    );
+  }
+  const { min } = range;
+  if (min === 0) return '';
+  return (
+    ` The image model edits pictures: every call needs at least ${min} ` +
+    `${min === 1 ? 'picture' : 'pictures'} to start from in "inputImages", ` +
+    'and it cannot draw from a description alone. If there is no picture ' +
+    'to start from, tell the user an administrator would choose another ' +
+    'image model.'
+  );
+}
+
 /** The provider-wire definition of one work tool, its description written
- * for the other work tools the turn offers. */
+ * for the other work tools the turn offers and `generate_image` for the
+ * turn's image model. */
 export function workWireTool(
   name: WorkToolName,
   peers: WorkToolPeers = ALL_PEERS,
+  image?: ImageModelInputs,
 ): WireTool {
-  const phrases = peerPhrases(peers);
+  const phrases: Record<string, string> = {
+    ...peerPhrases(peers),
+    references: referencesPhrase(image),
+  };
   return {
     name,
     description: DESCRIPTIONS[name].replace(
       /\{(\w+)\}/g,
       (slot: string, key: string) => phrases[key] ?? slot,
     ),
-    parameters: SCHEMAS[name],
+    parameters:
+      name === 'generate_image' && image !== undefined
+        ? generateImageSchema(image)
+        : SCHEMAS[name],
   };
 }
 

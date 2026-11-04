@@ -93,13 +93,16 @@ export function createWorkToolExecutor(
   const offered = offeredWorkTools(scope);
   if (offered.length === 0) return undefined;
   const names = new Set<string>(offered);
-  // A description points only at the tools offered beside it.
+  // A description points only at the tools offered beside it, and the image
+  // tool asks only for the pictures the turn's image model takes.
   const peers = {
     createFile: offered.includes('create_file'),
     runCode: offered.includes('run_code'),
   };
   return {
-    wireTools: offered.map((name) => workWireTool(name, peers)),
+    wireTools: offered.map((name) =>
+      workWireTool(name, peers, scope.image?.model),
+    ),
     async execute(
       call: ToolCallRequest,
       options: ToolCallOptions = {},
