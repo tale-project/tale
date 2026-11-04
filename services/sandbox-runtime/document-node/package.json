@@ -3,14 +3,19 @@
   "private": true,
   "description": "Node libraries the builtin document skills require, baked into the sandbox runtime image",
   "dependencies": {
+    "@mermaid-js/mermaid-cli": "11.16.0",
     "docx": "9.7.1",
     "pptxgenjs": "4.0.1",
+    "puppeteer": "25.16.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-icons": "5.7.0",
     "sharp": "0.35.5"
   },
   "overrides": {
-    "image-size": "2.0.4"
+    "dompurify": "3.4.17",
+    "image-size": "2.0.4",
+    "mermaid": "11.16.1",
+    "zod": "4.6.6"
   }
 }

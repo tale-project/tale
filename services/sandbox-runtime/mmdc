@@ -1,0 +1,11 @@
+#!/bin/sh
+# mmdc — Mermaid's CLI on PATH, installed as /usr/local/bin/mmdc in the runtime image.
+#
+# Runs the mmdc baked into /opt/tale/document-node with the puppeteer launch
+# options a session needs (/opt/tale/puppeteer/mmdc.json, from
+# mmdc-puppeteer.json): the Playwright headless shell that
+# PUPPETEER_EXECUTABLE_PATH names, without Chromium's own sandbox (it needs
+# user namespaces a session does not have; the session container is the
+# boundary), and over a pipe, so no debugging port opens. A -p of the
+# caller's own comes later and replaces them.
+exec /opt/tale/document-node/node_modules/.bin/mmdc -p /opt/tale/puppeteer/mmdc.json "$@"
