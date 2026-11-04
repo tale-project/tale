@@ -43,6 +43,7 @@ import {
   isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
+  renewAgentRunCapacityProbe,
   settleAgentRun,
 } from './agent-runs.ts';
 import { readProjectAgentSkillScope } from './agent-skill-scope.ts';
@@ -223,6 +224,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as Parameters<typeof failAgentRunFromTurn>[1];
       await failAgentRunFromTurn(sql, args);
+      return null;
+    },
+
+    'tasks/agent_runs:renewTaskAgentRunCapacityProbe': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as Parameters<typeof renewAgentRunCapacityProbe>[1];
+      // Exec-fenced: only the run's current exec, while the run is running,
+      // renews the claim its model's hold took when the run probed it.
+      await renewAgentRunCapacityProbe(sql, args);
       return null;
     },
 

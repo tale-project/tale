@@ -458,13 +458,14 @@ When the provider answers a run that its model is at capacity, the organization'
 model wait for it: the run that was refused fails once and its automatic retry, which uses no
 attempt, waits; a run started meanwhile waits before it takes a worker, reading "Waiting for
 model capacity". The wait lasts 1 minute, then 2, 4, 8 and 15 minutes as the refusals go on.
-When it ends one run goes first; the others follow once that run has worked for two minutes,
-or as soon as any run on the model finishes. They then start in waves 15 seconds apart: one run,
-then two, four and so on, never more than a sixteenth of them at once, so even 500 waiting runs
-have all started within five minutes; new work dispatch starts on the model follows the same
-waves (`TASK-R43`). A model at capacity for twelve hours is no longer
-waited for: its next refusal ends the run, and a run that waited that long fails as having
-waited too long.
+When it ends one run goes first; the others follow once that run has worked for two minutes since
+the provider last refused it, or as soon as any run on the model finishes. A refused call that the
+run's harness retries itself counts: Claude Code retries one for about three minutes before it gives
+up, and the others wait all that time. They then start in waves 15 seconds apart: one run, then two,
+four and so on, never more than a sixteenth of them at once, so even 500 waiting runs have all
+started within five minutes; new work dispatch starts on the model follows the same waves
+(`TASK-R43`). A model at capacity for twelve hours is no longer waited for: its next refusal ends
+the run, and a run that waited that long fails as having waited too long.
 
 - **Example**: The provider refuses Scribe's run on "Changelog" at 10:00 because its model is
   at capacity. At 10:00:30 a schedule starts Lector, on the same model, on "Press kit" → it
@@ -476,6 +477,10 @@ waited too long.
   and its retry waits as above; so does a run Anthropic answers with 529 because it is
   overloaded. A run the gateway answers with 500 fails like any other failed run, and its
   retry uses an attempt.
+- **Example**: As in the first example, but at 10:01 the gateway answers the retry of
+  "Changelog" with 503 too, and Claude Code retries the call itself → at 10:03 "Press kit" still
+  waits. At 10:04 Claude Code gives up: the run fails as at capacity again, and the wait is now
+  2 minutes, until 10:06. The twelve hours still count from 10:00.
 
 ### TASK-R86 · A worker deletes a task's directory once the task is closed or a week old
 

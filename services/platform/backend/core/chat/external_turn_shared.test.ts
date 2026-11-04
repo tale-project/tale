@@ -348,6 +348,43 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     expect(transport.cancelled).toEqual([]);
   });
 
+  it('hands its caller each call the harness retries on a model at capacity, window after window [TASK-R40]', async () => {
+    const retried = (status: number, delayMs: number) => ({
+      type: 'system',
+      subtype: 'api_retry',
+      attempt: 1,
+      max_retries: 10,
+      retry_delay_ms: delayMs,
+      error_status: status,
+      error: status === 529 ? 'overloaded' : 'server_error',
+    });
+    const delays: number[] = [];
+    const args = {
+      sessionId: 'sandbox',
+      execId: 'capacity-retries',
+      harness: 'claude-code',
+      windowMs: 10,
+      onModelCapacityRetry: (delayMs: number) => {
+        delays.push(delayMs);
+      },
+    };
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      retried(503, 566),
+      // A server error is no model at capacity.
+      retried(500, 1_111),
+      retried(529, 2_009),
+    ]);
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(delays).toEqual([566, 2_009]);
+    // The CLI still retries: the next window replays past the checkpoint.
+    transport.stdout = ndjson([retried(503, 4_413)]);
+    expect((await drainHarnessWindow(args)).kind).toBe('running');
+    expect(transport.resumedAt).toEqual([0, 1]);
+    expect(delays).toEqual([566, 2_009, 4_413]);
+    expect(transport.cancelled).toEqual([]);
+  });
+
   it.each(['missing', 'failed'] as const)(
     'does not turn an unresolved replay gap into success when checkpoint recovery %s crosses the end grace',
     async (recovery) => {

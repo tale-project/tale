@@ -1,6 +1,8 @@
+import type { TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  type ModelCapacityHold,
   MODEL_CAPACITY_MAX_WAIT_MS,
   MODEL_CAPACITY_PROBE_PROOF_MS,
   MODEL_CAPACITY_RAMP_MS,
@@ -9,6 +11,8 @@ import {
   modelCapacityKey,
   modelCapacityRamp,
   modelCapacityWakeDelaysMs,
+  recordModelCapacityRefusalInTx,
+  renewModelCapacityProbeInTx,
 } from './model-capacity-holds.ts';
 
 describe('the wait a model at capacity imposes [TASK-R40]', () => {
@@ -125,5 +129,138 @@ describe('new work on a model that answers again ramps up in the same waves [TAS
     expect(modelCapacityKey({ modelProvider: 'a', model: 'm' })).not.toBe(
       modelCapacityKey({ modelProvider: 'b', model: 'm' }),
     );
+  });
+});
+
+/** A postgres.js tagged-template stand-in: each statement's text (whitespace
+ * collapsed) and values, answered by `answer` from the statement's text and
+ * its place among the statements. */
+function fakeTx(
+  answer: (text: string, index: number) => Array<Record<string, unknown>>,
+): { tx: TransactionSql; calls: { text: string; values: unknown[] }[] } {
+  const calls: { text: string; values: unknown[] }[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+    calls.push({ text, values });
+    return Promise.resolve(answer(text, calls.length - 1));
+  };
+  const tx = Object.assign(tag, { unsafe: (text: string) => text });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+  return { tx: tx as unknown as TransactionSql, calls };
+}
+
+describe('a probe whose harness retries a refused call proves nothing [TASK-R40]', () => {
+  const NOW = Date.UTC(2026, 10, 4, 10, 3, 0);
+  const KEY = {
+    organizationId: 'org-1',
+    modelProvider: 'anthropic',
+    model: 'claude-opus-5-5',
+  };
+  const READ = 'SELECT ? FROM app.model_capacity_holds';
+  const LOCK = 'SELECT pg_advisory_xact_lock(';
+  const UPDATE = 'UPDATE app.model_capacity_holds SET';
+  /** The hold the claim at 10:01 took: run-1 probes the model. */
+  const probed = (
+    over: Partial<ModelCapacityHold> = {},
+  ): ModelCapacityHold => ({
+    heldUntilMs: NOW - 2 * 60_000,
+    consecutive: 1,
+    firstRefusedAtMs: NOW - 3 * 60_000,
+    lastRefusedAtMs: NOW - 3 * 60_000,
+    lastRunId: 'run-0',
+    probeRunId: 'run-1',
+    probeClaimedAtMs: NOW - 2 * 60_000,
+    ...over,
+  });
+  /** A transaction that reads `before` first, then `after` under the lock. */
+  const holds = (
+    before: ModelCapacityHold | null,
+    after: ModelCapacityHold | null = before,
+  ) => {
+    let reads = 0;
+    return fakeTx((text) => {
+      if (!text.startsWith(READ)) return [];
+      reads++;
+      const hold = reads === 1 ? before : after;
+      return hold === null ? [] : [{ ...hold }];
+    });
+  };
+  const renew = (tx: TransactionSql, retryDelayMs: number, runId = 'run-1') =>
+    renewModelCapacityProbeInTx(tx, { ...KEY, runId, retryDelayMs, now: NOW });
+  /** The statements, each by how it opens. */
+  const opened = (calls: { text: string }[]) =>
+    calls.map(
+      ({ text }) =>
+        [READ, LOCK, UPDATE].find((prefix) => text.startsWith(prefix)) ?? text,
+    );
+
+  it('renews the claim to the retry under the lock the claims and refusals take', async () => {
+    const { tx, calls } = holds(probed());
+    await expect(renew(tx, 2_009)).resolves.toBe(true);
+    expect(opened(calls)).toEqual([READ, LOCK, READ, UPDATE]);
+    // The others wait two minutes past the retried call, at 10:05:02.
+    expect(calls[3]).toEqual({
+      text: 'UPDATE app.model_capacity_holds SET probe_claimed_at_ms = ?, updated_at_ms = ? WHERE org_id = ? AND model_provider = ? AND model = ? AND probe_run_id = ?',
+      values: [
+        NOW + 2_009,
+        NOW,
+        'org-1',
+        'anthropic',
+        'claude-opus-5-5',
+        'run-1',
+      ],
+    });
+    // The very lock a refusal of the model takes: the two serialize.
+    const refusal = fakeTx(() => []);
+    await recordModelCapacityRefusalInTx(refusal.tx, {
+      ...KEY,
+      runId: 'run-1',
+      now: NOW,
+    });
+    expect(refusal.calls[0]).toEqual(calls[1]);
+  });
+
+  it('only moves the claim later', async () => {
+    const { tx, calls } = holds(probed({ probeClaimedAtMs: NOW + 38_839 }));
+    await expect(renew(tx, 566)).resolves.toBe(true);
+    expect(calls[3]?.values[0]).toBe(NOW + 38_839);
+  });
+
+  it.each([
+    // The longest a hold waits after a refusal.
+    [60 * 60_000, NOW + 15 * 60_000],
+    // A whole millisecond: the claim is a bigint column.
+    [566.4, NOW + 566],
+    [-1, NOW],
+    [Number.NaN, NOW],
+    [Number.POSITIVE_INFINITY, NOW],
+  ])(
+    'credits a retry’s wait of %d ms up to the longest a hold waits',
+    async (retryDelayMs, claimedAt) => {
+      const { tx, calls } = holds(probed({ probeClaimedAtMs: null }));
+      await expect(renew(tx, retryDelayMs)).resolves.toBe(true);
+      expect(calls[3]?.values[0]).toBe(claimedAt);
+    },
+  );
+
+  it.each([
+    ['no hold stands', null],
+    ['no run probes the model yet', probed({ probeRunId: null })],
+    ['another run probes it', probed({ probeRunId: 'run-2' })],
+  ])('writes nothing when %s', async (_case, hold) => {
+    const { tx, calls } = holds(hold);
+    await expect(renew(tx, 566)).resolves.toBe(false);
+    expect(opened(calls)).toEqual([READ]);
+  });
+
+  it.each([
+    // The probe's own refusal doubled the wait and freed the probe.
+    ['a refusal', probed({ probeRunId: null, probeClaimedAtMs: null })],
+    // A run on the model settled: it answers again.
+    ['a clear', null],
+  ])('writes nothing when %s landed before its lock', async (_case, after) => {
+    const { tx, calls } = holds(probed(), after);
+    await expect(renew(tx, 566)).resolves.toBe(false);
+    expect(opened(calls)).toEqual([READ, LOCK, READ]);
   });
 });
