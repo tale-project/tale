@@ -58,7 +58,7 @@ actions:
         fields:
           {
             type: string,
-            description: 'Comma-separated list of fields to return.',
+            description: 'Comma-separated list of fields to return. A field the output does not declare is left out.',
           }
     output: '{ products: Array<{ id: number, title: string, handle: string, status: string, created_at: string }>, nextPageInfo: string }'
     mock: |
@@ -162,7 +162,7 @@ actions:
         fields:
           {
             type: string,
-            description: 'Comma-separated list of fields to return.',
+            description: 'Comma-separated list of fields to return. A field the output does not declare is left out.',
           }
     output: '{ customers: Array<{ id: number, email: string, first_name: string, last_name: string, orders_count: number }>, nextPageInfo: string }'
     mock: |
@@ -272,7 +272,7 @@ actions:
         fields:
           {
             type: string,
-            description: 'Comma-separated list of fields to return.',
+            description: 'Comma-separated list of fields to return. A field the output does not declare is left out.',
           }
     output: '{ orders: Array<{ id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string, created_at: string }>, nextPageInfo: string }'
     mock: |

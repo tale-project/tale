@@ -53,7 +53,7 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 | `name`, `description` | Stabiler Aktionsname in snake_case und eine Erklärung zum Einsatzzweck |
 | `title`, `i18n` | Die Aktion in Worten für Menschen: ein kurzer englischer `title`, nur am Anfang großgeschrieben und ohne den Namen des Connectors („List issues“), dazu `i18n.de.title` und `i18n.fr.title` (und `de-CH`, wo die Schweizer Schreibung abweicht, etwa beim ß). Der Automatisierungs-Canvas zeigt eine Node als „GitHub · Issues auflisten“ in der Sprache der Lesenden; fehlt einer mitgelieferten Aktion einer der drei, schlagen die Tests des Katalogs fehl |
 | `input` | Objekt-JSON-Schema, vor der Ausführung validiert; Felder beschreiben und Pflichtfelder markieren |
-| `output` | Ergebnissignatur im TypeScript-Stil; Dokumentation, keine Laufzeitvalidierung der Ausgabe |
+| `output` | Ergebnissignatur im TypeScript-Stil und alles, was ein Aufruf weitergibt: Ein Feld, das sie nicht deklariert, fällt in jeder Tiefe weg, also deklariere jedes Feld, das ein Aufrufer liest. `object`, `unknown` und `any` geben weiter, was der Dienst dort antwortet, und der Katalogtest `services/platform/lib/connectors/output-signatures.test.ts` nennt jede solche Stelle mit ihrem Grund. Die Typen der Felder werden zur Laufzeit nicht geprüft |
 | `effects` | `read` oder `write`; Schreibaktionen durchlaufen die Genehmigungsrichtlinie |
 | `mock` | Erforderliches deterministisches JavaScript: gleiche Eingabe, gleiche Ausgabe, kein Netzwerkzugriff |
 | `scenarios` | Optionale benannte Fälle dessen, was der Dienst antwortet, aus denen ein Test einen für einen Schritt in einem Lauf mit Mocks wählen kann; Daten, nie Code. Siehe [Szenarien für Tests deklarieren](#scenarios) |

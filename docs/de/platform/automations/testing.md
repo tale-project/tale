@@ -23,7 +23,7 @@ Jede Zeile ist ein Test, in der Reihenfolge des Dokuments: sein Status, sein Nam
 2. Füll den Test unter **Einrichtung** aus: **Name**, die **Eingabe**, die der Lauf als JSON erhält, unter **Simulierte Ausgaben**, **Simulierte Fehler** und **Szenarien** die Schritte, für die der Test einspringt, und unter **Erwartungen**, was der Lauf tun muss. **Szenarien** erscheint, wenn die Connector-Aktion eines Schritts welche mitliefert. Deine Änderungen gehen beim Tippen in den Entwurf ein.
 3. Speichere den Entwurf, um den Test zu behalten. Beim Speichern laufen alle Tests, und die Version behält das Ergebnis.
 
-Eine neue simulierte Ausgabe beginnt leer: `{}` für eine Node oder `[]`, wenn sie einmal pro Element läuft. **Ausgabe des letzten Laufs verwenden** übernimmt die Ausgabe aus dem Lauf auf dem Canvas, wenn du das wählst. Prüfe diesen Wert vor dem Speichern.
+Eine neue simulierte Ausgabe beginnt leer: `{}` für eine Node oder `[]`, wenn sie einmal pro Element läuft. **Ausgabe des letzten Laufs verwenden** übernimmt die Ausgabe aus dem Lauf auf dem Canvas, wenn du das wählst. Prüfe diesen Wert vor dem Speichern. Ein Schritt, der einen Connector aufruft, behält nur die Felder, die die Ausgabe seiner Aktion angibt, wie in einem Live-Lauf: Ein Feld, das die Ausgabe nicht nennt, fällt weg, ob es vom Test, von einem Szenario oder aus der üblichen simulierten Antwort des Connectors kommt.
 
 <Frame caption="Die Einrichtung eines Tests: die Eingabe des Laufs als JSON, die simulierten Schritte und was der Test vom Lauf erwartet.">
 
