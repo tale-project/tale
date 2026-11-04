@@ -581,3 +581,148 @@ describe('a 401 on a turn the broker did not serve', () => {
     });
   });
 });
+
+/** How the CLI names a refusal it retries, by status (else `server_error`). */
+const CLI_RETRY_ERRORS: Partial<Record<number, string>> = {
+  429: 'rate_limit',
+  529: 'overloaded',
+};
+
+/**
+ * What the pinned Claude Code CLI (2.1.285) printed when a stand-in gateway
+ * refused every request with `status`: its own retries of the request (ten
+ * over about three minutes; the first and the last are kept here), the
+ * refusal as a synthetic assistant message, then the result that ends the
+ * turn on it. sub2api answers 503 "No available accounts" when every account
+ * behind it is at its limit, Anthropic 529 "Overloaded".
+ */
+function claudeRefused(status: number, words: string) {
+  const text =
+    status === 429
+      ? `API Error: Request rejected (429) · ${words}`
+      : `API Error: ${status} ${words}. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (gateway.example.com).`;
+  const retried = (attempt: number, delayMs: number) => ({
+    type: 'system',
+    subtype: 'api_retry',
+    attempt,
+    max_retries: 10,
+    retry_delay_ms: delayMs,
+    error_status: status,
+    error: CLI_RETRY_ERRORS[status] ?? 'server_error',
+    session_id: 'conv-refused',
+  });
+  const stdout = ndjson([
+    { type: 'system', subtype: 'init', session_id: 'conv-refused' },
+    retried(1, 566),
+    retried(10, 38_839),
+    {
+      type: 'assistant',
+      message: {
+        id: 'msg_1',
+        model: '<synthetic>',
+        content: [{ type: 'text', text }],
+      },
+      error: 'server_error',
+      is_api_error_message: true,
+      session_id: 'conv-refused',
+    },
+    {
+      type: 'result',
+      subtype: 'success',
+      is_error: true,
+      api_error_status: status,
+      terminal_reason: 'api_error',
+      result: text,
+      session_id: 'conv-refused',
+    },
+  ]);
+  return { text, stdout };
+}
+
+const brokerFeedback = (mutations: Call[]) =>
+  mutations.filter(
+    (m) =>
+      m.name === 'provider_credentials/mutations:recordBrokerFailureInternal',
+  );
+
+describe('a Claude Code turn the provider refused', () => {
+  it.each([
+    [503, 'No available accounts'],
+    [529, 'Overloaded'],
+  ] as const)(
+    'settles a %i as model_capacity, keeping its conversation, its words and its account [TASK-R40]',
+    async (status, words) => {
+      const refused = claudeRefused(status, words);
+      io.stdout = refused.stdout;
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+        brokerTokenHash: 'selected-account',
+      });
+
+      await driveTaskAgentTurnImpl(ctx, KEYS);
+
+      expect(failedMarks(mutations)).toEqual([
+        {
+          name: 'tasks/agent_runs:markTaskAgentRunFailed',
+          args: expect.objectContaining({
+            runId: 'run-1',
+            execId: 'exec-1',
+            failureCode: 'model_capacity',
+            apiErrorStatus: status,
+            error: refused.text,
+            // The retry resumes this conversation once the model answers.
+            agentSessionId: 'conv-refused',
+          }),
+        },
+      ]);
+      // The model refused the turn, not the account: none cools down.
+      expect(brokerFeedback(mutations)).toEqual([]);
+    },
+  );
+
+  it('settles any other status as a harness error, a 500 among them [TASK-R40]', async () => {
+    const refused = claudeRefused(500, 'Internal server error');
+    io.stdout = refused.stdout;
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'selected-account',
+    });
+
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'harness_error',
+      apiErrorStatus: 500,
+      error: refused.text,
+    });
+    expect(brokerFeedback(mutations)).toEqual([]);
+  });
+
+  it('settles a 429 as a harness error that cools the account it served [TASK-R40]', async () => {
+    io.stdout = claudeRefused(429, 'Rate limited').stdout;
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'selected-account',
+    });
+
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'harness_error',
+      apiErrorStatus: 429,
+    });
+    expect(brokerFeedback(mutations)).toEqual([
+      {
+        name: 'provider_credentials/mutations:recordBrokerFailureInternal',
+        args: {
+          organizationId: 'org-1',
+          brokerTokenHash: 'selected-account',
+          apiErrorStatus: 429,
+        },
+      },
+    ]);
+  });
+});
