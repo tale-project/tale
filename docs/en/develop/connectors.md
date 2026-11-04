@@ -53,7 +53,7 @@ Adding a connector is a source contribution. The runtime reads the platform cata
 | `name`, `description` | Stable snake_case action name and an explanation of when to use it |
 | `title`, `i18n` | The action in words for people: a short English `title` in sentence case, without the connector's name ("List issues"), plus `i18n.de.title` and `i18n.fr.title` (and `de-CH` where the Swiss spelling differs). The automation canvas shows a node as "GitHub · List issues" in the reader's language; a shipped action without all three fails the catalog's tests |
 | `input` | Object JSON Schema, validated before execution; describe fields and mark required ones |
-| `output` | TypeScript-style signature describing the result; this is documentation, not a runtime output validator |
+| `output` | TypeScript-style signature of the result, and all a call hands on: a member it does not declare is left out at every depth, so declare each member a caller reads. `object`, `unknown` and `any` hand on whatever the service answers there, and the catalog test `services/platform/lib/connectors/output-signatures.test.ts` lists each such place with its reason. The members' types are not checked at runtime |
 | `effects` | `read` or `write`; writes pass through approval policy |
 | `mock` | Required deterministic JavaScript implementation; same input, same output, no network I/O |
 | `scenarios` | Optional named cases of what the service answers, which a test can pick for a step in a mock run; data, never code. See [Declare scenarios for tests](#scenarios) |

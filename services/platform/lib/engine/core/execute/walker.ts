@@ -42,6 +42,8 @@ import {
   type NodeTrace,
   type RunResult,
 } from '../types';
+import { projectOntoShape } from '../typing/project';
+import { connectorOutputShape } from '../typing/signature';
 import { compileSchema } from '../validate/schema';
 import { MAX_SUBAUTOMATION_DEPTH, maxRepeatsOf } from '../walk/limits';
 import type { WalkPorts } from '../walk/ports';
@@ -852,6 +854,11 @@ export async function walkSteps(walk: Walk): Promise<WalkOutcome> {
             }
             out = await def.connector.mock(resolved);
           }
+          // A connector call hands on only the members its output declares
+          // (CONN-R36), as the durable runtime's dispatcher does; an answer
+          // made up here is cut the same way, so a test reads what a live
+          // run would.
+          out = projectOntoShape(out, connectorOutputShape(def.connector));
           if (def.connector.hasEffect) {
             effects.push({
               node: n.id,

@@ -89,9 +89,9 @@ actions:
         repositoryId: { type: integer, minimum: 1 }
         sourceProjectId: { type: string, minLength: 1 }
         report: { type: boolean, description: 'Answer { issues, failed: [{ externalId, error, status }], notRead, retryAfter } instead of the issues alone.' }
-    # `report: true` answers { issues, failed, notRead, retryAfter } instead
-    # (the issue sync's own reading); the signature types the plain answer.
-    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
+    # The second branch is the answer to `report: true`, the issue sync's own
+    # reading.
+    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }> | { issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, failed: Array<{ externalId: string, error: string, status?: number }>, notRead: number, retryAfter: number | null }'
     mock: |
       const issues = input.issues.map((issue) => ({ externalSystem: 'glitchtip', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
       return input.report === true ? { issues, failed: [], notRead: 0, retryAfter: null } : issues;

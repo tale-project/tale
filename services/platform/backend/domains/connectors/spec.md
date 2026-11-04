@@ -5,9 +5,9 @@
 A connector lets an agent or an automation act in an outside system: read a mailbox, file a
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
 account is connected by signing in at the outside system, what importing tasks through a
-connector may write, where an agent's call runs, and which mailbox an Outlook credential
-reaches. The catalog of connectors and what each one can do are not covered, beyond the
-scenarios its actions ship for tests; see Not yet.
+connector may write, where an agent's call runs, what a call hands back, and which mailbox an
+Outlook credential reaches. The catalog of connectors and what each one can do are not
+covered, beyond the scenarios its actions ship for tests; see Not yet.
 
 ## Whom a connector call acts for
 
@@ -209,6 +209,22 @@ ties it to an earlier one, so one turn's token never acts for another turn.
 - **Example**: Mia's turn ends and its sandbox is torn down → a request that still presents
   that turn's token is refused, while Noah's turn, running at the same time, keeps calling
   its tools with its own.
+
+## What a connector call hands back
+
+### CONN-R36 · A connector call hands back only what its action's output declares
+
+Every action declares its output, and the platform cuts each answer down to it before an
+agent, an automation run or a model sees it: a member the output does not list stays with the
+connector, at every depth, whatever the outside system adds to its answer now or later. A
+member the output leaves open (`object`, `unknown`) is handed back as it came, and each such
+member is listed with its reason. A failure is reported as before. An answer a test makes up
+is cut the same way, whether it is the action's mock, a scenario it ships or a simulated
+output, so a test sees what a live run would (`AUTO-R42`).
+
+- **Example**: Mia's agent lists her GitHub repositories, and GitHub adds a short-lived clone
+  token to each → the agent sees each repository's id, name, full name and whether it is
+  private, and never the token.
 
 ## Calling any HTTPS API
 

@@ -350,10 +350,11 @@ checks what the run did against what the test expects.
 
 A stand-in replaces a node's call, never the node. The node's condition and alternative still
 decide whether it runs, its input is still worked out and checked against what its action
-takes, and what it would send is still recorded; only the answer is made up. Every other node
-runs as written, on the simulated values. A simulated failure fails the node with the test's
-message, and the node's error handling decides what the run does next. Stand-ins apply to
-mock runs only: a live run with one is refused (`BENCH_MOCK_ONLY`).
+takes, and what it would send is still recorded; only the answer is made up, and a connector's
+keeps only the members its action declares, as a live answer does (`CONN-R36`). Every other
+node runs as written, on the simulated values. A simulated failure fails the node with the
+test's message, and the node's error handling decides what the run does next. Stand-ins apply
+to mock runs only: a live run with one is refused (`BENCH_MOCK_ONLY`).
 
 - **Example**: Mia's test simulates the output of *Fetch issues* and nothing else. She runs it
   → the *Score* node still runs its code on that output, and *Report*'s condition still decides

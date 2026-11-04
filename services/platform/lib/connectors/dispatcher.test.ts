@@ -76,7 +76,10 @@ const DEMO: Connector = connectorSchema.parse({
         required: ['message'],
         properties: { message: { type: 'string' } },
       },
-      output: '{ echoed: string }',
+      // Declares what the bodies return, so the tests can read it: the
+      // dispatcher hands on only the members an output declares.
+      output:
+        '{ echoed: string, mocked?: boolean, status?: number, token?: string, key?: string }',
       mock: 'return { echoed: input.message, mocked: true };',
       backend: {
         kind: 'yaml-js',
@@ -126,6 +129,22 @@ const DEMO: Connector = connectorSchema.parse({
       input: { type: 'object', properties: {} },
       output: '{ never: string }',
       mock: 'throw new Error("mock is broken");',
+    },
+    {
+      name: 'report',
+      description: 'Hand a vendor answer on as it came.',
+      effects: 'read',
+      input: {
+        type: 'object',
+        properties: { answer: { type: 'object' } },
+      },
+      output:
+        '{ id: string, items: Array<{ id: string }>, owner: { login: string }, labels: Record<string, { name: string }>, result: { ok: true, value: string } | { ok: false, error: string }, raw: object, note: unknown }',
+      mock: 'return input.answer;',
+      backend: {
+        kind: 'yaml-js',
+        live: "return (await ctx.http.get('https://api.demo.test/report')).json();",
+      },
     },
     {
       name: 'native_send',
@@ -1008,42 +1027,44 @@ describe('live yaml-js backend', () => {
   });
 
   // A GitHub repository can carry temp_clone_token, a five-minute Git
-  // credential, at every place GitHub's schema nests one: the bodies hand the
-  // rest of the answer on and that member nowhere.
+  // credential, at every place GitHub's schema nests one: the bodies hand on
+  // the members each output declares and that member nowhere.
   describe("GitHub's temporary clone token", () => {
     const cloneToken = 'synthetic-temp-clone-token';
-    const repo = {
-      id: 1,
-      name: 'web',
-      full_name: 'acme/web',
-      private: true,
-      default_branch: 'main',
-    };
+    const listed = { id: 1, name: 'web', full_name: 'acme/web', private: true };
+    const repo = { ...listed, default_branch: 'main' };
     const withToken = { ...repo, temp_clone_token: cloneToken };
-    const issue = (repository: object) => ({
+    const issue = {
       number: 7,
       title: 'Broken',
       state: 'open',
       html_url: 'https://github.com/acme/web/issues/7',
-      repository,
-    });
-    const pull = (repository: object) => ({
+    };
+    const pull = {
       number: 8,
       title: 'Fix',
       state: 'open',
-      merged: false,
       html_url: 'https://github.com/acme/web/pull/8',
-      head: { ref: 'fix', sha: 'a1', repo: repository },
-      base: { ref: 'main', sha: 'b2', repo: repository },
-    });
-    const hit = (repository: object) => ({
+    };
+    const pullAnswer = {
+      ...pull,
+      merged: false,
+      head: { ref: 'fix', sha: 'a1', repo: withToken },
+      base: { ref: 'main', sha: 'b2', repo: withToken },
+    };
+    /** Each branch as it is handed on: its ref and commit, not its repository. */
+    const branches = {
+      head: { ref: 'fix', sha: 'a1' },
+      base: { ref: 'main', sha: 'b2' },
+    };
+    const hit = {
       name: 'index.ts',
       path: 'src/index.ts',
-      repository,
-    });
+      html_url: 'https://github.com/acme/web/blob/main/src/index.ts',
+    };
 
     it.each([
-      ['list_repos', [withToken], { repos: [repo] }],
+      ['list_repos', [withToken], { repos: [listed] }],
       [
         'get_repo',
         {
@@ -1052,27 +1073,32 @@ describe('live yaml-js backend', () => {
           source: withToken,
           template_repository: withToken,
         },
-        {
-          repo: {
-            ...repo,
-            parent: repo,
-            source: repo,
-            template_repository: repo,
-          },
-        },
+        { repo },
       ],
-      ['list_issues', [issue(withToken)], { issues: [issue(repo)] }],
-      ['get_issue', issue(withToken), { issue: issue(repo) }],
+      [
+        'list_issues',
+        [{ ...issue, repository: withToken }],
+        { issues: [issue] },
+      ],
+      ['get_issue', { ...issue, repository: withToken }, { issue }],
       [
         'list_pull_requests',
-        [pull(withToken)],
-        { pull_requests: [pull(repo)] },
+        [pullAnswer],
+        { pull_requests: [{ ...pull, ...branches }] },
       ],
-      ['get_pull_request', pull(withToken), { pull_request: pull(repo) }],
+      [
+        'get_pull_request',
+        pullAnswer,
+        { pull_request: { ...pull, merged: false, ...branches } },
+      ],
       [
         'search_code',
-        { total_count: 1, incomplete_results: false, items: [hit(withToken)] },
-        { total_count: 1, items: [hit(repo)] },
+        {
+          total_count: 1,
+          incomplete_results: false,
+          items: [{ ...hit, repository: withToken }],
+        },
+        { total_count: 1, items: [{ ...hit, repository: 'acme/web' }] },
       ],
     ])(
       'github.%s hands the answer on without it',
@@ -1253,6 +1279,120 @@ describe('usage of live calls', () => {
       expect.any(Error),
     );
     warn.mockRestore();
+  });
+});
+
+// A body that hands its vendor's answer on whole hands on only what its
+// action declares: whatever else the answer carries stays here.
+describe('hands on only the members an output declares [CONN-R36]', () => {
+  const answer = {
+    id: 'r1',
+    token: 'at-the-top',
+    items: [{ id: 'i1', token: 'in-an-item' }],
+    owner: { login: 'mia', token: 'in-a-nested-object' },
+    labels: { bug: { name: 'Bug', token: 'in-a-record-value' } },
+    result: { ok: false, error: 'e', token: 'in-a-union-branch' },
+    raw: { anything: ['open', { token: 'kept-by-object' }] },
+    note: { token: 'kept-by-unknown' },
+  };
+  const declared = {
+    id: 'r1',
+    items: [{ id: 'i1' }],
+    owner: { login: 'mia' },
+    labels: { bug: { name: 'Bug' } },
+    result: { ok: false, error: 'e' },
+    raw: { anything: ['open', { token: 'kept-by-object' }] },
+    note: { token: 'kept-by-unknown' },
+  };
+  const left = [
+    'at-the-top',
+    'in-an-item',
+    'in-a-nested-object',
+    'in-a-record-value',
+    'in-a-union-branch',
+  ];
+
+  it('leaves out of a live answer every member the output does not declare', async () => {
+    fetchStub.mockImplementation(
+      async () =>
+        new Response(JSON.stringify(answer), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const audit = auditSink();
+    const result = await executeConnectorAction({
+      connector: 'demo',
+      action: 'report',
+      input: {},
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'n1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver(),
+        audit,
+      },
+    });
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 'ok', backend: 'yaml-js' });
+    expect(result.status === 'ok' && result.output).toStrictEqual(declared);
+    const handedOn = JSON.stringify([result, audit.records]);
+    for (const member of left) expect(handedOn).not.toContain(member);
+  });
+
+  it('cuts what a mock body returns the same way', async () => {
+    const result = await executeConnectorAction({
+      connector: 'demo',
+      action: 'report',
+      input: { answer },
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG },
+    });
+    expect(result).toMatchObject({ status: 'ok', backend: 'mock' });
+    expect(result.status === 'ok' && result.output).toStrictEqual(declared);
+  });
+
+  it('cuts what a native backend returns', async () => {
+    const dispose = registerNativeImpl('demo.native_send', async () => ({
+      messageId: 'native-1',
+      provider: { token: 'in-a-native-answer' },
+    }));
+    try {
+      const result = await executeConnectorAction({
+        connector: 'demo',
+        action: 'native_send',
+        input: { to: 'someone@example.com' },
+        caller: { kind: 'system', reason: 'conversation email reply' },
+        ctx: {
+          organizationId: ORG,
+          mode: 'live',
+          credentials: resolver(),
+          audit: auditSink(),
+        },
+      });
+      expect(result).toMatchObject({ status: 'ok', backend: 'native' });
+      expect(result.status === 'ok' && result.output).toStrictEqual({
+        messageId: 'native-1',
+      });
+    } finally {
+      dispose();
+    }
+  });
+
+  it('keeps the members of the union branch the answer took', async () => {
+    const result = await executeConnectorAction({
+      connector: 'demo',
+      action: 'report',
+      input: {
+        answer: { ...answer, result: { ok: true, value: 'v', token: 't' } },
+      },
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG },
+    });
+    expect(result.status === 'ok' && result.output).toStrictEqual({
+      ...declared,
+      result: { ok: true, value: 'v' },
+    });
   });
 });
 

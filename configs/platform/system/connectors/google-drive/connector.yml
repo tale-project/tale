@@ -40,7 +40,7 @@ actions:
           type: boolean
           description: "When true, traverse all subfolders breadth-first and return a flat list with each file's subfolderPath. Capped at 5000 files / 20 levels deep — beyond that the result is soft-truncated and truncated is set to true. Default false."
       required: [folderId]
-    output: '{ files: Array<{ id: string, name: string, size: number, mimeType: string, subfolderPath: string }>, truncated: boolean }'
+    output: '{ files: Array<{ id: string, name: string, size: number, mimeType: string, modifiedTime: string, md5Checksum?: string, subfolderPath: string }>, truncated: boolean }'
     mock: |
       return { files: [{ id: 'file-1', name: 'document.pdf', size: 1024, mimeType: 'application/pdf', modifiedTime: '2024-01-01T00:00:00.000Z', md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e', subfolderPath: '' }], truncated: false };
     backend:
