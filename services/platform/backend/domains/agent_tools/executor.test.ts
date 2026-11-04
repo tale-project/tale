@@ -50,6 +50,26 @@ describe('createWorkToolExecutor', () => {
     );
   });
 
+  it('offers the image tool the pictures the turn’s image model takes', () => {
+    const imageTool = (model: Record<string, unknown>) =>
+      createWorkToolExecutor(
+        testScope({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a resolved model's shape is all the executor reads
+          image: { ...IMAGE, model: { ...IMAGE.model, ...model } } as never,
+        }).scope,
+      )?.wireTools.find((tool) => tool.name === 'generate_image');
+
+    // IMAGE's model draws from the prompt alone.
+    const promptOnly = imageTool({});
+    expect(promptOnly?.parameters).toHaveProperty('properties.prompt');
+    expect(promptOnly?.parameters).not.toHaveProperty('properties.inputImages');
+    expect(promptOnly?.description).toMatch(/draws from the prompt alone/);
+
+    expect(
+      imageTool({ acceptsImageInput: true, maxReferenceImages: 3 })?.parameters,
+    ).toHaveProperty('properties.inputImages.maxItems', 3);
+  });
+
   it('offers nothing when the loadout is empty', () => {
     const { scope } = testScope({
       loadout: {
