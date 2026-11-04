@@ -4,8 +4,9 @@
  * Each `configs/platform/system/connectors/<slug>/connector.yml` action
  * becomes one node type named `<connector>.<action>`, so an automation references
  * it exactly like a built-in: `type: github.create_issue`. The action's JSON
- * Schema drives input validation, its TS-style signature documents the output,
- * and its `effects` decides whether invoking it records an effect and gates
+ * Schema drives input validation, its TS-style signature documents the output
+ * and bounds it (a call hands on only the members it declares, CONN-R36), and
+ * its `effects` decides whether invoking it records an effect and gates
  * behind approvals.
  *
  * Mock bodies run through the engine's CodeRunner rather than being evaluated

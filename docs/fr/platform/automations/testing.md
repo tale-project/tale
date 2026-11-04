@@ -23,7 +23,7 @@ Chaque ligne est un test, dans l’ordre du document : son statut, son nom et, 
 2. Dans **Configuration**, remplis le test : son **Nom**, l’**Entrée** que reçoit l’exécution en JSON, les **Sorties simulées**, les **Échecs simulés** et les **Scénarios** qui remplacent des étapes, et sous **Attentes** ce que l’exécution doit faire. **Scénarios** apparaît quand l’action de connector d’une étape en fournit. Tes modifications passent dans le brouillon au fil de la saisie.
 3. Enregistre le brouillon pour garder le test. L’enregistrement exécute tous les tests et consigne le résultat avec la version.
 
-Une nouvelle sortie simulée est vide : `{}` pour un nœud, ou `[]` s’il s’exécute une fois par élément. **Utiliser la sortie de la dernière exécution** copie la sortie de l’exécution sur le canevas lorsque tu le choisis. Vérifie cette valeur avant d’enregistrer.
+Une nouvelle sortie simulée est vide : `{}` pour un nœud, ou `[]` s’il s’exécute une fois par élément. **Utiliser la sortie de la dernière exécution** copie la sortie de l’exécution sur le canevas lorsque tu le choisis. Vérifie cette valeur avant d’enregistrer. Une étape qui appelle un connector ne garde que les champs que déclare la sortie de son action, comme dans une exécution réelle : un champ que la sortie ne liste pas est laissé de côté, qu’il vienne du test, d’un scénario ou de la réponse simulée habituelle du connector.
 
 <Frame caption="La configuration d’un test : l’entrée de l’exécution en JSON, les étapes qu’il simule et ce qu’il attend de l’exécution.">
 

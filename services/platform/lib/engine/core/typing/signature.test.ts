@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { ConnectorLike } from '../slots';
 import { isClosed, lookup, toTs, UNKNOWN, type Shape } from './shape';
-import { connectorOutputShape, parseSignature } from './signature';
+import {
+  actionOutputShape,
+  connectorOutputShape,
+  parseSignature,
+} from './signature';
 
 function shapeOf(text: string): Shape {
   const parsed = parseSignature(text);
@@ -105,5 +109,15 @@ describe('connectorOutputShape', () => {
 
   it('is unknown for a signature that does not read', () => {
     expect(connectorOutputShape(connector('{ id: Date }'))).toBe(UNKNOWN);
+  });
+});
+
+describe('actionOutputShape', () => {
+  it('parses a catalog action once, as its connector does', () => {
+    const action = { output: '{ id: string }' };
+    const first = actionOutputShape(action);
+    expect(actionOutputShape(action)).toBe(first);
+    expect(toTs(first)).toBe('{ id: string }');
+    expect(actionOutputShape({ output: '{ id: Date }' })).toBe(UNKNOWN);
   });
 });

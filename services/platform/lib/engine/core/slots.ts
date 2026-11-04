@@ -28,7 +28,8 @@ export interface ConnectorLike {
   description: string;
   /** JSON Schema for the node's resolved `input` — machine-validated. */
   inputSchema: Record<string, unknown>;
-  /** Compact TS-style output signature — documentation only. */
+  /** Compact TS-style output signature. A call hands on only the members it
+   * declares (CONN-R36); it never checks their types. */
   outputSignature: string;
   /** Canonical input for example rendering in the generated docs. */
   exampleInput?: Record<string, unknown>;
