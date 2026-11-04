@@ -14,6 +14,8 @@
         "$TURBO_ROOT$/services/sandbox-runtime/install-playwright-browsers.sh",
         "$TURBO_ROOT$/services/sandbox-runtime/login-shell-path.sh",
         "$TURBO_ROOT$/services/sandbox-runtime/managed-settings.json",
+        "$TURBO_ROOT$/services/sandbox-runtime/mmdc",
+        "$TURBO_ROOT$/services/sandbox-runtime/mmdc-puppeteer.json",
         "$TURBO_ROOT$/services/sandbox-runtime/playwright-mcp-args.json",
         "$TURBO_ROOT$/services/sandbox-runtime/tale-*",
         "$TURBO_ROOT$/services/sandbox/src/session/runnerd-client.ts",
