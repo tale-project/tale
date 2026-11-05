@@ -1235,7 +1235,7 @@ describe('runTurn — the tool loop', () => {
 
   it('sends an earlier page whole, and shortens it once the reply’s own results need the room (#5356)', async () => {
     const page = {
-      url: 'https://docs.tale.dev/agents',
+      url: 'https://docs.tale.dev/platform/projects/project-agents',
       content: 'a'.repeat(60_000),
     };
     const history: ChatMessage[] = [
