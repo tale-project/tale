@@ -41,6 +41,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { MENTION_KINDS } from '@/lib/shared/mention-handles';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
+import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 import { formatDurationSeconds } from '@/lib/utils/format/duration';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
@@ -69,6 +70,7 @@ import {
   type TaskAgentRunRow,
 } from '../utils/task-timeline';
 import { TaskActorName } from './task-actor-preview-popover';
+import { TaskAgentRunReported } from './task-agent-run-reported';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
 import {
   isAgentRunWaiting,
@@ -96,9 +98,11 @@ const ACTIVITY_TEXT_MAX = 160;
  * What a run did, read in place under its own row: where it stands, how long
  * it took, how many tool actions and what it cost, then the agent's
  * transcript — live while it works and preserved after it settles. Nothing is
- * fetched until the row is opened. A failed run keeps the reason it recorded
- * above the log unless the log already says it, so a failure the transcript
- * does not show (a watchdog's, a refused start's) is still read here.
+ * fetched until the row is opened. A failed run leads with what its failure
+ * means (`lib/shared/task-run-failure.ts`) and keeps the reason it recorded,
+ * folded, above the log unless the log already says it, so a failure the
+ * transcript does not show (a watchdog's, a refused start's) is still read
+ * here.
  */
 function TaskAgentRunTimelineDetail({
   organizationId,
@@ -140,18 +144,7 @@ function TaskAgentRunTimelineDetail({
     );
   const reportedBlock =
     reported !== undefined && reported !== '' && !reportedInLog ? (
-      <Stack gap={1}>
-        <Text as="h3" variant="label">
-          {t('agentRun.reported')}
-        </Text>
-        <Text
-          as="p"
-          variant="muted"
-          className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
-        >
-          {run.error}
-        </Text>
-      </Stack>
+      <TaskAgentRunReported error={reported} />
     ) : null;
   const toolActions =
     op === null
@@ -162,6 +155,11 @@ function TaskAgentRunTimelineDetail({
 
   return (
     <Stack gap={2}>
+      {run.status === 'failed' && (
+        <Text as="p">
+          {t(`agentRun.failure.${taskRunFailureClass(run.failureCode)}`)}
+        </Text>
+      )}
       {op !== null && (
         <Row gap={1} className="text-muted-foreground flex-wrap text-xs">
           <span>{t(`agentRuns.status.${run.status}`)}</span>

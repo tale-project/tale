@@ -80,6 +80,12 @@ Lis l’erreur du chat ou de l’exécution et les journaux API/worker correspon
 
 Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
 
+## Un agent ne joint pas le service de sandbox
+
+Une tâche indique **L’agent n’a pas pu terminer cette tâche**, parce que le service de sandbox dans lequel travaille l’agent était injoignable, et la notification **Échec de l’exécution de l’agent** dit la même chose. Avant cela, la plateforme a essayé pendant une à deux minutes : chaque appel retente une connexion refusée pendant environ 20 secondes, et l’exécution est relancée trois fois. **Ce que l’exécution a signalé**, dans **Voir** sur l’exécution dans l’historique de la tâche, nomme l’adresse appelée par la plateforme et la raison de l’échec : chaque adresse qui a refusé la connexion, ou un nom qui ne se résout pas.
+
+Vérifie que le service `sandbox` tourne et répond, et que `SANDBOX_URL` sur `backend-api` et `backend-worker` pointe vers lui (`http://sandbox:8003` dans le fichier Compose fourni). Une connexion refusée signifie que rien n’écoute à cette adresse ; un nom qui ne se résout pas signifie que la variable désigne le mauvais hôte, ou que le service n’est pas sur le réseau du backend. Une exécution qui perd le service en cours de travail l’attend jusqu’à dix minutes, puis échoue de la même façon. Dès que le service répond de nouveau, relance l’agent avec **Relancer** sur la tâche.
+
 ## L’accès réseau de la sandbox est refusé
 
 Examine `sandbox-egress` et l’URL cible. Une `SANDBOX_EGRESS_ALLOWLIST` configurée doit contenir l’hôte nécessaire ; les destinations privées et de métadonnées cloud restent bloquées. Les tunnels HTTPS suivent la politique de ports prise en charge. Confirme la destination voulue avant d’élargir la liste, puis recrée le service de sortie après un changement d’environnement.

@@ -2583,6 +2583,43 @@ describe('spawner call preconditions', () => {
     expect(message).toContain('SANDBOX_URL');
   });
 
+  test('an unreachable spawner names each address that refused, not an empty cause', () => {
+    // What Node's fetch throws for `localhost` with nothing listening: it
+    // tried `::1` and `127.0.0.1`, and the AggregateError that carries both
+    // has an empty message of its own — the run read "fetch failed:  —".
+    const refused = (address: string) =>
+      Object.assign(new Error(`connect ECONNREFUSED ${address}:8003`), {
+        code: 'ECONNREFUSED',
+      });
+    const fetchFailure = (syscall: Error) =>
+      new TypeError('fetch failed', { cause: syscall });
+    const unreachable = (syscall: Error) =>
+      new SpawnerUnreachableError(
+        'POST',
+        '/v1/sessions/pa-1/acquire',
+        'http://localhost:8003',
+        fetchFailure(syscall),
+      ).message;
+
+    const bothAddresses = Object.assign(
+      new AggregateError([refused('::1'), refused('127.0.0.1')], ''),
+      { code: 'ECONNREFUSED' },
+    );
+    expect(unreachable(bothAddresses)).toBe(
+      'sandbox spawner unreachable at http://localhost:8003 (POST /v1/sessions/pa-1/acquire): fetch failed: connect ECONNREFUSED ::1:8003, connect ECONNREFUSED 127.0.0.1:8003 — is the sandbox service running, and does SANDBOX_URL point at it?',
+    );
+    // No words anywhere: the code names it, and no code adds nothing.
+    const wordless = Object.assign(new AggregateError([], ''), {
+      code: 'ECONNREFUSED',
+    });
+    expect(unreachable(wordless)).toContain(
+      'fetch failed: ECONNREFUSED — is the sandbox service running',
+    );
+    expect(unreachable(new Error(''))).toContain(
+      '(POST /v1/sessions/pa-1/acquire): fetch failed — is the sandbox service running',
+    );
+  });
+
   test('a deliberate abort passes through, unwrapped', async () => {
     // The turn-ended cut and every caller signal abort in-flight requests,
     // and the resilient drain branches on the rejection — reporting one as an

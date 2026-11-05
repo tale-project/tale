@@ -7,8 +7,8 @@
  * live-run transcript that used to render for a linked workflow execution is
  * offline while the automations backend is rebuilt, so a linked execution
  * shows the "no live detail" notice. A failed run leads with what its failure
- * means (`lib/shared/task-run-failure.ts`) and keeps the stored `error`
- * string below it as what the run reported.
+ * means (`lib/shared/task-run-failure.ts`) and folds the stored `error`
+ * string below it, as what the run reported.
  */
 import { Badge } from '@tale/ui/badge';
 import { cn } from '@tale/ui/cn';
@@ -21,6 +21,7 @@ import { useT } from '@/lib/i18n/client';
 import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 
 import type { TaskAgentRunRow } from '../utils/task-timeline';
+import { TaskAgentRunReported } from './task-agent-run-reported';
 import { isAgentRunWaiting, waitingCopyKey } from './task-agent-run-waiting';
 
 type AgentRunVariant = 'outline' | 'green' | 'destructive' | 'yellow';
@@ -100,20 +101,7 @@ export function TaskAgentRunStatusBadge({
             <Text as="p">
               {t(`agentRun.failure.${taskRunFailureClass(run.failureCode)}`)}
             </Text>
-            {run.error ? (
-              <Stack gap={1}>
-                <Text as="h3" variant="label">
-                  {t('agentRun.reported')}
-                </Text>
-                <Text
-                  as="p"
-                  variant="muted"
-                  className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
-                >
-                  {run.error}
-                </Text>
-              </Stack>
-            ) : null}
+            {run.error ? <TaskAgentRunReported error={run.error} /> : null}
           </Stack>
         ) : run.error ? (
           <Text as="p" variant="error" className="mt-4 whitespace-pre-wrap">

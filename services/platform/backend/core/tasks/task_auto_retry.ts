@@ -82,6 +82,14 @@ export type TaskRunFailureCode =
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
+  /** The sandbox service did not answer: no connection for a start, a
+   * comment's restart or the file collection — an acquire waits out a
+   * restarting service first — or a running turn's service stayed away for
+   * the whole outage budget (`SPAWNER_OUTAGE_BUDGET_MS`). Only whoever runs
+   * Tale can bring the service back or correct `SANDBOX_URL`, so the run says
+   * so. Retried and counted like a refused start: a service that is
+   * misconfigured must not be retried forever. */
+  | 'sandbox_unreachable'
   | 'harvest_failed'
   | 'steer_restart_failed'
   /** A comment's restart of a working run found no room in its sandbox: the
