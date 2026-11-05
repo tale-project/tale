@@ -17,7 +17,8 @@ import { z } from 'zod';
  * This asks Vitest which files each config runs, globbed as `vitest list
  * --filesOnly` globs them, so a project of `vitest.config.ts` that runs in
  * jsdom, or runs a file of the suite again, fails here. A file elsewhere that
- * needs a DOM opts in with `// @vitest-environment jsdom` in its own project.
+ * needs a DOM opts in to jsdom with a `@vitest-environment` comment in its own
+ * project.
  */
 
 const PLATFORM_ROOT = path.resolve(
