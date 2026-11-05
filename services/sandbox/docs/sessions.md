@@ -246,8 +246,8 @@ available. A failed pull does not end that wait: while the image is absent
 every create would fail, so creates keep answering `429 runtime_image` (with a
 `Retry-After` of 5–60 s that follows the next attempt) and the pull is retried
 after 30 s, 1, 2, 5 and then every 10 minutes. Session containers run with
-`--pull=never`: an implicit pull of the multi-gigabyte image could never finish
-inside the run's 30 s budget. A create that finds the image gone (an
+`--pull=never`: an implicit pull of the multi-gigabyte image may outlast the
+create's whole budget. A create that finds the image gone (an
 `image prune` on an idle host removes it, since stopped sessions keep no
 container) restarts the warmup and answers `429 runtime_image` instead of
 `502`. `GET /health` reports the image's state (`unchecked`, `pulling`, `ready`

@@ -2650,13 +2650,10 @@ export class SessionRoutes {
             409,
           );
         }
-        return jsonResponse(
-          {
-            error: 'create_failed',
-            message: err instanceof Error ? err.message : String(err),
-          },
-          502,
-        );
+        // handleCreate answers it as a failed create. An answer returned
+        // here once the budget has ended would be replaced by the bare
+        // deadline, losing the backend's account of the failure.
+        throw err;
       }
 
       let endpoint: string;

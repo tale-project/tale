@@ -410,9 +410,9 @@ export function buildDockerSessionRunArgs(
     'run',
     '-d',
     // Never pull here: an implicit pull of the multi-gigabyte runtime image
-    // cannot finish inside the run's 30 s budget, so every create on a host
-    // that lost the image would hold a Docker CLI slot and fail slowly. A
-    // missing image fails at once instead; the warmup pulls it.
+    // may outlast the create's whole budget, so every create on a host that
+    // lost the image would hold a Docker CLI slot and fail slowly. A missing
+    // image fails at once instead; the warmup pulls it.
     '--pull=never',
     `--runtime=${dockerRuntimeFor(cfg.runtimeTier)}`,
     '--name',

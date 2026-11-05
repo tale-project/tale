@@ -2143,6 +2143,32 @@ describe('SessionRoutes (fake runnerd)', () => {
     }
   });
 
+  // The backend's create runs in the route's budget, so it often fails just
+  // as that budget ends: the caller still learns why from the backend.
+  test("a create that fails at its deadline answers with the backend's error", async () => {
+    const message =
+      "docker run (session) timed out after 50 ms, the rest of the create's 50 ms budget (SANDBOX_SESSION_CREATE_TIMEOUT_MS)";
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, createHealthTimeoutMs: 50 } },
+      {
+        ...fakeBackend,
+        async createSession(spec) {
+          const signal = spec.signal;
+          if (signal === undefined) throw new Error('no operation signal');
+          await new Promise((resolve) => {
+            signal.addEventListener('abort', resolve, { once: true });
+          });
+          throw new Error(message);
+        },
+      },
+    );
+    const res = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'at-deadline', organizationId: 'o' }),
+    );
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'create_failed', message });
+  });
+
   test('env / files / content / attach round-trip through runnerd', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
