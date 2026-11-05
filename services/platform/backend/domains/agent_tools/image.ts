@@ -269,6 +269,8 @@ export async function runGenerateImage(
   }
   return {
     status: 'ok',
+    message:
+      'The images show under your reply by themselves. Describe them in words; do not write a ref into the reply.',
     model: `${image.model.providerDisplayName} ${image.model.modelId}`,
     images,
     artifacts,

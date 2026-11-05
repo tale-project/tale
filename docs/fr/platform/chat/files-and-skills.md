@@ -35,6 +35,8 @@ Les fichiers apparaissent sous la réponse, dans l’ordre où ils ont été cr�
 
 Quand l’assistant retouche un fichier dans la même réponse, par exemple après avoir vérifié son résultat, la carte n’affiche que la version finale. Demande une modification dans un message de suivi pour obtenir une nouvelle version dans la réponse suivante.
 
+Chaque fichier n’apparaît qu’une fois, sous la réponse, même quand le modèle le cite aussi dans son texte. Un lien vers le fichier dans le texte ouvre son aperçu. Une image du texte qui ne peut pas s’afficher, parce qu’elle désigne un fichier que tu ne peux pas ouvrir ou une adresse qu’aucun navigateur ne charge, est remplacée par sa description.
+
 Quand l’assistant a tenté en vain de créer un fichier, ou qu’il a exécuté du code dans la sandbox légère puis annonce avoir joint un fichier qui n’existe pas, **Aucun fichier n'a été joint à cette réponse** s’affiche sous la réponse. Redemande le fichier dans un message de suivi.
 
 Les fichiers appartiennent à la conversation : quiconque peut ouvrir la conversation peut ouvrir ses fichiers.

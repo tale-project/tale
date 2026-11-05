@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 137 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 138 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -34,9 +34,9 @@ Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
 `e2e:length` / `e2e:stream-error` / `e2e:gateway-route` /
 `e2e:cloud-region` / `e2e:make-file` / `e2e:make-spreadsheet` /
-`e2e:run-long-code`) drive
+`e2e:run-long-code` / `e2e:file-ref`) drive
 CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58, CHAT-F62,
-CHAT-F66–CHAT-F68 and CHAT-F72; CHAT-F68 and CHAT-F72 also need the sandbox
+CHAT-F66–CHAT-F68, CHAT-F72 and CHAT-F87; CHAT-F68 and CHAT-F72 also need the sandbox
 service (full Docker stack). Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
@@ -836,6 +836,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   no such line shows under that reply. Send "Write planets.csv with the eight
   planets in order from the sun" → a **planets.csv** card arrives under the
   reply and no such line shows.
+- [ ] `CHAT-F87` · **A file the reply names by its reference** — Mode A with
+  object storage: in a new chat send `e2e:file-ref` → one **planets.csv** card
+  under the reply, and none in the text: where the reply wrote the file as a
+  picture, the text shows no picture, no grey placeholder and no broken image.
+  **planets.csv** in the second sentence reads as a link and is a button (no
+  address to open in a tab): it opens the file's preview, with its download;
+  Escape closes it. **Copy** on the reply copies the text without the
+  file's `s3:` reference. Reload → the same.
 
 ## Boundary & error tests
 

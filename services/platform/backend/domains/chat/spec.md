@@ -445,6 +445,21 @@ files could not be made (CHAT-R28), nor one the guardrails blocked, which shows 
 - **Example**: Mia asks her chat to draft an e-mail that says the Q3 report is attached → the
   draft reads "Please find attached the Q3 report", and no line shows under the reply.
 
+### CHAT-R40 · A file a reply's text names by its reference shows once, or as its words
+
+A tool answers the model with each file's reference, and a model sometimes writes it into the
+reply as a picture or a link. A picture naming a file the reply made is not drawn in the text:
+it already shows under the reply (`CHAT-R33`). A picture naming another file is drawn only when
+the reader may open that file, and a link to a file opens its preview. A picture nothing can
+draw — an address no browser loads, a file the reader may not open, one that fails to load —
+reads as its description, never as a placeholder whose preview opens empty.
+
+- **Example**: Mia asks for a reading nook and to see it; the reply reads "Here is your nook:"
+  above a picture written as `![Cozy Reading Nook](s3:…)` → she sees the picture once, under the
+  reply.
+- **Example**: The reply links `[planets.csv](s3:…)` → Mia clicks it and the file's preview
+  opens, with its download.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the

@@ -89,7 +89,7 @@ export function renderWorkLadder(loadout: WorkLoadout): string | undefined {
     );
   }
   lines.push(
-    'Never use a costlier step than the work needs, and never claim a file you did not make. When files are attached, say so in a sentence and do not paste their content again.',
+    'Never use a costlier step than the work needs, and never claim a file you did not make. When files are attached, say so in a sentence, by their names: they show under your reply by themselves, so do not paste their content again or write their refs into the reply.',
   );
   return lines.join('\n');
 }

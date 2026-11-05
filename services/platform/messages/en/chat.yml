@@ -215,6 +215,8 @@ modelCannotSeeImages: This model can't view images — it only sees their file n
 noModelCanSeeImages: None of the available models can view images — they only see file names.
 fileTypes:
   image: IMG
+markdownImage:
+  unavailable: This image can't be shown.
 transcription:
   transcribing: Transcribing…
   transcribed: Transcribed

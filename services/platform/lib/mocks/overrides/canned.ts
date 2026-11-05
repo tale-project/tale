@@ -44,6 +44,7 @@ export const MOCK_TRIGGERS = {
   makeSpreadsheet: 'e2e:make-spreadsheet',
   runLongCode: 'e2e:run-long-code',
   useWorkspace: 'e2e:use-workspace',
+  fileRef: 'e2e:file-ref',
 } as const;
 
 /**
@@ -87,6 +88,20 @@ export const MOCK_WORK_TOOLS = {
   workspaceBrief:
     'Clone the repository, run its test suite and report which tests fail.',
   done: 'Done — the file is attached to this reply.',
+} as const;
+
+/**
+ * The reference scenario (`MOCK_TRIGGERS.fileRef`): the `create_file` turn
+ * of `makeFile`, then a closing reply that writes the file it made into its
+ * text by the ref the tool answered with — as a picture and as a link, the
+ * way some models do. The chat shows the file once, under the reply, and
+ * the link opens its preview.
+ */
+export const MOCK_FILE_REF = {
+  reply: (ref: string): string =>
+    `Here is the table: ![${MOCK_WORK_TOOLS.fileName}](${ref})\n\nOpen [${MOCK_WORK_TOOLS.fileName}](${ref}) to read it.`,
+  /** The closing reply when the tool result named no ref. */
+  noRef: 'The file could not be written.',
 } as const;
 
 /**

@@ -59,6 +59,9 @@ interface TypewriterTextProps {
   components?: MarkdownComponentMap;
   /** Additional CSS classes */
   className?: string;
+  /** URL schemes, beside the safe ones, that links and images keep — see
+   * `IncrementalMarkdown`'s prop of the same name. */
+  urlProtocols?: readonly string[];
 }
 
 // ============================================================================
@@ -136,6 +139,7 @@ function TypewriterTextComponent({
   onFirstReveal,
   components,
   className,
+  urlProtocols,
 }: TypewriterTextProps) {
   const stableText = useStableStreamText(text, isStreaming);
 
@@ -164,6 +168,7 @@ function TypewriterTextComponent({
       components={components}
       className={className}
       aria-busy={isStreaming || isDraining}
+      {...(urlProtocols !== undefined ? { urlProtocols } : {})}
     />
   );
 }
@@ -182,6 +187,7 @@ export const TypewriterText = memo(
       prevProps.isStreaming === nextProps.isStreaming &&
       prevProps.className === nextProps.className &&
       prevProps.components === nextProps.components &&
+      prevProps.urlProtocols === nextProps.urlProtocols &&
       prevProps.onComplete === nextProps.onComplete &&
       prevProps.onFirstReveal === nextProps.onFirstReveal
     );

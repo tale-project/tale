@@ -2,6 +2,8 @@
 
 import { cn } from '@tale/ui/cn';
 import { JsonViewer } from '@tale/ui/json-viewer';
+import { SkeletonBox } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   TableBody,
   TableCell,
@@ -10,6 +12,7 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { useRouter } from '@tanstack/react-router';
+import { ImageOff } from 'lucide-react';
 import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from 'react';
 import {
   Children,
@@ -22,7 +25,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { Image } from '@/app/components/image';
+import { useFileUrl } from '@/app/features/shared/files/use-file-url';
 import { useT } from '@/lib/i18n/client';
 import { classifyLink } from '@/lib/utils/link-classifier';
 
@@ -31,6 +34,10 @@ import { useCitationsContext } from './citations-context';
 import { CodeBlock, HighlightedCode } from './code-block';
 import { ImagePreviewDialog } from './image-preview-dialog';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
+import {
+  isStorageRef,
+  MarkdownStoredFilesContext,
+} from './stored-files-context';
 
 /** Link replacements supplied by a surface that owns stored files. */
 export type MarkdownLinkOverride =
@@ -80,32 +87,72 @@ interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   height?: number;
 }
 
-const MarkdownImage = memo(function MarkdownImage({
-  className,
-  width = 448,
-  height = 320,
-  ...props
-}: MarkdownImageProps) {
+/** Whether an address can be drawn as it stands: a web address or a
+ * relative path. The URL checks upstream leave an address they refuse
+ * empty, and a stored file's reference is resolved apart. */
+function drawableAddress(src: string): boolean {
+  if (src === '') return false;
+  const colon = src.indexOf(':');
+  const slash = src.indexOf('/');
+  if (colon === -1 || (slash !== -1 && colon > slash)) return true;
+  const scheme = src.slice(0, colon).toLowerCase();
+  return scheme === 'http' || scheme === 'https';
+}
+
+/**
+ * An image the text names but nothing can draw — an address no browser
+ * loads, a stored file the reader cannot open, a picture that failed to
+ * load: its words, marked as a picture that is missing, never a grey
+ * placeholder whose preview opens empty.
+ */
+function MissingMarkdownImage({ alt }: { alt: string }) {
   const { t } = useT('chat');
+  const label = t('markdownImage.unavailable');
+  return (
+    <span
+      className="text-muted-foreground inline-flex items-center gap-1 align-baseline"
+      title={label}
+    >
+      <ImageOff aria-hidden className="size-3.5 shrink-0" />
+      {alt !== '' && <span>{alt}</span>}
+      <span className="sr-only">{`(${label})`}</span>
+    </span>
+  );
+}
+
+/** A picture drawn from an address that loads: it opens in the preview,
+ * and one that fails to load falls back to its words. */
+function DrawnMarkdownImage({
+  src,
+  alt,
+  width,
+  height,
+  className,
+}: {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  className?: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
-  const altText =
-    typeof props.alt === 'string' ? props.alt : t('fileTypes.image');
-  const imageSrc = typeof props.src === 'string' ? props.src : '';
-
-  const handleOpen = () => setIsOpen(true);
-
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (failedSrc === src) return <MissingMarkdownImage alt={alt} />;
   return (
     <>
       <button
         type="button"
-        onClick={handleOpen}
+        onClick={() => setIsOpen(true)}
         className="ring-border focus:ring-ring font-inherit inline-block cursor-pointer appearance-none overflow-hidden rounded-lg border-none bg-transparent p-0 ring-1 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
       >
-        <Image
-          src={imageSrc}
-          alt={altText}
+        <img
+          src={src}
+          alt={alt}
           width={width}
           height={height}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedSrc(src)}
           className={cn(
             'max-h-80 w-auto max-w-full rounded-lg object-contain',
             className,
@@ -115,10 +162,88 @@ const MarkdownImage = memo(function MarkdownImage({
       <ImagePreviewDialog
         isOpen={isOpen}
         onOpenChange={setIsOpen}
-        src={imageSrc}
-        alt={altText}
+        src={src}
+        alt={alt}
       />
     </>
+  );
+}
+
+/** A stored file the text names as a picture, drawn from the signed link
+ * the files door answers for this reader — none when they cannot open it. */
+function StoredMarkdownImage({
+  storageRef,
+  alt,
+  width,
+  height,
+  className,
+}: {
+  storageRef: string;
+  alt: string;
+  width: number;
+  height: number;
+  className?: string;
+}) {
+  const url = useFileUrl(storageRef);
+  if (url.isLoading) {
+    return (
+      <Skeletonize loading>
+        <SkeletonBox>
+          <span className="block size-40 rounded-lg" />
+        </SkeletonBox>
+      </Skeletonize>
+    );
+  }
+  const src = typeof url.data === 'string' ? url.data : '';
+  if (src === '') return <MissingMarkdownImage alt={alt} />;
+  return (
+    <DrawnMarkdownImage
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      {...(className !== undefined ? { className } : {})}
+    />
+  );
+}
+
+const MarkdownImage = memo(function MarkdownImage({
+  className,
+  width = 448,
+  height = 320,
+  ...props
+}: MarkdownImageProps) {
+  const { t } = useT('chat');
+  const storedFiles = useContext(MarkdownStoredFilesContext);
+  const altText =
+    typeof props.alt === 'string' ? props.alt : t('fileTypes.image');
+  const imageSrc = typeof props.src === 'string' ? props.src : '';
+
+  if (isStorageRef(imageSrc)) {
+    // The message carries this file itself and draws it beside the text:
+    // drawing it here as well would show it twice.
+    if (storedFiles?.own.has(imageSrc) === true) return null;
+    if (storedFiles === undefined)
+      return <MissingMarkdownImage alt={altText} />;
+    return (
+      <StoredMarkdownImage
+        storageRef={imageSrc}
+        alt={altText}
+        width={width}
+        height={height}
+        {...(className !== undefined ? { className } : {})}
+      />
+    );
+  }
+  if (!drawableAddress(imageSrc)) return <MissingMarkdownImage alt={altText} />;
+  return (
+    <DrawnMarkdownImage
+      src={imageSrc}
+      alt={altText}
+      width={width}
+      height={height}
+      {...(className !== undefined ? { className } : {})}
+    />
   );
 });
 
@@ -131,6 +256,18 @@ const markdownImageComponent = ({
   <MarkdownImage {...props} />
 );
 
+/** The text of a link, for a file it opens that has no name of its own. */
+function linkText(children: ReactNode): string {
+  return Children.toArray(children)
+    .map((child) =>
+      typeof child === 'string' || typeof child === 'number'
+        ? String(child)
+        : '',
+    )
+    .join('')
+    .trim();
+}
+
 function MarkdownAnchor({
   href,
   children,
@@ -138,6 +275,28 @@ function MarkdownAnchor({
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const router = useRouter();
   const linkOverrides = useContext(MarkdownLinkOverridesContext);
+  const storedFiles = useContext(MarkdownStoredFilesContext);
+  if (isStorageRef(href)) {
+    // A stored file the text links to opens where its own card would: the
+    // preview, which downloads it too. A surface that owns no files keeps
+    // the words — a link that goes nowhere is worse than text.
+    if (storedFiles === undefined) return <span>{children}</span>;
+    const ref = href;
+    const name = linkText(children);
+    // It opens a preview rather than going anywhere: a button that reads
+    // as a link, with no address to open in a tab or to copy.
+    return (
+      <button
+        type="button"
+        className="text-info-foreground cursor-pointer text-left hover:underline focus-visible:underline"
+        onClick={() =>
+          storedFiles.open({ ref, name: name === '' ? ref : name })
+        }
+      >
+        {children}
+      </button>
+    );
+  }
   const override = href === undefined ? undefined : linkOverrides?.[href];
   const resolvedHref = typeof override === 'string' ? override : override?.href;
   href = resolvedHref ?? href;

@@ -30,6 +30,7 @@ import {
   CANNED_REASONING_ANSWER,
   CANNED_REPLY,
   CANNED_STREAM_ERROR_MESSAGE,
+  MOCK_FILE_REF,
   MOCK_SERVING,
   MOCK_TRIGGERS,
   MOCK_WORK_TOOLS,
@@ -145,7 +146,8 @@ type Scenario =
   | 'makeSpreadsheet'
   | 'runLongCode'
   | 'useWorkspace'
-  | 'workDone';
+  | 'workDone'
+  | 'fileRefDone';
 
 function userTexts(messages: ParsedMessage[]): string[] {
   return messages
@@ -290,6 +292,9 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   if (last.includes(MOCK_TRIGGERS.gatewayRoute)) return 'gatewayRoute';
   if (last.includes(MOCK_TRIGGERS.cloudRegion)) return 'cloudRegion';
+  if (last.includes(MOCK_TRIGGERS.fileRef)) {
+    return isToolResumeInTurn(messages) ? 'fileRefDone' : 'makeFile';
+  }
   if (
     last.includes(MOCK_TRIGGERS.makeFile) ||
     last.includes(MOCK_TRIGGERS.makeSpreadsheet) ||
@@ -360,6 +365,17 @@ function docsToolCallDeltas(tool: DocsReplyTool): ToolCallDelta[] {
   ];
 }
 
+/** The ref of the newest file a tool result in the conversation names. */
+function lastToolRef(messages: ParsedMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role !== 'tool') continue;
+    const match = /"ref"\s*:\s*"(s3:[^"]+)"/.exec(message.text);
+    if (match?.[1] !== undefined) return match[1];
+  }
+  return undefined;
+}
+
 /** The plain-text content a (non-tool) scenario streams as `delta.content`. */
 function scenarioContent(
   scenario: Scenario,
@@ -377,6 +393,10 @@ function scenarioContent(
       return CANNED_REASONING_ANSWER;
     case 'workDone':
       return MOCK_WORK_TOOLS.done;
+    case 'fileRefDone': {
+      const ref = lastToolRef(body.messages ?? []);
+      return ref === undefined ? MOCK_FILE_REF.noRef : MOCK_FILE_REF.reply(ref);
+    }
     default: {
       const formatType = body.response_format?.type ?? '';
       return formatType.startsWith('json') ? CANNED_JSON_REPLY : CANNED_REPLY;

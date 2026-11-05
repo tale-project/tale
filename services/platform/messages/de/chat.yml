@@ -216,6 +216,8 @@ modelCannotSeeImages: Dieses Modell kann keine Bilder sehen — es bekommt nur d
 noModelCanSeeImages: Keines der verfügbaren Modelle kann Bilder sehen — sie bekommen nur die Dateinamen.
 fileTypes:
   image: BILD
+markdownImage:
+  unavailable: Dieses Bild kann nicht angezeigt werden.
 transcription:
   transcribing: Transkribiere…
   transcribed: Transkribiert
