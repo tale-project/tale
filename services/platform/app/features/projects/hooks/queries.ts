@@ -93,9 +93,6 @@ export function useProjectAgents(projectId: string | undefined) {
   };
 }
 
-export type ProjectChatAgents =
-  ReturnsOf<'projects/queries:getProjectChatAgents'>;
-
 /** Who a project's chats may answer as — its own agents, oldest first — and
  * who its new chats start with. Nothing to read without a project. */
 export function useProjectChatAgents(projectId: string | undefined) {

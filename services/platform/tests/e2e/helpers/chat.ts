@@ -52,7 +52,7 @@ export function messageLog(page: Page, resolveLabel: typeof t = t): Locator {
  * key flips at most once, so a later attempt always wins). ONE implementation
  * for the whole suite.
  */
-export async function fillComposer(page: Page, message: string): Promise<void> {
+async function fillComposer(page: Page, message: string): Promise<void> {
   const box = composer(page);
   await expect(box).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await expect(box).toBeEnabled();
