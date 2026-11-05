@@ -679,7 +679,7 @@ Seuls les Propriétaires et Admins peuvent modifier les autorisations de secrets
 
 Le droit de lire un projet permet de consulter ses agents. Les écritures exigent un projet actif et le droit de le modifier. Un projet absent ou invisible, ou l’ID d’un agent d’un autre projet, donne **404**. Si le détenteur de la clé appartient à plusieurs organisations, inclus `X-Organization-Slug` dans chaque requête.
 
-[Agents de projet](/fr/platform/projects/project-agents) explique leur travail sur les tâches. Le chat direct utilise l’assistant intégré.
+[Agents de projet](/fr/platform/projects/project-agents) explique leur travail sur les tâches et dans les chats d’un projet. L’API de chat ne permet pas de choisir l’agent qui répond dans un chat.
 
 ## Lire la répartition du travail d’un projet et signaler ses barrières {#dispatch}
 
@@ -1155,7 +1155,7 @@ L’en-tête facultatif `Idempotency-Key` doit contenir de 1 à 255 caractères 
 
 ### Comprendre l’assistant et les limites de tokens
 
-Chaque tour utilise l’assistant intégré de l’espace de travail, avec ses instructions, ses règles de sécurité et ses outils : trois outils de recherche, et les outils de travail que la politique Outils du chat de ton organisation autorise, avec lesquels il crée les fichiers demandés et les renvoie sous forme de parties `artifact`. Il ne s’agit pas d’un appel direct au modèle sans instructions.
+Chaque tour utilise l’assistant intégré de l’espace de travail, avec ses instructions, ses règles de sécurité et ses outils : trois outils de recherche, et les outils de travail que la politique Outils du chat de ton organisation autorise, avec lesquels il crée les fichiers demandés et les renvoie sous forme de parties `artifact`. Il ne s’agit pas d’un appel direct au modèle sans instructions. Dans un chat de projet où la personne à qui il appartient a choisi un agent du projet dans l’application, c’est cet agent qui répond, avec ses instructions et ses skills.
 
 Pour choisir des skills pour un message, commence `content` par `/` et le nom d’un skill, par exemple `"content": "/docx Rédige la lettre de motivation"` : le tour lit le skill avant que le modèle réponde, et les parties de la réponse commencent par cet appel `load_skill` et son résultat. Jusqu’à quatre noms peuvent ouvrir le contenu (`/xlsx /brand-voice …`). Seuls les skills que le titulaire de la clé peut utiliser comptent, et `GET /api/v1/skills` les liste ; tout autre nom, ainsi qu’un `/` plus loin dans le texte, fait partie du message tel quel. Les skills qu’une conversation utilise pour chaque réponse se choisissent dans l’app, et un fil poursuivi ici les lit aussi.
 
@@ -1210,7 +1210,7 @@ Affiche une partie `reasoning` séparément de la réponse. Elle peut reprendre 
 
 Pour un chat personnel sans projet, utilise `/api/v1/threads` et ses routes de détail, de messages et de génération. Elles ne donnent pas accès aux fils des projets. Un projet incorrect dans l’URL donne **404**.
 
-Les deux types de chat utilisent l’assistant intégré. Ajouter `projectId`, `agentSlug` ou `agentId` au corps de création ou d’envoi donne **400**. Les lecteurs du projet, y compris les Membres, peuvent créer un fil et envoyer des messages. Un projet archivé refuse ces écritures avec **403**.
+Dans un fil que tu crées, c’est l’assistant intégré qui répond, même dans un projet dont les nouveaux chats commencent avec l’un de ses agents dans l’application. Si la personne à qui appartient le fil a choisi un agent du projet dans l’application, c’est cet agent qui répond, et les messages ne le nomment pas. Ajouter `projectId`, `agentSlug` ou `agentId` au corps de création ou d’envoi donne **400**. Les lecteurs du projet, y compris les Membres, peuvent créer un fil et envoyer des messages. Un projet archivé refuse ces écritures avec **403**.
 
 Un envoi peut aussi être refusé sans mise en file :
 
