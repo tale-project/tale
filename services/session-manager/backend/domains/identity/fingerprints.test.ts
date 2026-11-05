@@ -5,7 +5,6 @@
 
 import { createHash } from 'node:crypto';
 
-import { FingerprintGenerator } from 'fingerprint-generator';
 import type { Fingerprint } from 'fingerprint-generator';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -173,28 +172,21 @@ function fakeCamoufox(build: FakeBuild = {}) {
   return { launchOptions, calls };
 }
 
-const generator = new FingerprintGenerator({
-  browsers: ['firefox'],
-  operatingSystems: ['linux', 'macos', 'windows'],
-});
-
-function realFingerprint(os: IdentityOs): Fingerprint {
-  return generator.getFingerprint({
-    screen: { maxWidth: BOUND[0], maxHeight: BOUND[1] },
-    operatingSystems: [os],
-  }).fingerprint;
-}
-
-// A few real fingerprints per OS: the generator takes 40 ms for one.
+// A few real fingerprints per OS, as `drawIdentity` draws them: it refuses some
+// that the generator gives (see "a fingerprint without the CPU of its OS"), and
+// a test that pins one of the pool needs one that it takes. The generator takes
+// 40 ms for one.
 const pool: Record<IdentityOs, Fingerprint[]> = {
   windows: [],
   macos: [],
   linux: [],
 };
-beforeAll(() => {
+beforeAll(async () => {
   for (const os of OSES) {
     for (let n = 0; n < 6; n++) {
-      const fingerprint = realFingerprint(os);
+      const { fingerprint } = await drawIdentity(os, BOUND, {
+        launchOptions: fakeCamoufox().launchOptions,
+      });
       // Two real fingerprints can look alike to the stand-in: these never do.
       fingerprint.navigator.hardwareConcurrency = 2 + n;
       pool[os].push(fingerprint);
@@ -1005,6 +997,7 @@ describe('drawIdentity', () => {
         launchOptions: fakeCamoufox().launchOptions,
         generate,
       });
+      expect(generate).toHaveBeenCalledTimes(2);
       expect(identity.fingerprint).toEqual(pool.windows[2]);
     });
   });
