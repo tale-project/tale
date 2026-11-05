@@ -92,6 +92,8 @@ interface ToolResult {
   title?: string;
   canonicalUrl?: string;
   rendered?: boolean;
+  /** Why a call read nothing, for the reply's step. */
+  reason?: string;
   filename?: string;
   content?: string;
   totalChars?: number;
@@ -1358,6 +1360,145 @@ describe('web_fetch', () => {
     expect(safeFetchMock).not.toHaveBeenCalled();
   });
 
+  // The reason is the person's line on the reply's step; the message stays
+  // the model's.
+  it.each([
+    ['no address', {}, undefined, 'invalid_args', 'invalid_url'],
+    [
+      'an address that does not parse',
+      { url: 'not a url' },
+      undefined,
+      'invalid_args',
+      'invalid_url',
+    ],
+    [
+      'plain http',
+      { url: 'http://example.com/page' },
+      undefined,
+      'invalid_args',
+      'address_refused',
+    ],
+    [
+      'credentials in the address',
+      { url: 'https://u:p@example.com/' },
+      undefined,
+      'invalid_args',
+      'address_refused',
+    ],
+    [
+      'a private host',
+      { url: 'https://10.0.0.1/' },
+      undefined,
+      'invalid_args',
+      'address_refused',
+    ],
+    [
+      'a redirect into a private network',
+      { url: 'https://example.com/hop' },
+      () =>
+        safeFetchMock.mockRejectedValueOnce(
+          new SafeFetchError('private_ip', 'refused'),
+        ),
+      'error',
+      'address_refused',
+    ],
+    [
+      'a site that does not answer in time',
+      { url: 'https://example.com/slow' },
+      () =>
+        safeFetchMock.mockRejectedValueOnce(
+          new SafeFetchError('timeout', 'Request timed out after 15000ms'),
+        ),
+      'error',
+      'timed_out',
+    ],
+    [
+      'a name that does not resolve',
+      { url: 'https://nowhere.example/' },
+      () =>
+        safeFetchMock.mockRejectedValueOnce(
+          new SafeFetchError('dns_failed', 'ENOTFOUND'),
+        ),
+      'error',
+      'unreachable',
+    ],
+    [
+      'a page too large to read',
+      { url: 'https://example.com/huge' },
+      () =>
+        safeFetchMock.mockRejectedValueOnce(
+          new SafeFetchError('response_too_large', 'too large'),
+        ),
+      'error',
+      'page_too_large',
+    ],
+    [
+      'a 404',
+      { url: 'https://example.com/missing' },
+      () =>
+        safeFetchMock.mockResolvedValueOnce({
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers(),
+          body: '',
+          finalUrl: 'https://example.com/missing',
+        }),
+      'error',
+      'page_not_found',
+    ],
+    [
+      'a 403',
+      { url: 'https://example.com/private' },
+      () =>
+        safeFetchMock.mockResolvedValueOnce({
+          status: 403,
+          statusText: 'Forbidden',
+          headers: new Headers(),
+          body: '',
+          finalUrl: 'https://example.com/private',
+        }),
+      'error',
+      'access_denied',
+    ],
+    [
+      'a 503',
+      { url: 'https://example.com/down' },
+      () =>
+        safeFetchMock.mockResolvedValueOnce({
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: new Headers(),
+          body: '',
+          finalUrl: 'https://example.com/down',
+        }),
+      'error',
+      'http_error',
+    ],
+    [
+      'a type it does not read',
+      { url: 'https://example.com/file.pdf' },
+      () =>
+        safeFetchMock.mockResolvedValueOnce({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/pdf' }),
+          body: '%PDF-1.7',
+          finalUrl: 'https://example.com/file.pdf',
+        }),
+      'unavailable',
+      'unsupported_type',
+    ],
+  ])(
+    'names why it read nothing for %s [CHAT-R30]',
+    async (_case, input, answer, status, reason) => {
+      answer?.();
+      const executor = await makeExecutor(createCtx().ctx);
+      await expect(
+        executor.execute({ id: 'call_1', name: 'web_fetch', input }),
+      ).resolves.toMatchObject({ status, reason });
+    },
+  );
+
   it('reports a fetch failure as an error naming the kind — never a throw', async () => {
     safeFetchMock.mockRejectedValueOnce(
       new SafeFetchError('timeout', 'Request timed out after 15000ms'),
@@ -1627,6 +1768,7 @@ describe('web_fetch reads a page for its content', () => {
       const { result, audits } = await fetchPage(TED_NOTICE);
 
       expect(result.status).toBe('error');
+      expect(result.reason).toBe('bot_check_blocked');
       expect(result.message).toContain(
         'The site answered 202 with nothing to read',
       );
@@ -1643,8 +1785,9 @@ describe('web_fetch reads a page for its content', () => {
     },
   );
 
-  it("explains AWS WAF's challenge page as a block, with or without its header", async () => {
+  it("takes AWS WAF's challenge page for its check, with or without its header, and renders the page behind it", async () => {
     const challenge = recorded('aws-waf-challenge');
+    renderUrlsMock.mockReset();
     safeFetchMock
       .mockResolvedValueOnce(
         answer(202, challenge, TED_NOTICE, { statusText: 'Accepted' }),
@@ -1658,14 +1801,28 @@ describe('web_fetch reads a page for its content', () => {
           },
         }),
       );
+    for (let turn = 0; turn < 2; turn += 1) {
+      renderUrlsMock.mockResolvedValueOnce({
+        outcomes: new Map([
+          [
+            TED_NOTICE,
+            {
+              kind: 'ok',
+              status: 200,
+              finalUrl: TED_NOTICE,
+              html: recorded('ted-notice-rendered'),
+            },
+          ],
+        ]),
+        halted: null,
+      });
+    }
 
     const bare = (await fetchPage(TED_NOTICE)).result;
-    expect(bare.status).toBe('error');
-    expect(bare.message).toContain('sites that block automated access');
-
+    expect(bare).toMatchObject({ status: 'ok', rendered: true });
     const named = (await fetchPage(TED_NOTICE)).result;
-    expect(named.status).toBe('error');
-    expect(named.message).toContain("AWS WAF's bot check");
+    expect(named).toMatchObject({ status: 'ok', rendered: true });
+    expect(renderUrlsMock).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -1684,6 +1841,7 @@ describe('web_fetch reads a page for its content', () => {
     const { result } = await fetchPage(url);
 
     expect(result.status).toBe('unavailable');
+    expect(result.reason).toBe('page_empty');
     expect(result.message).toContain('The page holds no text');
   });
 });
@@ -1810,6 +1968,7 @@ describe('web_fetch renders a page that needs a browser, once', () => {
           ),
         ),
       "no browser was free to render it here (the organization's render sessions are all in use",
+      'render_busy',
     ],
     [
       'a render the site refused',
@@ -1822,6 +1981,7 @@ describe('web_fetch renders a page that needs a browser, once', () => {
           }),
         ),
       'rendering it in a browser here failed (HTTP 403 at render time)',
+      'render_failed',
     ],
     [
       'a page the browser could not load in time',
@@ -1835,6 +1995,7 @@ describe('web_fetch renders a page that needs a browser, once', () => {
           }),
         ),
       'rendering it in a browser here failed (The browser could not load the page within 20 seconds)',
+      'render_failed',
     ],
     [
       'a render lane that halted before the page',
@@ -1850,6 +2011,7 @@ describe('web_fetch renders a page that needs a browser, once', () => {
           ),
         ),
       'rendering it in a browser here failed (net::ERR_TUNNEL_CONNECTION_FAILED',
+      'render_failed',
     ],
     [
       'a sandbox that failed',
@@ -1858,32 +2020,38 @@ describe('web_fetch renders a page that needs a browser, once', () => {
           new Error('render worker produced no output'),
         ),
       'rendering it in a browser here failed (render worker produced no output)',
+      'render_failed',
     ],
-  ])('explains %s, with what the render met', async (_case, render, met) => {
-    safeFetchMock.mockResolvedValueOnce(
-      answer(200, recorded('ted-notice-shell'), TED_NOTICE),
-    );
-    render();
+  ])(
+    'explains %s, with what the render met',
+    async (_case, render, met, reason) => {
+      safeFetchMock.mockResolvedValueOnce(
+        answer(200, recorded('ted-notice-shell'), TED_NOTICE),
+      );
+      render();
 
-    const { result, audits } = await fetchPage(TED_NOTICE);
+      const { result, audits } = await fetchPage(TED_NOTICE);
 
-    expect(result.status).toBe('unavailable');
-    expect(result.message).toContain(
-      'The page builds its content in the browser with scripts; ',
-    );
-    expect(result.message).toContain(met);
-    expect(result.message).toContain('open it in their browser');
-    expect(result.content).toBeUndefined();
-    expect(renderUrlsMock).toHaveBeenCalledTimes(1);
-    expect(audits).toEqual([
-      expect.objectContaining({
-        status: 'failure',
-        errorMessage: expect.stringContaining(met),
-      }),
-    ]);
-    // The operator's log names the host and why.
-    expect(String(warn.mock.calls.at(-1)?.[0])).toContain('ted.europa.eu');
-  });
+      expect(result.status).toBe('unavailable');
+      expect(result.reason).toBe(reason);
+      expect(result.message).toContain(
+        'The page builds its content in the browser with scripts; ',
+      );
+      expect(result.message).toContain(met);
+      // Facts for the model; how to tell the person is the description's.
+      expect(result.message).not.toContain('Tell the user');
+      expect(result.content).toBeUndefined();
+      expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+      expect(audits).toEqual([
+        expect.objectContaining({
+          status: 'failure',
+          errorMessage: expect.stringContaining(met),
+        }),
+      ]);
+      // The operator's log names the host and why.
+      expect(String(warn.mock.calls.at(-1)?.[0])).toContain('ted.europa.eu');
+    },
+  );
 
   it('explains a page still empty after rendering, without a fault to log', async () => {
     safeFetchMock.mockResolvedValueOnce(
@@ -1902,6 +2070,7 @@ describe('web_fetch renders a page that needs a browser, once', () => {
 
     const met = 'rendered in a browser here, it still holds no text';
     expect(result.status).toBe('unavailable');
+    expect(result.reason).toBe('render_empty');
     expect(result.message).toContain(
       `The page builds its content in the browser with scripts; ${met}`,
     );
@@ -1928,6 +2097,7 @@ describe('web_fetch renders a page that needs a browser, once', () => {
     const { result } = await fetchPage(TED_NOTICE);
 
     expect(result.status).toBe('error');
+    expect(result.reason).toBe('bot_check_blocked');
     expect(result.message).toContain(
       'The site answered 202 with nothing to read',
     );
@@ -1944,8 +2114,8 @@ describe('web_fetch renders a page that needs a browser, once', () => {
       'ok',
     ],
     [
-      "a 202 that holds AWS WAF's challenge",
-      answer(202, recorded('aws-waf-challenge'), TED_NOTICE),
+      'a 202 with nothing in it',
+      answer(202, '', TED_NOTICE, { 'content-type': 'text/html' }),
       'error',
     ],
     [
@@ -1956,19 +2126,6 @@ describe('web_fetch renders a page that needs a browser, once', () => {
         'https://example.com/map',
       ),
       'unavailable',
-    ],
-    [
-      "Cloudflare's bot check, a page of scripts",
-      answer(
-        403,
-        '<html><head><title>Just a moment...</title><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1"></script></head><body><div id="root"></div></body></html>',
-        TED_NOTICE,
-        {
-          'content-type': 'text/html; charset=UTF-8',
-          'cf-mitigated': 'challenge',
-        },
-      ),
-      'error',
     ],
   ])('never renders %s', async (_case, page, status) => {
     safeFetchMock.mockResolvedValueOnce(page);
@@ -1987,6 +2144,7 @@ describe('web_fetch meets a bot check', () => {
     vi.clearAllMocks();
     // Answers a case queued and did not use must not reach the next case.
     safeFetchMock.mockReset();
+    renderUrlsMock.mockReset();
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
   // The console and clock spies a case set.
@@ -2022,6 +2180,19 @@ describe('web_fetch meets a bot check', () => {
       name: 'web_fetch',
       input: { url: 'https://wiki.mozilla.org/Release_Management/Calendar' },
     });
+  /** What the render lane hands back for the page the check stood in front
+   * of. */
+  const drawnCalendar = (outcome: unknown) => ({
+    outcomes: new Map([[fastlyCheck().finalUrl, outcome]]),
+    halted: null,
+  });
+  /** No render session free: a render that reads nothing, at once. */
+  const noBrowserFree = () =>
+    renderUrlsMock.mockRejectedValueOnce(
+      new RenderCapacityError(
+        'render session limit reached for this organization',
+      ),
+    );
 
   it('asks again through the next proxy and reads the page it is served there', async () => {
     safeFetchMock
@@ -2038,6 +2209,8 @@ describe('web_fetch meets a bot check', () => {
     expect(result.content).toContain('Nightly 147 starts on 10 November.');
     expect(result.content).not.toContain('couldn’t load');
     expect(safeFetchMock).toHaveBeenCalledTimes(2);
+    // A page another exit was served is never rendered.
+    expect(renderUrlsMock).not.toHaveBeenCalled();
     const logged = String(warn.mock.calls[0]?.[0]);
     expect(logged).toContain('wiki.mozilla.org');
     expect(logged).toContain('Fastly through outbound proxy entry 1');
@@ -2046,28 +2219,68 @@ describe('web_fetch meets a bot check', () => {
     );
   });
 
-  it("tells the model the page could not be read when every attempt met the check, never the check's text", async () => {
+  it('renders the page once when every attempt met the check, and reads what the browser drew', async () => {
     safeFetchMock
       .mockResolvedValueOnce(fastlyCheck(1))
       .mockResolvedValueOnce(fastlyCheck(2))
       .mockResolvedValueOnce(fastlyCheck(3));
+    renderUrlsMock.mockResolvedValueOnce(
+      drawnCalendar({
+        kind: 'ok',
+        status: 200,
+        finalUrl: fastlyCheck().finalUrl,
+        html: article(3).body,
+      }),
+    );
+
+    const result = await fetchCalendar();
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url: fastlyCheck().finalUrl,
+      title: 'Release Calendar',
+      rendered: true,
+    });
+    expect(result.content).toContain('Nightly 147 starts on 10 November.');
+    expect(safeFetchMock).toHaveBeenCalledTimes(3);
+    expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells the model the page could not be read when the browser met the check too, never the check's text", async () => {
+    safeFetchMock
+      .mockResolvedValueOnce(fastlyCheck(1))
+      .mockResolvedValueOnce(fastlyCheck(2))
+      .mockResolvedValueOnce(fastlyCheck(3));
+    renderUrlsMock.mockResolvedValueOnce(
+      drawnCalendar({
+        kind: 'ok',
+        status: 200,
+        finalUrl: fastlyCheck().finalUrl,
+        html: fastlyCheck().body,
+      }),
+    );
 
     const result = await fetchCalendar();
 
     expect(result.status).toBe('error');
-    expect(result.message).toContain("Fastly's bot check");
-    expect(result.message).toContain('on each of 3 attempts');
+    expect(result.reason).toBe('bot_check_unrendered');
+    expect(result.message).toBe(
+      "Fastly's bot check answered in place of the page on each of 3 attempts; rendered in a browser here, Fastly's bot check answered in its place, so the page was not read.",
+    );
     expect(result.content).toBeUndefined();
     expect(safeFetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('asks once when the check came without a proxy, since asking again would leave from the same address', async () => {
     safeFetchMock.mockResolvedValueOnce(fastlyCheck());
+    noBrowserFree();
 
     const result = await fetchCalendar();
 
     expect(result.status).toBe('error');
-    expect(result.message).toContain("Fastly's bot check instead of the page,");
+    expect(result.message).toContain(
+      "Fastly's bot check answered in place of the page;",
+    );
     expect(safeFetchMock).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain('Fastly directly');
   });
@@ -2081,11 +2294,13 @@ describe('web_fetch meets a bot check', () => {
           'Request timed out after 15000ms (through the outbound proxy http://p.webshare.io:80)',
         ),
       );
+    noBrowserFree();
 
     const result = await fetchCalendar();
 
     expect(result.status).toBe('error');
     expect(result.message).toContain("Fastly's bot check");
+    expect(result.reason).toBe('render_busy');
     const logged = String(warn.mock.calls[0]?.[0]);
     expect(logged).toContain('Fastly through outbound proxy entry 1');
     expect(logged).toContain('asking again failed: Request timed out');
@@ -2097,6 +2312,7 @@ describe('web_fetch meets a bot check', () => {
       .mockReturnValueOnce(1_000)
       .mockReturnValueOnce(16_000);
     safeFetchMock.mockResolvedValueOnce(fastlyCheck(1));
+    noBrowserFree();
 
     const result = await fetchCalendar();
 
@@ -2124,6 +2340,367 @@ describe('web_fetch meets a bot check', () => {
 
     expect(result.status).toBe('ok');
     expect(safeFetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('web_fetch renders a page behind a JavaScript challenge, once [CHAT-R50]', () => {
+  let warn: MockInstance<typeof console.warn>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    safeFetchMock.mockReset();
+    renderUrlsMock.mockReset();
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const TED_NOTICE = 'https://ted.europa.eu/en/notice/-/detail/650000-2025';
+  const CHAT_AGENT = 'TaleAssistant/1.0 (+chat web_fetch)';
+  const PROXY = 'http://p.webshare.io:80';
+
+  /** A page recorded from a real site, kept beside the reader's tests. */
+  const recorded = (name: string): string =>
+    readFileSync(
+      join(
+        import.meta.dirname,
+        '../../../lib/knowledge/fixtures',
+        `${name}.html.txt`,
+      ),
+      'utf8',
+    );
+  /** AWS WAF's challenge, as TED answers web_fetch through proxy `entry`. */
+  const awsChallenge = (entry: number, finalUrl = TED_NOTICE) => ({
+    status: 202,
+    statusText: 'Accepted',
+    headers: new Headers({
+      'content-type': 'text/html; charset=UTF-8',
+      'x-amzn-waf-action': 'challenge',
+    }),
+    body: recorded('aws-waf-challenge'),
+    finalUrl,
+    outboundProxy: { label: PROXY, entry },
+  });
+  /** What the render lane hands back for the one page it was given. */
+  const drawn = (outcome: unknown, url = TED_NOTICE) => ({
+    outcomes: new Map([[url, outcome]]),
+    halted: null,
+  });
+  const notice = (html = recorded('ted-notice-rendered')) =>
+    drawn({ kind: 'ok', status: 200, finalUrl: TED_NOTICE, html });
+  const challengedThrice = () => {
+    for (let entry = 1; entry <= 3; entry += 1) {
+      safeFetchMock.mockResolvedValueOnce(awsChallenge(entry));
+    }
+  };
+  const fetchIn = (
+    executor: Executor,
+    url: string,
+    input: Record<string, unknown> = {},
+  ) =>
+    executor.execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url, ...input },
+    });
+
+  it('renders the page once, where the plain GET reached it, and reads the notice', async () => {
+    // Asked for at an address that redirects; the challenge answered at the
+    // one safeFetch reached, and that is the page the browser opens.
+    const asked = 'https://ted.europa.eu/notice/-/detail/650000-2025';
+    challengedThrice();
+    renderUrlsMock.mockResolvedValueOnce(notice());
+    const { ctx, runMutation } = createCtx();
+
+    const result = await fetchIn(await makeExecutor(ctx), asked);
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url: TED_NOTICE,
+      title: '650000-2025 - Result - TED',
+      rendered: true,
+    });
+    expect(result.content).toContain('<untrusted_source tool="web_fetch"');
+    expect(result.content).toContain('Notice 650000-2025');
+    expect(result.content).toContain('Winner: Example Planning Office GmbH');
+    expect(safeFetchMock).toHaveBeenCalledTimes(3);
+    expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+    expect(renderUrlsMock).toHaveBeenCalledWith(ctx, {
+      organizationId: 'org_1',
+      urls: [TED_NOTICE],
+      batchKey: expect.stringMatching(/^chat:/),
+      execTimeoutMs: 60_000,
+      createdBy: 'user_1',
+      userAgent: CHAT_AGENT,
+    });
+    expect(callsTo(runMutation, AUDIT_FN)).toEqual([
+      expect.objectContaining({ status: 'success' }),
+    ]);
+  });
+
+  it.each([
+    [
+      "AWS WAF's CAPTCHA, marked",
+      {
+        status: 405,
+        statusText: 'Method Not Allowed',
+        headers: new Headers({
+          'content-type': 'text/html',
+          'x-amzn-waf-action': 'captcha',
+        }),
+        body: '<html><title>Human Verification</title></html>',
+        finalUrl: TED_NOTICE,
+      },
+      'bot_check_captcha',
+      "AWS WAF's bot check asked for a CAPTCHA, a puzzle for a person to solve, in place of the page. A CAPTCHA is never solved here, so the page was not read.",
+    ],
+    [
+      "AWS WAF's CAPTCHA, told by its page",
+      {
+        status: 405,
+        statusText: 'Method Not Allowed',
+        headers: new Headers({ 'content-type': 'text/html' }),
+        body: '<script>window.gokuProps = {};</script><script src="https://x.captcha.awswaf.com/x/captcha.js"></script>',
+        finalUrl: TED_NOTICE,
+      },
+      'bot_check_captcha',
+      'A CAPTCHA is never solved here',
+    ],
+    [
+      "Vercel's refusal",
+      {
+        status: 403,
+        statusText: 'Forbidden',
+        headers: new Headers({
+          'content-type': 'text/plain',
+          'x-vercel-mitigated': 'deny',
+        }),
+        body: 'Forbidden',
+        finalUrl: TED_NOTICE,
+      },
+      'bot_check_blocked',
+      "Vercel's bot protection refused the request in place of the page, so the page was not read.",
+    ],
+  ])('never renders %s', async (_case, answered, reason, message) => {
+    safeFetchMock.mockResolvedValueOnce(answered);
+
+    const result = await fetchIn(
+      await makeExecutor(createCtx().ctx),
+      TED_NOTICE,
+    );
+
+    expect(result).toMatchObject({ status: 'error', reason });
+    expect(result.message).toContain(message);
+    expect(result.message).not.toContain('Tell the user');
+    expect(result.content).toBeUndefined();
+    expect(renderUrlsMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'the challenge again, marked on the document it ended on',
+      {
+        kind: 'ok',
+        status: 202,
+        finalUrl: TED_NOTICE,
+        html: recorded('aws-waf-challenge'),
+        headers: { 'x-amzn-waf-action': 'challenge' },
+      },
+      "AWS WAF's bot check answered in its place",
+    ],
+    [
+      'the challenge again, told by its page alone',
+      {
+        kind: 'ok',
+        status: 200,
+        finalUrl: TED_NOTICE,
+        html: recorded('aws-waf-challenge'),
+      },
+      "AWS WAF's bot check answered in its place",
+    ],
+    [
+      "Cloudflare's challenge, which answers with an error status",
+      {
+        kind: 'failed',
+        reason: 'HTTP 403 at render time',
+        transient: false,
+        headers: { 'cf-mitigated': 'challenge' },
+      },
+      "Cloudflare's bot check answered in its place",
+    ],
+  ])(
+    'reads a render that met %s as no content',
+    async (_case, outcome, met) => {
+      challengedThrice();
+      renderUrlsMock.mockResolvedValueOnce(drawn(outcome));
+
+      const result = await fetchIn(
+        await makeExecutor(createCtx().ctx),
+        TED_NOTICE,
+      );
+
+      expect(result).toMatchObject({
+        status: 'error',
+        reason: 'bot_check_unrendered',
+      });
+      expect(result.message).toBe(
+        `AWS WAF's bot check answered in place of the page on each of 3 attempts; rendered in a browser here, ${met}, so the page was not read.`,
+      );
+      expect(result.content).toBeUndefined();
+      expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('says when the browser was asked for a CAPTCHA, and solves none', async () => {
+    challengedThrice();
+    renderUrlsMock.mockResolvedValueOnce(
+      drawn({
+        kind: 'ok',
+        status: 405,
+        finalUrl: TED_NOTICE,
+        html: '<html><title>Human Verification</title></html>',
+        headers: { 'x-amzn-waf-action': 'captcha' },
+      }),
+    );
+
+    const result = await fetchIn(
+      await makeExecutor(createCtx().ctx),
+      TED_NOTICE,
+    );
+
+    expect(result).toMatchObject({
+      status: 'error',
+      reason: 'bot_check_captcha',
+    });
+    expect(result.message).toContain(
+      "rendered in a browser here, AWS WAF's bot check asked for a CAPTCHA, a puzzle for a person to solve, which is never solved here",
+    );
+  });
+
+  it.each([
+    [
+      'a spent render quota',
+      () =>
+        renderUrlsMock.mockRejectedValueOnce(
+          new RenderCapacityError(
+            'render session limit reached for this organization',
+          ),
+        ),
+      'render_busy',
+      "no browser was free to render it here (the organization's render sessions are all in use, or the sandbox host is busy",
+    ],
+    [
+      'a render that failed',
+      () =>
+        renderUrlsMock.mockResolvedValueOnce(
+          drawn({
+            kind: 'failed',
+            reason:
+              'page.goto: Timeout 20000ms exceeded.\nCall log:\n  - navigating to "https://ted.europa.eu/"',
+            transient: false,
+          }),
+        ),
+      'render_failed',
+      'rendering it in a browser here failed (The browser could not load the page within 20 seconds)',
+    ],
+  ])(
+    'fails at once on %s, with its own reason',
+    async (_case, render, reason, met) => {
+      challengedThrice();
+      render();
+
+      const result = await fetchIn(
+        await makeExecutor(createCtx().ctx),
+        TED_NOTICE,
+      );
+
+      expect(result).toMatchObject({ status: 'error', reason });
+      expect(result.message).toContain(
+        "AWS WAF's bot check answered in place of the page on each of 3 attempts; ",
+      );
+      expect(result.message).toContain(met);
+      expect(result.content).toBeUndefined();
+      expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls.at(-1)?.[0])).toContain('ted.europa.eu');
+    },
+  );
+
+  it('pages through a rendered page from its one render of the turn', async () => {
+    // A notice longer than one window: TED's runs to about four.
+    const long = recorded('ted-notice-rendered').replace(
+      'Winner: Example Planning Office GmbH',
+      `Winner: Example Planning Office GmbH ${'Lot details. '.repeat(3_000)} END-OF-NOTICE`,
+    );
+    challengedThrice();
+    renderUrlsMock.mockResolvedValueOnce(notice(long));
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const first = await fetchIn(executor, TED_NOTICE);
+    expect(first).toMatchObject({ status: 'ok', rendered: true });
+    expect(first.nextOffset).toBe(20_000);
+    const seen = [first.content ?? ''];
+    let next = first.nextOffset;
+    while (next !== undefined) {
+      const window = await fetchIn(executor, TED_NOTICE, { offset: next });
+      expect(window).toMatchObject({ status: 'ok', rendered: true });
+      seen.push(window.content ?? '');
+      next = window.nextOffset;
+    }
+
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.at(-1)).toContain('END-OF-NOTICE');
+    // A fragment never reaches the site: the same page, the same render.
+    await expect(
+      fetchIn(executor, `${TED_NOTICE}#lot-2`, { offset: 20_000 }),
+    ).resolves.toMatchObject({ status: 'ok', rendered: true, offset: 20_000 });
+    // One plain GET's three attempts, and one render, for every window.
+    expect(safeFetchMock).toHaveBeenCalledTimes(3);
+    expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+
+    // The next turn's executor renders afresh.
+    challengedThrice();
+    renderUrlsMock.mockResolvedValueOnce(notice(long));
+    await fetchIn(await makeExecutor(createCtx().ctx), TED_NOTICE);
+    expect(renderUrlsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers a render that read nothing again from the turn, without another render', async () => {
+    challengedThrice();
+    renderUrlsMock.mockRejectedValueOnce(
+      new RenderCapacityError(
+        'render session limit reached for this organization',
+      ),
+    );
+    const { ctx, runMutation } = createCtx();
+    const executor = await makeExecutor(ctx);
+
+    const first = await fetchIn(executor, TED_NOTICE);
+    const again = await fetchIn(executor, TED_NOTICE);
+
+    expect(first).toMatchObject({ status: 'error', reason: 'render_busy' });
+    expect(again).toEqual(first);
+    expect(safeFetchMock).toHaveBeenCalledTimes(3);
+    expect(renderUrlsMock).toHaveBeenCalledTimes(1);
+    // Each call is booked, the repeat as the failure it answered.
+    expect(callsTo(runMutation, AUDIT_FN)).toEqual([
+      expect.objectContaining({ status: 'failure' }),
+      expect.objectContaining({ status: 'failure' }),
+    ]);
+  });
+
+  it('renders a page asked for twice at once only once', async () => {
+    for (let entry = 1; entry <= 6; entry += 1) {
+      safeFetchMock.mockResolvedValueOnce(awsChallenge(entry));
+    }
+    renderUrlsMock.mockResolvedValueOnce(notice());
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const [one, two] = await Promise.all([
+      fetchIn(executor, TED_NOTICE),
+      fetchIn(executor, TED_NOTICE),
+    ]);
+
+    expect(one).toMatchObject({ status: 'ok', rendered: true });
+    expect(two).toMatchObject({ status: 'ok', rendered: true });
+    expect(renderUrlsMock).toHaveBeenCalledTimes(1);
   });
 });
 

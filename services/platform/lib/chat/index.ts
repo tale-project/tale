@@ -89,6 +89,7 @@ export {
   type RagSearchKind,
   type RagSearchStatus,
   type ToolCallRequest,
+  type WebFetchFailureReason,
   type WireTool,
 } from './tools';
 export {

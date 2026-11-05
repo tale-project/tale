@@ -128,6 +128,54 @@ export interface ChatToolExecutor {
   execute(call: ToolCallRequest, options?: ToolCallOptions): Promise<unknown>;
 }
 
+/** Why a `web_fetch` call read no page, where its status alone does not
+ * say it to a person. Rides the failure beside its status, and the reply's
+ * step names it in the person's language. */
+export const WEB_FETCH_FAILURE_REASONS = [
+  /** The call named no web address, or one that does not parse. */
+  'invalid_url',
+  /** The address, or one its redirects led to, is no public https://
+   * address: plain http, credentials in it, a private network. */
+  'address_refused',
+  /** The site could not be reached: no such name, a refused connection, a
+   * failed TLS handshake, redirects that led nowhere. */
+  'unreachable',
+  /** The site did not answer in time. */
+  'timed_out',
+  /** The page is larger than the tool reads. */
+  'page_too_large',
+  /** The site answered 404 or 410: no page at that address. */
+  'page_not_found',
+  /** The site answered 401 or 403. */
+  'access_denied',
+  /** The site answered with another error status. */
+  'http_error',
+  /** The response is of a type the tool does not read. */
+  'unsupported_type',
+  /** The page holds no text. */
+  'page_empty',
+  /** The site's bot protection asked for a CAPTCHA, a puzzle for a person
+   * to solve: never solved, and never rendered. */
+  'bot_check_captcha',
+  /** The site's bot protection refused the request, or the site answered
+   * with nothing in place of the page, as sites that keep automated
+   * readers out do. */
+  'bot_check_blocked',
+  /** The site's bot protection still answered when the page was rendered
+   * in a browser. */
+  'bot_check_unrendered',
+  /** No browser was free to render the page: the organization's render
+   * sessions were all in use, or the sandbox host was busy. */
+  'render_busy',
+  /** Rendering the page in a browser failed. */
+  'render_failed',
+  /** The page builds its content in the browser, and held no text even
+   * when rendered. */
+  'render_empty',
+] as const;
+
+export type WebFetchFailureReason = (typeof WEB_FETCH_FAILURE_REASONS)[number];
+
 // ------------------------------------------------------------------ schemas
 
 function object(
@@ -397,9 +445,12 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'what you have seen).',
   web_fetch:
     'Fetch a live public https:// page and read its main content as ' +
-    "text, without the site's navigation, header and footer; a page that " +
-    'builds its content in the browser is rendered once in a sandboxed ' +
-    'browser, and its result says "rendered": true. Use it when ' +
+    "text, without the site's navigation, header and footer. A page that " +
+    "builds its content in the browser, or whose site's bot protection " +
+    'answers with a check a browser passes on its own, is rendered once in ' +
+    'a sandboxed browser, and its result says "rendered": true; a check ' +
+    'that asks for a puzzle only a person can solve (a CAPTCHA) is never ' +
+    'solved. Use it when ' +
     'you hold a concrete URL — one the user gave, one a search row ' +
     'carried, one your instructions name, or a well-known public page — ' +
     "and the organization's " +
@@ -407,11 +458,18 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'served by rag_fetch, not this tool. Reads a window of up to 20000 ' +
     'characters; "offset" and "limit" select an exact range, and a ' +
     'truncated result reports the "nextOffset" to continue from (each ' +
-    'call re-fetches the live page). Never present a partial read as the ' +
+    'call re-fetches the live page; a page is rendered at most once per ' +
+    'reply, and fetching it again, for another window or after a failure, ' +
+    'answers from that one render). Never present a partial read as the ' +
     'whole page — keep fetching until "nextOffset" is absent, or say ' +
     'exactly which part you read. An index of other pages (a site map, an ' +
     'llms.txt) is a lookup, not a source: stop reading it once you hold ' +
-    'the link you need, and fetch that page.',
+    'the link you need, and fetch that page. When a page cannot be read, ' +
+    'the result says why. Tell the user so in their language, plainly ' +
+    "(for a site's bot protection: it keeps automated readers out), give " +
+    'them the link to open in their browser, and offer to read the page ' +
+    'if they paste its text or attach it as a PDF. Never guess what the ' +
+    'page says, and never make up another address for it.',
 };
 
 /** The provider-wire definitions, in the fixed loadout order. */
