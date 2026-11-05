@@ -5,10 +5,11 @@ store, sandbox device hub and optional docs service. Each service declares its o
 container labels: [`compose.yml`](../../compose.yml), and
 [`traefik-labels.ts`](../../tools/cli/src/lib/compose/services/traefik-labels.ts) for
 `tale deploy`. On Kubernetes the same routes are standard Ingress objects next to each service in
-the [Kubernetes guide](../../docs/en/self-hosted/install/kubernetes.md). What belongs to the edge rather than to one service is rendered at boot from the
-deployment environment by [`render/config.js`](render/config.js): the hosts it serves, the subpath,
-the refusals that run before any route, the metrics gate, and the answers while a service is
-absent or failing.
+the [Kubernetes guide](../../docs/en/self-hosted/install/kubernetes.md), which
+[`render/kubernetes.test.ts`](render/kubernetes.test.ts) holds to the labels. What belongs to the
+edge rather than to one service is rendered at boot from the deployment environment by
+[`render/config.js`](render/config.js): the hosts it serves, the subpath, the refusals that run
+before any route, the metrics gate, and the answers while a service is absent or failing.
 
 ## One image, two roles
 

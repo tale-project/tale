@@ -11,6 +11,10 @@
  * and control-plane refusals, the metrics gate, and the answers given while a
  * service is absent.
  *
+ * On Kubernetes the same routes are standard Ingress objects, one per router,
+ * in the install guide (docs/<locale>/self-hosted/install/kubernetes.md):
+ * services/proxy/render/kubernetes.test.ts keeps them equal to these labels.
+ *
  * A colour names its routers and services with the colour (`platform-blue`):
  * two containers that declare one name with different settings make Traefik
  * drop the router, and blue and green overlap during a cutover. Every one

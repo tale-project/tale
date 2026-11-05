@@ -370,6 +370,11 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   Native motion recording also imports platform capture and video helpers: lint and typecheck
   hash their full static dependency closure; unit tests hash the encoder's ffmpeg helper and
   capture-options parser. The same guard checks the actual hashes for all three tasks.
+- [`services/proxy/turbo.json`](../services/proxy/turbo.json) gives `@tale/proxy`'s tests the
+  edge's route labels (`tools/cli/src/lib/compose/services/traefik-labels.ts`) and the
+  Kubernetes guide in every locale, whose Ingress objects and proxy Role
+  `render/kubernetes.test.ts` holds to those labels. That suite also checks that both stay
+  listed.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
   `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
   and directly for its source-reading tests. The candidate contract refresh script

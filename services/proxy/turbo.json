@@ -6,7 +6,8 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/tools/cli/src/lib/compose/services/traefik-labels.ts"
+        "$TURBO_ROOT$/tools/cli/src/lib/compose/services/traefik-labels.ts",
+        "$TURBO_ROOT$/docs/*/self-hosted/install/kubernetes.md"
       ]
     }
   }
