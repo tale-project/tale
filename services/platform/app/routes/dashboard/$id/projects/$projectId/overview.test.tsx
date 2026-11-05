@@ -65,6 +65,12 @@ vi.mock(
     ProjectTaskReviewerSection: () => null,
   }),
 );
+vi.mock(
+  '@/app/features/projects/components/project-chat-agent-section',
+  () => ({
+    ProjectChatAgentSection: () => null,
+  }),
+);
 vi.mock('@/app/features/projects/components/project-archive-section', () => ({
   ProjectArchiveSection: () => null,
 }));
