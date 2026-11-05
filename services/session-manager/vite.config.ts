@@ -1,7 +1,7 @@
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 // In development the backend (`backend/main.ts`) runs on its own port, as the
 // built server does (the dev port + 200), and the dev server forwards the API,
@@ -9,6 +9,37 @@ import { defineConfig } from 'vite';
 // both.
 const backend =
   process.env.SESSION_MANAGER_BACKEND_URL ?? 'http://127.0.0.1:3204';
+
+const BOOT_SHELL_MODULE = '/app/components/layout/boot-shell.tsx';
+
+/**
+ * The boot shell in the page the dev server serves, as the build bakes it into
+ * `dist/index.html` (`scripts/prerender-boot-shell.ts`): the frame of the app
+ * is the first paint, not a blank page. Rendered through the dev server's
+ * module graph, so an edit to the placeholder shows at the next reload, as the
+ * platform's `vite-plugins/inject-boot-shell.ts` does. A shell that fails to
+ * render leaves the page as it was: blank until the app draws.
+ */
+function bootShell(): Plugin {
+  return {
+    name: 'session-manager-boot-shell',
+    apply: 'serve',
+    async transformIndexHtml(html, { server }) {
+      if (server === undefined) return html;
+      try {
+        // ssrLoadModule returns an untyped record; the module's own exports are its type.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+        const shell = (await server.ssrLoadModule(
+          BOOT_SHELL_MODULE,
+        )) as typeof import('./app/components/layout/boot-shell');
+        return shell.withBootShell(html);
+      } catch (error) {
+        console.warn('[boot-shell] the dev server could not render it', error);
+        return html;
+      }
+    },
+  };
+}
 
 export default defineConfig({
   // Absolute, unlike the service template's './': the server answers a nested
@@ -81,5 +112,6 @@ export default defineConfig({
     tanstackRouter({ autoCodeSplitting: true }),
     viteReact(),
     yamlImports(),
+    bootShell(),
   ],
 });

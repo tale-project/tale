@@ -7,7 +7,7 @@
   "scripts": {
     "setup": "echo 'Dependencies managed by root workspace'",
     "dev": "bun scripts/dev.ts",
-    "build": "bun --bun ../../packages/ui/bin/build-client.ts",
+    "build": "bun --bun ../../packages/ui/bin/build-client.ts && bun scripts/prerender-boot-shell.ts",
     "start": "bun server.ts",
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
@@ -31,6 +31,7 @@
     "hono": "4.13.7",
     "playwright-core": "1.62.1",
     "react-hook-form": "7.72.1",
+    "react-i18next": "17.0.2",
     "socks": "2.8.9",
     "undici": "7.30.1",
     "zod": "4.6.6"

@@ -40,6 +40,11 @@ bun run --filter @tale/session-manager build      # the page, into dist/
 bun run --filter @tale/session-manager start      # http://127.0.0.1:3004
 ```
 
+The build bakes the frame of the app, its rail masked, into the page it writes
+(`scripts/prerender-boot-shell.ts`), so every address paints that frame before any script runs, and
+the page waits for the counts and the browser's state before its first frame: a list with nothing in
+it opens on its empty state. The dev server does the same.
+
 `start` serves `dist/`, so build first. Stop it with Ctrl+C: every browser closes gracefully (the
 app waits up to 30 seconds), and each session reopens its tabs at its next start. A second Ctrl+C
 does not wait any longer and exits with code 130, and a stop that has not finished after 40 seconds
