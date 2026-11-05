@@ -88,7 +88,6 @@ export function ComposerProjectPicker({
         >
           {project !== undefined ? (
             <ProjectAvatar
-              name={project.name}
               icon={project.icon}
               color={project.color}
               size={16}

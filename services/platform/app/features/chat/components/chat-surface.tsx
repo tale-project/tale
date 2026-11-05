@@ -2198,7 +2198,6 @@ function ChatSurfaceInner({
                       {activeProject !== undefined && (
                         <span className="inline-flex min-w-0 items-center gap-1">
                           <ProjectAvatar
-                            name={activeProject.name}
                             icon={activeProject.icon}
                             color={activeProject.color}
                             size={16}

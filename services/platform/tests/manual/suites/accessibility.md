@@ -1,6 +1,6 @@
 # Accessibility (cross-cutting)
 
-> **Prefix** `A11Y-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `A11Y-` · **Reset** none · **Cost** 30 boxes
 
 A WCAG 2.1 **Level AA** sweep across the whole app. Tale's standard (root
 [`AGENTS.md`](../../../AGENTS.md) → Accessibility) is mandatory, not
@@ -86,6 +86,14 @@ component-level axe coverage comes from `vitest-axe` via
   **Zero** buttons have an empty accessible name — every icon-only button
   carries a translated `aria-label`/`title` (verified live: 0 unnamed on
   chat/agents/documents/settings)
+- [ ] `A11Y-A22` · **A project's name is read once** — With a screen reader
+  (or Chrome DevTools → Accessibility), read a project row in Home's
+  **Projects** section, a Home chat row filed in a project, that chat's header,
+  and a row of the Projects list (`/dashboard/{org}/projects`) → Each reads the
+  project's name once: the project's icon beside the name is silent, never a
+  second "Launch site". The **Change icon and color** button
+  (`projects.identity.trigger`), where no text names the project, still reads
+  the project's name before its label.
 - [ ] `A11Y-A7` · **Form labels** — `/dashboard/{org}/settings/account`; query
   inputs → Every visible `input/select/textarea` has a programmatic label
   (`label[for]`, wrapping `<label>`, or `aria-label`); on invalid submit the

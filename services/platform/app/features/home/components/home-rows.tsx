@@ -207,7 +207,6 @@ function ProjectMarker({ project }: { project: ChatProjectSummary }) {
   return (
     <span className="flex min-w-0 items-center gap-1">
       <ProjectAvatar
-        name={project.name}
         icon={project.icon}
         color={project.color}
         size={16}

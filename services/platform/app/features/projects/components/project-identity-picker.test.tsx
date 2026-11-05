@@ -54,6 +54,18 @@ describe('ProjectIdentityPicker', () => {
     await checkAccessibility(baseElement);
   });
 
+  it('keeps the trigger avatar named, since no text beside it names the project', () => {
+    render(<Harness initial={{ icon: 'Rocket', color: 'blue' }} />);
+
+    // Unlike an avatar beside the project's name (#5382), this one stands
+    // for the project on its own.
+    expect(screen.getByRole('img', { name: 'Launch' })).toBeInTheDocument();
+    // jsdom joins the avatar and the label without the space a browser reads.
+    expect(
+      screen.getByRole('button', { name: /^Launch\s?Change icon and color$/ }),
+    ).toBeInTheDocument();
+  });
+
   it('moves selection with the arrow keys from one tab stop per group', async () => {
     const { user } = render(
       <Harness initial={{ icon: 'Rocket', color: 'blue' }} />,

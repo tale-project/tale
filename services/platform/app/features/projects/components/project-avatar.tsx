@@ -122,7 +122,14 @@ const DEFAULT_COLOR: ProjectColor = 'gray';
 const DEFAULT_ICON: ProjectIcon = 'Folder';
 
 export interface ProjectAvatarProps {
-  name: string;
+  /**
+   * The accessible name, as on `@tale/ui`'s `Avatar`. Given, the avatar is a
+   * named image; absent, it is decorative. Leave it out beside the visible
+   * project name (a row, a link, a header), or a screen reader reads the
+   * name twice; give it where the avatar stands for something no visible
+   * text names.
+   */
+  label?: string;
   icon?: string | null;
   color?: string | null;
   size?: 16 | 20 | 24 | 32;
@@ -155,7 +162,7 @@ function resolveColor(color: string | null | undefined): string {
 }
 
 export function ProjectAvatar({
-  name,
+  label,
   icon,
   color,
   size = 24,
@@ -169,8 +176,9 @@ export function ProjectAvatar({
       : cn(SIZE_CLASSES[size], resolveColor(color));
   return (
     <span
-      role="img"
-      aria-label={name}
+      {...(label !== undefined
+        ? { role: 'img', 'aria-label': label }
+        : { 'aria-hidden': true })}
       className={cn(
         'inline-flex shrink-0 items-center justify-center',
         surfaceClasses,

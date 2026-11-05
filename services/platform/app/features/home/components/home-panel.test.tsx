@@ -484,6 +484,24 @@ describe('HomeNavigator', () => {
     ).toHaveAttribute('href', '/dashboard/org-1/projects/p1');
   });
 
+  it("names a project's row and a chat's project once, beside the icon", () => {
+    render(<HomeNavigator organizationId="org-1" />);
+    // The project's icon is decoration beside its name: as a named image it
+    // read "Website relaunch Website relaunch" (#5382).
+    expect(
+      within(screen.getByRole('region', { name: 'Projects' })).getByRole(
+        'link',
+        { name: /Website relaunch/ },
+      ),
+    ).toHaveAccessibleName('Website relaunch');
+    const chat = within(stream()).getByRole('link', {
+      name: /Quarterly report/,
+    });
+    expect(chat).toHaveAccessibleName(/Website relaunch/);
+    expect(chat).not.toHaveAccessibleName(/Website relaunch.*Website relaunch/);
+    expect(screen.queryByRole('img', { name: 'Website relaunch' })).toBeNull();
+  });
+
   it('offers New project only to a role that may create one', () => {
     // The server refuses a project create below the Editor role.
     const { unmount } = render(

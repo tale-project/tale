@@ -281,6 +281,7 @@ import {
   useArenaPair,
   useChatGeneration,
   useChatModelPreference,
+  useChatProjects,
   useChatSend,
   useChatThread,
   useChatThreads,
@@ -2361,6 +2362,51 @@ describe('ChatSurface header for a chat outside the list', () => {
     expect(
       screen.getAllByRole('button', { name: 'Conversation actions' }).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The header's context line names the chat's project beside the project's
+ * icon. The icon is decoration there: as a named image it read the name a
+ * second time to a screen reader (#5382).
+ */
+describe("ChatSurface header for a project's chat", () => {
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatProjects).mockReturnValue({
+      status: 'ready',
+      data: [
+        { id: 'project-2', name: 'Review Crew', icon: 'Rocket', color: 'blue' },
+      ],
+    });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: {
+        id: 't-project',
+        title: 'Launch plan',
+        kind: 'direct',
+        archived: false,
+        projectId: 'project-2',
+        createdAt: 1,
+        updatedAt: 2,
+        generating: false,
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.mocked(useChatProjects).mockImplementation(() => ({
+      status: 'unavailable' as const,
+    }));
+  });
+
+  it("shows the project's name with no image named after it", () => {
+    render(<ChatSurface organizationId="org-1" threadId="t-project" />);
+
+    expect(screen.getAllByText('Review Crew').length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole('img', { name: 'Review Crew' }),
+    ).not.toBeInTheDocument();
   });
 });
 

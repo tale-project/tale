@@ -35,7 +35,7 @@ directory and greppable as one token.
 
 | Suite | Prefix | Area | Boxes |
 |---|---|---|---|
-| [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 28 |
+| [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 30 |
 | [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 22 |
 | [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 62 |
 | [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, the self-arranging canvas, paths, code fields, Source, upload, trigger, runs, bindings, versions, tests | 193 |
