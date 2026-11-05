@@ -1100,6 +1100,48 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
     return within(container).getByRole('listbox');
   }
 
+  /** The focused element, and whether its document has the focus. */
+  function whereFocusIs(): string {
+    const active = document.activeElement;
+    const role = active?.getAttribute('role');
+    const label = active?.getAttribute('aria-label');
+    return [
+      active?.tagName.toLowerCase() ?? 'nothing',
+      role ? `role=${role}` : '',
+      label ? `"${label}"` : '',
+      document.hasFocus() ? '' : 'in a document without the focus',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  /** CodeMirror takes keys only while its document has the focus and its
+   * content is the active element. A failed run on a busy runner typed
+   * straight after the click, and no key reached the field: the field is
+   * clicked until it holds the focus, a click that missed says so in the
+   * log, and the keys are typed once. A key lost after that fails here, on
+   * the text, and not later on what the keys should have opened. */
+  async function typeInto(field: HTMLElement, keys: string, typed: string) {
+    const holdsFocus = () =>
+      document.hasFocus() && document.activeElement === field;
+    for (let clicks = 1; ; clicks += 1) {
+      await userEvent.click(field);
+      for (let poll = 0; poll < 20 && !holdsFocus(); poll += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      if (holdsFocus()) break;
+      const missed = `click ${clicks} left the focus on ${whereFocusIs()}`;
+      if (clicks === 3) throw new Error(missed);
+      console.warn(`${missed}; clicking again`);
+    }
+    await userEvent.keyboard(keys);
+    await vi.waitFor(() =>
+      expect(field.textContent, `typed into ${whereFocusIs()}`).toContain(
+        typed,
+      ),
+    );
+  }
+
   /** A box on the canvas by its graph id, clicked by a real pointer. */
   async function clickBox(id: string) {
     const canvas = await expectLaidOut();
@@ -1119,8 +1161,7 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
       { name: 'Code' },
       { timeout: 10_000 },
     );
-    await userEvent.click(code);
-    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
+    await typeInto(code, `{${MOD}>}{End}{/${MOD}}{Enter}nodes.`, 'nodes.');
     await completionOptions(['pulls', 'diff']);
     await userEvent.keyboard('{Escape}');
     await vi.waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
@@ -1158,8 +1199,7 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
       { name: 'Code' },
       { timeout: 10_000 },
     );
-    await userEvent.click(code);
-    await userEvent.keyboard(`{${MOD}>}{End}{/${MOD}}{Enter}nodes.`);
+    await typeInto(code, `{${MOD}>}{End}{/${MOD}}{Enter}nodes.`, 'nodes.');
     const list = await completionOptions(['pulls'], sheet);
     // The list sits inside the sheet.
     const sheetBox = sheet.getBoundingClientRect();
@@ -1186,8 +1226,7 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
       { name: 'Input schema' },
       { timeout: 10_000 },
     );
-    await userEvent.click(schema);
-    await userEvent.keyboard(`{${MOD}>}a{/${MOD}}{{}`);
+    await typeInto(schema, `{${MOD}>}a{/${MOD}}{{}`, '{}');
     await vi.waitFor(() => expect(schema.textContent).toBe('{}'));
 
     await clickBox('__end');
@@ -1196,8 +1235,7 @@ describe('automation editor code fields, Start, End and Source in Chromium', () 
       { name: 'Output' },
       { timeout: 10_000 },
     );
-    await userEvent.click(output);
-    await userEvent.keyboard(`{${MOD}>}a{/${MOD}}42`);
+    await typeInto(output, `{${MOD}>}a{/${MOD}}42`, '42');
     await vi.waitFor(() => expect(output.textContent).toBe('42'));
 
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
