@@ -3,7 +3,7 @@ title: API keys
 description: Create, verify, rotate, and revoke credentials for software that calls Tale.
 ---
 
-Create an API key when a script or service needs to call Tale's REST API. A key you create for yourself belongs to you, not to the organization whose settings page created it: it acts as you, follows your current permissions, and works in every organization you are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member an Admin granted a competence that is used with a key: **Call models over the API**, **Export notifications**, or **Act for another member**. Tale refuses anyone else a new key with `403 API_KEY_CREATE_FORBIDDEN`.
+Create an API key when a script or service needs to call Tale's REST API. A key you create for yourself belongs to you, not to the organization whose settings page created it: it acts as you, follows your current permissions, and works in every organization you are a member of, or, [after an SSO sign-in](#your-key-after-sso), in that one organization. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member an Admin granted a competence that is used with a key: **Call models over the API**, **Export notifications**, or **Act for another member**. Tale refuses anyone else a new key with `403 API_KEY_CREATE_FORBIDDEN`.
 
 Owners and Admins can also create a key for another member, a team, a project, or the organization itself. Such a key works in that one organization only; [Create a key for someone else](#create-a-key-for-someone-else) explains what each one acts as and reaches. A member an Admin made a key for finds it under **Settings > API > REST** as well.
 
@@ -17,17 +17,21 @@ Owners and Admins can also create a key for another member, a team, a project, o
 
 1. Select **Create API key**.
 2. Enter a **Key name** that identifies the caller, such as `Billing sync` or `Document import`.
-3. As an Owner or Admin, choose under **Belongs to** whom the key is for. **You** is preselected; the other choices are described [below](#create-a-key-for-someone-else).
+3. As an Owner or Admin, choose under **Belongs to** whom the key is for. **You** is preselected, and reads **You — this organization only** [after an SSO sign-in](#your-key-after-sso); the other choices are described [below](#create-a-key-for-someone-else).
 4. Choose **Expiration**: 7, 30, or 90 days, one year, a **Custom date**, or never. The form starts at 30 days and names, under the field, the day the key will expire. With **Custom date**, pick that day in the **Expiration date** calendar, among the available dates. An expiring key must last at least 24 hours and at most 365 days; after a clock change, the earliest available date may be later than tomorrow.
 5. Create the key and copy its secret into the caller's approved secret store before closing the confirmation.
 
-The complete secret is shown once. The table later shows only a masked fragment, whom the key belongs to, the day it expires, the creation date, and when it was last used. It lists your own keys and the keys an Admin made for you in this organization; Owners and Admins also see every key made here for a member, a team, a project, or the organization, though never the keys members made for themselves. Under **Belongs to**, a team's, a project's, or the organization's key shows the role it acts as, and a key made for a member shows who made it.
+The complete secret is shown once. The table later shows only a masked fragment, whom the key belongs to, the day it expires, the creation date, and when it was last used. It lists your own keys and the keys an Admin made for you in this organization; Owners and Admins also see every key made here for a member, a team, a project, or the organization, the keys members made for themselves after an SSO sign-in included, though never the ones they made after a password sign-in. Under **Belongs to**, a team's, a project's, or the organization's key shows the role it acts as, and a key made for a member shows who made it.
 
 <Warning>
 
 Anyone holding a key can act with its owner's permissions. Keep it out of source code, chat messages, screenshots, and logs. Use an account with only the access the integration needs.
 
 </Warning>
+
+## Your key after an SSO sign-in {#your-key-after-sso}
+
+A sign-in through your organization's SSO, or through its authenticating proxy, covers that one organization. A key you create for yourself in such a session therefore works in that organization only: **Belongs to** reads **You — this organization only**, the key acts as you with your current role there, and it needs no `X-Organization-Slug`. It keeps working while you remain an active member and ends when you leave. You revoke it under **Settings > API > REST**, where the organization's Owners and Admins see it too and can revoke it; its creation and revocation are logged in that organization alone. Such a session never creates a key that works in every organization you belong to: for that, sign in with your password, if your account has one.
 
 ## Create a key for someone else {#create-a-key-for-someone-else}
 
@@ -69,7 +73,7 @@ Tale does not automatically rotate keys. Key creation and revocation happen in t
 
 Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate, calls to the model endpoints included; an answer that is already streaming finishes. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
 
-An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys are theirs to revoke; to cut them off in this organization, disable or remove the member. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
+An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys are theirs to revoke, except one made [after an SSO sign-in](#your-key-after-sso), which belongs to this organization like a key made for them; to cut the others off here, disable or remove the member. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
 
 Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
 

@@ -16,6 +16,11 @@ const service = vi.hoisted(() => ({
   listApiKeysForViewer: vi.fn(),
   revokeBoundApiKey: vi.fn(),
 }));
+/** The organization the request's session is bound to: none for a password
+ * sign-in, this one after single sign-on or a proxy. */
+const session = vi.hoisted(() => ({
+  trustedOrganizationId: null as string | null,
+}));
 
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
@@ -29,6 +34,10 @@ vi.mock('../../auth/session.ts', () => ({
     () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
       c.set('sessionBundle', {
         user: { id: 'ada', email: 'ada@example.test', name: 'Ada' },
+        session: {
+          id: 'session-1',
+          trustedOrganizationId: session.trustedOrganizationId,
+        },
       } as never);
       await next();
     },
@@ -59,6 +68,7 @@ function post(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session.trustedOrganizationId = null;
   service.createOwnedApiKey.mockResolvedValue({
     id: 'key-new',
     key: 'tale_secret',
@@ -94,12 +104,29 @@ describe('POST /api/app/api-keys', () => {
       name: 'Sync',
       expiresIn: 7 * 86_400,
       owner: { kind: 'team', teamId: 'finance', role: 'editor' },
+      sessionBoundHere: false,
     });
+  });
+
+  it('says whether the session is bound to this organization, for a key of your own [APIKEY-R13]', async () => {
+    for (const [realm, bound] of [
+      [null, false],
+      ['org-1', true],
+    ] as const) {
+      service.createOwnedApiKey.mockClear();
+      session.trustedOrganizationId = realm;
+      const res = await post({ name: 'Laptop', owner: { kind: 'self' } });
+      expect(res.status).toBe(201);
+      expect(service.createOwnedApiKey.mock.calls[0]?.[1]).toMatchObject({
+        owner: { kind: 'self' },
+        sessionBoundHere: bound,
+      });
+    }
   });
 
   it('refuses an owner it does not know, a role a key cannot have, and an unknown field', async () => {
     for (const body of [
-      { name: 'Sync', owner: { kind: 'self' } },
+      { name: 'Sync', owner: { kind: 'someone' } },
       { name: 'Sync', owner: { kind: 'organization', role: 'owner' } },
       { name: 'Sync', owner: { kind: 'team', role: 'member' } },
       { name: 'Sync', owner: { kind: 'organization', role: 'member' }, x: 1 },

@@ -169,6 +169,41 @@ describe('resolveBoundKeyCaller', () => {
     ).resolves.toMatchObject({ ok: true, role: 'admin', userId: 'mia' });
   });
 
+  it('keeps the key a member made for themselves acting as them while they stay, whatever their role [APIKEY-R13]', async () => {
+    const args = {
+      owner: owner('member', { createdBy: 'mia' }),
+      userId: KEY_USER,
+      orgSlugHeader: undefined,
+    };
+    // No Owner or Admin above Mia made it: none is asked about, and none
+    // has to stay.
+    for (const role of ['member', 'developer', 'admin', 'owner']) {
+      const { sql, statements } = fakeSql({ roles: { mia: role } });
+      await expect(resolveBoundKeyCaller(sql, args)).resolves.toEqual({
+        ok: true,
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        role,
+        userId: 'mia',
+        email: 'mia@example.test',
+      });
+      expect(
+        statements.filter((text) => text.includes('FROM "member"')),
+      ).toHaveLength(1);
+    }
+    const leftOrDisabled: Record<string, string>[] = [{}, { mia: 'disabled' }];
+    for (const roles of leftOrDisabled) {
+      await expect(
+        resolveBoundKeyCaller(fakeSql({ roles }).sql, args),
+      ).resolves.toMatchObject({
+        ok: false,
+        status: 403,
+        code: 'ORG_FORBIDDEN',
+        organizations: [],
+      });
+    }
+  });
+
   it('refuses a header naming another organization, listing its own [APIKEY-R5]', async () => {
     const { sql } = fakeSql({});
     await expect(

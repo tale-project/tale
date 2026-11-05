@@ -59,6 +59,11 @@ const ORGANIZATION_ROLES: readonly ApiKeyRole[] = [
   'admin',
 ];
 
+/** The maker's own key from a session bound to this organization: it works
+ * here alone, and the choice says so. */
+const SELF_HERE_LABEL_KEY = 'apiKeys.form.ownerOptions.selfHere';
+const SELF_HERE_HINT_KEY = 'apiKeys.form.scopeHintHere';
+
 function isApiKeyOwnerChoice(value: string): value is ApiKeyOwnerChoice {
   return (OWNER_CHOICES as readonly string[]).includes(value);
 }
@@ -80,6 +85,9 @@ interface ApiKeyOwnerFieldProps {
   organizationId: string;
   viewerUserId: string | undefined;
   viewerRole: string | undefined;
+  /** The session is bound to this organization alone: the maker's own key
+   * works here alone. */
+  sessionBoundHere?: boolean;
   choice: ApiKeyOwnerChoice;
   onChoiceChange: (choice: ApiKeyOwnerChoice) => void;
   memberId: string;
@@ -106,14 +114,19 @@ export function ApiKeyOwnerField(props: ApiKeyOwnerFieldProps) {
   const { t } = useT('settings');
   const { t: tRoles } = useT('roles');
   const { choice } = props;
+  const selfHere = props.sessionBoundHere === true;
 
   const ownerOptions = useMemo(
     () =>
       OWNER_CHOICES.map((value) => ({
         value,
-        label: t(OWNER_LABEL_KEYS[value]),
+        label: t(
+          value === 'self' && selfHere
+            ? SELF_HERE_LABEL_KEY
+            : OWNER_LABEL_KEYS[value],
+        ),
       })),
-    [t],
+    [t, selfHere],
   );
   const roleOptions = useMemo(
     () =>
@@ -134,7 +147,11 @@ export function ApiKeyOwnerField(props: ApiKeyOwnerFieldProps) {
           if (isApiKeyOwnerChoice(value)) props.onChoiceChange(value);
         }}
         options={ownerOptions}
-        hint={t(OWNER_HINT_KEYS[choice])}
+        hint={t(
+          choice === 'self' && selfHere
+            ? SELF_HERE_HINT_KEY
+            : OWNER_HINT_KEYS[choice],
+        )}
       />
       {choice === 'member' && (
         <MemberPicker

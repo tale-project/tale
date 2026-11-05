@@ -37,8 +37,10 @@ function ApiRestPage() {
 
   const { data: apiKeys, error, refetch } = useApiKeys(organizationId);
   // The parent layout waited for it; a member whose right lapsed still opens
-  // this page for the keys they hold.
-  const { createApiKeys } = useApiSettingsAccess(organizationId);
+  // this page for the keys they hold. A key for oneself from a session bound
+  // to this organization works here alone.
+  const { createApiKeys, sessionBoundHere } =
+    useApiSettingsAccess(organizationId);
   // Owners and Admins also make keys for a member, a team, a project or the
   // organization — never acting above their own role.
   const { data: memberContext } = useCurrentMemberContext(organizationId);
@@ -76,6 +78,7 @@ function ApiRestPage() {
           {...(viewer !== undefined
             ? { viewerUserId: viewer.userId, viewerRole: viewer.role }
             : {})}
+          sessionBoundHere={sessionBoundHere}
           error={error}
           onRetry={() => void refetch()}
         />

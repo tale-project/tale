@@ -18,8 +18,10 @@ import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
  * own; a member's key then acts as the member, with their live role, for as
  * long as they stay and its maker is still an Owner or Admin above them —
  * a key never carries more authority than the person who made it could
- * hand out today. A key that is not a person acts as its identity, with the
- * role it was made with.
+ * hand out today. A member's key its member made for themselves (from a
+ * session bound to this organization) hands out nothing but their own live
+ * role, so it acts for as long as they stay. A key that is not a person
+ * acts as its identity, with the role it was made with.
  */
 export type BoundKeyCaller =
   | {
@@ -79,9 +81,12 @@ export async function resolveBoundKeyCaller(
   let actingUserId = owner.principalUserId;
   let email = '';
   if (owner.kind === 'member') {
+    const ownKey = owner.createdBy === owner.principalUserId;
     const [member, maker] = await Promise.all([
       findOrganizationMember(sql, owner.organizationId, owner.principalUserId),
-      findOrganizationMember(sql, owner.organizationId, owner.createdBy),
+      ownKey
+        ? null
+        : findOrganizationMember(sql, owner.organizationId, owner.createdBy),
     ]);
     if (member === null || member.role === 'disabled') {
       return {
@@ -94,11 +99,13 @@ export async function resolveBoundKeyCaller(
     }
     // The maker must still be able to hand this authority out: an Owner or
     // Admin above the member's role today. A key made before a demotion, or
-    // for a member since promoted to the maker's rank, acts for nobody.
+    // for a member since promoted to the maker's rank, acts for nobody. A
+    // key the member made for themselves hands out no one else's authority.
     if (
-      maker === null ||
-      !isAdminRole(maker.role) ||
-      roleRank(maker.role) <= roleRank(member.role)
+      !ownKey &&
+      (maker === null ||
+        !isAdminRole(maker.role) ||
+        roleRank(maker.role) <= roleRank(member.role))
     ) {
       return {
         ok: false,

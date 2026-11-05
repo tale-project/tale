@@ -5,10 +5,14 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { mayCreateApiKeys } from '../../auth/api-key-create-gate.ts';
+import {
+  mayConnectAgentIn,
+  mayCreateApiKeys,
+} from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import { sessionOrganizationId } from '../../auth/session-authority.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   collectStandingWarnings,
@@ -488,13 +492,23 @@ export function createGovernanceRoutes(deps: {
    * admin or developer of any organization, or a live grant of a competence
    * that is used with a key — and whether they hold one already. The API
    * settings open the REST tab to such a member: to create a key, or to see
-   * and revoke the ones they hold after the right lapsed.
+   * and revoke the ones they hold after the right lapsed. A session bound to
+   * this organization alone (single sign-on, an authenticating proxy) makes
+   * a key that works here alone, so the rule is read for this organization:
+   * a role or a grant in another one does not count.
    */
   app.get('/my/api-keys', async (c) => {
-    const userId = c.get('sessionBundle').user.id;
+    const { user, session } = c.get('sessionBundle');
+    const organizationId = c.get('orgId');
     const [mayCreate, holdsKeys] = await Promise.all([
-      mayCreateApiKeys(deps.sql, userId),
-      holdsApiKeys(deps.sql, userId, c.get('orgId')),
+      sessionOrganizationId(session) === organizationId
+        ? mayConnectAgentIn(deps.sql, {
+            organizationId,
+            userId: user.id,
+            role: c.get('orgMember').role,
+          })
+        : mayCreateApiKeys(deps.sql, user.id),
+      holdsApiKeys(deps.sql, user.id, organizationId),
     ]);
     return c.json({ mayCreate, holdsKeys });
   });

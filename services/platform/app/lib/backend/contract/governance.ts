@@ -750,7 +750,8 @@ export interface GovernanceContract {
     returns: {
       /** The reader may create a personal API key: owner, admin or
        * developer of any organization, or a live grant of a competence that
-       * is used with a key. */
+       * is used with a key — of this organization alone, for a session
+       * single sign-on or a proxy bound to it, whose key works here alone. */
       mayCreate: boolean;
       /** The reader holds an API key of any state — theirs to see and
        * revoke whether or not they may create another. */

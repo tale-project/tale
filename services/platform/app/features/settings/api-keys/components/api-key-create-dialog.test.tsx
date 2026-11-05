@@ -17,9 +17,13 @@ vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock('../hooks/use-api-keys', () => ({
-  useCreateApiKey: () => ({ mutateAsync: mockCreateKey, isPending: false }),
-}));
+const useCreateApiKey = vi.hoisted(() =>
+  vi.fn((_organizationId: string, _sessionBoundHere?: boolean) => ({
+    mutateAsync: mockCreateKey,
+    isPending: false,
+  })),
+);
+vi.mock('../hooks/use-api-keys', () => ({ useCreateApiKey }));
 
 // The pickers an Owner or Admin chooses whose key it is from, each list read
 // as its hook reports it; every test starts with the three lists answered.
@@ -203,6 +207,88 @@ describe('ApiKeyCreateDialog', () => {
       screen.getByText(/belongs to you, not to this organization/),
     ).toBeInTheDocument();
     expect(screen.getByText(/X-Organization-Slug/)).toBeInTheDocument();
+  });
+
+  // A session single sign-on or a proxy bound to this organization makes the
+  // person's own key here, bound to it: the dialog says it works here alone,
+  // and the hook takes it to the organization's door.
+  describe('from a session bound to this organization [APIKEY-R13]', () => {
+    it('says the key works in this organization only', async () => {
+      const { user } = render(
+        <ApiKeyCreateDialog
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+          sessionBoundHere
+        />,
+      );
+      expect(
+        screen.getByText(/works in this organization only/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/belongs to you, not to this organization/),
+      ).not.toBeInTheDocument();
+      expect(useCreateApiKey).toHaveBeenLastCalledWith('org-1', true);
+
+      await user.type(
+        screen.getByRole('textbox', { name: /Key name/ }),
+        'Laptop',
+      );
+      const submit = screen.getByRole('button', { name: 'Create key' });
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+      await waitFor(() =>
+        expect(mockCreateKey).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Laptop', owner: { kind: 'self' } }),
+        ),
+      );
+    });
+
+    it('offers an Owner or Admin their own key as this organization’s only', async () => {
+      const { user } = render(
+        <ApiKeyCreateDialog
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+          canCreateForOthers
+          viewerUserId="ada"
+          viewerRole="admin"
+          sessionBoundHere
+        />,
+      );
+      const owner = screen.getByRole('combobox', { name: 'Belongs to' });
+      expect(owner).toHaveTextContent('You — this organization only');
+      expect(owner).toHaveAccessibleDescription(
+        /works in this organization only/,
+      );
+      await user.click(owner);
+      expect(
+        screen.getAllByRole('option').map((option) => option.textContent),
+      ).toEqual([
+        'You — this organization only',
+        'Another member',
+        'A team',
+        'A project',
+        'The organization',
+      ]);
+    });
+
+    it('keeps a password session’s own key a personal one', () => {
+      render(
+        <ApiKeyCreateDialog
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+          canCreateForOthers
+          viewerUserId="ada"
+          viewerRole="admin"
+        />,
+      );
+      expect(
+        screen.getByRole('combobox', { name: 'Belongs to' }),
+      ).toHaveAccessibleDescription(/belongs to you, not to this organization/);
+      expect(useCreateApiKey).toHaveBeenLastCalledWith('org-1', false);
+    });
   });
 
   // The lifetime is read as a date: every choice says the day the key

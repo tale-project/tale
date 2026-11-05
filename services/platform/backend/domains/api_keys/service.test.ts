@@ -3,6 +3,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { mayConnectAgentIn } from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { notifyUser } from '../collab/service.ts';
@@ -17,12 +18,19 @@ import {
 
 /**
  * The organization's own door for API keys: a key an Owner or Admin makes
- * for another member, a team, a project or the organization, the keys a
- * person sees in one organization, and ending a key bound to it. Driven
- * against a scripted database and a stand-in for the api-key plugin, whose
- * mint is the one thing this module does not own.
+ * for another member, a team, a project or the organization, the own key of
+ * a person whose session is bound to this organization, the keys a person
+ * sees in one organization, and ending a key bound to it. Driven against a
+ * scripted database and a stand-in for the api-key plugin, whose mint is
+ * the one thing this module does not own.
  */
 
+vi.mock('../../auth/api-key-create-gate.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../auth/api-key-create-gate.ts')
+  >()),
+  mayConnectAgentIn: vi.fn(() => Promise.resolve(true)),
+}));
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(() => Promise.resolve('audit-1')),
 }));
@@ -160,6 +168,7 @@ const statementsMatching = (statements: Statement[], fragment: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(mayConnectAgentIn).mockReset().mockResolvedValue(true);
 });
 
 describe('createOwnedApiKey — who may make a key for someone else', () => {
@@ -568,6 +577,190 @@ describe('createOwnedApiKey — a key that is not a person', () => {
       1,
     );
     expect(audited()).toEqual([]);
+  });
+});
+
+describe('createOwnedApiKey — your own key, from a session bound here [APIKEY-R13]', () => {
+  const DEV: ApiKeyActor = {
+    userId: 'dev',
+    email: 'dev@example.test',
+    name: 'Dev',
+    role: 'developer',
+  };
+
+  it('binds it here as a key for its maker, who is told nothing', async () => {
+    const { sql, statements } = fakeSql({
+      members: MEMBERS,
+      users: { dev: { name: 'Dev Patel', email: 'dev@example.test' } },
+    });
+    const { auth, createApiKey } = fakeAuth();
+    const created = await createOwnedApiKey(
+      { sql, auth },
+      {
+        organizationId: ORG,
+        actor: DEV,
+        name: 'Laptop',
+        owner: { kind: 'self' },
+        sessionBoundHere: true,
+      },
+    );
+
+    expect(created.owner).toEqual({
+      kind: 'member',
+      memberUserId: 'dev',
+      memberName: 'Dev Patel',
+      role: null,
+    });
+    // Minted for an identity of its own, like every key bound here.
+    const [identity] = statementsMatching(statements, 'INSERT INTO "user"');
+    const keyUser = String(identity?.values[0]);
+    expect(keyUser).not.toBe('dev');
+    expect(createApiKey).toHaveBeenCalledWith({
+      body: { name: 'Laptop', userId: keyUser },
+    });
+    const [binding] = statementsMatching(
+      statements,
+      'INSERT INTO app.api_key_owners',
+    );
+    // A member's key whose maker is the member.
+    expect(binding?.values).toEqual([
+      'key-new',
+      ORG,
+      'member',
+      keyUser,
+      'dev',
+      null,
+      null,
+      null,
+      'Laptop',
+      'dev',
+      expect.any(Number),
+    ]);
+    // The create rule, read for this organization alone, with the live
+    // seat: before the mint and again where the key is bound.
+    expect(
+      vi.mocked(mayConnectAgentIn).mock.calls.map((call) => call[1]),
+    ).toEqual([
+      { organizationId: ORG, userId: 'dev', role: 'developer' },
+      { organizationId: ORG, userId: 'dev', role: 'developer' },
+    ]);
+    expect(audited()).toEqual([
+      expect.objectContaining({
+        actorId: 'dev',
+        action: 'api_key.created',
+        newState: expect.objectContaining({ owner: 'member', userId: 'dev' }),
+      }),
+    ]);
+    expect(notifyUser).not.toHaveBeenCalled();
+  });
+
+  it('reads a key for a member who is its maker as their own', async () => {
+    const { sql, statements } = fakeSql({ members: MEMBERS });
+    const { auth } = fakeAuth();
+    await createOwnedApiKey(
+      { sql, auth },
+      {
+        organizationId: ORG,
+        actor: ADMIN,
+        name: 'Laptop',
+        owner: { kind: 'member', userId: 'ada' },
+        sessionBoundHere: true,
+      },
+    );
+    const [binding] = statementsMatching(
+      statements,
+      'INSERT INTO app.api_key_owners',
+    );
+    expect(binding?.values.slice(2, 5)).toEqual([
+      'member',
+      expect.any(String),
+      'ada',
+    ]);
+    expect(binding?.values[9]).toBe('ada');
+    expect(notifyUser).not.toHaveBeenCalled();
+  });
+
+  it('leaves the own key of any other session to the personal-key door, before anything is read', async () => {
+    for (const [actor, owner] of [
+      [DEV, { kind: 'self' }],
+      [ADMIN, { kind: 'self' }],
+      [ADMIN, { kind: 'member', userId: 'ada' }],
+    ] as const) {
+      const { sql, statements } = fakeSql({ members: MEMBERS });
+      const { auth, createApiKey } = fakeAuth();
+      await expect(
+        createOwnedApiKey(
+          { sql, auth },
+          { organizationId: ORG, actor, name: 'Laptop', owner },
+        ),
+      ).rejects.toMatchObject({ code: 'API_KEY_MEMBER_SELF', status: 400 });
+      expect(statements).toEqual([]);
+      expect(createApiKey).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuses a member the create rule does not admit in this organization', async () => {
+    vi.mocked(mayConnectAgentIn).mockResolvedValue(false);
+    for (const userId of ['mia', 'gone', 'stranger']) {
+      const { sql } = fakeSql({ members: MEMBERS });
+      const { auth, createApiKey } = fakeAuth();
+      await expect(
+        createOwnedApiKey(
+          { sql, auth },
+          {
+            organizationId: ORG,
+            actor: { userId, role: 'member' },
+            name: 'Laptop',
+            owner: { kind: 'self' },
+            sessionBoundHere: true,
+          },
+        ),
+      ).rejects.toMatchObject({
+        code: 'API_KEY_CREATE_FORBIDDEN',
+        status: 403,
+      });
+      expect(createApiKey).not.toHaveBeenCalled();
+    }
+    // A disabled seat and no seat at all are never asked about.
+    expect(
+      vi.mocked(mayConnectAgentIn).mock.calls.map((call) => call[1]),
+    ).toEqual([{ organizationId: ORG, userId: 'mia', role: 'member' }]);
+  });
+
+  it('makes none for a member who lost the right while it was minted', async () => {
+    const { sql, statements } = fakeSql({ members: MEMBERS });
+    const { auth } = fakeAuth(() => {
+      vi.mocked(mayConnectAgentIn).mockResolvedValue(false);
+      return Promise.resolve({
+        id: 'key-new',
+        key: 'tale_secretABCD',
+        start: 'tale_s',
+        expiresAt: null,
+      });
+    });
+    await expect(
+      createOwnedApiKey(
+        { sql, auth },
+        {
+          organizationId: ORG,
+          actor: DEV,
+          name: 'Laptop',
+          owner: { kind: 'self' },
+          sessionBoundHere: true,
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'API_KEY_CREATE_FORBIDDEN' });
+    expect(
+      statementsMatching(statements, 'DELETE FROM "apikey"').map(
+        (statement) => statement.values,
+      ),
+    ).toEqual([['key-new']]);
+    expect(
+      statementsMatching(statements, 'INSERT INTO app.api_key_owners'),
+    ).toEqual([]);
+    expect(statementsMatching(statements, 'DELETE FROM "user"')).toHaveLength(
+      1,
+    );
   });
 });
 

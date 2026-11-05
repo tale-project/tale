@@ -41,14 +41,25 @@ const state = vi.hoisted(
       holdsConnection: boolean;
       signInOn: boolean;
     }>;
+    /** The session the dashboard opened with, as the server answered it. */
+    session: { trustedOrganizationId: string | null };
   } => ({
     developer: false,
     abilityLoading: false,
     standing: { isLoading: false, data: undefined },
     keys: { isLoading: false, data: undefined },
     agentAccess: { isLoading: false, data: undefined },
+    session: { trustedOrganizationId: null },
   }),
 );
+
+// The session read is the hook's one query of its own.
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQuery: () => ({
+    data: { data: { session: { id: 'session-1', ...state.session } } },
+  }),
+}));
 
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => state.developer }),
@@ -70,6 +81,7 @@ beforeEach(() => {
   state.standing = { isLoading: false, data: undefined };
   state.keys = { isLoading: false, data: undefined };
   state.agentAccess = { isLoading: false, data: undefined };
+  state.session = { trustedOrganizationId: null };
 });
 
 const NOTHING_UNDECIDED = { apiKeys: false, modelApi: false, agents: false };
@@ -202,6 +214,20 @@ describe('useApiSettingsAccess', () => {
       connectAgents: false,
       loading: false,
     });
+  });
+
+  it('says a key for oneself works here alone once the session is bound to this organization [APIKEY-R13]', () => {
+    state.developer = true;
+    for (const [realm, bound] of [
+      [null, false],
+      ['org-2', false],
+      ['org-1', true],
+    ] as const) {
+      state.session = { trustedOrganizationId: realm };
+      const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+      expect(result.current.sessionBoundHere).toBe(bound);
+      expect(result.current.createApiKeys).toBe(true);
+    }
   });
 
   it('opens Connected agents to a member who may connect a coding agent here [AGCONN-R23]', () => {

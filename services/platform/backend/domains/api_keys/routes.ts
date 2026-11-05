@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { loadTrustedProxies, type Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import { sessionOrganizationId } from '../../auth/session-authority.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   getClientIp,
@@ -28,12 +29,16 @@ import {
  *    Admin, every key bound to this organization.
  *  - `POST /` makes a key for another member, a team, a project or the
  *    organization (Owners and Admins). A person's own key is still made at
- *    the api-key plugin's `/api/auth/api-key/create`, behind its create gate.
+ *    the api-key plugin's `/api/auth/api-key/create`, behind its create gate
+ *    — except from a session bound to this organization alone (single
+ *    sign-on, an authenticating proxy), whose own key (`owner.kind` `self`)
+ *    is made here, bound to this organization.
  *  - `DELETE /:keyId` ends a key bound to this organization. A person's own
  *    key is ended at the plugin's `/api/auth/api-key/delete`.
  */
 
 const ownerSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('self') }),
   z.object({ kind: z.literal('member'), userId: z.string().min(1).max(128) }),
   z.object({
     kind: z.literal('team'),
@@ -110,14 +115,19 @@ export function createApiKeyRoutes(deps: {
     const body = createBodySchema.safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
+      const organizationId = c.get('orgId');
       const created = await createOwnedApiKey(deps, {
-        organizationId: c.get('orgId'),
+        organizationId,
         actor: await actorOf(c),
         name: body.data.name,
         ...(body.data.expiresIn !== undefined
           ? { expiresIn: body.data.expiresIn }
           : {}),
         owner: body.data.owner,
+        // The org gate let only this organization's realm through.
+        sessionBoundHere:
+          sessionOrganizationId(c.get('sessionBundle').session) ===
+          organizationId,
       });
       return c.json(
         {

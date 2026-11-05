@@ -1296,6 +1296,7 @@ apiKeys:
     owner: Appartient à
   owner:
     you: Toi
+    youHere: Toi — cette organisation uniquement
     team: Équipe {name}
     project: Projet {name}
     organization: Organisation
@@ -1310,6 +1311,11 @@ apiKeys:
     scopeHint: Cette clé t'appartient, pas à cette organisation. Elle agit en
       ton nom dans chaque organisation dont tu es membre ; une requête REST
       nomme l'organisation dans l'en-tête X-Organization-Slug.
+    scopeHintHere: Cette clé t'appartient et ne fonctionne que dans cette
+      organisation, car ta connexion ne couvre qu'elle. Elle agit en ton nom,
+      avec ton rôle ici, et n'a pas besoin de l'en-tête X-Organization-Slug.
+      Les propriétaires et admins de cette organisation la voient et peuvent
+      la révoquer.
     expiresIn: Expiration
     expiresOptions:
       7days: 7 jours
@@ -1327,6 +1333,7 @@ apiKeys:
     owner: Appartient à
     ownerOptions:
       self: Toi
+      selfHere: Toi — cette organisation uniquement
       member: Un autre membre
       team: Une équipe
       project: Un projet

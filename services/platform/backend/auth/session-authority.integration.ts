@@ -1,8 +1,9 @@
 /** Real factory/app HTTP proof. A dedicated multi-org Owner retains every
  * seat while an actual org-minted session is confined to its source realm,
- * and stays its person's to sign out of; so does a sign-in with a passkey
- * enrolled behind a proxy, which keeps the proxy's role as its ceiling.
- * Cutover inventory/WebAuthn are exercised in their isolated PG fixture. */
+ * makes its own API key bound to that realm, and stays its person's to sign
+ * out of; so does a sign-in with a passkey enrolled behind a proxy, which
+ * keeps the proxy's role as its ceiling. Cutover inventory/WebAuthn are
+ * exercised in their isolated PG fixture. */
 import { createHash, randomUUID } from 'node:crypto';
 
 import { generateId } from 'better-auth';
@@ -146,6 +147,115 @@ export async function checkOrganizationSessionAuthority(
       rows[0].proved &&
       JSON.stringify(await seats()) === JSON.stringify(before),
     `confirmation=${confirmation.status}, account=${account.status}, foreign=${confirmedForeign.status}, key=${key.status}; scope and seats preserved`,
+  );
+
+  // A single sign-on session makes its person's own key at its
+  // organization's door, bound there (APIKEY-R13): it acts as them in that
+  // organization alone, they see it and end it there, nobody is notified,
+  // and the personal-key door still refuses them a key that works in every
+  // organization. A password session's own key stays a personal one.
+  const ownSession = await createSsoUserSession(sql, {
+    userId,
+    organizationId: orgA,
+  });
+  const ownCookie = await cookieOf(ownSession.sessionToken);
+  const keyDoor = `/api/app/api-keys?orgId=${encodeURIComponent(orgA)}`;
+  const ownKey = await post(
+    keyDoor,
+    { name: `Own ${suffix}`, owner: { kind: 'self' } },
+    ownCookie,
+  );
+  const ownMinted = z
+    .object({ id: z.string(), key: z.string() })
+    .safeParse(await ownKey.json().catch(() => null));
+  const ownId = ownMinted.success ? ownMinted.data.id : '';
+  const ownSecret = ownMinted.success ? ownMinted.data.key : '';
+  const unboundOwn = await post(
+    '/api/auth/api-key/create',
+    { name: `Unbound own ${suffix}` },
+    ownCookie,
+  );
+  const unboundCode = z
+    .looseObject({ code: z.string().optional() })
+    .safeParse(await unboundOwn.json().catch(() => null));
+  const fromPassword = await post(
+    keyDoor,
+    { name: `Password own ${suffix}`, owner: { kind: 'self' } },
+    globalCookie,
+  );
+  const fromPasswordCode = z
+    .looseObject({ error: z.string().optional() })
+    .safeParse(await fromPassword.json().catch(() => null));
+  const ownBinding = await sql<
+    { kind: string; principal: string; maker: string }[]
+  >`
+    SELECT owner_kind AS kind, principal_user_id AS principal,
+           created_by AS maker
+    FROM app.api_key_owners WHERE api_key_id = ${ownId}
+  `;
+  const meWith = (headers: Record<string, string> = {}) =>
+    fetch(`${base}/api/v1/me`, {
+      headers: { authorization: `Bearer ${ownSecret}`, ...headers },
+    });
+  const ownMe = await meWith();
+  const ownMeBody = z
+    .looseObject({
+      user: z.looseObject({ id: z.string() }),
+      organizations: z.array(z.looseObject({ id: z.string() })),
+      key: z.looseObject({ owner: z.looseObject({ kind: z.string() }) }),
+    })
+    .safeParse(await ownMe.json().catch(() => null));
+  const ownElsewhere = await meWith({
+    'x-organization-slug': `authority-b-${suffix}`,
+  });
+  const ownListed = z
+    .object({
+      keys: z.array(z.looseObject({ id: z.string(), canRevoke: z.boolean() })),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}${keyDoor}`, { headers: { cookie: ownCookie } })
+      )
+        .json()
+        .catch(() => null),
+    );
+  const ownRow = ownListed.success
+    ? ownListed.data.keys.find((listed) => listed.id === ownId)
+    : undefined;
+  const ownNotices = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.user_notifications
+    WHERE user_id = ${userId} AND org_id = ${orgA}
+      AND type = 'api_key_created'
+  `;
+  const ownEnded = await fetch(
+    `${base}/api/app/api-keys/${encodeURIComponent(ownId)}?orgId=${encodeURIComponent(orgA)}`,
+    { method: 'DELETE', headers: { cookie: ownCookie, origin: base } },
+  );
+  const ownAfter = await meWith();
+  record(
+    'auth authority: a single sign-on session makes its own key bound to its organization, and ends it there',
+    ownKey.status === 201 &&
+      ownBinding[0]?.kind === 'member' &&
+      ownBinding[0].principal === userId &&
+      ownBinding[0].maker === userId &&
+      ownMe.status === 200 &&
+      ownMeBody.success &&
+      ownMeBody.data.user.id === userId &&
+      ownMeBody.data.organizations.length === 1 &&
+      ownMeBody.data.organizations[0]?.id === orgA &&
+      ownMeBody.data.key.owner.kind === 'member' &&
+      ownElsewhere.status === 403 &&
+      ownRow?.canRevoke === true &&
+      ownNotices[0]?.count === 0 &&
+      ownEnded.status === 200 &&
+      ownAfter.status === 401 &&
+      unboundOwn.status === 403 &&
+      unboundCode.success &&
+      unboundCode.data.code === 'ORG_FORBIDDEN' &&
+      fromPassword.status === 400 &&
+      fromPasswordCode.success &&
+      fromPasswordCode.data.error === 'API_KEY_MEMBER_SELF',
+    `create=${ownKey.status} (want 201), binding=${JSON.stringify(ownBinding[0] ?? null)} (want member/${userId}/${userId}), me=${ownMe.status} orgs=${ownMeBody.success ? ownMeBody.data.organizations.length : '?'} owner=${ownMeBody.success ? ownMeBody.data.key.owner.kind : '?'}, elsewhere=${ownElsewhere.status} (want 403), listed=${JSON.stringify(ownRow ?? null)}, notices=${ownNotices[0]?.count ?? '?'} (want 0), end=${ownEnded.status} after=${ownAfter.status} (want 200/401), unbound=${unboundOwn.status}/${unboundCode.success ? unboundCode.data.code : '?'} (want 403/ORG_FORBIDDEN), password=${fromPassword.status}/${fromPasswordCode.success ? fromPasswordCode.data.error : '?'} (want 400/API_KEY_MEMBER_SELF)`,
   );
 
   // A single sign-on session is bound to its organization like the one
