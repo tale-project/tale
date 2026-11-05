@@ -537,8 +537,10 @@ in the title.
 A step that could not do its work says so under it, in the person's language: every light
 sandbox is in use, the sandbox host is busy or not ready, the sandbox service cannot be reached,
 the sandbox stopped working, a file the program needs could not be copied into the sandbox, the
-program ended with an error or ran out of time, or it was stopped. The model reads the same
-cause, and whether trying again can help.
+program ended with an error or ran out of time, or it was stopped. A web page it could not read
+says why the same way: no page at the address, a site that keeps automated readers out, a
+CAPTCHA, a bot check that kept even the browser out, no browser free, or a render that failed.
+The model reads the same cause, and whether trying again can help.
 
 - **Example**: All of the organization's light sandboxes are running code when Mia's chat runs
   code → the step reads that all light sandboxes are in use, and the reply tells her to try again
@@ -546,6 +548,9 @@ cause, and whether trying again can help.
 - **Example**: Mia's chat runs code with a skill whose template is larger than the sandbox takes
   → the step reads that a file couldn't be copied into the sandbox, and the model is told which
   file it was, the limit it broke and that trying again will not help.
+- **Example**: Mia, who reads Tale in German, asks about a page whose site's bot protection
+  keeps even a browser out → the step reads, in German, that the site's bot protection didn't
+  let the browser through, and the reply gives the link to open in a browser.
 
 ### CHAT-R31 · The assistant can start from a picture the person attached
 

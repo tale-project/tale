@@ -681,6 +681,7 @@ thinking:
   label: Denkt nach
   done: Hat {seconds}s nachgedacht
   reading: Liest {hostname}
+  readingInBrowser: Liest {hostname} im Browser
   searchingKnowledgeBase: Durchsucht den Arbeitsbereich nach "{query}"
   readingDocument: Liest {name}
   readingDocumentUnnamed: Liest ein Dokument
@@ -727,6 +728,21 @@ thinking:
     invalidArgs: So nicht ausführbar
     unavailable: Hier nicht verfügbar
     busy: Gerade ausgelastet
+    invalidUrl: Keine gültige Webadresse
+    addressRefused: Nur öffentliche https://-Adressen lassen sich lesen
+    unreachable: Die Website ist nicht erreichbar
+    pageTooLarge: Die Seite ist zu umfangreich zum Lesen
+    pageNotFound: Unter dieser Adresse gibt es keine Seite
+    accessDenied: Die Website verweigert den Zugriff
+    httpError: Die Website hat mit einem Fehler geantwortet
+    unsupportedType: Diese Art von Datei lässt sich hier nicht lesen
+    pageEmpty: Die Seite enthält keinen Text
+    botCheckCaptcha: Die Website verlangt ein Rätsel, das nur ein Mensch lösen kann
+    botCheckBlocked: Die Website sperrt automatisierte Zugriffe
+    botCheckUnrendered: Der Bot-Schutz der Website hat den Browser nicht durchgelassen
+    renderBusy: Gerade ist kein Browser frei
+    renderFailed: Die Seite konnte nicht im Browser geöffnet werden
+    renderEmpty: Auch im Browser blieb die Seite leer
 artifacts:
   label: Dateien aus dieser Antwort
   open: '{name} öffnen'

@@ -143,6 +143,8 @@ type TimelineEntry =
       readonly detail?: string;
       /** The fetched document's filename, when the result named one. */
       readonly resultName?: string;
+      /** A web read whose page a browser drew first (`rendered: true`). */
+      readonly rendered?: boolean;
       /** The call's full arguments, for the drill-down body. */
       readonly input?: unknown;
       /** The call's full result, once it settled — the drill-down body. */
@@ -197,6 +199,7 @@ export function buildTimelineEntries(
         isRecord(output) && typeof output.filename === 'string'
           ? output.filename
           : undefined;
+      const rendered = isRecord(output) && output.rendered === true;
       entries.push({
         kind: 'step',
         // Positional prefix: providers may reuse call ids across rounds
@@ -205,6 +208,7 @@ export function buildTimelineEntries(
         tool: part.capabilityId,
         ...(detail !== undefined ? { detail } : {}),
         ...(resultName !== undefined ? { resultName } : {}),
+        ...(rendered ? { rendered } : {}),
         input: part.input,
         ...(settled ? { output } : {}),
         state: failed

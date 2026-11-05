@@ -679,6 +679,7 @@ thinking:
   label: Réflexion
   done: A réfléchi pendant {seconds}s
   reading: Lecture de {hostname}
+  readingInBrowser: Lecture de {hostname} dans un navigateur
   searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
   readingDocument: Lecture de {name}
   readingDocumentUnnamed: Lecture d'un document
@@ -725,6 +726,21 @@ thinking:
     invalidArgs: Impossible à exécuter tel quel
     unavailable: Indisponible ici
     busy: Occupé pour le moment
+    invalidUrl: Adresse web non valide
+    addressRefused: Seules les adresses https:// publiques peuvent être lues
+    unreachable: Le site est injoignable
+    pageTooLarge: La page est trop volumineuse pour être lue
+    pageNotFound: Aucune page à cette adresse
+    accessDenied: Le site refuse l’accès
+    httpError: Le site a répondu par une erreur
+    unsupportedType: Ce type de fichier ne peut pas être lu ici
+    pageEmpty: La page ne contient aucun texte
+    botCheckCaptcha: Le site demande une énigme que seule une personne peut résoudre
+    botCheckBlocked: Le site bloque les lecteurs automatisés
+    botCheckUnrendered: La protection anti-bot du site n’a pas laissé passer le navigateur
+    renderBusy: Aucun navigateur n’est libre pour le moment
+    renderFailed: La page n’a pas pu être ouverte dans un navigateur
+    renderEmpty: La page est restée vide dans un navigateur aussi
 artifacts:
   label: Fichiers de cette réponse
   open: Ouvrir {name}

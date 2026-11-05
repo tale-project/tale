@@ -1,6 +1,8 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
 
+import { WEB_FETCH_FAILURE_REASONS } from '@/lib/chat/tools';
+
 import {
   ragSearchListingKind,
   stepActivityLabel,
@@ -125,6 +127,30 @@ describe('stepActivityLabel — rag_fetch on a document', () => {
     expect(
       stepActivityLabel(t, { tool: 'rag_fetch', detail: 'Pricing.pdf' }),
     ).toBe('thinking.readingDocument {"name":"Pricing.pdf"}');
+  });
+});
+
+describe('stepActivityLabel — web_fetch', () => {
+  const t = fakeT();
+
+  it('names the host it reads, and says so when a browser drew the page first', () => {
+    const step = { tool: 'web_fetch', detail: 'https://ted.europa.eu/de/x' };
+    expect(stepActivityLabel(t, step)).toBe(
+      'thinking.reading {"hostname":"ted.europa.eu"}',
+    );
+    expect(stepActivityLabel(t, { ...step, rendered: true })).toBe(
+      'thinking.readingInBrowser {"hostname":"ted.europa.eu"}',
+    );
+  });
+
+  it('reads a crawled page by its host, never as one a browser drew', () => {
+    expect(
+      stepActivityLabel(t, {
+        tool: 'rag_fetch',
+        detail: 'https://www.example.org/x',
+        rendered: true,
+      }),
+    ).toBe('thinking.reading {"hostname":"www.example.org"}');
   });
 });
 
@@ -274,6 +300,27 @@ describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
     expect(
       stepOutcomeLabel(t, { status: 'error', reason: 'files_not_staged' }),
     ).toBe('thinking.outcome.filesNotStaged');
+  });
+
+  it('names why a web read read nothing, by every cause it gives', () => {
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'bot_check_unrendered' }),
+    ).toBe('thinking.outcome.botCheckUnrendered');
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'bot_check_captcha' }),
+    ).toBe('thinking.outcome.botCheckCaptcha');
+    expect(
+      stepOutcomeLabel(t, { status: 'unavailable', reason: 'render_busy' }),
+    ).toBe('thinking.outcome.renderBusy');
+    // A web read shares "ran out of time" with the work tools.
+    expect(stepOutcomeLabel(t, { status: 'error', reason: 'timed_out' })).toBe(
+      'thinking.outcome.timedOut',
+    );
+    for (const reason of WEB_FETCH_FAILURE_REASONS) {
+      expect(stepOutcomeLabel(t, { status: 'error', reason })).not.toBe(
+        'thinking.outcome.failed',
+      );
+    }
   });
 
   it('falls back to the status, then to a plain failure', () => {
