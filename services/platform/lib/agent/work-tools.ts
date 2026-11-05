@@ -354,16 +354,20 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
     'the type; binary formats (DOCX, XLSX, PPTX, PDF, PNG, ZIP) cannot be ' +
     'typed out{binary}. Write the whole content in one ' +
     `call, at most ${CREATE_FILE_MAX_BYTES / (1024 * 1024)} MB. Answers ` +
-    "with the file's ref. Afterwards, tell the user the file is attached " +
-    'rather than repeating its content.',
+    "with the file's ref, for later tool calls. The file shows under your " +
+    'reply by itself: say in a sentence, by its name, that it is attached ' +
+    '— never repeat its content, and never write its ref into your reply ' +
+    'as a link or an image.',
   generate_image:
     "Create images with the organization's image model and attach them " +
     'to the conversation. For pictures: illustrations, photographs, ' +
     'artwork, logos, mock-ups. Not for charts, diagrams or documents' +
     '{drawing}.{references} No ' +
-    'sandbox starts, but generation can take a minute. Answers with each ' +
-    "image's ref and its size in pixels — report those, not the size you " +
-    'asked for.',
+    'sandbox starts, but generation can take a minute. The images show ' +
+    "under your reply by themselves. Answers with each image's ref, for " +
+    'later tool calls, and its size in pixels: report that size, not the ' +
+    'one you asked for, and never write a ref into your reply as an image ' +
+    'or a link.',
   load_skill:
     "Read a skill from the user's skill library: its instructions and the " +
     'list of files bundled with it. A skill is a tested procedure for a ' +
@@ -394,8 +398,9 @@ const DESCRIPTIONS: Record<WorkToolName, string> = {
     'directory. The machine keeps its files between calls for a few ' +
     'minutes, then starts over empty. ' +
     'Answers with the exit code, the end of stdout and stderr, and the ' +
-    'attached files. Do not use it for what you can answer or type out ' +
-    'yourself.',
+    'attached files, which show under your reply by themselves — never ' +
+    'write their refs into your reply. Do not use it for what you can ' +
+    'answer or type out yourself.',
   use_workspace:
     'Hand this task to the full workspace: a persistent Linux environment ' +
     'with a shell, network access, git and a browser, where a coding agent ' +

@@ -15,6 +15,7 @@ import {
   CANNED_ERROR_MESSAGE,
   CANNED_REPLY,
   CANNED_STREAM_ERROR_MESSAGE,
+  MOCK_FILE_REF,
   MOCK_SERVING,
   MOCK_TRIGGERS,
   MOCK_WORK_TOOLS,
@@ -269,6 +270,63 @@ describe('chat/completions override', () => {
       expect(text).toBe(MOCK_WORK_TOOLS.done);
     },
   );
+
+  /** The text a streamed completion wrote. */
+  const streamedText = async (res: Response) =>
+    events(await res.text())
+      .map(
+        (chunk) =>
+          (chunk.choices as { delta?: { content?: string } }[])[0]?.delta
+            ?.content ?? '',
+      )
+      .join('');
+
+  test('the file-ref trigger makes a file, then writes its ref into the reply as a picture and a link', async () => {
+    const first = events(
+      await (
+        await post('/v1/chat/completions', {
+          model: 'm',
+          stream: true,
+          messages: [
+            { role: 'user', content: `${MOCK_TRIGGERS.fileRef} please` },
+          ],
+        })
+      ).text(),
+    );
+    const call = first.flatMap((chunk) => {
+      const choice = (
+        chunk.choices as { delta?: { tool_calls?: unknown[] } }[]
+      )[0];
+      return choice?.delta?.tool_calls ?? [];
+    })[0] as { id: string; function: { name: string; arguments: string } };
+    expect(call.function.name).toBe('create_file');
+    const ref = 's3:e2e-org/0f3c';
+    const closing = await streamedText(
+      await post('/v1/chat/completions', {
+        model: 'm',
+        stream: true,
+        messages: [
+          { role: 'user', content: `${MOCK_TRIGGERS.fileRef} please` },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              { id: call.id, type: 'function', function: call.function },
+            ],
+          },
+          {
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify({
+              status: 'ok',
+              artifacts: [{ ref, name: MOCK_WORK_TOOLS.fileName }],
+            }),
+          },
+        ],
+      }),
+    );
+    expect(closing).toBe(MOCK_FILE_REF.reply(ref));
+  });
 
   test('a work trigger asked again after an earlier turn used tools calls the tool again, not the closing reply', async () => {
     const wire = (messages: unknown[]) =>

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import { withoutStorageRefs } from '@/app/features/shared/markdown/stored-files-context';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -169,7 +170,9 @@ export function MessageToolbar({
             // The clipboard gets the NORMALIZED text: rendered markdown
             // serializes with stray blank-line stacks the composer (and any
             // other paste target) should never see.
-            onClick={() => void copy(normalizeCopiedText(text))}
+            onClick={() =>
+              void copy(normalizeCopiedText(withoutStorageRefs(text)))
+            }
             className="size-7"
           >
             {copied ? (

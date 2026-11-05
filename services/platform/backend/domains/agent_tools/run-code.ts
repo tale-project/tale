@@ -615,6 +615,12 @@ async function runInSandbox(
         }
       : {}),
     artifacts,
+    ...(artifacts.length > 0
+      ? {
+          attached:
+            'These files show under your reply by themselves; do not write their refs into the reply.',
+        }
+      : {}),
     ...(skipped.length > 0 ? { skippedOutputs: skipped } : {}),
     // A run that wrote nothing to deliver says where files go — and, since a
     // skill's own examples save to the working directory, which files sit

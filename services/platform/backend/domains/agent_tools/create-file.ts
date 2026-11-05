@@ -56,7 +56,7 @@ export async function runCreateFile(
   const artifact = await scope.artifacts.store({ name, mediaType, bytes });
   return {
     status: 'ok',
-    message: `Attached ${artifact.name} to the conversation.`,
+    message: `Attached ${artifact.name} to the conversation: it shows under your reply by itself. Name it in a sentence; do not write its ref into the reply.`,
     artifacts: [artifact],
   };
 }

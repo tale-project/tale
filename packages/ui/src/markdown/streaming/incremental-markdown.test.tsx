@@ -482,3 +482,76 @@ describe('IncrementalMarkdown — fully revealed and settled', () => {
     expect(normalize(container.textContent)).toBe(busyText);
   });
 });
+
+// ============================================================================
+// HOST URL SCHEMES
+// ============================================================================
+
+describe('IncrementalMarkdown — host URL schemes', () => {
+  /** The addresses the `img` and `a` components were handed, in order. */
+  function renderAddresses(
+    content: string,
+    options: { urlProtocols?: readonly string[]; busy?: boolean } = {},
+  ) {
+    const seen: { tag: 'img' | 'a'; url: string | undefined }[] = [];
+    const components = {
+      img: ({ src }: { src?: string }) => {
+        seen.push({ tag: 'img', url: src });
+        return null;
+      },
+      a: ({
+        href,
+        children,
+      }: {
+        href?: string;
+        children?: React.ReactNode;
+      }) => {
+        seen.push({ tag: 'a', url: href });
+        return <span>{children}</span>;
+      },
+    };
+    render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        components={components}
+        {...(options.busy === true ? { 'aria-busy': true } : {})}
+        {...(options.urlProtocols !== undefined
+          ? { urlProtocols: options.urlProtocols }
+          : {})}
+      />,
+    );
+    return seen;
+  }
+
+  const reply =
+    'Here it is:\n\n![Nook](s3:acme/9dc99bab)\n\n[the table](s3:acme/1f2e) and [docs](https://docs.tale.dev).';
+
+  it('drops an address in an unknown scheme by default', () => {
+    expect(renderAddresses(reply)).toEqual([
+      { tag: 'img', url: undefined },
+      { tag: 'a', url: undefined },
+      { tag: 'a', url: 'https://docs.tale.dev' },
+    ]);
+  });
+
+  it('keeps the schemes the host names, settled and while streaming', () => {
+    const kept = [
+      { tag: 'img', url: 's3:acme/9dc99bab' },
+      { tag: 'a', url: 's3:acme/1f2e' },
+      { tag: 'a', url: 'https://docs.tale.dev' },
+    ];
+    expect(renderAddresses(reply, { urlProtocols: ['s3'] })).toEqual(kept);
+    expect(
+      renderAddresses(reply, { urlProtocols: ['s3'], busy: true }),
+    ).toEqual(kept);
+  });
+
+  it('still drops a script address when the host names its own scheme', () => {
+    expect(
+      renderAddresses('[click](javascript:alert(1)) ![x](data:text/html,1)', {
+        urlProtocols: ['s3'],
+      }).map((entry) => entry.url),
+    ).toEqual([undefined, undefined]);
+  });
+});

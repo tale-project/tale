@@ -35,6 +35,8 @@ Die Dateien erscheinen unter der Antwort, in der Reihenfolge ihrer Entstehung. P
 
 Überarbeitet der Assistent eine Datei in derselben Antwort, etwa nachdem er sein Ergebnis geprüft hat, zeigt die Karte nur die endgültige Fassung. Bitte in einer Folgenachricht um eine Änderung, um in der nächsten Antwort eine neue Fassung zu erhalten.
 
+Jede Datei erscheint einmal, unter der Antwort, auch wenn das Modell sie zusätzlich in seinem Text nennt. Ein Link auf die Datei im Text öffnet ihre Vorschau. Lässt sich ein Bild im Text nicht anzeigen, weil es auf eine Datei verweist, die du nicht öffnen kannst, oder auf eine Adresse, die kein Browser lädt, steht an seiner Stelle seine Beschreibung.
+
 Hat der Assistent vergeblich versucht, eine Datei zu erstellen, oder hat er Code in der leichten Sandbox ausgeführt und schreibt danach, er habe eine Datei angehängt, die es nicht gibt, steht unter der Antwort **An diese Antwort wurde keine Datei angehängt**. Frag in einer Folgenachricht noch einmal nach der Datei.
 
 Die Dateien gehören zum Gespräch: Wer das Gespräch öffnen kann, kann auch seine Dateien öffnen.

@@ -29,8 +29,12 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import type { Components, Options as MarkdownOptions } from 'react-markdown';
-import Markdown from 'react-markdown';
+import type {
+  Components,
+  Options as MarkdownOptions,
+  UrlTransform,
+} from 'react-markdown';
+import Markdown, { defaultUrlTransform } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 
@@ -110,6 +114,55 @@ const REHYPE_STREAMING_BASE: PluginList = [
 
 type RehypePlugin = PluginList[number];
 
+/**
+ * What a render keeps of the addresses in links and images: the sanitize
+ * schema's protocols and react-markdown's own URL check. Both drop an
+ * address whose scheme they do not know, so a host that gives its own
+ * references a scheme (a stored file's `s3:` ref) names it, and its
+ * components decide what such an address means.
+ */
+interface UrlPolicy {
+  readonly stable: PluginList;
+  readonly streaming: PluginList;
+  readonly urlTransform: UrlTransform;
+}
+
+const DEFAULT_URL_POLICY: UrlPolicy = {
+  stable: REHYPE_BASE,
+  streaming: REHYPE_STREAMING_BASE,
+  urlTransform: defaultUrlTransform,
+};
+
+/** The policy that keeps `protocols` on `href` and `src` beside the safe
+ * ones; any other address goes through the defaults. */
+function urlPolicyFor(protocols: readonly string[]): UrlPolicy {
+  if (protocols.length === 0) return DEFAULT_URL_POLICY;
+  const kept = protocols.map((protocol) => protocol.toLowerCase());
+  const base = chatSanitizeSchema.protocols ?? {};
+  const schema = {
+    ...chatSanitizeSchema,
+    protocols: {
+      ...base,
+      href: [...(base.href ?? []), ...kept],
+      src: [...(base.src ?? []), ...kept],
+    },
+  };
+  const stable: PluginList = [
+    rehypeRaw,
+    rehypeNumericColumns,
+    [rehypeSanitize, schema],
+  ];
+  const prefixes = kept.map((protocol) => `${protocol}:`);
+  return {
+    stable,
+    streaming: [...stable, rehypeRevealSegments],
+    urlTransform: (url) =>
+      prefixes.some((prefix) => url.toLowerCase().startsWith(prefix))
+        ? url
+        : defaultUrlTransform(url),
+  };
+}
+
 /** A chain with KaTeX last, once `useLazyKatex` has loaded it. */
 function withKatex(chain: PluginList, katex: RehypePlugin | null): PluginList {
   return katex === null ? chain : [...chain, katex];
@@ -150,6 +203,13 @@ interface IncrementalMarkdownProps {
   showCursor?: boolean;
   /** Whether the content is still being generated */
   'aria-busy'?: boolean;
+  /**
+   * URL schemes, beside the safe ones, that links and images keep — a
+   * host's own references, such as `s3` for a stored file. The host's
+   * `a` and `img` components resolve them; without it they are dropped,
+   * as react-markdown drops every scheme it does not know.
+   */
+  urlProtocols?: readonly string[];
 }
 
 // ============================================================================
@@ -253,12 +313,14 @@ const StreamingMarkdown = memo(
     components,
     showCursor,
     katex,
+    urlPolicy,
   }: {
     content: string;
     revealedLength: number;
     components?: MarkdownComponentMap;
     showCursor?: boolean;
     katex: RehypePlugin | null;
+    urlPolicy: UrlPolicy;
   }) {
     const rawRevealed = content ? content.slice(0, revealedLength) : '';
     // normalizeHtmlBlocks runs first so block-level HTML tags get the blank
@@ -406,7 +468,8 @@ const StreamingMarkdown = memo(
       <div ref={containerRef} className="stream-reveal">
         <Markdown
           remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={withKatex(REHYPE_STREAMING_BASE, katex)}
+          rehypePlugins={withKatex(urlPolicy.streaming, katex)}
+          urlTransform={urlPolicy.urlTransform}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
           components={componentsWithCursor as Components}
         >
@@ -422,7 +485,8 @@ const StreamingMarkdown = memo(
       prevProps.revealedLength === nextProps.revealedLength &&
       prevProps.showCursor === nextProps.showCursor &&
       prevProps.components === nextProps.components &&
-      prevProps.katex === nextProps.katex
+      prevProps.katex === nextProps.katex &&
+      prevProps.urlPolicy === nextProps.urlPolicy
     );
   },
 );
@@ -440,10 +504,12 @@ const StableMarkdown = memo(
     content,
     components,
     katex,
+    urlPolicy,
   }: {
     content: string;
     components?: MarkdownComponentMap;
     katex: RehypePlugin | null;
+    urlPolicy: UrlPolicy;
   }) {
     // Same normalization as StreamingMarkdown — block-level HTML tags need
     // surrounding blank lines for CommonMark to parse markdown inside them.
@@ -451,7 +517,8 @@ const StableMarkdown = memo(
     return (
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={withKatex(REHYPE_BASE, katex)}
+        rehypePlugins={withKatex(urlPolicy.stable, katex)}
+        urlTransform={urlPolicy.urlTransform}
         components={components}
       >
         {normalized}
@@ -461,7 +528,8 @@ const StableMarkdown = memo(
   (prevProps, nextProps) =>
     prevProps.content === nextProps.content &&
     prevProps.components === nextProps.components &&
-    prevProps.katex === nextProps.katex,
+    prevProps.katex === nextProps.katex &&
+    prevProps.urlPolicy === nextProps.urlPolicy,
 );
 
 // ============================================================================
@@ -475,6 +543,7 @@ export function IncrementalMarkdown({
   className,
   showCursor,
   'aria-busy': ariaBusy,
+  urlProtocols,
 }: IncrementalMarkdownProps) {
   const settled = revealPosition >= content.length && ariaBusy !== true;
   const splitIndex = useMemo(
@@ -484,6 +553,13 @@ export function IncrementalMarkdown({
     [content, revealPosition, settled],
   );
   const katex = useLazyKatex(content);
+  // One policy per list of schemes, however often the caller rebuilds the
+  // array, so the memoized halves below do not re-parse for it.
+  const protocolsKey = urlProtocols?.join(' ') ?? '';
+  const urlPolicy = useMemo(
+    () => urlPolicyFor(protocolsKey === '' ? [] : protocolsKey.split(' ')),
+    [protocolsKey],
+  );
 
   const stableContent = splitIndex > 0 ? content.slice(0, splitIndex) : '';
   const streamContent = content.slice(splitIndex);
@@ -518,6 +594,7 @@ export function IncrementalMarkdown({
             content={content}
             components={stableMerged}
             katex={katex}
+            urlPolicy={urlPolicy}
           />
         )}
       </div>
@@ -531,6 +608,7 @@ export function IncrementalMarkdown({
           content={stableContent}
           components={stableMerged}
           katex={katex}
+          urlPolicy={urlPolicy}
         />
       )}
       {streamContent && (
@@ -545,6 +623,7 @@ export function IncrementalMarkdown({
           components={streamingMerged}
           showCursor={showCursor}
           katex={katex}
+          urlPolicy={urlPolicy}
         />
       )}
     </div>
