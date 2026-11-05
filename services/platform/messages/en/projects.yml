@@ -230,7 +230,8 @@ agents:
   newAgent: New agent
   emptyTitle: Add an agent to this project
   emptyBody: Agents run tasks on your behalf — give one a model, skills, and instructions to get started.
-  sectionDescriptionReader: The agents that work this project's tasks, each with their own model, skills, and instructions. Editors and Admins add and change them.
+  sectionDescriptionReader: The agents that work this project's tasks and answer in its chats, each with their own model, skills, and instructions. Editors and Admins add and change them.
+  audienceLabel: Who can use these agents
   emptyReaderTitle: No agents in this project yet
   emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
   equippedCount: '{count} equipped'

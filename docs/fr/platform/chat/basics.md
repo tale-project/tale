@@ -69,7 +69,7 @@ L’assistant ne modifie rien lui-même. Il lit les projets que tu peux ouvrir, 
 
 Si quelque chose a changé depuis la proposition, par exemple si quelqu’un a modifié l’agent, **Appliquer** ne change rien : la carte indique **Non appliqué** et pourquoi. Demande alors une nouvelle proposition à l’assistant.
 
-Seuls les Éditeurs, Développeurs, Admins et Propriétaires reçoivent ces propositions ; pour un Membre, l’assistant peut décrire une modification mais pas la proposer, et un message envoyé par l’API n’en reçoit aucune. Dans un chat classé dans un projet, l’assistant ne lit et ne modifie que ce projet, mais il peut toujours proposer un nouveau projet. Un projet créé depuis une carte est ouvert à toute l’organisation ; choisis ses équipes sous **Audience** sur sa page **Général**. Le partage, les secrets, les connectors, les outils d’un agent, l’accès aux dépôts et la suppression d’un projet ou d’un agent restent sur les pages du projet.
+Seuls les Éditeurs, Développeurs, Admins et Propriétaires reçoivent ces propositions ; pour un Membre, l’assistant peut décrire une modification mais pas la proposer, et un message envoyé par l’API n’en reçoit aucune. Dans un chat classé dans un projet, l’assistant ne lit et ne modifie que ce projet, mais il peut toujours proposer un nouveau projet. Un projet créé depuis une carte est ouvert à toute l’organisation ; un Propriétaire ou un Admin peut le réserver à des équipes sous **Audience** sur sa page **Général**. Le partage, les secrets, les connectors, les outils d’un agent, l’accès aux dépôts et la suppression d’un projet ou d’un agent restent sur les pages du projet.
 
 ## Vérifier ce que l’assistant a consulté
 

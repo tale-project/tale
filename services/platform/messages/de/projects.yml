@@ -236,7 +236,8 @@ agents:
   newAgent: Neuer Agent
   emptyTitle: Agenten zu diesem Projekt hinzufügen
   emptyBody: Agenten erledigen Aufgaben in deinem Namen — gib einem ein Modell, Skills und Anweisungen, um loszulegen.
-  sectionDescriptionReader: Die Agenten, die die Aufgaben dieses Projekts bearbeiten, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen. Redakteure und Admins fügen sie hinzu und ändern sie.
+  sectionDescriptionReader: Die Agenten, die die Aufgaben dieses Projekts bearbeiten und in seinen Chats antworten, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen. Redakteure und Admins fügen sie hinzu und ändern sie.
+  audienceLabel: Wer diese Agenten nutzen kann
   emptyReaderTitle: Noch keine Agenten in diesem Projekt
   emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
   equippedCount: '{count} ausgerüstet'

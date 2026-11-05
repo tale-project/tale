@@ -11,12 +11,22 @@ vi.mock('@tale/ui/i18n/client', () => ({
 }));
 
 const { state } = vi.hoisted(() => ({
-  state: { canEdit: true, agents: [] as unknown[], standardAgent: false },
+  state: {
+    canEdit: true,
+    agents: [] as unknown[],
+    standardAgent: false,
+    teamIds: [] as string[],
+  },
 }));
 
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({
-    project: { _id: 'project-1', name: 'Website', canEdit: state.canEdit },
+    project: {
+      _id: 'project-1',
+      name: 'Website',
+      canEdit: state.canEdit,
+      teamIds: state.teamIds,
+    },
     isLoading: false,
   }),
   useProjectAgents: () => ({
@@ -34,6 +44,13 @@ vi.mock('../hooks/queries', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteProjectAgent: () => ({ mutateAsync: vi.fn() }),
+}));
+
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeamNames: () => ({
+    nameOf: (id: string) => ({ 'team-sales': 'Sales' })[id],
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../hooks/use-unpinned-serving-preview', () => ({
@@ -54,6 +71,32 @@ describe('ProjectAgentsTab', () => {
     state.canEdit = true;
     state.agents = [];
     state.standardAgent = false;
+    state.teamIds = [];
+  });
+
+  // Everyone who reaches the project reaches its agents: the tab says who
+  // that is, so a creator sees whether an agent is shared with everyone.
+  it('names the whole organization as who can use the agents of an open project [PROJ-R29]', () => {
+    renderTab();
+    expect(
+      screen.getByText('projects.agents.audienceLabel'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('projects.list.sharingOrgWide'),
+    ).toBeInTheDocument();
+  });
+
+  it('names the teams of a project restricted to them [PROJ-R29]', () => {
+    state.teamIds = ['team-sales'];
+    state.canEdit = false;
+    renderTab();
+    expect(
+      screen.getByText('projects.agents.audienceLabel'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sales')).toBeInTheDocument();
+    expect(
+      screen.queryByText('projects.list.sharingOrgWide'),
+    ).not.toBeInTheDocument();
   });
 
   it('invites an editor to add the first agent', () => {

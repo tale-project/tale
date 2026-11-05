@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 105 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 107 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -777,6 +777,17 @@ The first project of [chat.md](chat.md)'s **Projects and agents**: agents
   announced with its label and hint (`projects.chatAgent.fieldHint`); Enter
   opens the list with its search (`projects.chatAgent.search`), Down and Up
   move, Enter picks, and the page's **Save** becomes available.
+- [ ] `PROJ-F82` · **Share an agent with everyone** — Two sessions: an editor
+  and a member in no team. As the editor, create a project leaving **Who can
+  see it** (`projects.create.audienceLabel`) empty, then an agent in it → its
+  **Agents** tab reads **Who can use these agents**
+  (`projects.agents.audienceLabel`) **Org-wide**
+  (`projects.list.sharingOrgWide`). As the member, open the project → the
+  agent is listed, a task can be assigned to it, and a new project chat can
+  choose it. As the editor, try to limit the project to a team under
+  **Audience** (`projects.settings.audience`) → not offered or refused; as an
+  admin, limit it to a team → the tab names that team, and the member in no
+  team no longer reaches the project or its agent.
 
 ## Dispatch
 

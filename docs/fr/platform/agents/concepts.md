@@ -13,7 +13,7 @@ Un agent de projet est une configuration nommée pour les tâches d’un projet 
 | Agent de projet | Examiner un dépôt, préparer des fichiers ou poursuivre une tâche sur plusieurs échanges. | Une configuration d’agent réutilisable dans le projet. |
 | Automatisation | Exécuter des étapes définies, réagir à un événement ou demander une approbation entre deux actions. | Un workflow versionné et ses données d’entrée. |
 
-Un chat de projet utilise toujours l’assistant de chat intégré. Choisir un projet dans Chat ne sélectionne pas un agent du projet. Le nœud agent d’une automatisation possède sa propre configuration.
+Dans un chat de projet, les agents du projet peuvent aussi répondre : un nouveau chat commence avec l’agent de chat par défaut du projet, et la personne à qui appartient le chat peut choisir un autre agent ou l’assistant. Le nœud agent d’une automatisation possède sa propre configuration.
 
 ## Définir une responsabilité précise
 

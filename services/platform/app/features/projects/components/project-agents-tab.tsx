@@ -11,6 +11,8 @@ import { toast } from '@tale/ui/use-toast';
 import { Bot, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { TeamAudienceCell } from '@/app/features/settings/teams/components/team-audience-cell';
+import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
@@ -26,6 +28,7 @@ import {
   useStandardAgent,
 } from '../hooks/queries';
 import { projectAgentDetails } from '../lib/agent-details';
+import { projectTeamIds } from '../lib/project-audience';
 import { ProjectAgentDetailsDialog } from './project-agent-details';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 import {
@@ -76,6 +79,7 @@ export function ProjectAgentsTab({
   const listAnswered = hasAnswer ?? !agentsLoading;
   const standardAgentAvailable =
     useStandardAgent(organizationId)?.available === true;
+  const { nameOf, isLoading: teamNamesLoading } = useTeamNames();
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -175,6 +179,26 @@ export function ProjectAgentsTab({
         tabIndex={-1}
         className="flex flex-col gap-3 outline-none"
       >
+        {project ? (
+          // Who the project's agents reach: everyone who reaches the project
+          // (PROJ-R29) — so a creator sees whether an agent is shared with
+          // the whole organization or with some teams.
+          <Row gap={2} align="center" className="min-w-0">
+            <Text as="span" variant="caption" className="shrink-0">
+              {t('agents.audienceLabel')}
+            </Text>
+            <TeamAudienceCell
+              teamIds={projectTeamIds(project)}
+              nameOf={nameOf}
+              isLoading={teamNamesLoading}
+              labels={{
+                orgWide: t('list.sharingOrgWide'),
+                unknownTeam: t('list.unknownTeam'),
+                more: (count) => t('list.sharingMoreTeams', { count }),
+              }}
+            />
+          </Row>
+        ) : null}
         {unavailable || stale ? (
           <CatalogLoadError
             failureKey={failureCount}

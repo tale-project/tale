@@ -69,7 +69,7 @@ The assistant changes nothing itself. It reads the projects you can open, then s
 
 If something changed after the proposal was made, for example a colleague edited the agent, **Apply** changes nothing: the card says **Not applied** and why. Ask the assistant for a new proposal.
 
-Only Editors, Developers, Admins and Owners get these proposals; a Member’s assistant can describe a change but not propose it, and a message sent through the API gets none. In a chat filed in a project, the assistant reads and changes that project only, though it can still propose a new project. A project created from a card is open to everyone in the organization; choose its teams under **Audience** on its **General** page. Sharing, secrets, connectors, an agent’s tools, repository access and deleting a project or an agent stay on the project’s pages.
+Only Editors, Developers, Admins and Owners get these proposals; a Member’s assistant can describe a change but not propose it, and a message sent through the API gets none. In a chat filed in a project, the assistant reads and changes that project only, though it can still propose a new project. A project created from a card is open to everyone in the organization; an Owner or Admin can limit it to teams under **Audience** on its **General** page. Sharing, secrets, connectors, an agent’s tools, repository access and deleting a project or an agent stay on the project’s pages.
 
 ## Check what the assistant used
 

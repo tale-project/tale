@@ -13,7 +13,7 @@ A project agent is a named configuration for tasks in one project. You configure
 | Project agent | Review a repository, prepare files or carry out a task over several turns. | A reusable agent configuration in the project. |
 | Automation | Run defined steps, react to events or wait for an approval between actions. | A versioned workflow and its inputs. |
 
-A project chat still uses the built-in chat assistant. Adding a project to a chat does not select one of the project’s agents. An automation’s agent node has its own configuration.
+In a project chat, the project's agents can answer too: a new chat starts with the project's default chat agent, and the chat's owner can choose another agent or the assistant. An automation’s agent node has its own configuration.
 
 ## Give the agent a clear responsibility
 

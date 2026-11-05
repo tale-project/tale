@@ -134,7 +134,7 @@ proposal:
     first: First agent created
     firstNamed: 'First agent created ({name})'
     assistant: Assistant
-  orgWide: Everyone in the organization can open the new project. Choose who can see it on its General page.
+  orgWide: Everyone in the organization can open the new project. An Owner or Admin can limit it to teams on its General page.
   before: Before
   after: After
   failure:
