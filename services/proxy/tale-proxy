@@ -5,7 +5,9 @@
 #                   (render/main.js), then runs Traefik and the responder,
 #                   the loopback nginx that writes the edge's own answers.
 #   docker-api      the read-only Docker API proxy (docker-api/nginx.conf),
-#                   the one way Traefik reads the services' labels.
+#                   the one way Traefik reads the services' labels under
+#                   Compose. On Kubernetes the edge reads its namespace's
+#                   Ingress objects instead (TALE_PROXY_NAMESPACE).
 #   health          the image's HEALTHCHECK, for either role.
 #
 # Any other command runs as given (`docker run … tale-proxy sh`).

@@ -13,8 +13,10 @@ import {
 import {
   BACKEND_LANES,
   ConfigError,
+  INGRESS_CLASS,
   MACHINE_DOORS,
   PLATFORM_HEALTH,
+  describe as describeSettings,
   leafHosts,
   readSettings,
   renderAcmeHosts,
@@ -215,6 +217,52 @@ describe('readSettings', () => {
       refusal({ ...base, TALE_PROXY_PROJECTS: 'tale) || (x' })[0],
     ).toContain('TALE_PROXY_PROJECTS');
   });
+
+  it('routes the Compose projects or one Kubernetes namespace, never both or neither', () => {
+    const kubernetes = {
+      SITE_URL: base.SITE_URL,
+      TALE_PROXY_NAMESPACE: 'tale',
+    };
+    expect(readSettings(kubernetes)).toMatchObject({
+      namespace: 'tale',
+      projects: [],
+    });
+    expect(readSettings(base).namespace).toBe('');
+    expect(refusal({ ...base, TALE_PROXY_NAMESPACE: 'tale' })[0]).toContain(
+      'exclude each other',
+    );
+    const neither = refusal({ SITE_URL: base.SITE_URL })[0];
+    expect(neither).toContain('TALE_PROXY_PROJECTS');
+    expect(neither).toContain('TALE_PROXY_NAMESPACE');
+    for (const namespace of [
+      'Tale',
+      'tale.x',
+      '-tale',
+      'tale-',
+      'a'.repeat(64),
+    ]) {
+      expect(
+        refusal({ ...kubernetes, TALE_PROXY_NAMESPACE: namespace })[0],
+      ).toContain('is not a Kubernetes namespace name');
+    }
+    expect(
+      readSettings({ ...kubernetes, TALE_PROXY_NAMESPACE: 'a'.repeat(63) })
+        .namespace,
+    ).toBe('a'.repeat(63));
+  });
+
+  it('names where the routes come from in the startup summary', () => {
+    expect(describeSettings(readSettings(base))).toContain(
+      'Routing: labelled services of the Compose projects tale',
+    );
+    expect(
+      describeSettings(
+        readSettings({ SITE_URL: base.SITE_URL, TALE_PROXY_NAMESPACE: 'tale' }),
+      ),
+    ).toContain(
+      `Routing: Ingress objects of class ${INGRESS_CLASS} in the Kubernetes namespace tale`,
+    );
+  });
 });
 
 describe('renderStatic', () => {
@@ -235,6 +283,23 @@ describe('renderStatic', () => {
     });
     expect(config).not.toHaveProperty('api');
     expect(config.ping).toEqual({ entryPoint: 'health', manualRouting: true });
+  });
+
+  it('serves the Ingress objects of its own namespace on Kubernetes, with no cluster-wide reads', () => {
+    const config = renderStatic(
+      readSettings({ SITE_URL: base.SITE_URL, TALE_PROXY_NAMESPACE: 'tale' }),
+      paths,
+    );
+    expect(config.providers).not.toHaveProperty('docker');
+    expect(config.providers.kubernetesIngress).toEqual({
+      namespaces: ['tale'],
+      ingressClass: INGRESS_CLASS,
+      disableClusterScopeResources: true,
+    });
+    expect(config.providers.file).toEqual({
+      directory: '/run/tale-proxy/dynamic',
+      watch: true,
+    });
   });
 
   it('terminates TLS on 443 and redirects 80, in self-signed mode', () => {

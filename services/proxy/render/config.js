@@ -1,18 +1,21 @@
 // The edge's configuration, rendered at boot from the environment the proxy
 // has always read: SITE_URL with its additional origins, DOCS_URL, BASE_PATH,
 // TLS_MODE, TLS_EMAIL, TRUSTED_PROXIES and METRICS_BEARER_TOKEN, plus the
-// Compose projects whose container labels this edge serves.
+// Compose projects whose container labels this edge serves, or on Kubernetes
+// the namespace whose Ingress objects it serves.
 //
 // Plain ES module without imports: the image runs it with njs (QuickJS, see
 // main.js), the tests import it with Bun. Every output is JSON, which
 // Traefik reads as YAML.
 //
-// Routing is split in two. A service declares its own routes in container
+// Routing is split in two. A service declares its own routes: in container
 // labels (tools/cli/src/lib/compose/services/traefik-labels.ts and
-// compose.yml); this file renders what belongs to the edge itself and holds
-// for every service: which hosts are served, the subpath, the refusals that
-// run before any route, the metrics gate whose token never leaves this
-// environment, and the answers when a service is absent or failing.
+// compose.yml), or on Kubernetes in Ingress objects that carry the same
+// routes (docs/en/self-hosted/install/kubernetes.md). This file renders what
+// belongs to the edge itself and holds for every service: which hosts are
+// served, the subpath, the refusals that run before any route, the metrics
+// gate whose token never leaves this environment, and the answers when a
+// service is absent or failing.
 
 /** The edge's own answers: a loopback nginx (renderResponder). */
 const RESPONDER = '127.0.0.1:8099';
@@ -50,6 +53,16 @@ const BASE_PATH = /^(\/[A-Za-z0-9._~!$&'()*+,;=:@%-]+)+$/;
 // A Compose project name (compose-spec: lowercase letters, digits, dashes,
 // underscores, starting with a letter or digit).
 const PROJECT = /^[a-z0-9][a-z0-9_-]*$/;
+// A Kubernetes namespace name (a DNS-1123 label: at most 63 lowercase
+// letters, digits and dashes, starting and ending with a letter or digit).
+const NAMESPACE = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
+
+/**
+ * The Ingress class this edge serves on Kubernetes. An Ingress names it in
+ * the `kubernetes.io/ingress.class` annotation: the edge's Role reads its own
+ * namespace only, so it cannot look up an IngressClass object.
+ */
+export const INGRESS_CLASS = 'tale';
 
 const HINT_EXTERNAL =
   '  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external.';
@@ -198,10 +211,18 @@ export function readSettings(env) {
     ]);
   }
 
+  // Whose routes this edge serves: the labelled containers of Compose
+  // projects, or on Kubernetes the Ingress objects of one namespace.
   const projects = words((env.TALE_PROXY_PROJECTS || '').replace(/,/g, ' '));
-  if (projects.length === 0) {
+  const namespace = trim(env.TALE_PROXY_NAMESPACE || '');
+  if (projects.length > 0 && namespace !== '') {
     throw new ConfigError([
-      'Error: TALE_PROXY_PROJECTS is required: the Compose projects whose services this proxy routes.',
+      'Error: TALE_PROXY_PROJECTS and TALE_PROXY_NAMESPACE exclude each other: set the Compose projects or the Kubernetes namespace this proxy routes, not both.',
+    ]);
+  }
+  if (projects.length === 0 && namespace === '') {
+    throw new ConfigError([
+      'Error: TALE_PROXY_PROJECTS or TALE_PROXY_NAMESPACE is required: the Compose projects or the Kubernetes namespace whose services this proxy routes.',
     ]);
   }
   for (const project of projects) {
@@ -210,6 +231,11 @@ export function readSettings(env) {
         `Error: TALE_PROXY_PROJECTS entry '${project}' is not a Compose project name.`,
       ]);
     }
+  }
+  if (namespace !== '' && !NAMESPACE.test(namespace)) {
+    throw new ConfigError([
+      `Error: TALE_PROXY_NAMESPACE '${namespace}' is not a Kubernetes namespace name.`,
+    ]);
   }
 
   return {
@@ -226,6 +252,7 @@ export function readSettings(env) {
     trustedProxies: trusted,
     metricsToken,
     projects,
+    namespace,
     https: /^https:\/\//i.test(siteUrl),
     notes,
   };
@@ -265,7 +292,9 @@ export function describe(s) {
   }
   lines.push(...s.notes);
   lines.push(
-    `Routing: labelled services of the Compose projects ${s.projects.join(', ')}`,
+    s.namespace
+      ? `Routing: Ingress objects of class ${INGRESS_CLASS} in the Kubernetes namespace ${s.namespace}`
+      : `Routing: labelled services of the Compose projects ${s.projects.join(', ')}`,
     `Metrics: ${s.metricsToken ? 'enabled (bearer token set)' : 'disabled (METRICS_BEARER_TOKEN unset)'}`,
   );
   return lines;
@@ -277,6 +306,32 @@ const publicEntryPoint = (s) => (s.mode === 'external' ? 'web' : 'websecure');
 /** Every entrypoint the routes are matched on. */
 function routingEntryPoints(s) {
   return s.basePath ? [publicEntryPoint(s), 'inner'] : [publicEntryPoint(s)];
+}
+
+/**
+ * Where the services' own routes come from: the labels of the Compose
+ * projects' containers, read through the Docker API proxy, or the Ingress
+ * objects of one Kubernetes namespace.
+ */
+function servicesProvider(s) {
+  if (s.namespace) {
+    return {
+      kubernetesIngress: {
+        namespaces: [s.namespace],
+        ingressClass: INGRESS_CLASS,
+        // No IngressClass or Node lookups: those are cluster-wide reads, and
+        // the edge's Role covers its own namespace alone.
+        disableClusterScopeResources: true,
+      },
+    };
+  }
+  return {
+    docker: {
+      endpoint: DOCKER_API,
+      exposedByDefault: false,
+      constraints: `LabelRegex(\`com.docker.compose.project\`, \`^(${s.projects.join('|')})$\`)`,
+    },
+  };
 }
 
 /** Traefik's static configuration (traefik.yml). */
@@ -359,11 +414,7 @@ export function renderStatic(s, paths) {
     ping: { entryPoint: 'health', manualRouting: true },
     entryPoints,
     providers: {
-      docker: {
-        endpoint: DOCKER_API,
-        exposedByDefault: false,
-        constraints: `LabelRegex(\`com.docker.compose.project\`, \`^(${s.projects.join('|')})$\`)`,
-      },
+      ...servicesProvider(s),
       file: { directory: paths.dynamic, watch: true },
     },
     // The middleware that answers a body the client framed wrongly

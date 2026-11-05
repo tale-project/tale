@@ -4,7 +4,8 @@ Traefik terminates TLS and routes a deployment's public requests to the platform
 store, sandbox device hub and optional docs service. Each service declares its own routes in
 container labels: [`compose.yml`](../../compose.yml), and
 [`traefik-labels.ts`](../../tools/cli/src/lib/compose/services/traefik-labels.ts) for
-`tale deploy`. What belongs to the edge rather than to one service is rendered at boot from the
+`tale deploy`. On Kubernetes the same routes are standard Ingress objects next to each service in
+the [Kubernetes guide](../../docs/en/self-hosted/install/kubernetes.md). What belongs to the edge rather than to one service is rendered at boot from the
 deployment environment by [`render/config.js`](render/config.js): the hosts it serves, the subpath,
 the refusals that run before any route, the metrics gate, and the answers while a service is
 absent or failing.
@@ -16,14 +17,20 @@ The command picks the role ([`tale-proxy`](tale-proxy)):
 | Command | Role |
 | --- | --- |
 | `edge` (default) | Renders the configuration ([`render/main.js`](render/main.js), run with njs), issues the self-signed certificates ([`render/pki.js`](render/pki.js)), then runs Traefik and the responder: a loopback nginx that writes the edge's own answers. Publishes `80` and `443`. |
-| `docker-api` | The read-only Docker API proxy ([`docker-api/nginx.conf`](docker-api/nginx.conf)), the one way Traefik reads the labels. It alone mounts the Docker socket, read-only, and listens on `2375` of an `internal` network it shares with the edge only. |
+| `docker-api` | The read-only Docker API proxy ([`docker-api/nginx.conf`](docker-api/nginx.conf)), the one way Traefik reads the labels under Compose. It alone mounts the Docker socket, read-only, and listens on `2375` of an `internal` network it shares with the edge only. |
 | `health` | The image's health check, for either role. |
 
 The Docker API proxy answers `GET` and `HEAD` on the version, ping, container list, container
 inspect and events endpoints, and refuses every other method and path with `403`. Traefik routes
 only a container that carries `traefik.enable=true` and belongs to one of the Compose projects in
-`TALE_PROXY_PROJECTS`, which `compose.yml` and `tale deploy` set; the edge refuses to start
-without it.
+`TALE_PROXY_PROJECTS`, which `compose.yml` and `tale deploy` set.
+
+On Kubernetes the edge runs without the Docker API proxy. `TALE_PROXY_NAMESPACE` names the
+namespace it serves, and Traefik reads that namespace's Ingress objects of class `tale`, named in
+the `kubernetes.io/ingress.class` annotation, through its Kubernetes Ingress provider. A Role in
+that namespace lets it list and watch Ingresses, Services, EndpointSlices and Secrets, and nothing
+cluster-wide. The edge refuses to start without one of `TALE_PROXY_PROJECTS` and
+`TALE_PROXY_NAMESPACE`, or with both.
 
 ## Follow a request
 
@@ -114,6 +121,8 @@ Inspect the failing upstream and its health before restarting the proxy. A worki
 proves the public listener is reachable; it does not prove the backend or its database is ready.
 A route that is missing altogether usually means its container lacks its labels or runs outside
 the Compose projects in `TALE_PROXY_PROJECTS`: compare `docker inspect` of the container with both.
+On Kubernetes, compare `kubectl -n tale get ingress` with the guide: an Ingress without the
+`kubernetes.io/ingress.class: tale` annotation, or a Service with no ready Pod, routes nothing.
 
 From the repository root, with the intended Compose deployment configured:
 
