@@ -71,10 +71,11 @@ function manifests(locale: string): Manifest[] {
   ).replaceAll('\r\n', '\n');
   return [...page.matchAll(/```yaml\n# (\S+\.yaml)\n([\s\S]*?)```/g)].flatMap(
     ([, file, block]) =>
-      block.split(/^---$/m).map((document) => ({
-        ...(Bun.YAML.parse(document) as Omit<Manifest, 'file'>),
-        file,
-      })),
+      block.split(/^---$/m).map((document) =>
+        Object.assign(Bun.YAML.parse(document) as Omit<Manifest, 'file'>, {
+          file,
+        }),
+      ),
   );
 }
 
