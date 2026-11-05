@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 152 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 153 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -1166,6 +1166,16 @@ in chat (mode A: the mock's).
   chat: the agent button reads **Assistant**, and `e2e:who-answers` answers
   **Answering as the assistant.** (mode A). Coder's earlier replies keep its
   name above them.
+- [ ] `CHAT-B33` · **A picture opened after its link ran out** — Mode A:
+  attach a photo, send it and reload the chat, so the photo draws from the
+  store's link rather than the page's own copy. Keep the tab in view, without
+  switching to another tab, for 16 minutes, then click the photo (**View
+  image**, `chat.viewImage`) → **Image preview** (`chat.imagePreview`) shows
+  it, never a broken image with only its file name. Reload, switch to another
+  tab 11 minutes in and back → DevTools' Network panel shows one new
+  `POST /api/app/files/urls` right away. A generated picture (GOV-F66) under
+  a reply, opened from **View lighthouse.png** (`chat.artifacts.viewImage`),
+  behaves the same.
 
 ## Accessibility (WCAG 2.1 AA)
 

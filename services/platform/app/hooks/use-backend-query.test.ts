@@ -25,15 +25,18 @@ vi.mock('./use-session-probe', () => ({
 // ref carries no name.
 // The registry is swapped for one controllable row so these tests cover the
 // WRAPPER's wiring; the real rows are covered in `app/lib/backend/*.test.ts`.
-const { mockAdapterRow, mockOrgId } = vi.hoisted(() => ({
+const { mockAdapterRow, mockOrgId, REFUSAL } = vi.hoisted(() => ({
   mockAdapterRow: vi.fn(),
   mockOrgId: { current: undefined as string | undefined },
+  // The one error the stub registry counts as a structured refusal.
+  REFUSAL: new Error('refused'),
 }));
 vi.mock('@/app/lib/backend/adapters', () => ({
   READ_ADAPTERS: { 'fake:adapted': mockAdapterRow },
   activeOrganizationId: () => mockOrgId.current,
   runAdapted: (run: () => Promise<unknown>) => run(),
   retryAdaptedRead: () => false,
+  isBackendRefusal: (error: unknown) => error === REFUSAL,
 }));
 
 import { useQuery } from '@tanstack/react-query';
@@ -293,6 +296,61 @@ describe('useBackendQuery adapter lane', () => {
     expect(passed.refetchInterval?.({ state: { data: 'busy' } })).toBe(2_000);
     expect(passed.refetchInterval?.({ state: { data: 'idle' } })).toBe(false);
     expect(decide).toHaveBeenLastCalledWith('idle');
+  });
+
+  it('fetches a row whose answers run out again on focus, but not a refusal', () => {
+    mockAdapterRow.mockReturnValue({
+      queryKey: ['k'],
+      queryFn: () => Promise.resolve(null),
+      refetchOnWindowFocus: true,
+    });
+
+    useBackendQuery(FAKE_ROW, {});
+
+    const passed = mockUseQuery.mock.calls[0]?.[0] as {
+      refetchOnWindowFocus?: (query: {
+        state: { status: string; error: unknown };
+      }) => unknown;
+    };
+    // react-query fetches on focus only once the answer is stale, so `true`
+    // here means "a stale answer is fetched again".
+    expect(
+      passed.refetchOnWindowFocus?.({
+        state: { status: 'success', error: null },
+      }),
+    ).toBe(true);
+    expect(
+      passed.refetchOnWindowFocus?.({
+        state: { status: 'error', error: new Error('503') },
+      }),
+    ).toBe(true);
+    expect(
+      passed.refetchOnWindowFocus?.({
+        state: { status: 'error', error: REFUSAL },
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps a row's focus rule out of react-query unless the row sets one", () => {
+    mockAdapterRow.mockReturnValue({
+      queryKey: ['k'],
+      queryFn: () => Promise.resolve(null),
+      refetchOnWindowFocus: false,
+    });
+    useBackendQuery(FAKE_ROW, {});
+    const never = mockUseQuery.mock.calls[0]?.[0] as {
+      refetchOnWindowFocus?: unknown;
+    };
+    expect(never.refetchOnWindowFocus).toBe(false);
+
+    mockAdapterRow.mockReturnValue({
+      queryKey: ['k'],
+      queryFn: () => Promise.resolve(null),
+    });
+    useBackendQuery(FAKE_ROW, {});
+    // The app's default (an errored read only) decides.
+    const unset = mockUseQuery.mock.calls[1]?.[0];
+    expect(unset).not.toHaveProperty('refetchOnWindowFocus');
   });
 
   it('caller options still merge on the adapted lane', () => {

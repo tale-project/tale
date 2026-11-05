@@ -8,18 +8,30 @@
 import { formatFileSize } from '@tale/ui/format';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fireEvent, render, screen, within } from '@/tests/utils/render';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import type { MessagePart } from '../types';
 import { artifactsOf, MessageArtifacts } from './message-artifacts';
 
-const { urls } = vi.hoisted(() => ({
-  urls: {
-    data: undefined as { fileId: string; url: string | null }[] | undefined,
+const urls = vi.hoisted(() => {
+  type Row = { fileId: string; url: string | null };
+  const batch = {
+    data: undefined as Row[] | undefined,
     isLoading: false,
     isError: false,
-  },
-}));
+    // Asked again, the batch answers with the links it holds.
+    refetch: async (): Promise<{ data: Row[] | undefined }> => ({
+      data: batch.data,
+    }),
+  };
+  return batch;
+});
 
 vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrls: () => urls,
@@ -194,7 +206,7 @@ describe('MessageArtifacts', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
-  it('turns a picture that fails to load into its card [CHAT-R33]', () => {
+  it('turns a picture that fails to load into its card [CHAT-R33]', async () => {
     urls.data = [
       { fileId: 's3:acme/lighthouse', url: 'https://cdn.test/l.png' },
     ];
@@ -202,7 +214,8 @@ describe('MessageArtifacts', () => {
     fireEvent.error(
       within(filesSection()).getByRole('img', { name: 'lighthouse.png' }),
     );
-    expectCard('lighthouse.png');
+    // A new link was asked for, and the same one came back.
+    await waitFor(() => expectCard('lighthouse.png'));
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 

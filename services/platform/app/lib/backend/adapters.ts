@@ -118,6 +118,13 @@ export interface AdaptedReadOptions {
    * list polls faster while one of its rows is changing. */
   refetchInterval?: number | ((data: unknown) => number | false);
   /**
+   * `true` for a read whose answers run out (presigned file links): a stale
+   * answer is fetched again when the tab is looked at again, which the app's
+   * default does only for a read that failed on a fault; a refusal stays, as
+   * there. `false` never fetches on focus.
+   */
+  refetchOnWindowFocus?: boolean;
+  /**
    * The caller's view of a SHARED answer: reads whose args only narrow one
    * fetched body (a status picked out of a counts map) key on the fetch and
    * project here, so react-query issues one request for every narrowing —

@@ -11,6 +11,7 @@ import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { FILE_LINK_LIFETIME_SEC } from '@/lib/shared/constants/file-links';
 import { MEMBER_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import type { DocumentSyncHealth } from '@/types/documents';
 
@@ -199,6 +200,11 @@ type FileStatusResult = ReturnsOf<'file_metadata/queries:getByStorageIds'>;
 type EnsureProjectTextResult =
   ReturnsOf<'documents/public_actions:ensureProjectTextDocument'>;
 
+/** How long a batch of file links counts as fresh: until its links have five
+ * minutes of their lifetime left. Older, the batch is fetched again on the
+ * next mount or focus, so a picture loads from a link that still has time. */
+const FILE_LINKS_FRESH_MS = (FILE_LINK_LIFETIME_SEC - 5 * 60) * 1000;
+
 export const documentReadAdapters: Record<string, ReadAdapter> = {
   // Attachment pipeline statuses — the same row the chat seam serves, here
   // for every OTHER surface that renders an attachment (task files, the
@@ -241,6 +247,12 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
           '/files/urls',
           { orgId, body: { fileIds } },
         ).then((body) => body.urls),
+      // The links run out while a chat or a task stays open: the batch goes
+      // stale first, and is fetched again when the tab is looked at again. A
+      // picture whose link ran out anyway asks for a new one
+      // (`useFileLinkRenewal`).
+      staleTime: FILE_LINKS_FRESH_MS,
+      refetchOnWindowFocus: true,
     };
   },
   'folders/queries:getFolderBreadcrumb': (args, ctx) => {

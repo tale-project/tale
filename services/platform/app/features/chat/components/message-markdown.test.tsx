@@ -18,12 +18,18 @@ const { urls } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/features/shared/files/use-file-url', () => ({
-  useFileUrl: (fileId: string | undefined) => ({
-    data: fileId === undefined ? undefined : (urls.get(fileId) ?? null),
-    isLoading: false,
-    isError: false,
-  }),
-  useFileUrls: () => ({ data: [], isLoading: false, isError: false }),
+  useFileUrls: (fileIds: string[]) => {
+    const data = fileIds.map((fileId) => ({
+      fileId,
+      url: urls.get(fileId) ?? null,
+    }));
+    return {
+      data,
+      isLoading: false,
+      isError: false,
+      refetch: async () => ({ data }),
+    };
+  },
 }));
 vi.mock(
   '@/app/features/documents/components/document-preview-dialog-lazy',

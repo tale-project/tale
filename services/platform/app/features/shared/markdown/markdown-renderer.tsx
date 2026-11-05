@@ -25,7 +25,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { useFileUrl } from '@/app/features/shared/files/use-file-url';
+import { useFileLinkRenewal } from '@/app/features/shared/files/use-file-link-renewal';
+import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import { useT } from '@/lib/i18n/client';
 import { classifyLink } from '@/lib/utils/link-classifier';
 
@@ -121,19 +122,26 @@ function MissingMarkdownImage({ alt }: { alt: string }) {
 }
 
 /** A picture drawn from an address that loads: it opens in the preview,
- * and one that fails to load falls back to its words. */
+ * and one that fails to load falls back to its words, unless the caller
+ * takes the failure (`onPictureError`). */
 function DrawnMarkdownImage({
   src,
   alt,
   width,
   height,
   className,
+  onPictureError,
+  onPreviewError,
 }: {
   src: string;
   alt: string;
   width: number;
   height: number;
   className?: string;
+  /** The picture did not draw: the caller decides what shows instead. */
+  onPictureError?: (src: string) => void;
+  /** The preview's picture did not draw. */
+  onPreviewError?: (src: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
@@ -152,7 +160,11 @@ function DrawnMarkdownImage({
           height={height}
           loading="lazy"
           decoding="async"
-          onError={() => setFailedSrc(src)}
+          onError={() =>
+            onPictureError === undefined
+              ? setFailedSrc(src)
+              : onPictureError(src)
+          }
           className={cn(
             'max-h-80 w-auto max-w-full rounded-lg object-contain',
             className,
@@ -164,13 +176,18 @@ function DrawnMarkdownImage({
         onOpenChange={setIsOpen}
         src={src}
         alt={alt}
+        {...(onPreviewError !== undefined
+          ? { onImageError: onPreviewError }
+          : {})}
       />
     </>
   );
 }
 
 /** A stored file the text names as a picture, drawn from the signed link
- * the files door answers for this reader — none when they cannot open it. */
+ * the files door answers for this reader — none when they cannot open it.
+ * The link runs out while the chat stays open: one that no longer loads
+ * gets a new one before the picture reads as its words. */
 function StoredMarkdownImage({
   storageRef,
   alt,
@@ -184,8 +201,11 @@ function StoredMarkdownImage({
   height: number;
   className?: string;
 }) {
-  const url = useFileUrl(storageRef);
-  if (url.isLoading) {
+  const links = useFileUrls([storageRef]);
+  const renewal = useFileLinkRenewal(links);
+  const src = links.data?.find((row) => row.fileId === storageRef)?.url ?? '';
+  const view = src === '' ? 'file' : renewal.shows(src);
+  if (links.isLoading || view === 'renewing') {
     return (
       <Skeletonize loading>
         <SkeletonBox>
@@ -194,14 +214,15 @@ function StoredMarkdownImage({
       </Skeletonize>
     );
   }
-  const src = typeof url.data === 'string' ? url.data : '';
-  if (src === '') return <MissingMarkdownImage alt={alt} />;
+  if (view === 'file') return <MissingMarkdownImage alt={alt} />;
   return (
     <DrawnMarkdownImage
       src={src}
       alt={alt}
       width={width}
       height={height}
+      onPictureError={renewal.pictureFailed}
+      onPreviewError={renewal.previewFailed}
       {...(className !== undefined ? { className } : {})}
     />
   );

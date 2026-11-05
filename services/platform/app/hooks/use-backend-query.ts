@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import {
   activeOrganizationId,
+  isBackendRefusal,
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
@@ -62,6 +63,12 @@ function adaptedRefetchInterval(
     : interval;
 }
 
+/** A row whose answers run out, on focus: react-query fetches it again once
+ * the answer is stale; a refusal is deterministic and stays. */
+function refetchStaleOnFocus(query: Query): boolean {
+  return query.state.status !== 'error' || !isBackendRefusal(query.state.error);
+}
+
 /**
  * A backend read, addressed by its contract name. The adapter row keyed by
  * that same name serves it over HTTP; a name with no row has no server left
@@ -105,6 +112,13 @@ export function useBackendQuery<Name extends QueryName>(
               : {}),
             ...(adapted.refetchInterval !== undefined
               ? { refetchInterval: adaptedRefetchInterval(adapted) }
+              : {}),
+            ...(adapted.refetchOnWindowFocus !== undefined
+              ? {
+                  refetchOnWindowFocus: adapted.refetchOnWindowFocus
+                    ? refetchStaleOnFocus
+                    : false,
+                }
               : {}),
             ...(adapted.select !== undefined ? { select: adapted.select } : {}),
             retry: retryAdaptedRead,

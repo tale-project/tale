@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 
-import { documentWriteAdapters } from './documents';
+import { FILE_LINK_LIFETIME_SEC } from '@/lib/shared/constants/file-links';
+
+import { documentReadAdapters, documentWriteAdapters } from './documents';
 
 /**
  * A document write is also a TASK fact: the task DTO stamps `hasFiles` /
@@ -96,5 +98,20 @@ describe('the replacement upload begin', () => {
 
   it.each([9e15, -1])('leaves out a file date of %s', async (lastModified) => {
     expect(await begin(lastModified)).not.toHaveProperty('lastModified');
+  });
+});
+
+describe('the batch of file links', () => {
+  it('goes stale while its links still have time, and renews on focus', () => {
+    const row = documentReadAdapters['files/queries:getFileUrls']?.(
+      { fileIds: ['file-b', 'file-a'] },
+      { organizationId: 'org-1' },
+    );
+    const lifetimeMs = FILE_LINK_LIFETIME_SEC * 1000;
+    // Fresh only while every link it holds has five minutes or more left: a
+    // picture loaded from a fresh answer never gets a link about to run out.
+    expect(row?.staleTime).toBeLessThanOrEqual(lifetimeMs - 5 * 60 * 1000);
+    expect(row?.staleTime).toBeGreaterThan(0);
+    expect(row?.refetchOnWindowFocus).toBe(true);
   });
 });

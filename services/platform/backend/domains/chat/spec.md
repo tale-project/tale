@@ -512,11 +512,15 @@ this.
 A PNG, JPEG, GIF or WebP the reply made shows as a picture that opens the gallery. Every other
 file, an SVG too, shows as a card with its name, type and size that opens the preview, with a
 Download beside it; so does a picture that cannot be shown. The files show while the reply
-streams, after a reload and on a reply tried again.
+streams, after a reload and on a reply tried again. A picture also still shows, and opens, in a
+chat left open for longer than the 15 minutes its link lives: a link that no longer loads gets a
+new one before the picture falls back to its card.
 
 - **Example**: Mia's assistant writes `superheld-dunkle-gasse.svg` and says it is attached → a
   card for it shows under the reply, also after she reloads the chat; she opens its preview or
   downloads it.
+- **Example**: Mia leaves a chat with a generated lighthouse open over lunch and opens the
+  picture when she is back → the preview shows the lighthouse, not a broken image.
 
 ### CHAT-R35 · A reply that speaks of a file it does not carry says no file was attached
 
@@ -540,7 +544,9 @@ reply as a picture or a link. A picture naming a file the reply made is not draw
 it already shows under the reply (`CHAT-R33`). A picture naming another file is drawn only when
 the reader may open that file, and a link to a file opens its preview. A picture nothing can
 draw — an address no browser loads, a file the reader may not open, one that fails to load —
-reads as its description, never as a placeholder whose preview opens empty.
+reads as its description, never as a placeholder whose preview opens empty. A stored file's
+picture whose link no longer loads gets a new one first, as under the reply: a chat can stay
+open longer than the 15 minutes a link lives.
 
 - **Example**: Mia asks for a reading nook and to see it; the reply reads "Here is your nook:"
   above a picture written as `![Cozy Reading Nook](s3:…)` → she sees the picture once, under the
