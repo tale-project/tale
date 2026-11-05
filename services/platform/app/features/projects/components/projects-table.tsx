@@ -239,7 +239,7 @@ export function ProjectsTable({
         meta: {
           skeleton: {
             type: 'icon-text',
-            icon: <ProjectAvatar name="" size={20} />,
+            icon: <ProjectAvatar size={20} />,
           },
         },
         cell: ({ row }) => (
@@ -248,7 +248,6 @@ export function ProjectsTable({
           // scent is reachable on hover at zero vertical cost.
           <HStack gap={2} align="center" className="min-w-0">
             <ProjectAvatar
-              name={row.original.name}
               icon={row.original.icon}
               color={row.original.color}
               size={20}

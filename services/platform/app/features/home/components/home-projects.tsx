@@ -165,12 +165,7 @@ const HomeProjectRow = memo(function HomeProjectRow({
   );
   const rowContent = (
     <>
-      <ProjectAvatar
-        name={project.name}
-        icon={project.icon}
-        color={project.color}
-        size={16}
-      />
+      <ProjectAvatar icon={project.icon} color={project.color} size={16} />
       <span className="min-w-0 flex-1 truncate">{project.name}</span>
       {pinned && (
         <Pin

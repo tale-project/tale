@@ -18,11 +18,11 @@ describe('ProjectAvatar', () => {
     // The avatar maps names explicitly instead of reading the whole lucide
     // namespace (which kept every icon in the bundle); each entry of the
     // allowlist must resolve to a distinct icon rather than the default.
-    const { container: fallback } = render(<ProjectAvatar name="A" />);
+    const { container: fallback } = render(<ProjectAvatar />);
     const fallbackClass = renderedIconClass(fallback);
     expect(fallbackClass).toBe('lucide-folder');
     for (const icon of PROJECT_ICONS) {
-      const { container } = render(<ProjectAvatar name="A" icon={icon} />);
+      const { container } = render(<ProjectAvatar icon={icon} />);
       const rendered = renderedIconClass(container);
       expect(rendered, icon).toBeDefined();
       if (icon !== 'Folder') {
@@ -31,60 +31,75 @@ describe('ProjectAvatar', () => {
     }
   });
 
-  it('renders with the project name as aria-label', () => {
+  it('is decorative without a label: no image for a screen reader to read', () => {
     const { container } = render(
-      <ProjectAvatar name="Q2 Sales Hiring" icon="Briefcase" color="emerald" />,
+      <ProjectAvatar icon="Briefcase" color="emerald" />,
     );
-    expect(container.querySelector('[aria-label="Q2 Sales Hiring"]')).not.toBe(
-      null,
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+    expect(container.firstElementChild).not.toHaveAttribute('aria-label');
+  });
+
+  it('beside the visible name, leaves the name to the text (#5382)', () => {
+    // Inside a link the named image added the name a second time:
+    // "Launch site Launch site".
+    render(
+      <a href="/projects/launch-site">
+        <ProjectAvatar icon="Rocket" color="blue" size={16} />
+        <span>Launch site</span>
+      </a>,
     );
+    expect(screen.getByRole('link')).toHaveAccessibleName('Launch site');
   });
 
   it('falls back to the default icon when icon name is unknown', () => {
     // No throw — the resolver falls back to FolderKanban silently.
     expect(() =>
-      render(<ProjectAvatar name="Test" icon="DefinitelyNotAnIcon" />),
+      render(<ProjectAvatar icon="DefinitelyNotAnIcon" />),
     ).not.toThrow();
   });
 
   it('falls back to the default color token when unknown', () => {
-    expect(() =>
-      render(<ProjectAvatar name="Test" color="mauve" />),
-    ).not.toThrow();
+    expect(() => render(<ProjectAvatar color="mauve" />)).not.toThrow();
   });
 
   it('accepts null and undefined for icon and color', () => {
     expect(() =>
-      render(<ProjectAvatar name="A" icon={null} color={null} />),
+      render(<ProjectAvatar icon={null} color={null} />),
     ).not.toThrow();
     expect(() =>
-      render(<ProjectAvatar name="A" icon={undefined} color={undefined} />),
+      render(<ProjectAvatar icon={undefined} color={undefined} />),
     ).not.toThrow();
   });
 
   it('renders each documented size without throwing', () => {
     const sizes: Array<16 | 20 | 24 | 32> = [16, 20, 24, 32];
     for (const size of sizes) {
-      expect(() =>
-        render(<ProjectAvatar name="A" size={size} />),
-      ).not.toThrow();
+      expect(() => render(<ProjectAvatar size={size} />)).not.toThrow();
     }
   });
 
-  it('uses role="img" so screen readers announce it as an image', () => {
-    render(<ProjectAvatar name="My Project" />);
-    expect(screen.getByRole('img', { name: 'My Project' })).not.toBe(null);
+  it('with a label, is an image a screen reader announces by that name', () => {
+    render(<ProjectAvatar label="Q2 Sales Hiring" icon="Briefcase" />);
+    expect(
+      screen.getByRole('img', { name: 'Q2 Sales Hiring' }),
+    ).not.toHaveAttribute('aria-hidden');
   });
 
   describe('accessibility', () => {
     it('passes axe audit with default props', async () => {
-      const { container } = render(<ProjectAvatar name="Default" />);
+      const { container } = render(<ProjectAvatar />);
+      await checkAccessibility(container);
+    });
+
+    it('passes axe audit with a label', async () => {
+      const { container } = render(<ProjectAvatar label="Default" />);
       await checkAccessibility(container);
     });
 
     it('passes axe audit with custom icon + color', async () => {
       const { container } = render(
-        <ProjectAvatar name="Custom" icon="Rocket" color="blue" size={32} />,
+        <ProjectAvatar label="Custom" icon="Rocket" color="blue" size={32} />,
       );
       await checkAccessibility(container);
     });

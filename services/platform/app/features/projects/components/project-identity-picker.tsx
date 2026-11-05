@@ -166,7 +166,7 @@ export function ProjectIdentityPicker({
           className="justify-start gap-2"
         >
           <ProjectAvatar
-            name={name}
+            label={name}
             icon={value.icon}
             color={value.color}
             size={20}
@@ -188,7 +188,7 @@ export function ProjectIdentityPicker({
             optionLabel={(color) => t(`identity.colors.${color}`)}
             renderOption={(color) => (
               <ProjectAvatar
-                name={t(`identity.colors.${color}`)}
+                label={t(`identity.colors.${color}`)}
                 icon={selectedIcon}
                 color={color}
                 size={24}
@@ -208,7 +208,7 @@ export function ProjectIdentityPicker({
             optionLabel={(icon) => t(`identity.icons.${icon}`)}
             renderOption={(icon, isSelected) => (
               <ProjectAvatar
-                name={t(`identity.icons.${icon}`)}
+                label={t(`identity.icons.${icon}`)}
                 icon={icon}
                 color={selectedColor}
                 size={24}

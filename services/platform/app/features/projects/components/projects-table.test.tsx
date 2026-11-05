@@ -160,14 +160,21 @@ function renderTable(
 }
 
 describe('ProjectsTable', () => {
-  it('renders the project identity chip and key', () => {
+  it('renders the project identity chip and key, naming the project once', () => {
     renderTable([row({ name: 'Acme onboarding', key: 'TAL' })]);
 
-    // ProjectAvatar carries the accessible name itself.
+    // The chip sits beside the name's link, so it stays decorative: a named
+    // image read the name twice in the cell (#5382).
     expect(
-      screen.getByRole('img', { name: 'Acme onboarding' }),
+      screen.queryByRole('img', { name: 'Acme onboarding' }),
+    ).not.toBeInTheDocument();
+    // jsdom joins the inline key and link without the space a browser reads.
+    expect(
+      screen.getByRole('cell', { name: /^TAL\s?Acme onboarding$/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText('TAL')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Acme onboarding' }),
+    ).toBeInTheDocument();
   });
 
   it('exposes name + description on hover without adding a second line', () => {

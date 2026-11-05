@@ -230,7 +230,6 @@ export function ThreadProjectPicker({
         label: (
           <span className="flex min-w-0 items-center gap-2">
             <ProjectAvatar
-              name={project.name}
               icon={project.icon}
               color={project.color}
               size={16}
