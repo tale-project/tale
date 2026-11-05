@@ -35,8 +35,13 @@ import {
 
 import { useT } from '@/lib/i18n/client';
 
-import { useThreadProjectMove } from '../data/chat-backend';
+import { useChatProjects, useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
+import {
+  moveEndsShare,
+  ProjectMoveConfirmDialog,
+  type PendingProjectMove,
+} from './project-move-confirm';
 import { useActiveThreadId } from './thread-list-context';
 
 const NO_PROJECT_DROPPABLE_ID = 'project:none';
@@ -50,6 +55,9 @@ export interface ThreadDragData {
   type: 'thread';
   /** The project the thread currently belongs to (`null` = none). */
   projectId: string | null;
+  /** Shared with that project: a drop elsewhere asks before it ends the
+   * share. */
+  sharedWithProject?: boolean;
   title: string;
 }
 
@@ -78,6 +86,7 @@ function readDragData(
     // chat — the reader rebuilds field by field, so anything omitted here is
     // silently lost.
     archived: data.archived === true,
+    sharedWithProject: data.sharedWithProject === true,
   };
 }
 
@@ -252,6 +261,11 @@ export function ThreadDndProvider({
   const activeThreadId = useActiveThreadId();
   const navigate = useNavigate();
   const [activeThread, setActiveThread] = useState<ActiveThread | null>(null);
+  const projects = useChatProjects(organizationId);
+  // A drop that would end the chat's project share waits for its answer.
+  const [pendingMove, setPendingMove] = useState<
+    (PendingProjectMove & { threadId: string; revives: boolean }) | null
+  >(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, MOUSE_SENSOR_OPTIONS),
@@ -270,6 +284,34 @@ export function ThreadDndProvider({
         : null,
     );
   }, []);
+
+  /** Unarchive a chat dragged out of the drawer, then file it under
+   * `projectId` (absent: it stays where it is filed). */
+  const commitDrop = useCallback(
+    (
+      threadId: string,
+      projectId: string | null | undefined,
+      revives: boolean,
+    ) => {
+      const restore = revives
+        ? actions.setArchived(threadId, false).then((ok: boolean) => {
+            if (!ok) throw new Error('unarchive refused');
+          })
+        : Promise.resolve();
+      restore
+        .then(() =>
+          projectId !== undefined ? move(threadId, projectId) : undefined,
+        )
+        .catch((error: unknown) => {
+          console.error('[chat] could not move the thread', error);
+          toast({
+            title: t('history.toast.moveFailed'),
+            variant: 'destructive',
+          });
+        });
+    },
+    [actions, move, t],
+  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -304,22 +346,18 @@ export function ThreadDndProvider({
       // dropped instead of silently staying filed under ARCHIVED.
       const revives = drag.archived === true;
       if (!rehomes && !revives) return;
-      const restore = revives
-        ? actions.setArchived(threadId, false).then((ok: boolean) => {
-            if (!ok) throw new Error('unarchive refused');
-          })
-        : Promise.resolve();
-      restore
-        .then(() => (rehomes ? move(threadId, drop.projectId) : undefined))
-        .catch((error: unknown) => {
-          console.error('[chat] could not move the thread', error);
-          toast({
-            title: t('history.toast.moveFailed'),
-            variant: 'destructive',
-          });
+      if (rehomes && moveEndsShare(drag, drop.projectId) && drag.projectId) {
+        setPendingMove({
+          threadId,
+          fromProjectId: drag.projectId,
+          toProjectId: drop.projectId,
+          revives,
         });
+        return;
+      }
+      commitDrop(threadId, rehomes ? drop.projectId : undefined, revives);
     },
-    [actions, activeThreadId, move, navigate, organizationId, t],
+    [actions, activeThreadId, commitDrop, navigate, organizationId, t],
   );
 
   const handleDragCancel = useCallback(() => setActiveThread(null), []);
@@ -348,6 +386,20 @@ export function ThreadDndProvider({
       <DragOverlay dropAnimation={dropAnimation}>
         {activeThread ? <ThreadDragPreview title={activeThread.title} /> : null}
       </DragOverlay>
+      <ProjectMoveConfirmDialog
+        pending={pendingMove}
+        projects={projects.status === 'ready' ? projects.data : []}
+        onConfirm={() => {
+          if (pendingMove === null) return;
+          setPendingMove(null);
+          commitDrop(
+            pendingMove.threadId,
+            pendingMove.toProjectId,
+            pendingMove.revives,
+          );
+        }}
+        onCancel={() => setPendingMove(null)}
+      />
     </DndContext>
   );
 }
@@ -375,12 +427,14 @@ export function useThreadDraggable(thread: {
   projectId: string | null;
   title: string;
   archived?: boolean;
+  sharedWithProject?: boolean;
 }) {
   const data: ThreadDragData = {
     type: 'thread',
     projectId: thread.projectId,
     title: thread.title,
     ...(thread.archived === true ? { archived: true } : {}),
+    ...(thread.sharedWithProject === true ? { sharedWithProject: true } : {}),
   };
   const { setNodeRef, listeners, isDragging } = useDraggable({
     id: thread.id,

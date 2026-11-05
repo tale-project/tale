@@ -85,6 +85,7 @@ import {
   type ChatMessage,
   type MessagePart,
   type ServedBy,
+  type TurnAuthor,
   type TurnFinishReason,
   type TurnUsage,
   type WorkToolsUnavailableReason,
@@ -546,6 +547,9 @@ export interface TurnRequest {
   /** The host meant to offer work tools and could not (`TurnUsage`): the
    * settled reply carries the reason. */
   readonly workToolsUnavailable?: WorkToolsUnavailableReason;
+  /** The project agent the reply speaks as, when it is not the chat
+   * assistant: stamped on the reply's usage (`TurnUsage.agent`). */
+  readonly author?: TurnAuthor;
 }
 
 /** The most models one turn may run on: the first and the replacements
@@ -2250,6 +2254,7 @@ export async function runTurn(
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
       ...servingStamp(),
+      ...(request.author !== undefined ? { agent: request.author } : {}),
     };
 
     if (streamed.refusal) {
@@ -2364,6 +2369,7 @@ export async function runTurn(
         consumed = {
           ...summedUsage(summed, request.model.pricing),
           ...servingStamp(),
+          ...(request.author !== undefined ? { agent: request.author } : {}),
         };
         try {
           await recordUsage(request, consumed, deps);

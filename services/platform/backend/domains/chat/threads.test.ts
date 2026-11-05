@@ -49,6 +49,7 @@ import {
   projectSharedViewLeaf,
   readConversationSkills,
   searchChats,
+  setConversationAgent,
   setConversationSkills,
   setThreadArchived,
   setThreadSharedWithProject,
@@ -69,6 +70,7 @@ const OWNED_ROW = {
   title: 'Launch plan',
   kind: 'chat',
   agentSlug: null,
+  chatAgentId: null,
   harness: null,
   capabilities: null,
   reasoningEffort: null,
@@ -727,6 +729,222 @@ describe('the skills a conversation uses [CHAT-R29]', () => {
     expect(metadata?.values).toContainEqual({
       json: { skills: ['xlsx'], connectors: [] },
     });
+  });
+});
+
+describe('who a project chat answers as [CHAT-R42] [CHAT-R43]', () => {
+  /** Two own agents in `project_a`, one in `project_b`; the standard agent
+   * (`managed`) is never listed by the reads under test. */
+  const OWN: Record<string, string[]> = {
+    project_a: ['agent_old', 'agent_new'],
+    project_b: ['agent_b1'],
+  };
+  const answering =
+    (
+      row: Omit<typeof OWNED_ROW, 'projectId'> & { projectId: string | null },
+      defaults: { defaultChatAgentId: string | null } = {
+        defaultChatAgentId: null,
+      },
+    ) =>
+    (statement: Statement): unknown[] | undefined => {
+      const { text, values } = statement;
+      if (text.includes('FROM app.threads t')) return [row];
+      if (text.includes('INSERT INTO app.threads'))
+        return [{ id: 'thread_new' }];
+      if (text.includes('AS "teamIds"'))
+        return [{ orgId: 'org_1', teamIds: [] }];
+      if (text.includes('AS "defaultChatAgentId"')) {
+        return [{ ...defaults, chatsStartWithAssistant: false }];
+      }
+      if (text.includes('FROM app.project_agents')) {
+        const projectId = values.find(
+          (value): value is string => typeof value === 'string' && value in OWN,
+        );
+        const agents = projectId === undefined ? [] : (OWN[projectId] ?? []);
+        if (text.includes('ORDER BY created_at_ms')) {
+          return agents.map((id) => ({ id }));
+        }
+        return agents.filter((id) => values.includes(id)).map((id) => ({ id }));
+      }
+      if (text.includes('FROM app.projects WHERE id')) {
+        return [{ name: 'Project A' }];
+      }
+      return [];
+    };
+  const insertedAgent = (statements: Statement[]) => {
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.thread_metadata'),
+    );
+    // thread_id, org_id, user_id, chat_type, project_id, agent_slug, then
+    // chat_agent_id (status is a literal in the statement).
+    return insert?.values[6];
+  };
+
+  it('starts a chat in a project with its default chat agent, else the one the person chose', async () => {
+    const started = fakeSql(answering(OWNED_ROW));
+    await createThread(started.sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      kind: 'chat',
+      projectId: 'project_a',
+    });
+    expect(insertedAgent(started.statements)).toBe('agent_old');
+
+    const chosen = fakeSql(answering(OWNED_ROW));
+    await createThread(chosen.sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      kind: 'chat',
+      projectId: 'project_a',
+      chatAgentId: 'agent_new',
+    });
+    expect(insertedAgent(chosen.statements)).toBe('agent_new');
+
+    const assistant = fakeSql(answering(OWNED_ROW));
+    await createThread(assistant.sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      kind: 'chat',
+      projectId: 'project_a',
+      chatAgentId: null,
+    });
+    expect(insertedAgent(assistant.statements)).toBeNull();
+  });
+
+  it('refuses an agent of another project, or any agent for a chat outside a project', async () => {
+    const foreign = fakeSql(answering(OWNED_ROW));
+    await expect(
+      createThread(foreign.sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        kind: 'chat',
+        projectId: 'project_a',
+        chatAgentId: 'agent_b1',
+      }),
+    ).rejects.toMatchObject({ code: 'CHAT_AGENT_INVALID', status: 400 });
+    expect(foreign.statements.some((s) => s.text.includes('INSERT INTO'))).toBe(
+      false,
+    );
+
+    const unfiled = fakeSql(answering(OWNED_ROW));
+    await expect(
+      createThread(unfiled.sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        kind: 'chat',
+        chatAgentId: 'agent_old',
+      }),
+    ).rejects.toMatchObject({ code: 'CHAT_AGENT_INVALID' });
+  });
+
+  it('gives a chat moved into a project that project’s default, and the assistant when it leaves projects', async () => {
+    const agentUpdate = (statements: Statement[]) =>
+      statements.find((s) => s.text.includes('SET chat_agent_id'));
+    const moved = fakeSql(
+      answering(OWNED_ROW, { defaultChatAgentId: 'agent_b1' }),
+    );
+    await moveThreadToProject(
+      moved.sql,
+      { organizationId: 'org_1', userId: 'user_1' },
+      'thread_1',
+      'project_b',
+    );
+    expect(agentUpdate(moved.statements)?.values).toEqual([
+      'agent_b1',
+      'thread_1',
+    ]);
+
+    const removed = fakeSql(answering(OWNED_ROW));
+    await moveThreadToProject(
+      removed.sql,
+      { organizationId: 'org_1', userId: 'user_1' },
+      'thread_1',
+      null,
+    );
+    expect(agentUpdate(removed.statements)?.values).toEqual([null, 'thread_1']);
+
+    // Filed under the project it is already in: nothing about it changes.
+    const same = fakeSql(answering(OWNED_ROW));
+    await moveThreadToProject(
+      same.sql,
+      { organizationId: 'org_1', userId: 'user_1' },
+      'thread_1',
+      'project_a',
+    );
+    expect(agentUpdate(same.statements)).toBeUndefined();
+  });
+
+  it('lets the owner choose one of the project’s own agents, or the assistant, on the conversation’s root', async () => {
+    const branch = { ...OWNED_ROW, id: 'branch_2', branchRootId: 'thread_1' };
+    const chosen = fakeSql((statement) =>
+      statement.text.includes('FROM app.threads t')
+        ? [statement.values.includes('branch_2') ? branch : OWNED_ROW]
+        : answering(OWNED_ROW)(statement),
+    );
+    await expect(
+      setConversationAgent(
+        chosen.sql,
+        'org_1',
+        'user_1',
+        'branch_2',
+        'agent_new',
+      ),
+    ).resolves.toBe(true);
+    const update = chosen.statements.find((s) =>
+      s.text.includes('SET chat_agent_id'),
+    );
+    expect(update?.values).toEqual(['agent_new', 'thread_1']);
+
+    const assistant = fakeSql(answering(OWNED_ROW));
+    await setConversationAgent(
+      assistant.sql,
+      'org_1',
+      'user_1',
+      'thread_1',
+      null,
+    );
+    expect(
+      assistant.statements.find((s) => s.text.includes('SET chat_agent_id'))
+        ?.values,
+    ).toEqual([null, 'thread_1']);
+  });
+
+  it('refuses another project’s agent and a chat outside a project, and changes nothing for anyone but the owner', async () => {
+    const foreign = fakeSql(answering(OWNED_ROW));
+    await expect(
+      setConversationAgent(
+        foreign.sql,
+        'org_1',
+        'user_1',
+        'thread_1',
+        'agent_b1',
+      ),
+    ).rejects.toMatchObject({ code: 'CHAT_AGENT_INVALID', status: 400 });
+
+    const unfiled = fakeSql(answering({ ...OWNED_ROW, projectId: null }));
+    await expect(
+      setConversationAgent(
+        unfiled.sql,
+        'org_1',
+        'user_1',
+        'thread_1',
+        'agent_old',
+      ),
+    ).rejects.toMatchObject({ code: 'CHAT_AGENT_INVALID' });
+
+    const stranger = fakeSql(() => []);
+    await expect(
+      setConversationAgent(
+        stranger.sql,
+        'org_1',
+        'user_2',
+        'thread_1',
+        'agent_old',
+      ),
+    ).resolves.toBe(false);
+    expect(stranger.statements.some((s) => s.text.includes('UPDATE'))).toBe(
+      false,
+    );
   });
 });
 

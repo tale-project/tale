@@ -16,6 +16,8 @@ import {
   CANNED_REPLY,
   CANNED_STREAM_ERROR_MESSAGE,
   MOCK_FILE_REF,
+  MOCK_PERSONA,
+  MOCK_PROPOSALS,
   MOCK_SERVING,
   MOCK_TRIGGERS,
   MOCK_WORK_TOOLS,
@@ -326,6 +328,83 @@ describe('chat/completions override', () => {
       }),
     );
     expect(closing).toBe(MOCK_FILE_REF.reply(ref));
+  });
+
+  test('the who-answers trigger names the persona its system prompt carries', async () => {
+    const ask = (system: string) =>
+      post('/v1/chat/completions', {
+        model: 'm',
+        stream: true,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `${MOCK_TRIGGERS.whoAnswers} who?` },
+        ],
+      });
+    expect(
+      await streamedText(
+        await ask(
+          `Review copy.\n${MOCK_PERSONA.marker} Copy reviewer\nBe brief.`,
+        ),
+      ),
+    ).toBe(MOCK_PERSONA.reply('Copy reviewer'));
+    expect(await streamedText(await ask('You are the assistant.'))).toBe(
+      MOCK_PERSONA.none,
+    );
+  });
+
+  test('the proposal triggers propose a project, or an agent in the project the message names, then close the turn', async () => {
+    const firstCall = async (content: string) =>
+      events(
+        await (
+          await post('/v1/chat/completions', {
+            model: 'm',
+            stream: true,
+            messages: [{ role: 'user', content }],
+          })
+        ).text(),
+      ).flatMap((chunk) => {
+        const choice = (
+          chunk.choices as { delta?: { tool_calls?: unknown[] } }[]
+        )[0];
+        return choice?.delta?.tool_calls ?? [];
+      })[0] as { id: string; function: { name: string; arguments: string } };
+    const project = await firstCall(MOCK_TRIGGERS.proposeProject);
+    const agent = await firstCall(
+      `${MOCK_TRIGGERS.proposeAgent} Website relaunch`,
+    );
+    expect(project.function.name).toBe('propose_project_settings');
+    expect(JSON.parse(project.function.arguments)).toEqual(
+      MOCK_PROPOSALS.project,
+    );
+    expect(JSON.parse(agent.function.arguments)).toEqual(
+      MOCK_PROPOSALS.agent('Website relaunch'),
+    );
+    const closing = await streamedText(
+      await post('/v1/chat/completions', {
+        model: 'm',
+        stream: true,
+        messages: [
+          { role: 'user', content: MOCK_TRIGGERS.proposeProject },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: project.id,
+                type: 'function',
+                function: project.function,
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            tool_call_id: project.id,
+            content: JSON.stringify({ status: 'ok', proposalId: 'p-1' }),
+          },
+        ],
+      }),
+    );
+    expect(closing).toBe(MOCK_PROPOSALS.done);
   });
 
   test('a work trigger asked again after an earlier turn used tools calls the tool again, not the closing reply', async () => {

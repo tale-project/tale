@@ -10,6 +10,7 @@ import {
   createProjectInputSchema,
   deleteProjectInputSchema,
   projectAgentInputSchema,
+  setProjectChatAgentInputSchema,
   updateProjectAgentInputSchema,
   updateProjectIdentitySchema,
   updateProjectInstructionsSchema,
@@ -76,6 +77,8 @@ import {
   updateAgentInstructionsConfiguration,
   restoreProject,
   searchProjects,
+  readProjectChatAgents,
+  setProjectChatAgent,
   setProjectPinned,
   setProjectTaskReviewer,
   updateProjectAgent,
@@ -643,6 +646,33 @@ export function createProjectRoutes(deps: {
       const auth = await authCtx(c);
       const result = await transactSerializable(deps.sql, (tx) =>
         setProjectTaskReviewer(tx, auth, c.req.param('id'), body.data),
+      );
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Who the project's chats may answer as, and who its new chats start
+  // with — the composer's agent menu and the General page's field.
+  app.get('/:id/chat-agents', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await readProjectChatAgents(deps.sql, auth, c.req.param('id')),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/chat-agent', async (c) => {
+    const body = setProjectChatAgentInputSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        setProjectChatAgent(tx, auth, c.req.param('id'), body.data),
       );
       return c.json(result);
     } catch (error) {

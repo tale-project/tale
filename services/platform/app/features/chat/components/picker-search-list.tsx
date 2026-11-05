@@ -11,6 +11,7 @@
  */
 
 import { cn } from '@tale/ui/cn';
+import { useCloseDropdownMenu } from '@tale/ui/dropdown-menu';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useVirtualList } from '@tale/ui/use-virtual-list';
 import { Check, Search } from 'lucide-react';
@@ -45,6 +46,9 @@ export interface PickerSearchOption {
   readonly fullLabel?: string;
   readonly selected?: boolean;
   readonly disabled?: boolean;
+  /** A command rather than a choice (Remove from project): a plain menu
+   * item, set apart below the choices, never checked. */
+  readonly action?: boolean;
   readonly onSelect: () => void;
 }
 
@@ -53,6 +57,7 @@ export function PickerSearchList({
   emptyHint,
   multiSelect = false,
   searchThreshold = 5,
+  tall = false,
   onPicked,
 }: {
   readonly options: readonly PickerSearchOption[];
@@ -62,13 +67,39 @@ export function PickerSearchList({
   readonly multiSelect?: boolean;
   /** Below this many options the search field is noise, so it is hidden. */
   readonly searchThreshold?: number;
+  /** Rows two lines tall (a name over a description): the list shows more
+   * of them before it scrolls. */
+  readonly tall?: boolean;
   /** Called after a single-select pick — the caller closes the menu, the way
    * a real menu item would. Ignored while `multiSelect`. */
   readonly onPicked?: () => void;
 }) {
   const { t } = useT('chat');
+  // A single pick closes the menu the list sits in, as a menu item would —
+  // the caller's own way when it has one.
+  const closeMenu = useCloseDropdownMenu();
+  const picked = onPicked ?? closeMenu;
   const [query, setQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // A menu opened by keyboard, or the list that is a menu's whole content,
+  // hands the focus to the menu's panel, where the arrow keys reach none of
+  // these rows: the list takes it — its search, else the chosen row, else
+  // the first. After the menu's own focus, which lands on mount; a submenu
+  // a pointer opened keeps the focus where the pointer left it.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const list = scrollRef.current;
+      const menu = list?.closest('[role="menu"]');
+      if (!list || !menu || document.activeElement !== menu) return;
+      if (searchRef.current) {
+        searchRef.current.focus();
+        return;
+      }
+      focusEntryRow(list);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [focusKey, setFocusKey] = useState<string | null>(null);
   // The row whose tip keyboard focus holds open (see PickerRow); a tip that
   // opens on another row ends the hold, so the list shows one at a time.
@@ -138,6 +169,7 @@ export function PickerSearchList({
             className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
           />
           <input
+            ref={searchRef}
             type="text"
             value={query}
             onChange={(event) => {
@@ -145,9 +177,13 @@ export function PickerSearchList({
               if (scrollRef.current) scrollRef.current.scrollTop = 0;
             }}
             // The menu owns arrow keys and typeahead; inside the field the
-            // keystrokes belong to the field. Escape still bubbles so the
-            // menu can close.
+            // keystrokes belong to the field, but Down moves on to the rows.
+            // Escape still bubbles so the menu can close.
             onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' && scrollRef.current) {
+                event.preventDefault();
+                focusEntryRow(scrollRef.current);
+              }
               if (event.key !== 'Escape') event.stopPropagation();
             }}
             onClick={(event) => event.stopPropagation()}
@@ -162,12 +198,26 @@ export function PickerSearchList({
       <div
         ref={scrollRef}
         role="group"
-        className="max-h-[8.5rem] overflow-y-auto"
+        className={cn(
+          'overflow-y-auto',
+          tall ? 'max-h-[min(16rem,45vh)]' : 'max-h-[8.5rem]',
+        )}
         onKeyDown={(event) => {
           const target = event.target;
           if (!(target instanceof HTMLButtonElement)) return;
           const index = Number(target.dataset.index);
           if (!Number.isInteger(index)) return;
+          // Up from the first row goes back to the search, to refine it.
+          if (
+            event.key === 'ArrowUp' &&
+            enabledIndices.indexOf(index) === 0 &&
+            searchRef.current
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            searchRef.current.focus();
+            return;
+          }
           const next = rowFocusIndex(
             event,
             enabledIndices.indexOf(index),
@@ -212,7 +262,7 @@ export function PickerSearchList({
                   onBlurCapture={virtual.onBlurCapture}
                   onHoldChange={holdTip}
                   onTipShow={showTip}
-                  onPicked={onPicked}
+                  onPicked={picked}
                 />
               </Fragment>
             );
@@ -224,6 +274,17 @@ export function PickerSearchList({
       </div>
     </div>
   );
+}
+
+/** Focus the row a keyboard enters a list on: the chosen one, else the
+ * first that can be picked. */
+function focusEntryRow(list: HTMLElement): void {
+  const rows = [
+    ...list.querySelectorAll<HTMLButtonElement>('[data-picker-key]'),
+  ].filter((row) => !row.disabled);
+  (
+    rows.find((row) => row.getAttribute('aria-checked') === 'true') ?? rows[0]
+  )?.focus();
 }
 
 /** Whether the panel's width cuts `label`: a line truncated, or a
@@ -334,9 +395,18 @@ function PickerRow({
         data-picker-key={option.key}
         type="button"
         // Single-select rows are radio items: the chosen state must be
-        // programmatic (aria-checked), not just the visual check glyph.
-        role={multiSelect ? 'menuitemcheckbox' : 'menuitemradio'}
-        aria-checked={option.selected === true}
+        // programmatic (aria-checked), not just the visual check glyph. A
+        // command is a plain item.
+        role={
+          option.action === true
+            ? 'menuitem'
+            : multiSelect
+              ? 'menuitemcheckbox'
+              : 'menuitemradio'
+        }
+        aria-checked={
+          option.action === true ? undefined : option.selected === true
+        }
         aria-posinset={index + 1}
         aria-setsize={setSize}
         {...(option.ariaLabel !== undefined
@@ -359,6 +429,8 @@ function PickerRow({
         }}
         className={cn(
           'hover:bg-accent focus:bg-accent flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+          option.action === true &&
+            'border-border mt-1 rounded-t-none border-t',
         )}
       >
         <span ref={labelRef} className="min-w-0 flex-1 truncate">

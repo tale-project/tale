@@ -45,6 +45,9 @@ export const MOCK_TRIGGERS = {
   runLongCode: 'e2e:run-long-code',
   useWorkspace: 'e2e:use-workspace',
   fileRef: 'e2e:file-ref',
+  whoAnswers: 'e2e:who-answers',
+  proposeProject: 'e2e:propose-project',
+  proposeAgent: 'e2e:propose-agent',
 } as const;
 
 /**
@@ -102,6 +105,43 @@ export const MOCK_FILE_REF = {
     `Here is the table: ![${MOCK_WORK_TOOLS.fileName}](${ref})\n\nOpen [${MOCK_WORK_TOOLS.fileName}](${ref}) to read it.`,
   /** The closing reply when the tool result named no ref. */
   noRef: 'The file could not be written.',
+} as const;
+
+/**
+ * The proposal scenarios (`MOCK_TRIGGERS.proposeProject` / `proposeAgent`):
+ * a first turn that calls `propose_project_settings` — a new project, or a
+ * new agent in the project the message names after the trigger — and,
+ * once the tool result is in, a closing reply. They prove the card and the
+ * apply, never a model's judgment of when to propose.
+ */
+export const MOCK_PROPOSALS = {
+  project: {
+    change: 'create_project',
+    name: 'Launch site',
+    key: 'LS',
+    description: 'The microsite for the spring launch.',
+    instructions: 'Write in British English and keep every page short.',
+  },
+  agent: (project: string) => ({
+    change: 'create_agent',
+    project,
+    name: 'Proofreader',
+    model: 'e2e-chat-model',
+    instructions: 'E2E persona: Proofreader\nCheck spelling and grammar.',
+  }),
+  done: 'I proposed it: apply it in the card below when it looks right.',
+} as const;
+
+/**
+ * Who answers (`MOCK_TRIGGERS.whoAnswers`): the reply names the persona the
+ * turn's instructions carry — the rest of the first system-prompt line that
+ * starts with `marker` — or the assistant when no line does. It proves which
+ * instructions a turn ran with, never a model's judgment.
+ */
+export const MOCK_PERSONA = {
+  marker: 'E2E persona:',
+  reply: (name: string): string => `Answering as ${name}.`,
+  none: 'Answering as the assistant.',
 } as const;
 
 /**

@@ -93,6 +93,29 @@ export function useProjectAgents(projectId: string | undefined) {
   };
 }
 
+export type ProjectChatAgents =
+  ReturnsOf<'projects/queries:getProjectChatAgents'>;
+
+/** Who a project's chats may answer as — its own agents, oldest first — and
+ * who its new chats start with. Nothing to read without a project. */
+export function useProjectChatAgents(projectId: string | undefined) {
+  const organizationId = useOrganizationId();
+  const query = useBackendQuery(
+    'projects/queries:getProjectChatAgents',
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  );
+  const { data, isLoading, refetch } = query;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return {
+    data,
+    isLoading,
+    ...readStateOf(query),
+    retry,
+  };
+}
+
 export type StandardAgentAvailability =
   ReturnsOf<'projects/queries:getStandardAgent'>;
 

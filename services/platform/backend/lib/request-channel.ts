@@ -21,9 +21,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * the agent that caused it.
  */
 export interface RequestChannel {
-  /** The door: a coding agent's MCP call, or a request to the REST API
-   * made with a personal API key. */
-  readonly via: 'mcp' | 'api-key';
+  /** The door: a coding agent's MCP call, a request to the REST API made
+   * with a personal API key, or a change a person applied from a chat's
+   * proposal card. */
+  readonly via: 'mcp' | 'api-key' | 'chat';
   /** The HTTP request the call arrived in — what the caller can quote.
    * Absent where the door stamped none (a test). */
   readonly requestId?: string;
@@ -36,6 +37,10 @@ export interface RequestChannel {
   readonly agentConnectionId?: string;
   /** The name the caller's client gave itself, through `displayClientName`. */
   readonly clientName?: string;
+  /** The conversation whose proposal a person applied (`via: 'chat'`). */
+  readonly threadId?: string;
+  /** The proposal they applied. */
+  readonly proposalId?: string;
 }
 
 const channels = new AsyncLocalStorage<RequestChannel>();
@@ -71,5 +76,9 @@ export function channelAuditMetadata(
     ...(channel.clientName === undefined
       ? {}
       : { clientName: channel.clientName }),
+    ...(channel.threadId === undefined ? {} : { threadId: channel.threadId }),
+    ...(channel.proposalId === undefined
+      ? {}
+      : { proposalId: channel.proposalId }),
   };
 }

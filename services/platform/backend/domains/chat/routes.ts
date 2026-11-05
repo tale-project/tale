@@ -21,6 +21,8 @@ import {
   invalidBodyIssuesResponse,
   invalidBodyResponse,
 } from '../../lib/invalid-body-response.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
+import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
   registerLiveStream,
@@ -55,6 +57,13 @@ import {
 import { createGenerationWatch } from './generation-watch.ts';
 import { getOrgChatHealth } from './health.ts';
 import { listMessageViews } from './message-views.ts';
+import {
+  applyProposal,
+  dismissProposal,
+  listConversationProposals,
+  ProposalError,
+  proposalThreadId,
+} from './proposals.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
 import { listChatSkillChoices } from './work-tools.ts';
@@ -105,6 +114,7 @@ import {
   restoreThread,
   searchChats,
   setBranchSelection,
+  setConversationAgent,
   setConversationSkills,
   setThreadArchived,
   setThreadPinned,
@@ -140,6 +150,9 @@ const createThreadSchema = z.object({
   projectId: z.string().max(128).optional(),
   kind: z.string().max(50).optional(),
   agentSlug: z.string().max(200).optional(),
+  /** Who the chat answers as: one of its project's own agents, or null for
+   * the assistant; absent, the project's default chat agent. */
+  chatAgentId: z.string().min(1).max(200).nullable().optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
   skills: conversationSkillsSchema.optional(),
 });
@@ -379,6 +392,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ...(body.data.projectId !== undefined
           ? { projectId: body.data.projectId }
           : {}),
+        ...(body.data.chatAgentId !== undefined
+          ? { chatAgentId: body.data.chatAgentId }
+          : {}),
         ...(body.data.reasoningEffort !== undefined
           ? { reasoningEffort: body.data.reasoningEffort }
           : {}),
@@ -451,6 +467,86 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       : c.json({ thread: summary });
   });
 
+  // The changes to projects and agents the conversation proposed, as its
+  // cards show them — to its owner, and to a reader of a chat shared with
+  // its project (read-only: deciding is the owner's).
+  app.get('/threads/:threadId/proposals', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const threadId = c.req.param('threadId');
+    const summary = await getThread(deps.sql, organizationId, userId, threadId);
+    if (summary === null) return c.json({ error: 'thread not found' }, 404);
+    const roots = await deps.sql<{ rootId: string }[]>`
+      SELECT coalesce(branch_root_id, thread_id) AS "rootId"
+      FROM app.thread_metadata
+      WHERE thread_id = ${threadId} AND org_id = ${organizationId}
+    `;
+    return c.json({
+      proposals: await listConversationProposals(deps.sql, {
+        organizationId,
+        rootThreadId: roots[0]?.rootId ?? threadId,
+      }),
+    });
+  });
+
+  // Apply or dismiss a proposal: its owner's alone. Applying writes through
+  // the same services as the pages, as the person, once.
+  app.post('/proposals/:proposalId/apply', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const proposalId = c.req.param('proposalId');
+    try {
+      const proposal = await applyProposal(deps.sql, {
+        organizationId,
+        userId,
+        role: c.get('orgMember').role,
+        email: c.get('sessionBundle').user.email,
+        proposalId,
+      });
+      const threadId = await proposalThreadId(deps.sql, {
+        organizationId,
+        proposalId,
+      });
+      if (threadId !== null) await hintThread(c, threadId);
+      return c.json({ proposal });
+    } catch (error) {
+      if (error instanceof ProposalError) {
+        return c.json(
+          { error: error.code, message: error.message },
+          error.status,
+        );
+      }
+      if (error instanceof RateLimitExceededError) {
+        return rateLimitedResponse(c, error);
+      }
+      throw error;
+    }
+  });
+
+  app.post('/proposals/:proposalId/dismiss', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const proposalId = c.req.param('proposalId');
+    try {
+      const proposal = await dismissProposal(deps.sql, {
+        organizationId,
+        userId,
+        proposalId,
+      });
+      const threadId = await proposalThreadId(deps.sql, {
+        organizationId,
+        proposalId,
+      });
+      if (threadId !== null) await hintThread(c, threadId);
+      return c.json({ proposal });
+    } catch (error) {
+      if (error instanceof ProposalError) {
+        return c.json(
+          { error: error.code, message: error.message },
+          error.status,
+        );
+      }
+      throw error;
+    }
+  });
+
   app.get('/threads/:threadId/share-status', async (c) => {
     const { organizationId, userId } = caller(c);
     const status = await getThreadShareStatus(
@@ -502,6 +598,29 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     );
     if (ok) await hintThread(c, c.req.param('threadId'));
     return c.json({ ok });
+  });
+
+  // Who the conversation answers as: one of its project's own agents, or
+  // null for the assistant. The owner's alone.
+  app.post('/threads/:threadId/agent', async (c) => {
+    const body = z
+      .object({ agentId: z.string().min(1).max(200).nullable() })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    const { organizationId, userId } = caller(c);
+    try {
+      const ok = await setConversationAgent(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+        body.data.agentId,
+      );
+      if (ok) await hintThread(c, c.req.param('threadId'));
+      return c.json({ ok });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
   });
 
   app.post('/threads/:threadId/project', async (c) => {

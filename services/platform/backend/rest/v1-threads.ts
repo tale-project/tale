@@ -611,8 +611,10 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           userId: c.get('userId'),
           kind: 'direct',
           ...(body.title !== undefined ? { title: body.title } : {}),
+          // The API creates chats with the built-in assistant, also in a
+          // project whose chats start with an agent in the app.
           ...(projectId !== null
-            ? { projectId, requireActiveProject: true }
+            ? { projectId, requireActiveProject: true, chatAgentId: null }
             : {}),
         });
         // The created thread's own path — the request's collection URL

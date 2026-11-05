@@ -31,6 +31,8 @@ import {
   Brain,
   FilePlus,
   FileText,
+  FolderPen,
+  FolderSearch,
   Globe,
   ImagePlus,
   Loader2,
@@ -65,6 +67,8 @@ const TOOL_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   load_skill: BookOpen,
   read_skill_file: BookOpen,
   run_code: SquareTerminal,
+  read_project_settings: FolderSearch,
+  propose_project_settings: FolderPen,
 };
 
 /** What a tool was asked, for the step's detail: the retrieval tools carry
@@ -317,7 +321,8 @@ function toolInputText(input: unknown): string | undefined {
 }
 
 /** Output text for a step's expanded detail: a fetched page/document's
- * content verbatim, else the structured result as JSON. */
+ * content verbatim, the sentence a refused or failed call answered with,
+ * else the structured result as JSON. */
 function toolOutputText(output: unknown): string | undefined {
   if (output === undefined || output === null) return undefined;
   if (typeof output === 'string') {
@@ -329,6 +334,24 @@ function toolOutputText(output: unknown): string | undefined {
     output.content.length > 0
   ) {
     return output.content;
+  }
+  if (
+    isRecord(output) &&
+    typeof output.status === 'string' &&
+    output.status !== 'ok' &&
+    typeof output.message === 'string' &&
+    output.message.length > 0
+  ) {
+    // The sentence first; whatever else the result carries — a program's
+    // output, the names it offers instead — follows as it came.
+    const { status: _status, message, reason: _reason, ...rest } = output;
+    if (Object.keys(rest).length === 0) return message;
+    try {
+      return `${message}\n\n${JSON.stringify(rest, null, 2)}`;
+    } catch (error) {
+      console.warn('thought-timeline: unserializable tool output', error);
+      return message;
+    }
   }
   try {
     return JSON.stringify(output, null, 2);

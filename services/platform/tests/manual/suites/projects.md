@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 71 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 105 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -729,6 +729,41 @@ projects-list row ⋯ menu.
   instead → the field and the caption under it say it is unavailable, with no
   notice. Network shows no write. Repeat the blocked state in German and
   French.
+
+## Default chat agent
+
+The first project of [chat.md](chat.md)'s **Projects and agents**: agents
+**Copy reviewer**, then **Coder**.
+
+- [ ] `PROJ-F79` · **Choose who answers in the project's new chats** — As an
+  editor, open `/dashboard/{org}/projects/{projectId}/overview` → section
+  **Chats** (`projects.chatAgent.title`), field **Default chat agent**
+  (`projects.chatAgent.field`) reads **First agent created (Copy reviewer)**
+  (`projects.chatAgent.firstNamed`). Choose **Coder** and save; reload → Coder.
+  A new chat in the project names Coder in its agent button (CHAT-F90); an
+  existing chat keeps its agent. Choose **Assistant**
+  (`projects.chatAgent.assistant`) and save → a new chat has the agent button
+  on **Assistant**. Choose **First agent created** and save → new chats start
+  with Copy reviewer again.
+- [ ] `PROJ-F80` · **The default follows the agents** — With **First agent
+  created** saved, delete Copy reviewer → the field reads **First agent
+  created (Coder)**. With Coder chosen, delete Coder → the field falls back to
+  **First agent created** and its hint reads **The project has no agent of its
+  own yet, so the assistant answers.** (`projects.chatAgent.firstHintNone`)
+  when no agent is left.
+- [ ] `PROJ-B37` · **A default changed meanwhile is not overwritten** — Open
+  General in two editor sessions; choose and save Coder in the first, then
+  choose **Assistant** and save in the second → the save is refused with
+  **Someone changed the default chat agent meanwhile. Reload the page to see
+  it.** (`projects.chatAgent.stale`); reload → Coder.
+- [ ] `PROJ-B38` · **Who can change it** — As a Member who can open the
+  project, the field shows the saved choice and is disabled. Archive the
+  project → the field is disabled for an editor too; restore it → editable
+  again.
+- [ ] `PROJ-A12` · **The field by keyboard** — Tab to **Default chat agent** →
+  announced with its label and hint (`projects.chatAgent.fieldHint`); Enter
+  opens the list with its search (`projects.chatAgent.search`), Down and Up
+  move, Enter picks, and the page's **Save** becomes available.
 
 ## Dispatch
 

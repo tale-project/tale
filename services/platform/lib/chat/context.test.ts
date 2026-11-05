@@ -815,6 +815,21 @@ describe('assembleContext — project context', () => {
     expect(text).not.toContain('()');
   });
 
+  it("names the project's own agents, and who chooses between them [CHAT-R41]", () => {
+    const result = assembleContext(
+      input({
+        project: { name: 'Growth', agents: ['Copy reviewer', ' ', 'Coder'] },
+      }),
+    );
+    const block = result.blocks.find((b) => b.id === 'project-context');
+    const text = block && 'text' in block ? block.text : '';
+    expect(text).toContain(`The project's agents: "Copy reviewer", "Coder".`);
+    expect(text).toContain('the person chooses who answers in this chat');
+    const none = assembleContext(input({ project: { name: 'Growth' } }));
+    const plain = none.blocks.find((b) => b.id === 'project-context');
+    expect(plain && 'text' in plain ? plain.text : '').not.toMatch(/agents/);
+  });
+
   it('treats a blank project name as no project', () => {
     const result = assembleContext(input({ project: { name: '   ' } }));
     expect(result.blocks.map((block) => block.id)).not.toContain(

@@ -37,6 +37,9 @@ vi.mock('./project-sharing-section', () => ({
 vi.mock('./project-task-reviewer-section', () => ({
   ProjectTaskReviewerSection: () => null,
 }));
+vi.mock('./project-chat-agent-section', () => ({
+  ProjectChatAgentSection: () => null,
+}));
 vi.mock('./project-archive-section', () => ({
   ProjectArchiveSection: () => null,
 }));

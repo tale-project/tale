@@ -262,12 +262,16 @@ describe('ThreadRow', () => {
     await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
 
     // Folder rows are radio items: which project holds the thread is a
-    // selectable state, and "remove" is the unchecked way out.
+    // selectable state. "Remove from project" is a command, not a choice
+    // among them: a plain menu item.
     expect(
-      await screen.findByRole('menuitemradio', {
+      await screen.findByRole('menuitem', {
         name: 'Remove from project',
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitemradio', { name: 'Remove from project' }),
+    ).toBeNull();
   });
 
   it('renames inline: menu item swaps in an input, Enter commits', async () => {

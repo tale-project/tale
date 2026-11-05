@@ -26,6 +26,12 @@ export function useUpdateProjectInstructions() {
   });
 }
 
+export function useSetProjectChatAgent() {
+  return useBackendMutation('projects/mutations:setProjectChatAgent', {
+    errorToast: false,
+  });
+}
+
 export function useSetProjectTaskReviewer() {
   return useBackendMutation('projects/mutations:setProjectTaskReviewer', {
     errorToast: false,

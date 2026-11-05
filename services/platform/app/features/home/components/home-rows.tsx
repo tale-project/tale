@@ -256,6 +256,7 @@ export const HomeChatRow = memo(function HomeChatRow({
     projectId: thread.projectId ?? null,
     title: thread.title ?? tChat('history.untitled'),
     archived: thread.archived,
+    ...(thread.sharedWithProject === true ? { sharedWithProject: true } : {}),
   });
   const tone = useHomeRowTone(active && !isDragging);
   const age = useCompactAge(item.activityAt, { paused: item.generating });

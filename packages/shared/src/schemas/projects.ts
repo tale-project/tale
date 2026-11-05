@@ -234,3 +234,51 @@ export const deleteProjectInputSchema = z
       path: ['confirmPhrase'],
     },
   );
+
+/**
+ * Who a project's new chats answer as: the first agent created in the
+ * project (its oldest agent of its own — the default, which follows the
+ * agents as they come and go), one agent of the project, or the
+ * workspace's chat assistant. The standard agent never answers a chat.
+ */
+export const projectChatAgentSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('first') }).strict(),
+  z.object({ kind: z.literal('assistant') }).strict(),
+  z
+    .object({ kind: z.literal('agent'), agentId: z.string().min(1).max(200) })
+    .strict(),
+]);
+export type ProjectChatAgent = z.infer<typeof projectChatAgentSchema>;
+
+/** A change of the default, made against the value the page read: a save
+ * from an outdated page is refused rather than undoing someone else's. */
+export const setProjectChatAgentInputSchema = z
+  .object({
+    chatAgent: projectChatAgentSchema,
+    expected: projectChatAgentSchema,
+  })
+  .strict();
+export type SetProjectChatAgentInput = z.infer<
+  typeof setProjectChatAgentInputSchema
+>;
+
+/** The stored pair as the choice it means; absent halves are the
+ * defaults. */
+export function projectChatAgentFrom(row: {
+  defaultChatAgentId?: string | null;
+  chatsStartWithAssistant?: boolean;
+}): ProjectChatAgent {
+  if (row.chatsStartWithAssistant === true) return { kind: 'assistant' };
+  return row.defaultChatAgentId === null || row.defaultChatAgentId === undefined
+    ? { kind: 'first' }
+    : { kind: 'agent', agentId: row.defaultChatAgentId };
+}
+
+/** Whether two choices are the same. */
+export function sameProjectChatAgent(
+  a: ProjectChatAgent,
+  b: ProjectChatAgent,
+): boolean {
+  if (a.kind !== b.kind) return false;
+  return a.kind !== 'agent' || (b.kind === 'agent' && a.agentId === b.agentId);
+}

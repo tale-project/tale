@@ -150,7 +150,7 @@ the migration does not guess or reattribute historical spend.
 
 | Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` | project |
 | --- | --- | --- | --- | --- | --- |
-| Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key | the thread's |
+| Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug; `project_agents.id` when a project agent answers the chat | the REST key | the thread's |
 | Chat title | `core/chat/generate_title.ts`, held and booked as a direct call (`domains/chat/title-meter.ts`) | the thread's member | `thread-title` | the key that sent the message | the thread's (`chat.generate_title` job) |
 | Inbox Improve with AI | `domains/conversations/improve.ts`, held and booked as a direct call | the writer | `inbox-improve` | — | — |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | `project_agent_runs.api_key_id` | `project_agent_runs.project_id` |

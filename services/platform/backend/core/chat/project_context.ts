@@ -47,5 +47,8 @@ export async function resolveProjectContext(
     ...(project.instructions !== undefined
       ? { instructions: project.instructions }
       : {}),
+    ...(project.agents !== undefined && project.agents.length > 0
+      ? { agents: project.agents }
+      : {}),
   };
 }

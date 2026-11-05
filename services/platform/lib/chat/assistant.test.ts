@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHAT_ASSISTANT,
   CHAT_ASSISTANT_SLUG,
+  chatAgentFor,
   chatAssistantFor,
   TALE_DOCS_INDEX_URL,
 } from './assistant';
@@ -155,5 +156,74 @@ describe('chatAssistantFor — the persona a work loadout runs as', () => {
       expect(text).toMatch(/FILE TOOLS UNAVAILABLE/);
       expect(text).not.toMatch(/TASK WORK/);
     });
+  });
+});
+
+describe('chatAgentFor — a project agent answering a chat [CHAT-R41]', () => {
+  const AGENT = {
+    id: 'agent_7',
+    name: 'Copy reviewer',
+    instructions: 'Review copy for tone and British spelling.',
+    skills: ['docx'],
+  };
+  const ALL = {
+    createFile: true,
+    generateImage: true,
+    skills: true,
+    runCode: true,
+  };
+  const NONE = {
+    createFile: false,
+    generateImage: false,
+    skills: false,
+    runCode: false,
+  };
+
+  it("leads with the agent's own instructions and speaks under its id", () => {
+    const persona = chatAgentFor(AGENT, ALL);
+    expect(persona.slug).toBe('agent_7');
+    expect(persona.instructions.startsWith(AGENT.instructions)).toBe(true);
+    expect(persona.instructions).toMatch(/"Copy reviewer"/);
+  });
+
+  it('says what of the agent a chat lacks, and where that work goes', () => {
+    const text = chatAgentFor(AGENT, ALL).instructions;
+    expect(text).toMatch(/IN THIS CHAT/);
+    expect(text).toMatch(
+      /runtime, repository access, connectors, platform tools and secrets are not available/,
+    );
+    expect(text).toMatch(/hand-over note/);
+    expect(text).not.toMatch(/THIS RUN/);
+  });
+
+  it('keeps every rule a chat reply keeps, with the ladder for the tools offered', () => {
+    const text = chatAgentFor(AGENT, ALL).instructions;
+    for (const rule of [
+      /NO FABRICATION/,
+      /THE WORK LIVES HERE/,
+      /MAKING THINGS/,
+      /TASK WORK/,
+      /QUESTIONS ABOUT TALE/,
+      /NO RAW CONTEXT OUTPUT/,
+      /RESPONSE STYLE/,
+    ]) {
+      expect(text).toMatch(rule);
+    }
+    expect(chatAgentFor(AGENT, NONE).instructions).toMatch(
+      /DELIVERABLES GO TO TASKS/,
+    );
+    const unavailable = chatAgentFor(AGENT, undefined, {
+      toolsUnavailable: true,
+    }).instructions;
+    expect(unavailable).toMatch(/FILE TOOLS UNAVAILABLE/);
+    expect(unavailable).not.toMatch(/DELIVERABLES GO TO TASKS/);
+  });
+
+  it('opens with the chat note when the agent has no instructions of its own', () => {
+    const text = chatAgentFor(
+      { ...AGENT, instructions: '  ' },
+      ALL,
+    ).instructions;
+    expect(text.startsWith('**IN THIS CHAT**')).toBe(true);
   });
 });

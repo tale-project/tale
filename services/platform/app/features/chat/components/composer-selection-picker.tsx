@@ -7,14 +7,17 @@
  *
  * The skills are the conversation's: every reply in it reads the ones
  * checked before it answers (one message's own skills are typed as `/name`
- * in the field). There are no agent rows, no connector equipment and no
- * sandbox harnesses — those live on tasks and automations (the
- * Chat·Task·Automation boundary model). The menu is SECTION rows, each
- * opening a submenu whose list is searchable and scrolls after four rows, so
- * a hundred-model catalog never grows the menu past the viewport.
+ * in the field). Who answers — the assistant or a project agent — is the
+ * agent control beside it (`composer-agent-picker.tsx`); there is no
+ * connector equipment and no sandbox harness — those live on tasks and
+ * automations (the Chat·Task·Automation boundary model). The menu is
+ * SECTION rows, each opening a submenu whose list is searchable and scrolls
+ * after four rows, so a hundred-model catalog never grows the menu past the
+ * viewport.
  */
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import {
   DropdownMenu,
   type DropdownMenuGroup,
@@ -64,6 +67,9 @@ interface ComposerSelectionPickerProps {
   /** The skills the person may choose; none hides the Skills section. */
   skills?: readonly ComposerSkillChoice[];
   disabled?: boolean;
+  /** An agent answers and brings its model: on a narrow toolbar the
+   * control shows its mark alone, leaving the room to the agent's name. */
+  compact?: boolean;
 }
 
 export function ComposerSelectionPicker({
@@ -73,6 +79,7 @@ export function ComposerSelectionPicker({
   onSelectionChange,
   skills = [],
   disabled,
+  compact = false,
 }: ComposerSelectionPickerProps) {
   const { t } = useT('chat');
   const { locale } = useLocale();
@@ -396,9 +403,27 @@ export function ComposerSelectionPicker({
           aria-haspopup="menu"
           className="max-w-64 min-w-0 gap-1"
         >
-          <span className="min-w-0 truncate">{triggerLabel}</span>
+          {compact && (
+            <Cpu
+              aria-hidden
+              className="size-4 shrink-0 @lg/composer-toolbar:hidden"
+            />
+          )}
+          <span
+            className={cn(
+              'min-w-0 truncate',
+              compact && 'hidden @lg/composer-toolbar:inline',
+            )}
+          >
+            {triggerLabel}
+          </span>
           {triggerSuffix !== undefined && (
-            <span className="text-muted-foreground shrink-0">
+            <span
+              className={cn(
+                'text-muted-foreground shrink-0',
+                compact && 'hidden @lg/composer-toolbar:inline',
+              )}
+            >
               {` ${triggerSuffix}`}
             </span>
           )}
@@ -413,7 +438,13 @@ export function ComposerSelectionPicker({
               {chosenSkills.length}
             </span>
           )}
-          <ChevronDown aria-hidden className="size-3.5 shrink-0" />
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              'size-3.5 shrink-0',
+              compact && 'hidden @lg/composer-toolbar:block',
+            )}
+          />
         </Button>
       }
       items={items}

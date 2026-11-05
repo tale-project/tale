@@ -382,6 +382,29 @@ describe('runTurn — the happy path', () => {
     );
   });
 
+  it('says on the reply which project agent wrote it, and books it under the agent [CHAT-R41]', async () => {
+    const d = deps();
+    const outcome = await runTurn(
+      request({
+        agent: { slug: 'agent_7', instructions: 'Review copy.' },
+        author: { id: 'agent_7', name: 'Copy reviewer' },
+      }),
+      d.deps,
+    );
+    expect(outcome.status === 'completed' && outcome.usage.agent).toEqual({
+      id: 'agent_7',
+      name: 'Copy reviewer',
+    });
+    expect(d.usage).toEqual([
+      expect.objectContaining({ userId: 'user_1', agentSlug: 'agent_7' }),
+    ]);
+    const plain = deps();
+    const normal = await runTurn(request(), plain.deps);
+    expect(normal.status === 'completed' && normal.usage).not.toHaveProperty(
+      'agent',
+    );
+  });
+
   it('books the usage against the API key that authenticated the turn', async () => {
     const d = deps();
     await runTurn(request({ apiKeyId: 'key_1' }), d.deps);

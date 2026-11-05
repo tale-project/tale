@@ -11,6 +11,10 @@ import {
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_NAME_MAX,
   PROJECT_SHARED_TEAMS_MAX,
+  projectChatAgentFrom,
+  sameProjectChatAgent,
+  type ProjectChatAgent,
+  type SetProjectChatAgentInput,
 } from '@tale/shared/schemas/projects';
 import {
   projectTaskReviewerFromId,
@@ -67,6 +71,12 @@ import { normalizeToolGrants } from '../../core/sandbox/tool_names.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { retireApiKeysInTx } from '../api_keys/retire.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  type ChatAgentChoice,
+  clearChatAgentInTx,
+  listChatAgents,
+  resolveDefaultChatAgent,
+} from '../chat/agents.ts';
 import { recordTrashRefusalFromJson } from '../documents/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
@@ -201,6 +211,14 @@ export interface ProjectRow {
   /** Number of Tale-managed standard-agent rows in this project. */
   managedAgentCount?: number;
   defaultTaskReviewerAgentId: string | null;
+  /** The agent the project's new chats start with, when one is named; with
+   * `chatsStartWithAssistant` the stored half of `ProjectChatAgent`. Every
+   * read selects both; a row built elsewhere may leave them out, which
+   * reads as the default (the first agent created). */
+  defaultChatAgentId?: string | null;
+  /** The project's new chats start with the assistant, whatever agents it
+   * has. */
+  chatsStartWithAssistant?: boolean;
   /** The audience — team ids; empty = organization-wide. */
   teamIds: string[];
   /** @deprecated Derived: `teamIds[0]`; kept while the previous image reads it. */
@@ -223,6 +241,8 @@ const PROJECT_COLUMNS = `
   (SELECT count(*)::int FROM app.project_agents pa
     WHERE pa.project_id = app.projects.id AND pa.managed) AS "managedAgentCount",
   default_task_reviewer_agent_id AS "defaultTaskReviewerAgentId",
+  default_chat_agent_id AS "defaultChatAgentId",
+  chats_start_with_assistant AS "chatsStartWithAssistant",
   ${PROJECT_TEAM_IDS_SQL} AS "teamIds",
   (${PROJECT_TEAM_IDS_SQL})[1] AS "teamId",
   (${PROJECT_TEAM_IDS_SQL})[2:] AS "sharedWithTeamIds", instructions,
@@ -554,9 +574,10 @@ async function keyTaken(
  * cased, never stripped or truncated to something the caller did not ask
  * for — `TOOLONGKEY` used to land as `TOOLON`); a DERIVED key that the name
  * cannot yield (no Latin letters or digits) leaves the project keyless
- * rather than refusing a name the platform accepts everywhere else.
+ * rather than refusing a name the platform accepts everywhere else. A
+ * chat's proposal resolves the key the same way, to show it on its card.
  */
-async function resolveProjectKey(
+export async function resolveProjectKey(
   tx: TransactionSql | Sql,
   organizationId: string,
   rawKey: string | undefined,
@@ -1071,6 +1092,88 @@ export async function setProjectTaskReviewer(
   );
   await hintProject(tx, auth.organizationId, projectId);
   return { reviewer: args.reviewer };
+}
+
+/** Who a project's chats may answer as and who its new chats start with:
+ * the project's own agents (oldest first), the choice on its General page,
+ * and the agent that choice means now. Anyone who may read the project. */
+export async function readProjectChatAgents(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<{
+  chatAgent: ProjectChatAgent;
+  defaultAgentId: string | null;
+  agents: ChatAgentChoice[];
+}> {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  const agents = await listChatAgents(sql, {
+    organizationId: auth.organizationId,
+    projectId,
+  });
+  return {
+    chatAgent: projectChatAgentFrom(project),
+    defaultAgentId: resolveDefaultChatAgent(project, agents),
+    agents,
+  };
+}
+
+/**
+ * Choose who the project's new chats start with: the first agent created in
+ * it (the default), one of its own agents, or the assistant. Made against
+ * the choice the page read, so a save from an outdated page is refused.
+ * Existing chats keep the agent they answer as.
+ */
+export async function setProjectChatAgent(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  args: SetProjectChatAgentInput,
+): Promise<{ chatAgent: ProjectChatAgent }> {
+  const project = await loadProjectOrThrow(tx, projectId);
+  assertActiveWritable(project, auth);
+  const current = projectChatAgentFrom(project);
+  if (!sameProjectChatAgent(current, args.expected)) {
+    throw new ProjectError(
+      'PROJECT_CHAT_AGENT_STALE',
+      'The default chat agent changed; read it again',
+      409,
+    );
+  }
+  if (args.chatAgent.kind === 'agent') {
+    const agentId = args.chatAgent.agentId;
+    const agents = await listChatAgents(tx, {
+      organizationId: auth.organizationId,
+      projectId,
+    });
+    if (!agents.some((agent) => agent.id === agentId)) {
+      throw new ProjectError(
+        'PROJECT_CHAT_AGENT_INVALID',
+        "Choose one of this project's own agents",
+      );
+    }
+  }
+  if (sameProjectChatAgent(current, args.chatAgent)) {
+    return { chatAgent: current };
+  }
+  await tx`
+    UPDATE app.projects SET
+      default_chat_agent_id = ${args.chatAgent.kind === 'agent' ? args.chatAgent.agentId : null},
+      chats_start_with_assistant = ${args.chatAgent.kind === 'assistant'},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${projectId} AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.updated, {
+      previousState: { chatAgent: current },
+      newState: { chatAgent: args.chatAgent },
+      changedFields: ['chatAgent'],
+    }),
+  );
+  await hintProject(tx, auth.organizationId, projectId);
+  return { chatAgent: args.chatAgent };
 }
 
 export async function updateProjectInstructions(
@@ -3094,6 +3197,13 @@ export async function deleteProjectAgent(
     organizationId: auth.organizationId,
     agentId,
     actorId: auth.userId,
+  });
+  // Nor does a chat answer as it: those chats, and the project's default
+  // when it named the agent, fall back as the docs promise — to the
+  // assistant, and to the first agent created.
+  await clearChatAgentInTx(tx, {
+    organizationId: auth.organizationId,
+    agentId,
   });
   await tx`
     UPDATE app.projects SET

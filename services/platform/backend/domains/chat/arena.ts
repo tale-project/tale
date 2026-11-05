@@ -485,15 +485,30 @@ export async function settleArenaPair(
       // pair opened before B carried the project) its filing. It leaves A's
       // lineage BEFORE the loser's cascade below, so trashing A never takes
       // the winner with it.
+      // Who the conversation answers as lives on its root, which B leaves:
+      // B takes it along, and so the proposals the conversation's replies
+      // made, whose cards B's copied replies show.
       await tx`
         UPDATE app.thread_metadata b
         SET arena = NULL, hidden = NULL, branch_root_id = NULL,
             project_id = coalesce(b.project_id, a.project_id),
+            chat_agent_id = coalesce(b.chat_agent_id, (
+              SELECT r.chat_agent_id FROM app.thread_metadata r
+              WHERE r.thread_id = coalesce(a.branch_root_id, a.thread_id)
+                AND r.org_id = a.org_id
+            )),
             pinned_at_ms = a.pinned_at_ms,
             last_read_at_ms = a.last_read_at_ms
         FROM app.thread_metadata a
         WHERE b.thread_id = ${idB} AND b.org_id = ${args.organizationId}
           AND a.thread_id = ${idA} AND a.org_id = ${args.organizationId}
+      `;
+      await tx`
+        UPDATE app.chat_proposals p SET thread_id = ${idB}
+        FROM app.thread_metadata a
+        WHERE a.thread_id = ${idA} AND a.org_id = ${args.organizationId}
+          AND p.org_id = a.org_id
+          AND p.thread_id = coalesce(a.branch_root_id, a.thread_id)
       `;
       // And its name: B is never named on its own, so it takes the one A
       // has now — the title A was given, or the name the person chose for

@@ -1,3 +1,18 @@
+chatAgent:
+  title: "Chats"
+  description: "Wähle, wer in neuen Chats dieses Projekts antwortet. Im Nachrichtenfeld eines Chats lässt sich das jederzeit ändern."
+  field: "Agent für neue Chats"
+  fieldHint: "Gilt für Chats, die in diesem Projekt beginnen oder hierher verschoben werden. Bestehende Chats behalten ihren Agenten."
+  first: "Zuerst erstellter Agent"
+  firstNamed: "Zuerst erstellter Agent ({name})"
+  firstHint: "Derzeit: {name}"
+  firstHintNone: "Das Projekt hat noch keinen eigenen Agenten, deshalb antwortet der Assistent."
+  assistant: "Assistent"
+  assistantHint: "Der Chat-Assistent dieses Arbeitsbereichs antwortet in neuen Chats."
+  search: "Agenten suchen"
+  stale: "Jemand hat inzwischen einen anderen Agenten für neue Chats gewählt. Lade die Seite neu, um die Auswahl zu sehen."
+  invalid: "Dieser Agent gehört nicht mehr zu den Agenten dieses Projekts."
+  loadFailed: "Die Agenten des Projekts konnten nicht geladen werden."
 taskReview:
   title: "Aufgabenreviews"
   description: "Wähle, wer abgeschlossene Agentenarbeit in diesem Projekt prüft."

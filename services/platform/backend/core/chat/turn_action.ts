@@ -10,7 +10,11 @@ import type {
 import { composeToolExecutors } from '../../../lib/agent/compose';
 import type { WorkLoadout } from '../../../lib/agent/ladder';
 import type { SkillCatalogEntry } from '../../../lib/agent/skills-block';
-import { chatAssistantFor } from '../../../lib/chat/assistant';
+import {
+  chatAgentFor,
+  chatAssistantFor,
+  type ConversationAgent,
+} from '../../../lib/chat/assistant';
 import {
   buildAudioTranscriptAppendix,
   stripAudioTranscriptAppendix,
@@ -77,7 +81,7 @@ import {
 } from '../../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
-import { chosenSkills } from '../../../lib/skills/slash';
+import { chosenSkills, leadingSkillNames } from '../../../lib/skills/slash';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import {
   buildChatRequest,
@@ -895,10 +899,36 @@ export interface ExecuteTurnOverrides {
     rootThreadId: string;
     threadIds: readonly string[];
     projectId: string | null;
+    /** The project agent the conversation answers as, when it has one
+     * ({@link ExecuteTurnOverrides.conversationAgent}): its equipped skills
+     * are the turn's to load. */
+    agent?: ConversationAgent;
+    /** With an agent, the skills the person named at the start of the
+     * message: their choice, which the agent's turn may load too. */
+    namedSkills?: readonly string[];
   }) => Promise<TurnWorkTools | WorkToolsUnavailable | undefined>;
   /** Who the turn speaks as, given the loadout its work tools gave it. A
-   * task run speaks as its project agent; absent, the chat assistant. */
+   * task run speaks as its project agent; absent, the chat assistant — or
+   * the agent the conversation answers as ({@link conversationAgent}). */
   readonly persona?: (loadout: WorkLoadout | undefined) => ResolvedAgent;
+  /** The project agent a chat conversation answers as, read once its root
+   * and project are known; undefined for the chat assistant. A read that
+   * fails answers as the assistant, logged: a chat never fails over who
+   * speaks in it. Ignored when {@link persona} names the speaker. */
+  readonly conversationAgent?: (turn: {
+    rootThreadId: string;
+    projectId: string | null;
+  }) => Promise<ConversationAgent | undefined>;
+  /** The host's tools for the workspace's projects and agents — the chat's
+   * read and proposal tools (`domains/chat/proposals.ts`), for a person who
+   * may change projects. Built once the conversation's root is known; a
+   * build that fails is logged and the turn runs without them. */
+  readonly settingsTools?: (turn: {
+    rootThreadId: string;
+    projectId: string | null;
+  }) => Promise<
+    { executor: ChatToolExecutor; toolDocs: readonly ToolDoc[] } | undefined
+  >;
   /** Aborts the turn from outside: a task run whose task was stopped,
    * moved or retired while it works, or a worker shutting down. The turn
    * ends at its next boundary, settling what it has. */
@@ -996,6 +1026,18 @@ async function autoPromptFacts(
     text: typedTextFromParts(trailing.parts),
     hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
   };
+}
+
+/**
+ * The skills the person named at the start of the message a turn answers —
+ * the one sent, or on a regenerate the thread's trailing one: their choice,
+ * which an agent's turn may load beside the agent's own (`CHAT-R41`).
+ */
+export async function skillsNamedIn(
+  ctx: ActionCtx,
+  args: ExecuteTurnArgs,
+): Promise<string[]> {
+  return leadingSkillNames((await autoPromptFacts(ctx, args)).text);
 }
 
 /**
@@ -1503,20 +1545,60 @@ export async function executeTurn(
   // project) — the scope boundary of the turn's tools whether or not the
   // user may still read it; the prompt block below is the part access gates.
   const threadProjectId = unwrap(await pendingProjectId);
+  // The project agent the conversation answers as, when it has one: its
+  // skills ride the work tools, its instructions the persona below.
+  const pendingConversationAgent: Promise<ConversationAgent | undefined> =
+    overrides.persona !== undefined || overrides.conversationAgent === undefined
+      ? Promise.resolve(undefined)
+      : overrides
+          .conversationAgent({
+            rootThreadId: lineage.rootId,
+            projectId: threadProjectId,
+          })
+          .catch((error: unknown) => {
+            console.error(
+              `[chat] the agent of thread ${args.threadId} could not be read; the turn answers as the assistant:`,
+              error,
+            );
+            return undefined;
+          });
+  const buildSettingsTools = overrides.settingsTools;
+  const pendingSettingsTools =
+    buildSettingsTools === undefined
+      ? Promise.resolve(undefined)
+      : buildSettingsTools({
+          rootThreadId: lineage.rootId,
+          projectId: threadProjectId,
+        }).catch((error: unknown) => {
+          console.error(
+            `[chat] settings tools for thread ${args.threadId} could not be set up; the turn runs without them:`,
+            error,
+          );
+          return undefined;
+        });
   // The work tools — files, images, skills, the light sandbox — when the
   // host offers them, set up beside the reads below: built against the
   // conversation's lineage, the root every produced file binds to. A failure
   // to build them never fails the turn: it runs with the retrieval tools
   // alone, and its reply says the file tools were unavailable.
+  const buildWorkTools = overrides.workTools;
   const pendingWorkTools: Promise<WorkToolsSetup> =
-    overrides.workTools === undefined
+    buildWorkTools === undefined
       ? Promise.resolve({})
-      : overrides
-          .workTools({
-            rootThreadId: lineage.rootId,
-            threadIds: lineage.threadIds,
-            projectId: threadProjectId,
-          })
+      : pendingConversationAgent
+          .then(async (conversationAgent) =>
+            buildWorkTools({
+              rootThreadId: lineage.rootId,
+              threadIds: lineage.threadIds,
+              projectId: threadProjectId,
+              ...(conversationAgent !== undefined
+                ? {
+                    agent: conversationAgent,
+                    namedSkills: await skillsNamedIn(ctx, args),
+                  }
+                : {}),
+            }),
+          )
           .then(workToolsSetup)
           .catch((error: unknown): WorkToolsSetup => {
             console.error(
@@ -1714,12 +1796,17 @@ export async function executeTurn(
           new Set(workTools.skillCatalog.map((entry) => entry.slug)),
         )
       : [];
+  const conversationAgent = await pendingConversationAgent;
+  const settingsTools = await pendingSettingsTools;
+  const toolsUnavailable = workSetup.unavailable !== undefined;
   const agent =
     overrides.persona !== undefined
       ? overrides.persona(workTools?.loadout)
-      : chatAssistantFor(workTools?.loadout, {
-          toolsUnavailable: workSetup.unavailable !== undefined,
-        });
+      : conversationAgent !== undefined
+        ? chatAgentFor(conversationAgent, workTools?.loadout, {
+            toolsUnavailable,
+          })
+        : chatAssistantFor(workTools?.loadout, { toolsUnavailable });
 
   const retrievalTools = createChatToolExecutor(
     ctx,
@@ -1759,7 +1846,11 @@ export async function executeTurn(
     // The retrieval tools, joined by the work tools when the host offers
     // them. A test that wants a tool-free turn overrides `tools` with
     // undefined.
-    tools: composeToolExecutors([retrievalTools, workTools?.executor]),
+    tools: composeToolExecutors([
+      retrievalTools,
+      workTools?.executor,
+      settingsTools?.executor,
+    ]),
     ...(workTools !== undefined ? { maxToolRounds: MAX_WORK_TOOL_ROUNDS } : {}),
     // Auto alone may answer on another model when the provider refuses
     // before accepting; a model the person named is the one they asked for.
@@ -1802,10 +1893,11 @@ export async function executeTurn(
     ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
     ...(customInstructions !== undefined ? { customInstructions } : {}),
     ...(taskHandover !== undefined ? { taskHandover } : {}),
-    toolDocs:
-      workTools !== undefined
-        ? [...CHAT_TOOL_DOCS, ...workTools.toolDocs]
-        : CHAT_TOOL_DOCS,
+    toolDocs: [
+      ...CHAT_TOOL_DOCS,
+      ...(workTools?.toolDocs ?? []),
+      ...(settingsTools?.toolDocs ?? []),
+    ],
     ...(workTools !== undefined && workTools.skillCatalog.length > 0
       ? { skillCatalog: workTools.skillCatalog }
       : {}),
@@ -1835,6 +1927,11 @@ export async function executeTurn(
     ...(overrides.signal !== undefined ? { signal: overrides.signal } : {}),
     ...(workSetup.unavailable !== undefined
       ? { workToolsUnavailable: workSetup.unavailable }
+      : {}),
+    ...(conversationAgent !== undefined
+      ? {
+          author: { id: conversationAgent.id, name: conversationAgent.name },
+        }
       : {}),
   };
 

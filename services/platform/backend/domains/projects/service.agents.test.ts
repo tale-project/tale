@@ -605,6 +605,19 @@ describe('deleteProjectAgent [PROJ-R12]', () => {
       { organizationId: 'org_1', agentIds: ['agent-1'] },
     );
   });
+
+  it('leaves the chats that answered as it with the assistant, and a default that named it with the first agent created [PROJ-R27]', async () => {
+    const { tx, statements } = fakeTx();
+    await deleteProjectAgent(tx, auth, 'agent-1');
+    const chats = statements.find((s) =>
+      s.text.startsWith('UPDATE app.thread_metadata SET chat_agent_id = NULL'),
+    );
+    expect(chats?.values).toEqual(['agent-1', 'org_1']);
+    const projectDefault = statements.find((s) =>
+      s.text.startsWith('UPDATE app.projects SET default_chat_agent_id = NULL'),
+    );
+    expect(projectDefault?.values).toEqual(['agent-1', 'org_1']);
+  });
 });
 
 describe('detachSkillFromAgents', () => {

@@ -13,6 +13,7 @@ import { memo, type MutableRefObject } from 'react';
 import { useThreadView } from '../hooks/use-thread-view';
 import type { PendingSend } from '../utils/pending-messages';
 import { MessageThread, type MessageThreadHandlers } from './message-thread';
+import { ChatProposalThreadContext } from './settings-proposal-cards';
 
 interface ChatTranscriptProps extends MessageThreadHandlers {
   organizationId: string;
@@ -58,21 +59,25 @@ export const ChatTranscript = memo(function ChatTranscript({
   );
 
   return (
-    <MessageThread
-      messages={view.items}
-      generation={view.generation ?? undefined}
-      organizationId={organizationId}
-      threadId={readOnly === true ? undefined : threadId}
-      threadRootId={threadRootId}
-      isGenerating={isGenerating}
-      pendingEditedFromThreadId={pendingSend?.editedFromThreadId}
-      scrollIntentRef={scrollIntentRef}
-      forceVoicePillMessageId={forceVoicePillMessageId}
-      feedback={feedback}
-      voiceEnabled={voiceEnabled}
-      speakAvailable={speakAvailable}
-      className={className}
-      {...handlers}
-    />
+    // A shared chat's reader reads its proposals too, without the thread
+    // actions its rows leave out.
+    <ChatProposalThreadContext.Provider value={threadId}>
+      <MessageThread
+        messages={view.items}
+        generation={view.generation ?? undefined}
+        organizationId={organizationId}
+        threadId={readOnly === true ? undefined : threadId}
+        threadRootId={threadRootId}
+        isGenerating={isGenerating}
+        pendingEditedFromThreadId={pendingSend?.editedFromThreadId}
+        scrollIntentRef={scrollIntentRef}
+        forceVoicePillMessageId={forceVoicePillMessageId}
+        feedback={feedback}
+        voiceEnabled={voiceEnabled}
+        speakAvailable={speakAvailable}
+        className={className}
+        {...handlers}
+      />
+    </ChatProposalThreadContext.Provider>
   );
 });

@@ -10,6 +10,15 @@
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 
 /**
+ * Whether the replies come from the `lib/mocks` gateway — the default, as in
+ * `playwright.config.ts`. `E2E_MOCK_LLM=0` runs against a stack with a real
+ * provider, where a spec that asserts a scripted reply skips.
+ */
+export function isMockLlmMode(): boolean {
+  return process.env.E2E_MOCK_LLM !== '0';
+}
+
+/**
  * The operator support page the E2E stack starts with
  * (`TALE_CONTACT_SUPPORT_URL` in `playwright.config.ts`'s webServer env, and
  * in the mode-A block of `tests/manual/setup.md` for a reused stack). The

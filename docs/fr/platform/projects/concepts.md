@@ -9,13 +9,15 @@ Utilise un projet lorsque plusieurs questions ou tâches reposent sur les mêmes
 
 | Espace | Ce qui y appartient |
 | --- | --- |
-| **Général** | Nom, description, instructions permanentes, partage et relecteur par défaut des tâches. |
+| **Général** | Nom, description, instructions permanentes, partage, relecteur par défaut des tâches et qui répond dans les nouveaux chats. |
 | **Chats** | Tes conversations de projet et celles explicitement partagées avec lui. |
 | **Connaissances** | Les fichiers de référence, classés en dossiers et limités à ce projet. |
 | **Tâches** | Le travail avec un responsable, un statut, des commentaires et un résultat à relire. |
 | **Agents** | Les agents nommés et configurés pour travailler sur les tâches. |
 
 Un chat de projet démarre avec les instructions enregistrées du projet. Il peut rechercher dans les fichiers de ce projet et les connaissances accessibles de l’organisation. Les conversations suivantes disposent ainsi d’un contexte commun sans recopier le brief dans chaque message. Les fichiers d’autres projets restent hors de ce périmètre de recherche.
+
+Sous **Chats**, sur **Général**, **Agent de chat par défaut** détermine qui répond dans les nouveaux chats du projet. **Premier agent créé**, le réglage par défaut, est toujours le plus ancien agent que le projet possède encore ; tu peux aussi choisir l’un des agents ou **Assistant**. Dans un chat, la personne à qui il appartient peut toujours changer d’agent depuis le champ de message, et les chats existants gardent le leur. Les Éditeurs et les Admins modifient ce réglage tant que le projet est actif.
 
 <Frame caption="Général réunit les instructions et le partage du projet. Enregistre les champs après modification.">
 

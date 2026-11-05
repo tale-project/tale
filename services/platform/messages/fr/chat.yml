@@ -70,6 +70,84 @@ export:
 moveToProject: Déplacer vers un projet…
 removeFromProject: Retirer du projet
 removeFromProjectFailed: Échec du retrait du chat du projet
+projectPicker:
+  none: Projet
+  unknown: Projet
+  aria: 'Projet : {name}. Changer de projet'
+  ariaNone: Aucun projet. Choisir un projet
+  unavailable: Projet indisponible
+  ariaUnavailable: Projet indisponible. Choisir un autre projet
+  tooltip: 'Projet de ce chat : {name}'
+  tooltipNone: Classer ce chat dans un projet
+  hint: Déplacer le chat change ce sur quoi s’appuieront ses prochaines réponses — les instructions et les fichiers du projet — et qui peut y répondre.
+  hintDraft: Un chat dans un projet lit les instructions et les fichiers du projet, et les agents du projet peuvent y répondre.
+agentPicker:
+  assistant: Assistant
+  assistantDescription: L’assistant de chat de l’espace de travail
+  default: Par défaut
+  aria: 'Qui répond : {name}. Changer qui répond'
+  tooltip: 'Qui répond dans ce chat : {name}'
+  hint: Ici, un agent répond avec ses instructions, ses skills et son modèle. Son environnement d’agent, ses connectors, ses outils et ses secrets ne servent qu’à ses tâches.
+  unservedModel: Le modèle de {name} ne peut pas te répondre dans un chat, c’est donc ton modèle qui répond.
+  saveFailed: Impossible de changer qui répond. Réessaie.
+moveShared:
+  title: Déplacer ce chat partagé ?
+  description: "Ce chat est partagé avec {from}. Le déplacer vers {to} met fin à ce partage : les personnes de {from} ne pourront plus le lire. Partage-le à nouveau dans {to} si ses membres doivent le lire."
+  removeTitle: Retirer ce chat partagé de son projet ?
+  removeDescription: "Ce chat est partagé avec {from}. Le retirer du projet met fin à ce partage : les personnes de {from} ne pourront plus le lire."
+  confirm: Déplacer le chat
+  confirmRemove: Retirer du projet
+  thisProject: son projet
+replyAuthor:
+  agentBadge: Agent
+proposal:
+  title:
+    createProject: Nouveau projet
+    updateProject: 'Modifier le projet {name}'
+    createAgent: 'Nouvel agent dans {project}'
+    updateAgent: 'Modifier l’agent {name}'
+  field:
+    name: Nom
+    key: Clé
+    description: Description
+    instructions: Instructions
+    model: Modèle
+    runtime: Environnement d’agent
+    skills: Skills
+    defaultChatAgent: Agent de chat par défaut
+  status:
+    pending: Proposé
+    applied: Appliqué
+    dismissed: Écarté
+    failed: Non appliqué
+  nothingYet: Rien ne change tant que tu ne l’appliques pas.
+  loadFailed: La modification proposée n’a pas pu être chargée. Recharge la page pour la voir.
+  apply: Appliquer
+  dismiss: Écarter
+  applyFailed: La modification n’a pas été appliquée
+  dismissFailed: La proposition n’a pas pu être écartée
+  openProject: Ouvrir le projet
+  openAgents: Ouvrir les agents du projet
+  empty: (vide)
+  none: (aucun)
+  chatAgent:
+    first: Premier agent créé
+    firstNamed: 'Premier agent créé ({name})'
+    assistant: Assistant
+  orgWide: Toute l’organisation peut ouvrir le nouveau projet. Choisis qui peut le voir sur sa page Général.
+  before: Avant
+  after: Après
+  failure:
+    stale: Quelque chose a changé depuis la proposition. Demande une nouvelle proposition au chat.
+    gone: Ce que modifie cette proposition n’existe plus.
+    forbidden: Tu n’as plus le droit de faire cette modification.
+    archived: Le projet est archivé. Restaure-le pour le modifier.
+    nameTaken: Un autre agent de ce projet porte déjà ce nom. Demande un autre nom au chat.
+    keyTaken: Un autre projet utilise déjà cette clé. Demande une autre clé au chat.
+    model: Ce modèle ou cet environnement d’agent ne peut plus faire tourner l’agent. Demande un autre modèle au chat.
+    skills: Un skill de cette proposition ne peut plus être attribué. Demande une nouvelle proposition au chat.
+    limit: Ce projet a déjà autant d’agents qu’il peut en avoir.
+    invalid: Tale n’a pas pu faire cette modification. Demande une nouvelle proposition au chat.
 deleteChat: Supprimer le chat
 deleteConfirmation: Supprimer « {title} » ?
 deletePermanentMessage: Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.
@@ -314,6 +392,7 @@ speakOutLoud: Lire à voix haute
 scrollToBottom: Défiler vers le bas
 messageInfo:
   title: Informations sur le message
+  agent: Agent
   timestamp: Horodatage
   messageId: ID du message
   copyId: Copier l'ID du message
@@ -610,6 +689,15 @@ thinking:
   loadingSkill: Lecture du skill {name}
   readingSkillFile: Lecture de {path} dans le skill {name}
   runningCode: Exécution de {language} dans une sandbox légère
+  readingProjects: Lecture de tes projets
+  readingProjectSettings: Lecture des paramètres de {name}
+  readingAgentSettings: Lecture de l’agent {name}
+  proposing:
+    generic: Préparation d’une modification
+    createProject: Préparation d’un nouveau projet
+    updateProject: Préparation d’une modification de {name}
+    createAgent: Préparation d’un nouvel agent pour {project}
+    updateAgent: Préparation d’une modification de l’agent {name}
   outcome:
     failed: Échec
     stopped: Arrêté

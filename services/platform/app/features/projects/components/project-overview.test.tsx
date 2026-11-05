@@ -35,11 +35,21 @@ let projectFixture: ProjectFixture | null = null;
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: projectFixture, isLoading: false }),
   useProjectAgents: () => ({ agents: [], isLoading: false }),
+  useProjectChatAgents: () => ({
+    data: { chatAgent: { kind: 'first' }, defaultAgentId: null, agents: [] },
+    isLoading: false,
+    unavailable: false,
+    retrying: false,
+    failureCount: 0,
+    retry: () => undefined,
+  }),
+  useProjectHarnesses: () => ({ data: undefined }),
 }));
 
 const mockUpdateIdentity = vi.fn();
 
 vi.mock('../hooks/mutations', () => ({
+  useSetProjectChatAgent: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetProjectTaskReviewer: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateProjectIdentity: () => ({
     mutateAsync: mockUpdateIdentity,
@@ -212,11 +222,11 @@ describe('ProjectOverview', () => {
   // hairline between each pair — including the one separating Description
   // from Instructions. Lose a marker and the page silently reads as one
   // undivided run of fields.
-  it('frames the project, instructions, task reviews, sharing, archive and danger zone as settings sections', () => {
+  it('frames the project, instructions, task reviews, chats, sharing, archive and danger zone as settings sections', () => {
     const { container } = renderOverview();
 
     expect(container.querySelectorAll('[data-settings-section]')).toHaveLength(
-      6,
+      7,
     );
     // Both anchored sections keep their ids so deep links still land on
     // them — Sharing from the org pages, the danger zone from the chat

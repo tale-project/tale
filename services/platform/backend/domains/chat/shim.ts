@@ -786,11 +786,18 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       `;
       const row = rows[0];
       if (!row) return null;
+      // The project's own agents — the standard agent never answers a chat.
+      const agents = await sql<{ name: string }[]>`
+        SELECT name FROM app.project_agents
+        WHERE project_id = ${args.projectId} AND NOT managed
+        ORDER BY created_at_ms ASC, id ASC
+      `;
       return {
         _id: row.id,
         name: row.name,
         key: row.key ?? undefined,
         instructions: row.instructions ?? undefined,
+        agents: agents.map((agent) => agent.name),
       };
     },
 

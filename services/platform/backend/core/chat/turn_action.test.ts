@@ -30,6 +30,7 @@ import {
 import { createStallGuard, type StallGuard } from './stream_stall';
 import {
   chatToolContextForTurn,
+  skillsNamedIn,
   streamProviderAnswer,
   streamSse,
   workToolsSetup,
@@ -2036,5 +2037,44 @@ describe('where a reply was served — the decoder and the wire', () => {
       stall.dispose();
     }
     expect(chunks).toEqual([]);
+  });
+});
+
+describe('skillsNamedIn — the skills a message names for an agent’s turn [CHAT-R41]', () => {
+  const ARGS = {
+    organizationId: 'org_1',
+    userId: 'user_1',
+    threadId: 'thread_1',
+  };
+
+  it('reads them off the message being sent', async () => {
+    const runQuery = vi.fn();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is reached
+    const ctx = { runQuery } as unknown as Parameters<typeof skillsNamedIn>[0];
+    await expect(
+      skillsNamedIn(ctx, {
+        ...ARGS,
+        userText: '/pdf /docx sum it up',
+      } as Parameters<typeof skillsNamedIn>[1]),
+    ).resolves.toEqual(['pdf', 'docx']);
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  it('reads them off the trailing message on a regenerate', async () => {
+    const runQuery = vi.fn().mockResolvedValue({
+      messages: [
+        {
+          role: 'user',
+          parts: [{ type: 'text', text: '/pdf summarise the report' }],
+        },
+      ],
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is reached
+    const ctx = { runQuery } as unknown as Parameters<typeof skillsNamedIn>[0];
+    await expect(
+      skillsNamedIn(ctx, { ...ARGS, userText: '', resend: true } as Parameters<
+        typeof skillsNamedIn
+      >[1]),
+    ).resolves.toEqual(['pdf']);
   });
 });
