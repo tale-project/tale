@@ -233,7 +233,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `patchedDependencies` patches (today postgres.js 3.4.7: a killed server process, #4041, and a
   `begin()` that fills a connection's pipeline, porsager/postgres#1189; router-core 1.168.9: a
   preload reading the match a navigation dropped while the route's chunk or loader was pending,
-  TanStack/router#7759; zod 4.6.6: four behaviours kept as 4.3.6 had them), and
+  TanStack/router#7759; zod 4.6.6: four behaviours kept as 4.3.6 had them;
+  `@vitest/browser-playwright` 4.1.10: a mock route fulfilled after its file's cleanup,
+  vitest-dev/vitest#10819; `@radix-ui/react-toast` 1.2.15: a close timer that outlives its toast,
+  radix-ui/primitives#3703), and
   [`patches/README.md`](../patches/README.md) says for each why it exists, which test proves it and
   when to remove it. Every Dockerfile that installs from the root manifests copies `patches/`
   (`bun install` fails without a listed patch), and bumping a patched package regenerates or

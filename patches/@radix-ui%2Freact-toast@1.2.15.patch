@@ -1,0 +1,34 @@
+diff --git a/dist/index.js b/dist/index.js
+index 89b40c46b070a7ec3264bf87fa157be7f1ac174b..24dc1c0fd8f38a8fb735aecdc21cc21200f634f4 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -402,6 +402,12 @@ var ToastImpl = React.forwardRef(
+     React.useEffect(() => {
+       if (open && !context.isClosePausedRef.current) startTimer(duration);
+     }, [open, duration, context.isClosePausedRef, startTimer]);
++    // Tale: clear the close timer on unmount (radix-ui/primitives#3794)
++    React.useEffect(() => {
++      return () => {
++        window.clearTimeout(closeTimerRef.current);
++      };
++    }, []);
+     React.useEffect(() => {
+       onToastAdd();
+       return () => onToastRemove();
+diff --git a/dist/index.mjs b/dist/index.mjs
+index cca1a95f8687577a8d86b213ab735e32221139ef..4706ca406ed7088a114efff56393dbece2749824 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -353,6 +353,12 @@ var ToastImpl = React.forwardRef(
+     React.useEffect(() => {
+       if (open && !context.isClosePausedRef.current) startTimer(duration);
+     }, [open, duration, context.isClosePausedRef, startTimer]);
++    // Tale: clear the close timer on unmount (radix-ui/primitives#3794)
++    React.useEffect(() => {
++      return () => {
++        window.clearTimeout(closeTimerRef.current);
++      };
++    }, []);
+     React.useEffect(() => {
+       onToastAdd();
+       return () => onToastRemove();
