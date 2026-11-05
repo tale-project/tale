@@ -21,6 +21,14 @@ export interface BotCheckResponse {
   readonly body: string;
 }
 
+/** The headers the vendors mark a check with, for a reader that keeps only
+ * these of a response (the render lane's browser). */
+export const BOT_CHECK_HEADERS = [
+  'cf-mitigated',
+  'x-amzn-waf-action',
+  'x-vercel-mitigated',
+] as const;
+
 const FASTLY_CHALLENGE_TITLE = /<title>\s*Client Challenge\s*<\/title>/i;
 const FASTLY_CHALLENGE_ASSETS = '/_fs-ch-';
 
