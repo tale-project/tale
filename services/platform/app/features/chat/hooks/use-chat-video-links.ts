@@ -173,6 +173,10 @@ export function useChatVideoLinks(args: {
   projectId?: string;
   organizationId: string;
   locale: string;
+  /** False reads no jobs at all — neither the thread's nor the unbound
+   * ones: a project reader's view of a teammate's chat (CHAT-R2), whose
+   * jobs only the owner may read. */
+  enabled?: boolean;
 }): UseChatVideoLinksResult {
   const { t } = useT('chat');
 
@@ -180,17 +184,18 @@ export function useChatVideoLinks(args: {
   // the index (no thread yet) → the user's unbound rows. The first send
   // binds threadId, so rows migrate between the queries with no flicker.
   const chatQueryClient = useChatQueryClient();
+  const enabled = args.enabled !== false;
   const threadResult = useTanstackQuery(
     {
       ...videoJobsForThreadQuery(args.organizationId, args.threadId ?? ''),
-      enabled: args.threadId !== undefined,
+      enabled: enabled && args.threadId !== undefined,
     },
     chatQueryClient,
   );
   const unboundResult = useTanstackQuery(
     {
       ...videoJobsUnboundQuery(args.organizationId),
-      enabled: args.threadId === undefined,
+      enabled: enabled && args.threadId === undefined,
     },
     chatQueryClient,
   );

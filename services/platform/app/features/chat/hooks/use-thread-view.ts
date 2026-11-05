@@ -6,7 +6,7 @@
  * per-thread state scope.
  */
 
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { useReportServerNow } from '@/app/hooks/use-clock-offset';
 
@@ -19,6 +19,7 @@ import {
   createThreadViewState,
   reduceThreadView,
   resolveHeldItems,
+  withoutRunningReply,
   type ThreadViewResult,
   type ThreadViewState,
 } from '../lib/thread-view-core';
@@ -60,18 +61,27 @@ export function useThreadView(
      * send logic) opts out so a streaming turn never re-renders it.
      */
     readonly includeLiveText?: boolean;
+    /**
+     * Follow the running turn through the thread's live lane, which answers
+     * the chat's owner alone. False — a project reader's view (CHAT-R2), or
+     * one whose ownership is not known yet — opens no lane and leaves out
+     * the reply a turn is still writing; a later read brings it settled.
+     */
+    readonly live?: boolean;
   },
 ): ThreadView {
   // The NORMALIZING read (not the raw row query): the reducer builds views,
   // and a message's `usage` only becomes renderable once normalized.
   const messages = useChatMessages(organizationId, threadId);
+  const live = options?.live !== false;
+  const liveThreadId = live ? threadId : undefined;
   // Absence is a signal for both live reads (idle vs. streaming), so neither
   // may serve a stale cached value; the merge latches across their gaps.
-  const generation = useChatGeneration(organizationId, threadId);
+  const generation = useChatGeneration(organizationId, liveThreadId);
   const includeLiveText = options?.includeLiveText !== false;
   const generationText = useChatGenerationText(
     organizationId,
-    includeLiveText ? threadId : undefined,
+    includeLiveText ? liveThreadId : undefined,
   );
   const liveText =
     includeLiveText && generationText.status === 'ready'
@@ -91,10 +101,16 @@ export function useThreadView(
     items: ThreadViewResult['items'];
   } | null>(null);
 
+  const rows = messages.status === 'ready' ? messages.data : undefined;
+  const shownRows = useMemo(
+    () => (rows === undefined || live ? rows : withoutRunningReply(rows)),
+    [rows, live],
+  );
+
   if (threadId === undefined) return EMPTY_VIEW;
 
   const view = reduceThreadView(stateRef.current.state, {
-    messages: messages.status === 'ready' ? messages.data : undefined,
+    messages: shownRows,
     generation: generation.status === 'ready' ? generation.data : undefined,
     generationText:
       generationText.status === 'ready' ? generationText.data : undefined,

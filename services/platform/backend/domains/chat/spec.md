@@ -41,9 +41,19 @@ never their ids. They can read it, not continue or change it (`CHAT-R1`). Being 
 shares nothing by itself: a chat nobody shared, and a chat in a project the reader cannot open,
 stay absent (404).
 
+A reader reads a reply once it is written. The chat's live stream, which carries the reply a
+running turn is still writing, and the chat's video links answer a reader 404; a reader's view
+asks for neither. The reader's read of the messages carries the running turn's placeholder,
+with what the turn has saved to it so far, and their view leaves it out: while the owner's
+turn runs, the reader sees the conversation without that reply, and the finished reply the
+next time their view reads the chat.
+
 - **Example**: Mia files a chat in a project Noah can read and shares it with the project →
   Noah can open and read it. Mia chooses **Try again** on a reply → Noah now reads the new
   reply in its place.
+- **Example**: Noah opens the chat while Mia's reply is still being written → he reads her
+  question without the reply; his view opens no live stream and asks for none of the chat's
+  video links. Once the reply is finished, he reloads the chat → he reads it.
 
 ### CHAT-R3 · Moving a chat to another project ends its project share
 

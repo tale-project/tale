@@ -334,6 +334,19 @@ projects-list row ⋯ menu.
   offers **Export** (`chat.export.button`) but no **Share**
   (`chat.share.button`). Owner flips the switch off → the reader's reload
   reads **This chat is not available.** (`chat.notFound`).
+- [ ] `PROJ-F81` · **A reader of a shared chat asks for nothing only the owner
+  reads** — Two sessions, the chat shared with the project as in `PROJ-F31`.
+  As the OWNER, send a message that asks for a long reply. While the reply is
+  still being written, as the other member, open the chat with DevTools'
+  **Network** and **Console** panels open → the reader's view shows the
+  question and no reply below it, neither a half-written one nor an empty
+  one; no request goes to `/api/app/chat/threads/{threadId}/stream`,
+  `/api/app/video-links/thread/{threadId}`, the chat's `…/branches`,
+  `…/arena` or `…/deferred-sends`, or `/api/app/feedback/thread/{threadId}`,
+  and the console shows no 404. Once the owner's reply has finished, the
+  reader reloads → the reply reads as on the owner's screen. The owner's own
+  view of the chat makes the `/stream` and `/video-links/thread/{threadId}`
+  requests, and both answer 200.
 
 - [ ] `PROJ-F25` · **A failed list read is an error, not an empty list** — In
   DevTools, block `GET /api/app/projects/overview` (or answer it 500) and

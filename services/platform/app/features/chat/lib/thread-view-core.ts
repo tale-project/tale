@@ -228,6 +228,21 @@ function isTerminalRow(row: ChatMessageView): boolean {
   );
 }
 
+/** The rows a view that follows no live turn shows (a project reader's,
+ * CHAT-R2): all but the reply a turn is still writing — `pending`, its
+ * finalize not landed. Without the live lane that row would sit
+ * half-written or as a thinking bubble; a later read brings it settled. The
+ * array keeps its identity when nothing is left out. */
+export function withoutRunningReply(
+  messages: readonly ChatMessageView[],
+): readonly ChatMessageView[] {
+  const running = (row: ChatMessageView) =>
+    row.status === 'pending' && !isTerminalRow(row);
+  return messages.some(running)
+    ? messages.filter((row) => !running(row))
+    : messages;
+}
+
 /** Which row the live turn is writing: the one the generation names, else the
  * trailing assistant row. */
 function resolveStreamingTarget(

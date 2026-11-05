@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { Toaster } from '@tale/ui/toaster';
+import { QueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -150,7 +151,8 @@ vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrls: () => ({ data: [] }),
 }));
 // Video-link jobs ride a Convex subscription this harness lacks. Mutable so
-// a test can stage a failed chip and assert the send gate.
+// a test can stage a failed chip and assert the send gate; the owner-only
+// reads below run the real hook.
 const videoLinksState = {
   jobs: [] as never[],
   isAnyProcessing: false,
@@ -162,7 +164,7 @@ const videoLinksState = {
   unmarkJobsSent: vi.fn(),
 };
 vi.mock('../hooks/use-chat-video-links', () => ({
-  useChatVideoLinks: () => videoLinksState,
+  useChatVideoLinks: vi.fn(() => videoLinksState),
 }));
 // The task dialog loads on first open (a lazy chunk); a marker stands in for
 // it so the cases below see what the surface hands it.
@@ -172,9 +174,10 @@ vi.mock('./create-task-from-chat', () => ({
   ),
 }));
 
-// The parked-sends tray subscribes to Convex on its own; inert here.
+// The parked-sends tray subscribes to Convex on its own; inert here, and
+// counted where it mounts.
 vi.mock('./deferred-send-tray', () => ({
-  DeferredSendTray: () => null,
+  DeferredSendTray: vi.fn(() => null),
 }));
 
 vi.mock('../hooks/use-thread-view', () => ({
@@ -280,8 +283,10 @@ import { useBranchActions } from '../data/branch-actions';
 import {
   useArenaPair,
   useChatGeneration,
+  useChatMessages,
   useChatModelPreference,
   useChatProjects,
+  useChatQueryClient,
   useChatSend,
   useChatThread,
   useChatThreads,
@@ -289,14 +294,18 @@ import {
   useComposerSkills,
   useConversationSkills,
   useThreadBranches,
+  useThreadFeedback,
 } from '../data/chat-backend';
+import { useChatVideoLinks } from '../hooks/use-chat-video-links';
 import { useThreadView } from '../hooks/use-thread-view';
 import { toSettledItems } from '../lib/thread-view-core';
+import type { ChatMessageView } from '../types';
 import {
   buildPendingShellItem,
   buildPendingUserItem,
 } from '../utils/pending-messages';
 import { ChatSurface } from './chat-surface';
+import { DeferredSendTray } from './deferred-send-tray';
 
 vi.mock('../data/branch-actions', () => ({
   useBranchActions: vi.fn(),
@@ -1907,6 +1916,20 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         name: 'a duel turn is refused before it writes anything',
         withFile: false,
         hold: () => {
+          // A pair is the owner's to read: the caller's list holds both
+          // conversations.
+          vi.mocked(useChatThreads).mockReturnValue({
+            status: 'ready',
+            data: ['thread-a', 'thread-b'].map((id) => ({
+              id,
+              kind: 'direct' as const,
+              archived: false,
+              createdAt: 0,
+              updatedAt: 0,
+              generating: false,
+              viewerIsOwner: true,
+            })),
+          });
           vi.mocked(useArenaPair).mockImplementation(
             (_organizationId, threadId) => ({
               status: 'ready',
@@ -2862,6 +2885,223 @@ describe('ChatSurface on a conversation shared with the project', () => {
     await screen.findByTestId('message-copy-button');
     await checkAccessibility(container);
   });
+});
+
+/**
+ * The reads only a chat's owner may make (CHAT-R2): its live lane, its
+ * video-link jobs, its versions, its arena pair, its parked sends and the
+ * caller's ratings. A project reader's surface asked for them all, and the
+ * lane and the jobs answered 404 — the jobs again and again, under the
+ * app's retry policy. The lane and the jobs run for real here, against a
+ * stubbed `EventSource` and `fetch`; a reader's view, and one whose
+ * ownership has not answered yet, opens neither, and the owner's opens both.
+ */
+describe('ChatSurface — the reads only the owner makes [CHAT-R2]', () => {
+  const THREAD = 'thread-shared';
+  const SUMMARY = {
+    id: THREAD,
+    title: 'Release checklist',
+    kind: 'direct' as const,
+    projectId: 'project-1',
+    sharedWithProject: true,
+    archived: false,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: true,
+  };
+  const ROWS: readonly ChatMessageView[] = [
+    {
+      id: 'm-1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Which files ship in this release?' }],
+      sequence: 0,
+      status: 'complete',
+      createdAt: 1,
+    },
+    // The owner's turn is still writing its reply.
+    {
+      id: 'm-2',
+      role: 'assistant',
+      parts: [],
+      sequence: 1,
+      status: 'pending',
+      createdAt: 2,
+    },
+  ];
+
+  /** Records the lanes the surface opens; nothing arrives on them. */
+  class FakeEventSource {
+    static readonly opened: string[] = [];
+    constructor(url: string) {
+      FakeEventSource.opened.push(url);
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    close() {}
+  }
+  let requested: string[] = [];
+
+  /** The thread ids a read was asked for, over every render. */
+  function readsOf(hook: {
+    mock: { calls: readonly (readonly unknown[])[] };
+  }): unknown[] {
+    return hook.mock.calls.map((call) => call[1]);
+  }
+  const jobsRequests = () =>
+    requested.filter((url) => url.startsWith('/api/app/video-links/'));
+  /** The roles of the rows the transcript draws, top to bottom. */
+  const drawnRoles = () =>
+    screen
+      .queryAllByTestId('chat-message')
+      .map((row) => row.getAttribute('data-message-role'));
+
+  beforeEach(async () => {
+    const actualBackend = await vi.importActual<
+      typeof import('../data/chat-backend')
+    >('../data/chat-backend');
+    const actualView = await vi.importActual<
+      typeof import('../hooks/use-thread-view')
+    >('../hooks/use-thread-view');
+    const actualJobs = await vi.importActual<
+      typeof import('../hooks/use-chat-video-links')
+    >('../hooks/use-chat-video-links');
+    vi.mocked(useThreadView).mockImplementation(actualView.useThreadView);
+    vi.mocked(useChatGeneration).mockImplementation(
+      actualBackend.useChatGeneration,
+    );
+    vi.mocked(useChatVideoLinks).mockImplementation(
+      actualJobs.useChatVideoLinks,
+    );
+    vi.mocked(useChatQueryClient).mockReturnValue(
+      new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+    );
+    vi.mocked(useChatMessages).mockReturnValue({ status: 'ready', data: ROWS });
+    for (const hook of [
+      useThreadBranches,
+      useArenaPair,
+      useThreadFeedback,
+      useChatGeneration,
+      DeferredSendTray,
+    ]) {
+      vi.mocked(hook).mockClear();
+    }
+    FakeEventSource.opened.length = 0;
+    vi.stubGlobal('EventSource', FakeEventSource);
+    requested = [];
+    vi.spyOn(window, 'fetch').mockImplementation(async (input) => {
+      requested.push(
+        typeof input === 'string'
+          ? input
+          : input instanceof Request
+            ? input.url
+            : input.href,
+      );
+      return new Response(JSON.stringify({ jobs: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.mocked(window.fetch).mockRestore();
+    vi.mocked(useChatVideoLinks).mockImplementation(() => videoLinksState);
+    vi.mocked(useChatQueryClient).mockImplementation(() => ({}) as never);
+    vi.mocked(useChatMessages).mockImplementation(() => ({
+      status: 'unavailable' as const,
+    }));
+  });
+
+  function expectNoOwnerReads() {
+    expect(FakeEventSource.opened).toEqual([]);
+    expect(jobsRequests()).toEqual([]);
+    for (const hook of [
+      useThreadBranches,
+      useArenaPair,
+      useThreadFeedback,
+      useChatGeneration,
+    ]) {
+      expect(readsOf(vi.mocked(hook))).not.toHaveLength(0);
+      expect(readsOf(vi.mocked(hook))).not.toContain(THREAD);
+    }
+    expect(DeferredSendTray).not.toHaveBeenCalled();
+  }
+
+  it('opens no lane and reads no jobs for a project reader, and shows the conversation without the running reply', async () => {
+    // Someone else's conversation is never a row of the reader's own list.
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: { ...SUMMARY, viewerIsOwner: false },
+    });
+
+    render(<ChatSurface organizationId="org-1" threadId={THREAD} />);
+
+    expect(
+      await screen.findByText('Which files ship in this release?'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Shared with the project — read-only'),
+    ).toBeInTheDocument();
+    // The reply the owner's turn is still writing is left out: neither
+    // half-written nor a thinking bubble.
+    expect(drawnRoles()).toEqual(['user']);
+    expectNoOwnerReads();
+  });
+
+  it('makes none of them while the ownership has not answered', async () => {
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'loading' });
+    vi.mocked(useChatThread).mockReturnValue({ status: 'loading' });
+
+    render(<ChatSurface organizationId="org-1" threadId={THREAD} />);
+
+    expect(
+      await screen.findByText('Which files ship in this release?'),
+    ).toBeInTheDocument();
+    expectNoOwnerReads();
+  });
+
+  it.each([
+    ['their own list holds it', true],
+    ['its summary says so, the list not holding it', false],
+  ])(
+    'opens the lane and reads the jobs for the owner — %s',
+    async (_label, listed) => {
+      vi.mocked(useChatThreads).mockReturnValue({
+        status: 'ready',
+        data: listed ? [{ ...SUMMARY, viewerIsOwner: true }] : [],
+      });
+      vi.mocked(useChatThread).mockReturnValue({
+        status: 'ready',
+        data: { ...SUMMARY, viewerIsOwner: true },
+      });
+
+      render(<ChatSurface organizationId="org-1" threadId={THREAD} />);
+
+      await waitFor(() => {
+        expect(jobsRequests()).toEqual([
+          `/api/app/video-links/thread/${THREAD}?orgId=org-1`,
+        ]);
+      });
+      expect(FakeEventSource.opened).toEqual([
+        expect.stringContaining(`/chat/threads/${THREAD}/stream`),
+      ]);
+      // The owner follows the turn: its running reply is drawn.
+      expect(drawnRoles()).toEqual(['user', 'assistant']);
+      for (const hook of [
+        useThreadBranches,
+        useArenaPair,
+        useThreadFeedback,
+        useChatGeneration,
+      ]) {
+        expect(readsOf(vi.mocked(hook))).toContain(THREAD);
+      }
+      expect(vi.mocked(DeferredSendTray).mock.calls.at(-1)?.[0]).toMatchObject({
+        threadId: THREAD,
+      });
+    },
+  );
 });
 
 describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
