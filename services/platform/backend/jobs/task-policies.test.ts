@@ -17,6 +17,8 @@ import { describe, expect, it } from 'vitest';
 import {
   NATIVE_RUNS_PER_ORG,
   queueGroupConcurrency,
+  READS_PER_ORG,
+  slotQueueSlots,
   TASK_JOB_GROUP,
   TASK_QUEUE_OPTIONS,
   TASK_WORKER_SLOT_QUEUES,
@@ -86,7 +88,13 @@ describe('automation steps', () => {
     ).toBeUndefined();
     expect(queueGroupConcurrency('automation.step', {})).toBeUndefined();
     for (const name of Object.keys(TASK_QUEUE_OPTIONS)) {
-      if (name === 'automation.step' || name === 'task.agent_native') continue;
+      if (
+        name === 'automation.step' ||
+        name === 'task.agent_native' ||
+        name === 'rag.read_file'
+      ) {
+        continue;
+      }
       expect(
         queueGroupConcurrency(name, { automationOrgConcurrency: 8 }),
       ).toBeUndefined();
@@ -154,4 +162,42 @@ describe('renewals of a place in a sandbox host line', () => {
       expect(TASK_WORKER_SLOT_QUEUES.has(lane)).toBe(false);
     },
   );
+});
+
+describe('document reads', () => {
+  // The read a message waits for: seconds on a worker, never behind an
+  // embedding server, never behind another person's long document.
+  it('runs one file per slot, a few per worker [KNOW-R21]', () => {
+    expect(TASK_WORKER_SLOT_QUEUES.has('rag.read_file')).toBe(true);
+    expect(slotQueueSlots('rag.read_file', { concurrency: 1 })).toBe(1);
+    expect(slotQueueSlots('rag.read_file', { concurrency: 5 })).toBe(3);
+    expect(slotQueueSlots('rag.read_file', { concurrency: 64 })).toBe(3);
+  });
+
+  it('counts each read against its organization, two at a time across workers', () => {
+    expect(
+      TASK_JOB_GROUP['rag.read_file']?.({
+        fileId: 'file-1',
+        organizationId: 'org-1',
+        thenIndex: true,
+      }),
+    ).toBe('org-1');
+    expect(queueGroupConcurrency('rag.read_file', {})).toBe(READS_PER_ORG);
+    expect(READS_PER_ORG).toBe(2);
+  });
+
+  it('retries only a run lost with its worker, briefly', () => {
+    const { retryLimit, expireInSeconds } = TASK_QUEUE_OPTIONS['rag.read_file'];
+    expect(retryLimit).toBe(2);
+    expect(expireInSeconds).toBeLessThanOrEqual(600);
+  });
+});
+
+describe('file indexing', () => {
+  // A document embeds for as long as the organization's embedding server
+  // takes. Batched, the worker waited for every file of a batch before it
+  // fetched again, so one slow document held an attachment queued after it.
+  it('runs one file per slot, so a slow document never holds the next [KNOW-R21]', () => {
+    expect(TASK_WORKER_SLOT_QUEUES.has('rag.index_file')).toBe(true);
+  });
 });

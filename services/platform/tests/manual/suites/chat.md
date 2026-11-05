@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 153 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 158 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -680,21 +680,57 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-AT8` · **Attachment-only send** — Attach a file, send with no text
   → The message sends — staged attachments make an empty field sendable; the
   turn renders with the file part only.
-- [ ] `CHAT-AT9` · **Queued send fires** — Attach a large document and press
-  Send while its chip still reads **Indexing…** (`chat.indexing`) → The tray
-  row reads **Queued — sends when the attachments are ready**
+- [ ] `CHAT-AT9` · **Queued send fires** — Attach a PDF over 50 MiB and press
+  Send while its chip still shows its index at work (**Waiting to index**
+  `chat.indexingQueued`, then **Indexing… 40%** `chat.indexingProgress`) → The
+  tray row reads **Queued — sends when the attachments are ready**
   (`chat.deferredSend.waiting`) with the chip's live progress; the moment
   the reply starts streaming, the row leaves the tray and the sent message
   appears in the transcript above the reply — not when the reply ends. The
   same thread open in a second tab shows the same flip; a tab that reopens
   the thread mid-reply shows the message, no tray row.
 - [ ] `CHAT-AT10` · **Code file with no MIME type** — Attach a source file the
-  OS types as nothing — a **.cjs**, **.go** or **.sh** — let **Indexing…**
-  (`chat.indexing`) finish, then send → The turn goes out: the composer clears,
+  OS types as nothing — a **.cjs**, **.go** or **.sh** — and send once its
+  chip shows its size → The turn goes out: the composer clears,
   the chip rides the sent message, and the reply arrives. The composer must NOT
   keep the text and the chip behind a **Send failed** toast
   (`chat.toast.sendFailed`) while a `Thinking · Ns` shell hangs over a
   transcript that a reload then shows empty.
+- [ ] `CHAT-AT11` · **Several documents in one message** — Attach two PDFs, or
+  a PDF, a DOCX and a PNG, ask for a summary of all of them and press Send at
+  once, ideally while a large Knowledge upload is still indexing → Each
+  document chip reads **Reading…** (`chat.documentReading`) for a few seconds,
+  then its size — never **Indexing…**; a send pressed during the reads waits in
+  the tray row **Queued — sends when the attachments are ready**
+  (`chat.deferredSend.waiting`) and goes out the moment the reads finish, in
+  seconds, however long the Knowledge upload takes; the reply reads every
+  document (one reading step per file) and answers from all of them. Asked for
+  a Word file of the summary, it delivers one.
+- [ ] `CHAT-AT12` · **A picture's format and size** — With a vision model,
+  attach a PNG and ask "what format is this file, how large is it, and what
+  does it show?" → The reply names PNG and the size the chip showed, and
+  describes the picture; no step of the reply reads **Not found**
+  (`chat.thinking.outcome.notFound`).
+- [ ] `CHAT-AT13` · **Every supported format** — One message each, with a
+  question about its content: a PDF, TXT, DOCX, XLSX, JPG, PNG, ODT, PPTX,
+  XML, HTML and JSON file → Every reply answers from the file's content (the
+  pictures with a vision model) and states its type and size when asked; no
+  reading step fails.
+- [ ] `CHAT-AT14` · **A document the organization's checks refuse** — Under
+  **Settings > Governance > Guardrails**, block e-mail addresses in personal
+  data; attach a text file holding one → The chip reads **Can't be read**
+  (`chat.documentRefused`), and its reason opens in a tooltip on hover and
+  when Tab reaches the label (a screen reader reads it out), and a toast says
+  the privacy policy blocks it (`chat.documentRefusedPii`) — once, not again
+  when the composer remounts; asked about it, or asked to run code on it, the
+  reply says it cannot read the file and never quotes it. With masking instead
+  of blocking, the reply reads the file with the address masked.
+- [ ] `CHAT-AT15` · **A document with no readable text** — Attach a scanned
+  PDF with no text layer (or an empty text file) → The chip reads **No
+  readable text** (`chat.documentNoText`), not drawn as an error, with the
+  reason on hover, and a toast explains it (`chat.documentNoTextDescription`);
+  the message is not held back, and the reply says the file holds no
+  readable text instead of guessing at it.
 - [ ] `CHAT-F51` · **Questions about Tale use its docs** — On a deployment that
   can reach docs.tale.dev, ask "Wie erstelle ich einen API-Key in Tale?" → The
   timeline shows reading steps (`chat.thinking.reading`) on **docs.tale.dev**

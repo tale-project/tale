@@ -1,6 +1,12 @@
 import type { Sql } from 'postgres';
 
 import type { ToolArtifact } from '../../../lib/chat/tools.ts';
+import { REFUSED_BY } from '../../core/knowledge/document_text.ts';
+import {
+  RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_PII_SCAN_FAILED,
+  RAG_ERROR_SECRET_DETECTED,
+} from '../../core/knowledge/rag_error_codes.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 
 /**
@@ -82,6 +88,74 @@ export interface ThreadFile {
   readonly name: string;
   readonly mediaType: string;
   readonly sizeBytes: number;
+  /** Why no tool may take the file ({@link withheldFile}). */
+  readonly withheld?: WithheldFile;
+}
+
+/** Why a tool may not take a file the conversation holds: the
+ * organization's secret scan or PII policy refused its text, or that check
+ * is still running. */
+export type WithheldFile =
+  | 'secret-detected'
+  | 'pii-blocked'
+  | 'pii-scan-failed'
+  | 'checking';
+
+const REFUSALS: Readonly<
+  Record<string, Exclude<WithheldFile, 'checking'> | undefined>
+> = {
+  [RAG_ERROR_SECRET_DETECTED]: 'secret-detected',
+  [RAG_ERROR_PII_BLOCKED]: 'pii-blocked',
+  [RAG_ERROR_PII_SCAN_FAILED]: 'pii-scan-failed',
+};
+
+/** What a tool says of a withheld file, in the model's words. */
+export function withheldFileMessage(name: string, why: WithheldFile): string {
+  return why === 'checking'
+    ? `"${name}" is still being checked against the organization's secret scan and PII policy. Try again in a moment.`
+    : `"${name}" cannot be used here: ${REFUSED_BY[why]}. Say so instead of working around it.`;
+}
+
+/**
+ * Whether a tool that takes files must leave this one out, and why. The
+ * organization's checks guard a file's text on its way to the model, and a
+ * tool that copies the file into a sandbox would hand the model the very
+ * bytes they refused — so a refused file is withheld, by its read
+ * (`text_status`) or by its index, and so is a file whose check is still
+ * running: its read, or the index a read left the file to (a file too large
+ * to read first, or one uploaded before reads existed).
+ */
+export function withheldFile(row: {
+  readonly textStatus: string | null;
+  readonly textErrorCode: string | null;
+  readonly ragStatus: string | null;
+  readonly ragErrorCode: string | null;
+}): WithheldFile | undefined {
+  if (row.textStatus === 'refused') {
+    return REFUSALS[row.textErrorCode ?? ''] ?? 'pii-blocked';
+  }
+  if (row.ragStatus === 'failed' && row.ragErrorCode !== null) {
+    const refused = REFUSALS[row.ragErrorCode];
+    // A PII scan that could not run at the index decided nothing; a read
+    // that checked the text since has the word.
+    const checkedSince =
+      refused === 'pii-scan-failed' && row.textStatus === 'ready';
+    if (refused !== undefined && !checkedSince) return refused;
+  }
+  if (row.textStatus === 'queued' || row.textStatus === 'running') {
+    return 'checking';
+  }
+  const readChecked =
+    row.textStatus === 'ready' ||
+    row.textStatus === 'refused' ||
+    row.textStatus === 'unreadable';
+  if (
+    !readChecked &&
+    (row.ragStatus === 'queued' || row.ragStatus === 'running')
+  ) {
+    return 'checking';
+  }
+  return undefined;
 }
 
 /**
@@ -98,17 +172,32 @@ export async function readThreadFiles(
   const found = new Map<string, ThreadFile>();
   if (refs.length === 0 || scope.threadIds.length === 0) return found;
   const rows = await sql<
-    { ref: string; name: string; mediaType: string; sizeBytes: number }[]
+    ({
+      ref: string;
+      name: string;
+      mediaType: string;
+      sizeBytes: number;
+    } & Parameters<typeof withheldFile>[0])[]
   >`
     SELECT storage_ref AS ref, file_name AS name,
-           content_type AS "mediaType", size::float8 AS "sizeBytes"
+           content_type AS "mediaType", size::float8 AS "sizeBytes",
+           text_status AS "textStatus", text_error_code AS "textErrorCode",
+           rag_status AS "ragStatus", rag_error_code AS "ragErrorCode"
     FROM app.file_metadata
     WHERE org_id = ${scope.organizationId}
       AND thread_id = ANY(${[...scope.threadIds]})
       AND storage_ref = ANY(${[...refs]})
   `;
   for (const row of rows) {
-    if (!found.has(row.ref)) found.set(row.ref, row);
+    if (found.has(row.ref)) continue;
+    const withheld = withheldFile(row);
+    found.set(row.ref, {
+      ref: row.ref,
+      name: row.name,
+      mediaType: row.mediaType,
+      sizeBytes: row.sizeBytes,
+      ...(withheld !== undefined ? { withheld } : {}),
+    });
   }
   return found;
 }

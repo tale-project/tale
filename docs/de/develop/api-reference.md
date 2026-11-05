@@ -1341,7 +1341,7 @@ Projektdateien werden standardmäßig nicht für die Wissenssuche indexiert: Bei
 
 Der Projektchat kann auch nicht indexierte Dateien auflisten. Im Tab **Wissen** des Projekts steht eine solche Datei als **Nicht indexiert**. Für die Suche musst du sie erst indexieren: über **Jetzt indexieren** in der Dateizeile oder `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`.
 
-Der REST-Aufruf verwendet dieselbe Indexierungslogik und dasselbe Budget von 10 Aufrufen pro Benutzer und Minute wie bei Dokumenten der Wissensdatenbank. Er hebt die bisherige Ausnahme von der Indexierung auf und liefert `{"status": "indexing"}` oder `skipped` mit einem `reason`. Eine reine Textdatei bis 4 MiB kann der Assistent auch ohne Indexierung lesen: `rag_fetch` mit ihrer ID liefert den Text direkt.
+Der REST-Aufruf verwendet dieselbe Indexierungslogik und dasselbe Budget von 10 Aufrufen pro Benutzer und Minute wie bei Dokumenten der Wissensdatenbank. Er hebt die bisherige Ausnahme von der Indexierung auf und liefert `{"status": "indexing"}` oder `skipped` mit einem `reason`. Der Assistent kann die Datei auch ohne Indexierung lesen: Beim ersten `rag_fetch` mit ihrer ID liest Tale die Datei – eine PDF-, Word-, PowerPoint- oder OpenDocument-Datei bis 50 MiB, eine Tabelle bis 20 MiB oder eine Textdatei bis 4 MiB, mit höchstens 4 MiB Text – unter der Prüfung auf Zugangsdaten und der PII-Richtlinie der Organisation, wartet bis zu 20 Sekunden auf dieses Lesen und liefert den geprüften Text.
 
 Der gespeicherte `mimeType` wird aus der Dateierweiterung bestimmt und beim Download als `Content-Type` verwendet. Der Medientyp eines Multipart-Uploads oder ein Upload-Hinweis überschreibt diese Regel nicht.
 

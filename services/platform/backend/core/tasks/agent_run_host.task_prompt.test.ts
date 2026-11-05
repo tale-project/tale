@@ -42,6 +42,30 @@ describe('task input prompts — bounded retained outputs', () => {
     expect(fresh).toContain(notice);
     expect(resume).toContain(notice);
   });
+
+  it('names the attachments the organization’s checks withhold, and why', () => {
+    const { fresh, resume } = buildKickPrompts({
+      brief: brief('Summarise the attachments'),
+      outputDir: '/agent/output/task-1',
+      inputs: {
+        dir: '/agent/inputs/task-1',
+        attachments: ['notes.md'],
+        outputs: [],
+        withheld: [
+          { name: 'keys.txt', why: 'secret-detected' },
+          { name: 'export.csv', why: 'checking' },
+        ],
+      },
+    });
+    for (const prompt of [fresh, resume]) {
+      expect(prompt).toContain(
+        '- Not staged, withheld by the organization\'s checks: "keys.txt" (the organization\'s secret scan found what looks like a credential in it); "export.csv" (the organization\'s secret scan and PII policy are still checking it; a later turn stages it once they clear it). Say so where the task needs them instead of working around it.',
+      );
+      expect(prompt).toContain(
+        '/agent/inputs/task-1/attachments/ — files the user attached to the task: notes.md',
+      );
+    }
+  });
 });
 
 function brief(description: string) {

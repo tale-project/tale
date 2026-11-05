@@ -187,6 +187,7 @@ interface HandlerNames {
       queueRagIndexIfUnstarted: FunctionRef;
       releaseTranscriptionCall: FunctionRef;
       releaseTranscriptionLock: FunctionRef;
+      requestTextRead: FunctionRef;
       saveFileMetadata: FunctionRef;
       settleTranscriptionCall: FunctionRef;
       updateFileTranscription: FunctionRef;

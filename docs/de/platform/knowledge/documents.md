@@ -38,7 +38,7 @@ Wiederholtes Indexieren macht ein nicht unterstütztes Format nicht durchsuchbar
 
 | Status | Bedeutung und nächster Schritt |
 | --- | --- |
-| **In Warteschlange** | Wartet auf einen freien Indexierungsplatz. Eine ausgelastete Bibliothek verarbeitet Dateien nach und nach. |
+| **In Warteschlange** | Wartet auf einen freien Indexierungsplatz. Eine ausgelastete Bibliothek verarbeitet Dateien nach und nach, die ältesten zuerst; eine an eine Chatnachricht angehängte Datei kommt vorher an die Reihe, wenn eine Nachricht auf ihren Index wartet. |
 | **Wird indexiert** | Der Text wird für die Suche vorbereitet. Warte mit der Prüfung der Quelle. |
 | **Indexiert** | Die Indexierung ist abgeschlossen. Stelle eine konkrete Frage und öffne den Quellenbeleg. |
 | **Neuindexierung nötig** | Der Index ist veraltet. Nutze **Indexierung erneut versuchen** neben der Statusanzeige. |

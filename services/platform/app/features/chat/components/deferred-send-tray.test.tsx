@@ -5,9 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { render, screen } from '@/tests/utils/render';
 
-// One parked send carrying a still-indexing document and a FAILED video job:
-// the row must show the document's live indexing state and the failed chip's
-// error + Try again — the exact states the readiness watcher waits on.
+// One parked send carrying a still-indexing document too large to read
+// without its index, and a FAILED video job: the row must show the
+// document's live indexing state and the failed chip's error + Try again —
+// the exact states the readiness watcher waits on.
 const listState: { rows: unknown[]; jobs: unknown[] } = { rows: [], jobs: [] };
 const cancelMock = vi.hoisted(() =>
   vi.fn((..._args: [string, string]) => Promise.resolve(true)),
@@ -40,10 +41,10 @@ vi.mock('../data/chat-backend', () => ({
 vi.mock('../hooks/use-file-indexing-status', () => ({
   useFileIndexingStatus: () => ({
     statusMap: new Map([
-      ['blob_doc', { status: 'running', progress: 'extracting 30/60' }],
+      ['blob_doc', { status: 'running', progress: 'Embedding… 30/60' }],
     ]),
-    isIndexing: true,
-    isQueryLoading: false,
+    waitingForIndex: true,
+    waitingForIndexUnknown: false,
   }),
 }));
 vi.mock('../hooks/use-file-transcription-status', () => ({
@@ -74,7 +75,7 @@ function seedRow() {
           fileId: 'blob_doc',
           fileName: 'handbook.pdf',
           fileType: 'application/pdf',
-          fileSize: 2048,
+          fileSize: 60 * 1024 * 1024,
         },
       ],
       videoJobIds: ['job_1'],
@@ -112,9 +113,9 @@ describe('DeferredSendTray', () => {
       screen.getByText('Queued — sends when the attachments are ready'),
     ).toBeInTheDocument();
     expect(screen.getByText('解读下这个视频')).toBeInTheDocument();
-    // Document: live %-progress from the indexing pipeline.
+    // Document: live progress from the indexing pipeline, in words.
     expect(screen.getByText('handbook.pdf')).toBeInTheDocument();
-    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText('Indexing… 50%')).toBeInTheDocument();
     // Failed video: localized error + Try again wired to the retry mutation.
     expect(screen.getByText('Keynote')).toBeInTheDocument();
     expect(

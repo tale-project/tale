@@ -12,12 +12,17 @@
  *     a search hit's ref promises;
  *  2. the document row's inline `content` — a hub-authored document whose
  *     text never had a blob;
- *  3. the stored bytes, read ON DEMAND — a text-like file (the plain-text
- *     extractor's own extension set) under {@link ON_DEMAND_TEXT_MAX_BYTES}
- *     is decoded straight from the object store. A REST-bound project file
- *     skips indexing by default, and "may not be indexed yet" was the wrong
- *     answer for a `.txt` whose bytes were right there.
- *
+ *  3. the text a read on a worker checked and kept for the file
+ *     (`domains/knowledge/read-text.ts`) while the corpus has nothing for
+ *     it — an upload is read right after it lands, through the indexer's own
+ *     extractors and behind the organization's secret scan and PII policy
+ *     exactly as the index's text is, so what a person attached never waits
+ *     on the embedding server. A file nothing has read yet — a REST-bound
+ *     project file skips indexing by default — is read when it is first
+ *     fetched, and the fetch waits for the read's verdict
+ *     ({@link READ_WAIT_MS}). Nothing is extracted or scanned here: an app
+ *     chat turn runs in the api process, beside every other request.
+
  * An email body (a `msg:` ref) has only the first: what the indexer stored,
  * after its secret scan and the organization's PII policy.
  *
@@ -38,29 +43,26 @@
  * caller may read and only for a door that asked for mail — nothing wider.
  */
 
+import { formatFileSize } from '@tale/ui/format';
+
 import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
 } from '../../../lib/knowledge/types';
+import {
+  READ_WITHOUT_INDEX_MAX_TEXT,
+  readWithoutIndexCap,
+} from '../../../lib/shared/file-types';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
-import { SUPPORTED_TEXT_EXTENSIONS } from '../lib/knowledge/extraction/text';
 import { fetchDocumentByFileId, retrievableFilterArgs } from './fetch';
 
-/** The largest file read on demand, without an index run. Text this size is
- * already far past one `rag_fetch` window; anything bigger goes through the
- * indexer, whose chunks page. Sized to the web-fetch response cap. */
-export const ON_DEMAND_TEXT_MAX_BYTES = 4 * 1024 * 1024;
-
-/** True when the plain-text extractor owns this file name — the same set
- * the indexer routes to it, so "readable on demand" and "readable by the
- * indexer without a heavy extractor" are one fact. */
-export function isOnDemandReadableName(fileName: string): boolean {
-  const dot = fileName.lastIndexOf('.');
-  if (dot <= 0 || dot === fileName.length - 1) return false;
-  return SUPPORTED_TEXT_EXTENSIONS.has(fileName.slice(dot).toLowerCase());
-}
+/** How long a fetch waits for a pending read of its file to be decided, and
+ * how often it looks. A read takes seconds; past the wait, the fetch says
+ * the file is still being read. */
+export const READ_WAIT_MS = 20_000;
+const READ_POLL_MS = 500;
 
 /** Where a file stands in the search corpus, as the domain reads it
  * (`file_metadata/indexing-state.ts`) — relayed here for the miss message. */
@@ -90,6 +92,20 @@ export type OnDemandFileRead =
       readonly indexing: OnDemandIndexingState;
     }
   | {
+      /** Nothing has read the file yet, and nothing has decided it cannot
+       * be read: the caller may ask for its read and wait for it. */
+      readonly kind: 'unread';
+      readonly filename: string;
+      readonly indexing: OnDemandIndexingState;
+    }
+  | {
+      /** A picture: no text to read, so its stored facts instead. */
+      readonly kind: 'image';
+      readonly filename: string;
+      readonly contentType: string;
+      readonly sizeBytes: number;
+    }
+  | {
       readonly kind: 'unreadable';
       readonly filename: string;
       readonly sizeBytes: number;
@@ -103,10 +119,24 @@ export type OnDemandFileRead =
        * the type, or it is an image and no vision lane reads images — then
        * no door that indexes it helps. */
       readonly extractable: boolean;
-      /** `binary`: not a text-like name (needs the indexer's extractors);
-       * `too_large`: text-like but over the cap; `no_text`: the bytes are
-       * empty or gone. */
-      readonly reason: 'binary' | 'too_large' | 'no_text';
+      /** `binary`: no extractor reads the type; `too_large`: the file is
+       * over the byte cap of a read before its index; `too_much_text`: its
+       * text is over a read's; `read_failed`: its read failed on the
+       * platform's side, so only its index can serve it; `pending`: its read
+       * is still running; `no_text`: the bytes are empty or gone, or hold no
+       * text (a scan with no text layer); `malformed`: the file does not
+       * open as its type; `refused`: the organization's secret scan or PII
+       * policy refuses its text ({@link refusal} says which). */
+      readonly reason:
+        | 'binary'
+        | 'too_large'
+        | 'too_much_text'
+        | 'read_failed'
+        | 'pending'
+        | 'no_text'
+        | 'malformed'
+        | 'refused';
+      readonly refusal?: 'secret-detected' | 'pii-blocked' | 'pii-scan-failed';
     };
 
 /** One read, resolved. */
@@ -123,6 +153,15 @@ export type DocumentTextRead =
        * (`lookupMailAttachmentConversations`). */
       readonly conversationId: string | null;
       readonly source: 'corpus' | 'inline' | 'file';
+    }
+  | {
+      /** The ref names a picture the caller may read. A picture holds no
+       * text, and pixels are not read through this reader; its stored type
+       * and size answer instead, so a question about them is no failure. */
+      readonly status: 'image';
+      readonly filename: string;
+      readonly contentType: string;
+      readonly sizeBytes: number;
     }
   | {
       readonly status: 'not_found';
@@ -153,12 +192,40 @@ const MISSING: DocumentTextRead = {
 
 /** The same, for an email ref: denied, deleted, or not indexed — one
  * sentence for every case, so a fetch cannot probe for a message. */
+export const MISSING_EMAIL_MESSAGE =
+  'No readable email with that ref in this organization. Re-run ' +
+  'rag_search and use a ref from its results.';
+
 const MISSING_EMAIL: DocumentTextRead = {
   status: 'not_found',
-  message:
-    'No readable email with that ref in this organization. Re-run ' +
-    'rag_search and use a ref from its results.',
+  message: MISSING_EMAIL_MESSAGE,
 };
+
+/**
+ * What a `rag_fetch` of a picture answers, at both doors: its stored type
+ * and size, and where its content is — in the message it was attached to,
+ * as pixels a model that reads pictures sees. Not a failure: asked about an
+ * attached picture's format or size, a model used to fetch it as a document
+ * and show the person a failed step.
+ */
+export function pictureFacts(
+  read: Extract<DocumentTextRead, { status: 'image' }>,
+  ref: string,
+) {
+  return {
+    kind: 'image' as const,
+    ref,
+    filename: read.filename,
+    contentType: read.contentType,
+    sizeBytes: read.sizeBytes,
+    size: formatFileSize(read.sizeBytes),
+    note:
+      'A picture holds no text for rag_fetch to read. The picture itself ' +
+      'reaches you in the message it was attached to when you can see ' +
+      'pictures: describe it from there, and never guess at what it shows ' +
+      'otherwise.',
+  };
+}
 
 const SAY_SO = 'Say so instead of guessing at its contents.';
 
@@ -174,48 +241,99 @@ function mib(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / (1024 * 1024)))} MiB`;
 }
 
-/** The model-facing sentence for bytes that cannot be served as text. */
+/** What the organization's own checks refused, in the model's words. */
+export const REFUSED_BY = {
+  'secret-detected':
+    "the organization's secret scan found what looks like a credential in it",
+  'pii-blocked': "the organization's PII policy blocks its content",
+  'pii-scan-failed': "the organization's PII policy could not scan it",
+} as const;
+
+/** What a file too large to read before its index can still expect of that
+ * index, by the index's true state. */
+function indexTail(
+  file: Extract<OnDemandFileRead, { kind: 'unreadable' }>,
+): string {
+  const { status, error } = file.indexing;
+  const because = error !== undefined ? ` (${error})` : '';
+  switch (status) {
+    case 'queued':
+    case 'running':
+      return 'It is being indexed — try again shortly, or say so.';
+    case 'skipped':
+    case 'pending':
+      return file.heldByDocument ? INDEX_IT : SAY_SO;
+    case 'failed':
+      return file.heldByDocument
+        ? `Indexing it failed${because}. Say so; it can be re-indexed from the project's Knowledge tab or the Documents page.`
+        : `Indexing it failed${because}. ${SAY_SO}`;
+    default:
+      return SAY_SO;
+  }
+}
+
+/** The model-facing sentence for a file whose text cannot be served. */
 function describeUnreadable(
   file: Extract<OnDemandFileRead, { kind: 'unreadable' }>,
 ): string {
   const name = `"${file.filename}"`;
-  const { status, error } = file.indexing;
-  const because = error !== undefined ? ` (${error})` : '';
-  const unindexed = status === 'skipped' || status === 'pending';
-  if (file.reason === 'no_text') {
-    return `${name} holds no readable text — its stored bytes are empty or gone. ${SAY_SO}`;
-  }
-  if (file.reason === 'too_large') {
-    const size = `${name} is ${mib(file.sizeBytes)} — too large to read without indexing (the limit is ${mib(ON_DEMAND_TEXT_MAX_BYTES)}).`;
-    return unindexed && file.heldByDocument
-      ? `${size} ${INDEX_IT}`
-      : `${size} ${SAY_SO}`;
-  }
-  // An index run on this file could only end `unsupported`, so the miss
-  // names no door that starts one — not for a document either.
-  if (!file.extractable && (unindexed || status === 'failed')) {
-    return `${name} is a file type indexing cannot read, so its content cannot be read here. ${SAY_SO}`;
-  }
-  switch (status) {
-    case 'skipped':
+  switch (file.reason) {
+    case 'binary':
+      return `${name} is a file type indexing cannot read, so its content cannot be read here. ${SAY_SO}`;
+    case 'no_text':
+      return `${name} holds no readable text — the file is empty, or a scan with no text layer. ${SAY_SO}`;
+    case 'malformed':
+      return `${name} does not open as its file type — it may be damaged or password-protected. ${SAY_SO}`;
+    case 'refused':
+      return `${name} cannot be read here: ${REFUSED_BY[file.refusal ?? 'pii-blocked']}. ${SAY_SO}`;
     case 'pending':
-      return file.heldByDocument
-        ? `${name} was uploaded without indexing, and only its indexed text can be read here. ${INDEX_IT}`
-        : `${name} was attached without indexing, and only indexed text can be read here. ${SAY_SO}`;
-    case 'queued':
-      return `${name} is queued for indexing and has no readable text yet — try again shortly, or say so.`;
-    case 'running':
-      return `${name} is being indexed right now — try again shortly, or say so.`;
-    case 'failed':
-      return file.heldByDocument
-        ? `Indexing ${name} failed${because}, so its text cannot be read. Say so; it can be re-indexed from the project's Knowledge tab or the Documents page.`
-        : `Indexing ${name} failed${because}, so its text cannot be read. ${SAY_SO}`;
-    case 'unsupported':
-      return `${name} has no text extractor${because} — its content cannot be read here. ${SAY_SO}`;
+      return `${name} is still being read. Fetch it again in a moment, or say so instead of guessing at its contents.`;
+    case 'read_failed':
+      return `${name} could not be read before it is indexed. ${indexTail(file)}`;
+    case 'too_much_text':
+      return `${name} holds more text than can be read before it is indexed (the limit is ${mib(READ_WITHOUT_INDEX_MAX_TEXT)} of text). ${indexTail(file)}`;
     default:
-      // `completed`: the corpus was asked first and had nothing to serve.
-      return `${name} is indexed but holds no readable text (an empty or image-only file). ${SAY_SO}`;
+      // `too_large`: over the byte cap of a read before the index.
+      return `${name} is ${mib(file.sizeBytes)} — too large to read before it is indexed (the limit is ${mib(readWithoutIndexCap(file.filename))}). ${indexTail(file)}`;
   }
+}
+
+/**
+ * The on-demand lane for an admitted ref: the kept read's text or verdict,
+ * after asking for the read of a file nothing has read yet and waiting up to
+ * {@link READ_WAIT_MS} for one still to come.
+ */
+async function readKeptText(
+  ctx: ActionCtx,
+  args: ReadDocumentTextArgs,
+): Promise<OnDemandFileRead | null> {
+  const ask = { organizationId: args.organizationId, storageId: args.fileId };
+  let file: OnDemandFileRead | null = await ctx.runQuery(
+    internal.file_metadata.internal_queries.readTextOnDemandForAgent,
+    ask,
+  );
+  if (file?.kind === 'unread') {
+    const queued: boolean = await ctx.runMutation(
+      internal.file_metadata.internal_mutations.requestTextRead,
+      ask,
+    );
+    if (!queued) return file;
+  } else if (file?.kind !== 'unreadable' || file.reason !== 'pending') {
+    return file;
+  }
+  const deadline = Date.now() + READ_WAIT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, READ_POLL_MS));
+    file = await ctx.runQuery(
+      internal.file_metadata.internal_queries.readTextOnDemandForAgent,
+      ask,
+    );
+    const waiting =
+      file?.kind === 'unread' ||
+      (file?.kind === 'unreadable' && file.reason === 'pending');
+    if (!waiting) return file;
+  }
+  return file;
 }
 
 /**
@@ -288,10 +406,7 @@ export async function readDocumentText(
   );
   if (!retrievable.includes(args.fileId)) return MISSING;
 
-  const file: OnDemandFileRead | null = await ctx.runQuery(
-    internal.file_metadata.internal_queries.readTextOnDemandForAgent,
-    { organizationId: args.organizationId, storageId: args.fileId },
-  );
+  const file = await readKeptText(ctx, args);
   if (file === null) {
     // Admitted, but no live file row holds the ref: a document row whose
     // blob the platform never tracked. The row's title is all there is.
@@ -311,6 +426,22 @@ export async function readDocumentText(
       filename: file.filename,
       conversationId: fromCorpus?.conversationId ?? null,
       source: 'file',
+    };
+  }
+  if (file.kind === 'image') {
+    return {
+      status: 'image',
+      filename: file.filename,
+      contentType: file.contentType,
+      sizeBytes: file.sizeBytes,
+    };
+  }
+  if (file.kind === 'unread') {
+    // Asked for, and no read came — none could be queued for it.
+    return {
+      status: 'not_found',
+      message: `"${file.filename}" could not be read. ${SAY_SO}`,
+      filename: file.filename,
     };
   }
   return {

@@ -5,9 +5,10 @@
 The rules a chat is held to: who can open, continue, share and delete it, what a project share
 and a share link give and take, what a message is refused for, that a chat answers one message
 at a time, what stopping, editing and trying again guarantee, what Arena Mode promises, what a
-delete takes with it, what the REST API can and cannot do, and what the assistant may make and
-where it lands. Attachments, messages that wait for their attachments, the assistant's search,
-usage booking, title generation and harness-backed chats are not covered; see Not yet.
+delete takes with it, what the REST API can and cannot do, what makes a message wait for its
+attachments and what the assistant knows of them, and what the assistant may make and where it
+lands. The rest of attachments, the assistant's search, usage booking, title generation and
+harness-backed chats are not covered; see Not yet.
 
 ## Who can see a chat
 
@@ -136,6 +137,59 @@ remembered: the next message picks afresh.
 
 - **Example**: Mia sends a message on **Auto**; the organization's OpenRouter key has spent its
   limit → the reply comes from the same model on Anthropic, and its details name Anthropic.
+
+## Attachments
+
+A message can carry files: documents, pictures and recordings. A document is read for the
+assistant right after it is uploaded, and indexed for search after that; the assistant does not
+need the index to read it.
+
+### CHAT-R47 · A message waits for its documents to be read, never for their search index
+
+A document attached to a message is read on a worker right after its upload — its text
+extracted and put through the organization's secret scan and PII policy (`CHAT-R48`) — which
+takes seconds. A message waits for that read, and for the other work its reply cannot do
+without: a recording still being transcribed, a video link still being processed. It does not
+wait for a document's search index, so neither a slow embedding server nor a backlog of indexing
+holds a message. The one exception is a document too large to read before its index: a PDF,
+Word, PowerPoint or OpenDocument file over 50 MiB, a spreadsheet over 20 MiB, a text file over
+4 MiB, or a file with more than 4 MiB of text. The assistant reads such a document through its
+index, and a message carrying it waits for that index. The stored file decides, never what the
+composer sent. A read that cannot finish — its worker lost on every try — leaves the document to
+its index within minutes, as a read that failed does, so no message waits on it for good.
+
+- **Example**: Mia attaches two PDFs of 2 MB each and a PNG and asks what they are about → the
+  message goes out as soon as both PDFs are read, seconds later. The reply draws on both while
+  their search index is still being built.
+
+### CHAT-R48 · Until a document is indexed, the assistant reads the text its read checked
+
+A document's read keeps its text, checked exactly as indexing checks it (`KNOW-R8`, `KNOW-R9`).
+A recognised credential refuses it, and so does a policy that blocks the text or the file's name.
+A policy that could not scan it refuses it in every mode, and a masking policy keeps the masked
+text. The text is kept in the organization's knowledge database, where its index's text is kept,
+never in the application database; it goes once the index is complete, or with the file. Until
+the document's index is complete, the assistant reads that kept text, even when the index fails
+on its own side (the embedding server, a usage limit). Once the index is complete, it reads the
+index. A document whose read or index was refused is read neither way, and no tool that takes
+files, such as running code or a task agent's workspace, is handed it — nor one still being
+checked. A file nothing has read yet is read when the assistant first fetches it, and the fetch
+waits for the read; a project file bound over the API skips indexing, for example. A read that
+failed on the platform's side, or whose PII scan could not run, is read again when the assistant
+next fetches the file, a minute later at the earliest.
+
+- **Example**: Mia's PDF waits behind a large Knowledge upload, and the organization masks
+  e-mail addresses → the assistant reads the PDF seconds after the upload, every address masked,
+  exactly as its index will hold it.
+
+### CHAT-R49 · The assistant knows each attachment's type and size, a picture's included
+
+Every document and picture the assistant is given comes with the stored file's type and size.
+Fetching a picture by its reference answers those facts and where the picture is — in the
+message, for a model that reads pictures — and is no failed step.
+
+- **Example**: Mia attaches a PNG and asks for its format and size → the reply names PNG and
+  889.4 KB, and no step of the reply reads **Not found**.
 
 ## Stopping, editing and trying again
 
@@ -573,14 +627,15 @@ open longer than the 15 minutes a link lives.
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
   supported kinds, each one readable by the sender in this organization
   (`validateTurnAttachments` in `../../core/chat/turn_action.ts`); no test holds it. The
-  upload side is files' (`FILE-R5`). What the model receives of an image beyond its name and
-  reference (`CHAT-R31`), of a document or of a recording (`../../../lib/chat/wire-parts.ts`,
-  `../../../lib/chat/audio-transcript.ts`).
+  upload side is files' (`FILE-R5`). What the model receives of an image beyond its name,
+  reference, type and size (`CHAT-R31`, `CHAT-R49`) and of a recording
+  (`../../../lib/chat/wire-parts.ts`, `../../../lib/chat/audio-transcript.ts`); a picture's
+  pixel size is not recorded.
 - **Messages that wait for their attachments** (`deferred-sends.ts`,
-  `deferred-sends.watchdog.ts`): what makes a message wait, when it sends, and its bounds of 10
-  waiting messages per chat and 20 attachments per message (`QUEUE_FULL`,
-  `TOO_MANY_ATTACHMENTS`); no test holds the bounds. Over the API, a queued send is invisible
-  on the message list and has no queue position; the contract debt ledger in
+  `deferred-sends.watchdog.ts`) beyond what makes a document wait (`CHAT-R47`): when a waiting
+  message sends, and its bounds of 10 waiting messages per chat and 20 attachments per message
+  (`QUEUE_FULL`, `TOO_MANY_ATTACHMENTS`); no test holds the bounds. Over the API, a queued send
+  is invisible on the message list and has no queue position; the contract debt ledger in
   [`.agents/repo.md`](../../../../../.agents/repo.md) records both.
 - **Sending during a restart in the app**: a new message is refused with 503 and asked again
   in a moment (`routes.ts`); no test holds it.

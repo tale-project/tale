@@ -120,11 +120,17 @@ describe('attachment model boundary', () => {
     expect(queue).not.toHaveBeenCalled();
   });
 
-  it('names a readable image and its ref, which its pixels do not carry [CHAT-R31]', async () => {
+  it('names a readable image, its stored type and size, and its ref, which its pixels do not carry [CHAT-R31] [CHAT-R49]', async () => {
     const ctx = createCtxShim({
       'file_metadata/internal_queries:filterStorageIdsReadable': async () => [
         'foreign',
       ],
+      // The store's row, not the size the message part claims (1 byte).
+      'file_metadata/internal_queries:getByStorageId': async () => ({
+        fileName: 'photo.png',
+        contentType: 'image/png',
+        size: 910_746,
+      }),
     });
     const message = await modelFacingUserMessage(ctx, 'org_1', 'reader', [
       parts[0],
@@ -134,7 +140,9 @@ describe('attachment model boundary', () => {
     // by this ref; without it a model guessed "image1.jpg" (2026-10-27).
     expect(message.parts).toContainEqual({
       type: 'text',
-      text: expect.stringContaining('"photo.png" (ref: foreign)'),
+      text: expect.stringContaining(
+        '"photo.png" (image/png, 889.4 KB, 910,746 bytes; ref: foreign)',
+      ),
     });
     expect(message.parts).toContainEqual(
       expect.objectContaining({ type: 'attachment', fileId: 'foreign' }),
@@ -219,4 +227,132 @@ describe('chat metadata reader', () => {
       }),
     ).toMatchObject({ transcript: 'PRIVATE_SENTINEL' });
   });
+});
+
+describe('what the model is told about an attached document [CHAT-R48]', () => {
+  const pdfParts = [
+    { type: 'text' as const, text: 'Summarize' },
+    {
+      type: 'attachment' as const,
+      fileId: 's3:tale/acme/report',
+      name: 'report.pdf',
+      mediaType: 'application/pdf',
+      sizeBytes: 1,
+    },
+  ] as const;
+
+  async function appendixFor(row: Record<string, unknown>): Promise<string> {
+    const queue = vi.fn();
+    const ctx = createCtxShim({
+      'file_metadata/internal_queries:filterStorageIdsReadable': async () => [
+        's3:tale/acme/report',
+      ],
+      'file_metadata/internal_queries:getByStorageId': async () => ({
+        fileName: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 24_359,
+        ...row,
+      }),
+      'file_metadata/internal_mutations:queueRagIndexIfUnstarted': queue,
+    });
+    const message = await modelFacingUserMessage(
+      ctx,
+      'org_1',
+      'reader',
+      pdfParts,
+    );
+    expect(queue).not.toHaveBeenCalled();
+    return message.parts
+      .map((part) => ('text' in part ? part.text : ''))
+      .join('\n');
+  }
+
+  const FETCH = 'read it with rag_fetch (ref: s3:tale/acme/report)';
+
+  it.each([
+    ['its index is complete', { ragStatus: 'completed' }],
+    ['its read is ready', { textStatus: 'ready', ragStatus: 'queued' }],
+    [
+      'its read is ready and its index failed on the embedding server',
+      {
+        textStatus: 'ready',
+        ragStatus: 'failed',
+        ragErrorCode: 'embedding_upstream',
+      },
+    ],
+    // A message waits for its documents' reads; a read still to come is a
+    // file from before reads existed, read when it is fetched.
+    [
+      'its read is still to come',
+      { textStatus: 'queued', ragStatus: 'queued' },
+    ],
+    [
+      'it is from before reads existed',
+      { ragStatus: 'failed', ragErrorCode: 'embedding_upstream' },
+    ],
+    // A scan that could not run at the index decided nothing; a read that
+    // checked the text since has the word.
+    [
+      'a read checked it after its index could not scan it',
+      {
+        textStatus: 'ready',
+        ragStatus: 'failed',
+        ragErrorCode: 'pii_scan_failed',
+      },
+    ],
+  ])('sends the model to rag_fetch when %s', async (_label, row) => {
+    const text = await appendixFor(row);
+    expect(text).toContain(FETCH);
+    // Its stored type and size ride along [CHAT-R49].
+    expect(text).toContain('"report.pdf" (application/pdf, 23.8 KB');
+  });
+
+  it.each([
+    ['its read refused it', { textStatus: 'refused', ragStatus: 'queued' }],
+    [
+      'its index refused it',
+      { ragStatus: 'failed', ragErrorCode: 'secret_detected' },
+    ],
+  ])(
+    'gives no ref for a document the organization refused when %s',
+    async (_label, row) => {
+      const text = await appendixFor(row);
+      expect(text).toContain('secret scan or PII policy refuses its content');
+      expect(text).not.toContain('s3:tale/acme/report');
+    },
+  );
+
+  it('says a document left to its index can be read once that index is built', async () => {
+    const text = await appendixFor({
+      textStatus: 'deferred',
+      ragStatus: 'running',
+    });
+    expect(text).toContain('can be read only once its index is built');
+    expect(text).not.toContain(FETCH);
+  });
+
+  it.each([
+    [
+      'its read found no text',
+      { textStatus: 'unreadable', ragStatus: 'queued' },
+    ],
+    [
+      'only its index could serve it, and the index failed',
+      {
+        textStatus: 'deferred',
+        ragStatus: 'failed',
+        ragErrorCode: 'embedding_upstream',
+      },
+    ],
+    ['no extractor reads it', { ragStatus: 'unsupported' }],
+  ])(
+    'is honest that a document cannot be read when %s',
+    async (_label, row) => {
+      const text = await appendixFor(row);
+      expect(text).toContain(
+        'its content is not machine-readable in this chat',
+      );
+      expect(text).not.toContain(FETCH);
+    },
+  );
 });

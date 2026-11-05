@@ -20,6 +20,7 @@ import { useChatQueryClient } from '../data/chat-backend';
 import { retryVideoLinkJob } from '../hooks/use-chat-video-links';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
+import { documentChipStatus } from '../utils/document-chip-status';
 import { VideoLinkChip } from './video-link-chip';
 
 interface DeferredSendTrayProps {
@@ -103,6 +104,7 @@ export function DeferredSendTray({
 
   const attachmentStatus = (attachment: {
     fileId: string;
+    fileName: string;
     fileType: string;
     fileSize: number;
   }): { label: string; failed: boolean } => {
@@ -125,25 +127,12 @@ export function DeferredSendTray({
     if (isImage(attachment.fileType)) {
       return { label: formatFileSize(attachment.fileSize), failed: false };
     }
-    const info = indexingStatuses.get(attachment.fileId);
-    if (info?.status === 'queued' || info?.status === 'running') {
-      let label = t('indexing');
-      const raw = info.progress;
-      if (raw !== undefined && raw.length > 0) {
-        const match = /(\d+)\/(\d+)/.exec(raw);
-        label = match
-          ? `${Math.round((Number(match[1]) / Number(match[2])) * 100)}%`
-          : raw;
-      }
-      return { label, failed: false };
-    }
-    if (info?.status === 'failed') {
-      return { label: t('indexingFailed'), failed: true };
-    }
-    if (info?.status === 'unsupported') {
-      return { label: t('indexingUnsupported'), failed: false };
-    }
-    return { label: formatFileSize(attachment.fileSize), failed: false };
+    const { label, failed } = documentChipStatus(
+      t,
+      attachment,
+      indexingStatuses.get(attachment.fileId),
+    );
+    return { label, failed };
   };
 
   return (

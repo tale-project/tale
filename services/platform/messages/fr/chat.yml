@@ -319,6 +319,18 @@ indexingFailedDescription: "{filename} n'a pas pu être indexé pour la
 indexingUnsupported: Format non pris en charge
 indexingUnsupportedDescription: '{filename} ne peut pas être indexé — aucun
   extracteur de texte pour ce type de fichier.'
+indexingQueued: En attente d’indexation
+indexingReadingText: Lecture du texte…
+indexingProgress: 'Indexation… {percent} %'
+documentReading: Lecture…
+documentRefused: Illisible
+documentRefusedSecret: '{filename} contient ce qui ressemble à un mot de passe ou à une clé d’accès ; l’assistant ne peut donc pas le lire.'
+documentRefusedPii: 'La politique de confidentialité de ton organisation bloque {filename} ; l’assistant ne peut donc pas le lire.'
+documentRefusedPiiUnscanned: '{filename} n’a pas pu être vérifié selon la politique de confidentialité de ton organisation ; l’assistant ne peut donc pas le lire.'
+documentNoText: Aucun texte lisible
+documentNoTextDescription: '{filename} ne contient aucun texte que l’assistant peut lire — le fichier est peut-être vide, ou numérisé sans couche de texte.'
+documentMalformed: Impossible à ouvrir
+documentMalformedDescription: '{filename} ne s’ouvre pas comme un fichier de ce type — il est peut-être endommagé ou protégé par un mot de passe ; l’assistant ne peut donc pas le lire.'
 deferredSend:
   waiting: En file — part dès que les pièces jointes sont prêtes
   sending: Envoi…

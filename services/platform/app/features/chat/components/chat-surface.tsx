@@ -1183,8 +1183,8 @@ function ChatSurfaceInner({
   } = useFileTranscriptionStatus(stagedAttachments, organizationId);
   const {
     statusMap: indexingStatuses,
-    isIndexing,
-    isQueryLoading: indexingQueryLoading,
+    waitingForDocuments,
+    waitingForDocumentsUnknown,
   } = useFileIndexingStatus(stagedAttachments, organizationId);
   // Pasted video links: reactive job rows + ingest/cancel/retry. Their
   // transcripts join the send as attachments — completed ones bind on a
@@ -1204,11 +1204,13 @@ function ChatSurfaceInner({
   // Anything still processing? Then Send parks the message server-side and
   // the watcher fires it when everything settles — the 0.3 send-then-wait.
   // Unknown-yet statuses defer too: parking is always safe, blocking is not.
+  // A document waits for its read — seconds — and for its index only when
+  // it is too large to read before it (CHAT-R47).
   const attachmentsProcessing =
     isTranscribing ||
     transcriptionQueryLoading ||
-    isIndexing ||
-    indexingQueryLoading ||
+    waitingForDocuments ||
+    waitingForDocumentsUnknown ||
     videoLinks.isAnyProcessing;
   // Staged images belong to the conversation they were staged in — switching
   // threads clears them; entering arena clears them too (the pair lanes

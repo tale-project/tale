@@ -54,7 +54,11 @@ import {
 } from '../../../lib/net/safe-fetch';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { knowledgeDatabaseUnavailable } from '../../db/unavailable';
-import { readDocumentText } from '../knowledge/document_text';
+import {
+  MISSING_EMAIL_MESSAGE,
+  pictureFacts,
+  readDocumentText,
+} from '../knowledge/document_text';
 import {
   EmbeddingBudgetExceeded,
   type EmbeddingMeter,
@@ -2434,10 +2438,12 @@ export function createChatToolExecutor(
         fileId: ref,
         access: { ...access, includeConversationMessages: true },
       });
-      if (read.status === 'not_found') {
+      // An email ref names no picture: every answer but text is the miss.
+      if (read.status !== 'ok') {
         const result: ToolFailure = {
           status: 'not_found',
-          message: read.message,
+          message:
+            read.status === 'not_found' ? read.message : MISSING_EMAIL_MESSAGE,
         };
         await recordDispatch('rag_fetch', result.status, result.message);
         return result;
@@ -2527,7 +2533,7 @@ export function createChatToolExecutor(
     // search: a ref in hand (quoted, guessed, remembered from before a scope
     // change) is not a capability, and a denied document reads as the same
     // not_found as a missing one. The shared reader serves the corpus text,
-    // the row's inline content, or a text file's bytes on demand — and
+    // the row's inline content, or the text a read on a worker checked — and
     // names the file's true indexing state when none can be served. An
     // emailed attachment is mail: this door asks for it only when the role
     // reads the inbox, and the conversation's assignment decides the rest.
@@ -2551,6 +2557,15 @@ export function createChatToolExecutor(
       };
       await recordDispatch('rag_fetch', result.status, result.message);
       return result;
+    }
+    if (read.status === 'image') {
+      await recordDispatch('rag_fetch', 'ok');
+      const facts = pictureFacts(read, ref);
+      return {
+        status: 'ok',
+        ...facts,
+        filename: sanitizeUntrustedField(facts.filename),
+      };
     }
     const { text, filename } = read;
 

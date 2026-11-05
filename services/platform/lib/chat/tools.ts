@@ -387,7 +387,9 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'that a source does not hold a fact — a search hit is only a snippet, ' +
     'cut where it ends in "…(+N chars)". When an attachment already names its ref, fetch it ' +
     'directly; do not rag_search the organization for a file whose ref you ' +
-    'already hold. Reads a window of up to 20000 characters; "offset" and ' +
+    'already hold. An attached file’s type and size are in the attachment ' +
+    'list itself; a picture’s ref returns only those facts, since the ' +
+    'picture reaches you in its message. Reads a window of up to 20000 characters; "offset" and ' +
     '"limit" select an exact range, and a truncated result reports the ' +
     '"nextOffset" to continue from. Never present a partial read as a ' +
     'summary of the whole source — keep fetching until "nextOffset" is ' +

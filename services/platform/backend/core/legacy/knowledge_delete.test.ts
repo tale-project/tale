@@ -47,9 +47,13 @@ function stubPool(url: string): Sql {
   const unsafe = (text: string, params: unknown[] = []) => {
     statements.push({ url, text, params });
     if (text.startsWith('SELECT id ')) {
-      return Promise.resolve([{ id: 'doc-1' }]);
+      return Promise.resolve(
+        (params[1] as string[]).includes('ref-unindexed')
+          ? []
+          : [{ id: 'doc-1' }],
+      );
     }
-    if (text.startsWith('SELECT DISTINCT file_id')) {
+    if (text.startsWith('SELECT file_id AS "fileId" FROM (')) {
       return Promise.resolve([{ fileId: 'ref-a' }, { fileId: 'ref-b' }]);
     }
     return Promise.resolve([]);
@@ -127,11 +131,13 @@ describe('deleteKnowledgeDocumentsBatch', () => {
       DEFAULT_URL,
       DEFAULT_URL,
       DEFAULT_URL,
+      DEFAULT_URL,
     ]);
     expect(
       statements.map((s) => s.text.split(' ').slice(0, 3).join(' ')),
     ).toEqual([
       'SELECT id FROM',
+      'DELETE FROM private_knowledge.document_reads',
       'DELETE FROM private_knowledge.chunks',
       'DELETE FROM private_knowledge.documents',
     ]);
@@ -139,6 +145,26 @@ describe('deleteKnowledgeDocumentsBatch', () => {
     for (const statement of statements) {
       expect(statement.params[0]).toBe('acme');
     }
+  });
+
+  it('drops the text a read kept for a file that was never indexed', async () => {
+    const result = await deleteKnowledgeDocumentsBatch({
+      orgSlug: 'acme',
+      fileIds: ['ref-unindexed'],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      deleted_count: 0,
+      failed_file_ids: [],
+    });
+    expect(
+      statements.map((s) => s.text.split(' ').slice(0, 3).join(' ')),
+    ).toEqual([
+      'SELECT id FROM',
+      'DELETE FROM private_knowledge.document_reads',
+    ]);
+    expect(statements[1]?.params).toEqual(['acme', ['ref-unindexed']]);
   });
 
   it('follows an organization with its own database, like the indexer does', async () => {
@@ -188,6 +214,13 @@ describe('listKnowledgeDocumentRefs', () => {
     expect(page).toEqual(['ref-a', 'ref-b']);
     expect(opened).toEqual([DEFAULT_URL]);
     expect(statements).toHaveLength(1);
+    // The refs whose read keeps text are walked with the corpus's, each
+    // table a page of its own first refs at most.
+    expect(statements[0]?.text).toContain('FROM private_knowledge.documents');
+    expect(statements[0]?.text).toContain(
+      'FROM private_knowledge.document_reads',
+    );
+    expect(statements[0]?.text.match(/LIMIT \$3/g)).toHaveLength(3);
     expect(statements[0]?.params).toEqual([
       'acme',
       null,

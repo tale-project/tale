@@ -203,6 +203,28 @@ each `pii_scan_failed` document again, and **Retry indexing** queues one.
   (`pii_scan_failed`), and nothing of it is indexed. Once the data is back, an admin saves the
   PII policy → the CV is indexed with its addresses masked.
 
+## In what order files are read and indexed
+
+Files wait for indexing in one line per deployment, and a worker indexes several at once. A
+file attached to a message or a task is read for the assistant first, in a line of its own
+(`CHAT-R47`).
+
+### KNOW-R21 · A message's attachments are read first, and a slow file never holds the next
+
+A file attached to a chat message or a task that a person is writing is read first, in a line
+that only reads files and never waits for an embedding server: a worker reads a few at once,
+and at most two of one organization's at a time. The read hands the file on to be indexed. Its
+index goes first when a message waits for that index, because the file is too large to read
+before it. Otherwise the index waits with the files a person uploads to Knowledge, replaces or
+retries. After those come the files the platform indexes on its own: a synced drive, an emailed
+attachment, a video's transcript, a file a usage limit held back. Within each, the oldest goes
+first. A worker indexes each file on its own: the moment one file is done, the next in line
+starts, whatever the others are still doing.
+
+- **Example**: Noah uploads 200 files to Knowledge; Mia then attaches a PDF to a chat message →
+  Mia's PDF is read at once, beside Noah's files, and her message goes out. Its index then waits
+  its turn with Noah's files.
+
 ## When the embedding model is missing or fails
 
 Indexing and search both need the organization's embedding model: the model that turns text
@@ -409,8 +431,9 @@ exception: it is opened on every scan. **Scan now** asks the same way as a sched
 - **Moving a document** between teams, projects and folders, and the folder filter of a
   search (`service.ts`).
 - **Emails in the index**: which emails are indexed, and when (`message-index.ts`).
-- **Reading a document's text**: paging, and reading a file that is not indexed
-  (`core/knowledge/fetch.ts`, `core/knowledge/document_text.ts`).
+- **Reading a document's text**: paging (`core/knowledge/fetch.ts`,
+  `core/knowledge/document_text.ts`). Reading a file whose index is not ready is chat's
+  `CHAT-R48`; the read itself is `read-text.ts`.
 - **Ranking**: how matches by words and by meaning are combined, the similarity floor,
   repeated passages, and a search without the keyword index (`lib/knowledge/retrieve.ts`,
   `lib/knowledge/fusion.ts`, `core/knowledge/corpus.ts`).

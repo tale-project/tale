@@ -1095,9 +1095,14 @@ export function sharedThreadQuery(organizationId: string, token: string) {
   });
 }
 
+/** How many refs one `/files/statuses` request may name (the route's cap). */
+const FILE_STATUSES_PER_REQUEST = 20;
+
 /** Batch pipeline statuses for staged attachments — polled while any file
  * is still processing (the 0.4 watch pushed; HTTP polls). Typed off the
- * 0.4 query so consumers keep their contract. */
+ * 0.4 query so consumers keep their contract. More refs than one request
+ * may name — the sends a chat holds back, each with its documents — are
+ * asked for in requests of the route's size, together. */
 export function fileStatusesQuery(
   organizationId: string,
   storageIds: readonly string[],
@@ -1108,15 +1113,29 @@ export function fileStatusesQuery(
       'file_status',
       [...storageIds].sort().join(','),
     ),
-    queryFn: ({ signal }) =>
-      backendFetch<{
-        statuses: ReturnsOf<'file_metadata/queries:getByStorageIds'>;
-      }>('/files/statuses', {
-        method: 'POST',
-        body: { storageIds: [...storageIds] },
-        orgId: organizationId,
-        signal,
-      }).then((body) => body.statuses),
+    queryFn: async ({ signal }) => {
+      const batches: string[][] = [];
+      for (
+        let at = 0;
+        at < storageIds.length;
+        at += FILE_STATUSES_PER_REQUEST
+      ) {
+        batches.push(storageIds.slice(at, at + FILE_STATUSES_PER_REQUEST));
+      }
+      const answers = await Promise.all(
+        batches.map((batch) =>
+          backendFetch<{
+            statuses: ReturnsOf<'file_metadata/queries:getByStorageIds'>;
+          }>('/files/statuses', {
+            method: 'POST',
+            body: { storageIds: batch },
+            orgId: organizationId,
+            signal,
+          }),
+        ),
+      );
+      return answers.flatMap((body) => body.statuses);
+    },
     refetchInterval: 2000,
   });
 }

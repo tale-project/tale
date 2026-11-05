@@ -24,6 +24,8 @@ import type { ToolDoc } from '../../../lib/chat/context';
 import {
   buildDocumentAppendix,
   buildImageAppendix,
+  type DocumentAppendixEntry,
+  type ImageAppendixEntry,
 } from '../../../lib/chat/document-appendix';
 import {
   fitSamplingToWindow,
@@ -88,6 +90,10 @@ import {
   type ChatWireRequest,
 } from '../automations_builder/chat_wire';
 import type { EmbeddingMeter } from '../knowledge/embedding';
+import {
+  RAG_ERROR_PII_SCAN_FAILED,
+  READ_REFUSED_RAG_ERROR_CODES,
+} from '../knowledge/rag_error_codes';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -1221,10 +1227,31 @@ async function loadAttachmentAppendix(
   userId: string,
   attachments: readonly TurnAttachment[],
 ): Promise<string> {
+  // The stored row: its type and size are the store's own, never the
+  // figures the client sent along with the message.
+  const lookup = (attachment: TurnAttachment): Promise<StoredAttachment> =>
+    ctx.runQuery(internal.file_metadata.internal_queries.getByStorageId, {
+      organizationId,
+      userId,
+      storageId: attachment.fileId,
+    });
   const images = buildImageAppendix(
-    attachments
-      .filter((attachment) => isImage(attachment.fileType))
-      .map(({ fileName, fileId }) => ({ fileName, fileId })),
+    await Promise.all(
+      attachments
+        .filter((attachment) => isImage(attachment.fileType))
+        .map(async (attachment): Promise<ImageAppendixEntry> => {
+          const meta = await lookup(attachment);
+          const { fileName, fileId } = attachment;
+          return meta === null
+            ? { fileName, fileId }
+            : {
+                fileName,
+                fileId,
+                contentType: meta.contentType,
+                sizeBytes: meta.size,
+              };
+        }),
+    ),
   );
   const documents = attachments.filter((attachment) =>
     isDocument(attachment.fileType),
@@ -1233,10 +1260,7 @@ async function loadAttachmentAppendix(
 
   const entries = await Promise.all(
     documents.map(async (attachment) => {
-      const meta = await ctx.runQuery(
-        internal.file_metadata.internal_queries.getByStorageId,
-        { organizationId, userId, storageId: attachment.fileId },
-      );
+      const meta = await lookup(attachment);
       if (meta === null) return null;
       // No status at all means nothing ever started indexing this file —
       // rows an instance carries from before registration queued it. Telling
@@ -1254,13 +1278,67 @@ async function loadAttachmentAppendix(
       return {
         fileName: attachment.fileName,
         fileId: attachment.fileId,
+        contentType: meta.contentType,
+        sizeBytes: meta.size,
         ragStatus,
+        reading: documentReading({ ...meta, ragStatus }),
       };
     }),
   );
   return (
     buildDocumentAppendix(entries.filter((entry) => entry !== null)) + images
   );
+}
+
+/** One attachment's stored row as the turn's lookup answers it, or `null`
+ * when the sender may not read it. */
+type StoredAttachment = {
+  readonly fileName: string;
+  readonly contentType: string;
+  readonly size: number;
+  readonly ragStatus?: DocumentAppendixEntry['ragStatus'];
+  readonly ragErrorCode?: string;
+  /** The read for the assistant (`domains/knowledge/read-text.ts`). */
+  readonly textStatus?: string;
+} | null;
+
+/**
+ * How the assistant can read a document now: through its index once it is
+ * indexed; through the text its read checked and kept before that (CHAT-R48);
+ * through a read still to come, which `rag_fetch` waits for — a message
+ * waits for its documents' reads, so that is a file from before reads
+ * existed, read when it is fetched; never one the organization's secret scan
+ * or PII policy refuses. A document too large to read before its index waits
+ * for the index.
+ */
+function documentReading(
+  row: NonNullable<StoredAttachment>,
+): DocumentAppendixEntry['reading'] {
+  if (row.ragStatus === 'completed') return 'fetch';
+  // An index the organization's checks refused speaks over a read — except
+  // a PII scan that could not run there, when a read checked the text since.
+  if (
+    row.textStatus === 'refused' ||
+    (row.ragStatus === 'failed' &&
+      row.ragErrorCode !== undefined &&
+      READ_REFUSED_RAG_ERROR_CODES.has(row.ragErrorCode) &&
+      !(
+        row.ragErrorCode === RAG_ERROR_PII_SCAN_FAILED &&
+        row.textStatus === 'ready'
+      ))
+  ) {
+    return 'refused';
+  }
+  if (row.textStatus === 'ready') return 'fetch';
+  if (row.textStatus === 'unreadable' || row.ragStatus === 'unsupported') {
+    return 'unreadable';
+  }
+  if (row.textStatus === 'deferred') {
+    return row.ragStatus === 'queued' || row.ragStatus === 'running'
+      ? 'indexing'
+      : 'unreadable';
+  }
+  return 'fetch';
 }
 
 /** Typed text on a stored user row — strips a legacy baked-in appendix so

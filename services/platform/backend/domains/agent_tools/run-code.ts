@@ -42,7 +42,7 @@ import {
   type LightSessionLease,
   touchLightSession,
 } from '../sandbox/light-sessions.ts';
-import { ARTIFACT_MAX_BYTES } from './artifacts.ts';
+import { ARTIFACT_MAX_BYTES, withheldFileMessage } from './artifacts.ts';
 import {
   failure,
   isArgsRecord,
@@ -383,6 +383,15 @@ export async function runRunCode(
     const file = resolved.get(ref);
     return file === undefined ? [] : [file];
   });
+  // The bytes of a file the organization's checks refused, or have not
+  // finished checking, would reach the model through the program's output.
+  const withheld = inputFiles.find((file) => file.withheld !== undefined);
+  if (withheld?.withheld !== undefined) {
+    return failure(
+      'not_found',
+      withheldFileMessage(withheld.name, withheld.withheld),
+    );
+  }
   const oversized = inputFiles.find(
     (file) => file.sizeBytes > ARTIFACT_MAX_BYTES * 2,
   );

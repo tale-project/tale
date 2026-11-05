@@ -10,6 +10,7 @@ import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { Embedder } from './embedding';
 import {
   PII_SCAN_FAILED_REASONS,
+  gateDocumentText,
   indexDocument,
   indexWholeDocument,
   markCorpusIndexingFailed,
@@ -1546,5 +1547,129 @@ describe('a document released while its run is in flight', () => {
     expect(result.skipped).toBe('released');
     expect(embedder.embedded).toEqual([]);
     expect(db.statements.join('\n')).not.toContain('WITH copied AS');
+  });
+});
+
+describe('a file read before its index is as protected as its index [CHAT-R48]', () => {
+  // A chat attachment is read on a worker right after its upload, and the
+  // assistant reads that text while the index is not ready. The read passes
+  // the same secret scan and PII policy the write path runs — on the text
+  // and on the file's name — so for the same bytes and policy it refuses
+  // what indexing refuses and hands on the text indexing would store.
+  const POLICY = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['email'],
+  } as const;
+  const WITH_EMAIL = 'Write to ada@example.com about the leave policy.';
+
+  afterEach(() => {
+    vi.mocked(applyPiiPolicyForIndexing).mockReset();
+  });
+
+  async function both(args: {
+    readonly text: string;
+    readonly bytes?: Uint8Array;
+    readonly piiConfig?: unknown;
+    readonly filename?: string;
+  }) {
+    const db = fakeDb();
+    const indexed = await indexDocument({
+      ...ARGS,
+      text: args.text,
+      ...(args.filename !== undefined ? { filename: args.filename } : {}),
+      ...(args.bytes !== undefined ? { bytes: args.bytes } : {}),
+      ...(args.piiConfig !== undefined
+        ? { piiConfig: args.piiConfig as never }
+        : {}),
+      sql: db.sql,
+      embedder: stubEmbedder(),
+    });
+    const read = gateDocumentText({
+      text: args.text,
+      ...(args.bytes !== undefined ? { bytes: args.bytes } : {}),
+      piiConfig: (args.piiConfig ?? null) as never,
+      filename: args.filename ?? ARGS.filename,
+    });
+    return { indexed, read, db };
+  }
+
+  it('refuses a credential in the bytes', async () => {
+    const bytes = new TextEncoder().encode(
+      'api_key = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"\n',
+    );
+    const { indexed, read } = await both({ text: ARGS.text, bytes });
+    expect(indexed.skipped).toBe('secret-detected');
+    expect(read).toEqual({ kind: 'refused', skipped: 'secret-detected' });
+  });
+
+  it('refuses what a blocking policy refuses', async () => {
+    const { indexed, read } = await both({
+      text: WITH_EMAIL,
+      piiConfig: { ...POLICY, mode: 'block' },
+    });
+    expect(indexed.skipped).toBe('pii-blocked');
+    expect(read).toEqual({ kind: 'refused', skipped: 'pii-blocked' });
+  });
+
+  it('refuses a text the policy could not scan, in every mode', async () => {
+    const actual =
+      await vi.importActual<typeof import('./pii_gate')>('./pii_gate');
+    vi.mocked(applyPiiPolicyForIndexing).mockImplementation((text, config) =>
+      text.includes('leave policy')
+        ? { kind: 'unscanned', cause: 'incomplete' }
+        : actual.applyPiiPolicyForIndexing(text, config),
+    );
+    for (const mode of ['mask', 'block', 'tokenize']) {
+      const { indexed, read } = await both({
+        text: WITH_EMAIL,
+        piiConfig: { ...POLICY, mode },
+      });
+      expect(indexed.skipped).toBe('pii-scan-failed');
+      expect(read).toEqual({ kind: 'refused', skipped: 'pii-scan-failed' });
+    }
+  });
+
+  it('hands on the masked text a masking policy would index', async () => {
+    const { indexed, read, db } = await both({
+      text: WITH_EMAIL,
+      piiConfig: POLICY,
+    });
+    expect(indexed.skipped).toBeUndefined();
+    expect(read.kind).toBe('text');
+    const text = read.kind === 'text' ? read.text : '';
+    expect(text).not.toContain('ada@example.com');
+    expect(text).toContain('about the leave policy');
+    // What was indexed carries the same masked text.
+    expect(db.params.flat().join('\n')).toContain(text);
+  });
+
+  it('refuses a file whose name a blocking policy refuses, as its index is', async () => {
+    const { indexed, read } = await both({
+      text: ARGS.text,
+      filename: 'Reply to ada@example.com.pdf',
+      piiConfig: { ...POLICY, mode: 'block' },
+    });
+    expect(indexed.skipped).toBe('pii-blocked');
+    expect(read).toEqual({ kind: 'refused', skipped: 'pii-blocked' });
+  });
+
+  it('reads a file whose name a masking policy masks, its text untouched', async () => {
+    const { indexed, read } = await both({
+      text: ARGS.text,
+      filename: 'Reply to ada@example.com.pdf',
+      piiConfig: POLICY,
+    });
+    expect(indexed.skipped).toBeUndefined();
+    expect(read).toEqual({ kind: 'text', text: ARGS.text });
+  });
+
+  it('hands on a clean text as it is, and nothing for whitespace', () => {
+    expect(
+      gateDocumentText({ text: ARGS.text, filename: ARGS.filename }),
+    ).toEqual({ kind: 'text', text: ARGS.text });
+    expect(
+      gateDocumentText({ text: '  \n\t ', filename: ARGS.filename }),
+    ).toEqual({ kind: 'empty' });
   });
 });

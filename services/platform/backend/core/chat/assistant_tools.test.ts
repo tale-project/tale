@@ -1023,9 +1023,9 @@ describe('rag_fetch', () => {
   });
 
   it('answers an indexed file with no text as an honest, named not_found', async () => {
-    // The corpus knows the document but carries no text; the row has none
-    // either — the miss says WHAT the file is (indexed, empty or image-only)
-    // and names it, never "may not be indexed yet".
+    // The corpus knows the document but carries no text, and its bytes hold
+    // none either — the miss says WHAT the file is (empty, or a scan with no
+    // text layer) and names it, never "may not be indexed yet".
     fetchDocumentByFileIdMock.mockResolvedValueOnce({
       fileId: 'file_3',
       filename: null,
@@ -1041,7 +1041,7 @@ describe('rag_fetch', () => {
           filename: 'scan.pdf',
           sizeBytes: 4096,
           indexing: { status: 'completed' },
-          reason: 'binary',
+          reason: 'no_text',
         }),
       },
     });
@@ -1055,8 +1055,43 @@ describe('rag_fetch', () => {
     ).resolves.toMatchObject({
       status: 'not_found',
       filename: 'scan.pdf',
-      message: expect.stringContaining('indexed but holds no readable text'),
+      message: expect.stringContaining('holds no readable text'),
     });
+  });
+
+  // Asked for an attached picture's format and size, a model fetched the
+  // picture as a document and the person saw a failed step. The read is no
+  // failure: it answers the stored facts and where the picture is.
+  it('answers a picture with its stored type and size, as no failure [CHAT-R49]', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [FILTER_FN]: () => ['s3:acme/chart.png'],
+        [ON_DEMAND_FN]: () => ({
+          kind: 'image',
+          filename: 'chart.png',
+          contentType: 'image/png',
+          sizeBytes: 910_746,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 's3:acme/chart.png' },
+    });
+    expect(result).toMatchObject({
+      status: 'ok',
+      kind: 'image',
+      ref: 's3:acme/chart.png',
+      filename: 'chart.png',
+      contentType: 'image/png',
+      sizeBytes: 910_746,
+      size: '889.4 KB',
+      note: expect.stringContaining('in the message it was attached to'),
+    });
+    expect(result).not.toHaveProperty('content');
   });
 
   it('reads a never-indexed text file on demand once the live check admits it', async () => {
@@ -1170,12 +1205,12 @@ describe('rag_fetch', () => {
         [ON_DEMAND_FN]: () => ({
           kind: 'unreadable',
           filename: 'deck.pptx',
-          sizeBytes: 900_000,
+          sizeBytes: 60 * 1024 * 1024,
           indexing: { status: 'skipped' },
           // A REST-bound project document: Index now reaches it.
           heldByDocument: true,
           extractable: true,
-          reason: 'binary',
+          reason: 'too_large',
         }),
       },
     });
@@ -1189,7 +1224,9 @@ describe('rag_fetch', () => {
       status: 'not_found',
       filename: 'deck.pptx',
     });
-    expect(result.message).toContain('uploaded without indexing');
+    expect(result.message).toContain(
+      'too large to read before it is indexed (the limit is 50 MiB)',
+    );
     expect(result.message).toContain('skipRagIndexing: false');
     expect(result.message).not.toContain('may not be indexed yet');
   });

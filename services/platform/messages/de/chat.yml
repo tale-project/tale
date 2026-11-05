@@ -320,6 +320,18 @@ indexingFailedDescription: '{filename} konnte nicht für die Suche indexiert
 indexingUnsupported: Format nicht unterstützt
 indexingUnsupportedDescription: '{filename} kann nicht indexiert werden — für
   diesen Dateityp gibt es keine Textextraktion.'
+indexingQueued: Wartet auf Indexierung
+indexingReadingText: Liest Text…
+indexingProgress: 'Indexiere… {percent} %'
+documentReading: Wird gelesen…
+documentRefused: Nicht lesbar
+documentRefusedSecret: '{filename} enthält etwas, das wie ein Passwort oder ein Zugangsschlüssel aussieht. Der Assistent kann die Datei deshalb nicht lesen.'
+documentRefusedPii: 'Die Datenschutzrichtlinie deiner Organisation sperrt {filename}. Der Assistent kann die Datei deshalb nicht lesen.'
+documentRefusedPiiUnscanned: '{filename} konnte nicht gegen die Datenschutzrichtlinie deiner Organisation geprüft werden. Der Assistent kann die Datei deshalb nicht lesen.'
+documentNoText: Kein lesbarer Text
+documentNoTextDescription: '{filename} enthält keinen Text, den der Assistent lesen kann — vielleicht ist die Datei leer oder ein Scan ohne Textebene.'
+documentMalformed: Lässt sich nicht öffnen
+documentMalformedDescription: '{filename} lässt sich nicht als dieser Dateityp öffnen — vielleicht ist die Datei beschädigt oder mit einem Passwort geschützt. Der Assistent kann sie deshalb nicht lesen.'
 deferredSend:
   waiting: Eingereiht — geht raus, sobald die Anhänge bereit sind
   sending: Sendet…

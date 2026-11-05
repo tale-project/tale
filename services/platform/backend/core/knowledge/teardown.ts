@@ -15,7 +15,8 @@ import {
  * org's knowledge connection config while that config still exists — so the
  * caller removes the config tree only AFTER this returns). One transaction:
  * private documents (chunks cascade, and are deleted explicitly for a
- * database whose baseline predates the FK), the semantic cache, the org's
+ * database whose baseline predates the FK), the semantic cache, the text
+ * reads keep for its files, the org's
  * website memberships, and every website nobody else holds any more (the
  * set form of `deregisterDomain`). Idempotent — a retry purges nothing and
  * reports zeros.
@@ -40,6 +41,10 @@ export async function purgeCorpusForOrg(orgSlug: string): Promise<CorpusPurge> {
     );
     await tx.unsafe(
       `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.semantic_cache WHERE org_slug = $1`,
+      [orgSlug],
+    );
+    await tx.unsafe(
+      `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.document_reads WHERE org_slug = $1`,
       [orgSlug],
     );
 

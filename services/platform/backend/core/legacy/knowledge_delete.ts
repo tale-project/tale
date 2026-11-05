@@ -44,9 +44,11 @@ export interface DeleteDocumentsBatchResult {
 
 /**
  * Delete MANY corpus documents (and their chunks) by file ref, scoped to
- * `orgSlug`. All-or-nothing per call: the two deletes run in one transaction,
- * so a thrown connection error means NO ref was acknowledged and the caller
- * retries the whole batch safely.
+ * `orgSlug`, with the text a read kept for those files
+ * (`core/knowledge/kept_reads.ts`) — which a file that was never indexed
+ * may hold alone. All-or-nothing per call: the deletes run in one
+ * transaction, so a thrown connection error means NO ref was acknowledged
+ * and the caller retries the whole batch safely.
  */
 export async function deleteKnowledgeDocumentsBatch(
   args: DeleteDocumentsBatchArgs,
@@ -59,11 +61,13 @@ export async function deleteKnowledgeDocumentsBatch(
     `SELECT id FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents WHERE org_slug = $1 AND file_id = ANY($2)`,
     [args.orgSlug, args.fileIds],
   );
-  if (rows.length === 0) {
-    return { success: true, deleted_count: 0, failed_file_ids: [] };
-  }
   const idsToDelete = rows.map((row) => row.id);
   await sql.begin(async (tx) => {
+    await tx.unsafe(
+      `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.document_reads WHERE org_slug = $1 AND file_id = ANY($2)`,
+      [args.orgSlug, args.fileIds],
+    );
+    if (idsToDelete.length === 0) return;
     await tx.unsafe(
       `DELETE FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks WHERE org_slug = $1 AND document_id = ANY($2)`,
       [args.orgSlug, idsToDelete],
@@ -73,6 +77,9 @@ export async function deleteKnowledgeDocumentsBatch(
       [args.orgSlug, idsToDelete],
     );
   });
+  if (idsToDelete.length === 0) {
+    return { success: true, deleted_count: 0, failed_file_ids: [] };
+  }
   return {
     success: true,
     deleted_count: idsToDelete.length,
@@ -83,13 +90,16 @@ export async function deleteKnowledgeDocumentsBatch(
 /**
  * Enumerate one page of an org's corpus documents by file ref (keyset on
  * `file_id`, after `afterFileId` and before `beforeFileId` when given) — the
- * reconcile sweep's walk.
+ * reconcile sweep's walk. The refs whose read keeps text are walked too, so
+ * a file released while its read was still running cannot keep its text:
+ * the sweep finds the ref dead and releases it like any other.
  *
  * One vocabulary per walk: `blobs` (every file ref) or `messages` (the email
  * bodies' `msg:` refs). They are walked apart because each walk is bounded
  * and restarts at its keyset head, and `msg:` sorts ahead of `s3:` — sharing
  * one walk, a large inbox would fill every run's budget and push every blob
- * ref out of reconcile's reach.
+ * ref out of reconcile's reach. Each table gives at most a page of its own
+ * first refs, so a page never sorts more than two.
  */
 export async function listKnowledgeDocumentRefs(args: {
   orgSlug: string;
@@ -100,13 +110,25 @@ export async function listKnowledgeDocumentRefs(args: {
 }): Promise<string[]> {
   const sql = await getKnowledgePoolForOrg(args.orgSlug);
   const rows = await sql.unsafe<{ fileId: string }[]>(
-    `SELECT DISTINCT file_id AS "fileId"
-       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
-      WHERE org_slug = $1 AND ($2::text IS NULL OR file_id > $2)
-        AND ($4::text IS NULL OR file_id < $4)
-        AND (file_id LIKE $5) = $6::boolean
-      ORDER BY file_id ASC
-      LIMIT $3`,
+    `SELECT file_id AS "fileId" FROM (
+       (SELECT DISTINCT file_id
+          FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         WHERE org_slug = $1 AND ($2::text IS NULL OR file_id > $2)
+           AND ($4::text IS NULL OR file_id < $4)
+           AND (file_id LIKE $5) = $6::boolean
+         ORDER BY file_id ASC
+         LIMIT $3)
+       UNION
+       (SELECT file_id
+          FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.document_reads
+         WHERE org_slug = $1 AND ($2::text IS NULL OR file_id > $2)
+           AND ($4::text IS NULL OR file_id < $4)
+           AND (file_id LIKE $5) = $6::boolean
+         ORDER BY file_id ASC
+         LIMIT $3)
+     ) refs
+     ORDER BY file_id ASC
+     LIMIT $3`,
     [
       args.orgSlug,
       args.afterFileId,

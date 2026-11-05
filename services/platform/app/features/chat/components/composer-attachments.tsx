@@ -21,6 +21,7 @@
 import { formatFileSize } from '@tale/ui/format';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
 import { FileAudio, FileText, Loader2, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -34,6 +35,7 @@ import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 import { isUsageLimitRefusal } from '@/lib/shared/usage-limit';
 
+import { documentChipStatus } from '../utils/document-chip-status';
 import { transcriptionUnavailableKey } from '../utils/transcription-availability';
 
 interface ComposerAttachmentsProps {
@@ -201,10 +203,14 @@ function StagedMedia({
   );
 }
 
-/** One staged document / text file: a named chip whose status line tracks
- * RAG indexing (queued/running → spinner, failed → destructive label with
- * the stored reason on hover, unsupported → calm heads-up, idle → size).
- * Mirrors 0.3's attachment-status-label semantics. */
+/** One staged document / text file: a named chip whose status line says
+ * whether the assistant can read it (`documentChipStatus`): "Reading…"
+ * while it is read, its size once it is readable, the index at work only
+ * for a document too large to read before it, a destructive label when it
+ * cannot be read, and a calm heads-up for a file with no readable text or a
+ * format nothing reads. Such a label opens its reason in a tooltip — on
+ * hover, on keyboard focus, and for a screen reader — since the toast that
+ * told it is gone. */
 function StagedDocument({
   attachment,
   info,
@@ -215,28 +221,12 @@ function StagedDocument({
   onRemove: () => void;
 }) {
   const { t } = useT('chat');
-  const status = info?.status;
-  const inFlight = status === 'queued' || status === 'running';
-
-  let statusLabel: string;
-  if (inFlight) {
-    // The service reports raw step counts ("extracting 42/108") — show a
-    // percentage; any other progress string passes through as-is.
-    statusLabel = t('indexing');
-    const raw = info?.progress;
-    if (raw !== undefined && raw.length > 0) {
-      const match = /(\d+)\/(\d+)/.exec(raw);
-      statusLabel = match
-        ? `${Math.round((Number(match[1]) / Number(match[2])) * 100)}%`
-        : raw;
-    }
-  } else if (status === 'failed') {
-    statusLabel = t('indexingFailed');
-  } else if (status === 'unsupported') {
-    statusLabel = t('indexingUnsupported');
-  } else {
-    statusLabel = formatFileSize(attachment.fileSize);
-  }
+  const {
+    label: statusLabel,
+    failed,
+    busy: inFlight,
+    detail,
+  } = documentChipStatus(t, attachment, info);
 
   return (
     <Row
@@ -262,17 +252,27 @@ function StagedDocument({
         >
           {attachment.fileName}
         </Text>
-        <Text
-          variant="muted"
-          {...(status === 'failed' && info?.error !== undefined
-            ? { title: info.error }
-            : {})}
-          className={`block truncate text-[10px] leading-tight ${
-            status === 'failed' ? 'text-destructive' : ''
-          }`}
-        >
-          {statusLabel}
-        </Text>
+        {detail === undefined ? (
+          <Text
+            variant="muted"
+            className={`block truncate text-[10px] leading-tight ${
+              failed ? 'text-destructive' : ''
+            }`}
+          >
+            {statusLabel}
+          </Text>
+        ) : (
+          <Tooltip content={detail} side="top">
+            <button
+              type="button"
+              className={`block max-w-full cursor-help truncate bg-transparent p-0 text-left text-[10px] leading-tight ${
+                failed ? 'text-destructive' : 'text-muted-foreground'
+              }`}
+            >
+              {statusLabel}
+            </button>
+          </Tooltip>
+        )}
       </div>
       <button
         type="button"

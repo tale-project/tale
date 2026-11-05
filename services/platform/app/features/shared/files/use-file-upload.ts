@@ -566,23 +566,23 @@ export function useFileUpload(config: FileUploadConfig) {
             pendingUploadsRef.current.delete(fileId);
             setAttachments((prev) => [...prev, attachment]);
 
-            // Files that get RAG-indexed (PDFs, docs, text — the set
-            // `shouldRagIndexOnUpload` names, which is exactly what
-            // `POST /files/register` queues) are not "done" once the bytes
-            // land: indexing runs asynchronously and can still fail with an
-            // "Index failed" badge. Showing "uploaded successfully" here
-            // would contradict that outcome (#1457). For those files we
-            // defer the success toast until indexing reaches a terminal
-            // state — `useFileIndexingStatus` fires success on `completed`
-            // and an error toast on `failed`. Non-indexed files (images,
-            // audio/video, unsupported types) have no further processing
-            // gate, so they keep the immediate toast — an image deferred to
-            // an index that never runs simply never gets one.
-            const willIndex =
+            // Files that are read for the assistant (PDFs, docs, text — the
+            // set `shouldRagIndexOnUpload` names, which is exactly what
+            // `POST /files/register` reads and indexes) are not "done" once
+            // the bytes land: the read runs on the server and can still find
+            // the file refused or without text. Showing "uploaded
+            // successfully" here would contradict that outcome (#1457). For
+            // those files the success toast waits for the read —
+            // `useFileIndexingStatus` tells success once the assistant can
+            // read the file, and why when it cannot. Files nothing reads
+            // (images, audio/video, unsupported types) have no further
+            // processing gate, so they keep the immediate toast — an image
+            // deferred to a read that never runs simply never gets one.
+            const willRead =
               !config.disableIndexing &&
               shouldRagIndexOnUpload(fileToUpload.name, resolvedType);
 
-            if (!willIndex) {
+            if (!willRead) {
               toast({
                 title: t('fileUploaded'),
                 description: t('uploadedSuccessfully', { filename: file.name }),

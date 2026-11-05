@@ -277,7 +277,9 @@ export async function recoverStuckRagIndexing(
   // index health report, and one parked by a usage limit to the hourly
   // usage-limit re-queue: the index report's re-queue skips a row another
   // transaction holds (`FOR UPDATE SKIP LOCKED`), and a stamp holding it
-  // would leave it parked.
+  // would leave it parked. A queued row whose read is still pending has no
+  // index job yet — the read hands it on — and is the read watchdog's
+  // (`recoverStuckReads`), which runs first on the same tick.
   const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
            rag_status AS "ragStatus", rag_error AS "ragError",
@@ -286,7 +288,9 @@ export async function recoverStuckRagIndexing(
     WHERE storage_ref IS NOT NULL
       AND (
         (rag_status IN ('queued', 'running')
-          AND coalesce(rag_queued_at_ms, created_at_ms) < ${staleBefore})
+          AND coalesce(rag_queued_at_ms, created_at_ms) < ${staleBefore}
+          AND (text_status IS NULL
+            OR text_status NOT IN ('queued', 'running')))
         OR (rag_status = 'failed'
           AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter}
           AND (rag_error_code IS NULL

@@ -3951,9 +3951,10 @@ async function checkFiles(
   // so a document attached in chat kept a NULL `rag_status` forever — the
   // composer waited on a toast that never fired and every turn told the
   // model the file was "not machine-readable". Three shapes, one door: a
-  // document queues exactly one job, an image queues none and gets its page
-  // shape stamped instead (nothing downstream would ever fill those in), and
-  // the caller's opt-out is honoured.
+  // document queues exactly one read, which hands on exactly one index run
+  // (`rag.read_file`, migration 0238), an image queues neither and gets its
+  // page shape stamped instead (nothing downstream would ever fill those
+  // in), and the caller's opt-out is honoured.
   const registerStaged = async (
     fileName: string,
     contentType: string,
@@ -4008,12 +4009,33 @@ async function checkFiles(
   const docFileId = attached.fileId;
   const imageFileId = image.fileId;
   const skippedFileId = skipped.fileId;
-  const indexJobsFor = async (fileIdToCount: string): Promise<number> => {
+  const jobsFor = async (
+    queue: 'rag.index_file' | 'rag.read_file',
+    fileIdToCount: string,
+  ): Promise<number> => {
     const rows = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'rag.index_file' AND data ->> 'fileId' = ${fileIdToCount}
+      WHERE name = ${queue} AND data ->> 'fileId' = ${fileIdToCount}
     `;
     return Number(rows[0]?.count ?? '0');
+  };
+  const indexJobsFor = (fileIdToCount: string): Promise<number> =>
+    jobsFor('rag.index_file', fileIdToCount);
+  const readJobsFor = (fileIdToCount: string): Promise<number> =>
+    jobsFor('rag.read_file', fileIdToCount);
+  /** The index runs a document's reads handed on, once they are decided —
+   * the worker of this run reads them. */
+  const indexJobsOnceRead = async (
+    fileIdToCount: string,
+    want: number,
+  ): Promise<number> => {
+    let count = 0;
+    for (let i = 0; i < 100; i++) {
+      count = await indexJobsFor(fileIdToCount);
+      if (count >= want) break;
+      await sleep(200);
+    }
+    return count;
   };
   const attachmentRow = (
     await sql<{ ragStatus: string | null; skip: boolean | null }[]>`
@@ -4040,14 +4062,18 @@ async function checkFiles(
       FROM app.file_metadata WHERE id = ${skippedFileId} LIMIT 1
     `
   )[0];
-  const docJobs = await indexJobsFor(docFileId);
-  const imageJobs = await indexJobsFor(imageFileId);
-  const skippedJobs = await indexJobsFor(skippedFileId);
+  const docReads = await readJobsFor(docFileId);
+  const docJobs = await indexJobsOnceRead(docFileId, 1);
+  const imageJobs =
+    (await indexJobsFor(imageFileId)) + (await readJobsFor(imageFileId));
+  const skippedJobs =
+    (await indexJobsFor(skippedFileId)) + (await readJobsFor(skippedFileId));
   record(
     'register queues indexing for a document, never for an image or an opt-out',
     docFileId !== '' &&
       attachmentRow?.ragStatus !== null &&
       attachmentRow?.ragStatus !== undefined &&
+      docReads === 1 &&
       docJobs === 1 &&
       imageJobs === 0 &&
       imageRow?.ragStatus === null &&
@@ -4056,8 +4082,187 @@ async function checkFiles(
       skippedJobs === 0 &&
       skippedRow?.skip === true &&
       skippedRow?.ragStatus === null,
-    `document: status=${attachmentRow?.ragStatus ?? 'null'} (want any status — the pipeline started) jobs=${docJobs} (want 1); image: jobs=${imageJobs} (want 0) status=${imageRow?.ragStatus ?? 'null'} (want null) pages=${imageRow?.pageCount ?? 'null'} (want 1) vision=${imageRow?.visionRequired ?? 'null'} (want true); opt-out: jobs=${skippedJobs} (want 0) skip=${skippedRow?.skip ?? 'null'} (want true) status=${skippedRow?.ragStatus ?? 'null'} (want null)`,
+    `document: status=${attachmentRow?.ragStatus ?? 'null'} (want any status — the pipeline started) reads=${docReads} (want 1) index jobs once read=${docJobs} (want 1); image: jobs=${imageJobs} (want 0) status=${imageRow?.ragStatus ?? 'null'} (want null) pages=${imageRow?.pageCount ?? 'null'} (want 1) vision=${imageRow?.visionRequired ?? 'null'} (want true); opt-out: jobs=${skippedJobs} (want 0) skip=${skippedRow?.skip ?? 'null'} (want true) status=${skippedRow?.ragStatus ?? 'null'} (want null)`,
   );
+
+  // The read itself, on this run's worker: an attachment's text is
+  // extracted and checked, and kept in the organization's knowledge
+  // database — never in the app database — until its index is complete, so
+  // the assistant reads it while the index is built (CHAT-R48); a file the
+  // secret scan refuses keeps no text and says why. Nothing here runs in the
+  // api process.
+  const keyed = await registerStaged(
+    'keys.txt',
+    'text/plain',
+    'api_key = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"\n',
+    { threadId: 'itest-attachment-thread' },
+  );
+  const { readKeptText } = await import('./core/knowledge/kept_reads.ts');
+  const filesOrgSlug =
+    (
+      await sql<{ slug: string }[]>`
+        SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+      `
+    )[0]?.slug ?? '';
+  const readOf = async (id: string, ref: string) => {
+    let row:
+      | {
+          textStatus: string | null;
+          textErrorCode: string | null;
+          ragStatus: string | null;
+        }
+      | undefined;
+    for (let i = 0; i < 100; i++) {
+      row = (
+        await sql<
+          {
+            textStatus: string | null;
+            textErrorCode: string | null;
+            ragStatus: string | null;
+          }[]
+        >`
+          SELECT text_status AS "textStatus",
+                 text_error_code AS "textErrorCode", rag_status AS "ragStatus"
+          FROM app.file_metadata WHERE id = ${id}
+        `
+      )[0];
+      if (row?.textStatus !== 'queued' && row?.textStatus !== 'running') {
+        break;
+      }
+      await sleep(200);
+    }
+    return row === undefined
+      ? undefined
+      : { ...row, text: await readKeptText(filesOrgSlug, ref) };
+  };
+  const appColumns = await sql<{ name: string }[]>`
+    SELECT column_name AS name FROM information_schema.columns
+    WHERE table_schema = 'app' AND table_name = 'file_metadata'
+      AND column_name LIKE 'text\_%'
+  `;
+  const attachedRead = await readOf(docFileId, attached.ref);
+  const keyedRead = await readOf(keyed.fileId, keyed.ref);
+  const textInApp = appColumns.some((column) => column.name === 'text_content');
+  record(
+    'an attachment is read on a worker, its checked text kept in the knowledge database until its index is complete',
+    attachedRead?.textStatus === 'ready' &&
+      ((attachedRead.text ?? '').includes('chat attachment body') ||
+        (attachedRead.text === null &&
+          attachedRead.ragStatus === 'completed')) &&
+      keyedRead?.textStatus === 'refused' &&
+      keyedRead.textErrorCode === 'secret_detected' &&
+      keyedRead.text === null &&
+      !textInApp,
+    `attached: read=${attachedRead?.textStatus ?? 'null'} (want ready) kept=${JSON.stringify((attachedRead?.text ?? '').slice(0, 40))} index=${attachedRead?.ragStatus ?? 'null'} (the text, or none once the index completed); keys: read=${keyedRead?.textStatus ?? 'null'} (want refused) code=${keyedRead?.textErrorCode ?? 'null'} (want secret_detected) kept=${keyedRead?.text === null ? 'none' : 'TEXT'} (want none); app text columns=${appColumns.map((column) => column.name).join(',')} (want no text_content)`,
+  );
+
+  // A read whose job is gone for good — its worker killed on every attempt —
+  // must not hold a message: the read watchdog leaves the file to its index
+  // and hands that index on, unless another door already queued one. Real
+  // pg-boss rows answer the probe: the live read job of a second file keeps
+  // it pending.
+  {
+    const { recoverStuckReads } =
+      await import('./domains/knowledge/read-text.ts');
+    const lostAt = Date.now() - 5 * 60_000;
+    const lostRows = await sql<{ id: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_queued_at_ms, text_status, text_read_at_ms, created_at_ms
+      ) VALUES
+        (${orgId}, ${`itest-lost-read-${Date.now()}`}, 'lost.pdf',
+         'application/pdf', 512, 'queued', ${lostAt}, 'running', ${lostAt},
+         ${lostAt}),
+        (${orgId}, ${`itest-live-read-${Date.now()}`}, 'live.pdf',
+         'application/pdf', 512, 'queued', ${lostAt}, 'queued', ${lostAt},
+         ${lostAt})
+      RETURNING id
+    `;
+    const [lostId, liveId] = lostRows.map((row) => row.id);
+    try {
+      // The live read's job, held back so this run's worker leaves it be.
+      const { addJobInTx: enqueueForProbe } = await import('./jobs/enqueue.ts');
+      await enqueueForProbe(
+        sql,
+        'rag.read_file',
+        { fileId: liveId ?? '', organizationId: orgId, thenIndex: true },
+        { startAfter: new Date(Date.now() + 60 * 60_000) },
+      );
+      const settledReads = await recoverStuckReads(sql);
+      const after = await sql<
+        {
+          id: string;
+          textStatus: string | null;
+          textErrorCode: string | null;
+          ragQueuedAtMs: string | null;
+        }[]
+      >`
+        SELECT id, text_status AS "textStatus",
+               text_error_code AS "textErrorCode",
+               rag_queued_at_ms::text AS "ragQueuedAtMs"
+        FROM app.file_metadata WHERE id = ANY(${[lostId ?? '', liveId ?? '']})
+      `;
+      const lost = after.find((row) => row.id === lostId);
+      const live = after.find((row) => row.id === liveId);
+      const handedOn = await indexJobsFor(lostId ?? '');
+      record(
+        'a read whose job is lost is settled by the read watchdog, its index handed on',
+        settledReads >= 1 &&
+          lost?.textStatus === 'deferred' &&
+          lost.textErrorCode === 'read_failed' &&
+          Number(lost.ragQueuedAtMs) > lostAt &&
+          handedOn === 1 &&
+          live?.textStatus === 'queued',
+        `settled=${settledReads} lost: read=${lost?.textStatus ?? 'null'}/${lost?.textErrorCode ?? 'null'} (want deferred/read_failed) restamped=${Number(lost?.ragQueuedAtMs) > lostAt} index jobs=${handedOn} (want 1); live: read=${live?.textStatus ?? 'null'} (want queued — its job is still held)`,
+      );
+    } finally {
+      await sql`
+        DELETE FROM pgboss.job
+        WHERE name IN ('rag.read_file', 'rag.index_file')
+          AND data ->> 'fileId' = ANY(${[lostId ?? '', liveId ?? '']})
+      `;
+      await sql`
+        DELETE FROM app.file_metadata
+        WHERE id = ANY(${[lostId ?? '', liveId ?? '']})
+      `;
+    }
+  }
+
+  // A read's text lives in the knowledge database with the file's corpus
+  // rows, and goes with them: the release purge drops it even for a file
+  // that was never indexed, and the nightly reconcile walks its ref, so a
+  // file released while its read still ran cannot keep its text.
+  {
+    const { keepReadText: keepForProbe } =
+      await import('./core/knowledge/kept_reads.ts');
+    const { deleteKnowledgeDocumentsBatch, listKnowledgeDocumentRefs } =
+      await import('./core/legacy/knowledge_delete.ts');
+    const keptRef = `s3:itest/${filesOrgSlug}/kept-${Date.now()}`;
+    await keepForProbe(filesOrgSlug, keptRef, 'kept for the probe');
+    const walked: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 50; page++) {
+      const refs = await listKnowledgeDocumentRefs({
+        orgSlug: filesOrgSlug,
+        refs: 'blobs',
+        afterFileId: cursor,
+        limit: 100,
+      });
+      walked.push(...refs);
+      if (refs.length < 100) break;
+      cursor = refs.at(-1) ?? null;
+    }
+    const purge = await deleteKnowledgeDocumentsBatch({
+      orgSlug: filesOrgSlug,
+      fileIds: [keptRef],
+    });
+    const left = await readKeptText(filesOrgSlug, keptRef);
+    record(
+      'a read’s kept text is walked by the reconcile and dropped by the release purge',
+      walked.includes(keptRef) && purge.success && left === null,
+      `walked=${walked.includes(keptRef)} (want true) purge=${purge.success} kept after=${left === null ? 'none' : 'TEXT'} (want none)`,
+    );
+  }
 
   // The rows an instance carries from before registration queued indexing
   // have no status at all, and chat offers no retry — so the turn that
@@ -4070,6 +4275,16 @@ async function checkFiles(
     chatShimForHeal(sql)[
       'file_metadata/internal_mutations:queueRagIndexIfUnstarted'
     ];
+  // The run the register's read handed on settles first, so its status
+  // write cannot land on the status this check clears.
+  for (let i = 0; i < 100; i++) {
+    const settled = await sql<{ settled: boolean | null }[]>`
+      SELECT rag_status IN ('completed', 'failed', 'unsupported') AS settled
+      FROM app.file_metadata WHERE id = ${docFileId}
+    `;
+    if (settled[0]?.settled) break;
+    await sleep(200);
+  }
   await sql`
     UPDATE app.file_metadata SET rag_status = NULL, rag_error = NULL,
                                  rag_error_code = NULL
@@ -4078,16 +4293,19 @@ async function checkFiles(
   const restarted = await healHandler?.({ storageId: attached.ref });
   const restartedAgain = await healHandler?.({ storageId: attached.ref });
   const optOutRestart = await healHandler?.({ storageId: skipped.ref });
-  const restartedJobs = await indexJobsFor(docFileId);
-  const optOutJobs = await indexJobsFor(skippedFileId);
+  const restartedReads = await readJobsFor(docFileId);
+  const restartedJobs = await indexJobsOnceRead(docFileId, 2);
+  const optOutJobs =
+    (await indexJobsFor(skippedFileId)) + (await readJobsFor(skippedFileId));
   record(
     'a turn starts indexing for an attachment whose upload never did, once',
     restarted === 'queued' &&
       restartedAgain === null &&
       optOutRestart === null &&
+      restartedReads === 2 &&
       restartedJobs === 2 &&
       optOutJobs === 0,
-    `heal=${String(restarted)} (want queued), second=${String(restartedAgain)} (want null), optOut=${String(optOutRestart)} (want null), jobs=${restartedJobs} (want 2: the register one plus this) optOutJobs=${optOutJobs} (want 0)`,
+    `heal=${String(restarted)} (want queued), second=${String(restartedAgain)} (want null), optOut=${String(optOutRestart)} (want null), reads=${restartedReads} (want 2: the register one plus this), index jobs once read=${restartedJobs} (want 2) optOutJobs=${optOutJobs} (want 0)`,
   );
 
   // A file this door never queues and no extractor reads — a hand-uploaded
@@ -5078,9 +5296,10 @@ async function checkDocuments(
   // rows first, carrying `scope`/`project`/`indexing: skipped`; (2) stay out
   // of the project-only lane the sandbox `document_find` uses when `includeHub`
   // is absent; and (3) read on demand through the ONE document-text reader
-  // both `rag_fetch` doors use — the bytes are the file, whatever the index
-  // says — with the admission decided by the live-truth filter on the chat
-  // map's handlers.
+  // both `rag_fetch` doors use — the first fetch has the worker read the
+  // file under the organization's checks (`rag.read_file`) and waits for
+  // that read, whatever the index says — with the admission decided by the
+  // live-truth filter on the chat map's handlers.
   const leadVerifyBody = 'lead: verified\nsource: itest';
   const leadVerifyStaged = z
     .object({ url: z.string().url(), s3Ref: z.string() })
@@ -50106,13 +50325,15 @@ async function checkChatDeferredAuto(
     const storageRef = `itest-defer-${Date.now()}`;
     // Seeded the way the sender's own staging upload looks — the attachment
     // gate admits only refs the sender may read, and `uploaded_by` is that.
+    // A document still being read: its read queued, its index queued
+    // behind it, as an upload's register door leaves it.
     await sql`
       INSERT INTO app.file_metadata (
         org_id, storage_ref, file_name, content_type, size, rag_status,
-        uploaded_by, created_at_ms
+        text_status, uploaded_by, created_at_ms
       ) VALUES (
         ${orgId}, ${storageRef}, 'brief.pdf', 'application/pdf', 512,
-        'running', ${userId}, ${Date.now()}
+        'queued', 'queued', ${userId}, ${Date.now()}
       )
     `;
     const noModel = await post(
@@ -50148,8 +50369,10 @@ async function checkChatDeferredAuto(
           `/api/app/chat/threads/${deferThreadId}/deferred-sends?orgId=${orgId}`,
         ),
       );
+    // The read is decided; the index has not even started. The message
+    // goes out now — it never waits for a document's index (CHAT-R47).
     await sql`
-      UPDATE app.file_metadata SET rag_status = 'completed'
+      UPDATE app.file_metadata SET text_status = 'ready'
       WHERE storage_ref = ${storageRef}
     `;
     // The tray row settles the moment the turn persists the user message
@@ -50187,9 +50410,9 @@ async function checkChatDeferredAuto(
       );
     // A no-attachment row is ready immediately — cancel must win the race
     // only if it lands first, so cancel a PARKED row instead: re-park on the
-    // same file flipped back to running.
+    // same file, its read running again.
     await sql`
-      UPDATE app.file_metadata SET rag_status = 'running'
+      UPDATE app.file_metadata SET text_status = 'running'
       WHERE storage_ref = ${storageRef}
     `;
     const cancelParked = z.object({ deferredSendId: z.string() }).safeParse(
@@ -50221,7 +50444,7 @@ async function checkChatDeferredAuto(
         ).json(),
       );
     record(
-      'deferred send: parks on indexing, runs on readiness, cancel works',
+      'deferred send: parks on a document read, runs once read, cancel works',
       noModel.status === 400 &&
         parked.success &&
         stillWaiting.success &&
@@ -50235,7 +50458,7 @@ async function checkChatDeferredAuto(
         cancelRow.success &&
         cancelled.success &&
         cancelled.data.ok,
-      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, turnDone=${generating === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant' && (row.text ?? '').includes('Deferred answer done')).length} (want 1), cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
+      `noModel=${noModel.status} (want 400), parkedWhileRead=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, turnDone=${generating === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant' && (row.text ?? '').includes('Deferred answer done')).length} (want 1), cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
     );
   } finally {
     // Lift the pick pin — later checks (automation llm nodes, the

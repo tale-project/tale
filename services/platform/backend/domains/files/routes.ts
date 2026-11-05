@@ -13,13 +13,13 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { TranscriptionModelError } from '../../core/lib/providers/resolve_transcription_model.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { queueDocumentRead } from '../knowledge/read-text.ts';
 import {
   markRagQueued,
   markUploadUnsupportedIfNoExtractor,
@@ -248,19 +248,23 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
             purpose: 'file',
           },
         );
-        // Documents index server-side (the 0.4 saveFileMetadata `shouldIndex`
-        // branch): stamp queued + enqueue in the SAME transaction, so a
-        // crash between them can never leave a row `queued` with no job —
-        // the state the watchdog would have to guess about. Without this the
-        // row keeps a NULL status forever, the composer waits on a toast
-        // that never fires, and every chat turn tells the model the file is
-        // "not machine-readable".
+        // Documents are read for the assistant, then indexed, server-side
+        // (the 0.4 saveFileMetadata `shouldIndex` branch): stamp queued +
+        // enqueue in the SAME transaction, so a crash between them can never
+        // leave a row `queued` with no job — the state the watchdog would
+        // have to guess about. Without this the row keeps a NULL status
+        // forever, the composer waits on a toast that never fires, and every
+        // chat turn tells the model the file is "not machine-readable". The
+        // read queues the index run once it is decided (`read-text.ts`).
         if (
           body.data.skipRagIndexing !== true &&
           shouldRagIndexOnUpload(body.data.fileName, body.data.contentType)
         ) {
           await markRagQueued(tx, registered.fileId);
-          await addJobInTx(tx, 'rag.index_file', { fileId: registered.fileId });
+          await queueDocumentRead(tx, {
+            fileId: registered.fileId,
+            organizationId: scope.organizationId,
+          });
         } else if (isImage(body.data.contentType)) {
           // An image needs a vision model to be read at all, and the ingest
           // lane refuses it before any byte is fetched — so the honest page
@@ -396,7 +400,10 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           size: number;
           ragStatus: string | null;
           ragError: string | null;
+          ragErrorCode: string | null;
           ragProgress: string | null;
+          textStatus: string | null;
+          textErrorCode: string | null;
           pageCount: number | null;
           scannedPagesDetected: number | null;
           visionRequired: boolean | null;
@@ -415,7 +422,10 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                thread_id AS "threadId", conversation_id AS "conversationId",
                file_name AS "fileName", content_type AS "contentType",
                size::float8 AS "size", rag_status AS "ragStatus",
-               rag_error AS "ragError", rag_progress AS "ragProgress",
+               rag_error AS "ragError", rag_error_code AS "ragErrorCode",
+               rag_progress AS "ragProgress",
+               text_status AS "textStatus",
+               text_error_code AS "textErrorCode",
                page_count AS "pageCount",
                scanned_pages_detected AS "scannedPagesDetected",
                vision_required AS "visionRequired", transcript,
@@ -447,7 +457,12 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           row.documentId !== null ? { documentId: row.documentId } : {},
           row.ragStatus !== null ? { ragStatus: row.ragStatus } : {},
           row.ragError !== null ? { ragError: row.ragError } : {},
+          row.ragErrorCode !== null ? { ragErrorCode: row.ragErrorCode } : {},
           row.ragProgress !== null ? { ragProgress: row.ragProgress } : {},
+          row.textStatus !== null ? { textStatus: row.textStatus } : {},
+          row.textErrorCode !== null
+            ? { textErrorCode: row.textErrorCode }
+            : {},
           row.pageCount !== null ? { pageCount: row.pageCount } : {},
           row.scannedPagesDetected !== null
             ? { scannedPagesDetected: row.scannedPagesDetected }

@@ -318,6 +318,18 @@ indexingFailedDescription: '{filename} could not be indexed for search.'
 indexingUnsupported: Format not supported
 indexingUnsupportedDescription: "{filename} can't be indexed — this file
   type has no text extractor."
+indexingQueued: Waiting to index
+indexingReadingText: Reading text…
+indexingProgress: Indexing… {percent}%
+documentReading: Reading…
+documentRefused: Can't be read
+documentRefusedSecret: "{filename} contains what looks like a password or access key, so the assistant can't read it."
+documentRefusedPii: "Your organization's privacy policy blocks {filename}, so the assistant can't read it."
+documentRefusedPiiUnscanned: "{filename} couldn't be checked against your organization's privacy policy, so the assistant can't read it."
+documentNoText: No readable text
+documentNoTextDescription: "{filename} has no text the assistant can read — it may be empty, or a scan without a text layer."
+documentMalformed: Can't be opened
+documentMalformedDescription: "{filename} doesn't open as its file type — it may be damaged or password-protected — so the assistant can't read it."
 deferredSend:
   waiting: Queued — sends when the attachments are ready
   sending: Sending…

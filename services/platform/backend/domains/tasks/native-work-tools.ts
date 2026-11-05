@@ -8,6 +8,7 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   readThreadFiles,
   storeThreadArtifact,
+  withheldFile,
 } from '../agent_tools/artifacts.ts';
 import { turnWorkToolsFor } from '../agent_tools/executor.ts';
 import { turnImageBilling } from '../agent_tools/image-billing.ts';
@@ -83,10 +84,16 @@ export async function readRunFiles(
   const wanted = refs.filter((ref) => names.has(ref) && !found.has(ref));
   if (wanted.length === 0) return found;
   const rows = await sql<
-    { ref: string; mediaType: string; sizeBytes: number }[]
+    ({
+      ref: string;
+      mediaType: string;
+      sizeBytes: number;
+    } & Parameters<typeof withheldFile>[0])[]
   >`
     SELECT storage_ref AS ref, content_type AS "mediaType",
-           size::float8 AS "sizeBytes"
+           size::float8 AS "sizeBytes",
+           text_status AS "textStatus", text_error_code AS "textErrorCode",
+           rag_status AS "ragStatus", rag_error_code AS "ragErrorCode"
     FROM app.file_metadata
     WHERE org_id = ${scope.organizationId}
       AND storage_ref = ANY(${[...wanted]})
@@ -94,11 +101,13 @@ export async function readRunFiles(
   for (const row of rows) {
     const entry = names.get(row.ref);
     if (entry === undefined || found.has(row.ref)) continue;
+    const withheld = withheldFile(row);
     found.set(row.ref, {
       ref: row.ref,
       name: entry.fileName,
       mediaType: row.mediaType,
       sizeBytes: row.sizeBytes,
+      ...(withheld !== undefined ? { withheld } : {}),
     });
   }
   return found;

@@ -61,6 +61,7 @@ import {
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
+import { REFUSED_BY } from '../knowledge/document_text';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
@@ -419,6 +420,10 @@ export interface StagedTaskInputs {
   dir: string;
   attachments: string[];
   outputs: string[];
+  /** The attachments the organization's checks withhold — refused by its
+   * secret scan or PII policy, or still being checked — which are staged
+   * nowhere: their names, and why. */
+  withheld?: Array<{ name: string; why: string }>;
   /** Number of older task outputs retained on the task but omitted from this
    * turn's mirror. Long-lived coordinator tasks can accumulate one receipt
    * per pass, so staging the complete history would eventually make every
@@ -496,15 +501,15 @@ export function partitionTaskInputSkips(
  * no longer holds and what failed to stage is sorted by
  * `partitionTaskInputSkips` — a gone attachment fails the run by name, a
  * gone deliverable leaves the brief, an infra fault throws with the real
- * reason instead of quietly proceeding blind.
+ * reason instead of quietly proceeding blind. Exported for its unit test.
  */
-async function stageTaskInputs(
+export async function stageTaskInputs(
   ctx: ActionCtx,
   args: {
     organizationId: string;
     sessionId: string;
     taskId: string;
-    attachments: Array<{ fileId: string; fileName: string }>;
+    attachments: Array<{ fileId: string; fileName: string; withheld?: string }>;
     outputs: Array<{ fileId: string; fileName: string }>;
   },
 ): Promise<StagedTaskInputs> {
@@ -523,10 +528,22 @@ async function stageTaskInputs(
       `[task-agent] omitted ${outputSelection.omitted} older deliverables from task ${args.taskId} input staging; keeping the newest ${outputSelection.selected.length} to bound start latency`,
     );
   }
+  // An attachment the organization's checks withhold never reaches the
+  // worker: copied in, the agent would hold the very bytes its secret scan
+  // or PII policy refused — or has yet to clear. The brief names it.
+  const withheld = args.attachments.flatMap((file) =>
+    file.withheld === undefined
+      ? []
+      : [{ name: file.fileName, why: file.withheld }],
+  );
+  if (withheld.length > 0) staged.withheld = withheld;
   const toStage: SessionStageFile[] = [];
   const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
-    ['attachments', args.attachments],
+    [
+      'attachments',
+      args.attachments.filter((file) => file.withheld === undefined),
+    ],
     ['outputs', outputSelection.selected],
   ] as const) {
     const taken = new Set<string>();
@@ -591,6 +608,23 @@ async function stageTaskInputs(
  */
 export type KickRequester = TaskRequester;
 
+/** The line of the inputs block that names the attachments the
+ * organization's checks withhold, in the agent's words — none when every
+ * attachment was staged. */
+function withheldInputLines(inputs: StagedTaskInputs | undefined): string[] {
+  const withheld = inputs?.withheld ?? [];
+  if (withheld.length === 0) return [];
+  const refusedBy: Readonly<Record<string, string | undefined>> = REFUSED_BY;
+  const named = withheld.map(({ name, why }) =>
+    why === 'checking'
+      ? `"${name}" (the organization's secret scan and PII policy are still checking it; a later turn stages it once they clear it)`
+      : `"${name}" (${refusedBy[why] ?? REFUSED_BY['pii-blocked']})`,
+  );
+  return [
+    `- Not staged, withheld by the organization's checks: ${named.join('; ')}. Say so where the task needs them instead of working around it.`,
+  ];
+}
+
 /** Phrase a FRESH conversation's prompt from the task brief (a bound rerun
  * resumes the previous conversation instead — `buildResumeKickPrompt`).
  * Exported for its unit test. `feedback` is the @mention comment that kicked
@@ -627,6 +661,7 @@ export function buildTaskPrompt(
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...withheldInputLines(inputs),
     ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
       ? [
           `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,
@@ -720,6 +755,7 @@ function buildResumeKickPrompt(args: {
           `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
         ]
       : []),
+    ...withheldInputLines(inputs),
     ...(inputs !== undefined && (inputs.omittedOutputs ?? 0) > 0
       ? [
           `- ${inputs.dir}/outputs/ contains the newest ${inputs.outputs.length} deliverables; ${inputs.omittedOutputs} older retained deliverables were left on the task and omitted from this turn to keep input staging bounded.`,

@@ -10,7 +10,7 @@ import {
   type QuestionSet,
 } from '../../../../lib/shared/schemas/questions';
 import { TASK_COMMENT_LOCALES_MAX } from '../../../../lib/shared/schemas/task-comment';
-import { readDocumentText } from '../../knowledge/document_text';
+import { pictureFacts, readDocumentText } from '../../knowledge/document_text';
 import {
   EmbeddingBudgetExceeded,
   type EmbeddingMeter,
@@ -1196,7 +1196,7 @@ async function runKnowledgeTool(
   // change) is not a capability, and a denied document reads as the same
   // not_found as a missing one. The shared reader (the chat executor reads
   // through the same one) serves the corpus text, the row's inline content,
-  // or a text file's bytes on demand — and names the file's true indexing
+  // or the text a read on a worker checked — and names the file's true indexing
   // state when none can be served.
   let read;
   try {
@@ -1215,6 +1215,9 @@ async function runKnowledgeTool(
       message: read.message,
       ...(read.filename !== undefined ? { filename: read.filename } : {}),
     };
+  }
+  if (read.status === 'image') {
+    return { status: 'ok', output: pictureFacts(read, ref) };
   }
   const { text, filename } = read;
 

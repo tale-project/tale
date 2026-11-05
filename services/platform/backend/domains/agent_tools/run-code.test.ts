@@ -542,6 +542,67 @@ describe('run_code', () => {
     expect(drainSessionExecResilient).not.toHaveBeenCalled();
   });
 
+  // The organization's checks guard a file's text on its way to the model;
+  // a program's output is such a way, so a file they refused — or have not
+  // finished checking — is never copied in.
+  it.each([
+    [
+      'secret-detected',
+      "the organization's secret scan found what looks like a credential in it",
+    ],
+    ['pii-blocked', "the organization's PII policy blocks its content"],
+    ['pii-scan-failed', "the organization's PII policy could not scan it"],
+  ] as const)(
+    'refuses a file the organization’s checks refused (%s) before any sandbox starts',
+    async (withheld, cause) => {
+      const { scope } = testScope({
+        files: [
+          {
+            ref: 's3:acme/keys',
+            name: 'keys.txt',
+            mediaType: 'text/plain',
+            sizeBytes: 40,
+            withheld,
+          },
+        ],
+      });
+      const result = await runRunCode(scope, {
+        language: 'python',
+        code: 'print(open("inputs/keys.txt").read())',
+        files: ['s3:acme/keys'],
+      });
+      expect(result).toEqual({
+        status: 'not_found',
+        message: `"keys.txt" cannot be used here: ${cause}. Say so instead of working around it.`,
+      });
+      expect(acquireLightSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it('asks to try again for a file whose check is still running', async () => {
+    const { scope } = testScope({
+      files: [
+        {
+          ref: 's3:acme/report',
+          name: 'report.pdf',
+          mediaType: 'application/pdf',
+          sizeBytes: 4096,
+          withheld: 'checking',
+        },
+      ],
+    });
+    const result = await runRunCode(scope, {
+      language: 'python',
+      code: 'print(1)',
+      files: ['s3:acme/report'],
+    });
+    expect(result).toMatchObject({
+      status: 'not_found',
+      message: expect.stringContaining('is still being checked'),
+    });
+    expect(acquireLightSession).not.toHaveBeenCalled();
+  });
+
   it('refuses a ref of another conversation before any sandbox starts [CHAT-R19]', async () => {
     const { scope } = testScope();
     const result = await runRunCode(scope, {

@@ -16,9 +16,10 @@ import { isS3Ref } from '../../core/lib/storage/blob_ref.ts';
 import { sessionStageFiles } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { stageUrlForBlobRef } from '../../core/node_only/sandbox/helpers/stage_url.ts';
 import { reviewInputsDir } from '../../core/tasks/task_input_mirrors.ts';
+import { withheldFile } from '../agent_tools/artifacts.ts';
 import {
   getTaskReviewFileMetadata,
-  type FileMetadataRow,
+  type TaskReviewFileRow,
 } from '../files/service.ts';
 import {
   readAgentTaskReviewAccess,
@@ -48,8 +49,12 @@ type UnavailableReason =
   | 'metadata_missing'
   | 'document_access_required'
   | 'unsupported_storage'
-  | 'too_large';
-type BoundFile = FileMetadataRow & { documentBound: boolean };
+  | 'too_large'
+  /** The organization's secret scan or PII policy refused the file. */
+  | 'refused'
+  /** That check is still running. */
+  | 'checking';
+type BoundFile = TaskReviewFileRow;
 
 function sourceEntries(task: TaskRow) {
   return [
@@ -79,6 +84,12 @@ function unavailable(
     return 'invalid_metadata';
   if (metadata === undefined) return 'metadata_missing';
   if (metadata.documentBound) return 'document_access_required';
+  // Staged, the file would hand the reviewer the very bytes the
+  // organization's checks refused, or have yet to clear.
+  const withheld = withheldFile(metadata);
+  if (withheld !== undefined) {
+    return withheld === 'checking' ? 'checking' : 'refused';
+  }
   if (!isS3Ref(metadata.storageRef)) return 'unsupported_storage';
   if (
     !Number.isSafeInteger(metadata.size) ||
