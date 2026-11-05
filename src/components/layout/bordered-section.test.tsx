@@ -1,0 +1,52 @@
+import { describe, it, expect } from 'vitest';
+
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
+
+import { BorderedSection } from './bordered-section';
+
+describe('BorderedSection', () => {
+  describe('rendering', () => {
+    it('renders children', () => {
+      render(<BorderedSection>Section content</BorderedSection>);
+      expect(screen.getByText('Section content')).toBeInTheDocument();
+    });
+
+    it('has border styling', () => {
+      const { container } = render(<BorderedSection>Content</BorderedSection>);
+      expect(container.firstChild).toHaveClass('border');
+    });
+
+    it('applies custom className', () => {
+      const { container } = render(
+        <BorderedSection className="custom-class">Content</BorderedSection>,
+      );
+      expect(container.firstChild).toHaveClass('custom-class');
+    });
+  });
+
+  describe('gap', () => {
+    it('always applies gap-3', () => {
+      const { container } = render(<BorderedSection>Content</BorderedSection>);
+      expect(container.firstChild).toHaveClass('gap-3');
+    });
+  });
+
+  describe('padding', () => {
+    it('always applies p-4', () => {
+      const { container } = render(<BorderedSection>Content</BorderedSection>);
+      expect(container.firstChild).toHaveClass('p-4');
+    });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <BorderedSection>
+          <p>Section content</p>
+        </BorderedSection>,
+      );
+      await checkAccessibility(container);
+    });
+  });
+});

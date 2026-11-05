@@ -1,0 +1,17 @@
+'use client';
+
+import { cn } from '@tale/ui/cn';
+import { forwardRef, type HTMLAttributes } from 'react';
+
+interface PanelFooterProps extends HTMLAttributes<HTMLDivElement> {}
+
+export const PanelFooter = forwardRef<HTMLDivElement, PanelFooterProps>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn('bg-background sticky bottom-0 z-50', className)}
+      {...props}
+    />
+  ),
+);
+PanelFooter.displayName = 'PanelFooter';
