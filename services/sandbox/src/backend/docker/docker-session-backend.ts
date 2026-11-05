@@ -33,6 +33,8 @@ import {
 } from '../../buildkitd.ts';
 import { isIpv4Address } from '../../network-address.ts';
 import {
+  OperationDeadlineError,
+  operationRemainingMs,
   operationSignal,
   outsideOperationBudget,
   withOperationBudget,
@@ -540,9 +542,18 @@ export class DockerSessionBackend implements SessionBackend {
     const launch = async () => {
       try {
         operationSignal()?.throwIfAborted();
-        return await runDocker(argv, {
-          timeoutMs: 30_000,
-        });
+        // A slow daemon is not a failed one: the run may take what is left
+        // of the create's budget.
+        const timeoutMs =
+          operationRemainingMs() ?? this.cfg.session.createHealthTimeoutMs;
+        const result = await runDocker(argv, { timeoutMs });
+        // Killed by its own timer (124) or by the create's budget. Judged
+        // as it returns: the cleanup of a run that failed on its own may
+        // outlast the budget.
+        const timedOut =
+          result.exitCode === 124 ||
+          signal.reason instanceof OperationDeadlineError;
+        return { ...result, timeoutMs, timedOut };
       } catch (error) {
         // A transport rejection does not prove the daemon refused the run.
         // Remove only this attempt if it launched before the reply was lost.
@@ -604,9 +615,15 @@ export class DockerSessionBackend implements SessionBackend {
       // The run never pulls (`--pull=never`): a missing image fails at once,
       // and the spawner's warmup pulls it outside any create's budget.
       if (isDockerMissingImage(stderr)) this.runtimeImageMissing?.(stderr);
-      throw new Error(
-        `docker run (session) failed: ${stderr || run.stdout.trim()}`,
-      );
+      const output = stderr || run.stdout.trim();
+      // A run killed at its deadline has usually said nothing: name the
+      // deadline it ran out of.
+      if (run.timedOut) {
+        throw new Error(
+          `docker run (session) timed out after ${run.timeoutMs} ms, the rest of the create's ${this.cfg.session.createHealthTimeoutMs} ms budget (SANDBOX_SESSION_CREATE_TIMEOUT_MS)${output ? `: ${output}` : ''}`,
+        );
+      }
+      throw new Error(`docker run (session) failed: ${output}`);
     }
 
     // Poll runnerd until ready; on failure tear down only this attempt's

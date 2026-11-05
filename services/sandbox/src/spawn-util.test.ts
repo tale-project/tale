@@ -11,6 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  OperationDeadlineError,
+  operationRemainingMs,
   outsideOperationBudget,
   waitWithinOperation,
   withOperationBudget,
@@ -584,5 +586,55 @@ describe('Docker operation deadlines', () => {
       }),
     );
     expect((await runDocker(['-c', 'printf outside'])).stdout).toBe('outside');
+  });
+
+  // A call bounded by the operation, such as a session's `docker run`, may
+  // take what its budgets leave: the tightest of them.
+  test('the time left is that of the tightest budget the caller runs in', async () => {
+    expect(operationRemainingMs()).toBeUndefined();
+    await withOperationBudget(1_000, async () => {
+      const outer = operationRemainingMs() ?? -1;
+      expect(outer).toBeGreaterThan(900);
+      expect(outer).toBeLessThanOrEqual(1_000);
+      await withOperationBudget(5_000, async () => {
+        expect(operationRemainingMs()).toBeLessThanOrEqual(outer);
+      });
+      await withOperationBudget(100, async () => {
+        expect(operationRemainingMs()).toBeLessThanOrEqual(100);
+      });
+      await outsideOperationBudget(async () => {
+        expect(operationRemainingMs()).toBeUndefined();
+      });
+    });
+  });
+
+  test('an expired budget leaves no time and aborts with its deadline; a cancel keeps its reason', async () => {
+    let left: number | undefined;
+    const expired: unknown = await withOperationBudget(20, async () => {
+      await Bun.sleep(60);
+      left = operationRemainingMs();
+    }).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(left).toBe(0);
+    expect(expired).toBeInstanceOf(OperationDeadlineError);
+    expect(expired instanceof Error ? expired.message : '').toBe(
+      'sandbox operation deadline exceeded',
+    );
+
+    const caller = new AbortController();
+    const cancel = new Error('the caller went away');
+    const cancelled: unknown = await withOperationBudget(
+      1_000,
+      async () => {
+        caller.abort(cancel);
+      },
+      caller.signal,
+    ).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(cancelled).toBe(cancel);
   });
 });
