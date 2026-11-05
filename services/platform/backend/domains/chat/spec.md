@@ -6,9 +6,10 @@ The rules a chat is held to: who can open, continue, share and delete it, what a
 and a share link give and take, what a message is refused for, that a chat answers one message
 at a time, what stopping, editing and trying again guarantee, what Arena Mode promises, what a
 delete takes with it, what the REST API can and cannot do, what makes a message wait for its
-attachments and what the assistant knows of them, and what the assistant may make and where it
-lands. The rest of attachments, the assistant's search, usage booking, title generation and
-harness-backed chats are not covered; see Not yet.
+attachments and what the assistant knows of them, what the assistant may make and where it
+lands, and how it reads a web page behind a site's bot protection. The rest of attachments, the
+assistant's search, usage booking, title generation and harness-backed chats are not covered;
+see Not yet.
 
 ## Who can see a chat
 
@@ -618,6 +619,34 @@ open longer than the 15 minutes a link lives.
 - **Example**: The reply links `[planets.csv](s3:…)` → Mia clicks it and the file's preview
   opens, with its download.
 
+## Reading a web page
+
+The assistant reads a public page at an https:// address. When a site's bot protection answers
+in the page's place on every attempt, what it asks for decides what happens.
+
+| The bot protection asks for | The assistant |
+| --- | --- |
+| A check a browser passes on its own | opens the page once in a sandboxed browser and reads it |
+| A puzzle only a person can solve (a CAPTCHA) | reads nothing, and never tries to solve it |
+| Nothing: it refuses the request | reads nothing |
+
+### CHAT-R50 · A page behind a browser check is rendered once; a CAPTCHA never is
+
+A browser check is a script a browser runs on its own: AWS WAF's or Cloudflare's challenge,
+Vercel's checkpoint, Fastly's client challenge. Behind one, the page is opened once in a
+sandboxed browser that introduces itself as Tale's assistant, at the address the plain read
+reached, against the organization's render sessions, and what the browser shows is read as the
+page. A CAPTCHA or a refusal is never opened in the browser, and a browser that meets the check
+again reads nothing. For the rest of the reply, reading on through the page or asking for it
+again answers from that one render. A render that cannot run says so at once, without waiting
+for a free session.
+
+- **Example**: Mia asks about a tender notice whose site answers every plain read with a browser
+  check → the notice is opened once in a sandboxed browser, the reply quotes it, and reading
+  its next parts opens no second browser.
+- **Example**: The site asks Mia's chat for a CAPTCHA instead → nothing is opened, the step reads
+  that the site asks for a puzzle only a person can solve, and the reply gives the link.
+
 ## Not yet
 
 - **An organization switch for the settings tools**: Governance cannot turn off the chat's
@@ -667,7 +696,8 @@ open longer than the 15 minutes a link lives.
 - **What the assistant can search and fetch from a chat** (`../../core/chat/assistant_tools.ts`):
   the project boundary of a filed chat, the hub for a personal chat, and untrusted content;
   what a search finds is knowledge's (`KNOW-R3` to `KNOW-R5`), the inbox leg conversations'
-  (`CONV-R2`).
+  (`CONV-R2`). Of a web read, beyond its bot checks (`CHAT-R50`): where its redirects may lead,
+  its size and type limits, the main content it reads and the pages it renders for their scripts.
 - **The turn itself** (`../../../lib/chat/turn.ts`, `../../core/chat/turn_action.ts`): the
   tool loop, the reply cap, the stall guard, what a failed reply books, the reply language
   and custom instructions (`PREF-R1` to `PREF-R3`). A cut tool call's arguments are not on the

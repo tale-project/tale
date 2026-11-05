@@ -227,10 +227,36 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
 
   it('web_fetch says a page that needs a browser is rendered, and how the result tells', () => {
     const text = wireDescription('web_fetch');
-    expect(text).toMatch(
-      /a page that\s+builds its content in the browser is rendered once/i,
-    );
+    expect(text).toMatch(/a page that\s+builds its content in the browser/i);
+    expect(text).toMatch(/is rendered once in\s+a sandboxed browser/i);
     expect(text).toContain('"rendered": true');
+  });
+
+  it("web_fetch renders a page behind a site's browser check, and never solves a CAPTCHA", () => {
+    const text = wireDescription('web_fetch');
+    expect(text).toMatch(
+      /bot protection\s+answers with a check a browser passes on its own, is rendered once/i,
+    );
+    expect(text).toMatch(/\(a CAPTCHA\) is never\s+solved/);
+  });
+
+  it('web_fetch renders a page once per reply, and pages and retries read that render', () => {
+    expect(wireDescription('web_fetch')).toMatch(
+      /rendered at most once per\s+reply, and fetching it again, for another window or after a failure,\s+answers from that one render/,
+    );
+  });
+
+  // The failure itself states facts; how to tell the person is the
+  // description's, so a result never reads as an English instruction to
+  // them on the reply's step.
+  it('web_fetch says how to tell the user about a page it could not read', () => {
+    const text = wireDescription('web_fetch');
+    expect(text).toMatch(/Tell the user so in their language/);
+    expect(text).toMatch(/it keeps automated readers out/);
+    expect(text).toMatch(/give\s+them the link to open in their browser/);
+    expect(text).toMatch(/paste its text or attach it as a PDF/);
+    expect(text).toMatch(/Never guess what the\s+page says/);
+    expect(text).toMatch(/never make up another address/);
   });
 
   it('web_fetch accepts a URL the instructions name', () => {

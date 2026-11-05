@@ -38,6 +38,7 @@ import {
   type ChatToolExecutor,
   type RagSearchKind,
   type ToolCallRequest,
+  type WebFetchFailureReason,
 } from '../../../lib/chat';
 import {
   sanitizeUntrustedField,
@@ -56,7 +57,7 @@ import {
 } from '../../../lib/knowledge/main-content';
 import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
-import { botCheckOf } from '../../../lib/net/bot-check';
+import { botCheckOf, type BotCheck } from '../../../lib/net/bot-check';
 import {
   SafeFetchError,
   isPrivateIp,
@@ -149,8 +150,8 @@ const WEB_FETCH_RENDER_EXEC_MS = 60_000;
 /** A page web_fetch asked for, and the bot check it still met, if any. */
 interface FetchedPage {
   readonly response: SafeFetchResponse;
-  /** The vendor whose bot check answered the last attempt. */
-  readonly botCheck: string | null;
+  /** The bot check that answered the last attempt. */
+  readonly botCheck: BotCheck | null;
   readonly attempts: number;
 }
 
@@ -193,7 +194,7 @@ async function fetchPublicPage(url: URL): Promise<FetchedPage> {
     const botCheck = botCheckOf(response);
     const via = response.outboundProxy;
     if (botCheck !== null) {
-      walls.push(`${botCheck} ${cameThrough(via)}`);
+      walls.push(`${botCheck.vendor} ${cameThrough(via)}`);
       walled = { response, botCheck, attempts };
     }
     const again =
@@ -219,6 +220,58 @@ function cameThrough(via: OutboundProxyRef | undefined): string {
     : `through outbound proxy entry ${via.entry} (${via.label})`;
 }
 
+/** A web_fetch call that read no page, with its cause for the reply's step.
+ * The message states what happened, for the model; how to tell the person
+ * is the tool description's, so the step never shows an instruction to the
+ * model as if it were the person's explanation. */
+interface WebFetchFailure extends ToolFailure {
+  readonly reason: WebFetchFailureReason;
+}
+
+function webFetchFailure(
+  status: WebFetchFailure['status'],
+  reason: WebFetchFailureReason,
+  message: string,
+): WebFetchFailure {
+  return { status, reason, message };
+}
+
+/** Why a fetch that threw read nothing, by its refusal. */
+function fetchFailureReason(error: unknown): WebFetchFailureReason {
+  if (!(error instanceof SafeFetchError)) return 'unreachable';
+  switch (error.kind) {
+    case 'invalid_url':
+    case 'unsupported_protocol':
+    case 'insecure_public_http':
+    case 'private_ip':
+    case 'host_not_allowed':
+      return 'address_refused';
+    case 'timeout':
+    case 'aborted':
+      return 'timed_out';
+    case 'response_too_large':
+      return 'page_too_large';
+    case 'dns_failed':
+    case 'redirect_missing_location':
+    case 'redirect_limit_exceeded':
+    case 'response_too_small':
+    case 'network_error':
+    case 'tls_error':
+      return 'unreachable';
+    default: {
+      const _exhaustive: never = error.kind;
+      return _exhaustive;
+    }
+  }
+}
+
+/** Why a site's error status left nothing to read. */
+function httpFailureReason(status: number): WebFetchFailureReason {
+  if (status === 404 || status === 410) return 'page_not_found';
+  if (status === 401 || status === 403) return 'access_denied';
+  return 'http_error';
+}
+
 /** What web_fetch says rendering met when the rendered page still holds no
  * text: the clause its explanation carries. */
 const RENDERED_NOTHING = 'rendered in a browser here, it still holds no text';
@@ -226,30 +279,25 @@ const RENDERED_NOTHING = 'rendered in a browser here, it still holds no text';
 /** What web_fetch tells the model about a page that answered with success
  * and holds nothing to read, so it says why instead of guessing. The site's
  * status text stays out of it: the site's words reach the model only inside
- * the page it sent. A page its scripts build comes with what rendering it
- * met (`rendered`): it is never given up on without a render. */
+ * the page it sent. A page its scripts build is rendered instead, and
+ * `renderFailure` says what that met. */
 function unreadablePageFailure(
-  why: UnreadablePage,
+  why: Exclude<UnreadablePage, 'needs-browser'>,
   status: number,
-  rendered: string = RENDERED_NOTHING,
-): ToolFailure {
+): WebFetchFailure {
   switch (why) {
     case 'blocked':
-      return {
-        status: 'error',
-        message: `The site answered ${status} with nothing to read in place of the page, as sites that block automated access do, so it cannot be read here. Tell the user; they can open it in their browser.`,
-      };
-    case 'needs-browser':
-      return {
-        status: 'unavailable',
-        message: `The page builds its content in the browser with scripts; ${rendered}, so there is nothing to read here. Tell the user; they can open it in their browser.`,
-      };
+      return webFetchFailure(
+        'error',
+        'bot_check_blocked',
+        `The site answered ${status} with nothing to read in place of the page, as sites that block automated access do, so it was not read.`,
+      );
     case 'empty':
-      return {
-        status: 'unavailable',
-        message:
-          'The page holds no text: the site sent an empty page, or one made only of images or embedded content.',
-      };
+      return webFetchFailure(
+        'unavailable',
+        'page_empty',
+        'The page holds no text: the site sent an empty page, or one made only of images or embedded content.',
+      );
     default: {
       const _exhaustive: never = why;
       return _exhaustive;
@@ -257,21 +305,95 @@ function unreadablePageFailure(
   }
 }
 
+/** Why web_fetch rendered a page: what the plain GET met, which a render
+ * that read nothing explains first, and what became of the page then. */
+interface RenderCause {
+  readonly status: WebFetchFailure['status'];
+  readonly met: string;
+  readonly unread: string;
+  /** The title the plain GET read, for a rendered page that names none. */
+  readonly title: string | null;
+}
+
+/** A page its scripts build: nothing to read until a browser runs them. */
+function needsBrowserCause(title: string | null): RenderCause {
+  return {
+    status: 'unavailable',
+    met: 'The page builds its content in the browser with scripts',
+    unread: 'so there is nothing to read here',
+    title,
+  };
+}
+
+/** A page a site's challenge stood in front of on every attempt: a script
+ * a browser runs on its own, so the browser meets the challenge instead. */
+function challengeCause(check: BotCheck, attempts: number): RenderCause {
+  return {
+    status: 'error',
+    met: `${check.vendor}'s bot check answered in place of the page${attempts > 1 ? ` on each of ${attempts} attempts` : ''}`,
+    unread: 'so the page was not read',
+    title: null,
+  };
+}
+
+/** A render that read nothing: why web_fetch rendered the page, then what
+ * the render met. */
+function renderFailure(
+  cause: RenderCause,
+  reason: WebFetchFailureReason,
+  met: string,
+): WebFetchFailure {
+  return webFetchFailure(
+    cause.status,
+    reason,
+    `${cause.met}; ${met}, ${cause.unread}.`,
+  );
+}
+
+/** A bot check the browser met in the page's place: a CAPTCHA is never
+ * solved, and a challenge that kept the browser out left nothing to read. */
+function renderedCheckFailure(
+  cause: RenderCause,
+  check: BotCheck,
+): WebFetchFailure {
+  return check.kind === 'captcha'
+    ? renderFailure(
+        cause,
+        'bot_check_captcha',
+        `rendered in a browser here, ${check.vendor}'s bot check asked for a CAPTCHA, a puzzle for a person to solve, which is never solved here`,
+      )
+    : renderFailure(
+        cause,
+        'bot_check_unrendered',
+        `rendered in a browser here, ${check.vendor}'s bot check answered in its place`,
+      );
+}
+
+/** What the render lane gave for one page: the document the browser ended
+ * on, the bot check it met there (one that answered with an error status,
+ * as Cloudflare's does), or why there is neither. */
+type DrawnPage =
+  | Extract<RenderPageOutcome, { kind: 'ok' }>
+  | { readonly kind: 'checked'; readonly check: BotCheck }
+  | {
+      readonly kind: 'failed';
+      readonly reason: 'render_busy' | 'render_failed';
+      readonly why: string;
+    };
+
 /**
- * Render one page that needs a browser in the crawler's render lane: an
- * ephemeral sandbox session against the organization's render quota, the
- * lane's own host checks and egress proxy, created by the member whose chat
- * asked. The page or the clause saying why there is none; a spent quota is
- * explained at once, never waited for, since a reply cannot wait as a scan
- * does.
+ * Render one page in the crawler's render lane: an ephemeral sandbox session
+ * against the organization's render quota, the lane's own host checks and
+ * egress proxy, created by the member whose chat asked. The page, the bot
+ * check the browser met in its place, or the clause saying why there is
+ * neither; a spent quota is explained at once, never waited for, since a
+ * reply cannot wait as a scan does.
  */
 async function renderPageOnce(
   ctx: ActionCtx,
   who: { readonly organizationId: string; readonly userId: string },
   url: string,
-): Promise<
-  Extract<RenderPageOutcome, { kind: 'ok' }> | { kind: 'failed'; why: string }
-> {
+): Promise<DrawnPage> {
   const host = new URL(url).hostname;
   try {
     const batch = await renderUrlsInSandbox(ctx, {
@@ -284,6 +406,16 @@ async function renderPageOnce(
     });
     const outcome = batch.outcomes.get(url);
     if (outcome?.kind === 'ok') return outcome;
+    const check =
+      outcome?.kind === 'failed' && outcome.headers !== undefined
+        ? botCheckOf({ headers: new Headers(outcome.headers), body: '' })
+        : null;
+    if (check !== null) {
+      console.warn(
+        `[chat] web_fetch: rendering ${host} met ${check.vendor}'s bot check (${check.kind}) in place of the page`,
+      );
+      return { kind: 'checked', check };
+    }
     const reason =
       outcome?.kind === 'failed'
         ? classifyRenderReason(outcome.reason).message
@@ -293,6 +425,7 @@ async function renderPageOnce(
     console.warn(`[chat] web_fetch: rendering ${host} failed: ${reason}`);
     return {
       kind: 'failed',
+      reason: 'render_failed',
       why: `rendering it in a browser here failed (${clip(reason, 200)})`,
     };
   } catch (error) {
@@ -302,6 +435,7 @@ async function renderPageOnce(
       );
       return {
         kind: 'failed',
+        reason: 'render_busy',
         why: "no browser was free to render it here (the organization's render sessions are all in use, or the sandbox host is busy; asking again later may work)",
       };
     }
@@ -310,9 +444,89 @@ async function renderPageOnce(
     );
     return {
       kind: 'failed',
+      reason: 'render_failed',
       why: `rendering it in a browser here failed (${clip(publicPageError(describeError(error)), 200)})`,
     };
   }
+}
+
+/** A page web_fetch read: where, under what title, its content, and whether
+ * a browser drew it in the render lane. */
+interface PageRead {
+  readonly url: string;
+  readonly title: string | null;
+  readonly page: PageContent;
+  readonly rendered: boolean;
+}
+
+/** Where a page lives, for the turn's renders: its address without the
+ * fragment, which never reaches the site. */
+function pageKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    return parsed.href;
+  } catch {
+    // Not an address the URL parser takes: the string itself is the key.
+    return url;
+  }
+}
+
+/** What one render read: the page, or why it read none. */
+type RenderedRead =
+  | { readonly kind: 'read'; readonly read: PageRead }
+  | { readonly kind: 'failed'; readonly failure: WebFetchFailure };
+
+/**
+ * Read what a render drew. A bot check in the page's place — marked by the
+ * headers of the document the browser ended on, or told by its page, since
+ * a site that loads its bot protection's SDK is still the page — is no
+ * content. Anything else is read for its main content, as a page that
+ * reads as sent is.
+ */
+function readDrawnPage(drawn: DrawnPage, cause: RenderCause): RenderedRead {
+  if (drawn.kind === 'failed') {
+    return {
+      kind: 'failed',
+      failure: renderFailure(cause, drawn.reason, drawn.why),
+    };
+  }
+  if (drawn.kind === 'checked') {
+    return {
+      kind: 'failed',
+      failure: renderedCheckFailure(cause, drawn.check),
+    };
+  }
+  const check = botCheckOf({
+    headers: new Headers(drawn.headers ?? {}),
+    body: drawn.html,
+  });
+  if (check !== null) {
+    return { kind: 'failed', failure: renderedCheckFailure(cause, check) };
+  }
+  const page = readPageContent(drawn.html, drawn.finalUrl);
+  const still = unreadablePage(drawn.status, page.text, page.needsBrowser);
+  if (still === 'blocked') {
+    return {
+      kind: 'failed',
+      failure: unreadablePageFailure('blocked', drawn.status),
+    };
+  }
+  if (still !== null) {
+    return {
+      kind: 'failed',
+      failure: renderFailure(cause, 'render_empty', RENDERED_NOTHING),
+    };
+  }
+  return {
+    kind: 'read',
+    read: {
+      url: drawn.finalUrl,
+      title: htmlTitle(drawn.html) ?? cause.title,
+      page,
+      rendered: true,
+    },
+  };
 }
 
 /** Snippet budget per rag_search row that carries a description — a task, a
@@ -2751,159 +2965,58 @@ export function createChatToolExecutor(
 
   // -------------------------------------------------------------- web_fetch
 
-  const webFetch = async (args: Record<string, unknown>): Promise<unknown> => {
-    const rawUrl = typeof args.url === 'string' ? args.url.trim() : '';
-    if (rawUrl === '') {
-      const result = invalidArgs('web_fetch needs a "url" string.');
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
-    let parsed: URL;
-    try {
-      parsed = new URL(rawUrl);
-    } catch {
-      const result = invalidArgs(`"${clip(rawUrl, 200)}" is not a valid URL.`);
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
-    if (parsed.protocol !== 'https:') {
-      const result = invalidArgs('Only https:// URLs can be fetched.');
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
-    if (parsed.username !== '' || parsed.password !== '') {
-      const result = invalidArgs('URLs with embedded credentials are refused.');
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
-    if (isPrivateIp(parsed.hostname) || /^[0-9.[\]:]+$/.test(parsed.hostname)) {
-      const result = invalidArgs(
-        'Bare IP or private-network hosts are refused — fetch a public site by name.',
-      );
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
-    const offset =
-      typeof args.offset === 'number' && args.offset > 0
-        ? Math.floor(args.offset)
-        : 0;
-    const limit =
-      typeof args.limit === 'number' && args.limit > 0
-        ? Math.min(Math.floor(args.limit), FETCH_WINDOW_CHARS)
-        : FETCH_WINDOW_CHARS;
+  /**
+   * What this turn's renders read, by every address that led to one: the
+   * address asked for, the one the plain GET reached and the one the browser
+   * ended on. A page is rendered at most once per turn: reading on through
+   * it, or asking for it again after a render that read nothing, answers
+   * from that one render, and never holds another sandbox session for it.
+   */
+  const renders = new Map<string, Promise<RenderedRead>>();
 
-    let fetched: FetchedPage;
-    try {
-      fetched = await fetchPublicPage(parsed);
-    } catch (error) {
-      const message =
-        error instanceof SafeFetchError
-          ? `The page could not be fetched (${error.kind}${error.status !== undefined ? ` ${error.status}` : ''}).`
-          : `The page could not be fetched: ${clip(describeError(error), 200)}`;
-      const result: ToolFailure = { status: 'error', message };
-      await recordDispatch('web_fetch', result.status, message);
-      return result;
-    }
-    const { response } = fetched;
+  /** The turn's one render of the page the plain GET reached at `url`, for
+   * the address `asked`: an earlier one, else a new one. */
+  const renderedRead = (
+    asked: string,
+    url: string,
+    cause: RenderCause,
+  ): Promise<RenderedRead> => {
+    const pending = renders.get(pageKey(url)) ?? renderAndRead(url, cause);
+    renders.set(pageKey(asked), pending);
+    renders.set(pageKey(url), pending);
+    return pending;
+  };
 
-    if (fetched.botCheck !== null) {
-      const result: ToolFailure = {
-        status: 'error',
-        message: `The site answered with ${fetched.botCheck}'s bot check instead of the page${fetched.attempts > 1 ? ` on each of ${fetched.attempts} attempts` : ''}, so it cannot be read here. Tell the user; they can open it in their browser.`,
-      };
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
+  const renderAndRead = async (
+    url: string,
+    cause: RenderCause,
+  ): Promise<RenderedRead> => {
+    const outcome = readDrawnPage(await renderPageOnce(ctx, who, url), cause);
+    const drawnAt = outcome.kind === 'read' ? pageKey(outcome.read.url) : null;
+    if (drawnAt !== null && !renders.has(drawnAt)) {
+      renders.set(drawnAt, Promise.resolve(outcome));
     }
+    return outcome;
+  };
 
-    if (response.status >= 400) {
-      const result: ToolFailure = {
-        status: 'error',
-        message: `The server answered ${response.status} ${response.statusText}.`,
-      };
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
+  /** A failure, booked and answered. */
+  const refuseWebFetch = async (
+    failure: WebFetchFailure,
+  ): Promise<WebFetchFailure> => {
+    await recordDispatch('web_fetch', failure.status, failure.message);
+    return failure;
+  };
 
-    const contentType = response.headers.get('content-type') ?? '';
-    const isHtml =
-      contentType.includes('text/html') ||
-      contentType.includes('application/xhtml');
-    const isTextual =
-      isHtml ||
-      contentType.startsWith('text/') ||
-      contentType.includes('json') ||
-      contentType.includes('xml') ||
-      contentType === '';
-    if (!isTextual) {
-      const result: ToolFailure = {
-        status: 'unavailable',
-        message: `The page is "${clip(contentType, 80)}", which this tool cannot read — only HTML and text.`,
-      };
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
-
-    // An HTML page is read for its main content, without the site's chrome.
-    let read: {
-      readonly url: string;
-      readonly title: string | null;
-      readonly page: PageContent;
-      readonly rendered: boolean;
-    } = {
-      url: response.finalUrl,
-      title: isHtml ? htmlTitle(response.body) : null,
-      page: isHtml
-        ? readPageContent(response.body, response.finalUrl)
-        : { text: response.body, canonicalUrl: null, needsBrowser: false },
-      rendered: false,
-    };
-    const unreadable = unreadablePage(
-      response.status,
-      read.page.text,
-      read.page.needsBrowser,
-    );
-    if (unreadable === 'needs-browser') {
-      // A page its scripts build is rendered once, in the render lane: the
-      // page safeFetch admitted, at the address its redirects led to. A bot
-      // check, a site's empty refusal and an empty page never get here.
-      const drawn = await renderPageOnce(ctx, who, response.finalUrl);
-      if (drawn.kind === 'failed') {
-        const result = unreadablePageFailure(
-          'needs-browser',
-          response.status,
-          drawn.why,
-        );
-        await recordDispatch('web_fetch', result.status, result.message);
-        return result;
-      }
-      read = {
-        url: drawn.finalUrl,
-        title: htmlTitle(drawn.html) ?? read.title,
-        page: readPageContent(drawn.html, drawn.finalUrl),
-        rendered: true,
-      };
-      const still = unreadablePage(
-        drawn.status,
-        read.page.text,
-        read.page.needsBrowser,
-      );
-      if (still !== null) {
-        const result = unreadablePageFailure(
-          still === 'blocked' ? still : 'needs-browser',
-          drawn.status,
-        );
-        await recordDispatch('web_fetch', result.status, result.message);
-        return result;
-      }
-    } else if (unreadable !== null) {
-      const result = unreadablePageFailure(unreadable, response.status);
-      await recordDispatch('web_fetch', result.status, result.message);
-      return result;
-    }
+  /** One window of a page web_fetch read, as untrusted content. */
+  const answerPage = async (
+    read: PageRead,
+    offset: number,
+    limit: number,
+  ): Promise<unknown> => {
     // Offsets index the EXTRACTED text, not response bytes — HTML positions
     // shift under extraction, so a Range request could never line up. Every
-    // window therefore re-fetches the page and slices (a page that needs a
-    // browser is rendered again); the paging contract
+    // window therefore re-fetches the page and slices, and a rendered page
+    // is sliced from the turn's one render; the paging contract
     // (`offset`/`nextOffset`/`totalChars`) matches rag_fetch exactly.
     const paged = windowText(read.page.text, offset, limit);
     await recordDispatch('web_fetch', 'ok');
@@ -2927,6 +3040,195 @@ export function createChatToolExecutor(
         url: read.url,
       }),
     };
+  };
+
+  const answerRendered = async (
+    rendered: RenderedRead,
+    offset: number,
+    limit: number,
+  ): Promise<unknown> =>
+    rendered.kind === 'read'
+      ? answerPage(rendered.read, offset, limit)
+      : refuseWebFetch(rendered.failure);
+
+  const webFetch = async (args: Record<string, unknown>): Promise<unknown> => {
+    const rawUrl = typeof args.url === 'string' ? args.url.trim() : '';
+    if (rawUrl === '') {
+      return refuseWebFetch(
+        webFetchFailure(
+          'invalid_args',
+          'invalid_url',
+          'web_fetch needs a "url" string.',
+        ),
+      );
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      return refuseWebFetch(
+        webFetchFailure(
+          'invalid_args',
+          'invalid_url',
+          `"${clip(rawUrl, 200)}" is not a valid URL.`,
+        ),
+      );
+    }
+    if (parsed.protocol !== 'https:') {
+      return refuseWebFetch(
+        webFetchFailure(
+          'invalid_args',
+          'address_refused',
+          'Only https:// URLs can be fetched.',
+        ),
+      );
+    }
+    if (parsed.username !== '' || parsed.password !== '') {
+      return refuseWebFetch(
+        webFetchFailure(
+          'invalid_args',
+          'address_refused',
+          'URLs with embedded credentials are refused.',
+        ),
+      );
+    }
+    if (isPrivateIp(parsed.hostname) || /^[0-9.[\]:]+$/.test(parsed.hostname)) {
+      return refuseWebFetch(
+        webFetchFailure(
+          'invalid_args',
+          'address_refused',
+          'Bare IP or private-network hosts are refused — fetch a public site by name.',
+        ),
+      );
+    }
+    const offset =
+      typeof args.offset === 'number' && args.offset > 0
+        ? Math.floor(args.offset)
+        : 0;
+    const limit =
+      typeof args.limit === 'number' && args.limit > 0
+        ? Math.min(Math.floor(args.limit), FETCH_WINDOW_CHARS)
+        : FETCH_WINDOW_CHARS;
+
+    // A page this turn already rendered is read from that render, without
+    // asking the site again.
+    const earlier = renders.get(pageKey(parsed.href));
+    if (earlier !== undefined) {
+      return answerRendered(await earlier, offset, limit);
+    }
+
+    let fetched: FetchedPage;
+    try {
+      fetched = await fetchPublicPage(parsed);
+    } catch (error) {
+      const message =
+        error instanceof SafeFetchError
+          ? `The page could not be fetched (${error.kind}${error.status !== undefined ? ` ${error.status}` : ''}).`
+          : `The page could not be fetched: ${clip(describeError(error), 200)}`;
+      return refuseWebFetch(
+        webFetchFailure('error', fetchFailureReason(error), message),
+      );
+    }
+    const { response, botCheck } = fetched;
+
+    if (botCheck !== null) {
+      const everyAttempt =
+        fetched.attempts > 1 ? ` on each of ${fetched.attempts} attempts` : '';
+      if (botCheck.kind === 'captcha') {
+        return refuseWebFetch(
+          webFetchFailure(
+            'error',
+            'bot_check_captcha',
+            `${botCheck.vendor}'s bot check asked for a CAPTCHA, a puzzle for a person to solve, in place of the page${everyAttempt}. A CAPTCHA is never solved here, so the page was not read.`,
+          ),
+        );
+      }
+      if (botCheck.kind === 'block') {
+        return refuseWebFetch(
+          webFetchFailure(
+            'error',
+            'bot_check_blocked',
+            `${botCheck.vendor}'s bot protection refused the request in place of the page${everyAttempt}, so the page was not read.`,
+          ),
+        );
+      }
+      // A challenge is a script a browser runs on its own. The page is
+      // rendered once, at the address the plain GET reached, which safeFetch
+      // admitted: https, a public destination, no credential.
+      return answerRendered(
+        await renderedRead(
+          parsed.href,
+          response.finalUrl,
+          challengeCause(botCheck, fetched.attempts),
+        ),
+        offset,
+        limit,
+      );
+    }
+
+    if (response.status >= 400) {
+      return refuseWebFetch(
+        webFetchFailure(
+          'error',
+          httpFailureReason(response.status),
+          `The server answered ${response.status} ${response.statusText}.`,
+        ),
+      );
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    const isHtml =
+      contentType.includes('text/html') ||
+      contentType.includes('application/xhtml');
+    const isTextual =
+      isHtml ||
+      contentType.startsWith('text/') ||
+      contentType.includes('json') ||
+      contentType.includes('xml') ||
+      contentType === '';
+    if (!isTextual) {
+      return refuseWebFetch(
+        webFetchFailure(
+          'unavailable',
+          'unsupported_type',
+          `The page is "${clip(contentType, 80)}", which this tool cannot read — only HTML and text.`,
+        ),
+      );
+    }
+
+    // An HTML page is read for its main content, without the site's chrome.
+    const title = isHtml ? htmlTitle(response.body) : null;
+    const read: PageRead = {
+      url: response.finalUrl,
+      title,
+      page: isHtml
+        ? readPageContent(response.body, response.finalUrl)
+        : { text: response.body, canonicalUrl: null, needsBrowser: false },
+      rendered: false,
+    };
+    const unreadable = unreadablePage(
+      response.status,
+      read.page.text,
+      read.page.needsBrowser,
+    );
+    if (unreadable === 'needs-browser') {
+      // A page its scripts build is rendered once, in the render lane: the
+      // page safeFetch admitted, at the address its redirects led to. A
+      // site's empty refusal and an empty page never get here.
+      return answerRendered(
+        await renderedRead(
+          parsed.href,
+          response.finalUrl,
+          needsBrowserCause(title),
+        ),
+        offset,
+        limit,
+      );
+    }
+    if (unreadable !== null) {
+      return refuseWebFetch(unreadablePageFailure(unreadable, response.status));
+    }
+    return answerPage(read, offset, limit);
   };
 
   return { wireTools: CHAT_WIRE_TOOLS, execute };
