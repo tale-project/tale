@@ -366,15 +366,21 @@ task is still assigned to that agent, the top of the task shows **The agent
 couldn't finish this task** (`tasks.agentRun.failureTitle`) and the sentence of
 the failure's class (`tasks.agentRun.failure.*`), picked from the code stored
 on the run (`lib/shared/task-run-failure.ts`); neither the code nor the run's
-own words appear there. **View** (`common.actions.view`) on the run's row in
-the task's conversation shows **What the run reported**
-(`tasks.agentRun.reported`). **Retry** (`tasks.agentRun.retry`) shows to whoever
-may start the agent. The person who started the run and the task's watchers who
+own words appear there. When the run that failed was an automatic retry that
+counted (the caption's n below), a second sentence says the run was already
+retried n times (`tasks.agentRun.retriedAutomatically`), so **Retry** is not
+taken for the first try; a resume after a token refresh adds none. **View**
+(`common.actions.view`) on the run's row in the task's conversation leads with
+the same class sentence and folds **What the run reported**
+(`tasks.agentRun.reported`) under it, closed until opened; the run's words are
+English and may name hosts and settings only an operator changes. **Retry**
+(`tasks.agentRun.retry`) shows to whoever may start the agent. The person who started the run and the task's watchers who
 can still open the project get **Agent run failed** (`inbox.agentRunFailed`),
-also by email: four classes have a body of their own
+also by email: five classes have a body of their own
 (`inbox.agentRunFailedBudgetBody`, `inbox.agentRunFailedPolicyBody`,
-`inbox.agentRunFailedSetupBody`, `inbox.agentRunFailedInputBody`), every other
-class reads `inbox.agentRunFailedBody`. A failure that retries shows neither
+`inbox.agentRunFailedSetupBody`, `inbox.agentRunFailedInputBody`,
+`inbox.agentRunFailedSandboxBody`), every other class reads
+`inbox.agentRunFailedBody`. A failure that retries shows neither
 while its retry is pending, and the notice comes once the last attempt fails
 (TASK-B35). Where a row says retried three times, the three count attempts one
 after another: an attempt that worked fifteen minutes or more, from its launch
@@ -411,7 +417,8 @@ back afterwards.
 | `tasks.agentRun.failure.capacity` (`park_deadline`) | A run still waiting twelve hours after its start for anything but its model — **Waiting for a worker**, **Waiting for room**, **Waiting for a workspace** or **Waiting for its sandbox** (TASK-B50, TASK-B58 and the refusals below); on a local stack, the update above while it waits. No automatic retry. Free a worker (**Manage agent workers**), then **Retry**. |
 | `tasks.agentRun.failure.model_capacity` (`model_capacity`) | A run still **Waiting for model capacity** twelve hours after its start (TASK-B59); on a local stack, the update above while it waits. A model at capacity during a turn fails the run as `model_capacity`, and its automatic retry spends no attempt. A run in a workspace holds the model: its retry parks on the hold, reading **Waiting for model capacity** until the hold runs out, unless the model has refused for twelve hours already, which ends the run with the notice and no automatic retry. A run without one (the standard agent on **Automatic**, started by a person, until it hands over) fails so when its model's provider answers a rate limit (`rate_limited`), and holds no model: its retry starts at once, with no wait and no twelve-hour stop. **Retry** later, or have an Admin check the provider. |
 | `tasks.agentRun.failure.model` (`harness_error`, `empty_turn`, `credential_rotated`, `credential_cooldown`) | A harness that exits before its turn is done (TASK-B6: a Codex agent whose `CODEX_HOME` is missing), a provider that answers an error, or a turn that ends before its work. Retried three times; the notice and the bell come when the fourth attempt fails. `credential_rotated` and `credential_cooldown` come from a subscription broker. `credential_rotated` is a token refreshed under the turn: its retry spends no attempt twice in a row, and the third in a row counts. `credential_cooldown` is a start that found every account cooling down after a rate limit: its wait spends no attempt only when the run it retried, of the same agent, ended on a rate limit (429). |
-| `tasks.agentRun.failure.start` (`start_failed`) | Stop the sandbox service (`docker stop tale-sandbox`), then **Start agent**: each attempt fails to create its session. Retried three times; start the service again (`docker start tale-sandbox`), then **Retry**. |
+| `tasks.agentRun.failure.start` (`start_failed`) | Recreate the sandbox service with a `SANDBOX_TOKEN` other than the platform's, then **Start agent**: the service refuses every request the platform signs (401), and **What the run reported** reads `the agent run could not start: Sandbox acquisition unavailable (401)`, or `sandbox session create failed (401)` for an agent with no workspace yet. Retried three times; recreate the service with the platform's token, then **Retry**. |
+| `tasks.agentRun.failure.sandbox_unreachable` (`sandbox_unreachable`) | Stop the sandbox service (`docker stop tale-sandbox`), then **Start agent**: each attempt finds no service to connect to (TASK-B60, TASK-R99). Retried three times; when the third retry fails, the notice names the sandbox service and the operator who checks it, says the run was already retried 3 times, and **View** folds the service's address and why the connection failed (each address that refused it, or a name that no longer resolves), never an empty cause. The bell's body is `inbox.agentRunFailedSandboxBody`. Start the service again (`docker start tale-sandbox`), then **Retry**. A run whose service goes away while the agent works fails the same way once it has stayed away for ten minutes (a shorter outage is ridden out), and so does a comment's restart or the collection of the run's files that finds no service. |
 | `tasks.agentRun.failure.interrupted` (`session_gone`, `turn_crashed`, `harvest_failed`, `steer_restart_failed`, `sandbox_capacity`) | Stop the agent's sandbox while it works (TASK-B35). Retried three times, each retry continuing the conversation where it can, or else starting afresh on the files the run left; the notice comes after the last. A comment's restart that runnerd refuses for room inside the run's session (the refusals below) ends as `sandbox_capacity` and retries 15 seconds later, whatever wait the refusal names, without spending an attempt. Only runnerd refuses a restart so: the restart starts its process in the session the run already holds, and asks the sandbox service for no session. |
 | `tasks.agentRun.failure.stalled` (`turn_stalled`) | Set `SANDBOX_EXEC_STALL_MINUTES=1` on the sandbox service, then give the agent a task that has it run `sleep 600`: the session ends a process that printed nothing and used almost no CPU for the window. No automatic retry; **View** shows what it printed last. The default window is 45 minutes, `0` turns it off. |
 | `tasks.agentRun.failure.out_of_memory` (`resource_exhausted`) | Set `SANDBOX_AGENT_MEMORY` on the sandbox service below what the harness needs (`256m`), then **Start agent**: the session's memory limit kills the agent. Retried after 2, 10, then 30 minutes, however long each attempt worked; the notice and the bell come when the third retry runs out of memory too. Give agents more memory, then **Retry**. |

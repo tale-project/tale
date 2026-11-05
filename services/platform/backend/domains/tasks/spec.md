@@ -182,6 +182,21 @@ automation's agent node that keeps running out of memory stops after three re-ki
   memory after 20 minutes, every time → it is retried at 14:22, 14:52 and 15:42, and when the
   run of 15:42 runs out of memory at 16:02 it fails for good and Noah is told.
 
+### TASK-R99 · A run that cannot reach its sandbox service says so, and who can fix it
+
+When the sandbox service the agent works in takes no connection (at the start, at a comment's
+restart, when the run's files are collected, or for ten minutes while a turn runs), the run fails
+as an unreachable sandbox service, not as a refused start or an interrupted run, and is retried
+like any other failure (`TASK-R12`). Once nothing retries it any more, the task says that the
+sandbox service could not be reached and that the operator who runs Tale checks it. Like every
+failed run the platform retried by itself, it also says how often it already did, so a Retry is
+not taken for the first try. What the service answered stays folded under the run, for the
+operator.
+
+- **Example**: The sandbox service is stopped. Mia starts the agent on a task → the run fails
+  and is retried three times; when the third retry fails, the task says the sandbox service could
+  not be reached, that the operator checks it, and that the run was already retried 3 times.
+
 ## Handoffs by mention
 
 An agent hands a task on to another agent of its project by naming it in a comment, as it could

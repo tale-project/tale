@@ -19,11 +19,12 @@ import { useTaskAgentRunControls } from '../hooks/use-task-agent-run-controls';
  * with nothing working on it.
  *
  * Leads with what the failure means for the reader (the run's failure class,
- * `lib/shared/task-run-failure.ts`); the raw reason stays under the run's own
- * row in the task's activity. Shown only for a failure that is final — a run the platform
- * is about to retry by itself asks nothing of anyone — and only while the
- * task still waits on that agent: the caller mounts it for an agent-assigned
- * task at In progress.
+ * `lib/shared/task-run-failure.ts`), then says how often the platform already
+ * retried it, so a Retry is not mistaken for the first one; the raw reason
+ * stays folded under the run's own row in the task's activity. Shown only for
+ * a failure that is final — a run the platform is about to retry by itself
+ * asks nothing of anyone — and only while the task still waits on that agent:
+ * the caller mounts it for an agent-assigned task at In progress.
  */
 export function TaskAgentRunFailureNotice({
   organizationId,
@@ -56,12 +57,22 @@ export function TaskAgentRunFailureNotice({
     return null;
   }
 
+  // A resume after a token refresh spent no attempt and counts 0
+  // (`agentRun.resumedAfterTokenRefresh`): no retry to tell of.
+  const retried =
+    run.trigger === 'auto_retry' ? (run.autoRetryAttempt ?? 0) : 0;
+
   return (
     <Alert
       variant="warning"
       title={t('agentRun.failureTitle')}
       description={
-        <p>{t(`agentRun.failure.${taskRunFailureClass(run.failureCode)}`)}</p>
+        <>
+          <p>{t(`agentRun.failure.${taskRunFailureClass(run.failureCode)}`)}</p>
+          {retried > 0 && (
+            <p>{t('agentRun.retriedAutomatically', { count: retried })}</p>
+          )}
+        </>
       }
     >
       {canRetry && (

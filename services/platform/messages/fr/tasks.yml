@@ -118,6 +118,10 @@ agentRun:
   cancel: Annuler l'exécution
   notStartedYet: L’agent attend que tu le démarres.
   failureTitle: L’agent n’a pas pu terminer cette tâche
+  # Sous la phrase de l’échec quand l’exécution échouée était déjà une
+  # relance de la plateforme — pour que Relancer ne passe pas pour la
+  # première tentative.
+  retriedAutomatically: 'Tale a déjà relancé l’exécution automatiquement {count, plural, one {une fois} other {# fois}}.'
   reported: Ce que l’exécution a signalé
   logReadFailed: Le journal de l’agent n’a pas pu être chargé. Réessaie.
   runReadFailed: L’exécution de l’agent n’a pas pu être chargée. Réessaie.
@@ -125,16 +129,17 @@ agentRun:
     budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
     policy: La politique de contenu de ton organisation a arrêté cette exécution. Modifie la tâche pour qu’elle la respecte, ou interroge un admin sur cette politique — puis relance l’agent.
     setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
-    input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
+    input: Une pièce jointe de cette tâche n’est plus dans le stockage — ce que l’exécution a signalé indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
     time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
     capacity: L’exécution a attendu trop longtemps un worker libre. Relance l’agent quand moins d’agents seront occupés.
     model_capacity: Le modèle d’IA est resté saturé pendant douze heures, l’exécution a donc cessé d’attendre. Relance l’agent plus tard — si le modèle reste indisponible, demande à un admin de vérifier le fournisseur d’IA.
     model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
-    start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+    start: L’exécution n’a pas pu démarrer. Montre à un admin ce que l’exécution a signalé, puis relance l’agent.
+    sandbox_unreachable: Le service de sandbox dans lequel travaille cet agent était injoignable, l’exécution s’est donc arrêtée. Demande à ton opérateur de vérifier le service de sandbox, puis relance l’agent.
     interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
     out_of_memory: La sandbox de l’agent a manqué de mémoire, son travail a donc été arrêté. Relance l’agent — si cela se reproduit, demande à un admin de donner plus de mémoire aux agents.
-    stalled: L’agent ne répondait plus — il n’a rien affiché et n’a presque rien fait pendant longtemps —, sa sandbox l’a donc arrêté. Relance l’agent — s’il s’arrête encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
-    unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+    stalled: L’agent ne répondait plus — il n’a rien affiché et n’a presque rien fait pendant longtemps —, sa sandbox l’a donc arrêté. Relance l’agent — s’il s’arrête encore, montre à un admin ce que l’exécution a signalé.
+    unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé.
   standardAgent:
     switchedOff: L'agent standard de l'organisation est désactivé. Demande à un admin de l'activer dans Gouvernance.
     noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Demande à un admin de configurer un fournisseur IA ou de te donner accès à un modèle.

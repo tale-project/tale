@@ -272,16 +272,35 @@ export class SpawnerUnreachableError extends Error {
     // ECONNREFUSED, ...) — that inner line is the whole diagnosis, so lift it
     // into the message instead of leaving it two `cause` hops deep.
     const outer = cause instanceof Error ? cause.message : String(cause);
-    const inner =
+    const syscall =
       cause instanceof Error && cause.cause instanceof Error
-        ? `: ${cause.cause.message}`
-        : '';
+        ? syscallLine(cause.cause)
+        : undefined;
+    const inner = syscall === undefined ? '' : `: ${syscall}`;
     super(
       `sandbox spawner unreachable at ${where} (${method} ${path}): ${outer}${inner} — is the sandbox service running, and does SANDBOX_URL point at it?`,
       { cause },
     );
     this.name = 'SpawnerUnreachableError';
   }
+}
+
+/** A fetch failure's syscall in the runtime's own words. A name with
+ * several addresses (`localhost`: `::1` and `127.0.0.1`) fails as one
+ * `AggregateError` whose own message is empty — one error per address
+ * carries the words — so those speak for it; an error with no words is
+ * named by its code, and one with neither adds nothing. */
+function syscallLine(syscall: Error): string | undefined {
+  const own = syscall.message === '' ? errorCodeOf(syscall) : syscall.message;
+  if (!(syscall instanceof AggregateError)) return own;
+  const each = syscall.errors
+    .map((error: unknown) =>
+      error instanceof Error && error.message !== ''
+        ? error.message
+        : errorCodeOf(error),
+    )
+    .filter((line): line is string => line !== undefined);
+  return each.length === 0 ? own : [...new Set(each)].join(', ');
 }
 
 /** The spawner URL as it may be printed. This message reaches the error

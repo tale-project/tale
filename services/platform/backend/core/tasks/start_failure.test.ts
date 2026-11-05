@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { taskRunFailureClass } from '../../../lib/shared/task-run-failure';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
+import { SpawnerUnreachableError } from '../node_only/sandbox/helpers/session_client';
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { classifyStartFailure } from './start_failure';
 import { isAutoRetryableFailure } from './task_auto_retry';
@@ -47,6 +48,32 @@ describe('classifyStartFailure', () => {
     });
     expect(isAutoRetryableFailure(settled.failureCode)).toBe(false);
     expect(taskRunFailureClass(settled.failureCode)).toBe('setup');
+  });
+
+  it('settles a sandbox service that took no connection as sandbox_unreachable, with the diagnostic as its reason, and retried [TASK-R99]', () => {
+    // Nina's agent starts while the sandbox service is stopped: the acquire
+    // waited out a restart and still found no one listening.
+    const unreachable = new SpawnerUnreachableError(
+      'POST',
+      '/v1/sessions/pa-agent-1/acquire',
+      'http://localhost:8003',
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:8003'), {
+          code: 'ECONNREFUSED',
+        }),
+      }),
+    );
+    const settled = classifyStartFailure(unreachable);
+    expect(settled).toEqual({
+      reason: `the agent run could not start: ${unreachable.message}`,
+      failureCode: 'sandbox_unreachable',
+    });
+    // The class her task leads with names the sandbox service; the
+    // diagnostic stays the reason an Admin opens.
+    expect(taskRunFailureClass(settled.failureCode)).toBe(
+      'sandbox_unreachable',
+    );
+    expect(isAutoRetryableFailure(settled.failureCode)).toBe(true);
   });
 
   it('keeps every other start error a retried start_failed with its own words', () => {

@@ -23,6 +23,7 @@ describe('isAutoRetryableFailure', () => {
       'turn_crashed',
       'session_gone',
       'start_failed',
+      'sandbox_unreachable',
       'harvest_failed',
       'empty_turn',
       'credential_rotated',
