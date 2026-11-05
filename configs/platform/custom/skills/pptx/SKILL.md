@@ -40,6 +40,8 @@ python scripts/office/unpack.py presentation.pptx unpacked/
 1. Analyze template with `thumbnail.py`
 2. Unpack → manipulate slides → edit content → clean → pack
 
+`clean.py` also brings the template's sections (the named slide groups in PowerPoint's slide panel) in step with the slides you kept and added. Built a deck from a template another way, such as python-pptx? The file still lists the template's sections: run `python scripts/sections.py output.pptx` on the saved file before QA. With python-pptx, add new slides before you delete template slides: a slide added after a deletion can take the deleted slide's id and land in its section.
+
 ---
 
 ## Creating from Scratch

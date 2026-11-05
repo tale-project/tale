@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 158 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 159 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -877,6 +877,21 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   no such line shows under that reply. Send "Write planets.csv with the eight
   planets in order from the sun" → a **planets.csv** card arrives under the
   reply and no such line shows.
+- [ ] `CHAT-F98` · **A deck from a sectioned template keeps only the sections
+  it uses** — Mode B with the sandbox service, in an organization created on
+  this build (an older one keeps the `pptx` skill it was created with): in
+  PowerPoint, save a template whose slides sit in named sections — Title
+  slides, Content slides, Closing slides, and Instructions holding a "How to
+  use this template" slide. In a new chat type `/`, choose **pptx**, attach
+  the template and ask "Make a four-slide deck about the quarterly results
+  from the attached template" → The timeline shows **Reading the pptx skill**
+  (`chat.thinking.loadingSkill`) and **Running Python in a light sandbox**
+  (`chat.thinking.runningCode`); the `.pptx` card's download opens in
+  PowerPoint without a repair prompt, and its slide panel shows no section
+  that reads (0) and no slide outside a section (or no sections at all when
+  the deck kept none of the template's slides); neither the Instructions
+  section nor its slide is left — env-gated: mark **ENVIRONMENT** without
+  PowerPoint.
 
 ### Projects and agents
 

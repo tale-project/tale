@@ -13,6 +13,9 @@ This script removes:
 - Unreferenced theme files
 - Unreferenced notes slides
 - Content-Type overrides for deleted files
+
+It also brings the slide sections in step with sldIdLst (see sections.py):
+deleted slides leave their sections, new slides join one, empty sections go.
 """
 
 import sys
@@ -20,6 +23,7 @@ from pathlib import Path
 
 import defusedxml.minidom
 
+from sections import sync_unpacked
 
 import re
 
@@ -294,3 +298,11 @@ if __name__ == "__main__":
             print(f"  {f}")
     else:
         print("No unreferenced files found")
+
+    sections_changed, sections = sync_unpacked(unpacked_dir)
+    if sections_changed and sections:
+        print("Updated the slide sections in ppt/presentation.xml:")
+        for name, count in sections:
+            print(f"  {name}: {count} slide{'' if count == 1 else 's'}")
+    elif sections_changed:
+        print("Removed the slide sections: no slide is left in one")
