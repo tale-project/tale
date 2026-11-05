@@ -1,0 +1,86 @@
+import { cn } from '@tale/ui/cn';
+import { cva, type VariantProps } from 'class-variance-authority';
+import type { ReactNode } from 'react';
+
+import { SiteContainer } from '../site/site-container';
+
+const pageSectionVariants = cva('', {
+  variants: {
+    surface: {
+      site: 'bg-surface-site',
+      wash: 'bg-surface-wash',
+      soft: 'bg-gradient-site-band',
+      plain: '',
+      transparent: 'bg-transparent',
+      contrast: 'site-contrast',
+    },
+    pad: {
+      compact: 'py-6 sm:py-8 lg:py-10',
+      md: 'py-10 sm:py-12 lg:py-14',
+      lg: 'py-14 sm:py-16 lg:py-20',
+      xl: 'py-16 sm:py-20 lg:py-24',
+    },
+    border: {
+      none: '',
+      b: 'border-border-base border-b',
+      t: 'border-border-base border-t',
+      y: 'border-border-base border-y',
+    },
+  },
+  defaultVariants: {
+    surface: 'plain',
+    pad: 'lg',
+    border: 'b',
+  },
+});
+
+export interface PageSectionProps extends VariantProps<
+  typeof pageSectionVariants
+> {
+  children: ReactNode;
+  /** Skip the inner `SiteContainer` (caller owns width). */
+  bare?: boolean;
+  id?: string;
+  'aria-label'?: string;
+  className?: string;
+  containerClassName?: string;
+}
+
+/**
+ * Page band chrome — surface, padding, border, optional SiteContainer.
+ * Compose with `SectionHeading` / `CtaGroup` / cards inside.
+ * For pricing lead/subsection shells, keep using `MarketingSection` in blocks
+ * (lead matches `FeatureHero` heading chrome).
+ *
+ * Top-of-page atmosphere (`bg-gradient-site-hero`) lives on the root shell so
+ * the sticky transparent header always sits on the wash. Lead sections stay
+ * transparent — re-painting the same class under the nav restarts the wash
+ * and reads as a hairline seam.
+ */
+export function PageSection({
+  children,
+  surface = 'plain',
+  pad = 'lg',
+  border = 'b',
+  bare = false,
+  id,
+  'aria-label': ariaLabel,
+  className,
+  containerClassName,
+}: PageSectionProps) {
+  const body = bare ? (
+    children
+  ) : (
+    <SiteContainer className={containerClassName}>{children}</SiteContainer>
+  );
+
+  return (
+    <section
+      id={id}
+      aria-label={ariaLabel}
+      className={cn(pageSectionVariants({ surface, pad, border }), className)}
+    >
+      {body}
+    </section>
+  );
+}
