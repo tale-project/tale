@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  queryOptions,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -15,6 +16,20 @@ export const SESSIONS_PAGE_SIZE = 50;
 const NO_SESSIONS: Session[] = [];
 
 /**
+ * The read of one window of the list (see `useSessionList`), under the one key
+ * the hook and the Sessions route's loader share (see `routes/sessions.tsx`).
+ */
+export function sessionListQuery(limit: number, minId?: number) {
+  return queryOptions({
+    queryKey: queryKeys.sessionList(limit, minId),
+    queryFn: ({ signal }) =>
+      sessionsApi.list(minId === undefined ? { limit } : { limit, minId }, {
+        signal,
+      }),
+  });
+}
+
+/**
  * The newest sessions, `SESSIONS_PAGE_SIZE` at a time: `loadMore` widens the
  * window, which then refreshes as a whole (so a status that changed in a row
  * the person scrolled to is as current as the first one). `readBackTo` widens
@@ -28,11 +43,7 @@ export function useSessionList() {
   // it is every session from that one up (see `readBackTo`).
   const [minId, setMinId] = useState<number | undefined>(undefined);
   const query = useQuery({
-    queryKey: queryKeys.sessionList(limit, minId),
-    queryFn: ({ signal }) =>
-      sessionsApi.list(minId === undefined ? { limit } : { limit, minId }, {
-        signal,
-      }),
+    ...sessionListQuery(limit, minId),
     refetchInterval: pollInterval(queryClient),
     // The rows stay while a wider window loads.
     placeholderData: keepPreviousData,

@@ -132,10 +132,14 @@ export function ProxiesTable({ query = '', onQueryChange }: ProxiesTableProps) {
   // failure) is taken away by a refresh that worked.
   const focusRegion = useCallback(() => region.current?.focus(), []);
 
-  // Read, and with nothing in it: a pool that is still being read has the
-  // toolbar already, and one that could not be read has the failure instead.
-  const collectionEmpty =
-    !pool.isPending && !pool.isError && pool.proxies.length === 0;
+  // Read, and with nothing in it; while the first rows are on their way, the
+  // counts decide, which the root route has in before the first frame: a pool
+  // with proxies has the toolbar already, one without has its empty state from
+  // the start, not a toolbar and masked rows that vanish when the rows come.
+  // One that could not be read has the failure instead.
+  const collectionEmpty = pool.isPending
+    ? meta.data?.counts.proxies === 0
+    : !pool.isError && pool.proxies.length === 0;
   // A pool that could not be read and has nothing to show: the failure takes
   // the table's place, in the words of this page (as the sessions have it), not
   // the library's generic error with a link to its own support page.

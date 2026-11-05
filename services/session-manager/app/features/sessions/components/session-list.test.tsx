@@ -291,6 +291,41 @@ describe('SessionList', () => {
       expect(screen.queryByText('No sessions yet')).not.toBeInTheDocument();
       await checkAccessibility(view);
     });
+
+    it('masks as many rows as the counts say there are sessions', async () => {
+      installFakeApi({
+        'GET /meta': meta({ counts: { sessions: 2, proxies: 2 } }),
+        'GET /sessions': () => new Promise(() => {}),
+      });
+      renderList();
+
+      // Six while nothing says how many, then the two that will come: a
+      // masked row is a masked dot and its lines.
+      await waitFor(() =>
+        expect(
+          screen
+            .getByRole('status', { name: 'Loading content' })
+            .querySelectorAll('[data-skeleton-mask="circle"]'),
+        ).toHaveLength(2),
+      );
+    });
+
+    it('says there are none at once when the counts say so, instead of masked rows that vanish when the list comes', async () => {
+      installFakeApi({
+        'GET /meta': meta({ counts: { sessions: 0, proxies: 2 } }),
+        // The list never comes: the counts alone decide.
+        'GET /sessions': () => new Promise(() => {}),
+      });
+      renderList();
+
+      expect(
+        await screen.findByRole('heading', { name: 'No sessions yet' }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole('status', { name: 'Loading content' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add session' })).toBeVisible();
+    });
   });
 
   describe('with no sessions', () => {

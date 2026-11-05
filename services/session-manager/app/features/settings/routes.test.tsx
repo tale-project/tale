@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeTree } from '@/app/routeTree.gen';
 import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { renderApp } from '@/tests/utils/render';
+import { createTestQueryClient, renderApp } from '@/tests/utils/render';
 import { installSettingsApi } from '@/tests/utils/settings-api';
 import { stubViewport } from '@/tests/utils/viewport';
 
@@ -24,14 +24,18 @@ import { stubViewport } from '@/tests/utils/viewport';
 function renderAt(path: string, viewport: 'phone' | 'desktop' = 'desktop') {
   const screenSize = stubViewport(viewport);
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  // The client the routes' loaders fill is the one the pages read.
+  const queryClient = createTestQueryClient();
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [path] }),
+    context: { queryClient },
   });
   const view = renderApp(
     <ThemeProvider>
       <RouterProvider router={router} />
     </ThemeProvider>,
+    { queryClient },
   );
   return { ...view, router, resize: screenSize.resize };
 }

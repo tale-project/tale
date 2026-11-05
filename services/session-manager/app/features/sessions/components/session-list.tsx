@@ -221,16 +221,20 @@ export function SessionList({
   const [importing, setImporting] = useState(false);
 
   // With no sessions to show, what the empty list says depends on the proxies
-  // there are, so the rows stay masked until the app has told.
+  // there are, so the rows stay masked until the app has told. The counts,
+  // which the root route has in before the first frame, also tell a list with
+  // no session while its rows are on their way: it says so from the start,
+  // instead of masked rows that vanish when the rows come.
+  const counted = meta.data?.counts.sessions;
   const waiting =
-    list.isPending ||
+    (list.isPending && counted !== 0) ||
     (list.sessions.length === 0 && failed === null && meta.isPending);
 
   let body: ReactNode;
   if (waiting) {
     body = (
       <Skeletonize loading>
-        <SessionRowsSkeleton />
+        <SessionRowsSkeleton count={counted} />
       </Skeletonize>
     );
   } else if (list.sessions.length === 0) {

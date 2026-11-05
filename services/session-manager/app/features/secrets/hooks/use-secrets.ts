@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { secretsApi } from '@/app/lib/api/endpoints';
 import { queryKeys } from '@/app/lib/api/keys';
@@ -11,6 +11,17 @@ import { pollInterval } from '@/app/lib/polling';
 export const SECRET_LISTS = [...queryKeys.secrets, 'list'] as const;
 
 /**
+ * The read of every secret, under the one key the hook and the Secrets route's
+ * loader share (see `routes/secrets.tsx`).
+ */
+export function secretsQuery() {
+  return queryOptions({
+    queryKey: queryKeys.secretList({}),
+    queryFn: ({ signal }) => secretsApi.list({}, { signal }),
+  });
+}
+
+/**
  * All the secrets, newest first, kept current: an assistant can add, change
  * or delete one while the page is open. There are few of them, so the list
  * comes whole and the page narrows it. A summary never has a hidden value.
@@ -18,8 +29,7 @@ export const SECRET_LISTS = [...queryKeys.secrets, 'list'] as const;
 export function useSecrets() {
   const queryClient = useQueryClient();
   return useQuery({
-    queryKey: queryKeys.secretList({}),
-    queryFn: ({ signal }) => secretsApi.list({}, { signal }),
+    ...secretsQuery(),
     refetchInterval: pollInterval(queryClient),
   });
 }

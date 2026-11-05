@@ -1,6 +1,7 @@
 import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import {
   keepPreviousData,
+  queryOptions,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -21,6 +22,17 @@ export const PROXIES_FIRST_WINDOW = DEFAULT_LIST_PAGE_SIZE * 3;
 
 const NO_PROXIES: Proxy[] = [];
 
+/**
+ * The read of the newest `limit` proxies, under the one key the hook and the
+ * Proxies route's loader share (see `routes/proxies.tsx`).
+ */
+export function proxyListQuery(limit: number) {
+  return queryOptions({
+    queryKey: queryKeys.proxyList(limit),
+    queryFn: ({ signal }) => proxiesApi.list({ limit }, { signal }),
+  });
+}
+
 /** The words `useListPage` uses for where a paginated source stands. */
 export type ProxyListStatus =
   | 'LoadingFirstPage'
@@ -38,8 +50,7 @@ export function useProxyList() {
   const queryClient = useQueryClient();
   const [limit, setLimit] = useState(PROXIES_FIRST_WINDOW);
   const query = useQuery({
-    queryKey: queryKeys.proxyList(limit),
-    queryFn: ({ signal }) => proxiesApi.list({ limit }, { signal }),
+    ...proxyListQuery(limit),
     refetchInterval: (current) => {
       const checking =
         current.state.status !== 'error' &&

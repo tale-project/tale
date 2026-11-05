@@ -724,6 +724,26 @@ describe('the list while it loads', () => {
     expect(screen.queryByText('No results found')).not.toBeInTheDocument();
     await checkAccessibility(document.body);
   });
+
+  it('says there are none at once when the counts say so: no toolbar and no masked rows that vanish when the list comes', async () => {
+    const backend = installSecretsApi({ secrets: [] });
+    // The list never comes: the counts alone decide.
+    backend.api.on('GET /secrets', () => new Promise(() => {}));
+    renderApp(<HeldSecretsTable />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'No secrets yet' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('status', { name: 'Loading content' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Search secrets' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add secret' })).toHaveLength(
+      1,
+    );
+  });
 });
 
 describe('a list that cannot be read', () => {

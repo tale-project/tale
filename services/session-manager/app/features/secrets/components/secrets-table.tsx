@@ -158,6 +158,8 @@ export function SecretsTable({
       placeholder: t('table.searchPlaceholder'),
     },
     getRowId,
+    // As many masked rows as there are secrets, or the empty state at once.
+    approxRowCount: meta.data?.counts.secrets,
     entityLabel: { one: t('table.entityOne'), other: t('table.entityOther') },
   });
 
@@ -176,8 +178,14 @@ export function SecretsTable({
   // With no secret at all there is nothing to search or narrow: there is no
   // toolbar, and the Add button is in the empty state, where it is the one
   // thing to do. Nor is there a toolbar over a list that could not be read.
-  const collectionEmpty = rows !== undefined && rows.length === 0;
+  // While the list is on its way the counts decide, which the root route has
+  // in before the first frame: no secret is the empty state from the start,
+  // not a toolbar and masked rows that vanish when the list comes.
   const unread = rows === undefined && read.isError;
+  const collectionEmpty =
+    rows === undefined
+      ? !unread && meta.data?.counts.secrets === 0
+      : rows.length === 0;
   // The page's banner says why the server could not be asked, and the sentence
   // adds a cause only when trying again does not mend it. Over rows that stay
   // it names what the failure means for them; a list that never loaded has it

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { i18n } from '@/lib/i18n/i18n';
 import { failure, installFakeApi, list } from '@/tests/utils/fake-api';
 import { meta, proxy, session } from '@/tests/utils/fixtures';
-import { renderApp } from '@/tests/utils/render';
+import { createTestQueryClient, renderApp } from '@/tests/utils/render';
 
 import { createAppRouter } from '../router';
 
@@ -24,13 +24,17 @@ function renderAt(path: string, routes: Parameters<typeof installFakeApi>[0]) {
     'GET /secrets': list([]),
     ...routes,
   });
+  // The client the router's loaders fill is the one the page reads.
+  const queryClient = createTestQueryClient();
   const router = createAppRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
+    queryClient,
   });
   const view = renderApp(
     <ThemeProvider>
       <RouterProvider router={router} />
     </ThemeProvider>,
+    { queryClient },
   );
   return { ...view, router, api };
 }
