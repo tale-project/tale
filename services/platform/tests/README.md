@@ -13,6 +13,10 @@ Choose the layer that proves your change. Run workspace scripts from the reposit
 | Manual review | Layout, focus, live interactions, and exploratory behavior | [Manual test guide](manual/readme.md) |
 | Documentation images | Repeatable captures of real UI with demo data | [Screenshot runbook](docs-screenshots/README.md) |
 
+React interaction tests run in jsdom under `vitest.ui.config.ts` alone; a bare `bunx vitest` reads
+`vitest.config.ts`, which leaves them out. To run one of them, from `services/platform`:
+`bunx vitest --run --config vitest.ui.config.ts <file>`.
+
 CI runs the backend integration layer in the **Backend integration** check, against the
 `tale-db` image built from the change and the CLI's object-store pin. The
 [backend README](../backend/README.md) explains its prerequisites and when CI runs it. Use a dedicated test
