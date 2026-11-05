@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 182 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 183 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -726,8 +726,9 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`) with
   `tasks.agentRun.failure.budget` and **Retry** (`tasks.agentRun.retry`); the
   run's row in the conversation, opened with **View** (`common.actions.view`),
-  shows **What the run reported** (`tasks.agentRun.reported`) with the cap's
-  own reason; the member's bell holds **Agent run failed**
+  leads with the same sentence and folds **What the run reported**
+  (`tasks.agentRun.reported`), which opens to the cap's own reason; the
+  member's bell holds **Agent run failed**
   (`inbox.agentRunFailed`) with `inbox.agentRunFailedBudgetBody`, which opens
   the task (and an email arrives when actionable email is on). Delete the rule
   and press **Retry** → the notice leaves the task and the bell row turns read
@@ -1405,6 +1406,24 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   the member's run fail for good (`TASK-F57`) → the member's bell gets
   **Agent run failed** (`inbox.agentRunFailed`); the removed member gets no
   row and no email.
+- [ ] `TASK-B60` · **A run that cannot reach its sandbox service says so** —
+  On a local stack, stop the sandbox service (`docker stop tale-sandbox`) and
+  press **Start agent** (`tasks.agentRun.start`) on a task → within a minute
+  or two the run fails and is retried three times, the caption reading
+  `tasks.agentRun.autoRetrying`; when the third retry fails, the task shows
+  **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`)
+  with `tasks.agentRun.failure.sandbox_unreachable`, which names the sandbox
+  service and the operator, and under it **Tale already retried the run
+  automatically 3 times.** (`tasks.agentRun.retriedAutomatically`), in EN, DE
+  and FR; no address, `SANDBOX_URL` or session id shows there. **View**
+  (`common.actions.view`) on the run's row leads with the same sentence, with
+  **What the run reported** (`tasks.agentRun.reported`) closed under it;
+  opened from the keyboard, it names the service's address and why the
+  connection failed, never an empty cause. The starter's bell holds **Agent
+  run failed** (`inbox.agentRunFailed`) with
+  `inbox.agentRunFailedSandboxBody`. Start the service again (`docker start
+  tale-sandbox`) and press **Retry** (`tasks.agentRun.retry`) → the run
+  starts and the notice leaves the task.
 - [ ] `TASK-B37` · **A standard agent that can't run for you says why** —
   Under **Model access**, block every model for the Member role, with the
   standard agent's **Model** on **Automatic**. As the member, open

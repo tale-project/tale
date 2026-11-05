@@ -1249,6 +1249,7 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
     ['agent_model_missing', 'agentRunFailedSetupBody'],
     ['equipment_missing', 'agentRunFailedSetupBody'],
     ['input_missing', 'agentRunFailedInputBody'],
+    ['sandbox_unreachable', 'agentRunFailedSandboxBody'],
     ['deadline', 'agentRunFailedBody'],
     ['start_failed', 'agentRunFailedBody'],
     [null, 'agentRunFailedBody'],

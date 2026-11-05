@@ -7,7 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TaskAgentRunFailureNotice } from './task-agent-run-failure-notice';
 
 vi.mock('@tale/ui/i18n/client', () => ({
-  useT: () => ({ t: (key: string) => key }),
+  useT: () => ({
+    t: (key: string, values?: Record<string, unknown>) =>
+      values ? `${key} ${JSON.stringify(values)}` : key,
+  }),
 }));
 
 const { state, start } = vi.hoisted(() => ({
@@ -74,6 +77,53 @@ describe('TaskAgentRunFailureNotice', () => {
 
     expect(screen.getByText('agentRun.failure.input')).toBeInTheDocument();
     expect(screen.queryByText(/Afos\.xlsx/)).not.toBeInTheDocument();
+  });
+
+  it('names the sandbox service, not its address, for a run that could not reach it [TASK-R99]', () => {
+    state.run = failedRun({
+      failureCode: 'sandbox_unreachable',
+      error:
+        'the agent run could not start: sandbox spawner unreachable at http://localhost:8003 (POST /v1/sessions/pa-agent-1/acquire): connect ECONNREFUSED 127.0.0.1:8003 — is the sandbox service running, and does SANDBOX_URL point at it?',
+    });
+    renderNotice();
+
+    expect(
+      screen.getByText('agentRun.failure.sandbox_unreachable'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/SANDBOX_URL|spawner/)).not.toBeInTheDocument();
+  });
+
+  it('says how often the platform already retried the run, so Retry is not taken for the first try [TASK-R99]', () => {
+    state.run = failedRun({
+      failureCode: 'sandbox_unreachable',
+      trigger: 'auto_retry',
+      autoRetryAttempt: 3,
+      autoRetryMax: 3,
+    });
+    renderNotice();
+
+    expect(
+      screen.getByText('agentRun.retriedAutomatically {"count":3}'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'agentRun.retry' }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['a run a person started', { trigger: 'manual' }],
+    [
+      'a resume after a token refresh, which spent no attempt',
+      { trigger: 'auto_retry', autoRetryAttempt: 0 },
+    ],
+  ])('tells of no automatic retry for %s', (_label, overrides) => {
+    state.run = failedRun(overrides);
+    renderNotice();
+
+    expect(screen.getByText('agentRun.failure.budget')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/agentRun\.retriedAutomatically/),
+    ).not.toBeInTheDocument();
   });
 
   it('offers Retry to whoever may start the agent, and starts it', async () => {

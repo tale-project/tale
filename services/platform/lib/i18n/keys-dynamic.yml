@@ -211,6 +211,7 @@ entries:
   - 'inbox.agentRunFailedBudgetBody'
   - 'inbox.agentRunFailedPolicyBody'
   - 'inbox.agentRunFailedSetupBody'
+  - 'inbox.agentRunFailedSandboxBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are
   # enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`

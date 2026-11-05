@@ -821,6 +821,34 @@ describe('TaskTimeline — a run read under its own row', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('leads a failed run with what its failure means, its report folded below', async () => {
+    timelineMocks.runs = [
+      {
+        ...failedRun(
+          'the agent run could not start: sandbox spawner unreachable at http://localhost:8003 (POST /v1/sessions/pa-agent-1/acquire): connect ECONNREFUSED 127.0.0.1:8003 — is the sandbox service running, and does SANDBOX_URL point at it?',
+        ),
+        failureCode: 'sandbox_unreachable',
+      },
+    ];
+    await open();
+    const meaning = screen.getByText('agentRun.failure.sandbox_unreachable');
+    const reported = screen.getByText(/sandbox spawner unreachable/);
+    const fold = reported.closest('details');
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute('open');
+    expect(fold?.querySelector('summary')).toHaveTextContent('Reported');
+    expect(
+      meaning.compareDocumentPosition(reported) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('names no failure for a run that did not fail', async () => {
+    timelineMocks.runs = [{ ...failedRun(), status: 'settled' }];
+    await open();
+    expect(screen.queryByText(/agentRun\.failure\./)).not.toBeInTheDocument();
+  });
+
   it('keeps a recorded reason the transcript does not say above the log', async () => {
     timelineMocks.runs = [failedRun('stopped: no output for 45 minutes')];
     sandboxOp.value = {

@@ -97,6 +97,7 @@ export const ACTIONABLE_INBOX_KEYS = [
   'agentRunFailedBudgetBody',
   'agentRunFailedPolicyBody',
   'agentRunFailedSetupBody',
+  'agentRunFailedSandboxBody',
   'email.cta',
   'email.openLink',
   'email.footer',
@@ -184,6 +185,8 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Your organization\'s content policy stopped the agent on "{title}". Change the task or ask an Admin about the policy, then start the agent again.',
     agentRunFailedSetupBody:
       'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project\'s Agents tab.',
+    agentRunFailedSandboxBody:
+      'The sandbox service couldn\'t be reached, so the agent on "{title}" stopped. Once your operator has checked it, start the agent again.',
     'email.cta': 'Open in Tale',
     'email.openLink': 'Open the link',
     'email.footer':
@@ -272,6 +275,8 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Die Inhaltsrichtlinie deiner Organisation hat den Agenten bei "{title}" gestoppt. Passe die Aufgabe an oder frag einen Admin nach der Richtlinie, und starte den Agenten dann erneut.',
     agentRunFailedSetupBody:
       'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.',
+    agentRunFailedSandboxBody:
+      'Der Sandbox-Dienst war nicht erreichbar, deshalb wurde der Agent bei "{title}" gestoppt. Sobald dein Betreiber ihn geprüft hat, starte den Agenten erneut.',
     'email.cta': 'In Tale öffnen',
     'email.openLink': 'Link öffnen',
     'email.footer':
@@ -359,6 +364,8 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'La politique de contenu de ton organisation a arrêté l’agent sur « {title} ». Modifie la tâche ou interroge un admin sur cette politique, puis relance l’agent.',
     agentRunFailedSetupBody:
       'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.',
+    agentRunFailedSandboxBody:
+      'Le service de sandbox était injoignable, l’agent sur « {title} » s’est donc arrêté. Relance-le dès que ton opérateur aura vérifié ce service.',
     'email.cta': 'Ouvrir dans Tale',
     'email.openLink': 'Ouvrir le lien',
     'email.footer':

@@ -25,6 +25,7 @@ describe('taskRunFailureClass', () => {
     ['credential_rotated', 'model'],
     ['credential_cooldown', 'model'],
     ['start_failed', 'start'],
+    ['sandbox_unreachable', 'sandbox_unreachable'],
     ['session_gone', 'interrupted'],
     ['turn_crashed', 'interrupted'],
     ['turn_stalled', 'stalled'],

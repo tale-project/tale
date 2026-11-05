@@ -209,7 +209,14 @@ describe('TaskAgentRunStatusBadge', () => {
     const reported = screen.getByText(
       'the agent run could not start: no credential',
     );
-    expect(screen.getByText('agentRun.reported')).toBeInTheDocument();
+    // Folded under its own summary: the words stay one click away and the
+    // failure's meaning leads.
+    const fold = reported.closest('details');
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute('open');
+    expect(fold?.querySelector('summary')).toHaveTextContent(
+      'agentRun.reported',
+    );
     expect(
       meaning.compareDocumentPosition(reported) &
         Node.DOCUMENT_POSITION_FOLLOWING,

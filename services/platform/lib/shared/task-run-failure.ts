@@ -41,6 +41,9 @@ export const TASK_RUN_FAILURE_CLASSES = [
   'model_capacity',
   /** The run never started: the sandbox or the model behind it refused. */
   'start',
+  /** The sandbox service did not answer — at the start or mid-run: the
+   * operator who runs Tale checks the service. */
+  'sandbox_unreachable',
   /** The run stopped mid-way on the platform's side. */
   'interrupted',
   /** The agent hung — no output, almost no CPU — until its sandbox ended
@@ -70,6 +73,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   credential_rotated: 'model',
   credential_cooldown: 'model',
   start_failed: 'start',
+  sandbox_unreachable: 'sandbox_unreachable',
   session_gone: 'interrupted',
   turn_crashed: 'interrupted',
   turn_stalled: 'stalled',

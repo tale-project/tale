@@ -80,6 +80,12 @@ Prüfe den Chat- oder Lauf-Fehler und die zuständigen API-/Worker-Protokolle. A
 
 Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Agent-Laufzeit-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
 
+## Ein Agent erreicht den Sandbox-Dienst nicht
+
+Eine Aufgabe sagt **Der Agent konnte diese Aufgabe nicht fertigstellen**, weil der Sandbox-Dienst, in dem der Agent arbeitet, nicht erreichbar war, und die Benachrichtigung **Agenten-Lauf fehlgeschlagen** sagt dasselbe. Bis dahin hat die Plattform es ein bis zwei Minuten lang versucht: Jeder Aufruf wiederholt eine abgewiesene Verbindung etwa 20 Sekunden lang, und der Lauf wird dreimal neu gestartet. **Was der Lauf gemeldet hat** unter **Anzeigen** am Lauf im Verlauf der Aufgabe nennt die Adresse, die die Plattform aufgerufen hat, und warum der Aufruf scheiterte: jede Adresse, die die Verbindung abgewiesen hat, oder einen Namen, der sich nicht auflösen lässt.
+
+Prüfe, ob der Dienst `sandbox` läuft und antwortet und ob `SANDBOX_URL` bei `backend-api` und `backend-worker` auf ihn zeigt (`http://sandbox:8003` in der mitgelieferten Compose-Datei). Eine abgewiesene Verbindung heißt, dass unter dieser Adresse nichts lauscht. Lässt sich der Name nicht auflösen, nennt die Variable den falschen Host, oder der Dienst ist nicht im Netz des Backends. Ein Lauf, der den Dienst während der Arbeit verliert, wartet bis zu zehn Minuten auf ihn und scheitert dann genauso. Sobald der Dienst wieder antwortet, starte den Agenten mit **Erneut ausführen** an der Aufgabe erneut.
+
 ## Sandbox-Netzzugriff wird verweigert
 
 Prüfe `sandbox-egress` und die Ziel-URL. Eine konfigurierte `SANDBOX_EGRESS_ALLOWLIST` muss den benötigten Hostnamen enthalten; private Ziele und Cloud-Metadaten bleiben blockiert. Für HTTPS-Tunnel gilt die unterstützte Portregel. Bestätige das gewünschte Ziel, bevor du eine Freigabeliste erweiterst. Erstelle den Egress-Dienst nach Umgebungsänderungen neu.

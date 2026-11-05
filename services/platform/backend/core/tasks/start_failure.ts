@@ -1,4 +1,5 @@
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
+import { SpawnerUnreachableError } from '../node_only/sandbox/helpers/session_client';
 import { isTurnBudgetExceededError } from '../node_only/sandbox/turn_budget';
 import {
   credentialRetryAtMs,
@@ -18,8 +19,11 @@ import { isTaskInputMissingError } from './task_input_missing_error';
  * native turn's refusal settles, until an admin gives its provider an
  * endpoint that processes there or changes the rule), and an attachment
  * whose bytes left the object store (named in the reason; whoever can change
- * the task removes it or uploads it again). Everything else is
- * `start_failed`, retried by default.
+ * the task removes it or uploads it again). A sandbox service that took no
+ * connection — once the acquire has waited out a restart — is
+ * `sandbox_unreachable`: retried like a refused start, and worded for who
+ * can bring the service back. Everything else is `start_failed`, retried by
+ * default.
  *
  * A subscription broker whose every account is cooling down after a rate
  * limit refuses with `credential_cooldown` and says when the first account
@@ -56,7 +60,9 @@ export function classifyStartFailure(err: unknown): {
           ? 'equipment_missing'
           : isTaskInputMissingError(err)
             ? 'input_missing'
-            : 'start_failed',
+            : err instanceof SpawnerUnreachableError
+              ? 'sandbox_unreachable'
+              : 'start_failed',
     ...(retryAtMs !== undefined && { retryAtMs }),
   };
 }
