@@ -1,6 +1,6 @@
 import { toast } from '@tale/ui/use-toast';
 import { act } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
@@ -92,5 +92,61 @@ describe('Toaster', () => {
     expect(viewport?.className).toContain(
       'pr-[calc(0.75rem+var(--safe-right))]',
     );
+  });
+
+  // Radix's toast arms a close timer on mount (5 s here). 1.2.15 cleared it
+  // on a pause but not on unmount (radix-ui/primitives#3703), so a toast that
+  // a newer one replaced, or that unmounted with its test's tree, left it
+  // running: in jsdom it fell due after the environment's teardown and threw
+  // reading `document` (#5390). `patches/` backports upstream's fix.
+  describe('close timer', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('closes a toast once its time is up', () => {
+      render(<Toaster />);
+      act(() => {
+        toast({ title: 'Proxy added' });
+      });
+      const viewport = document.body.querySelector('ol');
+      expect(viewport?.textContent).toContain('Proxy added');
+
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(viewport?.textContent).not.toContain('Proxy added');
+    });
+
+    it('stops when a newer toast replaces its toast', () => {
+      render(<Toaster />);
+      act(() => {
+        toast({ title: 'Proxy added' });
+      });
+      const timersOfOneToast = vi.getTimerCount();
+
+      act(() => {
+        toast({ title: 'Proxy deleted' });
+      });
+
+      expect(vi.getTimerCount()).toBe(timersOfOneToast);
+    });
+
+    it('stops when the Toaster unmounts', () => {
+      const { unmount } = render(<Toaster />);
+      act(() => {
+        toast({ title: 'Proxy added' });
+      });
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      unmount();
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 });

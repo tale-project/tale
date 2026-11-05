@@ -256,3 +256,35 @@ been served by Playwright, and its test file has ended.
 the proof test passes unpatched. Bump `vitest` and the `@vitest/*` packages together (the lockfile
 holds `vitest` 4.1.11 beside 4.1.10 of the browser packages today), delete this entry and its
 `patchedDependencies` line, and keep the test.
+
+## `@radix-ui%2Freact-toast@1.2.15.patch`
+
+**Why.** Radix's toast arms a close timer when it opens (5 s: the `Toaster` of `packages/ui` sets
+the provider's `duration`) and clears it on a pause or a restart, but not when the toast unmounts. A
+toast that a newer one replaced (the store keeps one) or that unmounted with its tree leaves the timer
+running, and when it falls due, `handleClose` reads `document.activeElement`. In a jsdom test file
+the environment can be gone by then: `ReferenceError: document is not defined` at
+`dist/index.mjs:319:45`, an uncaught exception after the file's teardown that failed
+`@tale/session-manager#test:ui` though every test had passed
+([#5390](https://github.com/tale-project/tale/issues/5390); Checks run 42057462986, job
+127349657622). Any session-manager UI test file that mounts the `Toaster` (directly, through
+`renderInShell` or the settings router, or with the app's root route) and raises a toast can leave
+such a timer. In the apps, which mount the `Toaster` once at their root, the stale timer only
+dismissed a toast the store had already dropped.
+Upstream: [radix-ui/primitives#3703](https://github.com/radix-ui/primitives/issues/3703), fixed by
+[#3794](https://github.com/radix-ui/primitives/pull/3794), which 1.2.18 is the first release to
+carry.
+
+**What.** Upstream's fix, in `ToastImpl` (`dist/index.mjs` and `dist/index.js`): an effect whose
+cleanup clears the close timer when the toast unmounts. The hunks are marked `Tale:`.
+
+**Proof.** `packages/ui/src/components/feedback/toaster.test.tsx`, its `close timer` cases: a toast
+still closes once its time is up, and no close timer is left once a newer toast replaces it or the
+`Toaster` unmounts. Unpatched, the last two fail.
+
+**Behaviour change.** None that a person sees: a mounted toast closes, pauses and resumes as before,
+and an unmounted toast no longer dismisses itself late.
+
+**Remove it when** `@radix-ui/react-toast` 1.2.18 or later is locked. Bump it in `packages/ui` and
+`services/platform` together, delete this entry and its `patchedDependencies` line, and keep the
+test.
