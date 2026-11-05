@@ -15,13 +15,16 @@ Examples:
 
 To see available layouts: ls unpacked/ppt/slideLayouts/
 
-Prints the <p:sldId> element to add to presentation.xml.
+Prints the <p:sldId> element to add to presentation.xml. A duplicated slide
+joins the section of its source, listed right after it.
 """
 
 import re
 import shutil
 import sys
 from pathlib import Path
+
+from sections import add_after_source
 
 
 def get_next_slide_number(slides_dir: Path) -> int:
@@ -127,11 +130,14 @@ def duplicate_slide(unpacked_dir: Path, source: str) -> None:
     rid = _add_to_presentation_rels(unpacked_dir, dest)
 
     next_slide_id = _get_next_slide_id(unpacked_dir)
+    section = add_after_source(unpacked_dir, source, next_slide_id)
 
     print(f"Created {dest} from {source}")
     print(
         f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{next_slide_id}" r:id="{rid}"/>'
     )
+    if section is not None:
+        print(f'Listed it in section "{section}" right after {source}')
 
 
 def _add_to_content_types(unpacked_dir: Path, dest: str) -> None:
@@ -167,7 +173,9 @@ def _add_to_presentation_rels(unpacked_dir: Path, dest: str) -> str:
 def _get_next_slide_id(unpacked_dir: Path) -> int:
     pres_path = unpacked_dir / "ppt" / "presentation.xml"
     pres_content = pres_path.read_text(encoding="utf-8")
-    slide_ids = [int(m) for m in re.findall(r'<p:sldId[^>]*id="(\d+)"', pres_content)]
+    slide_ids = [
+        int(m) for m in re.findall(r'<(?:p|p14):sldId\b[^>]*\bid="(\d+)"', pres_content)
+    ]
     return max(slide_ids) + 1 if slide_ids else 256
 
 

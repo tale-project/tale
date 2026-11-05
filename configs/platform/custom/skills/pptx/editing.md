@@ -31,7 +31,7 @@ When using an existing presentation as a template:
 3. **Unpack**: `python scripts/office/unpack.py template.pptx unpacked/`
 
 4. **Build presentation** (do this yourself, not with subagents):
-   - Delete unwanted slides (remove from `<p:sldIdLst>`)
+   - Delete unwanted slides (remove from `<p:sldIdLst>`). A corporate template's instruction, "toolbox" and "how to use this template" slides are scaffolding for its users, not content: delete them unless the user asks to keep them; `clean.py` then removes their sections
    - Duplicate slides you want to reuse (`add_slide.py`)
    - Reorder slides in `<p:sldIdLst>`
    - **Complete all structural changes before step 5**
@@ -39,7 +39,7 @@ When using an existing presentation as a template:
 5. **Edit content**: Update text in each `slide{N}.xml`.
    **Use subagents here if available** — slides are separate XML files, so subagents can edit in parallel.
 
-6. **Clean**: `python scripts/clean.py unpacked/`
+6. **Clean**: `python scripts/clean.py unpacked/` (also brings the template's sections in step with the slides)
 
 7. **Pack**: `python scripts/office/pack.py unpacked/ output.pptx --original template.pptx`
 
@@ -51,7 +51,8 @@ When using an existing presentation as a template:
 | -------------- | ------------------------------------- |
 | `unpack.py`    | Extract and pretty-print PPTX         |
 | `add_slide.py` | Duplicate slide or create from layout |
-| `clean.py`     | Remove orphaned files                 |
+| `clean.py`     | Remove orphaned files, sync sections  |
+| `sections.py`  | Sync sections of a finished .pptx     |
 | `pack.py`      | Repack with validation                |
 | `thumbnail.py` | Create visual grid of slides          |
 
@@ -70,7 +71,7 @@ python scripts/add_slide.py unpacked/ slide2.xml      # Duplicate slide
 python scripts/add_slide.py unpacked/ slideLayout2.xml # From layout
 ```
 
-Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position.
+Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position. A duplicate is listed in its source slide's section, right after it; put its `<p:sldId>` right after the source's to keep it there.
 
 ### clean.py
 
@@ -78,7 +79,15 @@ Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position.
 python scripts/clean.py unpacked/
 ```
 
-Removes slides not in `<p:sldIdLst>`, unreferenced media, orphaned rels.
+Removes slides not in `<p:sldIdLst>`, unreferenced media, orphaned rels. Then brings the template's sections (`<p14:sectionLst>` in `ppt/presentation.xml`) in step with the slides: deleted slides leave their sections, a slide in no section joins the section of the slide before it, each section stays one run of slides in deck order, and empty sections are removed (the whole list when no slide is left in one).
+
+### sections.py
+
+```bash
+python scripts/sections.py output.pptx
+```
+
+Brings the sections of a finished `.pptx` in step with its slides, in place, as `clean.py` does for an unpacked deck. Run it on a deck built from a template without `clean.py` (python-pptx, for instance), before QA. A deck without sections is left as it is.
 
 ### pack.py
 

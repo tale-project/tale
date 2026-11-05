@@ -1,0 +1,379 @@
+"""Keep the sections of a PPTX in step with its slides.
+
+Usage: python sections.py <file.pptx | unpacked_dir>
+
+Examples:
+    python sections.py output.pptx
+    python sections.py unpacked/
+
+A template's sections (p14:sectionLst in ppt/presentation.xml) keep listing
+slides after they leave <p:sldIdLst> and know nothing of slides added since,
+so PowerPoint shows the template's sections empty and the new slides outside
+them. This script:
+- Drops section entries for slides no longer in <p:sldIdLst>
+- Puts a slide that is in no section into the section of the slide before it
+  (slides ahead of every sectioned slide into the first section that still
+  holds one)
+- Keeps each section one run of slides: a section stays where most of its
+  slides sit together, and its slides elsewhere join the section of the
+  slide before them (of the slide after them, at the start of the deck)
+- Orders the sections, and the slides in each, as <p:sldIdLst> orders them
+- Removes empty sections, and the whole section list when no slide is left in
+  one
+
+clean.py runs this on an unpacked directory. Run it yourself on a finished
+.pptx built another way (python-pptx on a template, for instance). A deck
+without sections is left as it is.
+"""
+
+import os
+import stat
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+import defusedxml.minidom
+
+P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+P14_NS = "http://schemas.microsoft.com/office/powerpoint/2010/main"
+R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PRESENTATION = "ppt/presentation.xml"
+
+SMART_QUOTE_REPLACEMENTS = {
+    "\u201c": "&#x201C;",
+    "\u201d": "&#x201D;",
+    "\u2018": "&#x2018;",
+    "\u2019": "&#x2019;",
+}
+
+
+def reconcile_sections(dom) -> bool:
+    order = _deck_order(dom)
+    changed = False
+    for section_lst in dom.getElementsByTagNameNS(P14_NS, "sectionLst"):
+        if _reconcile(section_lst, order):
+            changed = True
+    return changed
+
+
+def list_sections(dom) -> list[tuple[str, int]]:
+    return [
+        (section.getAttribute("name"), len(_entries(section)))
+        for section in dom.getElementsByTagNameNS(P14_NS, "section")
+    ]
+
+
+def sync_unpacked(unpacked_dir: Path) -> tuple[bool, list[tuple[str, int]]]:
+    pres_path = unpacked_dir / "ppt" / "presentation.xml"
+    if not pres_path.exists():
+        return False, []
+
+    dom = defusedxml.minidom.parse(str(pres_path))
+    changed = reconcile_sections(dom)
+    if changed:
+        _write_unpacked(pres_path, dom)
+    return changed, list_sections(dom)
+
+
+def sync_pptx(pptx_path: Path) -> tuple[bool, list[tuple[str, int]]]:
+    with zipfile.ZipFile(pptx_path) as zf:
+        if PRESENTATION not in zf.namelist():
+            return False, []
+        dom = defusedxml.minidom.parseString(zf.read(PRESENTATION))
+
+    changed = reconcile_sections(dom)
+    if changed:
+        _replace_in_zip(pptx_path, PRESENTATION, _serialize(dom))
+    return changed, list_sections(dom)
+
+
+def add_after_source(unpacked_dir: Path, source: str, new_id: int) -> str | None:
+    pres_path = unpacked_dir / "ppt" / "presentation.xml"
+    rels_path = unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels"
+    if not pres_path.exists() or not rels_path.exists():
+        return None
+
+    rels_dom = defusedxml.minidom.parse(str(rels_path))
+    source_rids = {
+        rel.getAttribute("Id")
+        for rel in rels_dom.getElementsByTagName("Relationship")
+        if rel.getAttribute("Target") in (f"slides/{source}", f"/ppt/slides/{source}")
+    }
+
+    dom = defusedxml.minidom.parse(str(pres_path))
+    source_id = next(
+        (
+            sld_id.getAttribute("id")
+            for sld_id in dom.getElementsByTagNameNS(P_NS, "sldId")
+            if sld_id.getAttributeNS(R_NS, "id") in source_rids
+        ),
+        None,
+    )
+    if not source_id:
+        return None
+
+    for section in dom.getElementsByTagNameNS(P14_NS, "section"):
+        for entry in _entries(section):
+            if entry.getAttribute("id") == source_id:
+                new_entry = entry.cloneNode(False)
+                new_entry.setAttribute("id", str(new_id))
+                _insert_after(entry, new_entry)
+                _write_unpacked(pres_path, dom)
+                return section.getAttribute("name")
+
+    return None
+
+
+def _reconcile(section_lst, order: list[str]) -> bool:
+    sections = _children(section_lst, P14_NS, "section")
+    listed = [
+        [entry.getAttribute("id") for entry in _entries(section)]
+        for section in sections
+    ]
+
+    in_deck = set(order)
+    owner = {}
+    for index, slide_ids in enumerate(listed):
+        for slide_id in slide_ids:
+            if slide_id in in_deck:
+                owner.setdefault(slide_id, index)
+
+    runs = _plan(order, owner)
+    if not runs:
+        _remove_section_list(section_lst)
+        return True
+
+    if [(sections[index], slide_ids) for index, slide_ids in runs] == list(
+        zip(sections, listed, strict=True)
+    ):
+        return False
+
+    for index, slide_ids in runs:
+        _set_slide_ids(sections[index], slide_ids)
+    _replace_children(section_lst, [sections[index] for index, _ in runs])
+    return True
+
+
+def _plan(order: list[str], owner: dict[str, int]) -> list[tuple[int, list[str]]]:
+    first = next((owner[s] for s in order if s in owner), None)
+    if first is None:
+        return []
+
+    assigned = []
+    for slide_id in order:
+        assigned.append(owner.get(slide_id, assigned[-1] if assigned else first))
+    runs = _group(order, assigned)
+
+    # Each section stays with the run holding most of its own slides (the
+    # first on a tie); the slides of its other runs join their neighbours.
+    home = {}
+    for position, (index, slide_ids) in enumerate(runs):
+        own = sum(1 for s in slide_ids if owner.get(s) == index)
+        if index not in home or own > home[index][1]:
+            home[index] = (position, own)
+
+    resolved = []
+    for position, (index, _) in enumerate(runs):
+        if home[index][0] != position:
+            index = (
+                resolved[-1]
+                if resolved
+                else next(
+                    runs[p][0]
+                    for p in range(position + 1, len(runs))
+                    if home[runs[p][0]][0] == p
+                )
+            )
+        resolved.append(index)
+
+    return _group(
+        order,
+        [resolved[p] for p, (_, slide_ids) in enumerate(runs) for _ in slide_ids],
+    )
+
+
+def _group(order: list[str], assigned: list[int]) -> list[tuple[int, list[str]]]:
+    runs = []
+    for slide_id, index in zip(order, assigned, strict=True):
+        if runs and runs[-1][0] == index:
+            runs[-1][1].append(slide_id)
+        else:
+            runs.append((index, [slide_id]))
+    return runs
+
+
+def _deck_order(dom) -> list[str]:
+    order = []
+    seen = set()
+    for sld_id_lst in dom.getElementsByTagNameNS(P_NS, "sldIdLst"):
+        for sld_id in _children(sld_id_lst, P_NS, "sldId"):
+            slide_id = sld_id.getAttribute("id")
+            if slide_id and slide_id not in seen:
+                seen.add(slide_id)
+                order.append(slide_id)
+    return order
+
+
+def _children(node, namespace: str, local_name: str) -> list:
+    return [
+        child
+        for child in node.childNodes
+        if child.nodeType == child.ELEMENT_NODE
+        and child.namespaceURI == namespace
+        and child.localName == local_name
+    ]
+
+
+def _entries(section) -> list:
+    lists = _children(section, P14_NS, "sldIdLst")
+    return _children(lists[0], P14_NS, "sldId") if lists else []
+
+
+def _set_slide_ids(section, slide_ids: list[str]) -> None:
+    doc = section.ownerDocument
+    lists = _children(section, P14_NS, "sldIdLst")
+    if lists:
+        sld_id_lst = lists[0]
+    else:
+        sld_id_lst = doc.createElementNS(P14_NS, _qualified(section, "sldIdLst"))
+        section.insertBefore(sld_id_lst, section.firstChild)
+
+    existing = {}
+    for entry in _children(sld_id_lst, P14_NS, "sldId"):
+        existing.setdefault(entry.getAttribute("id"), entry)
+
+    entries = []
+    for slide_id in slide_ids:
+        entry = existing.pop(slide_id, None)
+        if entry is None:
+            entry = doc.createElementNS(P14_NS, _qualified(section, "sldId"))
+            entry.setAttribute("id", slide_id)
+        entries.append(entry)
+    _replace_children(sld_id_lst, entries)
+
+
+def _qualified(node, local_name: str) -> str:
+    return f"{node.prefix}:{local_name}" if node.prefix else local_name
+
+
+def _is_blank(node) -> bool:
+    return (
+        node is not None and node.nodeType == node.TEXT_NODE and not node.data.strip()
+    )
+
+
+def _replace_children(parent, nodes: list) -> None:
+    elements = [c for c in parent.childNodes if c.nodeType == c.ELEMENT_NODE]
+    indent = tail = ""
+    if elements:
+        if _is_blank(elements[0].previousSibling):
+            indent = elements[0].previousSibling.data
+        if _is_blank(elements[-1].nextSibling):
+            tail = elements[-1].nextSibling.data
+    elif _is_blank(parent.previousSibling):
+        tail = parent.previousSibling.data
+        indent = tail + "  "
+
+    for child in list(parent.childNodes):
+        parent.removeChild(child)
+
+    doc = parent.ownerDocument
+    for node in nodes:
+        if indent:
+            parent.appendChild(doc.createTextNode(indent))
+        parent.appendChild(node)
+    if tail and nodes:
+        parent.appendChild(doc.createTextNode(tail))
+
+
+def _insert_after(node, new_node) -> None:
+    parent = node.parentNode
+    following = node.nextSibling
+    if _is_blank(node.previousSibling):
+        parent.insertBefore(
+            node.ownerDocument.createTextNode(node.previousSibling.data), following
+        )
+    parent.insertBefore(new_node, following)
+
+
+def _remove(node) -> None:
+    parent = node.parentNode
+    if _is_blank(node.previousSibling):
+        parent.removeChild(node.previousSibling)
+    parent.removeChild(node)
+
+
+def _remove_section_list(section_lst) -> None:
+    ext = section_lst.parentNode
+    if ext.nodeType != ext.ELEMENT_NODE or ext.localName != "ext":
+        _remove(section_lst)
+        return
+    if any(
+        c.nodeType == c.ELEMENT_NODE and c is not section_lst for c in ext.childNodes
+    ):
+        _remove(section_lst)
+        return
+
+    ext_lst = ext.parentNode
+    _remove(ext)
+    if ext_lst.nodeType == ext_lst.ELEMENT_NODE and not any(
+        c.nodeType == c.ELEMENT_NODE for c in ext_lst.childNodes
+    ):
+        _remove(ext_lst)
+
+
+def _serialize(dom) -> bytes:
+    return dom.toxml(encoding="UTF-8", standalone=dom.standalone)
+
+
+def _write_unpacked(path: Path, dom) -> None:
+    content = _serialize(dom).decode("utf-8")
+    for char, entity in SMART_QUOTE_REPLACEMENTS.items():
+        content = content.replace(char, entity)
+    path.write_bytes(content.encode("utf-8"))
+
+
+def _replace_in_zip(zip_path: Path, name: str, data: bytes) -> None:
+    fd, temp_name = tempfile.mkstemp(
+        dir=zip_path.parent, prefix=f".{zip_path.name}.", suffix=".tmp"
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        with zipfile.ZipFile(zip_path) as src, zipfile.ZipFile(temp_path, "w") as dst:
+            dst.comment = src.comment
+            for info in src.infolist():
+                dst.writestr(info, data if info.filename == name else src.read(info))
+        os.chmod(temp_path, stat.S_IMODE(zip_path.stat().st_mode))
+        os.replace(temp_path, zip_path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python sections.py <file.pptx | unpacked_dir>", file=sys.stderr)
+        print("Example: python sections.py output.pptx", file=sys.stderr)
+        sys.exit(1)
+
+    target = Path(sys.argv[1])
+
+    if target.is_dir():
+        changed, sections = sync_unpacked(target)
+    elif target.is_file() and target.suffix.lower() == ".pptx":
+        changed, sections = sync_pptx(target)
+    else:
+        print(f"Error: {target} is not a .pptx file or a directory", file=sys.stderr)
+        sys.exit(1)
+
+    if changed and sections:
+        print(f"Updated the sections of {target}:")
+    elif changed:
+        print(f"Removed the sections of {target}: no slide is left in one")
+    elif sections:
+        print(f"The sections of {target} already match its slides:")
+    else:
+        print(f"{target} has no sections")
+    for name, count in sections:
+        print(f"  {name}: {count} slide{'' if count == 1 else 's'}")
