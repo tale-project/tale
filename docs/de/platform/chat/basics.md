@@ -104,7 +104,7 @@ Deine eigenen Nachrichten stehen rechts. Von einer langen siehst du den Anfang; 
 
 Frühere Chats findest du im Bereich [Start](/de/platform#home); die Ansicht **Chats** über der Liste zeigt nur deine Chats. Pinne häufig benötigte Chats, gib ihnen erkennbare Titel oder verschiebe sie in ein Projekt, wenn das Thema längerfristig wird: Zieh sie auf das Projekt oder wähle **In Projekt verschieben…** in ihrem Menü. [Geteilte Chats](/de/platform/chat/shared-threads) erklärt die schreibgeschützte Freigabe für Kollegen.
 
-Sehr lange Gespräche können das Kontextfenster des Modells überschreiten. Tale zeigt einen Hinweis, wenn ältere Nachrichten nicht mehr mitgegeben werden. Wiederhole wichtige Anforderungen oder beginne einen neuen Chat mit den benötigten Quellen, statt die vollständige Historie vorauszusetzen.
+Sehr lange Gespräche können das Kontextfenster des Modells überschreiten. Tale kürzt dann zuerst die ältesten Ergebnisse früherer Schritte des Assistenten, etwa Webseiten, Dateien oder Suchergebnisse, und lässt die ältesten Nachrichten erst weg, wenn das nicht reicht. Der Assistent erfährt, was gekürzt oder weggelassen wurde. Wiederhole wichtige Anforderungen oder beginne einen neuen Chat mit den benötigten Quellen, statt die vollständige Historie vorauszusetzen.
 
 ## Eine unvollständige Antwort verbessern
 

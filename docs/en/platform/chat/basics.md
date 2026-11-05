@@ -104,7 +104,7 @@ Your own messages sit on the right. A long one shows its beginning, with **Read 
 
 Find earlier chats in [Home](/platform#home); **Chats** above the list hides your tasks and inbox conversations. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work: drag it onto the project or choose **Move to project…** in its menu. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
 
-Very long conversations may exceed the model’s context window. Tale displays a notice when older messages are omitted. Restate an important requirement or start a new chat with the relevant sources instead of assuming the assistant still sees the entire history.
+Very long conversations may exceed the model’s context window. Tale then first shortens the oldest results of the assistant’s earlier steps, such as web pages, files or search results, and leaves out the oldest messages only when that is not enough. The assistant is told what was shortened or left out. Restate an important requirement or start a new chat with the relevant sources instead of assuming the assistant still sees the entire history.
 
 ## Improve an incomplete answer
 

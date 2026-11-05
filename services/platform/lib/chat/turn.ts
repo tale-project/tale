@@ -717,8 +717,8 @@ function assembleTurnContext(
   request: TurnRequest,
   filteredUserText: string,
   now: Date,
-  /** Input the first round carries beside the context: the history gives
-   * it room. */
+  /** Input a round carries beside the context (the chosen skills, then the
+   * reply's own calls and results): the history gives it room. */
   reservedTokens = 0,
 ): AssembledContext {
   const appendix =
@@ -1574,7 +1574,15 @@ export async function runTurn(
         });
 
   steps.push('assemble-context');
-  let context = assembleTurnContext(request, input.text, now(), chosenTokens);
+  // One clock for every fit of this turn: a history that still fits a later
+  // round goes out byte-identical, so a provider's prefix cache still holds.
+  const assembledAt = now();
+  let context = assembleTurnContext(
+    request,
+    input.text,
+    assembledAt,
+    chosenTokens,
+  );
 
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
@@ -1887,7 +1895,12 @@ export async function runTurn(
         request = nextRequest;
         deps = nextDeps;
         execution = nextExecution;
-        context = assembleTurnContext(request, input.text, now(), chosenTokens);
+        context = assembleTurnContext(
+          request,
+          input.text,
+          assembledAt,
+          chosenTokens,
+        );
         roundSampling = fitSamplingToWindow(
           resolveTurnSampling(
             request.model,
@@ -2118,16 +2131,25 @@ export async function runTurn(
       }
       if (streamed.cancelled === true) break;
       toolRounds += 1;
+      // The reply's own results go out whole, so the history makes room for
+      // them: fitted again around what the reply now holds, the history
+      // shortens its oldest results first instead of overflowing the window
+      // (#5356).
+      const replyTokens = estimateMessageTokens({
+        role: 'assistant',
+        parts: [...settledParts],
+      });
+      context = assembleTurnContext(
+        request,
+        input.text,
+        assembledAt,
+        replyTokens,
+      );
       // The next round spends on top of what is held: its worst case joins
       // the turn's hold before it runs. Best-effort — the reply is never
       // cut over its own bookkeeping.
       if (deps.store.holdNextRound !== undefined) {
-        const promptTokens =
-          context.estimatedTokens +
-          estimateMessageTokens({
-            role: 'assistant',
-            parts: [...settledParts],
-          });
+        const promptTokens = context.estimatedTokens + replyTokens;
         const reserveOutput = request.budget?.reserveOutputTokens ?? 0;
         await deps.store
           .holdNextRound({

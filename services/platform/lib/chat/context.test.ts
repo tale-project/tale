@@ -4,6 +4,7 @@ import {
   assembleContext,
   CONTEXT_BLOCK_ORDER,
   resolveAgentInstructions,
+  SHORTENED_TOOL_RESULT_NOTE,
   truncationNotice,
   type ContextInput,
 } from './context';
@@ -11,6 +12,7 @@ import type { TaskHandover } from './handover';
 import type { ChatMessage } from './types';
 import { estimateMessageTokens, estimateTokens } from './types';
 import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from './untrusted-content';
+import { explodeMessagesForWire } from './wire-parts';
 
 /**
  * The context contract is an ORDER, so these tests assert the order itself —
@@ -429,6 +431,247 @@ describe('assembleContext — overflow', () => {
 
     expect(result.truncation?.droppedMessages).toBe(2);
     expect(result.messages.slice(1)).toEqual(history.slice(2));
+  });
+});
+
+/**
+ * A reply that read a page answered from all of it. Sending the next turn a
+ * 400-character stub of that page beside the answer made the answer look
+ * unsupported, and a careful model corrected itself and read the page again
+ * (#5356). So an earlier tool result goes out whole while the history fits.
+ */
+describe('assembleContext — earlier tool results', () => {
+  /** A stored reply that read one page and answered from it: call, result
+   * and answer as ordered parts of one assistant message. */
+  function readAndAnswered(
+    callId: string,
+    content: string,
+    answer: string,
+  ): ChatMessage {
+    const url = `https://docs.tale.dev/${callId}`;
+    return {
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          callId,
+          capabilityId: 'web_fetch',
+          input: { url },
+        },
+        {
+          type: 'tool-result',
+          callId,
+          capabilityId: 'web_fetch',
+          output: { url, content },
+          structured: true,
+        },
+        { type: 'text', text: answer },
+      ],
+    };
+  }
+
+  /** The same reply as a later turn gets it once its page was shortened to
+   * make room: call and answer as stored, the page cut to its first 400
+   * characters beside the note that says so. */
+  function shortened(reply: ChatMessage): ChatMessage {
+    return {
+      ...reply,
+      parts: reply.parts.map((part) => {
+        if (part.type !== 'tool-result') return part;
+        const { url, content } = part.output as {
+          url: string;
+          content: string;
+        };
+        return {
+          ...part,
+          output: {
+            note: SHORTENED_TOOL_RESULT_NOTE,
+            result: {
+              url,
+              content: `${content.slice(0, 400)}…(+${content.length - 400} chars)`,
+            },
+          },
+        };
+      }),
+    };
+  }
+
+  const systemTokens = () =>
+    estimateTokens(assembleContext(input({ history: [] })).system);
+  const tokens = (messages: readonly ChatMessage[]) =>
+    messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0);
+
+  it('sends an earlier tool result whole while the history fits (#5356)', () => {
+    const history = [
+      message('user', 'Wie lege ich einen Projekt-Agenten an?'),
+      readAndAnswered('c1', 'a'.repeat(20_000), 'So legst du ihn an: …'),
+      message('user', 'Fasse deine letzte Antwort zusammen.'),
+    ];
+
+    const result = assembleContext(
+      input({ history, budget: { maxTokens: 100_000 } }),
+    );
+
+    expect(result.messages).toEqual(history);
+    expect(result.truncation).toBeUndefined();
+  });
+
+  it('shortens the oldest result first on overflow, and says so where the model reads it (#5356)', () => {
+    const ask = message('user', 'Erste Frage');
+    const older = readAndAnswered('c1', 'a'.repeat(20_000), 'Erste Antwort.');
+    const askAgain = message('user', 'Zweite Frage');
+    const newer = readAndAnswered('c2', 'b'.repeat(20_000), 'Zweite Antwort.');
+    const followUp = message('user', 'Dritte Frage');
+    // Room for the whole history once the older page is shortened, not
+    // before: the newer page stays whole and no message is dropped.
+    const expected = [ask, shortened(older), askAgain, newer, followUp];
+
+    const result = assembleContext(
+      input({
+        history: [ask, older, askAgain, newer, followUp],
+        budget: { maxTokens: systemTokens() + tokens(expected) },
+      }),
+    );
+
+    expect(result.truncation).toBeUndefined();
+    expect(result.messages).toEqual(expected);
+    const [shortenedPage, wholePage] = explodeMessagesForWire(
+      result.system,
+      result.messages,
+    ).flatMap((turn) => turn.toolResults ?? []);
+    expect(shortenedPage?.callId).toBe('c1');
+    expect(shortenedPage?.content).toContain(SHORTENED_TOOL_RESULT_NOTE);
+    expect(shortenedPage?.content).toContain('…(+19600 chars)');
+    expect(wholePage?.callId).toBe('c2');
+    expect(wholePage?.content).toContain('b'.repeat(20_000));
+  });
+
+  it('drops the oldest messages only once every result is shortened', () => {
+    const first = readAndAnswered('c1', 'a'.repeat(20_000), 'Erste Antwort.');
+    const second = readAndAnswered('c2', 'b'.repeat(20_000), 'Zweite Antwort.');
+    const third = readAndAnswered('c3', 'c'.repeat(20_000), 'Dritte Antwort.');
+    const history = [
+      message('user', 'Erste Frage'),
+      first,
+      message('user', 'Zweite Frage'),
+      second,
+      message('user', 'Dritte Frage'),
+      third,
+      message('user', 'Vierte Frage'),
+    ];
+    // Every page shortened still leaves too much: the two oldest messages
+    // go, what they free holds the notice, and the kept replies carry their
+    // pages shortened.
+    const kept = [
+      message('user', 'Zweite Frage'),
+      shortened(second),
+      message('user', 'Dritte Frage'),
+      shortened(third),
+      message('user', 'Vierte Frage'),
+    ];
+
+    const result = assembleContext(
+      input({
+        history,
+        budget: { maxTokens: systemTokens() + tokens(kept) + 60 },
+      }),
+    );
+
+    expect(result.truncation?.droppedMessages).toBe(2);
+    expect(result.messages).toEqual([
+      message('user', truncationNotice(2)),
+      ...kept,
+    ]);
+  });
+
+  it('gives the room the dropped messages freed back to the newest results', () => {
+    const pasted = message('user', `Hier ist der Text: ${'p'.repeat(60_000)}`);
+    const older = readAndAnswered('c1', 'a'.repeat(20_000), 'Erste Antwort.');
+    const askAgain = message('user', 'Zweite Frage');
+    const newer = readAndAnswered('c2', 'b'.repeat(20_000), 'Zweite Antwort.');
+    const followUp = message('user', 'Dritte Frage');
+    const history = [pasted, older, askAgain, newer, followUp];
+    // The pasted text overflows the window with every page shortened, so it
+    // goes; the room it frees keeps the newer page whole.
+    const kept = [shortened(older), askAgain, newer, followUp];
+
+    const result = assembleContext(
+      input({
+        history,
+        budget: {
+          maxTokens:
+            systemTokens() +
+            tokens(kept) +
+            estimateTokens(truncationNotice(history.length)),
+        },
+      }),
+    );
+
+    expect(result.truncation?.droppedMessages).toBe(1);
+    expect(result.messages).toEqual([
+      message('user', truncationNotice(1)),
+      ...kept,
+    ]);
+  });
+
+  it('leaves a result whole that shortening would not make smaller', () => {
+    const ticket: ChatMessage = {
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          callId: 'c1',
+          capabilityId: 'connector.zendesk.create_ticket',
+          input: { subject: 'printer' },
+        },
+        {
+          type: 'tool-result',
+          callId: 'c1',
+          capabilityId: 'connector.zendesk.create_ticket',
+          output: { id: 42 },
+          structured: true,
+        },
+        { type: 'text', text: 'Ticket 42 ist angelegt.' },
+      ],
+    };
+    const history = [
+      message('user', 'x'.repeat(4_000)),
+      message('assistant', 'Gelesen.'),
+      message('user', 'Leg ein Ticket an.'),
+      ticket,
+      message('user', 'Danke.'),
+    ];
+
+    const result = assembleContext(
+      input({
+        history,
+        budget: { maxTokens: systemTokens() + tokens(history.slice(1)) + 60 },
+      }),
+    );
+
+    expect(result.truncation?.droppedMessages).toBe(1);
+    expect(result.messages.slice(1)).toEqual(history.slice(1));
+  });
+
+  it('never shortens what a person or the assistant wrote, only tool output', () => {
+    const pasted = message('user', `Hier ist der Text: ${'p'.repeat(20_000)}`);
+    const reply = readAndAnswered(
+      'c1',
+      'a'.repeat(20_000),
+      `Zusammenfassung: ${'s'.repeat(4_000)}`,
+    );
+    const followUp = message('user', 'Und jetzt kürzer.');
+    const expected = [pasted, shortened(reply), followUp];
+
+    const result = assembleContext(
+      input({
+        history: [pasted, reply, followUp],
+        budget: { maxTokens: systemTokens() + tokens(expected) },
+      }),
+    );
+
+    expect(result.truncation).toBeUndefined();
+    expect(result.messages).toEqual(expected);
   });
 });
 

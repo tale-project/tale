@@ -104,7 +104,7 @@ Tes propres messages sont à droite. D’un long message, tu vois le début ; *
 
 Retrouve les anciens chats dans [Accueil](/fr/platform#home) ; la vue **Chats**, au-dessus de la liste, n’affiche que les chats. Épingle ceux qui servent souvent, donne-leur un titre reconnaissable ou déplace-les dans un projet lorsque le sujet devient récurrent : fais-les glisser sur le projet ou choisis **Déplacer vers un projet…** dans leur menu. [Chats partagés](/fr/platform/chat/shared-threads) explique comment publier un instantané en lecture seule pour des collègues.
 
-Une conversation très longue peut dépasser la fenêtre de contexte du modèle. Tale affiche un avis lorsque des messages anciens sont omis. Répète une contrainte importante ou démarre un nouveau chat avec les sources utiles, plutôt que de supposer que l’assistant voit encore tout l’historique.
+Une conversation très longue peut dépasser la fenêtre de contexte du modèle. Tale raccourcit alors d’abord les résultats les plus anciens des étapes précédentes de l’assistant, comme des pages web, des fichiers ou des résultats de recherche, et n’omet les messages les plus anciens que si cela ne suffit pas. L’assistant est informé de ce qui a été raccourci ou omis. Répète une contrainte importante ou démarre un nouveau chat avec les sources utiles, plutôt que de supposer que l’assistant voit encore tout l’historique.
 
 ## Améliorer une réponse incomplète
 
