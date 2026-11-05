@@ -216,4 +216,18 @@ describe('DocumentPreviewText typography', () => {
       ).not.toBeNull();
     },
   );
+
+  // REGRESSION: a CSV file previewed as plain text. Its grammar is not among
+  // the ones the highlighter loads up front, and the browser could not load
+  // it on demand.
+  it('colours a file whose grammar loads on first use', async () => {
+    preview.text = 'planet,moons\nEarth,1\nMars,2';
+    const container = renderPreview('planets.csv');
+    await highlightedRows(container);
+
+    expect(highlightCode).toHaveBeenCalledWith(preview.text, 'csv');
+    expect(
+      container.querySelector('pre.shiki span[style*="var(--code-token-"]'),
+    ).not.toBeNull();
+  });
 });

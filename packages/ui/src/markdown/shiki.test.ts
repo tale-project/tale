@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { CODE_LANGUAGES, codeRoleOfColor } from '../lib/code-roles';
 import {
@@ -233,4 +233,51 @@ describe('template grammars', () => {
       )?.html ?? '';
     expect(roleOf(html, 'nodes')).toBe('constant');
   });
+});
+
+describe('grammars outside the eager list', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // A file preview or a fence may name any grammar Shiki ships: it loads on
+  // first use, and the shared highlighter keeps it.
+  it('loads CSV on first use and colours its columns', async () => {
+    const warn = vi.spyOn(console, 'warn');
+    const code = 'planet,moons,rings\nSaturn,146,yes';
+    const result = await highlightCode(code, 'csv');
+    expect(result?.language).toBe('csv');
+    const html = result?.html ?? '';
+    // Each column takes a colour of its own, its separator with it.
+    expect(roleOf(html, 'planet,')).toBe('foreground');
+    expect(roleOf(html, 'moons,')).toBe('keyword');
+    expect(roleOf(html, 'rings')).toBe('function');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('tokenizes a grammar outside the eager list too', async () => {
+    const lines = await tokenizeCode('planet\tmoons\nMars\t2', 'tsv');
+    expect(lines).not.toBeNull();
+    const moons = lines?.[0]?.find((token) => token.content === 'moons');
+    expect(codeRoleOfColor(moons?.color)).toBe('keyword');
+  });
+
+  it('loads a grammar by a name only Shiki knows it by', async () => {
+    const result = await highlightCode('@echo off\nset NAME=Tale', 'bat');
+    expect(result?.language).toBe('bat');
+    expect(result?.html).toContain('var(--code-token-');
+  });
+
+  // The name comes from a fence or a file extension. One Shiki has no
+  // grammar for is plain text, which is no failure worth a warning.
+  it.each(['no-such-language', 'constructor', '__proto__'])(
+    'shows %s as plain text, without a warning',
+    async (name) => {
+      const warn = vi.spyOn(console, 'warn');
+      const result = await highlightCode(`${name} = 1`, name);
+      expect(result?.language).toBe('text');
+      expect(result?.html).not.toContain('var(--code-token-');
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
 });
