@@ -527,3 +527,46 @@ describe('Pasting a link in a project’s new chat', () => {
     );
   });
 });
+
+/**
+ * A project reader's view of a teammate's chat (CHAT-R2): the jobs are the
+ * owner's, and the thread read answers anyone else 404 — which the app's
+ * retry policy used to ask again and again.
+ */
+describe('The jobs of a chat shared with the project [CHAT-R2]', () => {
+  function Jobs({
+    threadId,
+    enabled,
+  }: {
+    threadId: string | undefined;
+    enabled?: boolean;
+  }) {
+    useChatVideoLinks({
+      threadId,
+      organizationId: ORG,
+      locale: 'en',
+      ...(enabled !== undefined ? { enabled } : {}),
+    });
+    return null;
+  }
+
+  it('reads none of them in a view that may not, and the owner’s view reads its own', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Jobs threadId="thread-shared" enabled={false} />
+        <Jobs threadId={undefined} enabled={false} />
+        <Jobs threadId={THREAD} />
+      </QueryClientProvider>,
+    );
+
+    // The owner's read leaves in the same commit the others would have.
+    await waitFor(() => {
+      expect(backend.calls).toEqual([
+        `GET /api/app/video-links/thread/${THREAD}?orgId=${ORG}`,
+      ]);
+    });
+  });
+});

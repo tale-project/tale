@@ -959,3 +959,30 @@ describe('GET /threads/:threadId/stream — enrolled in the shutdown drain', () 
     expect(endAllEventStreams()).toBe(0);
   });
 });
+
+describe('GET /threads/:threadId/stream for a project reader [CHAT-R2]', () => {
+  it('answers 404 and attaches no lane: the live turn is the owner’s to follow', async () => {
+    // The chat is shared with a project the caller reads and its view
+    // answers by id; only the read bound to the caller finds nothing.
+    loadProjectSharedThread.mockResolvedValue({
+      id: 'root',
+      organizationId: 'o1',
+      userId: 'owner',
+    });
+    const sql = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      const text = strings.join('?');
+      if (text.includes('t.user_id = ?')) return Promise.resolve([]);
+      if (text.includes('FROM app.threads t')) {
+        return Promise.resolve([{ id: 'root', title: 'Launch plan' }]);
+      }
+      return Promise.resolve([]);
+    };
+
+    const res = await makeApp(sql).request('/threads/root/stream?orgId=o1');
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'thread not found' });
+    // Nothing enrolled: the drain finds no lane to end.
+    expect(endAllEventStreams()).toBe(0);
+  });
+});

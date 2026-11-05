@@ -300,12 +300,38 @@ function ChatSurfaceInner({
     });
   }, [threadId, startFresh, threads, navigate, organizationId]);
 
+  // Also answers for a project-shared conversation the caller may read but
+  // not write — everything that composes or mutates gates on this.
+  const openThread = useChatThread(organizationId, threadId);
+  const viewerIsOwner =
+    openThread.status !== 'ready' ||
+    openThread.data === null ||
+    openThread.data.viewerIsOwner !== false;
+  // The thread being viewed, once the list has answered.
+  const activeThread =
+    threadId !== undefined && threads.status === 'ready'
+      ? threads.data.find((thread) => thread.id === threadId)
+      : undefined;
+  // The reads only the chat's owner may make — its versions, arena pair,
+  // live lane, parked sends, video links and ratings — wait until the caller
+  // is KNOWN to own it: their own list holds it, or its summary says so. A
+  // project reader (CHAT-R2) never makes them, not even while the summary is
+  // still answering (`viewerIsOwner` reads true then).
+  const ownerReads =
+    activeThread !== undefined ||
+    (openThread.status === 'ready' &&
+      openThread.data !== null &&
+      openThread.data.viewerIsOwner !== false);
+
   // The URL names the lineage ROOT; which edit/regenerate sibling the
   // conversation shows from each fork point is the root's selection map. The
   // reads below follow the resolved leaf, so flipping the navigator swaps
   // the whole tail. Selections flip locally first (`selectionOverrides`) and
   // persist in the background.
-  const branchData = useThreadBranches(organizationId, threadId);
+  const branchData = useThreadBranches(
+    organizationId,
+    ownerReads ? threadId : undefined,
+  );
   const branches = useMemo(
     () => (branchData.status === 'ready' ? branchData.data.branches : []),
     [branchData],
@@ -360,7 +386,10 @@ function ChatSurfaceInner({
   >(null);
   // Arena pair first: while a pair is live the columns own their thread
   // views, and the surface's own view (below) steps aside entirely.
-  const arenaPair = useArenaPair(organizationId, viewThreadId);
+  const arenaPair = useArenaPair(
+    organizationId,
+    ownerReads ? viewThreadId : undefined,
+  );
   const pair = arenaPair.status === 'ready' ? arenaPair.data : null;
   const arenaActive = pair !== null;
   // In arena mode the columns own their thread views — the surface skips
@@ -373,16 +402,12 @@ function ChatSurfaceInner({
     arenaActive ? undefined : viewThreadId,
     pendingSend,
     threadId,
-    { includeLiveText: false },
+    { includeLiveText: false, live: ownerReads },
   );
-  const generation = useChatGeneration(organizationId, viewThreadId);
-  // Also answers for a project-shared conversation the caller may read but
-  // not write — everything that composes or mutates gates on this.
-  const openThread = useChatThread(organizationId, threadId);
-  const viewerIsOwner =
-    openThread.status !== 'ready' ||
-    openThread.data === null ||
-    openThread.data.viewerIsOwner !== false;
+  const generation = useChatGeneration(
+    organizationId,
+    ownerReads ? viewThreadId : undefined,
+  );
   const composerOptions = useComposerModels(organizationId);
   const chatSend = useChatSend(organizationId);
   const threadReasoningEffort = useThreadReasoningEffort(organizationId);
@@ -431,11 +456,6 @@ function ChatSurfaceInner({
   const { data: currentUser } = useCurrentUser();
   const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
 
-  // The thread being viewed, once the list has answered.
-  const activeThread =
-    threadId !== undefined && threads.status === 'ready'
-      ? threads.data.find((thread) => thread.id === threadId)
-      : undefined;
   // What the header names: the list's row, or — for a chat the list does not
   // hold (an archived one, or a teammate's shared into a project) — the
   // thread's own read. The owner's row actions still key off `activeThread`.
@@ -1079,7 +1099,10 @@ function ChatSurfaceInner({
   // The caller's ratings for the open conversation — one watch, latched by
   // each message's toolbar. Keyed to the VIEW thread: ratings live on the
   // sibling actually rendered.
-  const threadFeedback = useThreadFeedback(organizationId, viewThreadId);
+  const threadFeedback = useThreadFeedback(
+    organizationId,
+    ownerReads ? viewThreadId : undefined,
+  );
   const feedbackByMessage = useMemo(() => {
     const map = new Map<string, 'positive' | 'negative'>();
     if (threadFeedback.status === 'ready') {
@@ -1174,6 +1197,9 @@ function ChatSurfaceInner({
       : {}),
     organizationId,
     locale,
+    // A new chat's unbound jobs are the caller's own; an open chat's are
+    // its owner's.
+    enabled: viewThreadId === undefined || ownerReads,
   });
   // Anything still processing? Then Send parks the message server-side and
   // the watcher fires it when everything settles — the 0.3 send-then-wait.
@@ -2336,6 +2362,7 @@ function ChatSurfaceInner({
                   organizationId={organizationId}
                   threadId={viewThreadId}
                   readOnly={!viewerIsOwner}
+                  live={ownerReads}
                   threadRootId={threadId}
                   pendingSend={pendingSend}
                   isGenerating={generationInFlight || pendingSend !== null}
@@ -2456,7 +2483,7 @@ function ChatSurfaceInner({
                 )}
                 {/* Sends parked while their attachments still process —
                     the watcher fires each one when it is ready. */}
-                {viewThreadId !== undefined && (
+                {viewThreadId !== undefined && ownerReads && (
                   <DeferredSendTray
                     organizationId={organizationId}
                     threadId={viewThreadId}

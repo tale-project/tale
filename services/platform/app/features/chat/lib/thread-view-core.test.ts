@@ -8,6 +8,7 @@ import {
   createThreadViewState,
   reduceThreadView,
   resolveHeldItems,
+  withoutRunningReply,
   type ThreadViewInputs,
 } from './thread-view-core';
 
@@ -967,5 +968,46 @@ describe('optimistic send overlay — image attachments', () => {
         sizeBytes: 4096,
       },
     ]);
+  });
+});
+
+/**
+ * A project reader follows no live turn (CHAT-R2): the owner's running reply
+ * stays out of their view until a later read brings it settled.
+ */
+describe('withoutRunningReply', () => {
+  it('leaves out the reply a turn is still writing, and keeps its question', () => {
+    const rows = [
+      textRow('u1', 'question', { role: 'user', sequence: 1 }),
+      textRow('a2', 'answer', { sequence: 2, status: 'complete' }),
+      textRow('u3', 'follow-up', { role: 'user', sequence: 3 }),
+      // A tool loop's earlier rounds already sit on the placeholder.
+      textRow('a4', 'first round', { sequence: 4, status: 'pending' }),
+    ];
+
+    expect(withoutRunningReply(rows).map((item) => item.id)).toEqual([
+      'u1',
+      'a2',
+      'u3',
+    ]);
+  });
+
+  it('keeps a placeholder whose failure landed', () => {
+    const failed = textRow('a2', '', {
+      sequence: 2,
+      status: 'pending',
+      error: 'The turn did not finish.',
+    });
+
+    expect(withoutRunningReply([failed])).toEqual([failed]);
+  });
+
+  it('answers the same array when nothing is running', () => {
+    const rows = [
+      textRow('u1', 'question', { role: 'user', sequence: 1 }),
+      textRow('a2', '', { sequence: 2, status: 'cancelled' }),
+    ];
+
+    expect(withoutRunningReply(rows)).toBe(rows);
   });
 });

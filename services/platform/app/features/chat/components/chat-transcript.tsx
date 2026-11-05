@@ -24,6 +24,11 @@ interface ChatTranscriptProps extends MessageThreadHandlers {
    * read-aloud — do not. Never expressed by withholding `threadId`: that is
    * the data key, and a transcript without it subscribes to nothing. */
   readOnly?: boolean;
+  /** Follow the running turn live (default true). The lane answers the
+   * owner alone: a view whose owner is not known — a project reader's, or
+   * one whose ownership has not answered yet — passes false and shows a
+   * reply once it has settled. */
+  live?: boolean;
   /** The URL's lineage root — hold scope and scroll memory. */
   threadRootId: string | undefined;
   pendingSend: PendingSend | null;
@@ -40,6 +45,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   organizationId,
   threadId,
   readOnly,
+  live = true,
   threadRootId,
   pendingSend,
   isGenerating,
@@ -56,6 +62,7 @@ export const ChatTranscript = memo(function ChatTranscript({
     threadId,
     pendingSend,
     threadRootId,
+    { live },
   );
 
   return (
