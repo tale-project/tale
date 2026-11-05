@@ -30,7 +30,9 @@ bun run --filter @tale/session-manager dev        # http://localhost:3004
 ```
 
 If port 3004 is taken, Vite stops with an error instead of moving to the next free port: the backend
-answers only a page opened through 3004.
+answers only a page opened through 3004. On a Bun older than 1.4.1 `dev` stops at once and says
+so: there Vite's proxy, which runs under Bun, lets no message of the live view's WebSocket through,
+and the page of a session would never connect (`bun upgrade` mends it).
 
 Or build the page and run the one process that serves everything (the page, the API, the live view
 and `/mcp`) on one port:
