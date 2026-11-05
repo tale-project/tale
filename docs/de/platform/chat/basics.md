@@ -69,7 +69,7 @@ Der Assistent ändert selbst nichts. Er liest die Projekte, die du öffnen kanns
 
 Hat sich seit dem Vorschlag etwas geändert, hat etwa jemand den Agenten bearbeitet, ändert **Übernehmen** nichts: Die Karte zeigt **Nicht übernommen** und den Grund. Frag den Assistenten dann nach einem neuen Vorschlag.
 
-Solche Vorschläge erhalten nur Redakteure, Entwickler, Admins und Inhaber; einem Mitglied kann der Assistent eine Änderung beschreiben, aber nicht vorschlagen, und eine Nachricht über die API erhält keine. In einem Chat, der in einem Projekt liegt, liest und ändert der Assistent nur dieses Projekt; ein neues Projekt kann er trotzdem vorschlagen. Ein Projekt, das über eine Karte entsteht, ist für die ganze Organisation offen; seine Teams wählst du unter **Reichweite** auf seiner Seite **Allgemein**. Freigaben, Secrets, Connectors, die Tools eines Agenten, Repository-Zugriff und das Löschen eines Projekts oder Agenten bleiben auf den Seiten des Projekts.
+Solche Vorschläge erhalten nur Redakteure, Entwickler, Admins und Inhaber; einem Mitglied kann der Assistent eine Änderung beschreiben, aber nicht vorschlagen, und eine Nachricht über die API erhält keine. In einem Chat, der in einem Projekt liegt, liest und ändert der Assistent nur dieses Projekt; ein neues Projekt kann er trotzdem vorschlagen. Ein Projekt, das über eine Karte entsteht, ist für die ganze Organisation offen; ein Inhaber oder Admin kann es unter **Reichweite** auf seiner Seite **Allgemein** auf Teams beschränken. Freigaben, Secrets, Connectors, die Tools eines Agenten, Repository-Zugriff und das Löschen eines Projekts oder Agenten bleiben auf den Seiten des Projekts.
 
 ## Die verwendeten Quellen prüfen
 

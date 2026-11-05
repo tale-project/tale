@@ -79,6 +79,12 @@ Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile
 
 </Steps>
 
+## Einen Agenten mit allen teilen {#share-an-agent}
+
+Ein Agent gehört zu seinem Projekt, und alle, die das Projekt öffnen können, können ihn nutzen: Sie sehen ihn im Tab **Agenten**, geben ihm Aufgaben, erwähnen ihn in Kommentaren und wählen ihn in den Chats des Projekts. Wer das ist, zeigt der Tab unter **Wer diese Agenten nutzen kann**.
+
+Um einen Agenten mit allen Mitgliedern der Organisation zu teilen, erstelle ihn in einem Projekt, das der ganzen Organisation offensteht: Lass **Wer es sehen kann** beim Erstellen des Projekts leer. Soll ihn nur ein Teil der Teams nutzen, wähle dort diese Teams. Danach können nur Inhaber und Admins die Reichweite eines Projekts ändern, unter **Reichweite** in den **Freigabe**-Einstellungen des Projekts. Redakteure, Entwickler, Admins und Inhaber erstellen Projekte und Agenten; Mitglieder nutzen die Agenten der Projekte, die sie öffnen können. Ein Agent wird nie mit einer anderen Organisation geteilt.
+
 ## Dem Agenten eigenen Zugriff auf Repositorys geben {#repository-access}
 
 Ein Agent, der mit dem GitHub- oder Forgejo-Connector ausgestattet ist, kann in seiner Sandbox über HTTPS klonen, fetchen und pushen, und zwar mit [Connector-Zugangsdaten](/de/platform/admin/connectors) der Organisation: GitHub-Zugangsdaten öffnen `github.com`, Forgejo-Zugangsdaten den Host ihrer Instanzadresse. Wenn du nichts anderes wählst, verwendet der Agent die Standard-Zugangsdaten des Connectors.

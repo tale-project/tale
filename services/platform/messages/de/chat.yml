@@ -134,7 +134,7 @@ proposal:
     first: Zuerst erstellter Agent
     firstNamed: 'Zuerst erstellter Agent ({name})'
     assistant: Assistent
-  orgWide: Alle in der Organisation können das neue Projekt öffnen. Wer es sehen kann, legst du auf seiner Seite Allgemein fest.
+  orgWide: Alle in der Organisation können das neue Projekt öffnen. Ein Inhaber oder Admin kann es auf seiner Seite Allgemein auf Teams beschränken.
   before: Vorher
   after: Nachher
   failure:

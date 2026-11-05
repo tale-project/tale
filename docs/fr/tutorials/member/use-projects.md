@@ -9,7 +9,7 @@ Un projet réunit les fichiers, les instructions, les conversations et les tâch
 
 En tant que **Membre**, tu travailles dans les projets partagés avec toi : tu poses des questions dans leurs chats, tu partages des conversations et tu crées des tâches pour les agents du projet. Prends un projet que tu peux ouvrir, avec un fichier de référence indexé, puis commence à [Poser une question et vérifier la source](#poser-une-question-et-verifier-la-source). Un projet sans agents propres confie ses tâches à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation, sauf si un admin l’a désactivé. Créer un projet, importer ses fichiers, enregistrer ses instructions et ajouter des agents demandent le rôle **Éditeur** ou supérieur ; si tu prépares le projet, commence à [Préparer le projet](#preparer-le-projet). Il te faut un court document texte, un PDF dont le texte est sélectionnable ou un fichier Office récent. Choisis un contenu vérifiable, par exemple un brief qui nomme une personne responsable et une date de revue. Un admin doit avoir configuré le stockage documentaire et un modèle d’embedding pour rendre les fichiers consultables.
 
-Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un document sans données sensibles pour ce parcours. Si ton projet doit être restreint, choisis son équipe propriétaire sous **Général > Partage** avant d’importer ses fichiers. Les chats du projet restent personnels tant que tu ne les partages pas.
+Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un document sans données sensibles pour ce parcours. Si ton projet doit être restreint, choisis ses équipes sous **Qui peut le voir** à sa création, avant d’importer ses fichiers ; ensuite, seul un Propriétaire ou un Admin peut les modifier sous **Général > Partage**. Les chats du projet restent personnels tant que tu ne les partages pas.
 
 ## Préparer le projet
 
@@ -74,7 +74,7 @@ Pour envoyer un lien vers un instantané aux membres de l’organisation, suis [
 
 ## Confier la suite à un agent du projet
 
-Le chat répond aux questions ; il ne produit pas de fichiers. Quand la réponse doit devenir un document, par exemple une synthèse de lancement d’une page, confie le travail à l’un des agents du projet au moyen d’une tâche.
+Le chat répond aux questions et peut créer un fichier si tu le demandes. Quand le travail doit être suivi et relu, par exemple une synthèse de lancement d’une page, confie-le à l’un des agents du projet au moyen d’une tâche.
 
 1. Dans l’en-tête de la conversation, sélectionne **Créer une tâche**. Comme le chat appartient à ce projet, **Créer une tâche** s’y ouvre, avec ta dernière question comme description, un lien vers le chat et les fichiers que tu as joints.
 2. Reformule la description en résultat attendu, par exemple : `Rédige à partir du brief une synthèse de lancement d’une page au format Word. Cite le brief pour chaque date.`

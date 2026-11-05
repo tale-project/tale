@@ -79,6 +79,12 @@ Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le mod
 
 </Steps>
 
+## Partager un agent avec tout le monde {#share-an-agent}
+
+Un agent appartient à son projet, et toutes les personnes qui peuvent ouvrir le projet peuvent l’utiliser : elles le voient dans l’onglet **Agents**, lui confient des tâches, le mentionnent dans des commentaires et le choisissent dans les chats du projet. L’onglet indique de qui il s’agit sous **Qui peut utiliser ces agents**.
+
+Pour partager un agent avec tous les membres de l’organisation, crée-le dans un projet ouvert à toute l’organisation : laisse **Qui peut le voir** vide à la création du projet. Pour le réserver à certaines équipes, choisis-les à cet endroit. Ensuite, seuls les Propriétaires et les Admins peuvent modifier l’audience d’un projet, sous **Audience** dans les paramètres **Partage** du projet. Les Éditeurs, Développeurs, Admins et Propriétaires créent des projets et des agents ; les Membres utilisent les agents des projets qu’ils peuvent ouvrir. Un agent n’est jamais partagé avec une autre organisation.
+
 ## Donner à l’agent son propre accès aux dépôts {#repository-access}
 
 Un agent équipé du connector GitHub ou Forgejo peut cloner, récupérer et pousser en HTTPS dans sa sandbox avec des [identifiants de connector](/fr/platform/admin/connectors) de l’organisation : des identifiants GitHub ouvrent `github.com`, des identifiants Forgejo l’hôte de l’adresse de leur instance. Sauf si tu en choisis d’autres, l’agent utilise les identifiants par défaut du connector.

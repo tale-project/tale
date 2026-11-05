@@ -168,6 +168,44 @@ describe('project team scoping — only teams of the caller org [PROJ-R4]', () =
  * documents and skills collapse it, instead of the 400 projects alone
  * answered (K4-4).
  */
+describe('updateProjectSharing — who may change the audience [PROJ-R29]', () => {
+  it.each(['editor', 'developer', 'member'])(
+    'refuses a %s, and saves nothing',
+    async (role) => {
+      const { tx, statements } = fakeTx();
+      await expect(
+        updateProjectSharing(
+          tx,
+          { ...auth, role },
+          { projectId: 'project-1', teamIds: [] },
+        ),
+      ).rejects.toMatchObject({ code: 'ROLE_FORBIDDEN' });
+      expect(writes(statements)).toEqual([]);
+    },
+  );
+
+  it.each(['owner', 'admin'])(
+    'lets an %s open it to the organization',
+    async (role) => {
+      const { tx, statements } = fakeTx();
+      PROJECT.teamIds = ['team-sales'];
+      try {
+        await updateProjectSharing(
+          tx,
+          { ...auth, role },
+          { projectId: 'project-1', teamIds: [] },
+        );
+      } finally {
+        PROJECT.teamIds = [];
+      }
+      const update = writes(statements).find((s) =>
+        s.text.startsWith('UPDATE app.projects SET team_ids'),
+      );
+      expect(update?.values[0]).toEqual([]);
+    },
+  );
+});
+
 describe('updateProjectSharing — no-op and repeats', () => {
   it('writes nothing when the body names the stored audience', async () => {
     const { tx, statements } = fakeTx();

@@ -29,6 +29,7 @@ import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
+import { projectTeamIds } from '../lib/project-audience';
 import { ProjectArchiveSection } from './project-archive-section';
 import { ProjectChatAgentSection } from './project-chat-agent-section';
 import { ProjectDangerZone } from './project-danger-zone';
@@ -342,12 +343,7 @@ function ProjectOverviewContent({
         <ProjectSharingSection
           projectId={projectId}
           organizationId={organizationId}
-          teamIds={
-            project.teamIds ?? [
-              ...(project.teamId ? [project.teamId] : []),
-              ...(project.sharedWithTeamIds ?? []),
-            ]
-          }
+          teamIds={projectTeamIds(project)}
           canAdminister={canAdminister && !isArchived}
         />
       </SettingsSection>

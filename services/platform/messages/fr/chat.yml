@@ -134,7 +134,7 @@ proposal:
     first: Premier agent créé
     firstNamed: 'Premier agent créé ({name})'
     assistant: Assistant
-  orgWide: Toute l’organisation peut ouvrir le nouveau projet. Choisis qui peut le voir sur sa page Général.
+  orgWide: Toute l’organisation peut ouvrir le nouveau projet. Un Propriétaire ou un Admin peut le réserver à des équipes sur sa page Général.
   before: Avant
   after: Après
   failure:

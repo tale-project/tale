@@ -34,6 +34,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useArchiveProject } from '../hooks/mutations';
 import { useProjectsOverview, type ProjectOverviewRow } from '../hooks/queries';
+import { projectTeamIds } from '../lib/project-audience';
 import { ProjectAvatar } from './project-avatar';
 import { ProjectCreateDialog } from './project-create-dialog';
 import { ProjectRowActions } from './project-row-actions';
@@ -63,19 +64,6 @@ interface ProjectsTableProps {
    */
   teamFilter?: string[];
   onTeamFilterChange?: (teamIds: string[]) => void;
-}
-
-/** A project's audience — the array, else the legacy owning + shared pair. */
-function projectTeamIds(project: {
-  teamIds?: string[];
-  teamId?: string;
-  sharedWithTeamIds?: string[];
-}): string[] {
-  if (project.teamIds !== undefined) return project.teamIds;
-  return [
-    ...(project.teamId ? [project.teamId] : []),
-    ...(project.sharedWithTeamIds ?? []),
-  ];
 }
 
 export function ProjectsTable({

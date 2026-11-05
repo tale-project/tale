@@ -47,6 +47,18 @@ is refused (`PROJECT_SHARING_INVALID`), and nothing is saved. Naming a team twic
 - **Example**: A request shares a project with the ID of a team from another organization →
   refused.
 
+### PROJ-R29 · Only owners and admins change who can reach a project once it exists
+
+Whoever creates a project chooses its audience: the whole organization, or some of its teams.
+From then on only an owner or admin changes it; anyone else's change is refused
+(`ROLE_FORBIDDEN`), and nothing is saved. A project's agents reach whoever reaches the
+project: its audience is also who sees its agents, gives them tasks and chooses them in its
+chats.
+
+- **Example**: Noah, an editor, created a project for the Sales team with an agent in it. He
+  tries to open the project to the whole organization → refused. Ada, an admin, opens it →
+  every member now sees the project and can use its agent.
+
 ### PROJ-R5 · A project's key and its external ID are unique in the organization
 
 The key is the short code in front of its task numbers. A key another project has is refused

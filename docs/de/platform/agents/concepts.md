@@ -13,7 +13,7 @@ Ein Projektagent ist eine benannte Konfiguration für Aufgaben in einem bestimmt
 | Projektagent | Ein Repository prüfen, Dateien erstellen oder eine Aufgabe über mehrere Durchläufe bearbeiten. | Eine wiederverwendbare Agentenkonfiguration im Projekt. |
 | Automatisierung | Festgelegte Schritte ausführen, auf Ereignisse reagieren oder zwischen Aktionen eine Freigabe einholen. | Einen versionierten Workflow und seine Eingaben. |
 
-Auch ein Projektchat verwendet den eingebauten Chat-Assistenten. Die Wahl eines Projekts im Chat aktiviert keinen Projektagenten. Eine Agent-Node in einer Automatisierung hat wiederum ihre eigene Konfiguration.
+In einem Projektchat können auch die Agenten des Projekts antworten: Ein neuer Chat beginnt mit dem Standard-Chat-Agenten des Projekts, und wem der Chat gehört, kann einen anderen Agenten oder den Assistenten wählen. Eine Agent-Node in einer Automatisierung hat wiederum ihre eigene Konfiguration.
 
 ## Eine klare Verantwortung festlegen
 

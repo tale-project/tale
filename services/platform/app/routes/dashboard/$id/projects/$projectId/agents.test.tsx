@@ -62,6 +62,11 @@ vi.mock('@/app/features/projects/components/agent-secrets-field', () => ({
   AgentSecretsField: () => null,
 }));
 
+// The tab names who can use the project's agents by their teams' names.
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeamNames: () => ({ nameOf: () => undefined, isLoading: false }),
+}));
+
 const path = '/dashboard/$id/projects/$projectId/agents';
 
 beforeAll(async () => {

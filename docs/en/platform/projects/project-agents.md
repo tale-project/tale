@@ -79,6 +79,12 @@ Select **Create agent**. Check the new row’s runtime, provider and model, then
 
 </Steps>
 
+## Share an agent with everyone {#share-an-agent}
+
+An agent belongs to its project, and everyone who can open the project can use it: they see it on the **Agents** tab, give it tasks, mention it in comments, and choose it in the project's chats. The tab names who that is under **Who can use these agents**.
+
+To share an agent with every member of the organization, create it in a project open to the whole organization: leave **Who can see it** empty when you create the project. To share it with some teams only, pick those teams there instead. Afterwards, only Owners and Admins can change a project's audience, under **Audience** in the project's **Sharing** settings. Editors, Developers, Admins and Owners create projects and agents; Members use the agents of the projects they can open. An agent is never shared with another organization.
+
 ## Give the agent its own repository access {#repository-access}
 
 An agent equipped with the GitHub or Forgejo connector can clone, fetch and push over HTTPS in its sandbox with one of the organization's [connector credentials](/platform/admin/connectors): a GitHub credential opens `github.com`, a Forgejo credential the host of its instance address. Unless you choose otherwise, the agent uses the connector's default credential.

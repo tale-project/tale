@@ -9,7 +9,7 @@ A project keeps the files, instructions, conversations, and tasks for one piece 
 
 As a **Member**, you work in the projects shared with you: you ask in their chats, share conversations, and create tasks for the project's agents. Pick a project you can open that has an indexed reference file, and start at [Ask a question and check the source](#ask-a-question-and-check-the-source). A project without agents of its own hands its tasks to the organization's [standard agent](/platform/projects/project-agents#standard-agent), unless an admin has turned it off. Creating a project, uploading its files, saving its instructions, and adding agents need the **Editor** role or higher; if you are setting the project up, start at [Set up the project](#set-up-the-project). You need a short text document, PDF with selectable text, or modern Office file. Choose a file whose contents you can verify, such as a project brief with a named owner and a review date. An admin must have configured document storage and an embedding model for searchable uploads.
 
-New projects are **Org-wide**. Use non-sensitive material for this walkthrough; if the real project needs restricted access, set its owning team under **General > Sharing** before uploading its files. Project chats remain personal until you share them.
+New projects are **Org-wide**. Use non-sensitive material for this walkthrough; if the real project needs restricted access, choose its teams under **Who can see it** when you create it, before uploading its files; afterwards only an Owner or Admin can change them under **General > Sharing**. Project chats remain personal until you share them.
 
 ## Set up the project
 
@@ -74,7 +74,7 @@ For a one-off link to a snapshot for organization members, follow [Shared chats]
 
 ## Hand the follow-up work to a project agent
 
-Chat answers questions; it doesn't produce files. When the answer should become a document, such as a one-page launch summary, give the work to one of the project's agents on a task.
+Chat answers questions and can make a file when you ask for one. When the work should be tracked and reviewed, such as a one-page launch summary, give it to one of the project's agents on a task.
 
 1. In the conversation's header, select **Create task**. Because the chat belongs to this project, **Create task** opens there, holding your last question as the description, a link back to the chat, and any files you attached.
 2. Rewrite the description as the result you want, for example: `Draft a one-page launch summary from the brief as a Word document. Cite the brief for every date.`
