@@ -1281,6 +1281,7 @@ apiKeys:
   keyRevoked: Clé API révoquée
   keyRevokeFailed: Échec de la révocation de la clé API
   keyCreateFailed: Échec de la création de la clé API
+  createForbidden: "Créer une clé API demande le rôle de propriétaire, d'admin ou de développeur, ou une compétence qu'un admin attribue pour cela : « Appeler les modèles par l'API », « Exporter les notifications » ou « Agir pour un autre membre »."
   revokeKey: Révoquer la clé
   revokeKeyTitle: Révoquer la clé API
   revokeConfirmation: Es-tu sûr de vouloir révoquer la clé API « {keyName} » ?
@@ -1348,6 +1349,7 @@ apiKeys:
     memberPlaceholder: Choisis un membre
     memberSearch: Rechercher des membres...
     memberEmpty: Aucun membre dont le rôle est inférieur au tien
+    memberHidden: Seuls les membres dont le rôle est inférieur au tien sont listés. Une clé agit au nom de son membre, elle n'est donc jamais créée pour quelqu'un dont le rôle égale ou dépasse le tien.
     memberNoMatch: Aucun membre ne correspond
     memberLoadFailed: Impossible de charger les membres.
     team: Équipe
@@ -1365,6 +1367,11 @@ apiKeys:
     role: Agit en tant que
     roleHint: Le rôle de la clé dans cette organisation. Il ne peut pas dépasser le tien.
     targetRequired: Choisis à qui appartient la clé.
+    modelApi:
+      disabled: Aucune clé ne peut encore appeler les endpoints de modèles de cette organisation. Un admin les active sous Paramètres → Gouvernance → Modèles.
+      forbiddenSelf: "Dans cette organisation, cette clé ne peut pas appeler les endpoints de modèles. Il faut pour cela le rôle de propriétaire, d'admin ou de développeur, ou la compétence « Appeler les modèles par l'API », qu'un admin attribue."
+      needsGrant: "Cette clé n'appelle les endpoints de modèles que tant que {name} détient la compétence « Appeler les modèles par l'API », qu'un admin attribue."
+      forbiddenRole: Une clé qui agit en tant que Membre ou Éditeur ne peut pas appeler les endpoints de modèles.
   neverUsed: Jamais utilisée
   lastUsedUnavailable: Non disponible
   scope:

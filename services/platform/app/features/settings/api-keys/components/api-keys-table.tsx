@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';
 import { useApiKeysTableConfig } from '../hooks/use-api-keys-table-config';
+import type { ModelApiStanding } from '../lib/model-api-note';
 import type { ApiKey, ApiKeyListScope } from '../types';
 import { ApiKeyCreateDialog } from './api-key-create-dialog';
 
@@ -33,6 +34,9 @@ interface ApiKeysTableProps {
   /** The session is bound to this organization alone: a key the viewer
    * makes for themselves works here alone. */
   sessionBoundHere?: boolean;
+  /** This organization's model endpoints, as the create dialog tells of
+   * them; absent until known. */
+  modelApi?: ModelApiStanding;
   /** Which keys the list shows; another view starts the window over. */
   scope?: ApiKeyListScope;
   /** What an Owner or Admin chooses the list by, beside the table's own
@@ -68,6 +72,7 @@ export function ApiKeysTable({
   viewerUserId,
   viewerRole,
   sessionBoundHere = false,
+  modelApi,
   scope = 'managed',
   filters,
   error,
@@ -185,6 +190,7 @@ export function ApiKeysTable({
           {...(viewerUserId !== undefined ? { viewerUserId } : {})}
           {...(viewerRole !== undefined ? { viewerRole } : {})}
           sessionBoundHere={sessionBoundHere}
+          {...(modelApi !== undefined ? { modelApi } : {})}
         />
       )}
     </Stack>

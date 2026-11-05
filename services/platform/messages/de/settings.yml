@@ -1250,6 +1250,7 @@ apiKeys:
   keyRevoked: API-Schlüssel widerrufen
   keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
   keyCreateFailed: API-Schlüssel konnte nicht erstellt werden
+  createForbidden: "Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“."
   revokeKey: Schlüssel widerrufen
   revokeKeyTitle: API-Schlüssel widerrufen
   revokeConfirmation: '„{keyName}" widerrufen? Alle Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff. Das lässt sich nicht rückgängig machen.'
@@ -1315,6 +1316,7 @@ apiKeys:
     memberPlaceholder: Mitglied auswählen
     memberSearch: Mitglieder suchen...
     memberEmpty: Kein Mitglied mit einer niedrigeren Rolle als deiner
+    memberHidden: Aufgeführt sind nur Mitglieder, deren Rolle unter deiner liegt. Ein Schlüssel handelt als sein Mitglied und wird deshalb nie für jemanden mit deiner oder einer höheren Rolle erstellt.
     memberNoMatch: Kein passendes Mitglied
     memberLoadFailed: Die Mitglieder konnten nicht geladen werden.
     team: Team
@@ -1332,6 +1334,11 @@ apiKeys:
     role: Handelt als
     roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
     targetRequired: Wähle aus, wem der Schlüssel gehört.
+    modelApi:
+      disabled: Noch kann kein Schlüssel die Modell-Endpunkte dieser Organisation aufrufen. Ein Admin aktiviert sie unter Einstellungen → Richtlinien → Modelle.
+      forbiddenSelf: In dieser Organisation kann dieser Schlüssel die Modell-Endpunkte nicht aufrufen. Dafür brauchst du die Rolle Inhaber, Admin oder Entwickler oder die Kompetenz „Modelle über die API aufrufen“, die ein Admin zuweist.
+      needsGrant: Dieser Schlüssel ruft die Modell-Endpunkte nur auf, solange {name} die Kompetenz „Modelle über die API aufrufen“ hat, die ein Admin zuweist.
+      forbiddenRole: Ein Schlüssel, der als Mitglied oder Redakteur handelt, kann die Modell-Endpunkte nicht aufrufen.
   neverUsed: Nie verwendet
   lastUsedUnavailable: Nicht verfügbar
   scope:

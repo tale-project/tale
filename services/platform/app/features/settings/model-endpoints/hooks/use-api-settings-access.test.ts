@@ -34,7 +34,7 @@ const state = vi.hoisted(
   (): {
     developer: boolean;
     abilityLoading: boolean;
-    standing: Read<{ allowed: boolean }>;
+    standing: Read<{ allowed: boolean; enabled?: boolean }>;
     keys: Read<{ mayCreate: boolean; holdsKeys: boolean }>;
     agentAccess: Read<{
       mayConnect: boolean;
@@ -227,6 +227,20 @@ describe('useApiSettingsAccess', () => {
       const { result } = renderHook(() => useApiSettingsAccess('org-1'));
       expect(result.current.sessionBoundHere).toBe(bound);
       expect(result.current.createApiKeys).toBe(true);
+    }
+  });
+
+  it('tells whether the organization turned the model endpoints on, once its read answers', () => {
+    state.developer = true;
+    state.standing = { isLoading: true, data: undefined };
+    const pending = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(pending.result.current.modelApiEnabled).toBeUndefined();
+    for (const enabled of [true, false]) {
+      state.standing = answered({ allowed: false, enabled });
+      const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+      expect(result.current.modelApiEnabled).toBe(enabled);
+      // A developer calls them by role, whatever the grant read says.
+      expect(result.current.modelApi).toBe(true);
     }
   });
 

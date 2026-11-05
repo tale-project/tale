@@ -44,6 +44,9 @@ export interface ApiSettingsAccess {
   sessionBoundHere: boolean;
   /** May call the model endpoints — by role or through the grant. */
   modelApi: boolean;
+  /** The organization turned the model endpoints on; undefined until its
+   * read answers. */
+  modelApiEnabled: boolean | undefined;
   /** Opens the Connected agents tab: agents may sign in and the person may
    * connect one here, or they hold a live connection. Not a matter of the
    * role alone, so a developer role does not open it by itself. */
@@ -124,6 +127,7 @@ export function useApiSettingsAccess(
     createApiKeys,
     sessionBoundHere,
     modelApi,
+    modelApiEnabled: standing.data?.enabled,
     agents,
     connectAgents,
     undecided: {

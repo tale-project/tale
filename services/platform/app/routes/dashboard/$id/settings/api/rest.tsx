@@ -41,7 +41,7 @@ function ApiRestPage() {
   // The parent layout waited for it; a member whose right lapsed still opens
   // this page for the keys they hold. A key for oneself from a session bound
   // to this organization works here alone.
-  const { createApiKeys, sessionBoundHere } =
+  const { createApiKeys, sessionBoundHere, modelApi, modelApiEnabled } =
     useApiSettingsAccess(organizationId);
   // Owners and Admins also make keys for a member, a team, a project or the
   // organization — never acting above their own role — and may list every
@@ -90,6 +90,9 @@ function ApiRestPage() {
             ? { viewerUserId: viewer.userId, viewerRole: viewer.role }
             : {})}
           sessionBoundHere={sessionBoundHere}
+          {...(modelApiEnabled !== undefined
+            ? { modelApi: { enabled: modelApiEnabled, mayCall: modelApi } }
+            : {})}
           scope={scope}
           {...(canSeeAll
             ? {

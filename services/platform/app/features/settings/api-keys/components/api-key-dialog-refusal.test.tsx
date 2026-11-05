@@ -183,6 +183,61 @@ describe('API-key refusal feedback', () => {
     expect(screen.getByRole('combobox')).toHaveTextContent('30 days');
   });
 
+  it.each([
+    [
+      'en',
+      'Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one: Call models over the API, Export notifications, or Act for another member.',
+    ],
+    [
+      'de',
+      'Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“.',
+    ],
+    [
+      'fr',
+      // The matcher reads the no-break spaces of French punctuation as spaces.
+      "Créer une clé API demande le rôle de propriétaire, d'admin ou de développeur, ou une compétence qu'un admin attribue pour cela : « Appeler les modèles par l'API », « Exporter les notifications » ou « Agir pour un autre membre ».",
+    ],
+    [
+      'de-CH',
+      'Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“.',
+    ],
+  ])(
+    'words the create rule’s refusal in %s, never in the server’s English',
+    async (locale, detail) => {
+      localStorage.setItem('user-locale', locale);
+      await act(async () => {
+        await i18n.changeLanguage(locale);
+      });
+      apiKey.create.mockResolvedValueOnce({
+        error: {
+          status: 403,
+          code: 'API_KEY_CREATE_FORBIDDEN',
+          message:
+            'Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one: Call models over the API, Export notifications, or Act for another member.',
+        },
+      });
+      const { user } = renderCreate();
+      await user.type(
+        screen.getByRole('textbox', {
+          name: i18n.t('apiKeys.form.name', { ns: 'settings' }),
+        }),
+        'Audit key',
+      );
+      const submit = screen.getByRole('button', {
+        name: i18n.t('apiKeys.createKeySubmit', { ns: 'settings' }),
+      });
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      expect(
+        await screen.findByText(
+          i18n.t('apiKeys.keyCreateFailed', { ns: 'settings' }),
+        ),
+      ).toBeInTheDocument();
+      expect(await screen.findByText(detail)).toBeInTheDocument();
+    },
+  );
+
   it('shows a non-authentication refusal without discarding the draft', async () => {
     apiKey.create.mockResolvedValueOnce({
       error: {

@@ -590,6 +590,41 @@ describe('ApiKeyCreateDialog', () => {
       ).toEqual([expect.stringContaining('Mia Keller')]);
     });
 
+    it('says why members at or above the maker are not listed, whenever it leaves one out [APIKEY-R3]', async () => {
+      const hint =
+        'Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.';
+      const { user, unmount } = renderForAdmin();
+      await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
+      await user.click(screen.getByRole('option', { name: 'Another member' }));
+      // Ines, a fellow admin, and Olav, the owner, are left out.
+      expect(
+        document.getElementById('api-key-member'),
+      ).toHaveAccessibleDescription(hint);
+      unmount();
+
+      // The owner leaves nobody out: Ada, Ines and Mia are all below.
+      setRead('members', {
+        rows: MEMBERS.filter((member) => member.userId !== 'olav'),
+      });
+      const owner = render(
+        <ApiKeyCreateDialog
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+          canCreateForOthers
+          viewerUserId="olav"
+          viewerRole="owner"
+        />,
+      );
+      await owner.user.click(
+        screen.getByRole('combobox', { name: 'Belongs to' }),
+      );
+      await owner.user.click(
+        screen.getByRole('option', { name: 'Another member' }),
+      );
+      expect(screen.queryByText(hint)).not.toBeInTheDocument();
+    });
+
     it('makes a key for a member and says to hand it to them [APIKEY-R2]', async () => {
       const { user } = renderForAdmin();
       await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
@@ -608,6 +643,85 @@ describe('ApiKeyCreateDialog', () => {
       expect(
         await screen.findByText(/Hand the key to Mia Keller/),
       ).toBeInTheDocument();
+    });
+
+    describe('whether the key reaches the model endpoints', () => {
+      const ON = { enabled: true, mayCall: true };
+
+      function renderWith(
+        modelApi: { enabled: boolean; mayCall: boolean } | undefined,
+        forOthers = true,
+      ) {
+        return render(
+          <ApiKeyCreateDialog
+            open
+            onOpenChange={vi.fn()}
+            organizationId="org-1"
+            canCreateForOthers={forOthers}
+            viewerUserId="ada"
+            viewerRole="admin"
+            {...(modelApi !== undefined ? { modelApi } : {})}
+          />,
+        );
+      }
+
+      it('says nothing before the organization’s standing is known, or while the key can call them', () => {
+        const { unmount } = renderWith(undefined);
+        expect(screen.queryByText(/model endpoints/)).not.toBeInTheDocument();
+        unmount();
+        renderWith(ON);
+        expect(screen.queryByText(/model endpoints/)).not.toBeInTheDocument();
+      });
+
+      it('says no key reaches them while the organization has them off', () => {
+        renderWith({ enabled: false, mayCall: true });
+        expect(
+          screen.getByText(
+            "No key can call this organization's model endpoints yet. An Admin turns them on under Settings → Governance → Models.",
+          ),
+        ).toBeInTheDocument();
+      });
+
+      it('says the viewer’s own key cannot call them without the role or the competence', () => {
+        renderWith({ enabled: true, mayCall: false }, false);
+        expect(
+          screen.getByText(
+            /^In this organization, this key can't call the model endpoints\./,
+          ),
+        ).toBeInTheDocument();
+      });
+
+      it('says a key acting as a Member or Editor never calls them, and a Developer’s does', async () => {
+        const { user } = renderWith(ON);
+        await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
+        await user.click(
+          screen.getByRole('option', { name: 'The organization' }),
+        );
+        const line =
+          "A key that acts as a Member or Editor can't call the model endpoints.";
+        expect(screen.getByText(line)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('combobox', { name: 'Acts as' }));
+        await user.click(screen.getByRole('option', { name: 'Developer' }));
+        expect(screen.queryByText(line)).not.toBeInTheDocument();
+      });
+
+      it('says a member’s key calls them only while the member holds the competence', async () => {
+        const { user } = renderWith(ON);
+        await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
+        await user.click(
+          screen.getByRole('option', { name: 'Another member' }),
+        );
+        // Nobody picked yet: nothing to say.
+        expect(screen.queryByText(/model endpoints/)).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /^Member/ }));
+        await user.click(screen.getByRole('option', { name: /Mia Keller/ }));
+        expect(
+          screen.getByText(
+            'This key calls the model endpoints only while Mia Keller holds the Call models over the API competence, which an Admin grants.',
+          ),
+        ).toBeInTheDocument();
+      });
     });
 
     it('offers no archived project', async () => {
