@@ -603,7 +603,7 @@ Native task reads also carry `labels`. Every `task_find` row and the task `task_
 
 Only organization Owners and Admins may change secret grants, so an editor's full save must preserve existing grants.
 
-Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, returns **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks; direct chat keeps using the built-in assistant.
+Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, returns **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks and in project chats. The chat API cannot choose which agent answers a chat.
 
 ## Read a project's dispatch and report on its gates {#dispatch}
 
@@ -1004,7 +1004,7 @@ An optional `Idempotency-Key` must contain 1–255 printable ASCII characters af
 
 ### Understand assistant behavior and token limits
 
-A turn is the complete handling of one accepted message, including model rounds and tool calls. REST chat uses the built-in workspace assistant with its instructions, safety rules, and tools: three retrieval tools, and the work tools your organization’s Chat tools policy allows, with which it makes the files it is asked for and returns them as `artifact` parts. These add roughly 3,000 prompt tokens per model round, more with the work tools, included in `usage.inputTokens`. A tool-using turn can take up to five rounds, thirteen with the work tools, each billing its full prompt.
+A turn is the complete handling of one accepted message, including model rounds and tool calls. REST chat uses the built-in workspace assistant with its instructions, safety rules, and tools: three retrieval tools, and the work tools your organization’s Chat tools policy allows, with which it makes the files it is asked for and returns them as `artifact` parts. These add roughly 3,000 prompt tokens per model round, more with the work tools, included in `usage.inputTokens`. A tool-using turn can take up to five rounds, thirteen with the work tools, each billing its full prompt. A project chat whose owner chose one of the project's agents in the app answers as that agent, with the agent's instructions and skills.
 
 To choose skills for a message, start `content` with `/` and a skill’s name, such as `"content": "/docx Write the cover letter"`: the turn reads the skill before the model answers, and the reply’s parts begin with that `load_skill` call and its result. Up to four names may lead the content (`/xlsx /brand-voice …`). Only skills the key holder can use count, and `GET /api/v1/skills` lists them; any other name, and a `/` later in the text, is part of the message as written. Skills a conversation uses for every reply are chosen in the app, and a thread continued here reads them too.
 
@@ -1055,7 +1055,7 @@ A `reasoning` part is thinking, not the final answer. It may repeat instructions
 
 ### Respect thread scope and access
 
-For a personal chat with no project, use `/api/v1/threads` and its corresponding detail, messages and generation paths. Those URLs cannot address project threads. A wrong project URL returns **404**. Both kinds use the built-in assistant; `projectId`, `agentSlug` and `agentId` in create or message bodies answer **400**. Project readers, including Members, may create and send; an archived project refuses these writes with **403**.
+For a personal chat with no project, use `/api/v1/threads` and its corresponding detail, messages and generation paths. Those URLs cannot address project threads. A wrong project URL returns **404**. A thread you create answers as the built-in assistant, also in a project whose new chats start with one of its agents in the app. A thread whose owner chose a project agent in the app answers as that agent, and the message reads do not name it. `projectId`, `agentSlug` and `agentId` in create or message bodies answer **400**. Project readers, including Members, may create and send; an archived project refuses these writes with **403**.
 
 An archived thread refuses a message with **409**, `CHAT_THREAD_ARCHIVED`, a sandbox thread with **409**, `CHAT_THREAD_NOT_DIRECT`, and a thread whose turn is still running — or whose accepted send is still queued — with **409**, `CHAT_TURN_IN_PROGRESS`; nothing is queued and the running turn keeps its `messageId`. Retry the last one once the poll says idle, never the other two.
 
