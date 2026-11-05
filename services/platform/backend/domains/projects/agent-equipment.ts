@@ -6,8 +6,10 @@ import {
   harnessRunsModel,
   supportsToolCallingWire,
 } from '../../../lib/shared/providers/resolve_execution.ts';
+import type { ComposerModelOption } from '../../core/chat/composer.ts';
 import { AGENT_TOOL_CATALOG } from '../../core/sandbox/tool_names.ts';
 import {
+  type ComposerHarnessRow,
   listComposerModels,
   listProjectCapabilities,
 } from '../chat/composer.ts';
@@ -40,6 +42,37 @@ export function unknownToolGrants(tools: readonly string[]): string[] {
 export const AGENT_TOOL_GRANT_NAMES: readonly string[] = AGENT_TOOL_CATALOG.map(
   (tool) => tool.name,
 );
+
+/**
+ * Whether `harness` runs one entry of the composer's servable listing: a
+ * subscription-served entry only in the harness its credential is bound
+ * to, and any entry only where the harness's wire carries its tools
+ * (`harnessRunsModel`). The rule `agentModelRefusal` holds a pair to.
+ */
+export function harnessRunsOption(
+  option: ComposerModelOption,
+  harness: string,
+  harnesses: readonly ComposerHarnessRow[],
+): boolean {
+  const credential = option.credential;
+  if (
+    credential.authMethod !== 'api-key' &&
+    credential.authMethod !== 'env' &&
+    credential.constraints.harness !== harness
+  ) {
+    return false;
+  }
+  const harnessRow = harnesses.find((entry) => entry.harness === harness);
+  return harnessRunsModel(
+    option,
+    harnessRow === undefined
+      ? harnessModelFit(undefined)
+      : {
+          wire: harnessRow.toolCallingWire,
+          anthropicModels: harnessRow.anthropicModels,
+        },
+  );
+}
 
 /**
  * Whether (`model`, `modelProvider`) is a pair this organization can call,
@@ -98,6 +131,13 @@ export async function agentModelRefusal(
       : credential.constraints.harness === args.harness;
   });
   if (harnessFits.length > 0) {
+    if (
+      harnessFits.some((option) =>
+        harnessRunsOption(option, args.harness, harnesses),
+      )
+    ) {
+      return null;
+    }
     const harnessRow = harnesses.find(
       (entry) => entry.harness === args.harness,
     );
@@ -108,9 +148,6 @@ export async function agentModelRefusal(
             wire: harnessRow.toolCallingWire,
             anthropicModels: harnessRow.anthropicModels,
           };
-    if (harnessFits.some((option) => harnessRunsModel(option, fit))) {
-      return null;
-    }
     if (
       harnessFits.some((option) => supportsToolCallingWire(option, fit.wire))
     ) {

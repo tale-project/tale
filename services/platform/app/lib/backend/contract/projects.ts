@@ -8,7 +8,22 @@
  */
 
 import type { DispatchServingAgent } from '@tale/shared/schemas/project-dispatch';
+import type {
+  ProjectChatAgent,
+  SetProjectChatAgentInput,
+} from '@tale/shared/schemas/projects';
 import type { SetProjectTaskReviewerInput } from '@tale/shared/schemas/task-review';
+
+/** One agent a project chat may answer as: one of the project's own agents,
+ * never its standard agent. */
+export interface ChatAgentChoice {
+  id: string;
+  name: string;
+  model: string;
+  modelProvider: string | null;
+  skills: string[];
+  createdAt: number;
+}
 
 /** Card/list metadata; the detail read owns retained project instructions. */
 export type ProjectSummary = Omit<
@@ -17,6 +32,22 @@ export type ProjectSummary = Omit<
 >;
 
 export interface ProjectsContract {
+  'projects/queries:getProjectChatAgents': {
+    kind: 'query';
+    args: { organizationId: string; projectId: string };
+    /** The agents a chat may answer as (oldest first), the default chosen on
+     * General, and the agent that default means now (null: the assistant). */
+    returns: {
+      chatAgent: ProjectChatAgent;
+      defaultAgentId: string | null;
+      agents: ChatAgentChoice[];
+    };
+  };
+  'projects/mutations:setProjectChatAgent': {
+    kind: 'mutation';
+    args: SetProjectChatAgentInput & { projectId: string };
+    returns: null;
+  };
   'projects/mutations:setProjectTaskReviewer': {
     kind: 'mutation';
     args: SetProjectTaskReviewerInput & { projectId: string };

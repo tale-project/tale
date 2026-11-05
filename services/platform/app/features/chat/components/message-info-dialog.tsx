@@ -550,6 +550,14 @@ export function MessageInfoDialog({
       {/* shrink-0, not overflow-hidden: hidden on a flex child zeroes
           min-height and clips the sections the body should scroll. */}
       <Stack gap={6} className="min-w-0 shrink-0">
+        {/* The project agent the reply was written as, under its name then. */}
+        {usage.agent !== undefined && (
+          <InfoSection title={t('messageInfo.agent')}>
+            <Text as="div" variant="label" className="text-base">
+              {usage.agent.name}
+            </Text>
+          </InfoSection>
+        )}
         {message.model !== undefined && (
           <InfoSection title={t('messageInfo.model')}>
             <div className="min-w-0">

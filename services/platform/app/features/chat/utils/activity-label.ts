@@ -132,6 +132,20 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
       return t('thinking.readingSkillFile', { name, path });
     }
   }
+  if (step.tool === 'read_project_settings') {
+    const project = stringArg(step.input, 'project');
+    const agent = stringArg(step.input, 'agent');
+    if (project !== undefined && agent !== undefined) {
+      return t('thinking.readingAgentSettings', { name: agent });
+    }
+    if (project !== undefined) {
+      return t('thinking.readingProjectSettings', { name: project });
+    }
+    return t('thinking.readingProjects');
+  }
+  if (step.tool === 'propose_project_settings') {
+    return proposingLabel(t, step.input);
+  }
   if (step.tool === 'run_code') {
     const language =
       isRecord(step.input) && typeof step.input.language === 'string'
@@ -140,6 +154,33 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
     return t('thinking.runningCode', { language });
   }
   return t('parts.toolCall', { tool: step.tool });
+}
+
+/** A call's string argument, when it has a non-blank one. */
+function stringArg(input: unknown, key: string): string | undefined {
+  if (!isRecord(input)) return undefined;
+  const value = input[key];
+  return typeof value === 'string' && value.trim() !== ''
+    ? value.trim()
+    : undefined;
+}
+
+/** What a proposal step drafts, by the change it names. */
+function proposingLabel(t: TFunction, input: unknown): string {
+  const change = stringArg(input, 'change');
+  const project = stringArg(input, 'project');
+  const agent = stringArg(input, 'agent');
+  if (change === 'create_project') return t('thinking.proposing.createProject');
+  if (change === 'update_project' && project !== undefined) {
+    return t('thinking.proposing.updateProject', { name: project });
+  }
+  if (change === 'create_agent' && project !== undefined) {
+    return t('thinking.proposing.createAgent', { project });
+  }
+  if (change === 'update_agent' && agent !== undefined) {
+    return t('thinking.proposing.updateAgent', { name: agent });
+  }
+  return t('thinking.proposing.generic');
 }
 
 /** How a run_code language is named on the timeline — product names, the

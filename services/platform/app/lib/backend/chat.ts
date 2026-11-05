@@ -35,6 +35,9 @@ interface ThreadSummaryWire {
   title: string | null;
   kind: string;
   agentSlug: string | null;
+  /** The project agent the conversation answers as; null = the assistant.
+   * Absent from a backend older than the field. */
+  chatAgentId?: string | null;
   harness: string | null;
   capabilities: unknown;
   reasoningEffort: string | null;
@@ -63,6 +66,9 @@ function projectThreadSummary(row: ThreadSummaryWire): Record<string, unknown> {
     viewerIsOwner: row.viewerIsOwner,
     ...(row.title !== null ? { title: row.title } : {}),
     ...(row.agentSlug !== null ? { agentSlug: row.agentSlug } : {}),
+    ...(row.chatAgentId !== null && row.chatAgentId !== undefined
+      ? { chatAgentId: row.chatAgentId }
+      : {}),
     ...(row.harness !== null ? { harness: row.harness } : {}),
     ...(row.capabilities !== null && row.capabilities !== undefined
       ? { capabilities: row.capabilities }
@@ -185,6 +191,9 @@ export interface CreateChatThreadArgs {
   title?: string;
   agentSlug?: string;
   projectId?: string;
+  /** Who the chat answers as: one of its project's own agents, or null for
+   * the assistant; absent, the project's default chat agent. */
+  chatAgentId?: string | null;
   reasoningEffort?: string;
   /** The skills the conversation uses from its first reply on. */
   skills?: readonly string[];
@@ -260,6 +269,17 @@ export function moveChatThreadToProject(
   projectId: string | null,
 ): Promise<boolean> {
   return threadVerb(organizationId, threadId, 'project', { projectId });
+}
+
+/** Choose who the conversation answers as: one of its project's own agents,
+ * or null for the assistant. Throws the server's refusal (an agent that is
+ * not the project's). */
+export function setChatThreadAgent(
+  organizationId: string,
+  threadId: string,
+  agentId: string | null,
+): Promise<boolean> {
+  return threadVerb(organizationId, threadId, 'agent', { agentId });
 }
 
 export function setChatThreadReasoningEffort(
@@ -975,6 +995,47 @@ export function chatProjectsQuery(organizationId: string) {
             typeof row.canEdit === 'boolean' ? { canEdit: row.canEdit } : {},
           ),
         ),
+      ),
+  });
+}
+
+/** The changes to projects and agents a conversation proposed. Under the
+ * thread entity: an apply or a dismissal, in any tab, hints it. */
+export function chatProposalsQuery(organizationId: string, threadId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_thread', 'proposals', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{ proposals: unknown[] }>(
+        `/chat/threads/${encodeURIComponent(threadId)}/proposals`,
+        { signal, orgId: organizationId },
+      ).then((body) => body.proposals),
+  });
+}
+
+/** Apply or dismiss a proposal; answers the proposal as it now stands. */
+export function decideChatProposal(
+  organizationId: string,
+  proposalId: string,
+  decision: 'apply' | 'dismiss',
+): Promise<{ proposal: unknown }> {
+  return backendFetch<{ proposal: unknown }>(
+    `/chat/proposals/${encodeURIComponent(proposalId)}/${decision}`,
+    { method: 'POST', body: {}, orgId: organizationId },
+  );
+}
+
+/** Who a project's chats may answer as, and who its new chats start with —
+ * the same cache entry the project pages read (`getProjectChatAgents`). */
+export function chatProjectAgentsQuery(
+  organizationId: string,
+  projectId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'project', 'chat-agents', projectId),
+    queryFn: ({ signal }) =>
+      backendFetch<unknown>(
+        `/projects/${encodeURIComponent(projectId)}/chat-agents`,
+        { signal, orgId: organizationId },
       ),
   });
 }

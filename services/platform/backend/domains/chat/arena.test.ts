@@ -471,6 +471,15 @@ describe('settleArenaPair', () => {
       'thread_a',
       'org_1',
     ]);
+    // Who answers, and the proposals whose cards the replies show, go with
+    // the conversation to B [CHAT-R42] [CHAT-R44].
+    expect(graduation?.text).toContain(
+      'chat_agent_id = coalesce(b.chat_agent_id',
+    );
+    const proposals = statements.find((s) =>
+      s.text.includes('UPDATE app.chat_proposals p SET thread_id'),
+    );
+    expect(proposals?.values).toEqual(['thread_b', 'thread_a', 'org_1']);
   });
 });
 

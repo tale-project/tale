@@ -1,3 +1,18 @@
+chatAgent:
+  title: "Chats"
+  description: "Choisis qui répond dans les nouveaux chats de ce projet. Dans un chat, la personne à qui il appartient peut en changer depuis le champ de message."
+  field: "Agent de chat par défaut"
+  fieldHint: "S’applique aux chats créés dans ce projet ou qui y sont déplacés. Les chats existants gardent leur agent."
+  first: "Premier agent créé"
+  firstNamed: "Premier agent créé ({name})"
+  firstHint: "Actuellement : {name}"
+  firstHintNone: "Le projet n’a pas encore d’agent propre, c’est donc l’assistant qui répond."
+  assistant: "Assistant"
+  assistantHint: "L’assistant de chat de l’espace de travail répond dans les nouveaux chats."
+  search: "Rechercher des agents"
+  stale: "Quelqu’un a changé l’agent de chat par défaut entre-temps. Recharge la page pour le voir."
+  invalid: "Cet agent ne fait plus partie des agents de ce projet."
+  loadFailed: "Les agents du projet n’ont pas pu être chargés."
 taskReview:
   title: "Relecture des tâches"
   description: "Choisis qui relit le travail terminé des agents dans ce projet."

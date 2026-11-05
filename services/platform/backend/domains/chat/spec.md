@@ -197,9 +197,11 @@ rules of its own.
 ### CHAT-R14 · The API creates chats with the built-in assistant only
 
 A chat is created in the organization, or in a project the key holder can read, where any
-member can create one. A body naming an agent, or a project outside the path, is refused (400)
-and nothing is created. A chat that runs an agent in a sandbox can be read but takes no message
-(`CHAT_THREAD_NOT_DIRECT`, 409).
+member can create one. It answers as the built-in assistant, also in a project whose new chats
+start with one of its agents in the app (`PROJ-R26`). A body naming an agent, or a project
+outside the path, is refused (400) and nothing is created. A chat whose agent was chosen in the
+app answers its API sends as that agent (`CHAT-R41`). A chat that runs an agent in a sandbox can
+be read but takes no message (`CHAT_THREAD_NOT_DIRECT`, 409).
 
 - **Example**: Noah's integration creates a chat naming an agent → refused. It creates one
   without any selector → created, with the built-in assistant.
@@ -233,6 +235,92 @@ reply id, the poll answering queued meanwhile.
 
 - **Example**: Noah's integration sends at the moment of a deploy → it polls queued a little
   longer, then reads its reply under the id the 202 named.
+
+## Who answers in a project chat
+
+A chat filed in a project answers as the workspace's chat assistant, or as one of the project's
+own agents: the person chooses in the message box, and a new chat starts with the project's
+default chat agent (`PROJ-R26`). The Tale-managed standard agent stands in for agents on a
+project's tasks and never answers a chat.
+
+### CHAT-R41 · A chat answers as its agent with the agent's instructions and skills only
+
+The reply's instructions lead with the agent's own, and the skills it may load are the agent's
+equipped ones, those the person chose for the conversation and those they name at the start of
+the message, each only as far as the person may see it. The chat's tools follow the organization's **Chat tools** policy, as in every chat.
+The agent's runtime, connectors, platform tools, secrets and repository access never reach a
+chat. Each reply records the agent that wrote it, under its name at the time, and is booked to
+the person under the agent and on the project.
+
+- **Example**: Mia's chat in Website relaunch answers as Copy reviewer → the reply follows its
+  instructions, may load its `docx` skill, and shows "Copy reviewer" above it; its GitHub
+  connector and its secret stay with its tasks.
+
+### CHAT-R42 · A chat starts with its project's default agent; the agent follows the project
+
+A new chat in a project answers as the project's default chat agent, unless the person chose
+another agent, or the assistant, for it. A chat moved into another project answers as that
+project's default from its next reply; a chat taken out of projects answers as the assistant;
+filing a chat under the project it is already in changes nothing. A chat whose agent is deleted
+answers as the assistant.
+
+- **Example**: Noah starts a chat in Website relaunch, whose first agent is Copy reviewer → the
+  chat answers as Copy reviewer. He moves the chat to Onboarding, which has no agent of its own
+  → it answers as the assistant.
+
+### CHAT-R43 · Only a chat's owner chooses who answers, and only among its project's own agents
+
+Choosing an agent of another project, the standard agent, or any agent for a chat outside a
+project is refused (`CHAT_AGENT_INVALID`), and nothing changes. Anyone but the owner, a reader
+of a chat shared with the project included, changes nothing.
+
+- **Example**: A request names Coder, an agent of another project, for Mia's chat → refused,
+  and the chat keeps its agent. Noah, reading her shared chat, cannot change who answers in it.
+
+## Changing projects and agents from a chat
+
+A person can ask a chat to create a project, change one, add an agent to a project or change an
+agent. The assistant reads the projects the person can open and drafts the change; it never
+makes one (`../../../lib/chat/settings-tools.ts`, `proposals.ts`).
+
+### CHAT-R44 · A chat proposes a change to a project or an agent; only its owner applies it
+
+The draft is checked as the person when it is made — their role, the project's access and
+archive state, the names, the models and runtimes they may use, the skills the project can
+equip — and shows as a card under the reply, field by field. Nothing changes until the chat's
+owner applies the card; the apply checks everything again, as them, through the same services
+as the project pages, and the change's audit rows say it came from the chat. **Dismiss** changes
+nothing. A card keeps its outcome after a reload; a reader of a shared chat sees it without its
+buttons; deleting the conversation takes its proposals with it.
+
+- **Example**: Mia asks her chat to add a Proofreader agent to Website relaunch → a card "New
+  agent in Website relaunch" lists its name, model, runtime and instructions; no agent exists
+  until she clicks **Apply**, and the project's audit log then says it came from her chat.
+
+### CHAT-R45 · A chat can propose names, descriptions, instructions, models and skills only
+
+A proposal creates a project (name, key, description, instructions), changes a project's name,
+description, instructions or default chat agent, creates an agent (name, instructions, model,
+runtime, skills) or changes an agent's name, instructions, model or skills. Sharing, secrets,
+connectors, an agent's platform tools, repository access and deleting anything stay on the
+project's pages. The chat's settings tools are offered only to a person who may create or
+change projects, chatting in the app; a Member, and a send over the API, is offered none. In a
+chat filed in a project they read and change that project alone, as its search does, besides
+proposing a new project.
+
+- **Example**: Noah, a Member, asks his chat to create a project → no card appears: his chat
+  has no tool to propose one.
+
+### CHAT-R46 · A proposal whose subject changed since is refused, and changes nothing
+
+**Apply** compares what the proposal changes with how it stood when it was proposed: an agent
+or a project field edited since, a deleted project or agent, a role taken away, a name or a key
+taken since — each leaves everything as it was and marks the card **Not applied**, saying why.
+A proposal is decided once: applying it again, or after **Dismiss**, changes nothing.
+
+- **Example**: Mia's card would rename Copy reviewer; Ada edits Copy reviewer on the Agents tab
+  first → Mia's **Apply** is refused: "This changed since the proposal was made. Ask the chat
+  for a new proposal."
 
 ## What the assistant makes
 
@@ -462,6 +550,10 @@ reads as its description, never as a placeholder whose preview opens empty.
 
 ## Not yet
 
+- **An organization switch for the settings tools**: Governance cannot turn off the chat's
+  project and agent proposals (`CHAT-R44`). The **Chat tools** policy schema is strict, so a
+  new key would make an older image read the whole policy as unreadable during a rolling
+  deploy (`CHAT-R26`); the switch needs the reader to accept unknown keys first.
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
   supported kinds, each one readable by the sender in this organization
   (`validateTurnAttachments` in `../../core/chat/turn_action.ts`); no test holds it. The

@@ -70,6 +70,84 @@ export:
 moveToProject: In Projekt verschieben…
 removeFromProject: Aus Projekt entfernen
 removeFromProjectFailed: Chat konnte nicht aus dem Projekt entfernt werden
+projectPicker:
+  none: Projekt
+  unknown: Projekt
+  aria: 'Projekt: {name}. Projekt ändern'
+  ariaNone: Kein Projekt. Projekt wählen
+  unavailable: Projekt nicht verfügbar
+  ariaUnavailable: Projekt nicht verfügbar. Anderes Projekt wählen
+  tooltip: 'Projekt dieses Chats: {name}'
+  tooltipNone: Diesen Chat in ein Projekt legen
+  hint: Verschiebst du den Chat, ändert sich, worauf seine nächsten Antworten zugreifen — die Anweisungen und Dateien des Projekts — und wer darin antworten kann.
+  hintDraft: Ein Chat in einem Projekt liest dessen Anweisungen und Dateien, und die Agenten des Projekts können darin antworten.
+agentPicker:
+  assistant: Assistent
+  assistantDescription: Der Chat-Assistent dieses Arbeitsbereichs
+  default: Voreinstellung
+  aria: 'Es antwortet: {name}. Ändern, wer antwortet'
+  tooltip: 'Wer in diesem Chat antwortet: {name}'
+  hint: Ein Agent antwortet hier mit seinen Anweisungen, Skills und seinem Modell. Agent-Laufzeit, Connectors, Tools und Secrets nutzt er nur in seinen Aufgaben.
+  unservedModel: Das Modell von {name} kann für dich nicht im Chat antworten, deshalb antwortet dein Modell.
+  saveFailed: Konnte nicht ändern, wer antwortet. Versuch es noch einmal.
+moveShared:
+  title: Geteilten Chat verschieben?
+  description: Dieser Chat ist mit {from} geteilt. Verschiebst du ihn nach {to}, endet diese Freigabe, und die Personen in {from} können ihn nicht mehr lesen. Teile ihn in {to} erneut, wenn dessen Mitglieder ihn lesen sollen.
+  removeTitle: Geteilten Chat aus dem Projekt nehmen?
+  removeDescription: Dieser Chat ist mit {from} geteilt. Nimmst du ihn aus dem Projekt, endet diese Freigabe, und die Personen in {from} können ihn nicht mehr lesen.
+  confirm: Chat verschieben
+  confirmRemove: Aus Projekt entfernen
+  thisProject: seinem Projekt
+replyAuthor:
+  agentBadge: Agent
+proposal:
+  title:
+    createProject: Neues Projekt
+    updateProject: 'Projekt {name} ändern'
+    createAgent: 'Neuer Agent in {project}'
+    updateAgent: 'Agent {name} ändern'
+  field:
+    name: Name
+    key: Kürzel
+    description: Beschreibung
+    instructions: Anweisungen
+    model: Modell
+    runtime: Agent-Laufzeit
+    skills: Skills
+    defaultChatAgent: Agent für neue Chats
+  status:
+    pending: Vorgeschlagen
+    applied: Übernommen
+    dismissed: Verworfen
+    failed: Nicht übernommen
+  nothingYet: Bis du den Vorschlag übernimmst, ändert sich nichts.
+  loadFailed: Die vorgeschlagene Änderung konnte nicht geladen werden. Lade die Seite neu, um sie zu sehen.
+  apply: Übernehmen
+  dismiss: Verwerfen
+  applyFailed: Die Änderung wurde nicht übernommen
+  dismissFailed: Der Vorschlag konnte nicht verworfen werden
+  openProject: Projekt öffnen
+  openAgents: Agenten des Projekts öffnen
+  empty: (leer)
+  none: (keine)
+  chatAgent:
+    first: Zuerst erstellter Agent
+    firstNamed: 'Zuerst erstellter Agent ({name})'
+    assistant: Assistent
+  orgWide: Alle in der Organisation können das neue Projekt öffnen. Wer es sehen kann, legst du auf seiner Seite Allgemein fest.
+  before: Vorher
+  after: Nachher
+  failure:
+    stale: Seit dem Vorschlag hat sich etwas geändert. Frag den Chat nach einem neuen Vorschlag.
+    gone: Was dieser Vorschlag ändert, gibt es nicht mehr.
+    forbidden: Du darfst diese Änderung nicht mehr vornehmen.
+    archived: Das Projekt ist archiviert. Stelle es wieder her, um es zu ändern.
+    nameTaken: Ein anderer Agent in diesem Projekt hat schon diesen Namen. Frag den Chat nach einem anderen Namen.
+    keyTaken: Ein anderes Projekt verwendet dieses Kürzel schon. Frag den Chat nach einem anderen Kürzel.
+    model: Dieses Modell oder diese Agent-Laufzeit kann den Agenten nicht mehr ausführen. Frag den Chat nach einem anderen Modell.
+    skills: Mit einem Skill aus diesem Vorschlag lässt sich der Agent nicht mehr ausstatten. Frag den Chat nach einem neuen Vorschlag.
+    limit: Dieses Projekt hat schon so viele Agenten, wie es haben kann.
+    invalid: Tale konnte diese Änderung nicht vornehmen. Frag den Chat nach einem neuen Vorschlag.
 deleteChat: Chat löschen
 deleteConfirmation: '"{title}" löschen?'
 deletePermanentMessage: Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.
@@ -315,6 +393,7 @@ speakOutLoud: Vorlesen
 scrollToBottom: Nach unten scrollen
 messageInfo:
   title: Nachrichteninformation
+  agent: Agent
   timestamp: Zeitstempel
   messageId: Nachrichten-ID
   copyId: Nachrichten-ID kopieren
@@ -612,6 +691,15 @@ thinking:
   loadingSkill: Liest den Skill {name}
   readingSkillFile: Liest {path} aus dem Skill {name}
   runningCode: Führt {language} in einer leichten Sandbox aus
+  readingProjects: Liest deine Projekte
+  readingProjectSettings: Liest die Einstellungen von {name}
+  readingAgentSettings: Liest den Agenten {name}
+  proposing:
+    generic: Entwirft eine Änderung
+    createProject: Entwirft ein neues Projekt
+    updateProject: Entwirft eine Änderung an {name}
+    createAgent: Entwirft einen neuen Agenten für {project}
+    updateAgent: Entwirft eine Änderung am Agenten {name}
   outcome:
     failed: Fehlgeschlagen
     stopped: Gestoppt

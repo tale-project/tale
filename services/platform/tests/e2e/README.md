@@ -71,7 +71,9 @@ In the default mock mode, the configuration starts [`lib/mocks`](../../lib/mocks
 presence of the gateway alone does not make a newly created organization ready for chat. Check the
 selected spec's setup and `test.fixme` markers before interpreting skipped coverage.
 
-The docs seeder demonstrates real provider and embedding setup against the mock gateway. Private
+`connectMockProvider` in [`helpers/providers.ts`](helpers/providers.ts) makes a worker's
+organization chat-ready: it saves the mock as the organization's provider and connects its env
+credential. The docs seeder demonstrates real provider and embedding setup against the mock gateway. Private
 provider URLs require `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` in the test backend; its fixture key is
 `TALE_PROVIDER_KEY_E2E_MOCK`. Use synthetic credentials. `E2E_MOCK_LLM=0` selects the live-provider
 mode and skips canned-answer assertions; it does not configure a provider for you.

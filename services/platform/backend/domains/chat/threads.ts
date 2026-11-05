@@ -14,6 +14,7 @@ import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';
+import { defaultChatAgentId, isChatAgentOf } from './agents.ts';
 
 /**
  * Threads — the conversations a user owns in one organization; the 0.5 twin
@@ -61,6 +62,9 @@ export interface ThreadSummary {
   title: string | null;
   kind: string;
   agentSlug: string | null;
+  /** The project agent the conversation answers as; null for the chat
+   * assistant. Read off the conversation's root, where it is kept. */
+  chatAgentId: string | null;
   harness: string | null;
   capabilities: ThreadCapabilities | null;
   reasoningEffort: string | null;
@@ -84,6 +88,7 @@ interface ThreadRow {
   title: string | null;
   kind: string;
   agentSlug: string | null;
+  chatAgentId: string | null;
   harness: string | null;
   capabilities: unknown;
   reasoningEffort: string | null;
@@ -116,7 +121,8 @@ interface ThreadRow {
 
 const THREAD_COLUMNS = `
   t.id, t.org_id AS "organizationId", t.user_id AS "userId", t.title,
-  tm.chat_type AS "kind", tm.agent_slug AS "agentSlug", tm.harness,
+  tm.chat_type AS "kind", tm.agent_slug AS "agentSlug",
+  tm.chat_agent_id AS "chatAgentId", tm.harness,
   tm.capabilities, tm.reasoning_effort AS "reasoningEffort",
   tm.project_id AS "projectId",
   tm.shared_with_project AS "sharedWithProject", tm.archived,
@@ -156,6 +162,7 @@ function toSummary(
     title: row.title,
     kind: row.kind,
     agentSlug: row.agentSlug,
+    chatAgentId: row.chatAgentId,
     harness: row.harness,
     capabilities: readCapabilities(row.capabilities),
     reasoningEffort: row.reasoningEffort,
@@ -387,6 +394,10 @@ export interface CreateThreadArgs {
   title?: string;
   agentSlug?: string;
   projectId?: string;
+  /** Who the conversation answers as: one of its project's own agents, or
+   * null for the assistant. Absent, a chat in a project starts with the
+   * project's default chat agent; any other chat with the assistant. */
+  chatAgentId?: string | null;
   reasoningEffort?: string;
   /** The skills the conversation uses from its first reply on. */
   skills?: readonly string[];
@@ -414,6 +425,17 @@ export async function createThread(
         access === 'not_found' ? 404 : 403,
       );
     }
+  }
+  if (
+    args.projectId === undefined &&
+    args.chatAgentId !== undefined &&
+    args.chatAgentId !== null
+  ) {
+    throw new ChatThreadError(
+      'CHAT_AGENT_INVALID',
+      'Only a chat in a project can answer as one of its agents',
+      400,
+    );
   }
   const now = Date.now();
   const create = async (tx: TransactionSql) => {
@@ -449,6 +471,32 @@ export async function createThread(
         );
       }
     }
+    // Who answers: the agent the caller chose — one of the project's own —
+    // or, when it chose none, the project's default chat agent.
+    let chatAgentId: string | null = null;
+    if (args.projectId !== undefined) {
+      if (args.chatAgentId === undefined) {
+        chatAgentId = await defaultChatAgentId(tx, {
+          organizationId: args.organizationId,
+          projectId: args.projectId,
+        });
+      } else if (args.chatAgentId !== null) {
+        if (
+          !(await isChatAgentOf(tx, {
+            organizationId: args.organizationId,
+            projectId: args.projectId,
+            agentId: args.chatAgentId,
+          }))
+        ) {
+          throw new ChatThreadError(
+            'CHAT_AGENT_INVALID',
+            "Choose one of the project's own agents",
+            400,
+          );
+        }
+        chatAgentId = args.chatAgentId;
+      }
+    }
     const rows = await tx<{ id: string }[]>`
       INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
                                updated_at_ms)
@@ -467,11 +515,12 @@ export async function createThread(
     await tx`
       INSERT INTO app.thread_metadata (
         thread_id, org_id, user_id, chat_type, status, project_id,
-        agent_slug, reasoning_effort, capabilities, created_at_ms
+        agent_slug, chat_agent_id, reasoning_effort, capabilities,
+        created_at_ms
       ) VALUES (
         ${id}, ${args.organizationId}, ${args.userId}, ${args.kind},
         'active', ${args.projectId ?? null}, ${args.agentSlug ?? null},
-        ${args.reasoningEffort ?? null},
+        ${chatAgentId}, ${args.reasoningEffort ?? null},
         ${capabilities === null ? null : tx.json(toJson(capabilities))},
         ${now}
       )
@@ -516,6 +565,57 @@ export async function setConversationSkills(
     WHERE thread_id = ${root.id}
   `;
   return true;
+}
+
+/**
+ * Choose who a conversation answers as: one of its project's own agents, or
+ * null for the chat assistant. Kept on the conversation's root, where every
+ * version of it reads it. Only the owner may change it, and only to an
+ * agent of the project the conversation is filed in.
+ */
+export async function setConversationAgent(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  threadId: string,
+  agentId: string | null,
+): Promise<boolean> {
+  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
+  if (!thread) return false;
+  const rootId = thread.branchRootId ?? thread.id;
+  return sql.begin(async (tx) => {
+    const root = await loadOwnedThread(
+      tx,
+      organizationId,
+      userId,
+      rootId,
+      true,
+    );
+    if (!root) return false;
+    if (agentId !== null) {
+      if (
+        root.projectId === null ||
+        !(await isChatAgentOf(tx, {
+          organizationId,
+          projectId: root.projectId,
+          agentId,
+        }))
+      ) {
+        throw new ChatThreadError(
+          'CHAT_AGENT_INVALID',
+          root.projectId === null
+            ? 'Only a chat in a project can answer as one of its agents'
+            : "Choose one of the project's own agents",
+          400,
+        );
+      }
+    }
+    await tx`
+      UPDATE app.thread_metadata SET chat_agent_id = ${agentId}
+      WHERE thread_id = ${root.id}
+    `;
+    return true;
+  });
 }
 
 /** The skills a conversation uses, read from its root; none when it uses
@@ -623,6 +723,20 @@ export async function moveThreadToProject(
         AND (thread_id = ${thread.id} OR branch_root_id = ${thread.id})
     `;
     if (!moved) return true;
+    // The agent follows the project: a chat that lands in a project answers
+    // as its default chat agent from its next reply on, one taken out of
+    // projects as the assistant.
+    const chatAgentId =
+      projectId === null
+        ? null
+        : await defaultChatAgentId(tx, {
+            organizationId: auth.organizationId,
+            projectId,
+          });
+    await tx`
+      UPDATE app.thread_metadata SET chat_agent_id = ${chatAgentId}
+      WHERE thread_id = ${thread.id}
+    `;
     const projectName = async (id: string): Promise<string | undefined> => {
       const rows = await tx<{ name: string }[]>`
         SELECT name FROM app.projects WHERE id = ${id} LIMIT 1

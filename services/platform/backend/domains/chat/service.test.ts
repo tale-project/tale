@@ -63,3 +63,32 @@ describe('runChatTurn carries REST scope to the prompt and atomic store', () => 
     },
   );
 });
+
+describe('runChatTurn offers the settings tools in the app only [CHAT-R45]', () => {
+  const sql = Object.assign(() => Promise.resolve([]), {
+    begin: (_options: string, callback: (tx: unknown) => Promise<unknown>) =>
+      callback(sql),
+  }) as unknown as Sql;
+
+  it.each([
+    ['an app send', {}, true],
+    ['an API send', { apiKeyId: 'key_1', expectedProjectId: null }, false],
+  ] as const)('%s', async (_name, request, offered) => {
+    vi.mocked(executeTurn).mockImplementation(
+      async (_ctx, _args, overrides) => {
+        expect(overrides.settingsTools !== undefined).toBe(offered);
+        throw new Error('stop before the model call');
+      },
+    );
+    await expect(
+      runChatTurn(sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        userText: 'hello',
+        modelId: 'model-a',
+        ...request,
+      }),
+    ).rejects.toThrow('stop before the model call');
+  });
+});

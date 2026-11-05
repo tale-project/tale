@@ -7,10 +7,12 @@ import {
 } from '../../core/chat/turn_action.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { embeddingMeter } from '../knowledge/embedding-meter.ts';
+import { readConversationAgent } from './agents.ts';
 import {
   assertChatTurnBudget,
   type ChatTurnAdmissionExclude,
 } from './budget-admission.ts';
+import { chatSettingsTools } from './proposals.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
 import { chatWorkTools } from './work-tools.ts';
@@ -158,6 +160,32 @@ export async function runChatTurn(
           organizationId: request.organizationId,
           subject,
         }),
+      // The project agent the conversation answers as, when the person chose
+      // one (or the project's default did when the chat started or moved).
+      conversationAgent: (turn) =>
+        readConversationAgent(sql, {
+          organizationId: request.organizationId,
+          ...turn,
+        }),
+      // The read and proposal tools for projects and agents, for a person
+      // who may change them, chatting in the app: the model proposes, the
+      // person applies the card. An API send gets none — nobody there
+      // could apply what it proposed.
+      ...(request.apiKeyId === undefined &&
+      request.expectedProjectId === undefined
+        ? {
+            settingsTools: (turn: {
+              rootThreadId: string;
+              projectId: string | null;
+            }) =>
+              chatSettingsTools(sql, {
+                organizationId: request.organizationId,
+                userId: request.userId,
+                rootThreadId: turn.rootThreadId,
+                projectId: turn.projectId,
+              }),
+          }
+        : {}),
       // The work tools — files, images, skills, the light sandbox — as the
       // organization's policies allow them, acting for the chat's person.
       workTools: (turn) =>

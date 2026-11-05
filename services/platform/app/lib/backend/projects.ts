@@ -8,6 +8,7 @@
  */
 
 import { dispatchServingAgentsSchema } from '@tale/shared/schemas/project-dispatch';
+import { setProjectChatAgentInputSchema } from '@tale/shared/schemas/projects';
 import { setProjectTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -380,6 +381,21 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
         ).then((body): ProjectAgentItem[] => body.agents.map(projectAgentView)),
     };
   },
+  'projects/queries:getProjectChatAgents': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const projectId = args.projectId;
+    if (orgId === undefined || typeof projectId !== 'string') return null;
+    return {
+      // Under the project entity: an agent saved or deleted, and the default
+      // changed, hint it.
+      queryKey: backendKey(orgId, 'project', 'chat-agents', projectId),
+      queryFn: () =>
+        backendFetch<unknown>(
+          `/projects/${encodeURIComponent(projectId)}/chat-agents`,
+          { orgId },
+        ),
+    };
+  },
   'projects/queries:listServingAgents': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;
@@ -642,6 +658,25 @@ const projectWriteInvalidate = (
 };
 
 export const projectWriteAdapters: Record<string, WriteAdapter> = {
+  'projects/mutations:setProjectChatAgent': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const projectId = requireString(args, 'projectId');
+      await backendFetch(
+        `/projects/${encodeURIComponent(projectId)}/chat-agent`,
+        {
+          method: 'POST',
+          body: setProjectChatAgentInputSchema.parse({
+            chatAgent: args.chatAgent,
+            expected: args.expected,
+          }),
+          orgId,
+        },
+      );
+      return null;
+    },
+    invalidate: projectWriteInvalidate,
+  },
   'projects/mutations:setProjectTaskReviewer': {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);

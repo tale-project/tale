@@ -42,7 +42,8 @@ When a manual case earns automation, bring it here under these rules.
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | [`helpers/fixtures.ts`](helpers/fixtures.ts) | the `org` fixture + extended `test`/`expect`                                                            |
 | [`helpers/auth.ts`](helpers/auth.ts)         | `signUpViaApi`, `signInViaApi`, `uniqueCredentials`, `createOrgViaWizard`, `waitForSeededOrg`           |
-| [`helpers/chat.ts`](helpers/chat.ts)         | `sendNewThreadMessage`, `waitForReplyComplete`, `expectCannedReply`, `deleteThreadById`, `fillComposer` |
+| [`helpers/chat.ts`](helpers/chat.ts)         | `sendNewThreadMessage`, `sendInOpenThread`, `waitForReplyComplete`, `expectCannedReply`, `deleteThreadById`, `fillComposer` |
+| [`helpers/providers.ts`](helpers/providers.ts) | `connectMockProvider` — the mock LLM as the org's AI provider, before a spec chats |
 | [`helpers/automations.ts`](helpers/automations.ts) | `uploadAutomationDraft`, `deleteAutomationRow`                                                         |
 | [`helpers/forms.ts`](helpers/forms.ts)       | `reloadAndSettle`                                                                                       |
 | [`helpers/totp.ts`](helpers/totp.ts)         | RFC-6238 codes for the 2FA flow                                                                         |
@@ -53,7 +54,9 @@ The `lib/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in
 for every third-party API offline: a canned chat reply plus Prism-mocked AI
 endpoints and connector APIs. Keyword triggers in a message exercise specific
 chat paths — see [`lib/mocks` canned content](../../lib/mocks/overrides/canned.ts):
-`e2e:reasoning`, `e2e:error`, `e2e:empty`, `e2e:length`, `e2e:stream-error`. Connector
+`e2e:reasoning`, `e2e:error`, `e2e:empty`, `e2e:length`, `e2e:stream-error`,
+`e2e:who-answers`, `e2e:propose-project`, `e2e:propose-agent <project>`. A
+worker's org lists no model until `connectMockProvider` connects the gateway. Connector
 specs (`specs/connectors.spec.ts`) drive the real connector → gateway path via
 `TALE_MOCK_CONNECTORS_BASE`.
 

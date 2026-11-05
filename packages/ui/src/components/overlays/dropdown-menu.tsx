@@ -5,11 +5,13 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Check, Search } from 'lucide-react';
 import {
   type ComponentType,
+  createContext,
   Fragment,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
   useCallback,
+  useContext,
   useId,
   useRef,
   useState,
@@ -577,6 +579,20 @@ function renderGroups(groups: DropdownMenuGroup[]) {
   ));
 }
 
+/** Closes the menu a custom row sits in. */
+const DropdownMenuCloseContext = createContext<(() => void) | undefined>(
+  undefined,
+);
+
+/**
+ * Close the menu around a `custom` item's content: what a row a person
+ * picks does when it is not one of the menu's own items, which close it
+ * themselves. Undefined outside a menu.
+ */
+export function useCloseDropdownMenu(): (() => void) | undefined {
+  return useContext(DropdownMenuCloseContext);
+}
+
 export function DropdownMenu({
   trigger,
   items,
@@ -596,6 +612,15 @@ export function DropdownMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
+  // Open state of its own unless the caller holds it, so a custom row can
+  // close the menu too (`useCloseDropdownMenu`).
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = open !== undefined;
+  const close = useCallback(() => {
+    setQuery('');
+    if (!controlled) setOwnOpen(false);
+    onOpenChange?.(false);
+  }, [controlled, onOpenChange]);
 
   // A menu that is animating out is still a dismissable layer, and its own
   // trigger counts as "outside" of it. Left alone, a pointer-down on the
@@ -628,10 +653,11 @@ export function DropdownMenu({
 
   return (
     <DropdownMenuPrimitive.Root
-      open={open}
+      open={controlled ? open : ownOpen}
       onOpenChange={(next) => {
         // Every opening starts from the whole list.
         if (!next) setQuery('');
+        if (!controlled) setOwnOpen(next);
         onOpenChange?.(next);
       }}
       // A menu can hand off to a modal while its exit animation is mounted.
@@ -696,11 +722,13 @@ export function DropdownMenu({
               inputRef={searchRef}
             />
           )}
-          <MenuGroups
-            items={items}
-            query={search !== undefined ? query : ''}
-            {...(search !== undefined ? { emptyText: search.emptyText } : {})}
-          />
+          <DropdownMenuCloseContext.Provider value={close}>
+            <MenuGroups
+              items={items}
+              query={search !== undefined ? query : ''}
+              {...(search !== undefined ? { emptyText: search.emptyText } : {})}
+            />
+          </DropdownMenuCloseContext.Provider>
         </DropdownMenuPrimitive.Content>
       </DropdownMenuPrimitive.Portal>
     </DropdownMenuPrimitive.Root>

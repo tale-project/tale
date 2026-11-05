@@ -35,13 +35,16 @@ import {
   queryOptions,
   useQuery,
 } from '@tanstack/react-query';
-import { useCallback, useContext, useEffect, useMemo } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import {
   fileStatusesQuery,
   myPreferencesQuery,
+  chatProjectAgentsQuery,
   chatProjectsQuery,
+  chatProposalsQuery,
+  decideChatProposal,
   holdTargetsQuery,
   setProjectPinnedRequest,
   setChatModelPreference,
@@ -61,6 +64,7 @@ import {
   invalidateChatThreads,
   moveChatThreadToProject,
   sendChatTurn,
+  setChatThreadAgent,
   setChatThreadReasoningEffort,
   setChatThreadSkills,
   threadBranchesQuery,
@@ -69,9 +73,10 @@ import {
   arenaPairQuery,
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
-import { backendKey } from '@/app/lib/backend/query-keys';
+import { backendEntityPrefix, backendKey } from '@/app/lib/backend/query-keys';
 import { tasksFromThreadQuery } from '@/app/lib/backend/tasks';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+import type { ChatProposalView } from '@/lib/chat/settings-tools';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -172,6 +177,10 @@ const HTTP_READS: Record<
     myPreferencesQuery(String(args.organizationId)),
   'projects/queries:listProjects': (args) =>
     chatProjectsQuery(String(args.organizationId)),
+  'chat/proposals:listThreadProposals': (args) =>
+    chatProposalsQuery(String(args.organizationId), String(args.threadId)),
+  'projects/queries:getProjectChatAgents': (args) =>
+    chatProjectAgentsQuery(String(args.organizationId), String(args.projectId)),
   'tasks/queries:listTasksFromThread': (args) =>
     tasksFromThreadQuery(String(args.organizationId), String(args.threadId)),
   'governance/legal_hold_queries:listActiveHoldTargetIds': (args) =>
@@ -307,6 +316,82 @@ export function useChatThreads(
   organizationId: string,
 ): ChatQuery<readonly ChatThreadSummary[]> {
   return useChatQuery('chat/threads:listThreads', { organizationId });
+}
+
+/** The changes to projects and agents a conversation proposed, as its cards
+ * show them; nothing to read for a new chat. `expected` names the proposals
+ * the replies carry: one the read does not have yet — made by the reply
+ * still streaming — reads again, once, rather than waiting for the turn's
+ * end to refresh the list. */
+export function useChatProposals(
+  organizationId: string,
+  threadId: string | undefined,
+  expected: readonly string[],
+): ChatQuery<ReturnsOf<'chat/proposals:listThreadProposals'>> {
+  const query = useChatQuery(
+    'chat/proposals:listThreadProposals',
+    threadId === undefined ? 'skip' : { organizationId, threadId },
+  );
+  const queryClient = useChatQueryClient();
+  const missing =
+    query.status === 'ready'
+      ? expected.filter((id) => !query.data.some((row) => row.id === id))
+      : [];
+  const missingKey = missing.join();
+  const askedFor = useRef('');
+  useEffect(() => {
+    if (threadId === undefined || missingKey === '') return;
+    if (askedFor.current === missingKey) return;
+    askedFor.current = missingKey;
+    void queryClient.invalidateQueries({
+      queryKey: chatProposalsQuery(organizationId, threadId).queryKey,
+    });
+  }, [missingKey, organizationId, queryClient, threadId]);
+  return query;
+}
+
+/** Apply or dismiss a proposal. Resolves the proposal as it now stands, or
+ * throws the refusal; the reads it changed — the conversation's cards, the
+ * projects and their agents — refresh either way. */
+export function useProposalDecision(organizationId: string): {
+  readonly decide: (
+    proposalId: string,
+    decision: 'apply' | 'dismiss',
+  ) => Promise<ChatProposalView>;
+} {
+  const queryClient = useChatQueryClient();
+  const decide = useCallback(
+    async (proposalId: string, decision: 'apply' | 'dismiss') => {
+      try {
+        const { proposal } = await decideChatProposal(
+          organizationId,
+          proposalId,
+          decision,
+        );
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the backend answers the view `proposals.ts` builds
+        return proposal as ChatProposalView;
+      } finally {
+        invalidateChatThreads(queryClient, organizationId);
+        void queryClient.invalidateQueries({
+          queryKey: backendEntityPrefix(organizationId, 'project'),
+        });
+      }
+    },
+    [organizationId, queryClient],
+  );
+  return { decide };
+}
+
+/** Who a project's chats may answer as — its own agents, oldest first —
+ * and who its new chats start with; nothing to read outside a project. */
+export function useChatProjectAgents(
+  organizationId: string,
+  projectId: string | undefined,
+): ChatQuery<ReturnsOf<'projects/queries:getProjectChatAgents'>> {
+  return useChatQuery(
+    'projects/queries:getProjectChatAgents',
+    projectId === undefined ? 'skip' : { organizationId, projectId },
+  );
 }
 
 /**
@@ -905,6 +990,9 @@ export interface ChatTurnRequest {
   readonly locale?: string;
   /** The skills a NEW thread uses from its first reply on. */
   readonly skills?: readonly string[];
+  /** Who a NEW thread answers as: one of its project's own agents, or null
+   * for the assistant; absent, the project's default chat agent. */
+  readonly chatAgentId?: string | null;
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
@@ -948,6 +1036,9 @@ export interface ChatDeferredSendRequest {
   readonly locale?: string;
   /** The skills a NEW thread uses from its first reply on. */
   readonly skills?: readonly string[];
+  /** Who a NEW thread answers as: one of its project's own agents, or null
+   * for the assistant; absent, the project's default chat agent. */
+  readonly chatAgentId?: string | null;
 }
 
 /**
@@ -997,6 +1088,9 @@ export function useChatSend(organizationId: string): {
             : {}),
           ...(request.skills !== undefined && request.skills.length > 0
             ? { skills: request.skills }
+            : {}),
+          ...(request.chatAgentId !== undefined
+            ? { chatAgentId: request.chatAgentId }
             : {}),
         }));
       // Completed video links join the send here — after the thread exists
@@ -1070,6 +1164,9 @@ export function useChatSend(organizationId: string): {
             : {}),
           ...(request.skills !== undefined && request.skills.length > 0
             ? { skills: request.skills }
+            : {}),
+          ...(request.chatAgentId !== undefined
+            ? { chatAgentId: request.chatAgentId }
             : {}),
         }));
       try {
@@ -1225,6 +1322,31 @@ export function useConversationSkills(organizationId: string): {
         },
       );
     },
+    [organizationId, queryClient],
+  );
+  return { save };
+}
+
+/** Choose who a conversation answers as. Resolves whether the change was
+ * saved; the caller says so when it was not (an agent the project no longer
+ * has, a chat that is not the caller's). */
+export function useConversationAgent(organizationId: string): {
+  readonly save: (threadId: string, agentId: string | null) => Promise<boolean>;
+} {
+  const queryClient = useChatQueryClient();
+  const save = useCallback(
+    (threadId: string, agentId: string | null) =>
+      setChatThreadAgent(organizationId, threadId, agentId).then(
+        (owned) => {
+          invalidateChatThreads(queryClient, organizationId);
+          return owned;
+        },
+        (error: unknown) => {
+          console.warn('[chat] could not change who answers', error);
+          invalidateChatThreads(queryClient, organizationId);
+          return false;
+        },
+      ),
     [organizationId, queryClient],
   );
   return { save };

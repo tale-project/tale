@@ -119,6 +119,7 @@ import {
   useChatVideoLinks,
   type VideoLinkJob,
 } from '../hooks/use-chat-video-links';
+import { useChatWhoAnswers } from '../hooks/use-chat-who-answers';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import {
@@ -160,17 +161,21 @@ import { ChatTaskTray } from './chat-task-tray';
 import { ChatTranscript } from './chat-transcript';
 import { ChatSkillNamesContext } from './chosen-skill-chips';
 import { Composer, type ComposerHandle } from './composer';
+import { ComposerAgentPicker } from './composer-agent-picker';
 import {
   directServedModels,
   listsPick,
   withDefaultModel,
 } from './composer-model-picker';
+import { ComposerProjectPicker } from './composer-project-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
 import type { CreateTaskFromChat as CreateTaskFromChatDialog } from './create-task-from-chat';
 import { DeferredSendTray } from './deferred-send-tray';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
+import { ChatAnsweringAgentContext } from './reply-author';
 import { SelectionQuoteButton } from './selection-quote-button';
+import { ChatProposalDecisionContext } from './settings-proposal-cards';
 import { ShareChatDialog } from './share-chat-dialog';
 import { ThreadDeleteDialog } from './thread-delete-dialog';
 import { TranscriptionAvailabilityNotice } from './transcription-availability-notice';
@@ -610,12 +615,22 @@ function ChatSurfaceInner({
     holdsQuery.status === 'ready' &&
     threadId !== undefined &&
     (holdsQuery.data.orgHeld || holdsQuery.data.targetIds.includes(threadId));
-  const headerMenuActions = useThreadMenuActions(organizationId, {
-    id: threadId ?? '',
-    ...(activeThread?.pinnedAt !== undefined
-      ? { pinnedAt: activeThread.pinnedAt }
-      : {}),
-  });
+  const headerMenuActions = useThreadMenuActions(
+    organizationId,
+    {
+      id: threadId ?? '',
+      ...(activeThread?.pinnedAt !== undefined
+        ? { pinnedAt: activeThread.pinnedAt }
+        : {}),
+      ...(activeThread?.projectId !== undefined
+        ? { projectId: activeThread.projectId }
+        : {}),
+      ...(activeThread?.sharedWithProject !== undefined
+        ? { sharedWithProject: activeThread.sharedWithProject }
+        : {}),
+    },
+    headerProjects,
+  );
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // The hand-over to a project agent: chat answers, a task produces the
@@ -957,6 +972,27 @@ function ChatSurfaceInner({
     });
   }, [models, preference]);
 
+  // Where the chat is filed and who answers in it: the composer's project
+  // and agent controls, the agent a new chat is created with, and the
+  // agent's model seeded while it answers.
+  const notifyAgentSaveFailed = useCallback(() => {
+    toast({ title: t('agentPicker.saveFailed'), variant: 'destructive' });
+  }, [t, toast]);
+  const whoAnswers = useChatWhoAnswers({
+    organizationId,
+    threadId,
+    draftProjectId: projectId,
+    draftProjectKnown:
+      projectId === undefined ||
+      projectsQuery.status !== 'ready' ||
+      projectsQuery.data.some((project) => project.id === projectId),
+    thread: headerThread,
+    models,
+    preferredPick: preference.status === 'ready' ? preference.data : undefined,
+    setSelection,
+    onSaveFailed: notifyAgentSaveFailed,
+  });
+
   // An explicit model pick — the id AND the provider serving it, so two
   // providers listing one id stay tellable apart — becomes the user's sticky
   // default; the seeding effect above writes nothing, so only real choices
@@ -964,6 +1000,14 @@ function ChatSurfaceInner({
   // (absent preference = Auto), so the old pin cannot resurface in the next
   // session.
   const handleSelectionChange = (next: ComposerSelection) => {
+    if (
+      next.modelId !== selection.modelId ||
+      next.providerSlug !== selection.providerSlug ||
+      next.modelSelection !== selection.modelSelection
+    ) {
+      // A model the person picks stands, whoever answers.
+      whoAnswers.noteModelPicked();
+    }
     if (
       next.modelId !== undefined &&
       (next.modelId !== selection.modelId ||
@@ -1473,6 +1517,11 @@ function ChatSurfaceInner({
               ? { projectId }
               : {}),
             ...(threadId === undefined &&
+            projectId !== undefined &&
+            whoAnswers.newChatAgentId !== undefined
+              ? { chatAgentId: whoAnswers.newChatAgentId }
+              : {}),
+            ...(threadId === undefined &&
             selection.skills !== undefined &&
             selection.skills.length > 0
               ? { skills: selection.skills }
@@ -1552,6 +1601,13 @@ function ChatSurfaceInner({
           // keeps the link it was created with.
           ...(threadId === undefined && projectId !== undefined
             ? { projectId }
+            : {}),
+          // ...and answers as the agent chosen for it, else the project's
+          // default chat agent, which the server applies.
+          ...(threadId === undefined &&
+          projectId !== undefined &&
+          whoAnswers.newChatAgentId !== undefined
+            ? { chatAgentId: whoAnswers.newChatAgentId }
             : {}),
           // A new conversation starts with the skills chosen for it.
           ...(threadId === undefined &&
@@ -1976,10 +2032,79 @@ function ChatSurfaceInner({
       ? headerProjects.find((project) => project.id === headerThread.projectId)
       : undefined;
 
+  // The composer's project and agent controls. The owner's alone, outside a
+  // live arena pair (its columns compare models, not agents), and still
+  // while a reply is being written, so the reply's author cannot change
+  // under it. A new chat's project lives in the address; an open chat's
+  // project changes by moving it, which asks first when it ends a share.
+  const chooseProject = useCallback(
+    (next: string | null) => {
+      if (threadId === undefined) {
+        void navigate({
+          to: '/dashboard/$id/chat',
+          params: { id: organizationId },
+          search: next === null ? { new: true } : { projectId: next },
+        });
+        return;
+      }
+      headerMenuActions.moveToProject(next);
+    },
+    [threadId, navigate, organizationId, headerMenuActions],
+  );
+  const showWhoAnswers =
+    viewerIsOwner &&
+    pair === null &&
+    !needsProviderSetup &&
+    (threadId === undefined || activeThread !== undefined);
+  const agentModelLabel = useCallback(
+    (agent: { model: string; modelProvider: string | null }) =>
+      models.find(
+        (model) =>
+          model.id === agent.model &&
+          (agent.modelProvider === null ||
+            model.providerSlug === agent.modelProvider),
+      )?.label,
+    [models],
+  );
+  const whoAnswersLocked =
+    composerDisabled || generationInFlight || threadArchived;
+  const leadingControls = showWhoAnswers ? (
+    <>
+      <ComposerProjectPicker
+        projects={headerProjects}
+        projectsReady={projectsQuery.status === 'ready'}
+        projectId={whoAnswers.projectId}
+        draft={threadId === undefined}
+        onChange={chooseProject}
+        disabled={whoAnswersLocked}
+      />
+      {whoAnswers.agents.length > 0 && (
+        <ComposerAgentPicker
+          agents={whoAnswers.agents}
+          agentId={whoAnswers.agentId}
+          defaultAgentId={whoAnswers.defaultAgentId}
+          modelLabel={agentModelLabel}
+          unservedModel={whoAnswers.agentModelUnserved}
+          onChange={whoAnswers.chooseAgent}
+          disabled={whoAnswersLocked}
+        />
+      )}
+    </>
+  ) : undefined;
+  const answeringAgent = useMemo(
+    () =>
+      whoAnswers.agent === undefined
+        ? null
+        : { id: whoAnswers.agent.id, name: whoAnswers.agent.name },
+    [whoAnswers.agent],
+  );
+
   return (
     <MessageRowContext
       previews={sentPreviewsRef.current}
       skillNames={skillNames}
+      answeringAgent={answeringAgent}
+      canDecideProposals={viewerIsOwner && !threadArchived}
     >
       <div className="flex min-h-0 flex-1 flex-row">
         {/* The page's skip link lands on `main`, which begins with the
@@ -2428,6 +2553,8 @@ function ChatSurfaceInner({
                         onArenaChange: handleArenaChange,
                       }
                     : {})}
+                  leadingControls={leadingControls}
+                  compactModelPicker={whoAnswers.agent !== undefined}
                 />
                 {/* The confidentiality disclosure sits with the field it
                     governs — visible BEFORE the first send, not only under a
@@ -2476,8 +2603,15 @@ function ChatSurfaceInner({
               threadTitle={headerThread?.title}
               projectId={headerThread?.projectId}
               viewerIsOwner={viewerIsOwner}
+              {...(whoAnswers.agentId !== null
+                ? { preferredAgentId: whoAnswers.agentId }
+                : {})}
             />
           )}
+
+        {/* A move from the header menu or the composer that would end the
+          chat's project share waits for its answer here. */}
+        {headerMenuActions.moveConfirmDialog}
 
         {/* The header menu's Share — status, link, republish, revoke. The
           link names the root; the snapshot is the sibling on screen. */}
@@ -2516,16 +2650,21 @@ function ChatSurfaceInner({
 
 /**
  * What a message row reads from the surface around it: the previews of the
- * images this session sent, and the names of the skills the person can use —
- * a message that chose one shows it as a chip.
+ * images this session sent, the names of the skills the person can use — a
+ * message that chose one shows it as a chip — and the agent the
+ * conversation answers as, which a reply still being written names.
  */
 function MessageRowContext({
   previews,
   skillNames,
+  answeringAgent,
+  canDecideProposals,
   children,
 }: {
   previews: Map<string, string>;
   skillNames: ReadonlySet<string>;
+  answeringAgent: { id: string; name: string } | null;
+  canDecideProposals: boolean;
   children: ReactNode;
 }) {
   return (
@@ -2533,7 +2672,11 @@ function MessageRowContext({
     // nothing; rows read the map during their own renders.
     <AttachmentPreviewProvider value={previews}>
       <ChatSkillNamesContext.Provider value={skillNames}>
-        {children}
+        <ChatAnsweringAgentContext.Provider value={answeringAgent}>
+          <ChatProposalDecisionContext.Provider value={canDecideProposals}>
+            {children}
+          </ChatProposalDecisionContext.Provider>
+        </ChatAnsweringAgentContext.Provider>
       </ChatSkillNamesContext.Provider>
     </AttachmentPreviewProvider>
   );

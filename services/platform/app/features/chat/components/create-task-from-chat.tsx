@@ -56,6 +56,9 @@ interface CreateTaskFromChatProps {
   projectId: string | undefined;
   /** The person reading owns the conversation: their files may ride along. */
   viewerIsOwner: boolean;
+  /** The agent the conversation answers as: the task's assignee when it is
+   * one of the target project's agents. */
+  preferredAgentId?: string;
 }
 
 export function CreateTaskFromChat({
@@ -67,6 +70,7 @@ export function CreateTaskFromChat({
   threadTitle,
   projectId,
   viewerIsOwner,
+  preferredAgentId,
 }: CreateTaskFromChatProps) {
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
@@ -175,7 +179,15 @@ export function CreateTaskFromChat({
   const assignableAgents = standardAgentAvailable
     ? agents.agents
     : agents.agents.filter((agent) => !agent.managed);
+  // The chat's own agent takes the work it was answering about; else the
+  // project's only agent does.
+  const chatAgentId =
+    preferredAgentId !== undefined &&
+    assignableAgents.some((agent) => agent._id === preferredAgentId)
+      ? preferredAgentId
+      : undefined;
   const onlyAgentId =
+    chatAgentId ??
     ensuredAgentId ??
     (assignableAgents.length === 1 ? assignableAgents[0]?._id : undefined);
 

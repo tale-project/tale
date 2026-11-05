@@ -7,9 +7,17 @@
  * actually serve them.
  */
 
+import type { ChatProposalView } from '@/lib/chat/settings-tools';
 import type { MessagePart } from '@/lib/chat/types';
 
 export interface ChatContract {
+  'chat/proposals:listThreadProposals': {
+    kind: 'query';
+    args: { organizationId: string; threadId: string };
+    /** The changes to projects and agents the conversation proposed,
+     * oldest first, as its cards show them. */
+    returns: ChatProposalView[];
+  };
   'chat/arena:getArenaPair': {
     kind: 'query';
     args: { organizationId: string; threadId: string };
@@ -234,6 +242,7 @@ export interface ChatContract {
       title?: string;
       kind: 'sandbox' | 'direct';
       agentSlug?: string;
+      chatAgentId?: string;
       harness?: string;
       capabilities?: { skills: string[]; connectors: string[] };
       reasoningEffort?: 'low' | 'medium' | 'high' | 'extra' | 'max';
@@ -260,6 +269,7 @@ export interface ChatContract {
         title?: string;
         kind: 'sandbox' | 'direct';
         agentSlug?: string;
+        chatAgentId?: string;
         harness?: string;
         capabilities?: { skills: string[]; connectors: string[] };
         reasoningEffort?: 'low' | 'medium' | 'high' | 'extra' | 'max';
@@ -287,6 +297,7 @@ export interface ChatContract {
       title?: string;
       kind: 'sandbox' | 'direct';
       agentSlug?: string;
+      chatAgentId?: string;
       harness?: string;
       capabilities?: { skills: string[]; connectors: string[] };
       reasoningEffort?: 'low' | 'medium' | 'high' | 'extra' | 'max';

@@ -31,6 +31,8 @@ import {
   CANNED_REPLY,
   CANNED_STREAM_ERROR_MESSAGE,
   MOCK_FILE_REF,
+  MOCK_PERSONA,
+  MOCK_PROPOSALS,
   MOCK_SERVING,
   MOCK_TRIGGERS,
   MOCK_WORK_TOOLS,
@@ -147,7 +149,11 @@ type Scenario =
   | 'runLongCode'
   | 'useWorkspace'
   | 'workDone'
-  | 'fileRefDone';
+  | 'fileRefDone'
+  | 'whoAnswers'
+  | 'proposeProject'
+  | 'proposeAgent'
+  | 'proposeDone';
 
 function userTexts(messages: ParsedMessage[]): string[] {
   return messages
@@ -292,6 +298,16 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
   if (last.includes(MOCK_TRIGGERS.gatewayRoute)) return 'gatewayRoute';
   if (last.includes(MOCK_TRIGGERS.cloudRegion)) return 'cloudRegion';
+  if (last.includes(MOCK_TRIGGERS.whoAnswers)) return 'whoAnswers';
+  if (
+    last.includes(MOCK_TRIGGERS.proposeProject) ||
+    last.includes(MOCK_TRIGGERS.proposeAgent)
+  ) {
+    if (isToolResumeInTurn(messages)) return 'proposeDone';
+    return last.includes(MOCK_TRIGGERS.proposeProject)
+      ? 'proposeProject'
+      : 'proposeAgent';
+  }
   if (last.includes(MOCK_TRIGGERS.fileRef)) {
     return isToolResumeInTurn(messages) ? 'fileRefDone' : 'makeFile';
   }
@@ -376,6 +392,20 @@ function lastToolRef(messages: ParsedMessage[]): string | undefined {
   return undefined;
 }
 
+/** The persona a system-prompt line names after `MOCK_PERSONA.marker`. */
+function personaOf(messages: ParsedMessage[]): string | undefined {
+  for (const message of messages) {
+    if (message.role !== 'system') continue;
+    for (const line of message.text.split('\n')) {
+      const at = line.indexOf(MOCK_PERSONA.marker);
+      if (at === -1) continue;
+      const name = line.slice(at + MOCK_PERSONA.marker.length).trim();
+      if (name !== '') return name;
+    }
+  }
+  return undefined;
+}
+
 /** The plain-text content a (non-tool) scenario streams as `delta.content`. */
 function scenarioContent(
   scenario: Scenario,
@@ -396,6 +426,14 @@ function scenarioContent(
     case 'fileRefDone': {
       const ref = lastToolRef(body.messages ?? []);
       return ref === undefined ? MOCK_FILE_REF.noRef : MOCK_FILE_REF.reply(ref);
+    }
+    case 'proposeDone':
+      return MOCK_PROPOSALS.done;
+    case 'whoAnswers': {
+      const persona = personaOf(body.messages ?? []);
+      return persona === undefined
+        ? MOCK_PERSONA.none
+        : MOCK_PERSONA.reply(persona);
     }
     default: {
       const formatType = body.response_format?.type ?? '';
@@ -576,6 +614,44 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
             ],
           })}\n\n`,
         );
+        controller.close();
+        return;
+      }
+
+      // A proposal scenario's first turn: the proposal tool call alone.
+      if (scenario === 'proposeProject' || scenario === 'proposeAgent') {
+        const raw =
+          (body.messages ?? []).findLast((m) => m.role === 'user')?.text ?? '';
+        // The project an agent proposal names: the words after the trigger.
+        const project =
+          raw
+            .slice(
+              raw.toLowerCase().indexOf(MOCK_TRIGGERS.proposeAgent) +
+                MOCK_TRIGGERS.proposeAgent.length,
+            )
+            .trim() || 'Getting started';
+        sendDelta(
+          {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'call_propose_0',
+                type: 'function',
+                function: {
+                  name: 'propose_project_settings',
+                  arguments: JSON.stringify(
+                    scenario === 'proposeProject'
+                      ? MOCK_PROPOSALS.project
+                      : MOCK_PROPOSALS.agent(project),
+                  ),
+                },
+              },
+            ],
+          },
+          null,
+        );
+        sendDelta({}, 'tool_calls', USAGE);
+        send('data: [DONE]\n\n');
         controller.close();
         return;
       }

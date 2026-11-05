@@ -242,6 +242,57 @@ describe('chatWorkTools', () => {
     expect(readConversationSkills).not.toHaveBeenCalled();
   });
 
+  it('loads only what an agent brings and what the person chose, as far as the person may see it [CHAT-R41]', async () => {
+    vi.mocked(readConversationSkills).mockResolvedValueOnce(['brief-summary']);
+    const answer = await chatWorkTools(sql, {
+      ...TURN,
+      projectId: 'project_1',
+      agent: {
+        id: 'agent_1',
+        name: 'Copy reviewer',
+        instructions: 'Review copy for tone.',
+        skills: ['docx', 'brief-summary'],
+      },
+    });
+    const tools =
+      answer !== undefined && 'unavailable' in answer ? answer.tools : answer;
+    expect(tools?.skillCatalog).toEqual([
+      { slug: 'docx', description: 'Word documents' },
+    ]);
+    // The person's own view, narrowed to the agent's equipment and the
+    // conversation's choice — never their whole library.
+    expect(listSkillCatalog).toHaveBeenCalledWith(
+      'acme',
+      {
+        kind: 'user',
+        userId: 'user_1',
+        teamIds: ['team_1'],
+        isOrgAdmin: false,
+      },
+      ['docx', 'brief-summary'],
+    );
+  });
+
+  it('lets an agent load a skill the person named at the start of the message [CHAT-R41]', async () => {
+    vi.mocked(readConversationSkills).mockResolvedValueOnce([]);
+    await chatWorkTools(sql, {
+      ...TURN,
+      projectId: 'project_1',
+      agent: {
+        id: 'agent_1',
+        name: 'Copy reviewer',
+        instructions: 'Review copy for tone.',
+        skills: ['docx'],
+      },
+      namedSkills: ['pdf', 'docx'],
+    });
+    expect(listSkillCatalog).toHaveBeenLastCalledWith(
+      'acme',
+      expect.objectContaining({ kind: 'user', userId: 'user_1' }),
+      ['docx', 'pdf'],
+    );
+  });
+
   it('offers nothing to a caller who is not a member, and says the setup failed', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.mocked(findActingMember).mockResolvedValueOnce(null);

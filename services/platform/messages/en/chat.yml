@@ -70,6 +70,84 @@ export:
 moveToProject: Move to project…
 removeFromProject: Remove from project
 removeFromProjectFailed: Couldn't remove chat from project
+projectPicker:
+  none: Project
+  unknown: Project
+  aria: 'Project: {name}. Change the project'
+  ariaNone: No project. Choose a project
+  unavailable: Unavailable project
+  ariaUnavailable: This project isn't available. Choose another project
+  tooltip: "This chat's project: {name}"
+  tooltipNone: File this chat in a project
+  hint: Moving the chat changes what its next replies draw on — the project's instructions and files — and who can answer in it.
+  hintDraft: A chat in a project reads the project's instructions and files, and the project's agents can answer in it.
+agentPicker:
+  assistant: Assistant
+  assistantDescription: The workspace's chat assistant
+  default: Default
+  aria: 'Who answers: {name}. Change who answers'
+  tooltip: 'Who answers in this chat: {name}'
+  hint: An agent answers here with its instructions, skills and model. Its runtime, connectors, tools and secrets are used on its tasks only.
+  unservedModel: "{name}'s model can't answer in a chat for you, so your model answers instead."
+  saveFailed: Couldn't change who answers. Try again.
+moveShared:
+  title: Move this shared chat?
+  description: This chat is shared with {from}. Moving it to {to} ends that share, so the people of {from} can no longer read it. Share it again in {to} if its members should read it.
+  removeTitle: Take this shared chat out of its project?
+  removeDescription: This chat is shared with {from}. Taking it out of the project ends that share, so the people of {from} can no longer read it.
+  confirm: Move chat
+  confirmRemove: Remove from project
+  thisProject: its project
+replyAuthor:
+  agentBadge: Agent
+proposal:
+  title:
+    createProject: New project
+    updateProject: 'Change project {name}'
+    createAgent: 'New agent in {project}'
+    updateAgent: 'Change agent {name}'
+  field:
+    name: Name
+    key: Key
+    description: Description
+    instructions: Instructions
+    model: Model
+    runtime: Agent runtime
+    skills: Skills
+    defaultChatAgent: Default chat agent
+  status:
+    pending: Proposed
+    applied: Applied
+    dismissed: Dismissed
+    failed: Not applied
+  nothingYet: Nothing changes until you apply it.
+  loadFailed: The proposed change couldn't be loaded. Reload the page to see it.
+  apply: Apply
+  dismiss: Dismiss
+  applyFailed: The change wasn't applied
+  dismissFailed: The proposal couldn't be dismissed
+  openProject: Open the project
+  openAgents: Open the project's agents
+  empty: (empty)
+  none: (none)
+  chatAgent:
+    first: First agent created
+    firstNamed: 'First agent created ({name})'
+    assistant: Assistant
+  orgWide: Everyone in the organization can open the new project. Choose who can see it on its General page.
+  before: Before
+  after: After
+  failure:
+    stale: This changed since the proposal was made. Ask the chat for a new proposal.
+    gone: What this proposal changes no longer exists.
+    forbidden: You may no longer make this change.
+    archived: The project is archived. Restore it to change it.
+    nameTaken: Another agent in this project already has this name. Ask the chat for another name.
+    keyTaken: Another project already uses this key. Ask the chat for another key.
+    model: This model or agent runtime can no longer run the agent. Ask the chat for another model.
+    skills: A skill in this proposal can no longer be equipped. Ask the chat for a new proposal.
+    limit: This project already has as many agents as it can have.
+    invalid: Tale couldn't make this change. Ask the chat for a new proposal.
 deleteChat: Delete chat
 deleteConfirmation: Delete "{title}"?
 deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
@@ -313,6 +391,7 @@ speakOutLoud: Speak out loud
 scrollToBottom: Scroll to bottom
 messageInfo:
   title: Message information
+  agent: Agent
   timestamp: Timestamp
   messageId: Message ID
   copyId: Copy message ID
@@ -604,6 +683,15 @@ thinking:
   loadingSkill: Reading the {name} skill
   readingSkillFile: Reading {path} from the {name} skill
   runningCode: Running {language} in a light sandbox
+  readingProjects: Reading your projects
+  readingProjectSettings: Reading the settings of {name}
+  readingAgentSettings: Reading the agent {name}
+  proposing:
+    generic: Drafting a change
+    createProject: Drafting a new project
+    updateProject: Drafting a change to {name}
+    createAgent: Drafting a new agent for {project}
+    updateAgent: Drafting a change to the agent {name}
   outcome:
     failed: Failed
     stopped: Stopped

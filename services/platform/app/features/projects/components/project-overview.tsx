@@ -30,6 +30,7 @@ import { backendErrorCode } from '@/lib/utils/backend-error';
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
 import { ProjectArchiveSection } from './project-archive-section';
+import { ProjectChatAgentSection } from './project-chat-agent-section';
 import { ProjectDangerZone } from './project-danger-zone';
 import { ProjectIdentityPicker } from './project-identity-picker';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
@@ -331,6 +332,8 @@ function ProjectOverviewContent({
       <ProjectInstructionsEditor projectId={projectId} />
 
       <ProjectTaskReviewerSection projectId={projectId} />
+
+      <ProjectChatAgentSection projectId={projectId} />
 
       <SettingsSection
         id="project-sharing"

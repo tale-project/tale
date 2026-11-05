@@ -6,7 +6,10 @@ import type { Sql } from 'postgres';
 
 import type { WorkLoadout } from '../../../lib/agent/ladder.ts';
 import type { SkillCatalogEntry } from '../../../lib/agent/skills-block.ts';
-import { CHAT_ASSISTANT_SLUG } from '../../../lib/chat/assistant.ts';
+import {
+  CHAT_ASSISTANT_SLUG,
+  type ConversationAgent,
+} from '../../../lib/chat/assistant.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { UserSkillViewer } from '../../../lib/skills/visibility.ts';
 import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
@@ -41,6 +44,11 @@ import { readConversationSkills } from './threads.ts';
  * to the conversation's lineage root, where the person's uploads bind too.
  * Code runs in the conversation's light sandbox, keyed by that same root,
  * so every version of the chat shares it.
+ *
+ * A conversation that answers as a project agent offers the same tools under
+ * the same policy, for the same person; what changes is the skills: the
+ * agent's equipped ones, and the ones the person chose for the conversation,
+ * each only as far as the person may see it — never their whole library.
  */
 
 export interface ChatWorkTurn {
@@ -53,6 +61,11 @@ export interface ChatWorkTurn {
   /** The thread the turn writes into — where its generation row, and so
    * its spend hold, lives. */
   readonly threadId: string;
+  /** The project agent the conversation answers as, when it has one. */
+  readonly agent?: ConversationAgent;
+  /** With an agent, the skills the person named at the start of the
+   * message — theirs to choose, as the conversation's are. */
+  readonly namedSkills?: readonly string[];
 }
 
 /** Every switch off: what a policy that cannot be read is held to. */
@@ -167,20 +180,49 @@ export async function chatWorkTools(
                 : {}),
               threadId: turn.threadId,
               projectIds,
-              agentSlug: CHAT_ASSISTANT_SLUG,
+              agentSlug: turn.agent?.id ?? CHAT_ASSISTANT_SLUG,
               unit: 'reply',
             }),
           },
         }
       : {}),
   };
-  const [catalog, conversationSkills] = loadout.skills
-    ? await Promise.all([
-        listSkillCatalog(orgSlug, skillViewer),
-        readConversationSkills(sql, turn.organizationId, turn.rootThreadId),
-      ])
-    : [[], []];
-  const built = turnWorkToolsFor(scope, catalog);
+  const agent = turn.agent;
+  // The assistant's turn reads its catalog beside the conversation's
+  // skills. An agent's turn loads only what it brings and what the person
+  // chose — the conversation's skills and those named at the start of the
+  // message — so its catalog waits for the conversation's.
+  let catalog: Awaited<ReturnType<typeof listSkillCatalog>> = [];
+  let conversationSkills: string[] = [];
+  let skillAllowlist: string[] | undefined;
+  if (loadout.skills && agent === undefined) {
+    [catalog, conversationSkills] = await Promise.all([
+      listSkillCatalog(orgSlug, skillViewer),
+      readConversationSkills(sql, turn.organizationId, turn.rootThreadId),
+    ]);
+  } else if (loadout.skills && agent !== undefined) {
+    conversationSkills = await readConversationSkills(
+      sql,
+      turn.organizationId,
+      turn.rootThreadId,
+    );
+    skillAllowlist = [
+      ...new Set([
+        ...agent.skills,
+        ...conversationSkills,
+        ...(turn.namedSkills ?? []),
+      ]),
+    ];
+    catalog = await listSkillCatalog(orgSlug, skillViewer, skillAllowlist);
+  } else if (agent !== undefined) {
+    skillAllowlist = [
+      ...new Set([...agent.skills, ...(turn.namedSkills ?? [])]),
+    ];
+  }
+  const built = turnWorkToolsFor(
+    skillAllowlist === undefined ? scope : { ...scope, skillAllowlist },
+    catalog,
+  );
   // The skills the conversation uses ride with the tools that can read them.
   const tools =
     built === undefined || conversationSkills.length === 0

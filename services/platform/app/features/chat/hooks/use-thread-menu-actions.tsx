@@ -8,6 +8,9 @@
  *
  * Arrangement stays per-surface: the row adds rename/mark-unread (inline
  * affordances the header has no seat for), the header adds share/export.
+ *
+ * A move that would end the chat's project share asks first
+ * (`project-move-confirm.tsx`): the surface renders `moveConfirmDialog`.
  */
 
 import { type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
@@ -15,12 +18,17 @@ import { useCopy } from '@tale/ui/use-copy';
 import { toast } from '@tale/ui/use-toast';
 import type { TFunction } from 'i18next';
 import { FolderInput } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useT } from '@/lib/i18n/client';
 
 import { PickerSearchList } from '../components/picker-search-list';
+import {
+  moveEndsShare,
+  ProjectMoveConfirmDialog,
+  type PendingProjectMove,
+} from '../components/project-move-confirm';
 import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
 import { threadShareUrl, useThreadSharing } from '../data/thread-sharing';
@@ -33,7 +41,11 @@ export interface ThreadMenuActions {
    * successful archive (the row leaves an active thread, the header stays —
    * its banner takes over). */
   readonly setArchived: (archived: boolean, onArchived?: () => void) => void;
+  /** Move the chat, or ask first when the move would end its project
+   * share. */
   readonly moveToProject: (projectId: string | null) => void;
+  /** The question a share-ending move waits on; render it beside the menu. */
+  readonly moveConfirmDialog: ReactNode;
   /** Publish (or refresh) the snapshot link and copy it in one gesture. */
   readonly shareAndCopyLink: () => Promise<void>;
   readonly stopSharing: () => Promise<void>;
@@ -41,9 +53,15 @@ export interface ThreadMenuActions {
 
 export function useThreadMenuActions(
   organizationId: string,
-  thread: Pick<ChatThreadSummary, 'id' | 'pinnedAt'>,
+  thread: Pick<ChatThreadSummary, 'id' | 'pinnedAt'> &
+    Partial<Pick<ChatThreadSummary, 'projectId' | 'sharedWithProject'>>,
+  /** The projects the move names in its question. */
+  projects: readonly ChatProjectSummary[] = [],
 ): ThreadMenuActions {
   const { t } = useT('chat');
+  const [pendingMove, setPendingMove] = useState<PendingProjectMove | null>(
+    null,
+  );
   const actions = useThreadActions(organizationId);
   const sharing = useThreadSharing(organizationId);
   const projectMove = useThreadProjectMove(organizationId);
@@ -71,7 +89,7 @@ export function useThreadMenuActions(
     });
   };
 
-  const moveToProject = (projectId: string | null) => {
+  const moveNow = (projectId: string | null) => {
     const notifyFailure = () =>
       toast({
         title: t(
@@ -91,6 +109,29 @@ export function useThreadMenuActions(
         notifyFailure();
       });
   };
+
+  const moveToProject = (projectId: string | null) => {
+    if (moveEndsShare(thread, projectId) && thread.projectId !== undefined) {
+      setPendingMove({
+        fromProjectId: thread.projectId,
+        toProjectId: projectId,
+      });
+      return;
+    }
+    moveNow(projectId);
+  };
+
+  const moveConfirmDialog = (
+    <ProjectMoveConfirmDialog
+      pending={pendingMove}
+      projects={projects}
+      onConfirm={(move) => {
+        setPendingMove(null);
+        moveNow(move.toProjectId);
+      }}
+      onCancel={() => setPendingMove(null)}
+    />
+  );
 
   const shareAndCopyLink = async () => {
     const shareToken = await sharing.share(thread.id);
@@ -117,6 +158,7 @@ export function useThreadMenuActions(
     togglePin,
     setArchived,
     moveToProject,
+    moveConfirmDialog,
     shareAndCopyLink,
     stopSharing,
   };
@@ -163,23 +205,28 @@ export function moveToProjectMenuItem({
 
 /** A submenu's contents are mounted only while it is open. Keep the project
  * walk here, rather than in each closed row's menu definition: a large Home
- * list otherwise builds every project option once for every chat. */
-function ThreadProjectPicker({
+ * list otherwise builds every project option once for every chat. The
+ * composer's project control lists the same rows (`onPicked` closes it). */
+export function ThreadProjectPicker({
   t,
   projects,
   currentProjectId,
   onMove,
+  onPicked,
 }: {
   t: TFunction;
   projects: readonly ChatProjectSummary[];
   currentProjectId: string | undefined;
   onMove: (projectId: string | null) => void;
+  onPicked?: () => void;
 }) {
   const options = useMemo(
     () => [
       ...projects.map((project) => ({
         key: project.id,
         search: project.name,
+        // The avatar's picture is decoration beside the name.
+        ariaLabel: project.name,
         label: (
           <span className="flex min-w-0 items-center gap-2">
             <ProjectAvatar
@@ -201,6 +248,7 @@ function ThreadProjectPicker({
               key: '__none__',
               search: t('removeFromProject'),
               label: t('removeFromProject'),
+              action: true,
               onSelect: () => onMove(null),
             },
           ]
@@ -209,6 +257,11 @@ function ThreadProjectPicker({
     [t, projects, currentProjectId, onMove],
   );
   return (
-    <PickerSearchList options={options} emptyHint={t('history.noProjects')} />
+    <PickerSearchList
+      options={options}
+      emptyHint={t('history.noProjects')}
+      tall
+      {...(onPicked !== undefined ? { onPicked } : {})}
+    />
   );
 }

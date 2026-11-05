@@ -68,6 +68,8 @@ import {
   NoFileAttachedNotice,
   fileNotAttached,
 } from './no-file-attached-notice';
+import { ReplyAuthor } from './reply-author';
+import { SettingsProposalCards } from './settings-proposal-cards';
 import { SourceCards } from './source-cards';
 import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
 import { ThoughtTimeline } from './thought-timeline';
@@ -615,6 +617,7 @@ function AssistantBody({
           organizationId={organizationId}
         />
       )}
+      <ReplyAuthor message={message} />
       <ThoughtTimeline
         parts={message.parts}
         {...(message.reasoningText !== undefined
@@ -679,6 +682,13 @@ function AssistantBody({
           exists: the deliverable sits right under the answer, never behind
           the tool steps. */}
       <MessageArtifacts parts={message.parts} organizationId={organizationId} />
+      {/* The changes to projects and agents the reply proposed: cards the
+          person applies or dismisses. */}
+      <SettingsProposalCards
+        parts={message.parts}
+        {...(organizationId !== undefined ? { organizationId } : {})}
+        {...(threadId !== undefined ? { threadId } : {})}
+      />
       {/* The reply spoke of a file it does not carry — a file tool stored
           nothing, or the text claims an attachment: say so where the file
           would be, so the prose is not taken for a delivery. */}

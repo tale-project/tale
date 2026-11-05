@@ -375,6 +375,77 @@ describe('ThoughtTimeline drill-down', () => {
     expect(screen.getByText('PAGE BODY')).toBeInTheDocument();
   });
 
+  it('shows the sentence a refused call answered with, not its JSON', async () => {
+    const { user } = render(
+      <ThoughtTimeline
+        parts={[
+          {
+            type: 'tool-call',
+            callId: 'c1',
+            capabilityId: 'propose_project_settings',
+            input: { change: 'create_agent', project: 'Review Crew' },
+          },
+          {
+            type: 'tool-result',
+            callId: 'c1',
+            capabilityId: 'propose_project_settings',
+            output: {
+              status: 'invalid_args',
+              message: 'Review Crew already has an agent called Proofreader.',
+            },
+            structured: true,
+          },
+        ]}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Drafting a new agent for Review Crew',
+      }),
+    );
+    expect(
+      screen.getByText('Review Crew already has an agent called Proofreader.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/"status"/)).toBeNull();
+  });
+
+  it('keeps what else a failed step carries under its sentence', async () => {
+    const { user } = render(
+      <ThoughtTimeline
+        parts={[
+          {
+            type: 'tool-call',
+            callId: 'c1',
+            capabilityId: 'run_code',
+            input: { language: 'python', code: 'raise SystemExit(1)' },
+          },
+          {
+            type: 'tool-result',
+            callId: 'c1',
+            capabilityId: 'run_code',
+            output: {
+              status: 'error',
+              message: 'The program ended with exit code 1.',
+              stderr: 'Traceback: boom',
+            },
+            structured: true,
+          },
+        ]}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Running Python in a light sandbox' }),
+    );
+    expect(
+      screen.getByText(/The program ended with exit code 1\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Traceback: boom/)).toBeInTheDocument();
+  });
+
   it('reveals the reasoning prose from the header toggle', async () => {
     const { user } = render(
       <ThoughtTimeline

@@ -32,6 +32,10 @@ export interface ChatThreadSummary {
   readonly capabilities?: unknown;
   /** The project the thread is filed under (absent = the loose Chats list). */
   readonly projectId?: string;
+  /** The project agent the conversation answers as (absent = the chat
+   * assistant). May name an agent since deleted with its project: the
+   * composer reads it against the project's agents. */
+  readonly chatAgentId?: string;
   /** Owner's opt-in: readable by everyone with access to its project. */
   readonly sharedWithProject?: boolean;
   readonly archived: boolean;
@@ -126,6 +130,9 @@ export interface ChatMessageUsage {
    * upstream a gateway routed to, the region that answered, and model ids
    * that differ from the one requested. */
   readonly serving?: TurnServing;
+  /** The project agent that wrote the reply, under its name at the time;
+   * absent for the chat assistant. */
+  readonly agent?: { readonly id: string; readonly name: string };
 }
 
 /** One rendered message. `parts` is authored order and is rendered in it. */

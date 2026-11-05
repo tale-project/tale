@@ -76,6 +76,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
     projectId: thread.projectId ?? null,
     title: thread.title ?? t('history.untitled'),
     archived: thread.archived,
+    ...(thread.sharedWithProject === true ? { sharedWithProject: true } : {}),
   });
   const treatment = useSubPanelRowTreatment(active && !isDragging);
 
@@ -316,7 +317,7 @@ export function ThreadRowMenu({
   const navigate = useNavigate();
   const { organizationId, projects, orgHeld, heldThreadIds } =
     useThreadListFrame();
-  const menuActions = useThreadMenuActions(organizationId, thread);
+  const menuActions = useThreadMenuActions(organizationId, thread, projects);
   // Row-only actions (mark read) live outside the shared menu handlers.
   const actions = useThreadActions(organizationId);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -466,6 +467,7 @@ export function ThreadRowMenu({
           onOpenChange={setDeleteOpen}
         />
       )}
+      {menuActions.moveConfirmDialog}
     </>
   );
 }

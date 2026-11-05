@@ -47,11 +47,29 @@ Choose the conversation’s location before asking about files:
 | A chat inside a project | That project’s files, Knowledge-library documents you can access, and the chat’s own attachments. |
 | A shared chat link | A read-only snapshot; viewers cannot ask follow-up questions there. |
 
-Project chat also receives the project’s standing instructions. File access is enforced by Tale, so asking a project chat to read a different project does not grant access. Trashed or expired files are not searchable.
+Project chat also receives the project’s standing instructions, and one of the project’s agents can answer in it ([below](#who-answers)). File access is enforced by Tale, so asking a project chat to read a different project does not grant access. Trashed or expired files are not searchable.
 
 Use [attachments](/platform/chat/attachments) for material needed in this conversation, [project files](/platform/projects/manage-files) for recurring project work, and [Knowledge](/platform/knowledge/overview) for shared reference material. The assistant retrieves content when it needs it; uploading a document does not mean every answer has read it.
 
 Questions about Tale itself need no upload: the assistant looks up the public documentation at docs.tale.dev before explaining how a screen or setting works. If the server cannot reach docs.tale.dev, for example on a self-hosted installation without internet access, the timeline shows a failed reading step and the answer is not grounded in the documentation. The documentation describes the latest release, so the assistant points out when your workspace may differ.
+
+## Choose who answers in a project chat {#who-answers}
+
+The message box shows the chat’s project. For a new chat, choose the project there before you send. In a chat you’re continuing, choosing another project moves the chat, and **Remove from project** takes it out. Moving a chat that is shared with its project ends that share, so Tale asks before it moves the chat.
+
+In a project with agents of its own, a second button beside the project names who answers: one of the project’s agents, or **Assistant**, the workspace’s chat assistant. A new chat starts with the project’s default chat agent, which is the first agent created in the project unless an Editor or Admin chose another on the project’s **General** page. A chat moved into another project answers as that project’s default from its next reply, and a chat taken out of its project answers as the assistant. Only you, the chat’s owner, can change who answers.
+
+An agent answers with its own instructions and skills, and with its model when you may use that model in chat; otherwise your model answers, and the menu says so. The agent’s runtime, connectors, platform tools and secrets stay with its [tasks](/platform/projects/project-agents). Above each reply an agent wrote stand the agent’s name and an **Agent** mark.
+
+## Create or change projects and agents from chat {#proposals}
+
+You can ask the assistant to create a project, to change a project’s name, description, instructions or default chat agent, to add an agent to a project, or to change an agent’s name, instructions, model or skills. For example: “Add a proofreader agent to Website relaunch that checks spelling in British English.”
+
+The assistant changes nothing itself. It reads the projects you can open, then shows the change as a card under its reply: each field a new project or agent gets, or what a field is now and what it becomes. Nothing happens until you select **Apply**, which makes exactly that change, as you, the way the project’s own pages would. **Dismiss** leaves everything as it was. After **Apply**, the card says **Applied** and links to the project or its agents, and it keeps that outcome when you come back. Colleagues reading a chat you shared see the cards without the buttons.
+
+If something changed after the proposal was made, for example a colleague edited the agent, **Apply** changes nothing: the card says **Not applied** and why. Ask the assistant for a new proposal.
+
+Only Editors, Developers, Admins and Owners get these proposals; a Member’s assistant can describe a change but not propose it, and a message sent through the API gets none. In a chat filed in a project, the assistant reads and changes that project only, though it can still propose a new project. A project created from a card is open to everyone in the organization; choose its teams under **Audience** on its **General** page. Sharing, secrets, connectors, an agent’s tools, repository access and deleting a project or an agent stay on the project’s pages.
 
 ## Check what the assistant used
 
@@ -59,7 +77,7 @@ Above the reply, the timeline shows search and reading steps. A failed step expl
 
 **Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
-The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. It can also make files, such as a spreadsheet, a Word document or a chart, create images when your organization allows them, and follow [skills](/platform/workspace/skills) from your library; [Make files and use skills in chat](/platform/chat/files-and-skills) shows how. Chat does not change connected systems, and work on a repository, in a browser session or lasting hours belongs in a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents; [Turn a chat into a task](#create-task-from-chat) shows how to start it from the conversation.
+The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. It can also make files, such as a spreadsheet, a Word document or a chart, create images when your organization allows them, and follow [skills](/platform/workspace/skills) from your library; [Make files and use skills in chat](/platform/chat/files-and-skills) shows how. Chat does not change connected systems, it changes a project or an agent only through a [card you apply](#proposals), and work on a repository, in a browser session or lasting hours belongs in a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents; [Turn a chat into a task](#create-task-from-chat) shows how to start it from the conversation.
 
 ## See how a reply was produced {#reply-details}
 
@@ -102,7 +120,7 @@ Use the reply toolbar to copy an answer, give feedback, inspect its details, or 
 
 Your own messages sit on the right. A long one shows its beginning, with **Read more** to open the rest in place and **Show less** to fold it again. Point at one of your messages, or move the keyboard focus into it, to see when you sent it and to use **Edit message**, which changes the text in a new version of the conversation; on a touch screen, both are always shown. Under a message you edited, or one whose reply you asked for again with **Try again**, **Previous branch** and **Next branch** switch between the versions, and the number between them, such as 2/3, says which one is on screen.
 
-Find earlier chats in [Home](/platform#home); **Chats** above the list hides your tasks and inbox conversations. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work: drag it onto the project or choose **Move to project…** in its menu. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
+Find earlier chats in [Home](/platform#home); **Chats** above the list hides your tasks and inbox conversations. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work: drag it onto the project, choose **Move to project…** in its menu, or choose the project in the message box. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
 
 Very long conversations may exceed the model’s context window. Tale then first shortens the oldest results of the assistant’s earlier steps, such as web pages, files or search results, and leaves out the oldest messages only when that is not enough. The assistant is told what was shortened or left out. Restate an important requirement or start a new chat with the relevant sources instead of assuming the assistant still sees the entire history.
 

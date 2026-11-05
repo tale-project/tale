@@ -306,6 +306,11 @@ describe('REST thread paths enforce project scope', () => {
     );
     expect(metadata?.values).toContain('p-a');
     expect(metadata?.values).toContain('direct');
+    // The built-in assistant answers it, whichever agent the project's chats
+    // start with in the app: nothing asks the project for its default.
+    expect(
+      queries.some((query) => query.text.includes('default_chat_agent_id')),
+    ).toBe(false);
   });
 
   it.each([

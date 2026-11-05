@@ -146,6 +146,39 @@ one, and the project's next agent save stores it.
 - **Example**: Ines's agent "Invoice checker" answers to `@invoice-checker`; Marco then saves
   an automation named `invoice-checker` → the agent answers to `@invoice-checker-02`.
 
+## Chats with the project's agents
+
+### PROJ-R26 · A project's new chats start with its default chat agent
+
+The default is set on the project's **General** page: **First agent created** (the default),
+one of the project's own agents, or **Assistant**. On **First agent created** it is the
+project's oldest agent of its own, whichever that is when a chat starts; the standard agent
+never counts. A project with no agent of its own starts its chats with the assistant. Existing
+chats keep the agent they answer as.
+
+- **Example**: Website relaunch has Copy reviewer (the oldest) and Coder, and its default is
+  **First agent created** → Mia's new chat there answers as Copy reviewer. Noah sets **Coder**
+  → her next new chat answers as Coder; the earlier one still answers as Copy reviewer.
+
+### PROJ-R27 · Deleting an agent hands its chats back to the assistant
+
+In the same step as the delete: every chat that answered as the agent answers as the assistant
+from its next reply, and a project whose default chat agent was that agent goes back to
+**First agent created**.
+
+- **Example**: Website relaunch's default chat agent is Coder. Noah deletes Coder → new chats
+  start with Copy reviewer, and Mia's chat with Coder answers as the assistant.
+
+### PROJ-R28 · Only editors and admins set the default chat agent, from a current page
+
+Members see it and cannot change it; nobody can while the project is archived. A save names
+the choice the page read: when someone changed it in between, it is refused
+(`PROJECT_CHAT_AGENT_STALE`) and the page reads it again. Choosing an agent that is not one of
+the project's own is refused (`PROJECT_CHAT_AGENT_INVALID`).
+
+- **Example**: Noah and Ada open Website relaunch's General page. Ada sets **Assistant**; Noah
+  then saves **Coder** from his page → refused, and his page shows Ada's choice.
+
 ## Secrets
 
 ### PROJ-R13 · Only owners and admins can change a project's secrets

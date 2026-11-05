@@ -173,6 +173,16 @@ export interface TurnUsage {
    * already says why it could make none, and on a reply the guardrails
    * blocked. */
   readonly fileNotAttached?: boolean;
+  /** The project agent the reply spoke as, when it was not the chat
+   * assistant: its id and its name at the time, so the transcript says who
+   * wrote each reply after a switch, a rename or a delete. */
+  readonly agent?: TurnAuthor;
+}
+
+/** Who wrote a reply, when a project agent did. */
+export interface TurnAuthor {
+  readonly id: string;
+  readonly name: string;
 }
 
 /** Why a turn's work tools could not be offered as its organization's

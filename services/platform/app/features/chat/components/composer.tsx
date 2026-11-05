@@ -9,10 +9,12 @@
  * (or **Use a skill** in the `+` menu) opens the skills they may use, and a
  * pick writes `/name` into the message, which its reply reads before the
  * model answers (`lib/skills/slash.ts`); the picker's Skills section sets
- * them for the whole conversation. There is no agent picker and no sandbox
- * control (the Chat·Task·Automation boundary): the assistant makes files
- * with its own tools, and work that needs an owner or a review belongs to a
- * Task.
+ * them for the whole conversation. A project chat also shows where it is
+ * filed and who answers in it — the assistant or one of the project's own
+ * agents (`leadingControls`, built by the surface). There is no sandbox
+ * control (the Chat·Task·Automation boundary): the reply makes files with
+ * its own tools, and work that needs an agent's runtime, an owner or a
+ * review belongs to a Task.
  *
  * Send and stop are the same slot, because a thread is either taking input
  * or producing output: while a turn is in flight the button stops it, and
@@ -54,6 +56,7 @@ import {
   useState,
   type ClipboardEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -225,6 +228,12 @@ interface ComposerProps {
   /** The skills the person may choose. Absent, disabled or empty hides the
    * `/` typeahead, the `+` menu's entry and the picker's Skills section. */
   skillChoices?: ComposerSkillChoices;
+  /** Where the chat is filed and who answers in it — the project and agent
+   * controls — between the `+` menu and the model picker. */
+  leadingControls?: ReactNode;
+  /** An agent answers with its own model: the model control shows its
+   * mark alone on a narrow toolbar. */
+  compactModelPicker?: boolean;
 }
 
 export const Composer = memo(
@@ -269,6 +278,8 @@ export const Composer = memo(
       arenaActive,
       onArenaChange,
       skillChoices,
+      leadingControls,
+      compactModelPicker,
     },
     ref,
   ) {
@@ -820,7 +831,13 @@ export const Composer = memo(
               gap={2}
               justify="between"
               align="center"
-              className={THREAD_COMPOSER_TOOLBAR_CLASS}
+              // The toolbar's width decides how much its controls say: a
+              // narrow composer (a phone, a squeezed column) shows the
+              // project and agent controls by their marks alone.
+              className={cn(
+                THREAD_COMPOSER_TOOLBAR_CLASS,
+                '@container/composer-toolbar',
+              )}
             >
               <Row
                 gap={1}
@@ -836,6 +853,7 @@ export const Composer = memo(
                   {...(skills.length > 0 ? { onUseSkill: startSkillPick } : {})}
                   disabled={disabled}
                 />
+                {leadingControls}
                 <ComposerSelectionPicker
                   models={models}
                   {...(subscriptionProviders !== undefined
@@ -845,6 +863,7 @@ export const Composer = memo(
                   onSelectionChange={onSelectionChange}
                   skills={skills}
                   disabled={disabled}
+                  compact={compactModelPicker === true}
                 />
               </Row>
 

@@ -1,18 +1,21 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 138 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 152 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
 edit/branch/regenerate/stop, the thought timeline and source cards, share
 links and forking, arena mode, the chat header, the chat rows of the Home
 panel (pin, rename, move to a project, archive, delete), and the degraded
-states (backend unavailable, no provider, budget exceeded). There is **no
-agent picker** anymore: the composer picks a **model**, a reasoning effort and
-the skills a reply reads (CHAT-F73–CHAT-F75); agents and connectors are
-equipped per **project** (see [projects.md](projects.md)); chat reads skills
-from the person's own skill library and makes files with its own tools
-(CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77). The Home panel itself — its views,
+states (backend unavailable, no provider, budget exceeded). The composer
+picks a **model**, a reasoning effort and the skills a reply reads
+(CHAT-F73–CHAT-F75); it also names the chat's project and, in a project with
+agents, who answers: the assistant or one of the agents (CHAT-F88–CHAT-F93).
+Agents and connectors are equipped per **project** (see
+[projects.md](projects.md)); chat reads skills from the person's own skill
+library, makes files with its own tools (CHAT-F66–CHAT-F72, CHAT-F76,
+CHAT-F77) and proposes changes to projects and agents that the person
+applies (CHAT-F94–CHAT-F96). The Home panel itself — its views,
 bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
 list of its own any more.
 
@@ -34,9 +37,11 @@ Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
 `e2e:length` / `e2e:stream-error` / `e2e:gateway-route` /
 `e2e:cloud-region` / `e2e:make-file` / `e2e:make-spreadsheet` /
-`e2e:run-long-code` / `e2e:file-ref`) drive
+`e2e:run-long-code` / `e2e:file-ref` / `e2e:who-answers` /
+`e2e:propose-project` / `e2e:propose-agent <project>`) drive
 CHAT-F16, CHAT-F17, CHAT-F19, CHAT-F57, CHAT-F58, CHAT-F62,
-CHAT-F66–CHAT-F68, CHAT-F72 and CHAT-F87; CHAT-F68 and CHAT-F72 also need the sandbox
+CHAT-F66–CHAT-F68, CHAT-F72, CHAT-F87, CHAT-F90, CHAT-F91 and
+CHAT-F94–CHAT-F95; CHAT-F68 and CHAT-F72 also need the sandbox
 service (full Docker stack). Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
@@ -836,6 +841,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   no such line shows under that reply. Send "Write planets.csv with the eight
   planets in order from the sun" → a **planets.csv** card arrives under the
   reply and no such line shows.
+
+### Projects and agents
+
+A project with two agents of its own, created in this order on its **Agents**
+tab: **Copy reviewer**, whose instructions start with the line
+`E2E persona: Copy reviewer`, and **Coder**, starting
+`E2E persona: Coder` — the mock answers `e2e:who-answers` with the name on
+that line, or **Answering as the assistant.** when there is none. A second
+project with no agents of its own. Both agents run a model the owner may use
+in chat (mode A: the mock's).
+
 - [ ] `CHAT-F87` · **A file the reply names by its reference** — Mode A with
   object storage: in a new chat send `e2e:file-ref` → one **planets.csv** card
   under the reply, and none in the text: where the reply wrote the file as a
@@ -844,6 +860,82 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   address to open in a tab): it opens the file's preview, with its download;
   Escape closes it. **Copy** on the reply copies the text without the
   file's `s3:` reference. Reload → the same.
+- [ ] `CHAT-F88` · **The project in the message box** — Open
+  `/dashboard/{org}/chat?new=true` → the composer shows a project button named
+  **No project. Choose a project** (`chat.projectPicker.ariaNone`). Choose the
+  first project, then send a message → the chat opens under its id, its Home row
+  names the project, and the button reads **Project: {name}. Change the
+  project** (`chat.projectPicker.aria`). Choose the second project → the Home
+  row moves; choose **Remove from project** (`chat.removeFromProject`) → the
+  row names no project. Before sending in a new chat, **Remove from project**
+  only clears the choice.
+- [ ] `CHAT-F89` · **Moving a shared chat asks first** — Share a chat of the
+  first project with the project (**Share with project**), then choose the
+  second project in its message box → a dialog **Move this shared chat?**
+  (`chat.moveShared.title`) names both projects and says the share ends.
+  **Cancel** changes nothing; **Move chat** (`chat.moveShared.confirm`) moves
+  it, and a colleague in the first project no longer finds it under **Shared
+  with project**. Removing a shared chat from its project asks **Take this
+  shared chat out of its project?** (`chat.moveShared.removeTitle`). An
+  unshared chat moves without a dialog.
+- [ ] `CHAT-F90` · **A project chat answers as the first agent created** — Mode
+  A: open `/dashboard/{org}/chat?projectId={projectId}` for the first project →
+  beside the project, a button **Who answers: Copy reviewer. Change who
+  answers** (`chat.agentPicker.aria`). Send `e2e:who-answers` → the reply reads
+  **Answering as Copy reviewer.**, and above it stand **Copy reviewer** and an
+  **Agent** badge (`chat.replyAuthor.agentBadge`); **Show info** on the reply
+  names the agent under **Agent** (`chat.messageInfo.agent`). Reload → the same.
+- [ ] `CHAT-F91` · **Choosing who answers** — In that chat open the agent menu →
+  **Assistant** (`chat.agentPicker.assistant`), **Copy reviewer** marked
+  **Default** (`chat.agentPicker.default`) and **Coder**, each with its model,
+  and the note `chat.agentPicker.hint`. Pick **Coder** → the model button
+  follows Coder's model; `e2e:who-answers` answers **Answering as Coder.** Pick
+  **Assistant** → the model button returns to the owner's own choice, and the
+  next `e2e:who-answers` answers **Answering as the assistant.**, with no
+  author line above it. Earlier replies keep the names they were written under.
+- [ ] `CHAT-F92` · **The agent follows the project** — Move a chat answering as
+  Coder into the second project (no agents) → the agent button disappears and
+  the next reply answers as the assistant. Move it back into the first project
+  → the button names the project's default chat agent again. Take it out of
+  projects → no agent button.
+- [ ] `CHAT-F93` · **An agent whose model the person cannot use in chat** — Give
+  Coder a model the owner may not use in chat (a subscription-served model,
+  or one Model access hides from them), then pick Coder → the menu reads
+  **Coder's model can't answer in a chat for you, so your model answers
+  instead.** (`chat.agentPicker.unservedModel`), the model button keeps the
+  owner's model, and a reply still answers as Coder with Coder's instructions.
+- [ ] `CHAT-F94` · **A chat proposes an agent** — Mode A, in a new chat: send
+  `e2e:propose-agent {first project}` → the timeline shows **Drafting a new
+  agent for {first project}** (`chat.thinking.proposing.createAgent`), and a
+  card **New agent in {first project}** (`chat.proposal.title.createAgent`)
+  lists **Name** Proofreader, **Model**, **Agent runtime**, **Skills** (the
+  document skills the project can equip, as **New agent** ticks them) and
+  **Instructions**, marked **Proposed** with **Nothing changes until you apply
+  it.** (`chat.proposal.nothingYet`). The project's **Agents** tab has no
+  Proofreader. **Apply** (`chat.proposal.apply`) → the card reads **Applied**,
+  its buttons are gone, and **Open the project's agents**
+  (`chat.proposal.openAgents`) opens the tab, which lists Proofreader. Reload
+  the chat → still **Applied**, with no buttons.
+- [ ] `CHAT-F95` · **A dismissed proposal** — Mode A, in a new chat: send
+  `e2e:propose-project` → a card **New project** lists **Name** Launch site,
+  **Key** LS, **Description** and **Instructions**, and says everyone in the
+  organization can open the new project (`chat.proposal.orgWide`). **Dismiss**
+  (`chat.proposal.dismiss`) → **Dismissed**, no buttons; no project named
+  Launch site appears under **Projects**. Reload → still **Dismissed**.
+- [ ] `CHAT-F96` · **A proposal whose subject changed since** — Mode B (a live
+  model): in a chat ask "Rename Coder in {first project} to Builder" → a card
+  **Change agent Coder** (`chat.proposal.title.updateAgent`) shows **Name**
+  Coder → Builder. Before applying, change Coder's instructions on the
+  **Agents** tab and save. Then **Apply** → the card reads **Not applied** with
+  **This changed since the proposal was made. Ask the chat for a new
+  proposal.** (`chat.proposal.failure.stale`), a toast **The change wasn't
+  applied** (`chat.proposal.applyFailed`), and Coder keeps its name. Ask again
+  → a new card; **Apply** renames it.
+- [ ] `CHAT-F97` · **Who may decide a proposal** — Share the chat of CHAT-F94
+  with its project; a colleague opens it → the cards show their outcome and
+  fields, with no **Apply** or **Dismiss**; a pending one reads **Proposed**. As a Member, ask a chat (mode B) to
+  create a project → no card appears, and the reply does not claim it was
+  done.
 
 ## Boundary & error tests
 
@@ -1063,6 +1155,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   reads `chat.errorHintCreditExhaustedNamed` instead), with the tried-models
   line (`chat.errorTriedModels`) and both refusals, one per line, under the
   technical details. Put working keys back afterwards.
+- [ ] `CHAT-B31` · **Another project's agent for this chat** — In the devtools
+  console of a chat in the first project, send
+  `fetch('/api/app/chat/threads/{threadId}/agent?orgId={org}', {method: 'POST',
+  headers: {'content-type': 'application/json'}, body: JSON.stringify({agentId:
+  '{an agent of another project}'})})` → 400 `CHAT_AGENT_INVALID`; reload →
+  the agent button names the agent it had.
+- [ ] `CHAT-B32` · **Deleting the agent a chat answers as** — Delete Coder on
+  the first project's **Agents** tab while a chat answers as Coder → reopen the
+  chat: the agent button reads **Assistant**, and `e2e:who-answers` answers
+  **Answering as the assistant.** (mode A). Coder's earlier replies keep its
+  name above them.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1170,6 +1273,19 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   Enter or Tab writes it; Escape closes the list and keeps the text. A sent
   message's chip reads as **Skill brief-summary** (`chat.skillChip.label`). A
   failed step's line (CHAT-F76) is read as the step's description.
+- [ ] `CHAT-A13` · **The project and agent buttons by keyboard** — Tab from the
+  message box to the project button and the agent button → each is announced
+  by its name (`chat.projectPicker.aria`, `chat.agentPicker.aria`); Enter opens
+  its menu with the search field focused; Down and Up move through the
+  options, Enter picks one, Escape closes the menu and returns the focus to
+  the button. At a width of 375 px both buttons fit the toolbar as icons and
+  keep their names.
+- [ ] `CHAT-A14` · **A proposal card by keyboard and screen reader** — After
+  CHAT-F94's reply, Tab into the card → it is a region named by its title;
+  **Apply** and **Dismiss** are the next stops, each with a visible focus
+  ring. Press Enter on **Apply** → while it works the button reads busy;
+  afterwards the focus is on the card, which reads **Applied**, never lost to
+  the page, and the next Tab stop is **Open the project's agents**.
 
 ## Performance
 

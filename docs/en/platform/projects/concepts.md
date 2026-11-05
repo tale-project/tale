@@ -9,13 +9,15 @@ Use a project when several questions or tasks depend on the same reference mater
 
 | Area | What belongs here |
 | --- | --- |
-| **General** | Name, description, standing instructions, sharing, and the default task reviewer. |
+| **General** | Name, description, standing instructions, sharing, the default task reviewer, and who answers in new chats. |
 | **Chats** | Your project conversations and the conversations explicitly shared with the project. |
 | **Knowledge** | Reference files organized into folders and scoped to this project. |
 | **Tasks** | Work with an owner, status, comments, and a result to review. |
 | **Agents** | Named agents configured to work on tasks. |
 
 Project chat starts with the saved project instructions. It can search this project's files together with the organization's accessible knowledge. This gives later conversations a common starting point without copying a brief into every message. Other projects' files are outside that search scope.
+
+Under **Chats** on **General**, **Default chat agent** decides who the project's new chats answer as. **First agent created**, the default, is always the oldest agent the project still has; you can also choose one of the agents or **Assistant**. People can still switch in a chat's message box, and chats that already exist keep theirs. Editors and Admins change it while the project is active.
 
 <Frame caption="General holds the project instructions and sharing controls. Save after changing the fields.">
 

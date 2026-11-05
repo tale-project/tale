@@ -9,8 +9,9 @@
  * (`lib/agent/work-tools.ts`), and its guide lives here in code where a
  * config edit cannot widen it. Org voice still applies through the governance mandatory
  * instructions; personas with their own instructions, skills and allowlists
- * are project agents working tasks (`backend/domains/projects/`) and
- * automation agent nodes.
+ * are project agents (`backend/domains/projects/`) — working tasks, or
+ * answering a project chat someone chose them for ({@link chatAgentFor}) —
+ * and automation agent nodes.
  *
  * The instructions are authored in English only. The runtime-directives block
  * of the context contract already sets the reply language — the user's own,
@@ -107,6 +108,25 @@ export const CHAT_ASSISTANT: ResolvedAgent = {
 };
 
 /**
+ * A project agent a chat answers as: who it is and what it brings — its own
+ * instructions and the skills it is equipped with. Its runtime, connectors,
+ * platform tools, secrets and repository access belong to its task runs and
+ * never reach a chat.
+ */
+export interface ConversationAgent {
+  readonly id: string;
+  readonly name: string;
+  readonly instructions: string | null;
+  readonly skills: readonly string[];
+}
+
+/** What is true of a project agent answering in a chat rather than working a
+ * task: who it answers, and what it has here and lacks. */
+function inThisChat(name: string): string {
+  return `**IN THIS CHAT** — you are "${name}", one of this project's agents, answering the person in a chat in this workspace. Your instructions above are written for your work on the project's tasks; here you answer in the conversation, with the tools this chat gives you. Your runtime, repository access, connectors, platform tools and secrets are not available in a chat: when the work needs them, it is a task for you, and you give the steps exactly as the hand-over note below states.`;
+}
+
+/**
  * The persona for a turn offering `loadout`. Without any work tool it is
  * {@link CHAT_ASSISTANT}, byte for byte, so the cached prefix of such an
  * organization does not move. With them, the deliverables rule gives way to
@@ -149,6 +169,42 @@ export function chatAssistantFor(
       WORK_LIVES_HERE,
       ladder,
       TASK_WORK,
+      QUESTIONS_ABOUT_TALE,
+      NO_RAW_CONTEXT,
+      RESPONSE_STYLE,
+    ].join('\n\n'),
+  };
+}
+
+/**
+ * The persona of a chat turn answered by the project agent `agent`. The
+ * agent's own instructions lead, as they do when it works a task
+ * (`lib/agent/task-persona.ts`); then what is true of a chat for it; then
+ * the rules every chat reply keeps, with the work ladder for the tools the
+ * turn offers. The slug is the agent's id — the axis the reply's spend is
+ * booked under, as a task run of the agent books it.
+ */
+export function chatAgentFor(
+  agent: ConversationAgent,
+  loadout: WorkLoadout | undefined,
+  options: { toolsUnavailable?: boolean } = {},
+): ResolvedAgent & { readonly instructions: string } {
+  const own = agent.instructions?.trim() ?? '';
+  const ladder = loadout === undefined ? undefined : renderWorkLadder(loadout);
+  const work =
+    options.toolsUnavailable === true
+      ? [...(ladder !== undefined ? [ladder] : []), FILE_TOOLS_UNAVAILABLE]
+      : ladder === undefined
+        ? [DELIVERABLES_GO_TO_TASKS]
+        : [ladder, TASK_WORK];
+  return {
+    slug: agent.id,
+    instructions: [
+      ...(own !== '' ? [own] : []),
+      inThisChat(agent.name),
+      NO_FABRICATION,
+      WORK_LIVES_HERE,
+      ...work,
       QUESTIONS_ABOUT_TALE,
       NO_RAW_CONTEXT,
       RESPONSE_STYLE,

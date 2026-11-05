@@ -106,6 +106,7 @@ import { checkVersionDoors } from './domains/automations/version-doors.integrati
 import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
 import { checkVersionRetention } from './domains/automations/version-retention.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
+import { checkChatProjectAgents } from './domains/chat/project-agents.integration.ts';
 import { chatSendAttachmentSchema } from './domains/chat/routes.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
@@ -65627,6 +65628,23 @@ async function main(): Promise<void> {
           ),
       ],
       ['checkProjects', () => checkProjects(sql, baseUrl, authCtx)],
+      [
+        'checkChatProjectAgents',
+        async () => {
+          const owner = await signUpOrgOwner(baseUrl, 'chat-agents');
+          return checkChatProjectAgents(sql, baseUrl, owner, record, () =>
+            seedItestAgentProvider({
+              base: baseUrl,
+              cookie: owner.cookie,
+              orgId: owner.orgId,
+              orgSlug: owner.orgSlug,
+              displayName: 'Itest Agent',
+              credentialName: 'Agent key',
+              secret: 'sk-itest-chat-agents',
+            }),
+          );
+        },
+      ],
       ['checkTasks', () => checkTasks(sql, baseUrl, authCtx)],
       [
         'checkTasksOrgIsolation',

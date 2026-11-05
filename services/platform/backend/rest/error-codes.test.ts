@@ -168,6 +168,13 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // credential admin surface is the app's (`/api/app/provider-credentials`);
   // REST has no credential door.
   'CREDENTIAL_IN_USE',
+  // Who a chat answers as, and who a project's new chats start with, are
+  // chosen in the app (`/api/app/chat/threads/{id}/agent`,
+  // `/api/app/projects/{id}/chat-agent`); a REST create never names an agent
+  // (CHAT-R14), so none of these reaches a REST caller.
+  'CHAT_AGENT_INVALID',
+  'PROJECT_CHAT_AGENT_INVALID',
+  'PROJECT_CHAT_AGENT_STALE',
   // A managed declaration creates an agent under the id it chooses
   // (`/api/app/projects/{id}/agents/{agentId}/configuration/agent`); a REST
   // create never names an agent's id, so another agent never holds it.

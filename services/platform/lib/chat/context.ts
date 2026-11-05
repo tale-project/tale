@@ -145,6 +145,9 @@ export interface ProjectContext {
   /** The project's own standing instructions — the field the editor promises
    * "every chat in this project starts with these instructions". */
   readonly instructions?: string;
+  /** The names of the project's own agents, oldest first: who else could
+   * answer in this chat, so a question about them is answered from fact. */
+  readonly agents?: readonly string[];
 }
 
 export interface ContextInput {
@@ -491,6 +494,17 @@ function renderProjectContext(project?: ProjectContext): string | undefined {
       "Your tools reach this project's files and the organization's shared " +
       'knowledge; other projects are out of scope in this chat.',
   ];
+  const agents = (project?.agents ?? [])
+    .map((agent) => agent.trim())
+    .filter((agent) => agent !== '');
+  if (agents.length > 0) {
+    lines.push(
+      '',
+      `The project's agents: ${agents.map((agent) => `"${agent}"`).join(', ')}. ` +
+        'In the message box the person chooses who answers in this chat: one ' +
+        'of these agents, or the chat assistant.',
+    );
+  }
   if (instructions) {
     lines.push('', `Instructions for this project:`, instructions);
   }

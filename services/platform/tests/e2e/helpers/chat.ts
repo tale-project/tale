@@ -52,7 +52,7 @@ export function messageLog(page: Page, resolveLabel: typeof t = t): Locator {
  * key flips at most once, so a later attempt always wins). ONE implementation
  * for the whole suite.
  */
-async function fillComposer(page: Page, message: string): Promise<void> {
+export async function fillComposer(page: Page, message: string): Promise<void> {
   const box = composer(page);
   await expect(box).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await expect(box).toBeEnabled();
@@ -86,6 +86,20 @@ export async function sendNewThreadMessage(
     throw new Error(`No thread id in the URL after sending: ${page.url()}`);
   }
   return threadId;
+}
+
+/** Send `message` in the open thread and wait for its turn to finish. */
+export async function sendInOpenThread(
+  page: Page,
+  message: string,
+): Promise<void> {
+  await fillComposer(page, message);
+  await expect(sendButton(page)).toBeEnabled();
+  await sendButton(page).click();
+  await expect(messageLog(page).getByText(message)).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+  await waitForReplyComplete(page);
 }
 
 /**

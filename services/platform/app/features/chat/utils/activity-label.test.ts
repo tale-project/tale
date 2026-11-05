@@ -211,6 +211,53 @@ describe('stepActivityLabel — the work tools', () => {
   });
 });
 
+describe('stepActivityLabel — the settings tools [CHAT-R44]', () => {
+  const t = fakeT();
+
+  it('names what a read of the projects reads', () => {
+    expect(stepActivityLabel(t, { tool: 'read_project_settings' })).toBe(
+      'thinking.readingProjects',
+    );
+    expect(
+      stepActivityLabel(t, {
+        tool: 'read_project_settings',
+        input: { project: 'Website relaunch' },
+      }),
+    ).toBe('thinking.readingProjectSettings {"name":"Website relaunch"}');
+    expect(
+      stepActivityLabel(t, {
+        tool: 'read_project_settings',
+        input: { project: 'Website relaunch', agent: 'Copy reviewer' },
+      }),
+    ).toBe('thinking.readingAgentSettings {"name":"Copy reviewer"}');
+  });
+
+  it('names what a proposal drafts, and drafts a change when it names nothing', () => {
+    const proposing = (input: unknown) =>
+      stepActivityLabel(t, { tool: 'propose_project_settings', input });
+    expect(proposing({ change: 'create_project', name: 'Launch site' })).toBe(
+      'thinking.proposing.createProject',
+    );
+    expect(
+      proposing({ change: 'update_project', project: 'Website relaunch' }),
+    ).toBe('thinking.proposing.updateProject {"name":"Website relaunch"}');
+    expect(
+      proposing({ change: 'create_agent', project: 'Website relaunch' }),
+    ).toBe('thinking.proposing.createAgent {"project":"Website relaunch"}');
+    expect(
+      proposing({
+        change: 'update_agent',
+        project: 'Website relaunch',
+        agent: 'Copy reviewer',
+      }),
+    ).toBe('thinking.proposing.updateAgent {"name":"Copy reviewer"}');
+    expect(proposing({ change: 'update_agent' })).toBe(
+      'thinking.proposing.generic',
+    );
+    expect(proposing(undefined)).toBe('thinking.proposing.generic');
+  });
+});
+
 describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
   const t = fakeT();
 
