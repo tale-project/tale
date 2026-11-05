@@ -48,8 +48,10 @@ test('separate client repositories stage exact committed bytes and arbitrary des
   }
 }, 30_000);
 
-test('historical stages rebuild offline and retain their original repository declaration', async () => {
-  for (const schema of [1, 2] as const) {
+// One test per schema, each within its own budget: a slow Windows runner took
+// 20 s to stage one historical catalogue (#5372).
+for (const schema of [1, 2] as const) {
+  test(`schema ${schema}: historical stages rebuild offline and retain their original repository declaration`, async () => {
     const f = await historicalFixture(schema);
     f.git('add', '--all');
     f.git(
@@ -83,8 +85,8 @@ test('historical stages rebuild offline and retain their original repository dec
     expect(verified.schemaVersion === 1 && verified.catalogueRepository).toBe(
       options.catalogueRepository,
     );
-  }
-}, 30_000);
+  }, 30_000);
+}
 
 test('a self-consistent forged catalogue cannot claim unchanged source provenance', async () => {
   const f = await commandRelease('north-labs', false);
