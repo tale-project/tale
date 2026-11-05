@@ -747,6 +747,35 @@ describe('tunnels', () => {
     socket.destroy();
   });
 
+  it('send all of a big answer to browsers that half-closed and read slowly', async () => {
+    // The upstream is its own origin and ends cleanly: what a browser misses, the
+    // bridge lost.
+    const payload = Buffer.alloc(3_000_000, 'abcdefghij');
+    const upstream = await startTcpServer(async (socket) => {
+      const reader = new SocketReader(socket);
+      await reader.readUntil(CRLF2);
+      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+      await reader.readToEnd();
+      socket.end(payload);
+    });
+    cleanups.push(() => upstream.stop());
+    const bridge = await bridgeTo(`http://127.0.0.1:${upstream.port}`);
+    // One at a time, each pausing after every chunk it reads: the bridge then
+    // still holds the end of the answer when the upstream is done with it.
+    const whole: boolean[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const { socket, reader } = await connect(bridge, 'site.test:443');
+      socket.end('request'); // a half-close: the answer is still to come
+      const answer = Buffer.concat([
+        reader.release(),
+        await readAll(socket, 5000, 20),
+      ]);
+      socket.destroy();
+      whole.push(answer.equals(payload));
+    }
+    expect(whole).toEqual([true, true, true, true, true, true]);
+  });
+
   it('serve many connections at once', async () => {
     const echo = await startTcpServer((socket) => socket.pipe(socket));
     cleanups.push(() => echo.stop());

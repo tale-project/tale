@@ -239,9 +239,17 @@ function relay(
   };
   client.on('error', teardown);
   upstream.on('error', teardown);
-  // One side gone for good: the other has nobody to talk to.
-  client.on('close', () => upstream.destroy());
-  upstream.on('close', () => client.destroy());
+  // A side that is cut off (reset or dropped) leaves the other nobody to talk
+  // to. One that closes after it ended both ways is only done: the other may
+  // still hold the last bytes it sent, and closes by itself once they are out.
+  const cutOff = (socket: net.Socket) =>
+    !(socket.readableEnded && socket.writableFinished);
+  client.on('close', () => {
+    if (cutOff(client)) upstream.destroy();
+  });
+  upstream.on('close', () => {
+    if (cutOff(upstream)) client.destroy();
+  });
   if (early.length > 0) upstream.write(early);
   client.pipe(upstream);
   upstream.pipe(client);
@@ -1111,15 +1119,29 @@ export interface RawResponse {
   raw: string;
 }
 
-/** Everything a socket sends until it closes, or fail after `timeoutMs`. */
-export function readAll(socket: net.Socket, timeoutMs = 5000): Promise<Buffer> {
+/**
+ * Everything a socket sends until it closes, or fail after `timeoutMs`. With
+ * `pauseMs`, it stops reading for that long after every chunk, as a busy client
+ * does, so that what is sent to it backs up in the sender.
+ */
+export function readAll(
+  socket: net.Socket,
+  timeoutMs = 5000,
+  pauseMs = 0,
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new Error(`no end of data within ${timeoutMs} ms`));
     }, timeoutMs);
-    socket.on('data', (chunk: Buffer) => chunks.push(chunk));
+    socket.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+      if (pauseMs > 0) {
+        socket.pause();
+        setTimeout(() => socket.resume(), pauseMs);
+      }
+    });
     socket.once('end', () => {
       clearTimeout(timer);
       resolve(Buffer.concat(chunks));
