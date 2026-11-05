@@ -201,6 +201,50 @@ describe('useRevokeApiKey', () => {
   });
 });
 
+describe('useApiKeys', () => {
+  it('asks for every key that works here apart from the keys the viewer manages [APIKEY-R8]', async () => {
+    backendFetch.mockResolvedValueOnce({ keys: [] });
+    const { result } = renderHook(() => useApiKeys('org-1', 'all'), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(backendFetch).toHaveBeenCalledWith(
+      '/api-keys?scope=all',
+      expect.objectContaining({ orgId: 'org-1' }),
+    );
+    expect(client.getQueryState([...LIST_KEY, 'all'])?.status).toBe('success');
+    expect(client.getQueryState(LIST_KEY)).toBeUndefined();
+  });
+
+  it('reads every key that works here afresh each time the view opens', async () => {
+    // The router keeps a read for five minutes. A member disabled or removed
+    // meanwhile sends no `api_key` hint, so the all view must not reuse it;
+    // the keys the viewer manages send one on every change and keep theirs.
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+    });
+    backendFetch.mockResolvedValue({ keys: [] });
+    const openAll = () =>
+      renderHook(() => useApiKeys('org-1', 'all'), { wrapper });
+    const first = openAll();
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+    openAll();
+    await waitFor(() => expect(backendFetch).toHaveBeenCalledTimes(2));
+
+    backendFetch.mockClear();
+    const openManaged = () =>
+      renderHook(() => useApiKeys('org-1'), { wrapper });
+    const managed = openManaged();
+    await waitFor(() => expect(managed.result.current.isSuccess).toBe(true));
+    managed.unmount();
+    openManaged();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(backendFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 /**
  * A person's own key works in every organization they belong to, so every
  * cached view of keys — this page's and the budget editor's picker, in this
@@ -211,6 +255,7 @@ describe('the cached key views', () => {
   const VIEWS = [
     ['backend', 'org-1', 'api_key', 'org-list'],
     ['backend', 'org-1', 'api_key', 'settings-list'],
+    ['backend', 'org-1', 'api_key', 'settings-list', 'all'],
     ['backend', 'org-2', 'api_key', 'settings-list'],
   ];
   const UNRELATED = ['backend', 'org-1', 'team', 'list'];

@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 152 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 153 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -516,6 +516,24 @@ Restore any toggled setting after the run.
   created** and **API key revoked** by you, while B's shows neither. Repeat
   with Deutsch and Français → the hint, the option and the owner are
   localized.
+- [ ] `SET-F112` · **Every key that works here** — as an Admin, with a
+  Member who made a key for themselves after a password sign-in and SET-F77's
+  key live: `/dashboard/{org}/settings/api/rest` → **Keys to show**
+  (`settings.apiKeys.scope.label`) → **All keys in this organization**
+  (`settings.apiKeys.scope.all`) → The description reads
+  `settings.apiKeys.allKeysDescription`; the Member's own key joins the keys
+  **Keys you manage** (`settings.apiKeys.scope.managed`) lists, its name
+  marked **Personal key** (`settings.apiKeys.owner.personal`), the Member's
+  name over their e-mail under **Belongs to**, **Last used** reading **Not
+  available** (`settings.apiKeys.lastUsedUnavailable`) even after a `GET
+  /api/v1/me` with it, and neither a checkbox nor a row menu; your own keys
+  keep theirs. Change the Member's role to **Disabled**, or remove them from
+  the organization, then open the view again → their own key has left it and
+  still works in their other organizations. Signed in as the Member, the page
+  offers no **Keys to show**, and `GET /api/app/api-keys?scope=all` from their
+  session answers their own keys alone; `?scope=everyone` answers 400
+  `INVALID_QUERY`. Repeat with Deutsch and Français → the choice, the mark and
+  **Not available** are localized.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →

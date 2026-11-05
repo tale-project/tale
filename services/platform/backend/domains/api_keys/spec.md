@@ -129,15 +129,26 @@ when each key expires.
 
 ## Seeing and ending keys
 
-### APIKEY-R8 · Admins see and end every key made here; members see the keys made for them
+### APIKEY-R8 · Admins see every key working here and end those made here; members see theirs
 
 Everyone sees their own keys. An Owner or Admin also sees every key bound to the organization;
 a member sees the keys made for them here. A key bound to an organization is ended at that
 organization's door, never through a person's own key settings (`API_KEY_ORGANIZATION_MANAGED`),
-and the audit log names who made and who ended it.
+and the audit log names who made and who ended it. A member's own key is theirs alone to end; an
+Owner or Admin cuts it off here by disabling or removing the member.
+
+An Owner or Admin can also list every key that works here (**All keys in this organization**,
+`GET /api/app/api-keys?scope=all`). It adds each member's own key, marked as a personal key, with
+its holder's name and e-mail. Such a row is read-only, since only its holder ends it, and shows no
+last use: the key may have been used in another organization, and nothing records its use here
+alone. A disabled or expired key and a former or disabled member's key are not listed, since none
+of them can act here. Anyone else who asks for every key gets the keys they see already; any other
+list is refused (`INVALID_QUERY`).
 
 - **Example**: Mia opens Settings > API > REST → she sees her own keys and "Billing sync", and
   can end it; she does not see the Finance team's key.
+- **Example**: Ada, an admin, picks All keys in this organization → she also sees Mia's own key
+  "Laptop", with Mia's name and e-mail; it offers no way to end it.
 
 ## Whose limits a key's spend counts toward
 

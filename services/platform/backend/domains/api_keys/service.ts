@@ -583,7 +583,20 @@ export type ListedApiKeyOwner =
     }
   | { kind: 'team'; teamId: string; teamName: string | null }
   | { kind: 'project'; projectId: string; projectName: string | null }
-  | { kind: 'organization' };
+  | { kind: 'organization' }
+  /** Another member's own key, which works here because they are a member:
+   * listed for an Owner or Admin who asks for all keys, never ended here. */
+  | {
+      kind: 'personal';
+      userId: string;
+      name: string | null;
+      email: string | null;
+    };
+
+/** Which keys the list holds: the ones the viewer manages, or — for an
+ * Owner or Admin — every key that works here, members' own keys included. */
+export const API_KEY_LIST_SCOPES = ['managed', 'all'] as const;
+export type ApiKeyListScope = (typeof API_KEY_LIST_SCOPES)[number];
 
 export interface ListedApiKey {
   id: string;
@@ -613,6 +626,7 @@ interface ListedRow {
   expiresAt: Date | null;
   createdAt: Date;
   lastRequest: Date | null;
+  referenceId: string;
   ownerKind: string | null;
   principalUserId: string | null;
   teamId: string | null;
@@ -624,6 +638,8 @@ interface ListedRow {
   teamName: string | null;
   projectName: string | null;
   createdByName: string | null;
+  holderName: string | null;
+  holderEmail: string | null;
 }
 
 /** A generous bound: the keys table pages on the client. */
@@ -634,23 +650,29 @@ const LISTED_KEY_LIMIT = 1000;
  * keys (which work in every organization they belong to), the keys made for
  * them in this organization, and — for an Owner or Admin — every key bound
  * to this organization: the members', the teams', the projects' and the
- * organization's own.
+ * organization's own. An Owner or Admin who asks for all keys also gets the
+ * live keys the organization's members made for themselves, which work here
+ * too: read-only, and without their last use, which the key records across
+ * every organization its holder belongs to.
  */
 export async function listApiKeysForViewer(
   db: Db,
   viewer: { organizationId: string; userId: string; role: string },
+  scope: ApiKeyListScope = 'managed',
 ): Promise<ListedApiKey[]> {
   const admin = isAdminRole(viewer.role);
+  const everyKey = admin && scope === 'all';
   const rows = await db<ListedRow[]>`
     SELECT k."id", k."name", k."start", k."prefix", k."suffix", k."enabled",
-           k."expiresAt", k."createdAt", k."lastRequest",
+           k."expiresAt", k."createdAt", k."lastRequest", k."referenceId",
            o.owner_kind AS "ownerKind",
            o.principal_user_id AS "principalUserId",
            o.team_id AS "teamId", o.project_id AS "projectId", o.role,
            o.created_by AS "createdBy",
            mu."name" AS "memberName", mu."email" AS "memberEmail",
            t."name" AS "teamName", p.name AS "projectName",
-           cu."name" AS "createdByName"
+           cu."name" AS "createdByName",
+           hu."name" AS "holderName", hu."email" AS "holderEmail"
     FROM "apikey" k
     LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
     LEFT JOIN "user" mu
@@ -658,11 +680,24 @@ export async function listApiKeysForViewer(
     LEFT JOIN "team" t ON t."id" = o.team_id
     LEFT JOIN app.projects p ON p.id = o.project_id
     LEFT JOIN "user" cu ON cu."id" = o.created_by
+    -- A person's own key works wherever they are a member: the membership
+    -- the budget picker's list, listOrgApiKeys, joins the same way.
+    LEFT JOIN "member" m
+      ON o.api_key_id IS NULL
+     AND m."userId" = k."referenceId"
+     AND m."organizationId" = ${viewer.organizationId}
+    LEFT JOIN "user" hu ON m."id" IS NOT NULL AND hu."id" = k."referenceId"
     WHERE (o.api_key_id IS NULL AND k."referenceId" = ${viewer.userId})
        OR (o.org_id = ${viewer.organizationId} AND o.revoked_at_ms IS NULL
            AND (${admin}::boolean
                 OR (o.owner_kind = 'member'
                     AND o.principal_user_id = ${viewer.userId})))
+       -- A member's own key, while it can act here: a disabled member is
+       -- refused at the door, and so are a disabled and an expired key.
+       OR (${everyKey}::boolean
+           AND lower(m."role") <> 'disabled'
+           AND k."enabled" IS NOT FALSE
+           AND (k."expiresAt" IS NULL OR k."expiresAt" > now()))
     ORDER BY k."createdAt" ASC, k."id" ASC
     LIMIT ${LISTED_KEY_LIMIT}
   `;
@@ -671,8 +706,11 @@ export async function listApiKeysForViewer(
       `[api-keys] the key list of organization ${viewer.organizationId} reached ${LISTED_KEY_LIMIT} rows; later keys are not shown`,
     );
   }
-  return rows.map((row) => {
-    const owner = listedOwner(row);
+  return rows.map((row): ListedApiKey => {
+    const owner = listedOwner(row, viewer.userId);
+    // Another member's own key is theirs to end, and its last use may have
+    // been in another organization: neither is the viewer's to see here.
+    const personal = owner.kind === 'personal';
     return {
       id: row.id,
       name: row.name,
@@ -682,24 +720,33 @@ export async function listApiKeysForViewer(
       enabled: row.enabled,
       expiresAt: row.expiresAt === null ? null : row.expiresAt.getTime(),
       createdAt: row.createdAt.getTime(),
-      lastRequest: row.lastRequest === null ? null : row.lastRequest.getTime(),
+      lastRequest:
+        personal || row.lastRequest === null ? null : row.lastRequest.getTime(),
       owner,
       role: row.role !== null && isServiceKeyRole(row.role) ? row.role : null,
       createdBy:
         row.createdBy === null
           ? null
           : { userId: row.createdBy, name: row.createdByName },
-      // Every key listed here is one the viewer may end: their own, one made
-      // for them, or — as an Owner or Admin — one bound to this organization.
-      canRevoke: true,
+      // Every other key listed here is one the viewer may end: their own, one
+      // made for them, or — as an Owner or Admin — one bound to this
+      // organization.
+      canRevoke: !personal,
     };
   });
 }
 
-function listedOwner(row: ListedRow): ListedApiKeyOwner {
+function listedOwner(row: ListedRow, viewerUserId: string): ListedApiKeyOwner {
   switch (row.ownerKind) {
     case null:
-      return { kind: 'user' };
+      return row.referenceId === viewerUserId
+        ? { kind: 'user' }
+        : {
+            kind: 'personal',
+            userId: row.referenceId,
+            name: row.holderName,
+            email: row.holderEmail,
+          };
     case 'member':
       return {
         kind: 'member',

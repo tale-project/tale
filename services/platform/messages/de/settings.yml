@@ -1271,6 +1271,7 @@ apiKeys:
     deletedProject: Gelöschtes Projekt
     actsAs: Handelt als {role}
     madeBy: Erstellt von {name}
+    personal: Persönlicher Schlüssel
   form:
     name: Schlüsselname
     namePlaceholder: Schlüsselnamen eingeben...
@@ -1332,6 +1333,12 @@ apiKeys:
     roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
     targetRequired: Wähle aus, wem der Schlüssel gehört.
   neverUsed: Nie verwendet
+  lastUsedUnavailable: Nicht verfügbar
+  scope:
+    label: Anzuzeigende Schlüssel
+    managed: Von dir verwaltete Schlüssel
+    all: Alle Schlüssel dieser Organisation
+  allKeysDescription: Alle API-Schlüssel, die in dieser Organisation funktionieren, auch die persönlichen Schlüssel der Mitglieder. Einen persönlichen Schlüssel kann nur das Mitglied widerrufen, dem er gehört.
   neverExpires: Nie
   expired: Abgelaufen
   description: API-Schlüssel für externe Connectors verwalten

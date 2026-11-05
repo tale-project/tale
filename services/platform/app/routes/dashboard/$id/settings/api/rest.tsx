@@ -1,11 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 
+import { ApiKeyScopeFilter } from '@/app/features/settings/api-keys/components/api-key-scope-filter';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
 import {
   apiKeysQuery,
   useApiKeys,
 } from '@/app/features/settings/api-keys/hooks/use-api-keys';
+import type { ApiKeyListScope } from '@/app/features/settings/api-keys/types';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
@@ -35,16 +38,22 @@ function ApiRestPage() {
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
 
-  const { data: apiKeys, error, refetch } = useApiKeys(organizationId);
   // The parent layout waited for it; a member whose right lapsed still opens
   // this page for the keys they hold. A key for oneself from a session bound
   // to this organization works here alone.
   const { createApiKeys, sessionBoundHere } =
     useApiSettingsAccess(organizationId);
   // Owners and Admins also make keys for a member, a team, a project or the
-  // organization — never acting above their own role.
+  // organization — never acting above their own role — and may list every
+  // key that works here, the members' own keys included.
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const viewer = memberContext?.status === 'ok' ? memberContext : undefined;
+  const canSeeAll = viewer?.isAdmin === true;
+  const [chosen, setChosen] = useState<ApiKeyListScope>('managed');
+  // Only an Owner or Admin chooses; anyone else sees the keys they manage.
+  const scope: ApiKeyListScope = canSeeAll ? chosen : 'managed';
+
+  const { data: apiKeys, error, refetch } = useApiKeys(organizationId, scope);
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
@@ -59,7 +68,9 @@ function ApiRestPage() {
           // with the org's other identity fields — link there instead of
           // duplicating the field on two pages.
           <span>
-            {tSettings('menu.apiKeys.description')}{' '}
+            {scope === 'all'
+              ? tSettings('apiKeys.allKeysDescription')
+              : tSettings('menu.apiKeys.description')}{' '}
             <Link
               to="/dashboard/$id/settings/organization"
               params={{ id: organizationId }}
@@ -74,11 +85,19 @@ function ApiRestPage() {
           apiKeys={apiKeys}
           organizationId={organizationId}
           canCreate={createApiKeys}
-          canCreateForOthers={viewer?.isAdmin === true}
+          canCreateForOthers={canSeeAll}
           {...(viewer !== undefined
             ? { viewerUserId: viewer.userId, viewerRole: viewer.role }
             : {})}
           sessionBoundHere={sessionBoundHere}
+          scope={scope}
+          {...(canSeeAll
+            ? {
+                filters: (
+                  <ApiKeyScopeFilter scope={scope} onScopeChange={setChosen} />
+                ),
+              }
+            : {})}
           error={error}
           onRetry={() => void refetch()}
         />
