@@ -3,7 +3,7 @@ title: Déployer sur Kubernetes
 description: Applique un jeu complet de manifestes Kubernetes pour Tale, exécute le spawner de sandbox sur son backend natif et vérifie l’isolation, le cycle de vie des sessions et les mises à jour avant d’accueillir des utilisateurs.
 ---
 
-Tale fonctionne sur Kubernetes lorsque tu transposes le [contrat de services](/fr/self-hosted/install/own-compose) en Deployments, Services et volumes, et que tu bascules le spawner de sandbox sur `SANDBOX_BACKEND=kubernetes`. Il n’existe pas de chart Helm officiel. Ce guide fournit un jeu complet de manifestes pour un seul namespace, vérifié de bout en bout avec Tale 0.5.31 sur un cluster à un seul nœud, ainsi que les vérifications qui prouvent le résultat. Le cluster, son stockage, son point d’entrée public et la procédure de mise à jour restent sous ta responsabilité.
+Tale fonctionne sur Kubernetes lorsque tu transposes le [contrat de services](/fr/self-hosted/install/own-compose) en Deployments, Services et volumes, et que tu bascules le spawner de sandbox sur `SANDBOX_BACKEND=kubernetes`. Il n’existe pas de chart Helm officiel. Ce guide fournit un jeu complet de manifestes pour un seul namespace et Tale 0.6.0 ou ultérieur, ainsi que les vérifications qui prouvent le résultat ; la dernière section, Périmètre vérifié, indique quelles parties ont tourné de bout en bout sur un cluster. Le cluster, son stockage, son point d’entrée public et la procédure de mise à jour restent sous ta responsabilité.
 
 ## Vérifier les prérequis
 
@@ -13,7 +13,7 @@ Tale fonctionne sur Kubernetes lorsque tu transposes le [contrat de services](/f
 | Une StorageClass par défaut dont les volumes `ReadWriteOnce` se rattachent là où un Pod est planifié | La base de données, le stockage d’objets, les certificats du proxy, l’état de la passerelle et chaque workspace de sandbox vivent sur des PersistentVolumeClaims. Le volume d’un workspace de sandbox supprimé suit la `reclaimPolicy` de la StorageClass : avec `Delete`, ses fichiers disparaissent avec lui ; avec `Retain`, ils restent jusqu’à ce que tu supprimes le volume. |
 | Un stockage `ReadWriteMany`, ou un seul nœud, pour la configuration des organisations | Les rôles backend écrivent `config-data` ; la couche web et le spawner le lisent. Sur un nœud, `ReadWriteOnce` suffit. Plusieurs nœuds exigent `ReadWriteMany` ou l’épinglage de ces Pods sur un nœud. |
 | Des nœuds qui accordent `NET_ADMIN` et fournissent ip6tables, ou autorisent les sysctls IPv6 | Le proxy de sortie installe son pare-feu au démarrage et refuse de démarrer sans lui. |
-| Les ports 80 et 443 joignables à l’adresse publique | Caddy obtient lui-même les certificats en mode `selfsigned` et `letsencrypt`. Derrière un Ingress qui termine TLS, définis `TLS_MODE=external`. |
+| Les ports 80 et 443 joignables à l’adresse publique | En mode `selfsigned` et `letsencrypt`, le proxy termine lui-même TLS et répond sur le port 80 au challenge HTTP de Let's Encrypt. Derrière un contrôleur Ingress qui termine TLS, définis `TLS_MODE=external`. |
 | Un accès en lecture à `ghcr.io/tale-project/tale/*` sur chaque nœud, y compris pour l’image du runtime sandbox | Les Pods de session démarrent depuis `SANDBOX_RUNTIME_IMAGE`. Un nœud qui ne peut pas la récupérer fait échouer la première session qui y est planifiée. |
 | Un runtime de conteneurs qui décompresse les couches zstd, comme containerd 1.5 ou une version ultérieure | Les couches des images Tale sont compressées en zstd. Un nœud dont le runtime ne sait pas les décompresser ne peut pas récupérer les images, et aucun Pod n’y démarre à partir d’elles. |
 | Une RuntimeClass sysbox ou kata si les agents ont besoin de Docker dans leur sandbox | Sans elle, garde `SANDBOX_DOCKER_IN_CONTAINER=false`. Le niveau `runc` exigerait des Pods privilégiés. |
@@ -34,11 +34,12 @@ Chaque Pod ci-dessous définit `enableServiceLinks: false`. Sinon, Kubernetes in
 | Service Compose | Objets Kubernetes | Remarques |
 | --- | --- | --- |
 | `db` avec l’alias `knowledge-db` | StatefulSet `db` ; Services `db` et `knowledge-db` sélectionnant le même Pod | `TALE_DB_ROLE` reste vide : l’image crée les deux bases et applique les migrations de connaissances ; le backend migre le schéma applicatif au démarrage. Un `emptyDir` en mémoire de 256 Mio sert de `/dev/shm`. L’image s’arrête sur `SIGINT` dans un délai de 60 secondes. |
-| `object-store` | Deployment avec la stratégie `Recreate`, PVC sur `/data`, Service sur 9000 | Le backend crée le bucket au démarrage. |
-| `platform` | Deployment ; Service sur 3000 | `config-data` en lecture seule, `TALE_BACKEND_URL=http://backend-api:3005`. |
-| `backend-api` | Deployment à deux réplicas ; Service sur 3005 | `config-data` en lecture-écriture. Deux réplicas permettent une mise à jour sans interruption. |
+| `object-store` | Deployment avec la stratégie `Recreate`, PVC sur `/data`, Service sur 9000 ; Ingress `object-store` | Le backend crée le bucket au démarrage. Le chemin de l’Ingress suit `OBJECT_STORE_BUCKET`. |
+| `platform` | Deployment ; Service sur 3000 ; quatre objets Ingress | `config-data` en lecture seule, `TALE_BACKEND_URL=http://backend-api:3005`. |
+| `backend-api` | Deployment à deux réplicas ; Service sur 3005 ; trois objets Ingress | `config-data` en lecture-écriture. Deux réplicas permettent une mise à jour sans interruption. |
 | `backend-worker` | Deployment | Ni Service ni sonde HTTP. |
-| `proxy` | Deployment avec la stratégie `Recreate` ; `hostPort` 80 et 443 ; PVC pour `/data` | Le magasin de certificats survit aux redémarrages sur le PVC. |
+| `proxy` | ServiceAccount, Role, RoleBinding, Deployment avec la stratégie `Recreate` ; `hostPort` 80 et 443 ; PVC pour `/data` | Traefik sert les routes des objets Ingress de classe `tale` du namespace. Le magasin de certificats survit aux redémarrages sur le PVC. |
+| `docker-api` | aucun | Le proxy en lecture seule de l’API Docker de Compose. Sur Kubernetes, le proxy lit les objets Ingress auprès du serveur d’API. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment ; Service sur 8003 | `SANDBOX_BACKEND=kubernetes` ; `config-data` en lecture seule sur `/app/platform-config`. Aucun socket Docker. |
 | `sandbox-egress` | Deployment ; Service sur 3128 | Le jeu de capabilities livré, sans sysctls. |
 | `sandbox-llm-gateway` | Deployment avec la stratégie `Recreate`, PVC sur `/app/data` ; Services `sandbox-llm-gateway` et `llm-gateway` sur 8080 | L’image s’exécute avec l’uid 1000 ; `fsGroup: 1000` lui permet d’écrire son état. La passerelle lit `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` dans `tale-env` : tant qu’elle n’a pas de compte d’administration, elle n’en crée un que pour un appelant qui présente ce secret. Avec `terminationGracePeriodSeconds: 90`, un déploiement laisse à l’ancien Pod jusqu’à 90 secondes pour terminer les appels de modèle en cours, réponses en flux comprises ; il n’enregistre ses compteurs de dépenses à la fin que s’ils se terminent dans les 30 secondes qui suivent l’arrêt ; il n’accepte aucun nouvel appel entre-temps, et le nouveau Pod démarre une fois qu’il s’est arrêté. La mémoire de la passerelle croît avec les sessions d’agent qui tournent en même temps : `limits.memory`, `512Mi` dans le manifeste ci-dessous, suffit pour la capacité par défaut de 8 sessions. Quand tu augmentes `SANDBOX_MAX_SESSIONS`, augmente cette limite selon la règle que décrit [`SANDBOX_LLM_GATEWAY_MEMORY`](/fr/self-hosted/configuration/environment-reference#sandbox-agent-turns), soit `4Gi` pour 320 sessions ; cette variable n’a elle-même aucun effet ici. |
@@ -61,16 +62,16 @@ Kubernetes n’a pas de `depends_on`. Un rôle backend qui démarre avant que Po
 
 ## Préparer les manifestes
 
-Enregistre chaque bloc YAML des sections suivantes sous le nom de fichier indiqué à sa première ligne, dans un même répertoire. Modifie le Secret : remplace chaque espace réservé `<...>` et définis `HOST`, `SITE_URL`, `TLS_MODE` et `OBJECT_STORE_PUBLIC_ENDPOINT` pour ton adresse. Si cette adresse comporte un port non standard, reporte-le aussi dans `containerPort` et `hostPort` du proxy dans `30-proxy.yaml` ; Caddy écoute sur le port indiqué dans `SITE_URL`. Fixe ensuite une seule version pour toutes les images Tale, `0.5.31` au moment de la rédaction, et applique les fichiers dans l’ordre :
+Enregistre chaque bloc YAML des sections suivantes sous le nom de fichier indiqué à sa première ligne, dans un même répertoire. Modifie le Secret : remplace chaque espace réservé `<...>` et définis `HOST`, `SITE_URL`, `TLS_MODE` et `OBJECT_STORE_PUBLIC_ENDPOINT` pour ton adresse. Si cette adresse comporte un port non standard, reporte-le dans `30-proxy.yaml` comme `hostPort` du port `https` du proxy et laisse son `containerPort` à 443 : dans le Pod, le proxy écoute sur 443 quel que soit le port de l’adresse. Le port 80 redirige toujours vers le port standard ; communique donc l’adresse avec son port. Fixe ensuite une seule version pour toutes les images Tale, `0.6.0` ou ultérieure, et applique les fichiers dans l’ordre :
 
 ```bash
-export VERSION=0.5.31
+export VERSION=0.6.0
 for f in 00-namespace.yaml 10-stores.yaml 20-application.yaml 30-proxy.yaml 40-sandbox.yaml; do
   envsubst '${VERSION}' < "$f" | kubectl apply -f -
 done
 ```
 
-`envsubst` ne remplace que `${VERSION}` ; toute autre valeur des fichiers est littérale. La même boucle réalise une mise à niveau : change `VERSION`, relance-la, et les Deployments basculent sur la nouvelle image.
+`envsubst` ne remplace que `${VERSION}` ; toute autre valeur des fichiers est littérale. La même boucle réalise une mise à niveau : change `VERSION`, relance-la, et les Deployments basculent sur la nouvelle image. Compare tes fichiers avec ce guide avant une mise à niveau, car une version peut modifier un manifeste : la 0.6.0 a ainsi remplacé le proxy et ajouté les objets Ingress.
 
 ## Créer l’environnement partagé
 
@@ -122,7 +123,7 @@ spec:
 
 ## Exécuter les stockages
 
-Le StatefulSet conserve le volume de données à travers les remplacements de Pod et donne à l’image l’arrêt qu’elle attend. MinIO s’exécute comme un Deployment unique sur son propre claim.
+Le StatefulSet conserve le volume de données à travers les remplacements de Pod et donne à l’image l’arrêt qu’elle attend. MinIO s’exécute comme un Deployment unique sur son propre claim ; son Ingress publie le chemin du bucket sur le point d’entrée public pour les URL présignées.
 
 ```yaml
 # 10-stores.yaml
@@ -195,6 +196,24 @@ spec:
   selector: { app: object-store }
   ports: [{ name: s3, port: 9000, targetPort: 9000 }]
 ---
+# Le chemin du bucket, transmis tel quel. Garde-le égal à OBJECT_STORE_BUCKET.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: object-store
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '300'
+    traefik.ingress.kubernetes.io/router.observability.accesslogs: 'false'
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /tale-blobs/
+            pathType: Prefix
+            backend: { service: { name: object-store, port: { name: s3 } } }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: object-store, namespace: tale }
@@ -229,11 +248,11 @@ spec:
           persistentVolumeClaim: { claimName: object-store-data }
 ```
 
-Pour un Postgres externe, définis `DATABASE_URL` et `KNOWLEDGE_DATABASE_URL` comme décrit dans [Connecter des stockages externes](/fr/self-hosted/install/own-compose#connecter-des-stockages-externes) et omets le StatefulSet et ses Services ; pour un bucket externe, définis les valeurs `OBJECT_STORE_*` et omets les objets MinIO.
+Pour un Postgres externe, définis `DATABASE_URL` et `KNOWLEDGE_DATABASE_URL` comme décrit dans [Connecter des stockages externes](/fr/self-hosted/install/own-compose#connecter-des-stockages-externes) et omets le StatefulSet et ses Services ; pour un bucket externe, définis les valeurs `OBJECT_STORE_*` et omets les objets MinIO avec leur Ingress.
 
 ## Exécuter les rôles applicatifs
 
-Les trois rôles partagent l’image de la plateforme : l’API et le worker écrivent `config-data`, la couche web le lit. Le fichier contient aussi le fournisseur de jetons vidéo facultatif qu’utilise le worker ; retire ses deux objets si tu n’ingères pas de vidéos.
+Les trois rôles partagent l’image de la plateforme : l’API et le worker écrivent `config-data`, la couche web le lit. Les objets Ingress placés à côté des Services `backend-api` et `platform` déclarent leurs routes sur le point d’entrée public ; la section sur le proxy plus bas les explique. Le fichier contient aussi le fournisseur de jetons vidéo facultatif qu’utilise le worker ; retire ses deux objets si tu n’ingères pas de vidéos.
 
 <Warning>
 
@@ -249,6 +268,64 @@ metadata: { name: backend-api, namespace: tale }
 spec:
   selector: { app: backend-api }
   ports: [{ name: http, port: 3005, targetPort: 3005 }]
+---
+# Les chemins du backend sur le point d’entrée public. Un chemin en expression
+# régulière est ImplementationSpecific, et Traefik le compare en PathRegexp ;
+# /{0} est la barre oblique initiale qu’exige Kubernetes, répétée zéro fois :
+# l’expression qui suit ouvre donc la correspondance.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-api-streams
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '120'
+    traefik.ingress.kubernetes.io/router.pathmatcher: PathRegexp
+spec:
+  rules:
+    - http:
+        paths:
+          - path: '/{0}(?i)^/api/.+/sync$'
+            pathType: ImplementationSpecific
+            backend: { service: { name: backend-api, port: { name: http } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-api-quiet
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '110'
+    traefik.ingress.kubernetes.io/router.pathmatcher: PathRegexp
+    traefik.ingress.kubernetes.io/router.middlewares: tale-compress@file
+    traefik.ingress.kubernetes.io/router.observability.accesslogs: 'false'
+spec:
+  rules:
+    - http:
+        paths:
+          - path: '/{0}(?i)^/api/(tools/|connectors/(execute|status|hostcall|mcp)$|connectors/slack/|automations/webhook/)'
+            pathType: ImplementationSpecific
+            backend: { service: { name: backend-api, port: { name: http } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-api
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '100'
+    traefik.ingress.kubernetes.io/router.pathmatcher: PathRegexp
+    traefik.ingress.kubernetes.io/router.middlewares: tale-compress@file
+spec:
+  rules:
+    - http:
+        paths:
+          - path: '/{0}(?i)^/(api/|events$|dav/|scim/v2/|http_api/(api/sso|scim/v2|api/trusted-headers|api/cloud-import/oauth2)/|[.]well-known/oauth-(authorization-server/|protected-resource))'
+            pathType: ImplementationSpecific
+            backend: { service: { name: backend-api, port: { name: http } } }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -324,6 +401,77 @@ metadata: { name: platform, namespace: tale }
 spec:
   selector: { app: platform }
   ports: [{ name: http, port: 3000, targetPort: 3000 }]
+---
+# La sonde de santé de la plateforme, son WebSocket, ses points d’accès pour
+# les programmes et ses pages. Tant qu’aucun Pod de la plateforme n’est prêt,
+# le proxy répond lui-même sur ces chemins.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-health
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '200'
+    traefik.ingress.kubernetes.io/router.pathmatcher: PathRegexp
+spec:
+  rules:
+    - http:
+        paths:
+          - path: '/{0}(?i)^/api/health$'
+            pathType: ImplementationSpecific
+            backend: { service: { name: platform, port: { name: http } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-ws
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '60'
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /ws_api/
+            pathType: Prefix
+            backend: { service: { name: platform, port: { name: http } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-doors
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '50'
+    traefik.ingress.kubernetes.io/router.pathmatcher: PathRegexp
+    traefik.ingress.kubernetes.io/router.middlewares: tale-compress@file,tale-unavailable-json@file
+spec:
+  rules:
+    - http:
+        paths:
+          - path: '/{0}(?i)^/((api|scim|http_api)(/|$)|(events|status[.]json|openapi[.]json)$|[.]well-known/)'
+            pathType: ImplementationSpecific
+            backend: { service: { name: platform, port: { name: http } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform
+  namespace: tale
+  annotations:
+    kubernetes.io/ingress.class: tale
+    traefik.ingress.kubernetes.io/router.priority: '2'
+    traefik.ingress.kubernetes.io/router.middlewares: tale-compress@file,tale-unavailable-page@file
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: platform, port: { name: http } } }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -416,13 +564,39 @@ Les conteneurs de la plateforme démarrent en root, corrigent la propriété de 
 
 ## Exposer le proxy
 
-Le proxy est le seul service public. Il occupe les `hostPort` 80 et 443 du nœud où il s’exécute ; fais pointer le nom public vers l’adresse de ce nœud. Caddy écoute sur le port indiqué dans `SITE_URL` : avec `https://tale.example.com:8443`, le Pod doit exposer 8443 au lieu de 443, tandis que le port 80 continue de servir la redirection vers HTTPS. La stratégie est `Recreate` : deux Pods de proxy ne peuvent partager ni un `hostPort` ni un volume `ReadWriteOnce`.
+Le proxy est le seul service public. Il repose sur Traefik, occupe les `hostPort` 80 et 443 du nœud où il s’exécute et y termine TLS ; fais donc pointer le nom public vers l’adresse de ce nœud. Le port 80 répond au challenge HTTP de Let's Encrypt et redirige toute autre requête vers HTTPS. La stratégie est `Recreate` : deux Pods de proxy ne peuvent partager ni un `hostPort` ni un volume `ReadWriteOnce`.
 
 ```yaml
 # 30-proxy.yaml
 apiVersion: v1
+kind: ServiceAccount
+metadata: { name: tale-proxy, namespace: tale }
+---
+# En lecture seule, dans ce seul namespace. Le provider Ingress de Traefik ne
+# sert aucune route avant d’avoir lu les quatre types, Secrets compris.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: tale-proxy, namespace: tale }
+rules:
+  - apiGroups: ['networking.k8s.io']
+    resources: ['ingresses']
+    verbs: ['list', 'watch']
+  - apiGroups: ['']
+    resources: ['services', 'secrets']
+    verbs: ['list', 'watch']
+  - apiGroups: ['discovery.k8s.io']
+    resources: ['endpointslices']
+    verbs: ['list', 'watch']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: tale-proxy, namespace: tale }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: tale-proxy }
+subjects: [{ kind: ServiceAccount, name: tale-proxy, namespace: tale }]
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
-metadata: { name: caddy-data, namespace: tale }
+metadata: { name: proxy-data, namespace: tale }
 spec:
   accessModes: [ReadWriteOnce]
   resources: { requests: { storage: 1Gi } }
@@ -437,36 +611,70 @@ spec:
   template:
     metadata: { labels: { app: proxy } }
     spec:
+      serviceAccountName: tale-proxy
       enableServiceLinks: false
       containers:
-        - name: caddy
+        - name: proxy
           image: ghcr.io/tale-project/tale/tale-proxy:${VERSION}
           envFrom: [{ secretRef: { name: tale-env } }]
           env:
-            - { name: BACKEND_UPSTREAM, value: 'backend-api:3005' }
-            - { name: OBJECT_STORE_UPSTREAM, value: 'object-store:9000' }
+            # Le namespace dont le proxy sert les objets Ingress de classe tale.
+            - name: TALE_PROXY_NAMESPACE
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
           ports:
             - { name: http, containerPort: 80, hostPort: 80 }
             - { name: https, containerPort: 443, hostPort: 443 }
-          volumeMounts:
-            - { name: caddy-data, mountPath: /data }
-            - { name: caddy-config, mountPath: /config }
+          volumeMounts: [{ name: proxy-data, mountPath: /data }]
           readinessProbe:
             httpGet: { path: /health, port: 2020 }
             periodSeconds: 10
           resources:
             requests: { cpu: 50m, memory: 64Mi }
       volumes:
-        - name: caddy-data
-          persistentVolumeClaim: { claimName: caddy-data }
-        - name: caddy-config
-          emptyDir: {}
+        - name: proxy-data
+          persistentVolumeClaim: { claimName: proxy-data }
 ```
+
+Chaque route que sert le proxy est un objet Ingress placé à côté du Service qu’elle atteint, le pendant des labels qu’une installation Compose pose sur ses conteneurs. Les annotations portent ce qu’aucun champ d’un Ingress n’exprime : la priorité de la route, les middlewares du proxy pour la compression et pour les réponses pendant la panne d’un service, le matcher d’un chemin en expression régulière, et le journal d’accès désactivé là où le chemin porte une signature ou est appelé en grand nombre. Traefik n’envoie une requête qu’à un Pod prêt ; tant que la plateforme ou le backend n’en a aucun, le proxy répond lui-même sur leurs chemins : les navigateurs reçoivent la page de maintenance, et les chemins qu’appelle un programme reçoivent du JSON avec `503`.
+
+Le proxy ne prend que les objets Ingress dont l’annotation `kubernetes.io/ingress.class` nomme `tale`. Kubernetes déprécie cette annotation au profit de `spec.ingressClassName`, et `kubectl apply` affiche un avertissement à ce sujet pour chacun de ces objets ; le proxy lit l’annotation malgré tout. `spec.ingressClassName` exigerait les objets IngressClass du cluster, que seule une autorisation à l’échelle du cluster permet de lire. L’annotation tient aussi l’IngressClass par défaut de ton cluster à l’écart de ces objets, si bien que le contrôleur Ingress propre à ton cluster ne les sert pas.
+
+La Role permet au proxy de lister et de surveiller les Ingress, les Services, les EndpointSlices et les Secrets du namespace `tale` ; elle ne modifie rien et ne lit rien hors du namespace. Traefik surveille les Secrets pour les certificats qu’un Ingress peut nommer, et son provider Ingress ne démarre pas sans cette autorisation. Dans ce namespace, cela couvre `tale-env`, que le proxy reçoit de toute façon, et le Secret `-spec` de chaque session d’agent, qui contient le jeton du runner et l’environnement de la session. [L’issue #5386](https://github.com/tale-project/tale/issues/5386) déplace les sessions dans un namespace qui leur est propre, ce qui met leurs Secrets hors de portée du proxy.
+
+Les versions antérieures à 0.6.0 faisaient tourner Caddy avec le claim `caddy-data`. Le nouveau proxy démarre sur le claim vide `proxy-data` : avec `letsencrypt`, il obtient de nouveaux certificats, et avec `selfsigned`, il crée un nouveau certificat racine, auquel chaque client doit de nouveau faire confiance. Copie-le avec `kubectl -n tale exec deploy/proxy -- cat /data/pki/root.crt > tale-root.crt`. La boucle qui applique les fichiers laisse `caddy-data` en place pour un retour arrière vers la version précédente ; supprime ce claim avec `kubectl -n tale delete pvc caddy-data` une fois que le nouveau proxy sert les requêtes.
 
 Deux alternatives conservent le même Pod :
 
-- Un Service LoadBalancer sur 80 et 443 devant le proxy, à la place des entrées `hostPort`. `TLS_MODE=selfsigned` et `letsencrypt` fonctionnent tels quels ; le proxy sert aussi `docs.<HOST>` et obtient ce certificat.
-- Un Ingress qui termine TLS. Définis `TLS_MODE=external` et `TRUSTED_PROXIES` sur la plage d’adresses de l’Ingress pour que les en-têtes transmis soient acceptés, comme décrit dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains).
+- Un Service LoadBalancer sur 80 et 443 devant le proxy, à la place des entrées `hostPort`. `TLS_MODE=selfsigned` et `letsencrypt` fonctionnent tels quels.
+- Un contrôleur Ingress de ton cluster qui termine TLS devant le proxy. Définis `TLS_MODE=external` et règle `TRUSTED_PROXIES` sur la plage d’adresses des Pods du contrôleur, pour que le proxy accepte leurs en-têtes transférés, comme décrit dans [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains). Retire les deux entrées `hostPort`, renseigne la classe de ton contrôleur et le Secret de ton certificat dans le fichier suivant, puis applique-le une fois après la boucle avec `kubectl apply -f 35-proxy-external.yaml`.
+
+```yaml
+# 35-proxy-external.yaml
+apiVersion: v1
+kind: Service
+metadata: { name: proxy, namespace: tale }
+spec:
+  selector: { app: proxy }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+# Servi par le contrôleur Ingress de ton cluster, qui transmet chaque requête
+# au proxy.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: { name: tale-edge, namespace: tale }
+spec:
+  ingressClassName: <ingress-class>
+  tls: [{ hosts: [tale.example.com], secretName: <tls-secret> }]
+  rules:
+    - host: tale.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: proxy, port: { name: http } } }
+```
+
+Les limites propres au contrôleur s’appliquent avant celles du proxy : autorise les connexions WebSocket, les requêtes de longue durée et des corps de requête aussi grands que tes envois de fichiers. Rends le port 80 du proxy joignable par le seul contrôleur, par exemple avec une NetworkPolicy sur le Pod du proxy : sinon, n’importe quel Pod de la plage de confiance pourrait annoncer une adresse d’origine qui n’est pas la sienne.
 
 ## Exécuter la couche sandbox
 
@@ -778,10 +986,11 @@ Après la boucle d’application, attends que chaque Pod soit prêt et contrôle
 kubectl -n tale get pods
 kubectl -n tale logs -l 'app in (backend-api,backend-worker)' --tail=-1 | grep -c 'applying app migration'
 kubectl -n tale get networkpolicy tale-sandbox-session-egress tale-backend-egress
+kubectl -n tale get ingress
 curl -s https://tale.example.com/api/health
 ```
 
-Le rôle backend qui démarre en premier applique les migrations sous un verrou consultatif ; le décompte provient donc des deux rôles réunis, et le journal de l’API se termine par `api listening on :3005` ; l’endpoint de santé répond `{"status":"ok","version":"0.5.31"}`. Ouvre ensuite le site, [crée le premier propriétaire](/fr/self-hosted/install/first-admin) et connecte un fournisseur.
+Le rôle backend qui démarre en premier applique les migrations sous un verrou consultatif ; le décompte provient donc des deux rôles réunis, et le journal de l’API se termine par `api listening on :3005`. La liste des Ingress nomme les huit routes, avec `<none>` dans sa colonne `CLASS`, puisque leur classe figure dans l’annotation. L’endpoint de santé répond `{"status":"ok","version":"0.6.0"}` avec la version que tu as fixée ; tant que le proxy y répond par `503`, compare les objets Ingress avec ce guide et vérifie que le Pod de la plateforme est prêt. Ouvre ensuite le site, [crée le premier propriétaire](/fr/self-hosted/install/first-admin) et connecte un fournisseur.
 
 Sous **Paramètres > Sandboxes**, la carte du déploiement porte le namespace comme périmètre dans son titre et n’affiche aucune mesure CPU ou mémoire de l’hôte ; c’est attendu sur ce backend. Assigne une tâche à un agent et attends son livrable : l’exécution crée dans le namespace un Pod de session nommé `tale-sbx-ses-<hash>`, accompagné d’un Secret `-spec` et d’un claim `-ws`.
 
@@ -808,4 +1017,6 @@ Les snapshots, bascules bleu-vert et contrôles de rollback de la CLI ne s’ex�
 
 ## Périmètre vérifié
 
-Ces cinq fichiers ont été appliqués tels quels, à l’exception des valeurs du Secret, sur un cluster kind neuf à un seul nœud, avec Kubernetes 1.36, kube-network-policies, la StorageClass local-path et Tale 0.5.31 : démarrage et migrations, point d’entrée public, création du premier propriétaire et carte Sandboxes, tâche d’agent avec livrable, cycle de vie des sessions avec arrêt sur inactivité, reprise et accès entre réplicas, les sondes de barrière ci-dessus et un redémarrage progressif de l’API à deux réplicas. La planification sur plusieurs nœuds avec un stockage de configuration `ReadWriteMany`, Docker dans les sessions sur une RuntimeClass sysbox ou kata, un Ingress avec `TLS_MODE=external` et des stockages hautement disponibles ne faisaient pas partie de cet essai. Les limites de disque et les réglages de placement des Pods de session, ainsi que le DaemonSet facultatif de préchargement, sont venus plus tard et n’en faisaient pas partie non plus.
+Avec Tale 0.5.31 et son proxy Caddy, les cinq fichiers ont été appliqués tels quels, à l’exception des valeurs du Secret, sur un cluster kind neuf à un seul nœud, avec Kubernetes 1.36, kube-network-policies et la StorageClass local-path : démarrage et migrations, point d’entrée public, création du premier propriétaire et carte Sandboxes, tâche d’agent avec livrable, cycle de vie des sessions avec arrêt sur inactivité, reprise et accès entre réplicas, les sondes de barrière ci-dessus et un redémarrage progressif de l’API à deux réplicas. La planification sur plusieurs nœuds avec un stockage de configuration `ReadWriteMany`, Docker dans les sessions sur une RuntimeClass sysbox ou kata, un contrôleur Ingress placé devant, avec `TLS_MODE=external`, et des stockages hautement disponibles ne faisaient pas partie de cet essai. Les limites de disque et les réglages de placement des Pods de session, ainsi que le DaemonSet facultatif de préchargement, sont venus plus tard et n’en faisaient pas partie non plus.
+
+Le proxy Traefik de Tale 0.6.0 n’a encore tourné sur aucun cluster : ni sa Role, ni son claim, ni les objets Ingress, ni le fichier pour `TLS_MODE=external`. Des tests maintiennent chaque Ingress égal à la route que le même service déclare dans une installation Compose, et la Role du proxy en lecture seule et limitée au namespace.
