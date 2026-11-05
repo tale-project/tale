@@ -24,6 +24,9 @@ interface ImagePreviewDialogProps {
   images?: GalleryImage[];
   activeIndex?: number;
   onActiveIndexChange?: (index: number) => void;
+  /** The picture shown did not draw (a link that ran out, bytes that do not
+   * decode), with the src it tried. */
+  onImageError?: (src: string) => void;
 }
 
 export const ImagePreviewDialog = memo(function ImagePreviewDialog({
@@ -34,6 +37,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
   images,
   activeIndex = 0,
   onActiveIndexChange,
+  onImageError,
 }: ImagePreviewDialogProps) {
   const { t } = useT('chat');
 
@@ -106,6 +110,11 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
         }
         className="flex-1 p-3"
         resetTrigger={currentSrc}
+        onError={
+          onImageError !== undefined
+            ? () => onImageError(currentSrc)
+            : undefined
+        }
         // The Dialog renders with `hideClose` + empty customHeader, so the
         // only existing dismiss paths were Esc / backdrop click. Wiring
         // onClose surfaces an explicit ✕ in the viewer's overlay toolbar.

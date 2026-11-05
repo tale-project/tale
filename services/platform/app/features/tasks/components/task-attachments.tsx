@@ -8,6 +8,7 @@ import { Loader, Paperclip, X } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
 import { FileAttachmentDisplay } from '@/app/features/shared/files/file-displays';
+import { useFileLinkRenewal } from '@/app/features/shared/files/use-file-link-renewal';
 import type { FileAttachment } from '@/app/features/shared/files/use-file-upload';
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import {
@@ -66,7 +67,10 @@ export function TaskAttachments({
     () => imageAttachments.filter((a) => !a.previewUrl).map((a) => a.fileId),
     [imageAttachments],
   );
-  const { data: resolvedUrls } = useFileUrls(imageFileIdsToResolve);
+  const fileLinks = useFileUrls(imageFileIdsToResolve);
+  const resolvedUrls = fileLinks.data;
+  // A preview whose link ran out (the task stayed open) gets a new one.
+  const links = useFileLinkRenewal(fileLinks);
   const galleryEntries = useMemo(() => {
     const entries: Array<{ fileId: string; image: GalleryImage }> = [];
     for (const attachment of imageAttachments) {
@@ -190,6 +194,7 @@ export function TaskAttachments({
           images={galleryImages}
           activeIndex={previewIndex ?? 0}
           onActiveIndexChange={setPreviewIndex}
+          onImageError={links.previewFailed}
         />
       )}
     </Stack>

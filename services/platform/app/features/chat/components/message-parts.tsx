@@ -21,6 +21,7 @@ import { Fragment, useState, type ComponentType, type ReactNode } from 'react';
 
 import { AttachmentFileChip } from '@/app/features/shared/files/attachment-file-chip';
 import { formatFileSize } from '@/app/features/shared/files/file-displays';
+import { useFileLinkRenewal } from '@/app/features/shared/files/use-file-link-renewal';
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview-dialog';
 import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
@@ -116,12 +117,15 @@ export function MessageParts({
   // display URL for the message, and one dialog serves them as a gallery.
   // A URL that resolves to null (deleted blob, an unauthenticated shared
   // view) drops the part back to its file chip — never a broken <img>.
+  // So does a link whose bytes did not draw, once a new link did not either
+  // (a link runs out while the chat stays open).
   // Locally sent images short-circuit the query: the surface still holds
   // their object-URL previews, so the bubble paints the moment it mounts —
   // the optimistic row and the real row that adopts it use the same pixels.
   const localPreviews = useAttachmentPreviews();
   const imageParts = parts.filter(isImageAttachment);
   const imageUrls = useFileUrls(imageParts.map((part) => part.fileId));
+  const links = useFileLinkRenewal(imageUrls);
   const urlByFileId = new Map(
     (imageUrls.data ?? []).map((row) => [row.fileId, row.url] as const),
   );
@@ -134,7 +138,9 @@ export function MessageParts({
     }))
     .filter(
       (image): image is { src: string; alt: string } =>
-        typeof image.src === 'string' && image.src.length > 0,
+        typeof image.src === 'string' &&
+        image.src.length > 0 &&
+        links.shows(image.src) !== 'file',
     );
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
@@ -176,8 +182,13 @@ export function MessageParts({
                 <Row key={`attachments:${index}`} gap={2} wrap align="center">
                   {imageParts.map((imagePart, imageIndex) => {
                     const url = displayUrlOf(imagePart.fileId);
-                    // Still resolving — hold the slot, don't flash the chip.
-                    if (url === undefined && imageUrls.data === undefined) {
+                    // Still resolving, or a new link is on its way — hold the
+                    // slot, don't flash the chip.
+                    if (
+                      (url === undefined && imageUrls.data === undefined) ||
+                      (typeof url === 'string' &&
+                        links.shows(url) === 'renewing')
+                    ) {
                       return (
                         <Skeletonize
                           key={`image:${imagePart.fileId}:${imageIndex}`}
@@ -189,7 +200,11 @@ export function MessageParts({
                         </Skeletonize>
                       );
                     }
-                    if (typeof url !== 'string' || url.length === 0) {
+                    if (
+                      typeof url !== 'string' ||
+                      url.length === 0 ||
+                      links.shows(url) === 'file'
+                    ) {
                       return (
                         <AttachmentFileChip
                           key={`image:${imagePart.fileId}:${imageIndex}`}
@@ -220,6 +235,7 @@ export function MessageParts({
                           src={url}
                           alt={imagePart.name}
                           className="size-full object-cover"
+                          onError={() => links.pictureFailed(url)}
                         />
                       </button>
                     );
@@ -302,6 +318,7 @@ export function MessageParts({
           images={galleryImages}
           activeIndex={Math.min(previewIndex, galleryImages.length - 1)}
           onActiveIndexChange={setPreviewIndex}
+          onImageError={links.previewFailed}
         />
       )}
     </Stack>

@@ -33,6 +33,7 @@ import {
   DocumentPreviewDialog,
   warmDocumentPreviewDialog,
 } from '@/app/features/documents/components/document-preview-dialog-lazy';
+import { useFileLinkRenewal } from '@/app/features/shared/files/use-file-link-renewal';
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview-dialog';
 import { backendUrl } from '@/app/lib/backend/api-client';
@@ -147,14 +148,17 @@ function ArtifactImages({
 }) {
   const { t } = useT('chat');
   const urls = useFileUrls(images.map((image) => image.fileId));
-  // The links whose bytes did not draw. A new link is tried again.
-  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
+  // A link whose bytes did not draw gets a new one first (it may have run
+  // out); a new link is tried again.
+  const links = useFileLinkRenewal(urls);
   const urlByFileId = new Map(
     (urls.data ?? []).map((row) => [row.fileId, row.url] as const),
   );
   const drawable = (image: ArtifactPart): string | undefined => {
     const src = urlByFileId.get(image.fileId);
-    return typeof src === 'string' && src.length > 0 && !broken.has(src)
+    return typeof src === 'string' &&
+      src.length > 0 &&
+      links.shows(src) !== 'file'
       ? src
       : undefined;
   };
@@ -167,7 +171,11 @@ function ArtifactImages({
     <>
       <ul className="flex flex-wrap items-start gap-2">
         {images.map((image) => {
-          if (urls.isLoading) {
+          const src = drawable(image);
+          if (
+            urls.isLoading ||
+            (src !== undefined && links.shows(src) === 'renewing')
+          ) {
             return (
               <li key={image.fileId}>
                 <Skeletonize loading>
@@ -178,11 +186,11 @@ function ArtifactImages({
               </li>
             );
           }
-          const src = drawable(image);
           if (src === undefined) {
-            // The bytes cannot be shown (gone, not this reader's, or no
-            // picture after all, or the link could not be read): the file
-            // keeps its card, which still opens and downloads it.
+            // The bytes cannot be shown (gone, not this reader's, no
+            // picture after all, or the link could not be read, a renewed
+            // one neither): the file keeps its card, which still opens and
+            // downloads it.
             return organizationId === undefined ? (
               <li key={image.fileId}>
                 <Text variant="caption">{image.name}</Text>
@@ -208,7 +216,7 @@ function ArtifactImages({
                   src={src}
                   alt={image.name}
                   className="max-h-64 w-auto max-w-[16rem] object-contain"
-                  onError={() => setBroken((prev) => new Set(prev).add(src))}
+                  onError={() => links.pictureFailed(src)}
                 />
               </button>
             </li>
@@ -226,6 +234,7 @@ function ArtifactImages({
           images={gallery}
           activeIndex={Math.min(previewIndex, gallery.length - 1)}
           onActiveIndexChange={setPreviewIndex}
+          onImageError={links.previewFailed}
         />
       )}
     </>

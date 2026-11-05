@@ -18,13 +18,14 @@ import '@/app/globals.css';
 
 const urls = vi.hoisted(() => ({ byId: new Map<string, string>() }));
 vi.mock('@/app/features/shared/files/use-file-url', () => ({
-  useFileUrls: (fileIds: string[]) => ({
-    data: fileIds.map((fileId) => ({
+  useFileUrls: (fileIds: string[]) => {
+    const data = fileIds.map((fileId) => ({
       fileId,
       url: urls.byId.get(fileId) ?? null,
-    })),
-    isLoading: false,
-  }),
+    }));
+    // Asked again, the batch answers with the links it holds.
+    return { data, isLoading: false, refetch: async () => ({ data }) };
+  },
 }));
 
 afterEach(() => {

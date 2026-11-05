@@ -34,6 +34,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AwsClient } from 'aws4fetch';
 
+import { FILE_LINK_LIFETIME_SEC } from '../../../../lib/shared/constants/file-links';
 import { attachmentDisposition } from '../../../../lib/shared/http/content-disposition';
 import {
   readOrgObjectStorageConnection,
@@ -700,8 +701,10 @@ export async function s3DeleteObject(
   }
 }
 
-/** Default presigned-URL lifetime (seconds) — long enough for a browser fetch. */
-const DEFAULT_PRESIGN_TTL_SEC = 15 * 60;
+/** Default presigned-URL lifetime (seconds) — long enough for a browser fetch.
+ * The app renews the links it keeps before they run out, from the same value
+ * (`lib/shared/constants/file-links.ts`). */
+const DEFAULT_PRESIGN_TTL_SEC = FILE_LINK_LIFETIME_SEC;
 
 /**
  * Presign a time-limited GET URL for the browser to download the object
