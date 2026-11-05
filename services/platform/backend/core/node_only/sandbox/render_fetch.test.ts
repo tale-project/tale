@@ -18,6 +18,7 @@ import {
   RENDER_UNFINISHED_REASON,
   type RenderLaneHalt,
 } from '../../../../lib/knowledge/crawl-parse';
+import { BOT_CHECK_HEADERS } from '../../../../lib/net/bot-check';
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../../lib/ctx';
 import { sessionIdForRender } from '../../sandbox/session_naming';
@@ -124,6 +125,45 @@ describe('parseRenderResults', () => {
     });
     expect(outcomes.get('https://a.ch/y')).toEqual({ kind: 'not_attempted' });
     expect(outcomes.size).toBe(2);
+  });
+
+  it('hands on the bot-check headers a page ended on, and no other header', () => {
+    const { outcomes } = parseRenderResults(
+      {
+        pages: [
+          {
+            url: 'https://a.ch/x',
+            attempted: true,
+            status: 202,
+            html: '<html></html>',
+            headers: {
+              'x-amzn-waf-action': 'challenge',
+              'set-cookie': 'aws-waf-token=secret',
+            },
+          },
+          {
+            url: 'https://a.ch/y',
+            attempted: true,
+            status: 403,
+            error: 'HTTP 403 at render time',
+            headers: { server: 'cloudflare' },
+          },
+        ],
+      },
+      URLS,
+    );
+    expect(outcomes.get('https://a.ch/x')).toEqual({
+      kind: 'ok',
+      status: 202,
+      finalUrl: 'https://a.ch/x',
+      html: '<html></html>',
+      headers: { 'x-amzn-waf-action': 'challenge' },
+    });
+    expect(outcomes.get('https://a.ch/y')).toEqual({
+      kind: 'failed',
+      reason: 'HTTP 403 at render time',
+      transient: false,
+    });
   });
 
   it('survives a payload that is not an object at all', () => {
@@ -729,18 +769,40 @@ function nextStep(url) {
 }
 function makePage() {
   let current = '';
+  const listeners = [];
+  const mainFrame = { name: 'main' };
+  const childFrame = { name: 'child' };
   return {
+    on(event, listener) {
+      if (event === 'response') listeners.push(listener);
+    },
+    mainFrame() { return mainFrame; },
     async goto(url) {
       current = url;
       if (url === hangUrl) await new Promise(() => setInterval(() => {}, 1000));
       const step = nextStep(url);
       if (step.throw) throw new Error(step.throw);
       const failure = step.bodyCut ? { errorText: step.bodyCut } : null;
-      return {
-        status: () => step.status || 200,
-        request: () => ({ failure: () => failure }),
+      // The documents the navigation met, in order: the first answers the
+      // goto, a later one the reload a bot check's script makes once it
+      // passes, or a frame's own document.
+      const documents = Array.isArray(step.documents)
+        ? step.documents
+        : [{ status: step.status || 200 }];
+      const responses = documents.map((document) => ({
+        status: () => document.status || 200,
+        headers: () => document.headers || {},
+        request: () => ({
+          failure: () => failure,
+          isNavigationRequest: () => true,
+          frame: () => (document.frame === 'child' ? childFrame : mainFrame),
+        }),
         async finished() { return null; },
-      };
+      }));
+      for (const response of responses) {
+        for (const listener of listeners) listener(response);
+      }
+      return responses[0];
     },
     async waitForLoadState() {},
     async evaluate(expression) {
@@ -842,6 +904,7 @@ describe('render worker — output budget in bytes', () => {
         softBudgetMs: 60_000,
         proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
         crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
+        botCheckHeaders: BOT_CHECK_HEADERS,
         ...caps,
         ...extraInput,
       }),
@@ -1174,6 +1237,115 @@ describe('render worker — output budget in bytes', () => {
     );
     expect(results.get(A)).toMatchObject({ kind: 'ok', status: 200 });
     expect(contextsOpened()).toHaveLength(2);
+  }, 30_000);
+
+  it("a bot check whose script passes in the browser: the page answers the check's reload, and is rendered", async () => {
+    const { results } = await runWorker(
+      [A],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [
+            {
+              documents: [
+                { status: 202, headers: { 'x-amzn-waf-action': 'challenge' } },
+                { status: 200, headers: { 'content-type': 'text/html' } },
+              ],
+            },
+          ],
+        }),
+      },
+    );
+    expect(results.get(A)).toEqual({
+      kind: 'ok',
+      status: 200,
+      finalUrl: A,
+      html: `<html><body>${'é'.repeat(10)}</body></html>`,
+    });
+  }, 30_000);
+
+  it('a bot check the browser does not get past comes back with the headers that mark it, and no others', async () => {
+    const { results } = await runWorker(
+      [A, B],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [
+            {
+              documents: [
+                { status: 202, headers: { 'x-amzn-waf-action': 'challenge' } },
+                {
+                  status: 202,
+                  headers: {
+                    'x-amzn-waf-action': 'challenge',
+                    'set-cookie': 'aws-waf-token=secret',
+                  },
+                },
+              ],
+            },
+          ],
+          [B]: [
+            {
+              documents: [
+                {
+                  status: 403,
+                  headers: {
+                    'cf-mitigated': 'challenge',
+                    server: 'cloudflare',
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    );
+    expect(results.get(A)).toMatchObject({
+      kind: 'ok',
+      status: 202,
+      headers: { 'x-amzn-waf-action': 'challenge' },
+    });
+    expect(results.get(B)).toEqual({
+      kind: 'failed',
+      reason: 'HTTP 403 at render time',
+      transient: false,
+      headers: { 'cf-mitigated': 'challenge' },
+    });
+  }, 30_000);
+
+  it("a frame's document never stands for the page's", async () => {
+    const { results } = await runWorker(
+      [A],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [
+            {
+              documents: [
+                { status: 200 },
+                {
+                  status: 403,
+                  frame: 'child',
+                  headers: { 'cf-mitigated': 'challenge' },
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    );
+    expect(results.get(A)).toEqual({
+      kind: 'ok',
+      status: 200,
+      finalUrl: A,
+      html: `<html><body>${'é'.repeat(10)}</body></html>`,
+    });
   }, 30_000);
 
   it('a browser that opens no page halts the batch after what rendered', async () => {

@@ -30,6 +30,11 @@
  *    strike (`lib/knowledge/crawl-parse.ts`, the failure classes). So is a
  *    page the batch's end cut off before it had its own time.
  *
+ * A page's status is its last document's, with the bot-check headers that
+ * document carried (`BOT_CHECK_HEADERS`): a site's bot check whose script
+ * passes in the browser reloads the page, so the navigation's first answer
+ * is the check, and the page the browser ends on answered the reload.
+ *
  * One session per batch, destroyed in `finally` — a session never spans
  * loop iterations or scan continuation links. A batch whose create failed
  * never had a session to destroy there: its row is left `failed` for the
@@ -44,6 +49,7 @@ import {
   RENDER_UNFINISHED_REASON,
   type RenderLaneHalt,
 } from '../../../../lib/knowledge/crawl-parse';
+import { BOT_CHECK_HEADERS } from '../../../../lib/net/bot-check';
 import { crawlerUserAgent } from '../../knowledge/crawler_identity';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
@@ -86,8 +92,18 @@ const RENDER_SESSION_IDLE_MS = 3 * 60_000;
 export const RENDER_MAX_HTML_BYTES = 6 * 1024 * 1024;
 const RENDER_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
+/** The bot-check headers (`BOT_CHECK_HEADERS`) of the document a page
+ * ended on, when it carried any: a check the browser did not get past. */
+type RenderedHeaders = Readonly<Record<string, string>>;
+
 export type RenderPageOutcome =
-  | { kind: 'ok'; status: number; finalUrl: string; html: string }
+  | {
+      kind: 'ok';
+      status: number;
+      finalUrl: string;
+      html: string;
+      headers?: RenderedHeaders;
+    }
   | {
       kind: 'failed';
       reason: string;
@@ -95,6 +111,7 @@ export type RenderPageOutcome =
        * an aborted document), or the batch ended under a page it had
        * started too late: the row records the reason, uncharged. */
       transient: boolean;
+      headers?: RenderedHeaders;
     }
   | { kind: 'not_attempted' };
 
@@ -180,6 +197,7 @@ const renderRecordSchema = z.object({
   html: z.string().optional(),
   error: z.string().optional(),
   transient: z.boolean().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 });
 const renderHaltSchema = z.object({
   reason: z.enum(['egress_proxy', 'browser']),
@@ -210,12 +228,14 @@ export function parseRenderResults(
     const { url, attempted, status, finalUrl, html, error, transient } =
       record.data;
     if (!byUrl.has(url) || attempted !== true) continue;
+    const headers = botCheckHeadersOf(record.data.headers);
     if (html !== undefined && status !== undefined) {
       byUrl.set(url, {
         kind: 'ok',
         status,
         finalUrl: finalUrl ?? url,
         html,
+        ...(headers !== null ? { headers } : {}),
       });
       continue;
     }
@@ -226,9 +246,24 @@ export function parseRenderResults(
           ? error
           : 'render produced no content',
       transient: transient === true,
+      ...(headers !== null ? { headers } : {}),
     });
   }
   return { outcomes: byUrl, halted: parsed.data.halted ?? null };
+}
+
+/** The bot-check headers of a record, and no other: the worker is asked
+ * for these alone, and its file is read as untrusted. */
+function botCheckHeadersOf(
+  headers: Record<string, string> | undefined,
+): RenderedHeaders | null {
+  if (headers === undefined) return null;
+  const kept: Record<string, string> = {};
+  for (const name of BOT_CHECK_HEADERS) {
+    const value = headers[name];
+    if (value !== undefined) kept[name] = value;
+  }
+  return Object.keys(kept).length > 0 ? kept : null;
 }
 
 /**
@@ -313,6 +348,9 @@ export async function renderUrlsInSandbox(
       // in because the worker cannot import it.
       proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
       crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
+      // What a bot check is marked with, kept of the document a page ends
+      // on: a caller tells a check the browser did not pass from the page.
+      botCheckHeaders: BOT_CHECK_HEADERS,
     };
     await sessionStageFiles(sessionId, [
       {
@@ -572,6 +610,12 @@ const userAgent =
 // browser crash earns the page one retry in a fresh context.
 const proxyErrorPattern = compilePattern(input.proxyErrorPattern);
 const crashErrorPattern = compilePattern(input.crashErrorPattern);
+// The headers a site's bot protection marks its check with
+// (lib/net/bot-check.ts), kept of the document a page ends on so the host
+// can tell a check the browser did not get past from the page.
+const botCheckHeaderNames = Array.isArray(input.botCheckHeaders)
+  ? input.botCheckHeaders.filter((name) => typeof name === 'string' && name !== '')
+  : [];
 
 function compilePattern(source) {
   if (typeof source !== 'string' || source === '') return null;
@@ -589,6 +633,34 @@ function failureClass(message) {
   if (proxyErrorPattern && proxyErrorPattern.test(message)) return 'proxy';
   if (crashErrorPattern && crashErrorPattern.test(message)) return 'crash';
   return 'page';
+}
+// Whether a response is a document of the page itself: a navigation of its
+// main frame, not a frame's, a script's or a service worker's.
+function isMainDocument(page, response) {
+  try {
+    const request = response.request();
+    return request.isNavigationRequest() && request.frame() === page.mainFrame();
+  } catch {
+    // A service worker's request has no frame: it is no document of the page.
+    return false;
+  }
+}
+// The bot-check headers a document carried, or undefined for none.
+function markedHeaders(response) {
+  if (!response || botCheckHeaderNames.length === 0) return undefined;
+  let all;
+  try {
+    all = response.headers();
+  } catch (error) {
+    console.warn('render worker: unreadable response headers: ' + errorText(error));
+    return undefined;
+  }
+  const marked = {};
+  for (const name of botCheckHeaderNames) {
+    const value = all[name];
+    if (typeof value === 'string' && value !== '') marked[name] = value.slice(0, 100);
+  }
+  return Object.keys(marked).length > 0 ? marked : undefined;
 }
 
 const startedAt = Date.now();
@@ -645,7 +717,10 @@ async function openContext() {
 // browser's words and their class: \`page\` (this page's own — a non-2xx, a
 // blocked redirect, an oversized DOM, a load timeout), \`crash\` (the browser
 // lost the navigation), \`proxy\` (the egress proxy refused the tunnel) or
-// \`browser\` (no page could be opened at all).
+// \`browser\` (no page could be opened at all). Status and headers are the
+// page's last document's: a bot check whose script passes reloads the page,
+// and the page the browser ends on answered that reload, not the navigation
+// that met the check.
 async function renderOnce(url) {
   let page;
   try {
@@ -653,8 +728,12 @@ async function renderOnce(url) {
   } catch (error) {
     return { ok: false, cls: 'browser', error: errorText(error) };
   }
+  let lastDocument = null;
+  page.on('response', (response) => {
+    if (isMainDocument(page, response)) lastDocument = response;
+  });
   try {
-    const response = await page.goto(url, {
+    const navigated = await page.goto(url, {
       timeout: perPageTimeoutMs,
       waitUntil: 'domcontentloaded',
     });
@@ -678,6 +757,8 @@ async function renderOnce(url) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
     }
+    const response = lastDocument || navigated;
+    const headers = markedHeaders(response);
     // A document whose body broke off after its headers (the browser's
     // network service died mid-download) parses as a page — a shell with a
     // few words that would be stored as the content. The request knows.
@@ -689,6 +770,7 @@ async function renderOnce(url) {
           ok: false,
           cls: 'crash',
           error: 'document download broke off: ' + (failure.errorText || 'unknown cause'),
+          headers,
         };
       }
     }
@@ -704,16 +786,16 @@ async function renderOnce(url) {
       return { ok: false, cls: 'page', error: 'redirected to a blocked host' };
     }
     if (status < 200 || status >= 300) {
-      return { ok: false, cls: 'page', status, error: 'HTTP ' + status + ' at render time' };
+      return { ok: false, cls: 'page', status, error: 'HTTP ' + status + ' at render time', headers };
     }
     const html = await renderedHtml(page);
     if (Buffer.byteLength(html, 'utf8') > maxHtmlBytes) {
       return { ok: false, cls: 'page', error: 'rendered HTML exceeds the per-page bound' };
     }
-    return { ok: true, status, finalUrl, html };
+    return { ok: true, status, finalUrl, html, headers };
   } catch (error) {
     const message = errorText(error);
-    return { ok: false, cls: failureClass(message), error: message };
+    return { ok: false, cls: failureClass(message), error: message, headers: markedHeaders(lastDocument) };
   } finally {
     await page.close().catch(() => {});
   }
@@ -789,9 +871,11 @@ try {
     if (!result.ok) {
       record.error = result.error.slice(0, 500);
       if (result.status !== undefined) record.status = result.status;
+      if (result.headers) record.headers = result.headers;
       if (result.transient) record.transient = true;
     } else {
       const fields = { status: result.status, finalUrl: result.finalUrl, html: result.html };
+      if (result.headers) fields.headers = result.headers;
       // Admit the page only while the output stays under the batch cap —
       // decided BEFORE storing, in bytes. A page that does not fit is
       // handed back (not attempted) for the next batch, and this batch
