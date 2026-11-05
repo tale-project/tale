@@ -1304,6 +1304,7 @@ apiKeys:
     deletedProject: Projet supprimé
     actsAs: Agit en tant que {role}
     madeBy: Créée par {name}
+    personal: Clé personnelle
   form:
     name: Nom de la clé
     namePlaceholder: Saisis le nom de la clé...
@@ -1365,6 +1366,12 @@ apiKeys:
     roleHint: Le rôle de la clé dans cette organisation. Il ne peut pas dépasser le tien.
     targetRequired: Choisis à qui appartient la clé.
   neverUsed: Jamais utilisée
+  lastUsedUnavailable: Non disponible
+  scope:
+    label: Clés à afficher
+    managed: Clés que tu gères
+    all: Toutes les clés de cette organisation
+  allKeysDescription: Toutes les clés API qui fonctionnent dans cette organisation, y compris les clés personnelles des membres. Seul le membre à qui appartient une clé personnelle peut la révoquer.
   neverExpires: Jamais
   expired: Expirée
   description: Gérer les clés API pour les connectors externes

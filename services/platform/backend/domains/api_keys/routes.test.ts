@@ -196,5 +196,19 @@ describe('GET /api/app/api-keys', () => {
       userId: 'ada',
       role: 'admin',
     });
+    expect(service.listApiKeysForViewer.mock.calls[0]?.[2]).toBe('managed');
+  });
+
+  it('passes on a request for every key here, and refuses any other scope [APIKEY-R8]', async () => {
+    service.listApiKeysForViewer.mockResolvedValueOnce([]);
+    const all = await app().request('/?scope=all');
+    expect(all.status).toBe(200);
+    expect(await all.json()).toEqual({ keys: [] });
+    expect(service.listApiKeysForViewer.mock.calls[0]?.[2]).toBe('all');
+
+    const bogus = await app().request('/?scope=everyone');
+    expect(bogus.status).toBe(400);
+    expect(await bogus.json()).toMatchObject({ code: 'INVALID_QUERY' });
+    expect(service.listApiKeysForViewer).toHaveBeenCalledTimes(1);
   });
 });

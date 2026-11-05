@@ -775,6 +775,7 @@ describe('listApiKeysForViewer', () => {
     expiresAt: null,
     createdAt: new Date('2026-10-01T00:00:00.000Z'),
     lastRequest: null,
+    referenceId: 'ada',
     ownerKind: null,
     principalUserId: null,
     teamId: null,
@@ -786,6 +787,8 @@ describe('listApiKeysForViewer', () => {
     teamName: null,
     projectName: null,
     createdByName: null,
+    holderName: null,
+    holderEmail: null,
     ...extra,
   });
 
@@ -802,10 +805,81 @@ describe('listApiKeysForViewer', () => {
         userId: 'mia',
         role,
       });
-      expect(statements[0]?.values.slice(0, 3)).toEqual(['mia', ORG, admin]);
+      // The holder's membership here is joined first.
+      expect(statements[0]?.values[0]).toBe(ORG);
+      expect(statements[0]?.values.slice(1, 4)).toEqual(['mia', ORG, admin]);
       // A member's keys are the ones made for them here.
-      expect(statements[0]?.values[3]).toBe('mia');
+      expect(statements[0]?.values[4]).toBe('mia');
+      // The members' own keys stay out of the keys a viewer manages.
+      expect(statements[0]?.values[5]).toBe(false);
     }
+  });
+
+  it('adds the members’ own keys only when an Owner or Admin asks for every key [APIKEY-R8]', async () => {
+    for (const [role, scope, everyKey] of [
+      ['admin', 'all', true],
+      ['owner', 'all', true],
+      ['developer', 'all', false],
+      ['member', 'all', false],
+      ['admin', 'managed', false],
+    ] as const) {
+      const { sql, statements } = fakeSql();
+      await listApiKeysForViewer(
+        sql,
+        { organizationId: ORG, userId: 'mia', role },
+        scope,
+      );
+      const [statement] = statements;
+      // Only a member of this organization's own key joins, by its holder.
+      expect(statement?.values[0]).toBe(ORG);
+      expect(statement?.values[5]).toBe(everyKey);
+      // Only while it can act here: no disabled member's key, and no
+      // disabled or expired key.
+      expect(statement?.text).toContain(`lower(m."role") <> 'disabled'`);
+      expect(statement?.text).toContain('k."enabled" IS NOT FALSE');
+      expect(statement?.text).toContain('k."expiresAt" > now()');
+    }
+  });
+
+  it('shows another member’s own key with its holder, read-only and with no last use [APIKEY-R8]', async () => {
+    const lastRequest = new Date('2026-10-20T08:00:00.000Z');
+    const { sql } = fakeSql({
+      listed: [
+        row({ id: 'own', lastRequest }),
+        row({
+          id: 'mias-laptop',
+          name: 'Laptop',
+          referenceId: 'mia',
+          holderName: 'Mia Keller',
+          holderEmail: 'mia@example.test',
+          lastRequest,
+        }),
+      ],
+    });
+    const keys = await listApiKeysForViewer(
+      sql,
+      { organizationId: ORG, userId: 'ada', role: 'admin' },
+      'all',
+    );
+    expect(keys[0]).toMatchObject({
+      id: 'own',
+      owner: { kind: 'user' },
+      lastRequest: lastRequest.getTime(),
+      canRevoke: true,
+    });
+    expect(keys[1]).toMatchObject({
+      id: 'mias-laptop',
+      name: 'Laptop',
+      owner: {
+        kind: 'personal',
+        userId: 'mia',
+        name: 'Mia Keller',
+        email: 'mia@example.test',
+      },
+      // Its last use may have been in another organization.
+      lastRequest: null,
+      canRevoke: false,
+    });
   });
 
   it('names whose each key is, and what it acts as [APIKEY-R8]', async () => {

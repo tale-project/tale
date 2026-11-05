@@ -14,9 +14,10 @@ interface ApiKeyOwnerCellProps {
 
 /**
  * Whose a key is, and — under it — what it acts as: the role of a team's, a
- * project's or the organization's key, or who made a key for a member. The
- * viewer's own key made from a session bound to this organization works
- * here alone, and says so where their other own keys say only "You".
+ * project's or the organization's key, who made a key for a member, or the
+ * address of the member who holds their own key. The viewer's own key made
+ * from a session bound to this organization works here alone, and says so
+ * where their other own keys say only "You".
  */
 export function ApiKeyOwnerCell({
   apiKey,
@@ -35,6 +36,9 @@ export function ApiKeyOwnerCell({
   switch (owner.kind) {
     case 'user':
       label = t('apiKeys.owner.you');
+      break;
+    case 'personal':
+      label = owner.name ?? owner.email ?? tCommon('formerMember');
       break;
     case 'member':
       label = ownHere
@@ -67,7 +71,11 @@ export function ApiKeyOwnerCell({
         ? t('apiKeys.owner.madeBy', {
             name: apiKey.createdBy.name ?? tCommon('formerMember'),
           })
-        : null;
+        : owner.kind === 'personal' &&
+            owner.name !== null &&
+            owner.email !== null
+          ? owner.email
+          : null;
 
   return (
     <div className="flex min-w-0 flex-col">

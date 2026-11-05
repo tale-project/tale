@@ -1,11 +1,20 @@
 /**
  * Whose key it is. `user`: the viewer's own key, which works in every
- * organization they belong to. The others are bound to this organization:
- * a key an Owner or Admin made for a member, and the keys of a team, a
- * project and the organization itself, which act as their own identity.
+ * organization they belong to. `personal`: another member's own key, which
+ * works here the same way; only an Owner's or Admin's view of every key
+ * lists it, and only its holder ends it. The others are bound to this
+ * organization: a key an Owner or Admin made for a member, and the keys of
+ * a team, a project and the organization itself, which act as their own
+ * identity.
  */
 export type ApiKeyOwner =
   | { kind: 'user' }
+  | {
+      kind: 'personal';
+      userId: string;
+      name: string | null;
+      email: string | null;
+    }
   | {
       kind: 'member';
       userId: string;
@@ -15,6 +24,12 @@ export type ApiKeyOwner =
   | { kind: 'team'; teamId: string; teamName: string | null }
   | { kind: 'project'; projectId: string; projectName: string | null }
   | { kind: 'organization' };
+
+/**
+ * Which keys the list shows: the ones the viewer manages, or — for an Owner
+ * or Admin — every key that works here, the members' own keys included.
+ */
+export type ApiKeyListScope = 'managed' | 'all';
 
 /** The role a team's, a project's or the organization's key acts with. */
 export type ApiKeyRole = 'member' | 'editor' | 'developer' | 'admin';

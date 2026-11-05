@@ -1215,6 +1215,7 @@ apiKeys:
     deletedProject: Deleted project
     actsAs: Acts as {role}
     madeBy: Made by {name}
+    personal: Personal key
   form:
     name: Key name
     namePlaceholder: Enter key name...
@@ -1275,6 +1276,12 @@ apiKeys:
     roleHint: The role the key has in this organization. It cannot be above your own.
     targetRequired: Choose whom the key belongs to.
   neverUsed: Never used
+  lastUsedUnavailable: Not available
+  scope:
+    label: Keys to show
+    managed: Keys you manage
+    all: All keys in this organization
+  allKeysDescription: Every API key that works in this organization, members' personal keys included. Only the member a personal key belongs to can revoke it.
   neverExpires: Never
   expired: Expired
   description: Manage API keys for external connectors
