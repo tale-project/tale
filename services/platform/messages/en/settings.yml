@@ -1194,6 +1194,7 @@ apiKeys:
   keyRevoked: API key revoked
   keyRevokeFailed: Couldn't revoke API key
   keyCreateFailed: Couldn't create API key
+  createForbidden: "Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one: Call models over the API, Export notifications, or Act for another member."
   revokeKey: Revoke key
   revokeKeyTitle: Revoke API key
   revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'
@@ -1258,6 +1259,7 @@ apiKeys:
     memberPlaceholder: Choose a member
     memberSearch: Search members...
     memberEmpty: No member whose role is below yours
+    memberHidden: Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.
     memberNoMatch: No member matches
     memberLoadFailed: Couldn't load the members.
     team: Team
@@ -1275,6 +1277,11 @@ apiKeys:
     role: Acts as
     roleHint: The role the key has in this organization. It cannot be above your own.
     targetRequired: Choose whom the key belongs to.
+    modelApi:
+      disabled: No key can call this organization's model endpoints yet. An Admin turns them on under Settings → Governance → Models.
+      forbiddenSelf: In this organization, this key can't call the model endpoints. That takes the Owner, Admin or Developer role, or the Call models over the API competence, which an Admin grants.
+      needsGrant: This key calls the model endpoints only while {name} holds the Call models over the API competence, which an Admin grants.
+      forbiddenRole: A key that acts as a Member or Editor can't call the model endpoints.
   neverUsed: Never used
   lastUsedUnavailable: Not available
   scope:

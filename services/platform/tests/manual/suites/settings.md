@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 153 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 154 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -534,6 +534,27 @@ Restore any toggled setting after the run.
   session answers their own keys alone; `?scope=everyone` answers 400
   `INVALID_QUERY`. Repeat with Deutsch and Français → the choice, the mark and
   **Not available** are localized.
+- [ ] `SET-F113` · **What the create dialog says before a key exists** — as
+  an Admin, with the organization's **Model endpoints for API keys**
+  (`governance.modelAccess.modelApi.title`) switched off:
+  `/dashboard/{org}/settings/api/rest` → **Create API key** → one line says no
+  key can call the model endpoints yet
+  (`settings.apiKeys.form.modelApi.disabled`). Switch them on and open the
+  dialog again → the line is gone while **Belongs to** is **You**; choose
+  **The organization** (`settings.apiKeys.form.ownerOptions.organization`)
+  acting as **Member** → the line says a key acting as a Member or Editor
+  cannot call them (`settings.apiKeys.form.modelApi.forbiddenRole`), and
+  **Developer** takes it away; choose **Another member** and a Member → the
+  line says the key calls them only while that member holds **Call models over
+  the API** (`settings.apiKeys.form.modelApi.needsGrant`), and the **Member**
+  picker says why it lists no Admin and no Owner
+  (`settings.apiKeys.form.memberHidden`), never only when it is empty. As a
+  Member holding only **Export notifications**, the dialog says this key
+  cannot call them here (`settings.apiKeys.form.modelApi.forbiddenSelf`).
+  Revoke that grant, then **Create key** in the still-open dialog → the
+  failure toast (`settings.apiKeys.keyCreateFailed`) reads
+  `settings.apiKeys.createForbidden`. Repeat with Deutsch and Français →
+  every line and the toast are localized, never the server's English.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →

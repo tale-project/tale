@@ -15,6 +15,7 @@ import * as z from 'zod';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useCreateApiKey } from '../hooks/use-api-keys';
 import {
@@ -25,6 +26,7 @@ import {
   expirySeconds,
   isCustomExpiryInRange,
 } from '../lib/expiry';
+import { type ModelApiStanding, modelApiNote } from '../lib/model-api-note';
 import type { ApiKeyOwnerInput, ApiKeyRole } from '../types';
 import { ApiKeyExpiryField } from './api-key-expiry-field';
 import {
@@ -32,6 +34,11 @@ import {
   ApiKeyOwnerField,
   rolesFor,
 } from './api-key-owner-field';
+
+/** The create rule's refusal, which the server words in English alone: both
+ * doors answer it, the api-key plugin's and, from a session bound to this
+ * organization, the organization's. */
+const API_KEY_CREATE_FORBIDDEN = 'API_KEY_CREATE_FORBIDDEN';
 
 /** Better Auth's apiKey plugin caps the key name at its `maximumNameLength`
  *  default (32) — `convex/auth.ts` sets no override. Mirror it client-side so a
@@ -53,6 +60,10 @@ interface ApiKeyCreateDialogProps {
   /** The session is bound to this organization alone (single sign-on, an
    * authenticating proxy): a key for oneself is bound here too. */
   sessionBoundHere?: boolean;
+  /** This organization's model endpoints: whether they are on and the
+   * viewer may call them. Absent until known, and the dialog says nothing
+   * of them meanwhile. */
+  modelApi?: ModelApiStanding;
   onSuccess?: () => void;
 }
 
@@ -107,6 +118,7 @@ export function ApiKeyCreateDialog({
   viewerUserId,
   viewerRole,
   sessionBoundHere = false,
+  modelApi,
   onSuccess,
   restoreFocusRef,
 }: ApiKeyCreateDialogProps) {
@@ -221,8 +233,23 @@ export function ApiKeyCreateDialog({
   const expiry = watch('expiry');
   const expiryDate = watch('expiryDate');
   const owner = watch('owner');
+  const role = watch('role');
   /** The picked member's name, for the success view. */
   const [memberName, setMemberName] = useState<string | null>(null);
+  /** The picked member's role: whether a key acting as them calls the
+   * model endpoints by role. */
+  const [memberRole, setMemberRole] = useState<string | null>(null);
+  // One line on whether the key will reach the model endpoints, the door a
+  // key is most often made for.
+  const modelNote = modelApiNote({
+    standing: modelApi,
+    owner: canCreateForOthers ? owner : 'self',
+    role,
+    member:
+      memberName !== null && memberRole !== null
+        ? { name: memberName, role: memberRole }
+        : null,
+  });
 
   const onSubmit = async (data: ApiKeyFormData) => {
     const now = Date.now();
@@ -256,7 +283,12 @@ export function ApiKeyCreateDialog({
       console.error(error);
       toast({
         title: tSettings('apiKeys.keyCreateFailed'),
-        description: failureDetail(error),
+        // The create rule's refusal in the reader's language; any other in
+        // the words the refusal came with.
+        description:
+          backendErrorCode(error) === API_KEY_CREATE_FORBIDDEN
+            ? tSettings('apiKeys.createForbidden')
+            : failureDetail(error),
         variant: 'destructive',
       });
     }
@@ -288,6 +320,7 @@ export function ApiKeyCreateDialog({
       setCreatedFor(null);
       setCreatedOwn(true);
       setMemberName(null);
+      setMemberRole(null);
       setCopied(false);
     }
     onOpenChange(newOpen);
@@ -405,8 +438,9 @@ export function ApiKeyCreateDialog({
               }
             }}
             memberId={watch('memberId')}
-            onMemberChange={(userId, name) => {
+            onMemberChange={(userId, name, pickedRole) => {
               setMemberName(name);
+              setMemberRole(pickedRole);
               setValue('memberId', userId, {
                 shouldDirty: true,
                 shouldValidate: true,
@@ -426,9 +460,9 @@ export function ApiKeyCreateDialog({
                 shouldValidate: true,
               })
             }
-            role={watch('role')}
-            onRoleChange={(role) =>
-              setValue('role', role, {
+            role={role}
+            onRoleChange={(nextRole) =>
+              setValue('role', nextRole, {
                 shouldDirty: true,
                 shouldValidate: true,
               })
@@ -445,6 +479,13 @@ export function ApiKeyCreateDialog({
               if (owner === 'project') void form.trigger('projectId');
             }}
           />
+        )}
+        {modelNote !== null && (
+          <Text variant="muted">
+            {modelNote.messageKey === 'apiKeys.form.modelApi.needsGrant'
+              ? tSettings(modelNote.messageKey, { name: modelNote.name })
+              : tSettings(modelNote.messageKey)}
+          </Text>
         )}
         <ApiKeyExpiryField
           choice={expiry}

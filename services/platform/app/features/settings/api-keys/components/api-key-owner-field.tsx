@@ -91,8 +91,9 @@ interface ApiKeyOwnerFieldProps {
   choice: ApiKeyOwnerChoice;
   onChoiceChange: (choice: ApiKeyOwnerChoice) => void;
   memberId: string;
-  /** The member picked, with the name the success view shows. */
-  onMemberChange: (userId: string, name: string) => void;
+  /** The member picked, with the name the success view shows and their
+   * role here. */
+  onMemberChange: (userId: string, name: string, role: string) => void;
   teamId: string;
   onTeamChange: (teamId: string) => void;
   projectId: string;
@@ -206,11 +207,17 @@ interface TargetPickerState {
   onClosed: (() => void) | undefined;
 }
 
-/** The picker's refusal, under its trigger, and the check on close. */
-function targetPickerProps({ error, onClosed }: TargetPickerState) {
+/** The picker's refusal, else its hint, under its trigger, and the check on
+ * close. */
+function targetPickerProps({
+  error,
+  onClosed,
+  hint,
+}: TargetPickerState & { hint?: string | undefined }) {
+  const description = error ?? hint;
   return {
     error: error !== undefined,
-    ...(error !== undefined ? { description: error } : {}),
+    ...(description !== undefined ? { description } : {}),
     onOpenChange: (open: boolean) => {
       if (!open) onClosed?.();
     },
@@ -265,7 +272,8 @@ function TargetListField({
 
 /** The members a key may be made for: active, someone else, and below the
  * maker's role — making a key that acts as someone takes more authority
- * than they hold. */
+ * than they hold. The picker says so whenever it leaves someone out, not
+ * only when it offers nobody. */
 function MemberPicker({
   organizationId,
   viewerUserId,
@@ -279,27 +287,35 @@ function MemberPicker({
   viewerUserId: string | undefined;
   viewerRole: string | undefined;
   value: string;
-  onChange: (userId: string, name: string) => void;
+  onChange: (userId: string, name: string, role: string) => void;
 } & TargetPickerState) {
   const { t } = useT('settings');
   const { t: tRoles } = useT('roles');
   const membersRead = useOrgMembersForPicker(organizationId);
   const { data: members, refetch } = membersRead;
+  const others = useMemo(
+    () => (members ?? []).filter((member) => member.userId !== viewerUserId),
+    [members, viewerUserId],
+  );
+  const below = useMemo(
+    () =>
+      others.filter(
+        (member) => roleRank(member.role) < roleRank(viewerRole ?? ''),
+      ),
+    [others, viewerRole],
+  );
   const options = useMemo(
     () =>
-      (members ?? [])
-        .filter(
-          (member) =>
-            member.userId !== viewerUserId &&
-            roleRank(member.role) < roleRank(viewerRole ?? ''),
-        )
-        .map((member) => ({
-          value: member.userId,
-          label: member.displayName,
-          description: `${member.email} · ${tRoles(member.role.toLowerCase())}`,
-        })),
-    [members, viewerUserId, viewerRole, tRoles],
+      below.map((member) => ({
+        value: member.userId,
+        label: member.displayName,
+        description: `${member.email} · ${tRoles(member.role.toLowerCase())}`,
+      })),
+    [below, tRoles],
   );
+  // Someone at or above the maker's role is left out: say why.
+  const hint =
+    below.length < others.length ? t('apiKeys.form.memberHidden') : undefined;
   const read: TargetListRead = {
     answered: members !== undefined,
     ...readStateOf(membersRead),
@@ -322,16 +338,14 @@ function MemberPicker({
             ? t('apiKeys.form.memberEmpty')
             : t('apiKeys.form.memberNoMatch')
         }
-        {...targetPickerProps({ error, onClosed })}
+        {...targetPickerProps({ error, onClosed, hint })}
         required
         disabled={!read.answered}
         value={value || null}
-        onValueChange={(userId) =>
-          onChange(
-            userId,
-            options.find((option) => option.value === userId)?.label ?? userId,
-          )
-        }
+        onValueChange={(userId) => {
+          const member = below.find((option) => option.userId === userId);
+          onChange(userId, member?.displayName ?? userId, member?.role ?? '');
+        }}
         options={options}
       />
     </TargetListField>
