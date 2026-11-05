@@ -1207,6 +1207,7 @@ apiKeys:
     owner: Belongs to
   owner:
     you: You
+    youHere: You — this organization only
     team: Team {name}
     project: Project {name}
     organization: Organization
@@ -1221,6 +1222,10 @@ apiKeys:
     scopeHint: This key belongs to you, not to this organization. It acts as
       you in every organization you are a member of; a REST call names the
       organization with the X-Organization-Slug header.
+    scopeHintHere: This key belongs to you and works in this organization
+      only, because your sign-in covers this organization alone. It acts as
+      you, with your role here, and needs no X-Organization-Slug header.
+      Owners and Admins here can see and revoke it.
     expiresIn: Expiration
     expiresOptions:
       7days: 7 days
@@ -1238,6 +1243,7 @@ apiKeys:
     owner: Belongs to
     ownerOptions:
       self: You
+      selfHere: You — this organization only
       member: Another member
       team: A team
       project: A project

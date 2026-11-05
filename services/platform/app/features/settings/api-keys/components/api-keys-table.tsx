@@ -30,6 +30,9 @@ interface ApiKeysTableProps {
   viewerUserId?: string;
   /** The signed-in member's role here: a key never acts above it. */
   viewerRole?: string;
+  /** The session is bound to this organization alone: a key the viewer
+   * makes for themselves works here alone. */
+  sessionBoundHere?: boolean;
   error?: Error | null;
   onRetry?: () => void;
 }
@@ -59,6 +62,7 @@ export function ApiKeysTable({
   canCreateForOthers = false,
   viewerUserId,
   viewerRole,
+  sessionBoundHere = false,
   error,
   onRetry,
 }: ApiKeysTableProps) {
@@ -169,6 +173,7 @@ export function ApiKeysTable({
           canCreateForOthers={canCreateForOthers}
           {...(viewerUserId !== undefined ? { viewerUserId } : {})}
           {...(viewerRole !== undefined ? { viewerRole } : {})}
+          sessionBoundHere={sessionBoundHere}
         />
       )}
     </Stack>

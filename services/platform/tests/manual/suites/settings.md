@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 150 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 152 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -495,6 +495,27 @@ Restore any toggled setting after the run.
   the key answers 403 `ORG_FORBIDDEN` ("whoever made it is no longer an Owner
   or Admin above the member"); remove that Admin instead → the key is revoked
   with the reason `maker_removed`.
+- [ ] `SET-F111` · **Your own key after single sign-on** — as a Developer of
+  organization A who also belongs to B, sign in through A's single sign-on
+  (`AUTH-F12`) → `/dashboard/{A}/settings/api/rest` → **Create API key**
+  (`settings.apiKeys.createKey`) → The hint says the key works in this
+  organization only (`settings.apiKeys.form.scopeHintHere`), never that it
+  belongs to you in every organization (`settings.apiKeys.form.scopeHint`);
+  as an Admin, **Belongs to** (`settings.apiKeys.form.owner`) starts at **You
+  — this organization only** (`settings.apiKeys.form.ownerOptions.selfHere`)
+  with the same hint. Create the key → its row's **Belongs to** reads **You —
+  this organization only** (`settings.apiKeys.owner.youHere`) with no **Made
+  by** beneath, and the bell shows nothing for it. `GET /api/v1/me` with the
+  key and no `X-Organization-Slug` answers 200 with organization A alone, your
+  role there and `key.owner.kind` `member`; with B's slug it answers 403
+  `ORG_FORBIDDEN` listing A. Signed in to A as its Owner, the key is listed
+  under your name, **Made by** you (`settings.apiKeys.owner.madeBy`), and
+  **Revoke key** (`settings.apiKeys.revokeKey`) ends it; make another in A's
+  single sign-on session and end it there → the next call with it answers
+  401, and A's audit log (**Settings → Governance → Logs**) shows **API key
+  created** and **API key revoked** by you, while B's shows neither. Repeat
+  with Deutsch and Français → the hint, the option and the owner are
+  localized.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
@@ -1139,6 +1160,17 @@ Restore any toggled setting after the run.
   personal-key hint (`settings.apiKeys.form.scopeHint`). `DELETE
   /api/app/api-keys/{id}` of a team's key from either session answers 404
   `API_KEY_NOT_FOUND`, and the key keeps working.
+- [ ] `SET-B51` · **No key that works everywhere from a one-organization
+  sign-in** — in organization A's single sign-on session (`AUTH-F12`), send
+  `POST /api/auth/api-key/create` with `{"name":"Probe"}` from DevTools → 403
+  `ORG_FORBIDDEN` and no key; from a password session, `POST
+  /api/app/api-keys?orgId={A}` with `{"name":"Probe","owner":{"kind":"self"}}`
+  → 400 `API_KEY_MEMBER_SELF` (that session's own key is made at the
+  personal-key door). As a Member of A with no competence used with a key who
+  is a Developer of B, signed in through A's single sign-on → **Settings →
+  API** offers no **Create API key**, and the same org-door request answers
+  403 `API_KEY_CREATE_FORBIDDEN`; signed in to B with a password, the
+  personal-key door still makes the key.
 - [ ] `SET-B7` · **API key edge cases** — Create with a blank **Key name**;
   after SET-F32's revoke, call a REST endpoint with the revoked key (e.g.
   `curl -H "Authorization: Bearer <key>"` against the API) → The blank name is

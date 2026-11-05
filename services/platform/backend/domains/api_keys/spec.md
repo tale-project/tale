@@ -3,8 +3,9 @@
 > **Prefix** `APIKEY-` · **Docs** [`admin/api-keys`](../../../../../docs/en/platform/admin/api-keys.md)
 
 An API key lets a program call Tale's REST API, its MCP server and its model endpoints. A person
-can make their own key, which works wherever they are a member. An Owner or Admin can also make
-a key for another member, for a team, for a project or for the organization itself; such a key
+can make their own key, which works wherever they are a member — or, signed in through single
+sign-on or an authenticating proxy, in that one organization. An Owner or Admin can also make a
+key for another member, for a team, for a project or for the organization itself; such a key
 works in that one organization only. These rules cover who can make which key, what a key acts
 as and reaches, when it stops working, who sees it, and whose limits its spend counts toward.
 A project's own limit, which binds its keys too, is the governance spec's (`GOV-R14`).
@@ -14,6 +15,7 @@ A project's own limit, which binds its keys too, is the governance spec's (`GOV-
 | Key for          | Who makes it                  | Acts as                              | Works in                         |
 | ---------------- | ----------------------------- | ------------------------------------ | -------------------------------- |
 | Yourself         | anyone the create rule admits | you, with your role                  | every organization you belong to |
+| Yourself, signed in through single sign-on or a proxy | anyone the create rule admits here | you, with your role here | this organization |
 | Another member   | an Owner or Admin             | that member, with their role         | this organization                |
 | A team           | an Owner or Admin             | its own identity, with a chosen role | this organization                |
 | A project        | an Owner or Admin             | its own identity, with a chosen role | this organization                |
@@ -21,8 +23,10 @@ A project's own limit, which binds its keys too, is the governance spec's (`GOV-
 
 ### APIKEY-R1 · Only owners and admins make a key for someone or something else
 
-Anyone may make a key of their own. A key for another member, a team, a project or the
-organization is made by an Owner or Admin of that organization (`API_KEY_OWNER_FORBIDDEN`).
+Anyone the create rule admits may make a key of their own (`API_KEY_CREATE_FORBIDDEN`), bound to
+one organization when they signed in through single sign-on or a proxy (`APIKEY-R13`). A key for
+another member, a team, a project or the organization is made by an Owner or Admin of that
+organization (`API_KEY_OWNER_FORBIDDEN`).
 
 - **Example**: Mia, a member, opens Create API key → she can make only her own key. Ada, an
   admin, can also make one for Mia, the Finance team, the Launch project or Acme.
@@ -42,11 +46,28 @@ exists, sees it in their list and can end it. Its spend counts toward the member
 ### APIKEY-R3 · An admin makes a key only for a member whose role is below their own
 
 Acting as someone takes more authority than they hold. A key for yourself is made as your own
-key (`API_KEY_MEMBER_SELF`); one for an admin or the owner, by an admin, is refused
-(`API_KEY_MEMBER_FORBIDDEN`), and so is one for someone who is not an active member
-(`API_KEY_MEMBER_NOT_FOUND`).
+key (`API_KEY_MEMBER_SELF`), bound here after single sign-on (`APIKEY-R13`); one for an admin or
+the owner, by an admin, is refused (`API_KEY_MEMBER_FORBIDDEN`), and so is one for someone who is
+not an active member (`API_KEY_MEMBER_NOT_FOUND`).
 
 - **Example**: Ada, an admin, picks Olav, the owner → refused. Olav picks Ada → allowed.
+
+### APIKEY-R13 · A key you make while signed in through single sign-on works here alone
+
+A sign-in through single sign-on or an authenticating proxy covers one organization, and never
+makes a key that works in every organization (`ORG_FORBIDDEN` at the personal-key door). The key
+its person makes for themselves is bound to that organization instead: it acts as them, with
+their live role, while they stay an active member there, since no one above them made it.
+Whether they may make one is the create rule read for this organization alone — Owner, Admin or
+Developer here, or a live grant here of a competence used with a key — checked again as the key
+is bound (`API_KEY_CREATE_FORBIDDEN`). They get no notification of their own key; they see it in
+their list and end it there, and an Owner or Admin sees and ends it like every key bound here. A
+password sign-in still makes a key that works everywhere, at the personal-key door
+(`API_KEY_MEMBER_SELF` at the organization's).
+
+- **Example**: Ada, an admin of Acme and Beta, signs in to Acme through single sign-on and creates
+  "Laptop" for herself → it works in Acme alone, with Ada's role there; Olav, Acme's owner, sees
+  it in Acme's list and can end it. Made after a password sign-in, it would work in Beta too.
 
 ### APIKEY-R4 · A team's, a project's or the organization's key acts with the role it was given
 

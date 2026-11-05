@@ -63,8 +63,9 @@ export async function listOrgApiKeys(
     }[]
   >`
     SELECT k."id", k."name", k."start",
-           CASE WHEN o.api_key_id IS NULL OR o.owner_kind = 'member'
-                THEN k."referenceId" END AS "userId",
+           CASE WHEN o.api_key_id IS NULL THEN k."referenceId"
+                WHEN o.owner_kind = 'member' THEN o.principal_user_id
+           END AS "userId",
            u."name" AS "ownerName", u."email" AS "ownerEmail",
            k."createdAt", k."expiresAt",
            coalesce(o.owner_kind, 'user') AS "ownerKind",
@@ -76,9 +77,12 @@ export async function listOrgApiKeys(
       ON o.api_key_id IS NULL
      AND m."userId" = k."referenceId"
      AND m."organizationId" = ${organizationId}
+    -- A key made for a member authenticates as an identity of its own: only
+    -- its binding names the member it acts as.
     LEFT JOIN "user" u
-      ON (o.api_key_id IS NULL OR o.owner_kind = 'member')
-     AND u."id" = k."referenceId"
+      ON u."id" = CASE WHEN o.api_key_id IS NULL THEN k."referenceId"
+                       WHEN o.owner_kind = 'member' THEN o.principal_user_id
+                  END
     LEFT JOIN "team" t ON t."id" = o.team_id
     LEFT JOIN app.projects p ON p.id = o.project_id
     WHERE k."enabled" IS NOT FALSE
@@ -386,9 +390,12 @@ export async function describeRuleApiKeys(
 
 /**
  * Whether `userId` holds an API key of any state that works in this
- * organization: one of their own, or one made for them here. Whatever the
- * create rule says today — a developer moved to a lower role, a revoked
- * competence — the holder keeps seeing those keys, and revoking them.
+ * organization: one of their own, or one made for them here — by an Owner
+ * or Admin, or by themselves from a session bound to this organization.
+ * Whatever the create rule says today — a developer moved to a lower role,
+ * a revoked competence — the holder keeps seeing those keys, and revoking
+ * them. A key made for a member authenticates as an identity of its own,
+ * so only its binding names the member.
  */
 export async function holdsApiKeys(
   sql: Sql,
@@ -398,9 +405,9 @@ export async function holdsApiKeys(
   const rows = await sql<{ id: string }[]>`
     SELECT k."id" FROM "apikey" k
     LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
-    WHERE k."referenceId" = ${userId}
-      AND (o.api_key_id IS NULL
-           OR (o.org_id = ${organizationId} AND o.revoked_at_ms IS NULL))
+    WHERE (o.api_key_id IS NULL AND k."referenceId" = ${userId})
+       OR (o.org_id = ${organizationId} AND o.revoked_at_ms IS NULL
+           AND o.owner_kind = 'member' AND o.principal_user_id = ${userId})
     LIMIT 1
   `;
   return rows.length > 0;

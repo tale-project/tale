@@ -28,6 +28,35 @@ describe('ApiKeyOwnerCell', () => {
     expect(screen.getByText('Made by Ada')).toBeInTheDocument();
   });
 
+  it('says the viewer’s own key made from a session bound here works here alone [APIKEY-R13]', () => {
+    renderCell({
+      owner: { kind: 'member', userId: 'mia', name: 'Mia Keller', email: null },
+      role: null,
+      createdBy: { userId: 'mia', name: 'Mia Keller' },
+    });
+    expect(
+      screen.getByText('You — this organization only'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Made by/)).not.toBeInTheDocument();
+
+    // An Owner or Admin reads it as the member's, made by the member.
+    renderCell(
+      {
+        owner: {
+          kind: 'member',
+          userId: 'mia',
+          name: 'Mia Keller',
+          email: null,
+        },
+        role: null,
+        createdBy: { userId: 'mia', name: 'Mia Keller' },
+      },
+      'ada',
+    );
+    expect(screen.getByText('Mia Keller')).toBeInTheDocument();
+    expect(screen.getByText('Made by Mia Keller')).toBeInTheDocument();
+  });
+
   it('names the member a key was made for, or a former member', () => {
     renderCell(
       {

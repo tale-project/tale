@@ -3,7 +3,7 @@ title: Clés API
 description: Crée, vérifie, renouvelle et révoque les identifiants des logiciels qui appellent Tale.
 ---
 
-Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. Une clé que tu crées pour toi t’appartient, pas à l’organisation depuis laquelle elle a été créée : elle agit en ton nom, suit tes permissions actuelles et fonctionne dans chaque organisation dont tu es membre. Une requête REST nomme l’organisation visée dans l’en-tête `X-Organization-Slug` ; si le détenteur n’appartient qu’à une seule organisation, l’en-tête peut être omis. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**, tout comme un membre à qui un admin a attribué une compétence qui s’utilise avec une clé : **Appeler les modèles par l'API**, **Exporter les notifications** ou **Agir pour un autre membre**. Tale refuse une nouvelle clé à toute autre personne avec `403 API_KEY_CREATE_FORBIDDEN`.
+Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. Une clé que tu crées pour toi t’appartient, pas à l’organisation depuis laquelle elle a été créée : elle agit en ton nom, suit tes permissions actuelles et fonctionne dans chaque organisation dont tu es membre, ou, [après une connexion par SSO](#your-key-after-sso), dans cette seule organisation. Une requête REST nomme l’organisation visée dans l’en-tête `X-Organization-Slug` ; si le détenteur n’appartient qu’à une seule organisation, l’en-tête peut être omis. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**, tout comme un membre à qui un admin a attribué une compétence qui s’utilise avec une clé : **Appeler les modèles par l'API**, **Exporter les notifications** ou **Agir pour un autre membre**. Tale refuse une nouvelle clé à toute autre personne avec `403 API_KEY_CREATE_FORBIDDEN`.
 
 Les propriétaires et admins peuvent aussi créer une clé pour un autre membre, une équipe, un projet ou l’organisation elle-même. Une telle clé ne fonctionne que dans cette organisation ; [Créer une clé pour quelqu’un d’autre](#create-a-key-for-someone-else) explique au nom de qui elle agit et ce qu’elle atteint. Un membre pour qui un admin a créé une clé la trouve lui aussi dans **Paramètres > API > REST**.
 
@@ -17,17 +17,21 @@ Les propriétaires et admins peuvent aussi créer une clé pour un autre membre,
 
 1. Sélectionne **Créer une clé API**.
 2. Saisis un **Nom de la clé** qui identifie le logiciel, par exemple `Synchronisation facturation` ou `Import de documents`.
-3. En tant que propriétaire ou admin, choisis dans **Appartient à** pour qui est la clé. **Toi** est présélectionné ; les autres choix sont décrits [plus bas](#create-a-key-for-someone-else).
+3. En tant que propriétaire ou admin, choisis dans **Appartient à** pour qui est la clé. **Toi** est présélectionné, et s’affiche **Toi — cette organisation uniquement** [après une connexion par SSO](#your-key-after-sso) ; les autres choix sont décrits [plus bas](#create-a-key-for-someone-else).
 4. Choisis l’**Expiration** : 7, 30 ou 90 jours, un an, une **Date personnalisée**, ou jamais. La valeur initiale est 30 jours, et le formulaire indique sous le champ le jour où la clé expirera. Avec **Date personnalisée**, choisis ce jour dans le calendrier **Date d'expiration**, parmi les dates disponibles. Une clé avec une date d’expiration doit rester valide au moins 24 heures et au plus 365 jours. Après un changement d’heure, la première date disponible peut être après demain.
 5. Crée la clé et copie sa valeur secrète dans le gestionnaire de secrets prévu pour le logiciel avant de fermer la confirmation.
 
-La valeur complète n’apparaît qu’une fois. Le tableau affiche ensuite un fragment masqué, à qui appartient la clé, la date d’expiration, la date de création et la dernière utilisation. Il présente tes propres clés et celles qu’un admin a créées pour toi dans cette organisation ; les propriétaires et admins voient en plus toutes les clés créées ici pour un membre, une équipe, un projet ou l’organisation, jamais les clés que les membres ont créées pour eux-mêmes. Sous **Appartient à**, la clé d’une équipe, d’un projet ou de l’organisation indique le rôle avec lequel elle agit, et une clé créée pour un membre indique qui l’a créée.
+La valeur complète n’apparaît qu’une fois. Le tableau affiche ensuite un fragment masqué, à qui appartient la clé, la date d’expiration, la date de création et la dernière utilisation. Il présente tes propres clés et celles qu’un admin a créées pour toi dans cette organisation ; les propriétaires et admins voient en plus toutes les clés créées ici pour un membre, une équipe, un projet ou l’organisation, y compris celles que les membres ont créées pour eux-mêmes après une connexion par SSO, mais jamais celles qu’ils ont créées après une connexion par mot de passe. Sous **Appartient à**, la clé d’une équipe, d’un projet ou de l’organisation indique le rôle avec lequel elle agit, et une clé créée pour un membre indique qui l’a créée.
 
 <Warning>
 
 Toute personne qui possède une clé peut agir avec les permissions de son propriétaire. Ne la place pas dans le code source, les chats, les captures d’écran ou les journaux. Utilise un compte dont les accès correspondent aux besoins de l’intégration.
 
 </Warning>
+
+## Ta clé après une connexion par SSO {#your-key-after-sso}
+
+Une connexion par le SSO de ton organisation, ou par son proxy d’authentification, ne vaut que pour cette organisation. Une clé que tu crées pour toi dans une telle session ne fonctionne donc que dans cette organisation : **Appartient à** affiche **Toi — cette organisation uniquement**, la clé agit en ton nom avec ton rôle actuel dans l’organisation, et n’a pas besoin de `X-Organization-Slug`. Elle fonctionne tant que tu restes membre actif et prend fin si tu pars. Tu la révoques dans **Paramètres > API > REST**, où les propriétaires et admins de l’organisation la voient aussi et peuvent la révoquer ; sa création et sa révocation ne sont consignées que dans cette organisation. Une telle session ne crée jamais de clé valable dans chaque organisation dont tu fais partie : pour cela, connecte-toi avec ton mot de passe, si ton compte en a un.
 
 ## Créer une clé pour quelqu’un d’autre {#create-a-key-for-someone-else}
 
@@ -69,7 +73,7 @@ Tale ne renouvelle pas les clés automatiquement. La création et la révocation
 
 Dans le menu de sa ligne, sélectionne **Révoquer la clé**, puis confirme. Les requêtes suivantes ne peuvent plus s’authentifier avec cette clé, appels aux endpoints de modèles compris ; une réponse déjà en cours de flux se termine. La révocation est irréversible ; crée une nouvelle clé si tu as révoqué la mauvaise. La création et la révocation d’une clé laissent chacune une entrée dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux**, dans chaque organisation dont tu fais partie.
 
-Les propriétaires et admins peuvent révoquer toute clé créée ici pour un membre, une équipe, un projet ou l’organisation, et un membre les clés qu’un admin a créées pour lui. Les clés personnelles d’un membre ne sont révocables que par lui ; pour les couper dans cette organisation, désactive ou retire le membre. Une telle clé se gère uniquement dans son organisation : sa création et sa révocation y sont consignées, avec la personne qui l’a créée ou révoquée.
+Les propriétaires et admins peuvent révoquer toute clé créée ici pour un membre, une équipe, un projet ou l’organisation, et un membre les clés qu’un admin a créées pour lui. Les clés personnelles d’un membre ne sont révocables que par lui, sauf une clé créée [après une connexion par SSO](#your-key-after-sso), qui appartient à cette organisation comme une clé créée pour lui ; pour couper les autres ici, désactive ou retire le membre. Une telle clé se gère uniquement dans son organisation : sa création et sa révocation y sont consignées, avec la personne qui l’a créée ou révoquée.
 
 Une ancienne date de **Dernière utilisation** ne suffit pas à justifier une révocation. Une tâche mensuelle ou une procédure de récupération peut rester longtemps inactive. Vérifie d’abord le logiciel indiqué par le nom de la clé.
 

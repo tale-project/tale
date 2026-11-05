@@ -29,6 +29,7 @@ const {
   getSandboxDeploymentLimits,
   getUserTeamIds,
   listModelApiModels,
+  mayConnectAgentIn,
   mayCreateApiKeys,
   restoreSoftDeletedRow,
   syncRagDocumentScope,
@@ -37,7 +38,7 @@ const {
   projectChatAccess,
   readInFlightReservations,
 } = vi.hoisted(() => ({
-  caller: { role: 'admin' },
+  caller: { role: 'admin', realm: null as string | null },
   createAuditLog: vi.fn(),
   emitHintInTx: vi.fn(),
   readGovernancePolicyForOrg: vi.fn(),
@@ -48,6 +49,7 @@ const {
   getSandboxDeploymentLimits: vi.fn(),
   getUserTeamIds: vi.fn(),
   listModelApiModels: vi.fn(),
+  mayConnectAgentIn: vi.fn(),
   mayCreateApiKeys: vi.fn(),
   restoreSoftDeletedRow: vi.fn(),
   syncRagDocumentScope: vi.fn(),
@@ -71,7 +73,10 @@ vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
 vi.mock('../sandbox/unused-rule.ts', () => ({ recordUnusedWorkspaceRule }));
 vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
-vi.mock('../../auth/api-key-create-gate.ts', () => ({ mayCreateApiKeys }));
+vi.mock('../../auth/api-key-create-gate.ts', () => ({
+  mayConnectAgentIn,
+  mayCreateApiKeys,
+}));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
   getUserTeamIds,
@@ -99,6 +104,7 @@ vi.mock('../../auth/session.ts', () => ({
     () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
       c.set('sessionBundle', {
         user: { id: 'u1', email: 'u@example.test' },
+        session: { id: 's1', trustedOrganizationId: caller.realm },
       } as never);
       await next();
     },
@@ -735,13 +741,15 @@ describe('GET /my/api-keys', () => {
     'answers whether the caller may create a personal API key (%s) and holds one (%s)',
     async (mayCreate, holdsKeys) => {
       caller.role = 'member';
+      caller.realm = null;
       mayCreateApiKeys.mockReset().mockResolvedValue(mayCreate);
-      const keyReads: unknown[][] = [];
+      mayConnectAgentIn.mockReset();
+      const keyReads: { text: string; values: unknown[] }[] = [];
       const sql = (async (
-        _strings: TemplateStringsArray,
+        strings: TemplateStringsArray,
         ...values: unknown[]
       ) => {
-        keyReads.push(values);
+        keyReads.push({ text: strings.join('?'), values });
         return holdsKeys ? [{ id: 'key-1' }] : [];
       }) as never;
       const res = await createGovernanceRoutes({
@@ -751,9 +759,40 @@ describe('GET /my/api-keys', () => {
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ mayCreate, holdsKeys });
       // The person's right, whichever organization's page asks, and the keys
-      // that work here: their own, and the ones made for them in this one.
+      // that work here: their own, and the ones made for them in this one —
+      // which only their binding names, the key authenticating as an
+      // identity of its own.
       expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
-      expect(keyReads).toEqual([['u1', 'o1']]);
+      expect(mayConnectAgentIn).not.toHaveBeenCalled();
+      expect(keyReads.map((read) => read.values)).toEqual([['u1', 'o1', 'u1']]);
+      expect(keyReads[0]?.text).toContain(
+        `o.owner_kind = 'member' AND o.principal_user_id = ?`,
+      );
+    },
+  );
+
+  it.each([true, false])(
+    'reads the right for this organization alone from a session bound to it (%s) [APIKEY-R13]',
+    async (mayCreate) => {
+      caller.role = 'developer';
+      caller.realm = 'o1';
+      mayCreateApiKeys.mockReset();
+      mayConnectAgentIn.mockReset().mockResolvedValue(mayCreate);
+      const sql = (async () => []) as never;
+      const res = await createGovernanceRoutes({
+        sql,
+        auth: {} as never,
+      }).request('/my/api-keys?orgId=o1');
+      expect(await res.json()).toEqual({ mayCreate, holdsKeys: false });
+      // A role or a grant in another organization never counts: a key made
+      // from this session works here alone.
+      expect(mayConnectAgentIn).toHaveBeenCalledWith(expect.anything(), {
+        organizationId: 'o1',
+        userId: 'u1',
+        role: 'developer',
+      });
+      expect(mayCreateApiKeys).not.toHaveBeenCalled();
+      caller.realm = null;
     },
   );
 });

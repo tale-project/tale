@@ -57,7 +57,18 @@ function invalidateApiKeyViews(queryClient: QueryClient) {
   });
 }
 
-export function useCreateApiKey(organizationId: string) {
+/**
+ * Make a key. A key for a member, a team, a project or the organization is
+ * made at the organization's own door, bound to it; so is the maker's own
+ * key from a session bound to this organization (`sessionBoundHere`: single
+ * sign-on or an authenticating proxy signed it in), which may hand out no key
+ * that works in every organization. Anyone else's own key is made at the
+ * api-key plugin, and works wherever they are a member.
+ */
+export function useCreateApiKey(
+  organizationId: string,
+  sessionBoundHere = false,
+) {
   const queryClient = useReactQueryClient();
 
   return useReactMutation({
@@ -67,9 +78,7 @@ export function useCreateApiKey(organizationId: string) {
       owner,
     }: CreateApiKeyParams): Promise<CreateApiKeyResult> =>
       runAdapted(async () => {
-        if (owner.kind !== 'self') {
-          // A key for a member, a team, a project or the organization: the
-          // organization's own door, bound to it.
+        if (owner.kind !== 'self' || sessionBoundHere) {
           const created = await backendFetch<{ id: string; key: string }>(
             '/api-keys',
             {

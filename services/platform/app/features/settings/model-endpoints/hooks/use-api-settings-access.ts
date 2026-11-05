@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
 import { useAgentConnectionAccess } from '@/app/features/settings/agent-connections/hooks/queries';
@@ -6,7 +7,9 @@ import {
   useMyModelApiAccess,
 } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import { sessionOrganizationId } from '@/lib/shared/session-organization';
 
 /**
  * Who may open which API settings tab. Owners, admins and developers — the
@@ -33,6 +36,12 @@ export interface ApiSettingsAccess {
   apiKeys: boolean;
   /** May create a personal API key — by role or through a grant. */
   createApiKeys: boolean;
+  /** The session is bound to this organization alone — single sign-on or
+   * an authenticating proxy signed it in — so a key the person makes for
+   * themselves is made at this organization's door and works here alone,
+   * not in every organization they belong to. Read from the session the
+   * server answered, never guessed. */
+  sessionBoundHere: boolean;
   /** May call the model endpoints — by role or through the grant. */
   modelApi: boolean;
   /** Opens the Connected agents tab: agents may sign in and the person may
@@ -70,6 +79,10 @@ export function useApiSettingsAccess(
   const standing = useMyModelApiAccess(organizationId);
   const keys = useMyApiKeyAccess(organizationId);
   const agentAccess = useAgentConnectionAccess(organizationId);
+  // The dashboard does not open before the session answered.
+  const { data: session } = useQuery(sessionQueryOptions);
+  const sessionBoundHere =
+    sessionOrganizationId(session?.data?.session) === organizationId;
   const modelApi = developer || standing.data?.allowed === true;
   const connectAgents =
     agentAccess.data?.signInOn === true && agentAccess.data.mayConnect;
@@ -109,6 +122,7 @@ export function useApiSettingsAccess(
     developer,
     apiKeys,
     createApiKeys,
+    sessionBoundHere,
     modelApi,
     agents,
     connectAgents,

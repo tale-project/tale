@@ -14,7 +14,9 @@ interface ApiKeyOwnerCellProps {
 
 /**
  * Whose a key is, and — under it — what it acts as: the role of a team's, a
- * project's or the organization's key, or who made a key for a member.
+ * project's or the organization's key, or who made a key for a member. The
+ * viewer's own key made from a session bound to this organization works
+ * here alone, and says so where their other own keys say only "You".
  */
 export function ApiKeyOwnerCell({
   apiKey,
@@ -24,6 +26,10 @@ export function ApiKeyOwnerCell({
   const { t: tRoles } = useT('roles');
   const { t: tCommon } = useT('common');
   const { owner } = apiKey;
+  const ownHere =
+    owner.kind === 'member' &&
+    owner.userId === viewerUserId &&
+    apiKey.createdBy?.userId === viewerUserId;
 
   let label: string;
   switch (owner.kind) {
@@ -31,8 +37,9 @@ export function ApiKeyOwnerCell({
       label = t('apiKeys.owner.you');
       break;
     case 'member':
-      label =
-        owner.userId === viewerUserId
+      label = ownHere
+        ? t('apiKeys.owner.youHere')
+        : owner.userId === viewerUserId
           ? t('apiKeys.owner.you')
           : (owner.name ?? owner.email ?? tCommon('formerMember'));
       break;
@@ -56,7 +63,7 @@ export function ApiKeyOwnerCell({
   const detail =
     apiKey.role !== null
       ? t('apiKeys.owner.actsAs', { role: tRoles(apiKey.role) })
-      : owner.kind === 'member' && apiKey.createdBy !== null
+      : owner.kind === 'member' && apiKey.createdBy !== null && !ownHere
         ? t('apiKeys.owner.madeBy', {
             name: apiKey.createdBy.name ?? tCommon('formerMember'),
           })
@@ -64,11 +71,17 @@ export function ApiKeyOwnerCell({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <Text as="span" truncate className="text-sm">
+      <Text as="span" truncate className="text-sm" title={label}>
         {label}
       </Text>
       {detail !== null && (
-        <Text as="span" variant="muted" truncate className="text-xs">
+        <Text
+          as="span"
+          variant="muted"
+          truncate
+          className="text-xs"
+          title={detail}
+        >
           {detail}
         </Text>
       )}

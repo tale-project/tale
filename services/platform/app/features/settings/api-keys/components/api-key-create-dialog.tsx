@@ -50,6 +50,9 @@ interface ApiKeyCreateDialogProps {
   viewerUserId?: string;
   /** The signed-in member's role: a key never acts above it. */
   viewerRole?: string;
+  /** The session is bound to this organization alone (single sign-on, an
+   * authenticating proxy): a key for oneself is bound here too. */
+  sessionBoundHere?: boolean;
   onSuccess?: () => void;
 }
 
@@ -103,14 +106,17 @@ export function ApiKeyCreateDialog({
   canCreateForOthers = false,
   viewerUserId,
   viewerRole,
+  sessionBoundHere = false,
   onSuccess,
   restoreFocusRef,
 }: ApiKeyCreateDialogProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const { mutateAsync: createKey, isPending: isSubmitting } =
-    useCreateApiKey(organizationId);
+  const { mutateAsync: createKey, isPending: isSubmitting } = useCreateApiKey(
+    organizationId,
+    sessionBoundHere,
+  );
 
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   /** The member a key was just made for, named on the success view. */
@@ -359,10 +365,17 @@ export function ApiKeyCreateDialog({
       <FormSection>
         {/* A person's own key is theirs, not the organization's — the page
             lives under one organization, so the dialog says what the key
-            spans. An Owner or Admin chooses whose key it is below, and the
-            choice says the same. */}
+            spans: every organization they belong to, or this one alone
+            from a session bound to it. An Owner or Admin chooses whose key
+            it is below, and the choice says the same. */}
         {!canCreateForOthers && (
-          <Text variant="muted">{tSettings('apiKeys.form.scopeHint')}</Text>
+          <Text variant="muted">
+            {tSettings(
+              sessionBoundHere
+                ? 'apiKeys.form.scopeHintHere'
+                : 'apiKeys.form.scopeHint',
+            )}
+          </Text>
         )}
         <Input
           id="name"
@@ -378,6 +391,7 @@ export function ApiKeyCreateDialog({
             organizationId={organizationId}
             viewerUserId={viewerUserId}
             viewerRole={viewerRole}
+            sessionBoundHere={sessionBoundHere}
             choice={owner}
             onChoiceChange={(choice) => {
               setValue('owner', choice, {

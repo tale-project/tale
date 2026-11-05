@@ -116,6 +116,33 @@ describe('useCreateApiKey', () => {
     ).resolves.toEqual({ key: 'tale_secret', id: key.id });
   });
 
+  it('makes the own key of a session bound here at the organization door, bound to it [APIKEY-R13]', async () => {
+    backendFetch.mockResolvedValueOnce({ id: 'key-3', key: 'tale_own' });
+    const { result } = renderHook(() => useCreateApiKey('org-1', true), {
+      wrapper,
+    });
+
+    await expect(
+      result.current.mutateAsync({
+        name: 'Laptop',
+        expiresIn: 30 * 86_400,
+        owner: { kind: 'self' },
+      }),
+    ).resolves.toEqual({ key: 'tale_own', id: 'key-3' });
+    // The personal-key door would refuse such a session a key that works in
+    // every organization.
+    expect(apiKey.create).not.toHaveBeenCalled();
+    expect(backendFetch).toHaveBeenCalledWith('/api-keys', {
+      orgId: 'org-1',
+      method: 'POST',
+      body: {
+        name: 'Laptop',
+        expiresIn: 30 * 86_400,
+        owner: { kind: 'self' },
+      },
+    });
+  });
+
   it('makes a key for a team at the organization door, bound to it', async () => {
     backendFetch.mockResolvedValueOnce({ id: 'key-2', key: 'tale_team' });
     const { result } = renderHook(() => useCreateApiKey('org-1'), {

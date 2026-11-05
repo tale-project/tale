@@ -452,6 +452,36 @@ describe('account proof and unbound delegation remain separate', () => {
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(queries).toHaveLength(0);
   });
+  it('leaves a scoped session no personal key that works in every organization [APIKEY-R13]', async () => {
+    // Its own key is made at the organization's door instead, bound there
+    // (`domains/api_keys/service.ts`); a password session's stays here.
+    const { sql, queries } = database(() => []);
+    for (const path of ['/api-key/create', '/api-key/delete']) {
+      await expect(
+        authorizeScopedAuthEndpoint(
+          sql,
+          bundle({ trustedOrganizationId: 'org-a' }),
+          { path, body: { name: 'Laptop' }, query: {}, overHttp: true },
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        body: { code: 'ORG_FORBIDDEN' },
+      });
+      await expect(
+        authorizeScopedAuthEndpoint(
+          sql,
+          bundle({ trustedOrganizationId: null }),
+          {
+            path,
+            body: { name: 'Laptop' },
+            query: {},
+            overHttp: true,
+          },
+        ),
+      ).resolves.toBeUndefined();
+    }
+    expect(queries).toHaveLength(0);
+  });
   it.each([
     '/api-key/create',
     '/token',

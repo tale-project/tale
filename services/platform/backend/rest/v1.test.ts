@@ -1332,6 +1332,38 @@ describe('/api/v1 door — a key bound to one organization', () => {
     expect(await refused.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
   });
 
+  it('acts as the member who made the key for themselves, with no maker above them [APIKEY-R13]', async () => {
+    const { auth } = fakeAuth();
+    // Nobody in the organization outranks Mia: were a maker asked about,
+    // she would be no Owner or Admin above herself.
+    const own = fakeSql(new Set(), {
+      keyOwners: { 'key-1': binding('member', { createdBy: 'mia' }) },
+    });
+    const res = await boundDoor(own.sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      role: 'member',
+      userEmail: 'mia@example.com',
+      owner: 'member',
+    });
+
+    const gone = fakeSql(new Set(), {
+      memberOf: new Set(['org-2']),
+      keyOwners: { 'key-1': binding('member', { createdBy: 'mia' }) },
+    });
+    const refused = await boundDoor(gone.sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+
   it('answers 401 for a binding that was revoked [APIKEY-R7]', async () => {
     const { sql } = fakeSql(new Set(), {
       keyOwners: { 'key-1': binding('team', { revokedAt: '5' }) },

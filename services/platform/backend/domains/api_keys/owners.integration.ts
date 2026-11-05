@@ -364,6 +364,54 @@ export async function checkApiKeyOwners(
       stretchCode === 'API_KEY_ORGANIZATION_MANAGED',
     `me=${memberMe.status} owner=${memberMe.me?.key?.owner.kind ?? '?'} notices=${notices[0]?.count ?? 0} sees=${JSON.stringify(personSees.map((key) => key.owner.kind))} endOrgKey=${endOrgKeyAsPerson.status} stretch=${stretch.status}/${stretchCode}`,
   );
+  // A key made for a member authenticates as an identity of its own, so
+  // only its binding names the member: the budget editor's picker lists it
+  // under them, and the member, who may make no key, still opens the page
+  // that lists it.
+  const picker = z
+    .object({
+      keys: z.array(
+        z.looseObject({
+          id: z.string(),
+          userId: z.string().nullable(),
+          ownerEmail: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(
+      await (
+        await appDoor('GET', '/governance/api-keys')
+      )
+        .json()
+        .catch(() => null),
+    );
+  const pickerRow = picker.success
+    ? picker.data.keys.find((key) => key.id === memberKey.id)
+    : undefined;
+  const personAccess = z
+    .object({ mayCreate: z.boolean(), holdsKeys: z.boolean() })
+    .safeParse(
+      await (
+        await appDoor(
+          'GET',
+          '/governance/my/api-keys',
+          undefined,
+          person.cookie,
+        )
+      )
+        .json()
+        .catch(() => null),
+    );
+  record(
+    'api key owners: a member’s key reads as theirs in the budget picker, and keeps their key settings open',
+    pickerRow?.userId === person.userId &&
+      pickerRow.ownerEmail === person.email &&
+      personAccess.success &&
+      !personAccess.data.mayCreate &&
+      personAccess.data.holdsKeys,
+    `picker=${JSON.stringify(pickerRow ?? null)} (want ${person.userId}/${person.email}), access=${JSON.stringify(personAccess.success ? personAccess.data : null)} (want mayCreate false, holdsKeys true)`,
+  );
+
   // A member's key acts as its member only while its maker outranks them:
   // an admin who made one and is then demoted holds a key that acts for
   // nobody.

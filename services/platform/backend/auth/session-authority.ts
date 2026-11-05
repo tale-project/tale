@@ -8,6 +8,7 @@ import {
   ACCOUNT_AUTHENTICATION_MESSAGE,
 } from '../../lib/shared/constants/session-authority.ts';
 import { SESSION_FRESH_AGE_SECONDS } from '../../lib/shared/constants/session-freshness.ts';
+import { sessionOrganizationId } from '../../lib/shared/session-organization.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
 import { stampSessionUse } from './session-use.ts';
@@ -27,19 +28,10 @@ export function orgSessionCutoverActive(cutoverAt: number | null): boolean {
   return cutoverAt !== null;
 }
 
-/** null is global. A malformed non-null marker is never interpreted as global. */
-export function sessionOrganizationId(
-  session: object,
-): string | null | undefined {
-  const value: unknown = Reflect.get(session, 'trustedOrganizationId');
-  if (value === undefined || value === null) return null;
-  return typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= 128 &&
-    value.trim() === value
-    ? value
-    : undefined;
-}
+/** null is global. A malformed non-null marker is never interpreted as
+ * global. Shared with the app, which reads the session it was answered the
+ * same way. */
+export { sessionOrganizationId };
 
 export function sessionAllowsOrganization(
   session: object,

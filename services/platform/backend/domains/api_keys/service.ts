@@ -3,6 +3,10 @@ import { generateId } from 'better-auth';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { API_KEY_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import {
+  API_KEY_CREATE_FORBIDDEN_MESSAGE,
+  mayConnectAgentIn,
+} from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
   findOrganizationMember,
@@ -30,8 +34,12 @@ import { revokeBoundKeysInTx } from './retire.ts';
  * an Owner or Admin makes for another member, and the keys of a team, a
  * project and the organization. A person's own key is still minted by the
  * api-key plugin's endpoint (`/api/auth/api-key/create`), where its create
- * gate and its trail live; this module lists every key a person may see in
- * one organization and revokes them.
+ * gate and its trail live — except from a session single sign-on or an
+ * authenticating proxy bound to one organization: such a session may not
+ * hand out a key that works in every organization, so the key its person
+ * makes for themselves is made here, as a key for a member bound to that
+ * organization. This module also lists every key a person may see in one
+ * organization and revokes them.
  *
  * Every key made here is bound to ONE organization by its
  * `app.api_key_owners` row (`owners.ts`), written before the secret leaves
@@ -65,14 +73,21 @@ export class ApiKeyError extends Error {
   }
 }
 
-/** Whose key a new one is. */
+/** Whose key a new one is. `self` is the maker's own, which this door makes
+ * only for a session bound to this organization. */
 export type ApiKeyOwnerInput =
+  | { kind: 'self' }
   | { kind: 'member'; userId: string }
   | { kind: 'team'; teamId: string; role: ServiceKeyRole }
   | { kind: 'project'; projectId: string; role: ServiceKeyRole }
   | { kind: 'organization'; role: ServiceKeyRole };
 
-/** The signed-in Owner or Admin acting here. */
+/** Whose key a new one is, other than the maker's own. */
+type OthersKeyOwnerInput = Exclude<ApiKeyOwnerInput, { kind: 'self' }>;
+
+/** The signed-in member acting here: an Owner or Admin making or ending a
+ * key, or anyone making their own from a session bound to this organization
+ * or ending a key made for them. */
 export interface ApiKeyActor {
   userId: string;
   email?: string;
@@ -131,20 +146,61 @@ interface ResolvedOwner {
   role: ServiceKeyRole | null;
 }
 
+/** Whose a key for someone or something else is, or null for the maker's
+ * own: asked for as such, or as a key for a member who is the maker. */
+function othersKeyOwner(
+  actor: ApiKeyActor,
+  owner: ApiKeyOwnerInput,
+): OthersKeyOwnerInput | null {
+  if (owner.kind === 'self') return null;
+  if (owner.kind === 'member' && owner.userId === actor.userId) return null;
+  return owner;
+}
+
+/**
+ * The maker's own key, bound to this organization: a key for a member that
+ * its member made. Whether they may make one is the create rule of a
+ * personal key read for this organization alone — their role here, or a
+ * live grant here of a competence used with a key — since the key works
+ * here and nowhere else (`API_KEY_CREATE_FORBIDDEN`). Their live seat is
+ * read, so a member disabled or demoted meanwhile makes none.
+ */
+async function resolveOwnKeyOwner(
+  db: Db,
+  organizationId: string,
+  userId: string,
+): Promise<ResolvedOwner> {
+  const seat = await findOrganizationMember(db, organizationId, userId);
+  if (
+    seat === null ||
+    seat.role === 'disabled' ||
+    // The rule a coding agent's connection to one organization is held to.
+    !(await mayConnectAgentIn(db, { organizationId, userId, role: seat.role }))
+  ) {
+    throw new ApiKeyError(
+      'API_KEY_CREATE_FORBIDDEN',
+      API_KEY_CREATE_FORBIDDEN_MESSAGE,
+      403,
+    );
+  }
+  const users = await db<{ name: string | null; email: string | null }[]>`
+    SELECT "name", "email" FROM "user" WHERE "id" = ${userId} LIMIT 1
+  `;
+  return {
+    kind: 'member',
+    memberUserId: userId,
+    memberName: users[0]?.name ?? users[0]?.email ?? userId,
+    role: null,
+  };
+}
+
 async function resolveOwner(
   db: Db,
   organizationId: string,
   actor: ApiKeyActor,
-  owner: ApiKeyOwnerInput,
+  owner: OthersKeyOwnerInput,
 ): Promise<ResolvedOwner> {
   if (owner.kind === 'member') {
-    if (owner.userId === actor.userId) {
-      throw new ApiKeyError(
-        'API_KEY_MEMBER_SELF',
-        'Your own key is made as a personal key, not as a key for a member.',
-        400,
-      );
-    }
     const member = await findOrganizationMember(
       db,
       organizationId,
@@ -261,7 +317,9 @@ export interface CreatedOwnedApiKey {
 
 /**
  * Make a key for another member, a team, a project or the organization —
- * an Owner's or Admin's act, bound to this organization.
+ * an Owner's or Admin's act, bound to this organization — or, from a
+ * session bound to this organization alone, the maker's own key, bound
+ * here as a key for a member that its member made.
  *
  * The secret is minted by the api-key plugin as a server call (no session,
  * so the plugin's own create gate and its holder-wide trail stay out of
@@ -277,10 +335,26 @@ export async function createOwnedApiKey(
     name: string;
     expiresIn?: number;
     owner: ApiKeyOwnerInput;
+    /** The request's session is bound to this organization alone — single
+     * sign-on or an authenticating proxy signed it in. Its person's own key
+     * is then made here, bound to this organization too: a key that works
+     * in every organization is not such a session's to give. */
+    sessionBoundHere?: boolean;
   },
 ): Promise<CreatedOwnedApiKey> {
   const { sql, auth } = deps;
-  if (!isAdminRole(args.actor.role)) {
+  const others = othersKeyOwner(args.actor, args.owner);
+  if (others === null) {
+    // Any other session makes its person's own key at the api-key plugin's
+    // door, where it works in every organization they belong to.
+    if (args.sessionBoundHere !== true) {
+      throw new ApiKeyError(
+        'API_KEY_MEMBER_SELF',
+        'Your own key is made as a personal key, not as a key for a member.',
+        400,
+      );
+    }
+  } else if (!isAdminRole(args.actor.role)) {
     throw new ApiKeyError(
       'API_KEY_OWNER_FORBIDDEN',
       'Only Owners and Admins make keys for a member, a team, a project or the organization.',
@@ -296,12 +370,10 @@ export async function createOwnedApiKey(
     );
   }
   assertExpiresIn(args.expiresIn);
-  const owner = await resolveOwner(
-    sql,
-    args.organizationId,
-    args.actor,
-    args.owner,
-  );
+  const owner =
+    others === null
+      ? await resolveOwnKeyOwner(sql, args.organizationId, args.actor.userId)
+      : await resolveOwner(sql, args.organizationId, args.actor, others);
 
   // The identity the key authenticates as — one of its own for every kind,
   // a member's key included: only the binding says whom it acts as, so an
@@ -353,20 +425,25 @@ export async function createOwnedApiKey(
       args.actor.ip !== undefined ? await splitIpForAudit(args.actor.ip) : {};
     await transactSerializable(sql, async (tx) => {
       // What the key is bound to is checked again in the transaction that
-      // binds it: a member removed, a team or project deleted, or the maker
-      // demoted while the key was minted refuses it, and the catch below
-      // removes the key again.
-      const makerRole = await liveMakerRole(
-        tx,
-        args.organizationId,
-        args.actor.userId,
-      );
-      await resolveOwner(
-        tx,
-        args.organizationId,
-        { ...args.actor, role: makerRole },
-        args.owner,
-      );
+      // binds it: a member removed, a team or project deleted, the maker
+      // demoted, or — for the maker's own key — their right to a key lost
+      // while the key was minted refuses it, and the catch below removes
+      // the key again.
+      if (others === null) {
+        await resolveOwnKeyOwner(tx, args.organizationId, args.actor.userId);
+      } else {
+        const makerRole = await liveMakerRole(
+          tx,
+          args.organizationId,
+          args.actor.userId,
+        );
+        await resolveOwner(
+          tx,
+          args.organizationId,
+          { ...args.actor, role: makerRole },
+          others,
+        );
+      }
       await tx`
         INSERT INTO app.api_key_owners (
           api_key_id, org_id, owner_kind, key_user_id, principal_user_id,
@@ -441,9 +518,10 @@ export async function createOwnedApiKey(
     throw error;
   }
 
-  // The member hears of a credential in their name, and where to end it.
-  // The key exists either way: a notice that cannot be written is logged.
-  if (owner.memberUserId !== undefined) {
+  // The member hears of a credential in their name, and where to end it —
+  // unless they made it themselves. The key exists either way: a notice
+  // that cannot be written is logged.
+  if (owner.memberUserId !== undefined && others !== null) {
     try {
       await notifyUser(sql, {
         organizationId: args.organizationId,
