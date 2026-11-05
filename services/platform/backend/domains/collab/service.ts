@@ -1462,14 +1462,17 @@ export async function notifyTaskMentions(
 
 /** The `inbox` body a failed run is announced with, by who can act on it
  * (`lib/shared/task-run-failure.ts`). A spent usage limit waits on an admin,
- * a broken setup on a project editor and a gone attachment on whoever can
- * change the task, so those three say so; every other failure is the
- * reader's to start again, and the task says what happened. */
+ * a content policy on the task or an admin, a broken setup on a project
+ * editor, a gone attachment on whoever can change the task and an
+ * unreachable sandbox service on whoever runs Tale, so those say so; every
+ * other failure is the reader's to start again, and the task says what
+ * happened. */
 const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
   budget: 'agentRunFailedBudgetBody',
   policy: 'agentRunFailedPolicyBody',
   setup: 'agentRunFailedSetupBody',
   input: 'agentRunFailedInputBody',
+  sandbox_unreachable: 'agentRunFailedSandboxBody',
   time_limit: 'agentRunFailedBody',
   capacity: 'agentRunFailedBody',
   model: 'agentRunFailedBody',

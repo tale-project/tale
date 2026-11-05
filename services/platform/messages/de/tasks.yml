@@ -118,6 +118,10 @@ agentRun:
   cancel: Lauf abbrechen
   notStartedYet: Der Agent wartet, bis du ihn startest.
   failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
+  # Unter dem Satz zum Fehler, wenn der fehlgeschlagene Lauf schon ein
+  # Neustart der Plattform war — damit niemand Erneut ausführen für den
+  # ersten Versuch hält.
+  retriedAutomatically: 'Tale hat den Lauf bereits {count, plural, one {einmal} other {#-mal}} automatisch wiederholt.'
   reported: Was der Lauf gemeldet hat
   logReadFailed: Das Agentenprotokoll konnte nicht geladen werden. Versuch es erneut.
   runReadFailed: Der Agentenlauf konnte nicht geladen werden. Versuch es erneut.
@@ -125,16 +129,17 @@ agentRun:
     budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
     policy: Die Inhaltsrichtlinie deiner Organisation hat diesen Lauf gestoppt. Passe die Aufgabe so an, dass sie die Richtlinie einhält, oder frag einen Admin nach der Richtlinie — und starte den Agenten dann erneut.
     setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
-    input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
+    input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — der Lauf hat gemeldet, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
     time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
     capacity: Der Lauf hat zu lange auf einen freien Worker gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
     model_capacity: Das KI-Modell war zwölf Stunden lang ausgelastet, deshalb hat der Lauf aufgehört zu warten. Starte den Agenten später erneut — bleibt das Modell nicht verfügbar, bitte einen Admin, den KI-Anbieter zu prüfen.
     model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
-    start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+    start: Der Lauf konnte nicht starten. Zeig einem Admin, was der Lauf gemeldet hat, und starte den Agenten dann erneut.
+    sandbox_unreachable: Der Sandbox-Dienst, in dem dieser Agent arbeitet, war nicht erreichbar, deshalb wurde der Lauf gestoppt. Bitte deinen Betreiber, den Sandbox-Dienst zu prüfen, und starte den Agenten dann erneut.
     interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
     out_of_memory: Der Sandbox des Agenten ist der Arbeitsspeicher ausgegangen, deshalb wurde seine Arbeit gestoppt. Starte den Agenten erneut — passiert das wieder, bitte einen Admin, Agenten mehr Arbeitsspeicher zu geben.
-    stalled: 'Der Agent hat nicht mehr reagiert: Er hat lange nichts ausgegeben und kaum gearbeitet, deshalb hat seine Sandbox ihn gestoppt. Starte den Agenten erneut — bleibt er wieder stehen, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
-    unknown: 'Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+    stalled: 'Der Agent hat nicht mehr reagiert: Er hat lange nichts ausgegeben und kaum gearbeitet, deshalb hat seine Sandbox ihn gestoppt. Starte den Agenten erneut — bleibt er wieder stehen, zeig einem Admin, was der Lauf gemeldet hat.'
+    unknown: Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf gemeldet hat.
   standardAgent:
     switchedOff: Der Standard-Agent der Organisation ist ausgeschaltet. Bitte einen Admin, ihn unter Richtlinien einzuschalten.
     noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Bitte einen Admin, einen KI-Anbieter einzurichten oder dir Zugriff auf ein Modell zu geben.

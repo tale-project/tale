@@ -25,7 +25,10 @@ import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { encryptSecret } from '../lib/secret_box';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
-import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
+import {
+  SessionMemoryBusyError,
+  SpawnerUnreachableError,
+} from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import {
   AWAITING_ROOM_RESULT_STATUS,
@@ -1151,6 +1154,38 @@ describe('a task agent steer restart', () => {
       execId: 'exec-rotated',
       status: 'failed',
     });
+  });
+
+  it('fails a restart whose sandbox service took no connection as an unreachable sandbox, spending an attempt [TASK-R99]', async () => {
+    const unreachable = new SpawnerUnreachableError(
+      'POST',
+      '/v1/sessions/pa-alice/exec',
+      'http://sandbox:8003',
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('connect ECONNREFUSED 10.0.0.7:8003'), {
+          code: 'ECONNREFUSED',
+        }),
+      }),
+    );
+    io.windows = [unreachable];
+    const { ctx, mutations } = makeCtx({ status: 'running', execId: 'exec-1' });
+
+    await steerWithComment(ctx);
+
+    const failed = mutations.find(
+      (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+    )?.args;
+    // Dana's task says the sandbox service was out of reach; the
+    // diagnostic stays the run's reason.
+    expect(failed).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-rotated',
+      failureCode: 'sandbox_unreachable',
+      error: `the run could not be restarted to take a new comment: ${unreachable.message}`,
+    });
+    // Counted like any refused start: a misconfigured service must not be
+    // retried forever.
+    expect(budgetAfter(failed?.failureCode)).toMatchObject({ retry: false });
   });
 });
 

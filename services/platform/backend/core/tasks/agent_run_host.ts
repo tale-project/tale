@@ -97,6 +97,7 @@ import {
   sessionStageFiles,
   sessionWriteExecStdin,
   type SessionStageFile,
+  SpawnerUnreachableError,
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
@@ -1977,9 +1978,10 @@ export async function startTaskAgentTurnImpl(
       }
       console.error('[task-agent] turn start failed:', err);
       // A cap refusal is the org's decision and a missing skill the agent's
-      // configuration — neither a fault, neither retried; the rest is
-      // `start_failed` and retries by default, once a broker pool that was
-      // cooling down has an account back (`classifyStartFailure`).
+      // configuration — neither a fault, neither retried; a sandbox service
+      // that took no connection is `sandbox_unreachable`, the rest
+      // `start_failed`, and both retry by default, once a broker pool that
+      // was cooling down has an account back (`classifyStartFailure`).
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
         ...classifyStartFailure(err),
@@ -2192,7 +2194,7 @@ async function continueOrSettle(
       errored: true,
       reason: `the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes, so the agent run was stopped`,
       text: '',
-      failureCode: 'turn_crashed',
+      failureCode: 'sandbox_unreachable',
     });
     return;
   }
@@ -2592,7 +2594,12 @@ async function settleTaskAgentTurn(
       // Exec-guarded: a chain superseded by a restart-steer rotation must
       // not terminal-stamp the run its successor is working on.
       execId: args.execId,
-      failureCode: 'harvest_failed',
+      // A sandbox service that took no connection is said as such; any
+      // other loss is the harvest's own.
+      failureCode:
+        err instanceof SpawnerUnreachableError
+          ? 'sandbox_unreachable'
+          : 'harvest_failed',
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
@@ -3215,12 +3222,15 @@ export async function steerTaskAgentTurnImpl(
         // Except for an attachment the store no longer holds — the restart
         // re-stages the brief, and a retry would meet the same 404 — and a
         // model the EU/EEA rule refuses (GOV-R17), which a retry's start
-        // meets again until an admin acts, as at a start.
+        // meets again until an admin acts, as at a start. A sandbox service
+        // that took no connection retries too, said as such.
         failureCode: isTaskInputMissingError(err)
           ? 'input_missing'
           : err instanceof ModelEndpointRefusal
             ? 'agent_model_missing'
-            : 'steer_restart_failed',
+            : err instanceof SpawnerUnreachableError
+              ? 'sandbox_unreachable'
+              : 'steer_restart_failed',
         ...(retryAtMs !== undefined ? { retryAtMs } : {}),
       },
     );

@@ -89,6 +89,7 @@ agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gesto
 agentRunFailedPolicyBody: 'Die Inhaltsrichtlinie deiner Organisation hat den Agenten bei "{title}" gestoppt. Passe die Aufgabe an oder frag einen Admin nach der Richtlinie, und starte den Agenten dann erneut.'
 agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
 agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
+agentRunFailedSandboxBody: 'Der Sandbox-Dienst war nicht erreichbar, deshalb wurde der Agent bei "{title}" gestoppt. Sobald dein Betreiber ihn geprüft hat, starte den Agenten erneut.'
 email:
   cta: In Tale öffnen
   openLink: Link öffnen

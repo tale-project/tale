@@ -13,7 +13,8 @@
  *    every other cancel (a Stop, a crash) ends everything;
  *  - the settle's harvest takes the first listing of a turn whose exec
  *    exited on its own, and re-reads an empty box after a reaped linger,
- *    whose processes may still be writing;
+ *    whose processes may still be writing; a listing that finds no sandbox
+ *    service fails the run as an unreachable sandbox;
  *  - a Gemini turn's staged subscription credential leaves the session when
  *    the turn settles or is orphaned, unless a steer moved the run onto a
  *    newer exec that staged its own;
@@ -23,7 +24,8 @@
  *    the tasks domain names them stale, before it stages its own;
  *  - a window that ends with the spawner out of reach hands the turn to its
  *    next window after a pause, carrying when the outage began, and the run
- *    settles once — failed only once the outage outlasts its budget.
+ *    settles once — failed, as an unreachable sandbox, only once the outage
+ *    outlasts its budget.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,6 +48,8 @@ const io = vi.hoisted(() => ({
   terminal: undefined as Record<string, unknown> | undefined,
   /** Every directory the harvest listed, in order. */
   listings: [] as string[],
+  /** What every listing throws instead of answering. */
+  listingThrows: undefined as Error | undefined,
   /** What a directory lists, by path; empty when absent. */
   dirEntries: {} as Record<
     string,
@@ -148,6 +152,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     },
     sessionListFiles: async (_sessionId: string, dir: string) => {
       io.listings.push(dir);
+      if (io.listingThrows !== undefined) throw io.listingThrows;
       return io.dirEntries[dir] ?? [];
     },
     sessionStageFiles: async () => ({ staged: [], skipped: [] }),
@@ -301,6 +306,7 @@ beforeEach(() => {
   io.afterDrain = undefined;
   io.terminal = undefined;
   io.listings = [];
+  io.listingThrows = undefined;
   io.dirEntries = {};
   io.deletes = [];
   io.windows = [];
@@ -434,7 +440,7 @@ describe('a spawner outage', () => {
     ).toHaveLength(1);
   });
 
-  it('settles failed exactly once when the spawner stays away past the budget', async () => {
+  it('settles failed exactly once, as an unreachable sandbox service, when the spawner stays away past the budget [TASK-R99]', async () => {
     const run: RunState = { status: 'running', execId: 'exec-old' };
     const { ctx, mutations, scheduled } = makeCtx(run);
     const since = Date.now() - SPAWNER_OUTAGE_BUDGET_MS - 1;
@@ -450,7 +456,7 @@ describe('a spawner outage', () => {
     expect(io.released).toEqual([{ execId: 'exec-old', status: 'failed' }]);
     expect(failures(mutations)).toHaveLength(1);
     expect(failures(mutations)[0]?.args).toMatchObject({
-      failureCode: 'turn_crashed',
+      failureCode: 'sandbox_unreachable',
       error: expect.stringContaining('could not be reached for 10 minutes'),
     });
 
@@ -515,6 +521,55 @@ describe('settle harvest', () => {
     expect(
       mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
     ).toBe(true);
+  });
+
+  it('fails the run as an unreachable sandbox when the listing finds no sandbox service [TASK-R99]', async () => {
+    const { SpawnerUnreachableError } =
+      await import('../node_only/sandbox/helpers/session_client');
+    io.terminal = reported(true);
+    io.listingThrows = new SpawnerUnreachableError(
+      'GET',
+      '/v1/sessions/pa-alice/files',
+      'http://sandbox:8003',
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND sandbox'), {
+          code: 'ENOTFOUND',
+        }),
+      }),
+    );
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    const failed = mutations.filter((m) =>
+      m.name.endsWith(':markTaskAgentRunFailed'),
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.args).toMatchObject({
+      execId: 'exec-old',
+      failureCode: 'sandbox_unreachable',
+      error: `output harvest failed: ${io.listingThrows.message}`,
+    });
+    expect(
+      mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
+    ).toBe(false);
+  });
+
+  it('keeps any other lost listing a harvest failure of its own', async () => {
+    io.terminal = reported(true);
+    io.listingThrows = new Error('sandbox session files list failed (500)');
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(
+      mutations.find((m) => m.name.endsWith(':markTaskAgentRunFailed'))?.args,
+    ).toMatchObject({
+      failureCode: 'harvest_failed',
+      error: 'output harvest failed: sandbox session files list failed (500)',
+    });
   });
 });
 

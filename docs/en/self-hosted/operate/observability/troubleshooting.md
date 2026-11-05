@@ -80,6 +80,12 @@ Check the run or chat error and the owning API/worker logs. A provider `429`, cr
 
 For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For agent runtime failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
 
+## An agent can't reach the sandbox service
+
+A task says **The agent couldn't finish this task** because the sandbox service the agent works in couldn't be reached, and the notification **Agent run failed** says the same. By then the platform has tried for a minute or two: each call retries a refused connection for about 20 seconds, and the run is started again three times. **What the run reported**, under **View** on the run in the task's history, names the address the platform called and why the call failed: each address that refused the connection, or a name that does not resolve.
+
+Check that the `sandbox` service runs and answers, and that `SANDBOX_URL` on `backend-api` and `backend-worker` points at it (`http://sandbox:8003` in the shipped Compose file). A refused connection means nothing listens at that address; a name that does not resolve means the variable names the wrong host, or the service is not on the backend's network. A run that loses the service while it works waits up to ten minutes for it to come back, then fails the same way. Once the service answers again, start the agent again with **Retry** on the task.
+
 ## Sandbox network access is refused
 
 Inspect `sandbox-egress` and the target URL. A configured `SANDBOX_EGRESS_ALLOWLIST` must include the required hostname; private and cloud-metadata targets remain blocked. HTTPS tunnels use the supported port policy. Confirm the intended destination before broadening an allowlist, then recreate the egress service when changing its environment.

@@ -119,6 +119,9 @@ agentRun:
   cancel: Cancel run
   notStartedYet: The agent waits until you start it.
   failureTitle: The agent couldn't finish this task
+  # Under the failure's sentence when the failed run was the platform's own
+  # retry, so a Retry is not mistaken for the first attempt.
+  retriedAutomatically: 'Tale already retried the run automatically {count, plural, one {once} other {# times}}.'
   reported: What the run reported
   logReadFailed: The agent log could not be loaded. Try again.
   runReadFailed: The agent run could not be loaded. Try again.
@@ -126,16 +129,17 @@ agentRun:
     budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
     policy: Your organization's content policy stopped this run. Change the task so it complies, or ask an Admin about the policy — then start the agent again.
     setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
-    input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
+    input: An attachment on this task is no longer in storage — what the run reported names it. Remove it from the task or upload it again, then start the agent again.
     time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
     capacity: The run waited too long for a free worker. Start the agent again when fewer agents are busy.
     model_capacity: The AI model stayed at capacity for twelve hours, so the run stopped waiting. Start the agent again later — if the model stays unavailable, ask an Admin to check the AI provider.
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
-    start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
+    start: The run couldn't start. Show an Admin what the run reported, then start the agent again.
+    sandbox_unreachable: The sandbox service this agent works in couldn't be reached, so the run stopped. Ask your operator to check the sandbox service, then start the agent again.
     interrupted: The run was interrupted before the agent finished. Start the agent again.
     out_of_memory: The agent's sandbox ran out of memory, so its work was stopped. Start the agent again — if it keeps happening, ask an Admin to give agents more memory.
-    stalled: The agent stopped responding — it printed nothing and did almost no work for a long time — so its sandbox stopped it. Start the agent again; if it stops again, show an Admin what the run reported under Details.
-    unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
+    stalled: The agent stopped responding — it printed nothing and did almost no work for a long time — so its sandbox stopped it. Start the agent again; if it stops again, show an Admin what the run reported.
+    unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported.
   standardAgent:
     switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.
     noModel: No model you can use can run the standard agent. Ask an Admin to set up an AI provider or to give you access to a model.
