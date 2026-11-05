@@ -31,7 +31,7 @@ The project’s **Knowledge** tab holds files that its chats can retrieve. Uploa
 | **Not supported** | These contents cannot be indexed. Supply readable text or a supported format; retrying the same file cannot help. |
 | **Not indexed** | The file is stored but not searchable. Use **Index now** when offered, or convert a format without a text extractor. |
 
-An integration can upload a file without indexing it. Such a file is still visible in the tree; a supported plain-text file can be read directly when named, but it will not appear in text search until indexed.
+An integration can upload a file without indexing it. Such a file is still visible in the tree, and the assistant can still read a supported file when it is named: Tale reads it the first time the assistant asks, under your organization’s secret scan and privacy (PII) policy. It does not appear in text search until it is indexed.
 
 When not every file arrives, the upload report lists the rest with a reason: **Skipped** files failed the type or size check before uploading, and **Not added** files were refused by Tale, which says why. Per-file and storage limits may be restricted further by organization policy. When an upload fails, first try a small supported file. An admin can check [Policies and limits](/platform/admin/governance/policies-and-limits), storage, and the embedding model.
 

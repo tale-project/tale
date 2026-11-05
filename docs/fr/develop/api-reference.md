@@ -1542,7 +1542,7 @@ Un fichier non indexé reste visible dans la liste du chat de projet et porte le
 
 Pour l’indexer ensuite, utilise **Indexer maintenant** sur sa ligne ou `POST /api/v1/projects/{id}/files/{documentId}/retry-indexing`. Cette route utilise le même traitement et le même plafond de 10 demandes par personne et par minute que la relance d’un document de la bibliothèque. Elle renvoie `{"status": "indexing"}` quand elle lève l’exclusion de l’indexation, ou `skipped` avec un `reason`.
 
-L’assistant peut néanmoins lire à la demande un fichier texte brut jusqu’à 4 Mio : `rag_fetch` avec son identifiant renvoie les octets comme texte, même sans indexation.
+L’assistant peut néanmoins le lire à la demande, même sans indexation : au premier `rag_fetch` avec son identifiant, Tale lit le fichier – un fichier PDF, Word, PowerPoint ou OpenDocument jusqu’à 50 Mio, un tableur jusqu’à 20 Mio ou un fichier texte jusqu’à 4 Mio, avec au plus 4 Mio de texte – sous la détection de secrets et la politique PII de l’organisation, attend cette lecture jusqu’à 20 secondes et renvoie le texte vérifié.
 
 Le `mimeType` enregistré est déterminé par l’extension du fichier et devient le `Content-Type` du téléchargement. Le type multimédia d’un transfert multipart ou une indication d’upload ne remplace pas cette règle.
 

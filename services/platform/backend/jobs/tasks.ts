@@ -135,6 +135,17 @@ export interface TaskPayloads {
   'realtime.reclaim_outbox': Record<string, never>;
   /** Index one uploaded file into the org's RAG corpus. */
   'rag.index_file': { fileId: string };
+  /** Read one uploaded document's text for the assistant, ahead of its
+   * index: the indexer's extractors, the organization's secret scan and PII
+   * policy, the checked text kept on the file's row
+   * (`domains/knowledge/read-text.ts`). `thenIndex` queues the file's index
+   * run once the read is decided — an upload's door hands its first index
+   * run to the read, so the two never extract the same file at once. */
+  'rag.read_file': {
+    fileId: string;
+    organizationId: string;
+    thenIndex: boolean;
+  };
   /** Index one inbound email's body into the org's RAG corpus (enqueued in
    * the transaction that stores the message). */
   'rag.index_message': { messageId: string };
@@ -616,6 +627,19 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 900,
   },
+  // A read extracts and checks one file — seconds, a minute for the largest
+  // it takes — and never waits on an embedding server. A failure it can
+  // name is decided in the run (the read defers to the index), so a retry
+  // is only for a run lost with its worker. The heartbeat tells a killed
+  // worker's read apart within a minute and a half, not at the expiry: a
+  // message waits on it. A read lost on every attempt is the read
+  // watchdog's (`recoverStuckReads`).
+  'rag.read_file': {
+    retryLimit: 2,
+    retryDelay: 5,
+    expireInSeconds: 600,
+    heartbeatSeconds: 30,
+  },
   // Its own queue, so a mailbox backlog — one job per inbound email, a new
   // mailbox's first sync included — never stands in front of an upload in
   // `rag.index_file` (past the queues, both wait for the organization's
@@ -890,6 +914,16 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
     // slow node: batched, one long step held the steps of every other run
     // fetched with it until it handed its run on.
     'automation.step',
+    // A document embeds for as long as the organization's embedding server
+    // takes, up to the job's fifteen minutes: batched, one long document
+    // kept every file uploaded after it queued — an attachment a person was
+    // about to send included — and when it ran out, its whole batch failed
+    // and waited out a retry. A slot takes the next file, the highest
+    // priority first, the moment its own file is done.
+    'rag.index_file',
+    // The read a message waits for: one file per slot, so a long document
+    // never holds the next person's.
+    'rag.read_file',
   ]);
 
 /**
@@ -906,6 +940,7 @@ export const TASK_JOB_GROUP: {
 } = {
   'automation.step': (payload) => payload.organizationId,
   'task.agent_native': (payload) => payload.organizationId,
+  'rag.read_file': (payload) => payload.organizationId,
 };
 
 /**
@@ -919,18 +954,27 @@ export const TASK_JOB_GROUP: {
 export const NATIVE_RUNS_PER_ORG = 4;
 
 /**
+ * How many documents one organization's uploads have read at once across
+ * every worker. A read is short, but it holds a file's bytes and text and
+ * runs the PII scan; one person dropping a folder of files into a chat must
+ * not take every read slot while another organization's attachment waits.
+ */
+export const READS_PER_ORG = 2;
+
+/**
  * How many jobs of one group a queue runs at once across all workers, or
  * `undefined` for no limit. Automation steps take the operator's
  * AUTOMATION_ORG_CONCURRENCY, so one organization's burst of runs cannot
  * take every worker's step slots while another organization's runs wait
  * behind it; 0 turns the limit off. Native task runs take the fixed
- * {@link NATIVE_RUNS_PER_ORG}.
+ * {@link NATIVE_RUNS_PER_ORG}, document reads the fixed {@link READS_PER_ORG}.
  */
 export function queueGroupConcurrency(
   name: string,
   options: { automationOrgConcurrency?: number | undefined },
 ): number | undefined {
   if (name === 'task.agent_native') return NATIVE_RUNS_PER_ORG;
+  if (name === 'rag.read_file') return READS_PER_ORG;
   if (name !== 'automation.step') return undefined;
   const limit = options.automationOrgConcurrency;
   return limit !== undefined && limit > 0 ? limit : undefined;
@@ -965,6 +1009,18 @@ const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   ['chat.api_turn', 16],
 ]);
 
+/**
+ * The most slots a slot queue runs on one worker, whatever
+ * `WORKER_CONCURRENCY` says. A document read holds a whole file and its text
+ * — a large PDF or spreadsheet takes hundreds of megabytes while it is
+ * extracted — beside the index runs that do the same with other files, so a
+ * worker reads a few documents at once, never as many as it indexes.
+ */
+const TASK_WORKER_MAX_SLOTS: ReadonlyMap<string, number> = new Map<
+  TaskIdentifier,
+  number
+>([['rag.read_file', 3]]);
+
 /** The agent queues whose slots the operator sets: a turn's start (a
  * session create and its first 90 s window) and its later drive windows. */
 const AGENT_START_QUEUES: ReadonlySet<string> = new Set<TaskIdentifier>([
@@ -979,7 +1035,8 @@ const AGENT_DRIVE_QUEUES: ReadonlySet<string> = new Set<TaskIdentifier>([
 /**
  * How many one-job slots a slot queue runs on this worker: the operator's
  * AGENT_START_SLOTS / AGENT_DRIVE_SLOTS for the agent queues, else
- * `concurrency` and at least the queue's {@link TASK_WORKER_MIN_SLOTS}.
+ * `concurrency`, at least the queue's {@link TASK_WORKER_MIN_SLOTS} and at
+ * most its {@link TASK_WORKER_MAX_SLOTS}.
  */
 export function slotQueueSlots(
   name: string,
@@ -995,7 +1052,11 @@ export function slotQueueSlots(
   if (AGENT_DRIVE_QUEUES.has(name) && options.agentDriveSlots !== undefined) {
     return options.agentDriveSlots;
   }
-  return Math.max(options.concurrency, TASK_WORKER_MIN_SLOTS.get(name) ?? 0);
+  const slots = Math.max(
+    options.concurrency,
+    TASK_WORKER_MIN_SLOTS.get(name) ?? 0,
+  );
+  return Math.min(slots, TASK_WORKER_MAX_SLOTS.get(name) ?? slots);
 }
 
 /**

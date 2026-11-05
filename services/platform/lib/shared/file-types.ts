@@ -907,6 +907,54 @@ export function shouldRagIndexOnUpload(
 }
 
 /**
+ * The largest PDF, Word, PowerPoint or OpenDocument file a read for the
+ * assistant takes before the file's index exists
+ * (`domains/knowledge/read-text.ts`). The read extracts the file's text on a
+ * worker right after its upload; a larger file is left to its index, and a
+ * message carrying it waits for that index.
+ */
+export const READ_WITHOUT_INDEX_MAX_BYTES = 50 * 1024 * 1024;
+
+/**
+ * The same for a spreadsheet, whose reader holds the whole workbook in
+ * memory while it reads it.
+ */
+export const READ_WITHOUT_INDEX_MAX_SPREADSHEET_BYTES = 20 * 1024 * 1024;
+
+/** The indexable formats whose text an extractor pulls out of a binary
+ * file, by the most of each a read takes. Every other indexable document
+ * extension is plain text. */
+const EXTRACTED_DOCUMENT_CAPS: Readonly<Record<string, number>> = {
+  pdf: READ_WITHOUT_INDEX_MAX_BYTES,
+  docx: READ_WITHOUT_INDEX_MAX_BYTES,
+  odt: READ_WITHOUT_INDEX_MAX_BYTES,
+  pptx: READ_WITHOUT_INDEX_MAX_BYTES,
+  xlsx: READ_WITHOUT_INDEX_MAX_SPREADSHEET_BYTES,
+};
+
+/**
+ * The most text a read keeps: a text file's whole size, and the text
+ * extracted from a PDF or Office file. The organization's PII policy scans
+ * all of it before anything is kept; more text than this is served only
+ * through the index.
+ */
+export const READ_WITHOUT_INDEX_MAX_TEXT = 4 * 1024 * 1024;
+
+/**
+ * The most bytes of this file a read takes before its index exists:
+ * {@link READ_WITHOUT_INDEX_MAX_BYTES} for a PDF, Word, PowerPoint or
+ * OpenDocument file, {@link READ_WITHOUT_INDEX_MAX_SPREADSHEET_BYTES} for a
+ * spreadsheet, and {@link READ_WITHOUT_INDEX_MAX_TEXT} for plain text.
+ */
+export function readWithoutIndexCap(fileName: string): number {
+  const ext = indexedExtension(fileName);
+  return (
+    (ext !== undefined ? EXTRACTED_DOCUMENT_CAPS[ext] : undefined) ??
+    READ_WITHOUT_INDEX_MAX_TEXT
+  );
+}
+
+/**
  * The extension a `DocumentIcon` should draw for a document: the authoritative
  * content type first (a synced Confluence page titled "Overview" stored as
  * `text/plain` still gets the right glyph), the filename suffix as a fallback.

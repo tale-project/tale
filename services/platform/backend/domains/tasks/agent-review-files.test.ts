@@ -63,6 +63,10 @@ const metadata = {
   conversationId: null,
   createdAt: 1,
   documentBound: false,
+  textStatus: null,
+  textErrorCode: null,
+  ragStatus: null,
+  ragErrorCode: null,
 };
 const task = {
   id: 'task',
@@ -189,6 +193,17 @@ describe('review file manifest and selection', () => {
       { ...metadata, size: 20 * 1024 * 1024 + 1 },
       { ...entry, fileSize: 20 * 1024 * 1024 + 1 },
     ],
+    [
+      'refused',
+      { ...metadata, textStatus: 'refused', textErrorCode: 'pii_blocked' },
+      entry,
+    ],
+    [
+      'refused',
+      { ...metadata, ragStatus: 'failed', ragErrorCode: 'secret_detected' },
+      entry,
+    ],
+    ['checking', { ...metadata, textStatus: 'running' }, entry],
   ] as const)(
     'keeps %s visible but unavailable for staging',
     async (reason, row, output) => {

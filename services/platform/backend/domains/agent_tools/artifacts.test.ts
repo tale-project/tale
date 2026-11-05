@@ -125,6 +125,90 @@ describe('readThreadFiles', () => {
     ]);
   });
 
+  it.each([
+    [
+      'a read the organization’s checks refused',
+      { textStatus: 'refused', textErrorCode: 'secret_detected' },
+      'secret-detected',
+    ],
+    [
+      'an index the PII policy refused',
+      { ragStatus: 'failed', ragErrorCode: 'pii_blocked' },
+      'pii-blocked',
+    ],
+    ['a read still checking the file', { textStatus: 'running' }, 'checking'],
+    [
+      'a file left to an index still checking it',
+      {
+        textStatus: 'deferred',
+        textErrorCode: 'too_large',
+        ragStatus: 'running',
+      },
+      'checking',
+    ],
+    [
+      'a file from before reads whose index is still queued',
+      { ragStatus: 'queued' },
+      'checking',
+    ],
+  ])('withholds %s from every tool', async (_label, state, withheld) => {
+    const { sql, statements } = fakeSql([
+      {
+        ref: 's3:acme/a',
+        name: 'a.txt',
+        mediaType: 'text/plain',
+        sizeBytes: 10,
+        textStatus: null,
+        textErrorCode: null,
+        ragStatus: null,
+        ragErrorCode: null,
+        ...state,
+      },
+    ]);
+    const files = await readThreadFiles(
+      sql,
+      { organizationId: 'org_1', threadIds: ['root_1'] },
+      ['s3:acme/a'],
+    );
+    expect(files.get('s3:acme/a')).toEqual({
+      ref: 's3:acme/a',
+      name: 'a.txt',
+      mediaType: 'text/plain',
+      sizeBytes: 10,
+      withheld,
+    });
+    expect(statements[0]?.text).toContain('text_status');
+  });
+
+  it.each([
+    ['whose index failed on its own side', 'failed', 'embedding_upstream'],
+    ['whose read was checked while its index still runs', 'running', null],
+    [
+      'whose read checked the text after its index could not scan it',
+      'failed',
+      'pii_scan_failed',
+    ],
+  ])('hands on a file %s', async (_label, ragStatus, ragErrorCode) => {
+    const { sql } = fakeSql([
+      {
+        ref: 's3:acme/a',
+        name: 'a.pdf',
+        mediaType: 'application/pdf',
+        sizeBytes: 10,
+        textStatus: 'ready',
+        textErrorCode: null,
+        ragStatus,
+        ragErrorCode,
+      },
+    ]);
+    const files = await readThreadFiles(
+      sql,
+      { organizationId: 'org_1', threadIds: ['root_1'] },
+      ['s3:acme/a'],
+    );
+    expect(files.get('s3:acme/a')).not.toHaveProperty('withheld');
+  });
+
   it('reads nothing for no refs', async () => {
     const { sql, statements } = fakeSql();
     await expect(

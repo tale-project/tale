@@ -30,7 +30,10 @@ opted out reads as pending.
 
 A file that stayed queued or running for too long is marked as failed. The message tells the
 person to use **Retry indexing**, never to upload the file again. When the index itself
-recorded why it failed, that reason is shown instead of the general message.
+recorded why it failed, that reason is shown instead of the general message. A file whose read
+for the assistant is still pending is left to that read, which queues its indexing once decided;
+a read that cannot finish is settled first (`CHAT-R47`), and the file's indexing is timed from
+then.
 
 - **Example**: The server restarts while a file is being indexed → the file later shows as
   failed, with the advice to retry indexing.

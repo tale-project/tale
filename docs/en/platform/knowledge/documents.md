@@ -38,7 +38,7 @@ Unsupported formats are not made searchable by repeatedly reindexing. For a ques
 
 | Status | What it means and what to do |
 | --- | --- |
-| **Queued** | Waiting for an indexing slot. A busy library processes files in batches. |
+| **Queued** | Waiting for an indexing slot. A busy library processes files a few at a time, oldest first; a file attached to a chat message goes ahead when a message waits for its index. |
 | **Indexing** | Text is being prepared for search. Wait before testing the source. |
 | **Indexed** | Indexing completed. Test a specific question and open its citation. |
 | **Needs reindex** | The index is stale. Use **Retry indexing** beside the status. |

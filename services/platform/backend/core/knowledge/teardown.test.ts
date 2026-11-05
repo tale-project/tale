@@ -84,7 +84,7 @@ afterEach(async () => {
 });
 
 describe('purgeCorpusForOrg', () => {
-  it('removes the org documents, chunks and cache in one transaction keyed by the slug', async () => {
+  it('removes the org documents, chunks, cache and kept reads in one transaction keyed by the slug', async () => {
     const { sql, sent, begins } = recorder((text) => {
       if (text.startsWith('DELETE FROM private_knowledge.chunks'))
         return { count: 5 };
@@ -108,6 +108,7 @@ describe('purgeCorpusForOrg', () => {
       'DELETE FROM private_knowledge.chunks',
       'DELETE FROM private_knowledge.documents',
       'DELETE FROM private_knowledge.semantic_cache',
+      'DELETE FROM private_knowledge.document_reads',
       'SELECT domain FROM public_web.website_org_memberships',
     ]);
     // Tenant binding: every statement names the slug and nothing else.

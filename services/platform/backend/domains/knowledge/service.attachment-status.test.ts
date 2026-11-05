@@ -20,6 +20,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RAG_ERROR_UNSUPPORTED_TYPE } from '../../core/knowledge/rag_error_codes.ts';
+import { PRIORITY_ATTACHMENT } from '../../jobs/enqueue.ts';
 
 const { addJobInTx, emitHintInTx } = vi.hoisted(() => ({
   addJobInTx: vi.fn(),
@@ -49,6 +50,7 @@ interface Statement {
 
 interface FileRow {
   id: string;
+  organizationId?: string;
   fileName: string;
   contentType: string;
 }
@@ -214,6 +216,7 @@ describe('queueRagIndexIfUnstarted — the turn’s backstop for an attachment w
     const { sql, statements } = fakeSql({
       claimable: {
         id: 'file-1',
+        organizationId: 'org-1',
         fileName: 'report.pdf',
         contentType: 'application/pdf',
       },
@@ -225,9 +228,18 @@ describe('queueRagIndexIfUnstarted — the turn’s backstop for an attachment w
 
     expect(queueMarks(statements)).toHaveLength(1);
     expect(statusWrites(statements)).toEqual([]);
-    expect(addJobInTx).toHaveBeenCalledWith(sql, 'rag.index_file', {
-      fileId: 'file-1',
-    });
+    // The register door's lane: the file is read first, ahead of every other
+    // upload, and the read queues its index run.
+    expect(
+      statements.filter((s) => s.text.includes("text_status = 'queued'")),
+    ).toHaveLength(1);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'rag.read_file',
+      { fileId: 'file-1', organizationId: 'org-1', thenIndex: true },
+      { priority: PRIORITY_ATTACHMENT },
+    );
   });
 
   it.each([

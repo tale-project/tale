@@ -38,7 +38,7 @@ Réindexer plusieurs fois un format non pris en charge ne le rend pas interrogea
 
 | Statut | Signification et action |
 | --- | --- |
-| **En file d'attente** | Attend une place d’indexation. Une bibliothèque chargée traite les fichiers progressivement. |
+| **En file d'attente** | Attend une place d’indexation. Une bibliothèque chargée traite les fichiers progressivement, les plus anciens d’abord ; un fichier joint à un message du chat passe avant quand un message attend son index. |
 | **Indexation** | Le texte est préparé pour la recherche. Attends avant de tester la source. |
 | **Indexé** | L’indexation est terminée. Pose une question précise et ouvre sa citation. |
 | **Réindexation nécessaire** | L’index est périmé. Utilise **Relancer l'indexation** à côté du statut. |

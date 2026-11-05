@@ -72,7 +72,8 @@ export interface AgentDocumentItem {
   /** Where the blob stands in the search corpus (`indexingStateFrom`), or
    *  null for a blob no file row tracks. A row that is not `completed` is
    *  listed but not searchable — the agent must not infer "unreadable" from
-   *  an empty search, and a text-like file is still readable on demand. */
+   *  an empty search, and a file an extractor reads is still readable on
+   *  demand (`rag_fetch` has it read and checked first). */
   indexing: DocumentIndexingState | null;
 }
 

@@ -647,8 +647,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await recoverStuckTranscriptions(deps.sql);
     },
     'watchdog.rag_indexing': async () => {
+      // Reads first: a lost read hands its file's index on, which the RAG
+      // sweep then times from the handoff. A fault in the read sweep never
+      // costs the RAG sweep its tick.
+      const { recoverStuckReads } =
+        await import('../domains/knowledge/read-text.ts');
       const { recoverStuckRagIndexing } =
         await import('../domains/file_metadata/watchdogs.ts');
+      try {
+        await recoverStuckReads(deps.sql);
+      } catch (error) {
+        console.warn(
+          '[watchdog] the document read sweep failed; the next tick tries again:',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
       await recoverStuckRagIndexing(deps.sql);
     },
     'knowledge.resume_usage_limited': async () => {
@@ -813,6 +826,20 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // server, a queue of other jobs' batches). The run stops when pg-boss
       // gives up on it, and the retry resumes after the stored slices.
       await indexUploadedFile(deps.sql, input.fileId, {
+        signal: context?.signal,
+      });
+    },
+    'rag.read_file': async (payload, context) => {
+      const input = z
+        .object({
+          fileId: z.string().min(1),
+          organizationId: z.string().min(1),
+          thenIndex: z.boolean(),
+        })
+        .parse(payload);
+      const { readUploadedFileText } =
+        await import('../domains/knowledge/read-text.ts');
+      await readUploadedFileText(deps.sql, input, {
         signal: context?.signal,
       });
     },

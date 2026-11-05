@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { DocumentTextStatus } from '@/lib/shared/document-reading';
+
 export interface FileMetadataContract {
   'file_metadata/mutations:retryTranscription': {
     kind: 'mutation';
@@ -50,7 +52,14 @@ export interface FileMetadataContract {
         | 'completed'
         | 'unsupported';
       ragError: undefined | string;
+      /** The stable cause behind `ragError` (`rag_error_codes.ts`). */
+      ragErrorCode: undefined | string;
       ragProgress: undefined | string;
+      /** Where the document's read for the assistant stands, ahead of its
+       * index (`lib/shared/document-reading.ts`). */
+      textStatus: undefined | DocumentTextStatus;
+      /** Why a read is not ready (`text_error_code`). */
+      textErrorCode: undefined | string;
       pageCount: undefined | number;
       scannedPagesDetected: undefined | number;
       visionRequired: undefined | boolean;

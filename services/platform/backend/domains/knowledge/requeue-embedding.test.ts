@@ -84,15 +84,19 @@ const attachment = (id: string): ReturnedRow => ({
   listed: false,
 });
 
-/** Captures the UPDATE and answers with the rows it "returned". */
-function fakeSql(returned: ReturnedRow[]) {
+/** Captures the UPDATE and answers with the rows it "returned" — and the
+ * re-queue of reads with `reads`. */
+function fakeSql(returned: ReturnedRow[], reads: { id: string }[] = []) {
   const statements: string[] = [];
   const values: unknown[][] = [];
   const tx = Object.assign(
     (strings: TemplateStringsArray, ...args: unknown[]) => {
-      statements.push(strings.join('?'));
+      const text = strings.join('?');
+      statements.push(text);
       values.push(args);
-      return Promise.resolve(returned);
+      return Promise.resolve(
+        text.includes("text_status = 'queued'") ? reads : returned,
+      );
     },
     { unsafe: (raw: string) => raw },
   );
@@ -576,6 +580,35 @@ describe('requeuePiiScanFailedDocuments', () => {
     expect(emitHintInTx).toHaveBeenCalledTimes(1);
   });
 
+  // A file no index run decides has only its read: a read the policy could
+  // not scan is queued again instead, and only such a read.
+  it('reads again a file no index decides that the policy could not scan [KNOW-R9]', async () => {
+    const { sql, statements, values } = fakeSql([], [{ id: 'f3' }]);
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG);
+
+    expect(out).toEqual({ requeued: 1 });
+    const read = statements.findIndex((text) =>
+      text.includes("text_status = 'queued'"),
+    );
+    expect(statements[read]).toContain("AND text_status = 'refused'");
+    expect(statements[read]).toContain('AND text_error_code = ?');
+    expect(statements[read]).toContain(
+      'AND (skip_rag_indexing IS TRUE OR rag_status IS NULL)',
+    );
+    expect(values[read]).toContain('org-1');
+    expect(values[read]).toContain(RAG_ERROR_PII_SCAN_FAILED);
+    expect(values[read]).not.toContain(RAG_ERROR_PII_BLOCKED);
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([
+      [
+        'rag.read_file',
+        { fileId: 'f3', organizationId: 'org-1', thenIndex: false },
+      ],
+    ]);
+  });
+
   // An email body has no file row to carry a code: its corpus row is found
   // by the sentence its refusal stored, and its own job is queued.
   it('re-queues an email body it could not scan through the message job [KNOW-R9]', async () => {
@@ -635,8 +668,8 @@ describe('requeuePiiScanFailedDocuments', () => {
     const out = await requeuePiiScanFailedDocuments(fake.sql, ORG);
 
     expect(out).toEqual({ requeued: 450 });
-    // The files' transaction, then 200 + 200 + 50 bodies.
-    expect(begin).toHaveBeenCalledTimes(4);
+    // The files' transaction, the reads', then 200 + 200 + 50 bodies.
+    expect(begin).toHaveBeenCalledTimes(5);
     expect(addJobInTx).toHaveBeenCalledTimes(450);
   });
 });

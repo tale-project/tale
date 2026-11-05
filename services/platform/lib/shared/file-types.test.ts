@@ -16,6 +16,7 @@ import {
   isRasterImage,
   mimeToExtension,
   RAG_INDEXABLE_EXTENSIONS,
+  readWithoutIndexCap,
   resolveFileType,
   shouldRagIndexOnUpload,
 } from './file-types';
@@ -659,5 +660,24 @@ describe('isRasterImage', () => {
   it('leaves out a file that is no image', () => {
     expect(isRasterImage('application/pdf')).toBe(false);
     expect(isRasterImage(FALLBACK_MIME_TYPE)).toBe(false);
+  });
+});
+
+describe('readWithoutIndexCap [CHAT-R47]', () => {
+  const MB = 1024 * 1024;
+  it.each([
+    // A print-ready poster: pictures, little text — the text is all a read
+    // extracts.
+    ['poster.pdf', 50 * MB],
+    ['deck.pptx', 50 * MB],
+    ['minutes.docx', 50 * MB],
+    ['minutes.odt', 50 * MB],
+    // A spreadsheet's reader holds the whole workbook in memory.
+    ['ledger.xlsx', 20 * MB],
+    // Plain text: its size is its text.
+    ['notes.txt', 4 * MB],
+    ['export.csv', 4 * MB],
+  ])('%s → %d bytes', (fileName, cap) => {
+    expect(readWithoutIndexCap(fileName)).toBe(cap);
   });
 });

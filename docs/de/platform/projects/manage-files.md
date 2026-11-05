@@ -31,7 +31,7 @@ Unter **Wissen** im Projekt liegen Dateien, die dessen Chats abrufen können. La
 | **Nicht unterstützt** | Dieser Inhalt lässt sich nicht indexieren. Stelle lesbaren Text oder ein unterstütztes Format bereit; ein erneuter Versuch mit derselben Datei hilft nicht. |
 | **Nicht indexiert** | Die Datei ist gespeichert, aber nicht durchsuchbar. Nutze **Jetzt indexieren**, sofern angeboten, oder wandle ein Format ohne Textextraktor um. |
 
-Eine Integration kann Dateien ohne Indexierung hochladen. Sie bleiben im Dateibaum sichtbar. Eine unterstützte Textdatei lässt sich auf ausdrückliche Nachfrage direkt lesen; in der Textsuche erscheint sie erst nach der Indexierung.
+Eine Integration kann Dateien ohne Indexierung hochladen. Sie bleiben im Dateibaum sichtbar, und der Assistent kann eine unterstützte Datei trotzdem lesen, wenn sie genannt wird: Tale liest sie beim ersten Zugriff des Assistenten, unter der Prüfung auf Zugangsdaten und der Datenschutzrichtlinie (PII) deiner Organisation. In der Textsuche erscheint sie erst nach der Indexierung.
 
 Kommen nicht alle Dateien an, nennt der Bericht des Uploads die übrigen mit Grund: **Übersprungen** sind Dateien, die schon vor dem Hochladen an der Typ- oder Größenprüfung gescheitert sind. **Nicht hinzugefügt** sind Dateien, die Tale abgelehnt hat. Organisationsregeln können Datei- und Speichergrenzen weiter einschränken. Versuche bei einem fehlgeschlagenen Upload zuerst eine kleine unterstützte Datei. Ein Admin kann [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), Speicher und Embedding-Modell prüfen.
 

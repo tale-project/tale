@@ -17,6 +17,7 @@ integration:
   - 'packages/ui/src/components/data-display/code-diff/compute.ts'
   - 'packages/ui/src/data/**'
   - 'packages/ui/src/i18n/**'
+  - 'packages/ui/src/lib/format.ts'
   - 'packages/ui/src/markdown/plugins/micromark-cjk-attention.ts'
   - 'packages/ui/src/markdown/remark-plugin-lists.ts'
   - 'packages/ui/src/markdown/streaming/normalize-html-blocks.ts'

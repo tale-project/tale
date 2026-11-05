@@ -137,11 +137,11 @@ vi.mock('../hooks/use-file-transcription-status', () => ({
   useFileTranscriptionStatus: () => transcriptionState,
 }));
 // Mirrors the transcription mock for staged documents: mutable so a test can
-// stage a still-indexing file and assert the send gate.
+// stage a document a send waits for and assert the send gate.
 const indexingState = {
   statusMap: new Map<string, { status?: string }>(),
-  isIndexing: false,
-  isQueryLoading: false,
+  waitingForDocuments: false,
+  waitingForDocumentsUnknown: false,
 };
 vi.mock('../hooks/use-file-indexing-status', () => ({
   useFileIndexingStatus: () => indexingState,
@@ -338,8 +338,8 @@ afterEach(() => {
   transcriptionState.isTranscribing = false;
   transcriptionState.isQueryLoading = false;
   indexingState.statusMap = new Map();
-  indexingState.isIndexing = false;
-  indexingState.isQueryLoading = false;
+  indexingState.waitingForDocuments = false;
+  indexingState.waitingForDocumentsUnknown = false;
   videoLinksState.isAnyProcessing = false;
   videoLinksState.hasFailedJobs = false;
   // Drafts persist per conversation in localStorage — never across tests.
@@ -991,10 +991,16 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await expectSendParks();
   });
 
-  it('parks the send while a staged document is still indexing', async () => {
-    // The turn tells the model the document is retrievable — so the turn
-    // must not start before it is.
-    indexingState.isIndexing = true;
+  it('parks the send while a staged document is read [CHAT-R47]', async () => {
+    // The turn tells the model the document is readable — so the turn must
+    // not start before its read is decided (or, for a document too large to
+    // read before its index, before the index is).
+    indexingState.waitingForDocuments = true;
+    await expectSendParks();
+  });
+
+  it('parks the send while a staged document’s status has not answered yet', async () => {
+    indexingState.waitingForDocumentsUnknown = true;
     await expectSendParks();
   });
 
@@ -1905,8 +1911,8 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         name: 'the send cannot be parked',
         withFile: true,
         hold: () => {
-          // A document still indexing: Send parks the message, not starts it.
-          indexingState.isIndexing = true;
+          // A document still being read: Send parks the message, not starts it.
+          indexingState.waitingForDocuments = true;
           const parked = held<never>();
           wireSend({ defer: vi.fn(() => parked.promise) });
           return () => parked.reject(new TypeError('Failed to fetch'));
@@ -2103,7 +2109,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
   // A parked send (media still processing) the door refused for anything but
   // a cap used to toast a bare "Couldn't send message".
   it('names why the door refused to park the send', async () => {
-    indexingState.isIndexing = true;
+    indexingState.waitingForDocuments = true;
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
       start: vi.fn(),

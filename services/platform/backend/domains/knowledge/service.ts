@@ -13,6 +13,10 @@ import {
 } from '../../../lib/knowledge/types.ts';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import {
+  TEXT_READ_FAILED,
+  TEXT_TOO_MUCH,
+} from '../../../lib/shared/document-reading.ts';
+import {
   isAudioOrVideo,
   isImage,
   shouldRagIndexOnUpload,
@@ -25,11 +29,7 @@ import {
   EmbeddingDimensionMismatch,
   UnsupportedVectorWidth,
 } from '../../core/knowledge/dimensions.ts';
-import {
-  isOnDemandReadableName,
-  ON_DEMAND_TEXT_MAX_BYTES,
-  type OnDemandFileRead,
-} from '../../core/knowledge/document_text.ts';
+import type { OnDemandFileRead } from '../../core/knowledge/document_text.ts';
 import {
   classifyEmbeddingFailure,
   EmbeddingBudgetExceeded,
@@ -47,6 +47,7 @@ import {
   markCorpusIndexingFailed,
   PII_SCAN_FAILED_REASONS,
 } from '../../core/knowledge/indexing.ts';
+import { dropKeptText, readKeptText } from '../../core/knowledge/kept_reads.ts';
 import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
 import {
   getKnowledgePool,
@@ -58,6 +59,7 @@ import {
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
   RAG_ERROR_EMBEDDING_UPSTREAM,
   RAG_ERROR_EMPTY,
+  RAG_ERROR_IMAGE_NO_VISION,
   RAG_ERROR_INDEXER_ERROR,
   RAG_ERROR_MALFORMED,
   RAG_ERROR_NOT_TEXT,
@@ -78,19 +80,11 @@ import {
 import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
 import {
   extractDocument,
-  type ExtractedDocument,
   isSupported,
 } from '../../core/lib/knowledge/extraction/router.ts';
-import { extractTextFromTextBytes } from '../../core/lib/knowledge/extraction/text.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
-import {
-  parseBlobRef,
-  s3KeyBelongsToOrg,
-} from '../../core/lib/storage/blob_ref.ts';
-import {
-  s3GetObjectBytes,
-  s3GetObjectBytesIfExists,
-} from '../../core/lib/storage/object_store.ts';
+import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
+import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
 import { credentialRefusalMessage } from '../../core/provider_credentials/resolve_credential.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
@@ -125,7 +119,9 @@ import {
   embeddingMeter,
   refusedEmbeddingCap,
 } from './embedding-meter.ts';
+import { stampExtractionMetadata } from './extraction-metadata.ts';
 import { isCorpusRefLive } from './liveness.ts';
+import { queueDocumentRead, requestDocumentRead } from './read-text.ts';
 import type { ReleaseOutcome } from './release.ts';
 import {
   decideMessageRetrievable,
@@ -161,6 +157,7 @@ const FILTER_RETRIEVABLE =
   'documents/internal_queries:filterRetrievableRagFileIds';
 const READ_TEXT_ON_DEMAND =
   'file_metadata/internal_queries:readTextOnDemandForAgent';
+const REQUEST_TEXT_READ = 'file_metadata/internal_mutations:requestTextRead';
 
 /**
  * Which of these conversations the caller may read.
@@ -542,6 +539,16 @@ export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as { organizationId: string; storageId: string };
       return readFileTextOnDemand(sql, args);
     },
+    // The lane's ask for a file nothing has read yet — the same admitted
+    // ref; the reader then waits for the read's verdict.
+    [REQUEST_TEXT_READ]: async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the shared reader passes exactly this shape
+      const args = raw as { organizationId: string; storageId: string };
+      return requestDocumentRead(sql, {
+        organizationId: args.organizationId,
+        storageRef: args.storageId,
+      });
+    },
   };
 }
 
@@ -577,20 +584,115 @@ async function requireOrgSlug(
 }
 
 /**
- * A file's text straight from its stored bytes — the lane `rag_fetch` falls
- * back to when the corpus holds nothing for a ref the caller may read (a
- * REST-bound project file skips indexing by default; a chat upload may still
- * be queued). Only the plain-text extractor's own extensions are served, and
- * only under {@link ON_DEMAND_TEXT_MAX_BYTES}: anything else needs the
- * indexer's extractors and pages through its chunks, so the answer for it is
- * the file's TRUE indexing state — whether a document holds the file, the one
- * kind of file a person can index by hand, and whether an index run could
- * read it at all — which the caller turns into the miss.
+ * The indexer's own verdicts on a file that a read would only reach again:
+ * no extractor, no text, a file that does not open, and the organization's
+ * refusals. A file the indexer decided this way is not read for them — the
+ * file's index state answers a file no read has decided.
+ */
+const INDEX_VERDICTS: Readonly<
+  Record<
+    string,
+    {
+      readonly reason: 'binary' | 'no_text' | 'malformed' | 'refused';
+      readonly refusal?: 'secret-detected' | 'pii-blocked' | 'pii-scan-failed';
+    }
+  >
+> = {
+  [RAG_ERROR_UNSUPPORTED_TYPE]: { reason: 'binary' },
+  [RAG_ERROR_EMPTY]: { reason: 'no_text' },
+  [RAG_ERROR_NOT_TEXT]: { reason: 'no_text' },
+  [RAG_ERROR_MALFORMED]: { reason: 'malformed' },
+  [RAG_ERROR_SECRET_DETECTED]: {
+    reason: 'refused',
+    refusal: 'secret-detected',
+  },
+  [RAG_ERROR_PII_BLOCKED]: { reason: 'refused', refusal: 'pii-blocked' },
+  [RAG_ERROR_PII_SCAN_FAILED]: {
+    reason: 'refused',
+    refusal: 'pii-scan-failed',
+  },
+};
+
+/** A read's own verdict on a file (`text_status` + `text_error_code`), as
+ * the miss states it. */
+function readVerdict(
+  textStatus: string | null,
+  code: string | null,
+): Pick<
+  Extract<OnDemandFileRead, { kind: 'unreadable' }>,
+  'reason' | 'refusal'
+> | null {
+  switch (textStatus) {
+    case 'queued':
+    case 'running':
+      return { reason: 'pending' };
+    case 'refused':
+      return {
+        reason: 'refused',
+        refusal: INDEX_VERDICTS[code ?? '']?.refusal ?? 'pii-blocked',
+      };
+    case 'unreadable':
+      return {
+        reason:
+          code === RAG_ERROR_MALFORMED
+            ? 'malformed'
+            : code === RAG_ERROR_UNSUPPORTED_TYPE ||
+                code === RAG_ERROR_IMAGE_NO_VISION
+              ? 'binary'
+              : 'no_text',
+      };
+    case 'deferred':
+      return {
+        reason:
+          code === TEXT_TOO_MUCH
+            ? 'too_much_text'
+            : code === TEXT_READ_FAILED
+              ? 'read_failed'
+              : 'too_large',
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * What a ready read gives the on-demand lane: the text it kept. Null
+ * (`unread`) when none is kept — the file's index completed and dropped it,
+ * and the lane is reached only because the corpus has lost it since, or the
+ * organization's knowledge database was moved. Either way a fresh read is
+ * the way back, and its text is kept for this lane.
+ */
+async function keptTextVerdict(
+  sql: Sql,
+  args: { organizationId: string; storageId: string },
+): Promise<{ readonly text: string } | null> {
+  const orgSlug = await requireOrgSlug(sql, args.organizationId);
+  const text = await readKeptText(orgSlug, args.storageId);
+  return text === null ? null : { text };
+}
+
+/**
+ * A file's text as the assistant may read it while the corpus holds nothing
+ * for a ref the caller may read — the lane `rag_fetch` falls back to. The
+ * text is the one a read on a worker checked and kept (`read-text.ts`), in
+ * the organization's knowledge database (`core/knowledge/kept_reads.ts`): an
+ * upload is read right after it lands, and a file nothing has read yet — or
+ * whose kept text is gone — is answered `unread`, so the caller can ask for
+ * its read (`requestDocumentRead`) and wait for it. Nothing is extracted or
+ * scanned here: this runs in the api process, beside every chat turn of the
+ * app.
+ *
+ * Otherwise the answer is why not — the index's refusal, which outranks a
+ * read that let the text through, then the read's verdict, then the
+ * indexer's for a file no read has decided — with the file's TRUE indexing
+ * state, whether a document holds the file (the one kind of file a person
+ * can index by hand), and whether an index run could read it at all, which
+ * the caller turns into the miss. A picture answers its stored type and
+ * size.
  *
  * Admission is the CALLER's job (the shared reader checks the ref through
- * `filterRetrievableRagFileIds` first); this reads the org's own row only,
- * and refuses a blob key outside the org's namespace the way every serve
- * lane does. Null when no live file row holds the ref.
+ * `filterRetrievableRagFileIds` first); this reads the org's own row only.
+ * Null when no live file row holds the ref.
  */
 export async function readFileTextOnDemand(
   sql: Sql,
@@ -599,6 +701,7 @@ export async function readFileTextOnDemand(
   const rows = await sql<
     {
       fileName: string;
+      contentType: string;
       size: number;
       lifecycleStatus: string | null;
       skipRagIndexing: boolean | null;
@@ -606,14 +709,19 @@ export async function readFileTextOnDemand(
       ragError: string | null;
       ragErrorCode: string | null;
       heldByDocument: boolean;
+      textStatus: string | null;
+      textErrorCode: string | null;
     }[]
   >`
-    SELECT fm.file_name AS "fileName", fm.size::float8 AS size,
+    SELECT fm.file_name AS "fileName", fm.content_type AS "contentType",
+           fm.size::float8 AS size,
            fm.lifecycle_status AS "lifecycleStatus",
            fm.skip_rag_indexing AS "skipRagIndexing",
            fm.rag_status AS "ragStatus", fm.rag_error AS "ragError",
            fm.rag_error_code AS "ragErrorCode",
-           ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "heldByDocument"
+           ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "heldByDocument",
+           fm.text_status AS "textStatus",
+           fm.text_error_code AS "textErrorCode"
     FROM app.file_metadata fm
     WHERE fm.org_id = ${args.organizationId}
       AND fm.storage_ref = ${args.storageId}
@@ -628,37 +736,60 @@ export async function readFileTextOnDemand(
     status: state.status,
     ...(state.error !== undefined ? { error: state.error } : {}),
   };
-  const unreadable = (
-    reason: 'binary' | 'too_large' | 'no_text',
-  ): OnDemandFileRead => ({
+  // A picture holds no text: its stored type and size answer for it.
+  if (
+    isImage(row.contentType) ||
+    unsupportedByName(row.fileName)?.code === RAG_ERROR_IMAGE_NO_VISION
+  ) {
+    return {
+      kind: 'image',
+      filename: row.fileName,
+      contentType: row.contentType,
+      sizeBytes: row.size,
+    };
+  }
+  const extractable = unsupportedByName(row.fileName) === null;
+  // A refusal the index decided outranks a read that let the text through:
+  // it is the later check, under the policy in force. A scan that could not
+  // run decided nothing, and a read that ran since has the word.
+  const indexRefusal =
+    row.ragStatus === 'failed' && row.ragErrorCode !== null
+      ? INDEX_VERDICTS[row.ragErrorCode]
+      : undefined;
+  const verdict =
+    (indexRefusal?.refusal === 'secret-detected' ||
+    indexRefusal?.refusal === 'pii-blocked'
+      ? indexRefusal
+      : undefined) ??
+    (row.textStatus === 'ready'
+      ? await keptTextVerdict(sql, args)
+      : readVerdict(row.textStatus, row.textErrorCode)) ??
+    (row.ragErrorCode !== null
+      ? INDEX_VERDICTS[row.ragErrorCode]
+      : undefined) ??
+    (extractable ? null : { reason: 'binary' as const });
+  if (verdict === null) {
+    return { kind: 'unread', filename: row.fileName, indexing };
+  }
+  if ('text' in verdict) {
+    return {
+      kind: 'text',
+      filename: row.fileName,
+      text: verdict.text,
+      indexing,
+    };
+  }
+  return {
     kind: 'unreadable',
     filename: row.fileName,
     sizeBytes: row.size,
     indexing,
     heldByDocument: row.heldByDocument,
     // False when the indexer's by-name rule already decides a run's answer.
-    extractable: unsupportedByName(row.fileName) === null,
-    reason,
-  });
-  if (!isOnDemandReadableName(row.fileName)) return unreadable('binary');
-  // The bind step HEADs the landed object, so `size` is the store's own
-  // figure — checked before a byte is fetched, and again on what arrived.
-  if (row.size > ON_DEMAND_TEXT_MAX_BYTES) return unreadable('too_large');
-
-  const orgSlug = await requireOrgSlug(sql, args.organizationId);
-  const parsed = parseBlobRef(args.storageId);
-  if (parsed.backend !== 's3' || !s3KeyBelongsToOrg(parsed.key, orgSlug)) {
-    return unreadable('no_text');
-  }
-  const store = await locateOrgObjectStore(orgSlug, parsed.key);
-  const bytes = await s3GetObjectBytesIfExists(store, parsed.key);
-  if (bytes === null || bytes.byteLength === 0) return unreadable('no_text');
-  if (bytes.byteLength > ON_DEMAND_TEXT_MAX_BYTES) {
-    return unreadable('too_large');
-  }
-  const [text] = await extractTextFromTextBytes(bytes, row.fileName);
-  if (text.trim() === '') return unreadable('no_text');
-  return { kind: 'text', filename: row.fileName, text, indexing };
+    extractable,
+    reason: verdict.reason,
+    ...(verdict.refusal !== undefined ? { refusal: verdict.refusal } : {}),
+  };
 }
 
 /** The stable code and the sentence each class of provider failure becomes
@@ -1014,37 +1145,6 @@ async function recordIndexingFailure(
 }
 
 /**
- * Persist what extraction learned about the file: how many pages it has, how
- * many of them are scans, and whether OCR actually ran on them. Only the PDF
- * leg answers these today, so a format that reports nothing leaves the
- * columns as they are rather than stamping a zero that reads like a measured
- * one. `vision_required` is the operator's version of the same finding: the
- * file holds pages no text extractor can read.
- */
-async function stampExtractionMetadata(
-  sql: Sql,
-  fileId: string,
-  extracted: ExtractedDocument,
-): Promise<void> {
-  if (
-    extracted.pageCount === undefined &&
-    extracted.scannedPagesDetected === undefined
-  ) {
-    return;
-  }
-  const scanned = extracted.scannedPagesDetected;
-  await sql`
-    UPDATE app.file_metadata SET
-      page_count = coalesce(${extracted.pageCount ?? null}, page_count),
-      scanned_pages_detected = coalesce(${scanned ?? null}, scanned_pages_detected),
-      ocr_applied = coalesce(${extracted.ocrApplied ?? null}, ocr_applied),
-      vision_required = coalesce(
-        ${scanned !== undefined ? scanned > 0 : null}, vision_required)
-    WHERE id = ${fileId}
-  `;
-}
-
-/**
  * The conversation an emailed attachment's corpus row is stamped with: the
  * one its file row is bound to, unless the file indexes as a document —
  * filed into one, or unbound while an active document holds its ref
@@ -1164,6 +1264,76 @@ async function parkForUsageLimit(
   });
 }
 
+/** The checked text a ready read kept for the file (`read-text.ts`), or null
+ * when none is kept — or when it cannot be fetched: the index then reads the
+ * file itself, as it always did. */
+async function keptTextForIndex(
+  sql: Sql,
+  file: { fileId: string; orgSlug: string; storageRef: string },
+): Promise<string | null> {
+  const rows = await sql<{ ready: boolean }[]>`
+    SELECT true AS ready FROM app.file_metadata
+    WHERE id = ${file.fileId} AND text_status = 'ready'
+    LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  try {
+    return await readKeptText(file.orgSlug, file.storageRef);
+  } catch (error) {
+    console.warn(
+      '[knowledge] the text a read kept could not be fetched; indexing reads the file itself',
+      {
+        fileId: file.fileId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return null;
+  }
+}
+
+/**
+ * The file's index has the last word on its read. A completed index serves
+ * the text itself, so the kept copy is dropped — and a read the PII policy
+ * refused is lifted, since the policy in force let the index through (a PII
+ * scan that could not run at the read may run at the index). An index the
+ * policy in force refused refuses the read too, and its kept text goes. A
+ * file that is not indexed again keeps what its read decided under the
+ * policy of its day, as an index keeps what it was given.
+ *
+ * Never fails the index run it closes: a fault is logged, and what stays
+ * behind is in the organization's knowledge database and goes with the file.
+ */
+async function settleKeptRead(
+  sql: Sql,
+  file: { fileId: string; orgSlug: string; storageRef: string },
+  outcome: { readonly refusedWith?: string },
+): Promise<void> {
+  try {
+    if (outcome.refusedWith === undefined) {
+      await sql`
+        UPDATE app.file_metadata SET text_status = 'ready',
+          text_error_code = NULL
+        WHERE id = ${file.fileId} AND text_status = 'refused'
+      `;
+    } else {
+      await sql`
+        UPDATE app.file_metadata SET
+          text_status = 'refused', text_error_code = ${outcome.refusedWith}
+        WHERE id = ${file.fileId} AND text_status IS NOT NULL
+      `;
+    }
+    await dropKeptText(file.orgSlug, [file.storageRef]);
+  } catch (error) {
+    console.warn(
+      '[knowledge] settling the read of an indexed file failed; its kept text stays until the file goes',
+      {
+        fileId: file.fileId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+}
+
 /**
  * Index one uploaded file into the org's corpus: extract → PII gate →
  * embed → upsert chunks. Idempotent (re-running replaces the document's
@@ -1265,20 +1435,36 @@ export async function indexUploadedFile(
     ragProgress: 'Extracting text…',
   });
   try {
-    const parsed = parseBlobRef(file.storageRef);
-    if (parsed.backend !== 's3') {
-      throw new Error('0.5 blobs are S3 refs by construction');
+    // A read for the assistant (`read-text.ts`) may have extracted and
+    // checked this file already: the index starts from that text. Its bytes
+    // passed the secret scan then — the same bytes, a file row's ref never
+    // changes — and the PII policy is applied to it again below, as to every
+    // text, which changes nothing it masked or let through.
+    const kept = await keptTextForIndex(sql, {
+      fileId,
+      orgSlug,
+      storageRef: file.storageRef,
+    });
+    let text: string;
+    let bytes: Uint8Array | undefined;
+    if (kept !== null) {
+      text = kept;
+    } else {
+      const parsed = parseBlobRef(file.storageRef);
+      if (parsed.backend !== 's3') {
+        throw new Error('0.5 blobs are S3 refs by construction');
+      }
+      const store = await locateOrgObjectStore(orgSlug, parsed.key);
+      bytes = await s3GetObjectBytes(store, parsed.key);
+      const extracted = await extractDocument(bytes, file.fileName);
+      text = extracted.text;
+      // What the extraction learned about the file itself — the operator
+      // reads it on the document row ("Image pages: 3", the OCR badge).
+      // Stamped here, not on completion: a PDF whose embedding step later
+      // fails is still a scanned PDF, and the answer to "why is this
+      // document empty?" is exactly this pair of numbers.
+      await stampExtractionMetadata(sql, fileId, extracted);
     }
-    const store = await locateOrgObjectStore(orgSlug, parsed.key);
-    const bytes = await s3GetObjectBytes(store, parsed.key);
-    const extracted = await extractDocument(bytes, file.fileName);
-    const text = extracted.text;
-    // What the extraction learned about the file itself — the operator reads
-    // it on the document row ("Image pages: 3", the OCR badge). Stamped here,
-    // not on completion: a PDF whose embedding step later fails is still a
-    // scanned PDF, and the answer to "why is this document empty?" is
-    // exactly this pair of numbers.
-    await stampExtractionMetadata(sql, fileId, extracted);
 
     const config = await readOrgEmbeddingConfig(orgSlug);
     const shim = knowledgeShim(sql);
@@ -1422,22 +1608,36 @@ export async function indexUploadedFile(
       // after the policy or the file changes is meaningful. A scan the PII
       // policy could not run is refused the same way — never indexed
       // unscanned — and saving the policy queues it again.
+      const ragErrorCode =
+        result.skipped === 'secret-detected'
+          ? RAG_ERROR_SECRET_DETECTED
+          : result.skipped === 'pii-blocked'
+            ? RAG_ERROR_PII_BLOCKED
+            : RAG_ERROR_PII_SCAN_FAILED;
       await writeRagStatus(sql, fileId, {
         ragStatus: 'failed',
         ragError: result.refusal ?? `Indexing refused (${result.skipped}).`,
-        ragErrorCode:
-          result.skipped === 'secret-detected'
-            ? RAG_ERROR_SECRET_DETECTED
-            : result.skipped === 'pii-blocked'
-              ? RAG_ERROR_PII_BLOCKED
-              : RAG_ERROR_PII_SCAN_FAILED,
+        ragErrorCode,
       });
+      // The policy is the one in force now: a read kept under an older one
+      // is refused with the index, never served past it.
+      await settleKeptRead(
+        sql,
+        { fileId, orgSlug, storageRef: file.storageRef },
+        { refusedWith: ragErrorCode },
+      );
       return;
     }
     await writeRagStatus(sql, fileId, {
       ragStatus: 'completed',
       ragIndexedAt: Date.now(),
     });
+    // The corpus serves the text from here on.
+    await settleKeptRead(
+      sql,
+      { fileId, orgSlug, storageRef: file.storageRef },
+      {},
+    );
     await requeueIfModelMoved(sql, {
       fileId,
       orgSlug,
@@ -1856,15 +2056,19 @@ export async function embeddingMovedSince(
  * {@link requeueEmbeddingBlockedDocuments}. An email body has no file row to
  * carry one: its corpus row is found by the fixed sentence its refusal
  * stored (`PII_SCAN_FAILED_REASONS`), and its own job is queued, as in
- * {@link requeueDocumentsNotEmbeddedByModel}. A document the policy refused for
- * what it detected (`pii_blocked`), or one that failed for any other reason,
- * is left alone.
+ * {@link requeueDocumentsNotEmbeddedByModel}. A file no index run decides —
+ * one that skips indexing, or was never indexed — has only its read
+ * (`read-text.ts`), and a read the policy could not scan is queued again
+ * instead; an indexed file's read follows its index. A document the policy
+ * refused for what it detected (`pii_blocked`), or one that failed for any
+ * other reason, is left alone.
  *
  * The jobs wait out the org-config cache (`ORG_CONFIG_CACHE_TTL_MS`): the
  * indexer reads the policy through it, and a replica that ran one at once
  * could still scan with the policy from before the save and refuse the
- * document again. Each batch's flips and enqueues share ONE transaction, and
- * the jobs run at DEFAULT priority, as in the embedding re-queue.
+ * document again (a read reads it fresh, and waits the same, as one job of
+ * the save). Each batch's flips and enqueues share ONE transaction, and the
+ * jobs run at DEFAULT priority, as in the embedding re-queue.
  */
 export async function requeuePiiScanFailedDocuments(
   sql: Sql,
@@ -1896,6 +2100,31 @@ export async function requeuePiiScanFailedDocuments(
     await hintDocumentLists(tx, rows);
     return rows.length;
   });
+  const reads = await sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.file_metadata SET
+        text_status = 'queued', text_error_code = NULL,
+        text_read_at_ms = ${Date.now()}
+      WHERE org_id = ${args.organizationId}
+        AND text_status = 'refused'
+        AND text_error_code = ${RAG_ERROR_PII_SCAN_FAILED}
+        AND (skip_rag_indexing IS TRUE OR rag_status IS NULL)
+      RETURNING id
+    `;
+    for (const row of rows) {
+      await addJobInTx(
+        tx,
+        'rag.read_file',
+        {
+          fileId: row.id,
+          organizationId: args.organizationId,
+          thenIndex: false,
+        },
+        { startAfter },
+      );
+    }
+    return rows.length;
+  });
 
   const pool = await getKnowledgePoolForOrg(args.orgSlug);
   const bodies = await pool.unsafe<{ ref: string }[]>(
@@ -1925,7 +2154,7 @@ export async function requeuePiiScanFailedDocuments(
       }
     });
   }
-  return { requeued: files + messageIds.length };
+  return { requeued: files + reads + messageIds.length };
 }
 
 /**
@@ -1955,9 +2184,15 @@ export async function queueRagIndexIfUnstarted(
 ): Promise<'queued' | 'unsupported' | null> {
   return await sql.begin(async (tx) => {
     const rows = await tx<
-      { id: string; fileName: string; contentType: string }[]
+      {
+        id: string;
+        organizationId: string;
+        fileName: string;
+        contentType: string;
+      }[]
     >`
-      SELECT id, file_name AS "fileName", content_type AS "contentType"
+      SELECT id, org_id AS "organizationId", file_name AS "fileName",
+             content_type AS "contentType"
       FROM app.file_metadata
       WHERE storage_ref = ${storageRef}
         AND rag_status IS NULL
@@ -1973,8 +2208,12 @@ export async function queueRagIndexIfUnstarted(
         ? 'unsupported'
         : null;
     }
+    // The register door's own lane: read, then index.
     await markRagQueued(tx, row.id);
-    await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
+    await queueDocumentRead(tx, {
+      fileId: row.id,
+      organizationId: row.organizationId,
+    });
     return 'queued';
   });
 }

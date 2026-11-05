@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { i18n } from '@/tests/utils/i18n-all-languages';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { Composer } from './composer';
@@ -1279,33 +1279,114 @@ describe('Composer document attachments', () => {
     fileSize: 64_000,
   };
 
-  it('renders a document chip with the live indexing status', () => {
-    renderComposer({
+  function renderDocument(info: Record<string, unknown>) {
+    return renderComposer({
       models: [MODEL],
       initial: { modelId: MODEL.id },
       onAttachFiles: vi.fn(),
       attachments: [DOCUMENT],
-      indexingStatuses: new Map([['doc1', { status: 'running' }]]),
+      indexingStatuses: new Map([['doc1', info]]),
     });
+  }
+
+  // A document is read right after its upload; a send waits for that read.
+  it('says a document is being read while its read runs [CHAT-R47]', () => {
+    renderDocument({ textStatus: 'running', status: 'queued' });
 
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
-    expect(screen.getByText('Indexing…')).toBeInTheDocument();
+    expect(screen.getByText('Reading…')).toBeInTheDocument();
+    expect(screen.queryByText('Indexing…')).not.toBeInTheDocument();
   });
 
-  it('surfaces an indexing failure with the stored reason on hover', () => {
-    renderComposer({
-      models: [MODEL],
-      initial: { modelId: MODEL.id },
-      onAttachFiles: vi.fn(),
-      attachments: [DOCUMENT],
-      indexingStatuses: new Map([
-        ['doc1', { status: 'failed', error: 'no extractor' }],
-      ]),
+  // Once read, the assistant reads its checked text while the index is
+  // built, so the chip says it is ready: its size, no spinner.
+  it('shows a document ready once read, while its index is built [CHAT-R47]', () => {
+    renderDocument({ textStatus: 'ready', status: 'running' });
+
+    expect(screen.getByText('62.5 KB')).toBeInTheDocument();
+    expect(screen.queryByText('Indexing…')).not.toBeInTheDocument();
+  });
+
+  // The server's own progress words never reach the chip: they are English
+  // in every language.
+  it.each([
+    [{ status: 'queued' }, 'Waiting to index'],
+    [{ status: 'running' }, 'Indexing…'],
+    [{ status: 'running', progress: 'Extracting text…' }, 'Reading text…'],
+    [{ status: 'running', progress: 'Embedding… 3/12' }, 'Indexing… 25%'],
+  ])(
+    'shows the index at work for a document too large to read before it: %o',
+    (info, label) => {
+      renderDocument({ textStatus: 'deferred', ...info });
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Extracting|Embedding/),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  /** The chip's reason: a tooltip its label opens on keyboard focus, as on
+   * hover — read out by a screen reader too. */
+  async function reasonOf(label: HTMLElement): Promise<string | null> {
+    act(() => label.focus());
+    return (await screen.findByRole('tooltip')).textContent;
+  }
+
+  it('surfaces a failed index a send waited for, its reason in the reader’s words', async () => {
+    renderDocument({
+      textStatus: 'deferred',
+      status: 'failed',
+      error:
+        'Indexing failed on the platform’s side; it is retried automatically.',
     });
 
-    const label = screen.getByText('Index failed');
-    expect(label).toBeInTheDocument();
-    expect(label).toHaveAttribute('title', 'no extractor');
+    const label = screen.getByRole('button', { name: 'Index failed' });
+    expect(label).toHaveClass('text-destructive');
+    expect(await reasonOf(label)).toContain(
+      'report.pdf could not be indexed for search.',
+    );
+  });
+
+  // The index failed on the embedding server's side; the assistant still
+  // reads the checked text, so nothing here is a failure.
+  it('keeps a read document ready when only its index failed', () => {
+    renderDocument({
+      textStatus: 'ready',
+      status: 'failed',
+      error: 'The embedding provider could not serve the request',
+      errorCode: 'embedding_upstream',
+    });
+
+    expect(screen.getByText('62.5 KB')).toBeInTheDocument();
+    expect(screen.queryByText('Index failed')).not.toBeInTheDocument();
+  });
+
+  it('says a document the organization’s policy refuses cannot be read, and why', async () => {
+    renderDocument({
+      textStatus: 'refused',
+      textErrorCode: 'pii_blocked',
+      status: 'queued',
+    });
+
+    const label = screen.getByRole('button', { name: "Can't be read" });
+    expect(label).toHaveClass('text-destructive');
+    expect(await reasonOf(label)).toContain(
+      "Your organization's privacy policy blocks report.pdf, so the assistant can't read it.",
+    );
+  });
+
+  it('says a document holds no readable text, without calling it a failure', async () => {
+    renderDocument({
+      textStatus: 'unreadable',
+      textErrorCode: 'empty',
+      status: 'queued',
+    });
+
+    const label = screen.getByRole('button', { name: 'No readable text' });
+    expect(label).not.toHaveClass('text-destructive');
+    expect(await reasonOf(label)).toContain(
+      'report.pdf has no text the assistant can read — it may be empty, or a scan without a text layer.',
+    );
   });
 
   it('shows the file size once indexing settles, and removes from the chip', async () => {

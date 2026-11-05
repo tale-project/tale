@@ -8,6 +8,7 @@ import type {
 import type { ToolArtifact } from '../../../lib/chat/tools.ts';
 import type { SkillViewer } from '../../../lib/skills/visibility.ts';
 import type { ResolvedImageModel } from '../../core/lib/providers/resolve_image_model.ts';
+import type { WithheldFile } from './artifacts.ts';
 
 /**
  * What a work tool needs from the lane that runs the turn — the chat, or a
@@ -37,6 +38,8 @@ export interface InputFile {
   readonly name: string;
   readonly mediaType: string;
   readonly sizeBytes: number;
+  /** Why no tool may take the file (`withheldFile`). */
+  readonly withheld?: WithheldFile;
 }
 
 /** Which files the turn may read back: those among `refs` it holds. */

@@ -359,6 +359,53 @@ function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
   };
 }
 
+/** A document's text as a reader may hand it on before its index exists. */
+export type GatedDocumentText =
+  | {
+      readonly kind: 'refused';
+      readonly skipped: 'secret-detected' | 'pii-blocked' | 'pii-scan-failed';
+    }
+  | { readonly kind: 'empty' }
+  | { readonly kind: 'text'; readonly text: string };
+
+/**
+ * The text a reader may hand on of a file whose index is not ready — the
+ * same secret scan and PII policy {@link prepareDocument} applies before
+ * anything is chunked, in the same order, so text read straight from a file
+ * is never less protected than the text its index would serve: a credential
+ * in the bytes, or a policy that blocks the text or the file's name, refuses
+ * the read; a policy that could not scan either refuses it in every mode; and
+ * a masking policy hands on the masked text. The name decides only whether
+ * the text may be read — it is not part of what is handed on.
+ */
+export function gateDocumentText(args: {
+  readonly text: string;
+  readonly bytes?: Uint8Array;
+  readonly piiConfig?: PiiConfig | null;
+  readonly filename: string;
+}): GatedDocumentText {
+  if (args.bytes !== undefined && scanForSecrets(args.bytes).rejected) {
+    return { kind: 'refused', skipped: 'secret-detected' };
+  }
+  const policy = args.piiConfig ?? null;
+  const decision = applyPiiPolicyForIndexing(
+    sanitizeExtractedText(args.text),
+    policy,
+  );
+  const names = prepareNames(
+    { text: args.text, filename: args.filename },
+    policy,
+  );
+  if (decision.kind === 'refuse' || names.kind === 'refuse') {
+    return { kind: 'refused', skipped: 'pii-blocked' };
+  }
+  if (decision.kind === 'unscanned' || names.kind === 'unscanned') {
+    return { kind: 'refused', skipped: 'pii-scan-failed' };
+  }
+  if (decision.text.trim() === '') return { kind: 'empty' };
+  return { kind: 'text', text: decision.text };
+}
+
 /**
  * The chunk header and the stored name, under the same PII policy as the
  * text.

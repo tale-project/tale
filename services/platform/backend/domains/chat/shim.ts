@@ -613,6 +613,8 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           transcriptionError: string | null;
           transcriptionDurationSec: number | null;
           ragStatus: string | null;
+          ragErrorCode: string | null;
+          textStatus: string | null;
           threadId: string | null;
           documentId: string | null;
           uploadedBy: string | null;
@@ -625,7 +627,8 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
                transcription_status AS "transcriptionStatus",
                transcription_error AS "transcriptionError",
                transcription_duration_sec AS "transcriptionDurationSec",
-               rag_status AS "ragStatus", thread_id AS "threadId",
+               rag_status AS "ragStatus", rag_error_code AS "ragErrorCode",
+               text_status AS "textStatus", thread_id AS "threadId",
                document_id AS "documentId", uploaded_by AS "uploadedBy",
                conversation_id AS "conversationId"
         FROM app.file_metadata

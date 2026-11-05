@@ -9,11 +9,12 @@ import { useFileUpload } from './use-file-upload';
 
 // ---------------------------------------------------------------------------
 // Regression coverage for #1457: a PDF (or any RAG-indexable file) must NOT
-// flash "uploaded successfully" the instant its bytes land, because indexing
-// runs asynchronously afterwards and can still fail with an "Index failed"
-// badge. The composer defers that toast to `useFileIndexingStatus`, which owns
-// the terminal status. Files that are not indexed (e.g. indexing disabled for
-// the conversation) keep the immediate toast.
+// flash "uploaded successfully" the instant its bytes land, because it is
+// read for the assistant asynchronously afterwards, and the read can still
+// find it refused or without text. The composer defers that toast to
+// `useFileIndexingStatus`, which owns the read's outcome. Files that are not
+// read (e.g. indexing disabled for the conversation) keep the immediate
+// toast.
 //
 // `detectMediaMime` resolves to `null` so the resolved type comes from the
 // real `resolveFileType`, exercising the genuine `isRagIndexableFile` gate.

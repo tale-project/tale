@@ -124,6 +124,15 @@ export const PARKED_RAG_ERROR_CODES = [
   RAG_ERROR_USAGE_LIMIT,
 ] as const;
 
+/** The codes under which the organization's own checks refuse a file's text
+ * — its secret scan, its PII policy, or a PII scan that could not run. The
+ * text is then read neither from the file's index nor from its bytes. */
+export const READ_REFUSED_RAG_ERROR_CODES: ReadonlySet<string> = new Set([
+  RAG_ERROR_SECRET_DETECTED,
+  RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_PII_SCAN_FAILED,
+]);
+
 /** The codes that land on `unsupported`: a retry reproduces the answer, so
  * the retry door refuses instead of queueing. */
 export const TERMINAL_RAG_ERROR_CODES: ReadonlySet<string> = new Set([

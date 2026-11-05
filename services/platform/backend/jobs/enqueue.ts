@@ -43,10 +43,10 @@ let bossInstance: PgBoss | null = null;
  * simply being ahead in a FIFO queue. Neither is a bug in the source; the
  * queue was just undifferentiated.
  *
- * One level is enough. pg-boss keeps `created_on` as the tiebreak, so
- * interactive work is still fair among itself, and the backlog still drains
- * whenever no one is waiting — no reserved slot, no second file queue, no
- * starving the sources.
+ * pg-boss keeps `created_on` as the tiebreak, so work of one level is still
+ * fair among itself, and the backlog still drains whenever no one is waiting
+ * — no reserved slot, no second file queue, no starving the sources. Above
+ * this level sits only {@link PRIORITY_ATTACHMENT}.
  *
  * Inbound email bodies are the one source with a queue of their own
  * (`rag.index_message`), so a mailbox's first sync never stands in front of
@@ -58,6 +58,18 @@ let bossInstance: PgBoss | null = null;
  * nothing re-queues a message the way a file's retry does.
  */
 export const PRIORITY_INTERACTIVE = 10;
+
+/**
+ * Work a person's message is waiting for, ahead of everything else in its
+ * queue: the read of a file attached to a message or a task
+ * (`rag.read_file`, `domains/knowledge/read-text.ts`), and the index run of
+ * an attachment too large to read before its index, which the message then
+ * waits for. Indexing a Knowledge upload makes it searchable later; an
+ * attachment is what the person is about to send. A batch of Knowledge
+ * uploads queued at {@link PRIORITY_INTERACTIVE} used to keep every
+ * attachment of the organization waiting until the whole batch was indexed.
+ */
+export const PRIORITY_ATTACHMENT = 20;
 
 /**
  * Install the process-wide pg-boss instance the enqueue façade sends

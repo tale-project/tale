@@ -500,6 +500,21 @@ describe('recoverStuckRagIndexing — the interrupted text [FMETA-R2]', () => {
       'usage_limit',
     ]);
   });
+
+  // An upload's index job is queued by its read, once the read is decided:
+  // until then the row is queued with no job, and the read watchdog
+  // (`recoverStuckReads`) settles a lost read and hands the index on.
+  it('leaves a queued file whose read is still pending to the read watchdog', async () => {
+    const { sql, statements } = fakeSql([]);
+    corpusAnswering([]);
+
+    await recoverStuckRagIndexing(sql);
+
+    const read = statements.find((s) => s.text.startsWith('SELECT id,'));
+    expect(read?.text).toContain(
+      "(rag_status IN ('queued', 'running') AND coalesce(rag_queued_at_ms, created_at_ms) < ? AND (text_status IS NULL OR text_status NOT IN ('queued', 'running')))",
+    );
+  });
 });
 
 describe('recoverStuckRagIndexing — a failure keeps its code with its text [FMETA-R3]', () => {

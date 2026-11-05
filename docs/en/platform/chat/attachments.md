@@ -9,11 +9,11 @@ Attach a file when it is needed for the current conversation. The assistant rece
 
 Open the `+` menu beside the message field and choose **Add photos & files**. You can also drag files onto the composer or paste a screenshot into the message field. A message can carry up to ten files.
 
-Images appear as thumbnails; other files appear as named chips with their processing status. Check the filenames before sending. Use a staged attachment’s remove control to leave it out of the message.
+Images appear as thumbnails; other files appear as named chips. A document’s chip shows **Reading…** while Tale reads it, which takes a few seconds, then its size: the assistant can read it, while Tale indexes it for search in the background. Only a very large document shows its indexing progress instead, as described below. Check the filenames before sending. Use a staged attachment’s remove control to leave it out of the message.
 
 After sending, **Edit message** changes the text in a new version of the conversation and keeps the original attachments. You do not need to upload them again.
 
-<Frame caption="A staged document shows its name, then its size once it has been processed and is ready to send with your question.">
+<Frame caption="A staged document shows its name and size: it is ready to send with your question.">
 
 ![The chat composer shows an attached document above the message field, with its file size and a control to remove it.](/images/platform/chat-document-attachment.webp)
 
@@ -28,15 +28,17 @@ When you try to attach audio or video, Tale checks whether the organization has 
 | Attachment | What the model uses | What to check |
 | --- | --- | --- |
 | Image or pasted screenshot | The image itself, when the selected model supports vision. | Confirm the picker offers an image-capable model and the text is legible. |
-| PDF, modern Office document, or supported text file | Text made available through the assistant’s retrieval tools. | Wait for processing and check for a reading step in the reply. |
+| PDF, modern Office document, or supported text file | The document’s text, which the assistant reads with its retrieval tools: from the search index, or, while the document is still being indexed, from the text Tale read when it was uploaded. | Check for a reading step in the reply. A PDF, Word, PowerPoint, or OpenDocument file over 50 MiB, a spreadsheet over 20 MiB, a text file over 4 MiB, or a file with more than about four million characters of text can only be read once it is indexed. |
 | Audio or video file | A text transcript. | An admin must configure transcription; check names, numbers, and specialist terms against the recording. |
 | Legacy Office file without a text extractor | The filename, without searchable document text. | Save it as `.docx`, `.xlsx`, or `.pptx` and attach that copy. |
 
-File upload support and text extraction are separate. A file that appears in the chat is not necessarily a file whose contents the assistant can read.
+The assistant also receives every attachment’s file type and size, so it can answer questions about them without reading the file.
+
+File upload support and text extraction are separate. A file that appears in the chat is not necessarily a file whose contents the assistant can read. Your organization’s secret scan and privacy (PII) policy apply to an attachment the same way they apply to the search index: a document they refuse cannot be read, not even by code the assistant runs, and a policy that masks personal data masks it in what the assistant reads.
 
 ## Send while processing continues
 
-If documents or recordings are still processing when you send, Tale queues the message and sends it after they are ready. The queued message appears above the composer. Cancel it there if you need to change the question; its text returns to the field.
+If documents are still being read, or recordings or video links are still processing when you send, Tale queues the message and sends it after they are ready. Reading a document takes a few seconds: the message does not wait for its search index. The exception is a document too large to read before it is indexed — a PDF, Word, PowerPoint, or OpenDocument file over 50 MiB, a spreadsheet over 20 MiB, a text file over 4 MiB, or a file with more than about four million characters of text — which holds the message until its indexing finishes; its chip shows the progress. The queued message appears above the composer. Cancel it there if you need to change the question; its text returns to the field.
 
 Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions first and uses audio transcription when captions are unavailable, then supplies the transcript to the assistant. When the captions show two people speaking at the same moment, the transcript keeps the words of both. Pasting a link remains available without a transcription model because usable captions do not need one. Pasting a link again in an existing chat before sending reuses the attachment that chat already has for it, even if you pasted the link in another chat in between; each chat keeps its own. A failed or removed attachment, or one added more than a day earlier, is not reused. If that link fails, retry it or remove it before sending. If Tale cannot remove a link, its chip comes back and a message says why; the link stays attached until a removal succeeds.
 
@@ -61,6 +63,8 @@ For recurring questions about a brief or policy, put the file in the appropriate
 | The image cannot be read by the selected model | Choose a vision-capable model. On Auto, Tale considers compatible image models; if none are available, ask an admin to configure one. |
 | Processing fails | Retry the file. If a small supported file also fails, ask an admin to check storage, indexing, or transcription as indicated by the error. |
 | The assistant knows the name but not the contents | Check the format and processing status. Convert legacy files to a supported modern format. |
+| A document shows **Can't be read** | Your organization’s secret scan or privacy (PII) policy refuses its content. Remove the password, key, or personal data from the file and attach it again, or ask an admin about the policy. |
+| A document shows **No readable text** or **Can't be opened** | Tale found no text in the file: it is empty, a scan without a text layer, damaged, or password-protected. Attach a copy with a text layer and without a password. |
 | The answer invents detail from a recording | Check the transcript against the recording and supply the corrected passage before continuing. |
 | A queued message has not sent | Inspect every attachment’s status, including video links. Remove or retry failed items. |
 | A removed video link comes back | Tale could not remove it, and the message that appears says why. The link is still attached. Remove it again once the cause is resolved, for example when your connection is back or after you sign in again. |

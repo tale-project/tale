@@ -115,8 +115,11 @@ function fakeSql(log: Query[], fileName = 'refunds.txt'): Sql {
 
 /** The last `rag_status` write's bound values. */
 const lastStatusWrite = (log: Query[]): unknown[] =>
-  log.findLast((q) => q.text.includes('UPDATE app.file_metadata'))?.values ??
-  [];
+  log.findLast(
+    (q) =>
+      q.text.includes('UPDATE app.file_metadata') &&
+      q.text.includes('rag_status = coalesce'),
+  )?.values ?? [];
 
 const skipped = (
   kind: 'empty' | 'secret-detected' | 'pii-blocked' | 'pii-scan-failed',

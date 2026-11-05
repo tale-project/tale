@@ -3,7 +3,8 @@
  * A staged recording's chip when its transcription failed. A usage limit
  * refuses it with the server's English sentence; the chip says so in the
  * reader's language and points at where the limit's reset shows, while any
- * other failure keeps its stored reason on hover.
+ * other failure keeps its stored reason on hover. A staged document the
+ * assistant cannot read opens its reason for every way of reaching it.
  */
 import '@testing-library/jest-dom/vitest';
 import { LOCALE_STORAGE_KEY } from '@tale/ui/i18n/detect-locale';
@@ -81,5 +82,47 @@ describe('a staged recording whose transcription failed', () => {
 
     const label = screen.getByText(t('transcription.couldNotTranscribe'));
     expect(label).toHaveAttribute('title', 'The audio could not be decoded.');
+  });
+});
+
+describe('a staged document the assistant cannot read', () => {
+  it('opens its reason for the keyboard and a screen reader, not only on hover', async () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a staged upload's ref, as the composer holds it
+    const doc = 's3:blobs/acme/keys' as BlobRef;
+    const { user, container } = render(
+      <ComposerAttachments
+        attachments={[
+          {
+            fileId: doc,
+            fileName: 'keys.txt',
+            fileType: 'text/plain',
+            fileSize: 512,
+          },
+        ]}
+        uploadingFiles={[]}
+        onRemove={vi.fn()}
+        onCancelUpload={vi.fn()}
+        indexingStatuses={
+          new Map([
+            [
+              doc,
+              {
+                status: 'queued',
+                textStatus: 'refused',
+                textErrorCode: 'secret_detected',
+              },
+            ],
+          ])
+        }
+      />,
+    );
+
+    await user.tab();
+    const label = screen.getByRole('button', { name: t('documentRefused') });
+    expect(label).toHaveFocus();
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      i18n.t('documentRefusedSecret', { ns: 'chat', filename: 'keys.txt' }),
+    );
+    await checkAccessibility(container);
   });
 });

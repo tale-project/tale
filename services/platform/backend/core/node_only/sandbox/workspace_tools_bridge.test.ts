@@ -543,6 +543,44 @@ describe('dispatchWorkspaceToolImpl', () => {
     expect(auditArgs.knowledgeRefs).toEqual(['file-1']);
   });
 
+  it('rag_fetch answers a picture with its stored type and size, as no failure [CHAT-R49]', async () => {
+    fetchDocumentMock.mockResolvedValueOnce(null);
+    const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+      (ref: unknown) => {
+        const name = fnName(ref);
+        if (name === 'documents/internal_queries:filterRetrievableRagFileIds') {
+          return Promise.resolve(['s3:acme/chart.png']);
+        }
+        if (
+          name === 'file_metadata/internal_queries:readTextOnDemandForAgent'
+        ) {
+          return Promise.resolve({
+            kind: 'image',
+            filename: 'chart.png',
+            contentType: 'image/png',
+            sizeBytes: 910_746,
+          });
+        }
+        return Promise.resolve(null);
+      },
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({ readQuery });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 's3:acme/chart.png' },
+    });
+    expect(result.status).toBe('ok');
+    expect(result.output).toMatchObject({
+      kind: 'image',
+      filename: 'chart.png',
+      contentType: 'image/png',
+      sizeBytes: 910_746,
+      size: '889.4 KB',
+    });
+  });
+
   it('rag_fetch answers a denied or missing document as the same not_found', async () => {
     // The scoped corpus read returns null for denied AND missing alike; the
     // row fallback finds nothing, and the live-truth filter admits nothing —
@@ -624,11 +662,11 @@ describe('dispatchWorkspaceToolImpl', () => {
           return Promise.resolve({
             kind: 'unreadable',
             filename: 'deck.pptx',
-            sizeBytes: 900_000,
+            sizeBytes: 30 * 1024 * 1024,
             indexing: { status: 'queued' },
             heldByDocument: true,
             extractable: true,
-            reason: 'binary',
+            reason: 'too_large',
           });
         }
         return Promise.resolve(null);
@@ -643,7 +681,7 @@ describe('dispatchWorkspaceToolImpl', () => {
     expect(result).toMatchObject({
       status: 'not_found',
       filename: 'deck.pptx',
-      message: expect.stringContaining('queued for indexing'),
+      message: expect.stringContaining('It is being indexed'),
     });
   });
 

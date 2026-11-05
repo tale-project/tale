@@ -371,18 +371,29 @@ export async function getFileMetadataByIdOrRef(
 /** Bounded task manifest lookup. A ref may have several ledger rows; any
  * document binding keeps its ACL precedence, including a replaced document
  * or a binding recorded on a different row for those same bytes. */
+/** A review file's row: what the reviewer is shown, whether a document
+ * binds it, and the organization's checks on it (`withheldFile`). */
+export type TaskReviewFileRow = FileMetadataRow & {
+  documentBound: boolean;
+  textStatus: string | null;
+  textErrorCode: string | null;
+  ragStatus: string | null;
+  ragErrorCode: string | null;
+};
+
 export async function getTaskReviewFileMetadata(
   sql: Sql | TransactionSql,
   organizationId: string,
   identifiers: string[],
-): Promise<Map<string, FileMetadataRow & { documentBound: boolean }>> {
+): Promise<Map<string, TaskReviewFileRow>> {
   if (identifiers.length === 0) return new Map();
   if (identifiers.length > 50)
     throw new Error('Review metadata pages are capped at 50 files');
-  const rows = await sql<
-    (FileMetadataRow & { identifier: string; documentBound: boolean })[]
-  >`
+  const rows = await sql<(TaskReviewFileRow & { identifier: string })[]>`
     SELECT requested.identifier, ${sql.unsafe(FILE_METADATA_COLUMNS)},
+      file.text_status AS "textStatus",
+      file.text_error_code AS "textErrorCode",
+      file.rag_status AS "ragStatus", file.rag_error_code AS "ragErrorCode",
       (file.document_id IS NOT NULL OR EXISTS (
         SELECT 1 FROM app.file_metadata binding
         WHERE binding.org_id = ${organizationId}

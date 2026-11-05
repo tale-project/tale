@@ -31,7 +31,7 @@ L’onglet **Connaissances** du projet contient les fichiers consultables par se
 | **Non pris en charge** | Ce contenu ne peut pas être indexé. Fournis du texte lisible ou un format pris en charge ; relancer le même fichier ne résout pas la cause. |
 | **Non indexé** | Le fichier est stocké, mais pas consultable par recherche. Utilise **Indexer maintenant** si proposé, ou convertis un format sans extracteur de texte. |
 
-Une intégration peut importer un fichier sans l’indexer. Il reste visible dans l’arborescence. Un fichier texte compatible peut être lu directement lorsqu’il est nommé, mais il n’apparaît pas dans la recherche textuelle avant indexation.
+Une intégration peut importer un fichier sans l’indexer. Il reste visible dans l’arborescence, et l’assistant peut tout de même lire un fichier compatible lorsqu’il est nommé : Tale le lit la première fois que l’assistant le demande, sous la détection de secrets et la politique de confidentialité (PII) de ton organisation. Il n’apparaît pas dans la recherche textuelle avant indexation.
 
 Si tous les fichiers n’arrivent pas, le compte rendu de l’import liste les autres avec leur motif : les fichiers **Ignorés** n’ont pas passé le contrôle de type ou de taille avant l’envoi, et les fichiers **Non ajoutés** ont été refusés par Tale, qui en donne la raison. Les règles de l’organisation peuvent imposer des limites supplémentaires de taille ou de stockage. Si l’import échoue, commence par un petit fichier compatible. Un admin peut vérifier [Politiques et limites](/fr/platform/admin/governance/policies-and-limits), le stockage et le modèle d’embedding.
 

@@ -21,7 +21,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../auth/auth.ts';
 import { RAG_ERROR_UNSUPPORTED_TYPE } from '../../core/knowledge/rag_error_codes.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
+import { addJobInTx, PRIORITY_ATTACHMENT } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { HELD_BY_DOCUMENT_SQL } from '../knowledge/status-hints.ts';
@@ -90,7 +90,8 @@ vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
   markRagQueued: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../../jobs/enqueue.ts', () => ({
+vi.mock('../../jobs/enqueue.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../jobs/enqueue.ts')>()),
   addJobInTx: vi.fn(() => Promise.resolve('job_1')),
 }));
 vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
@@ -151,15 +152,24 @@ describe('POST /files/register', () => {
     expect(stampImageVisionMetadata).not.toHaveBeenCalled();
   });
 
-  it('queues indexing for a document, in the transaction that wrote the row [FILE-R8]', async () => {
+  it('queues the read and the index of a document, in the transaction that wrote the row [FILE-R8]', async () => {
     const res = await register({ threadId: 'thread_1' });
 
     expect(res.status).toBe(200);
     expect(registerUpload).toHaveBeenCalledTimes(1);
     expect(markRagQueued).toHaveBeenCalledWith(db.tx, 'file_1');
-    expect(addJobInTx).toHaveBeenCalledWith(db.tx, 'rag.index_file', {
-      fileId: 'file_1',
-    });
+    // The document is read for the assistant first, ahead of every other
+    // upload, and the read queues its index run [KNOW-R21] [CHAT-R47].
+    expect(
+      db.statements.some((s) => s.text.includes("text_status = 'queued'")),
+    ).toBe(true);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      db.tx,
+      'rag.read_file',
+      { fileId: 'file_1', organizationId: 'org_1', thenIndex: true },
+      { priority: PRIORITY_ATTACHMENT },
+    );
     expect(queueTranscription).not.toHaveBeenCalled();
   });
 

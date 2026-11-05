@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
@@ -6,6 +7,7 @@ import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import { BackendApiError } from './api-client';
 import { budgetScopeOf } from './budget-refusal';
 import {
+  fileStatusesQuery,
   sendChatTurn,
   videoJobsForThreadQuery,
   videoJobsPollInterval,
@@ -192,6 +194,43 @@ describe('the video-link chip reads', () => {
       videoJobsUnboundQuery('org1'),
     ]) {
       expect(typeof options.refetchInterval).toBe('function');
+    }
+  });
+});
+
+/**
+ * The statuses route answers at most twenty refs a request, and the sends a
+ * chat holds back can carry more documents than that: the read asks in
+ * requests of the route's size and answers them together, instead of being
+ * refused whole.
+ */
+describe('fileStatusesQuery', () => {
+  it('asks for more refs than one request may name in requests of twenty', async () => {
+    const refs = Array.from(
+      { length: 45 },
+      (_, index) => `s3:tale/acme/${index}`,
+    );
+    const asked: string[][] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const sent = typeof init.body === 'string' ? init.body : '{}';
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the body this read sends
+        const body = JSON.parse(sent) as { storageIds: string[] };
+        asked.push(body.storageIds);
+        return Response.json({
+          statuses: body.storageIds.map((storageId) => ({ storageId })),
+        });
+      }),
+    );
+    try {
+      const statuses = await new QueryClient().fetchQuery(
+        fileStatusesQuery('org1', refs),
+      );
+      expect(asked.map((batch) => batch.length)).toEqual([20, 20, 5]);
+      expect(statuses.map((status) => status.storageId)).toEqual(refs);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

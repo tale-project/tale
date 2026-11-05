@@ -22,7 +22,8 @@ vi.mock('../../auth/membership.ts', () => ({ findActingMember: vi.fn() }));
 vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(),
 }));
-vi.mock('../agent_tools/artifacts.ts', () => ({
+vi.mock('../agent_tools/artifacts.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../agent_tools/artifacts.ts')>()),
   readThreadFiles: vi.fn(async () => new Map()),
   storeThreadArtifact: vi.fn(),
 }));
@@ -345,7 +346,10 @@ describe('the files a task run’s tools store and read [TASK-R32]', () => {
 
     /** A pool answering the task files' metadata read. */
     function metadataSql(
-      rows: { ref: string; mediaType: string; sizeBytes: number }[],
+      rows: ({ ref: string; mediaType: string; sizeBytes: number } & Record<
+        string,
+        unknown
+      >)[],
     ): Sql {
       const tag = () => Promise.resolve(rows);
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tagged-template fake standing in for the pool
@@ -366,6 +370,29 @@ describe('the files a task run’s tools store and read [TASK-R32]', () => {
         name: 'brief.pdf',
         mediaType: 'application/pdf',
         sizeBytes: 2048,
+      });
+    });
+
+    it('withholds a task file the organization’s checks refused from every tool', async () => {
+      const files = await readRunFiles(
+        metadataSql([
+          {
+            ref: 's3:in',
+            mediaType: 'application/pdf',
+            sizeBytes: 2048,
+            textStatus: 'refused',
+            textErrorCode: 'pii_blocked',
+            ragStatus: 'failed',
+            ragErrorCode: 'pii_blocked',
+          },
+        ]),
+        SCOPE,
+        ['s3:in'],
+      );
+
+      expect(files.get('s3:in')).toMatchObject({
+        name: 'brief.pdf',
+        withheld: 'pii-blocked',
       });
     });
 

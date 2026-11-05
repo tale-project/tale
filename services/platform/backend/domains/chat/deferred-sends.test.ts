@@ -341,6 +341,86 @@ describe('pollDeferredSend', () => {
   });
 });
 
+describe('pollDeferredSend — a document being read', () => {
+  const PDF = {
+    fileId: 's3:tale/acme/report.pdf',
+    fileName: 'report.pdf',
+    fileType: 'application/pdf',
+    fileSize: 2048,
+  };
+
+  /** A ready row carrying one document whose stored row says `stored`. */
+  function documentSql(stored: Record<string, unknown>) {
+    let settled = false;
+    return fakeSql(({ text }) => {
+      if (text.includes('DELETE FROM app.deferred_sends')) {
+        if (settled) return [];
+        settled = true;
+        return [{ id: 'ds_1' }];
+      }
+      if (text.includes('FROM app.deferred_sends')) {
+        return [readyRow({ attachments: [PDF] })];
+      }
+      if (text.includes('FROM app.file_metadata')) {
+        return [
+          {
+            transcriptionStatus: null,
+            ragStatus: 'queued',
+            textStatus: 'queued',
+            ...stored,
+          },
+        ];
+      }
+      if (text.includes('UPDATE app.deferred_sends')) return [{ id: 'ds_1' }];
+      return [];
+    });
+  }
+
+  it('waits while the document is read [CHAT-R47]', async () => {
+    for (const textStatus of ['queued', 'running']) {
+      const f = documentSql({ textStatus });
+      await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('waiting');
+    }
+    expect(runChatTurn).not.toHaveBeenCalled();
+  });
+
+  it.each(['ready', 'refused', 'unreadable'])(
+    'sends once the read is decided (%s), however the index stands [CHAT-R47]',
+    async (textStatus) => {
+      runChatTurn.mockResolvedValue({
+        status: 'completed',
+        steps: [],
+        text: '',
+      });
+      const f = documentSql({ textStatus, ragStatus: 'running' });
+      await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('ran');
+      expect(runChatTurn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('waits for the index of a document a read left to it [CHAT-R47]', async () => {
+    const f = documentSql({ textStatus: 'deferred', ragStatus: 'running' });
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('waiting');
+    expect(runChatTurn).not.toHaveBeenCalled();
+  });
+
+  it('waits for the index of a file from before reads existed, as it always did', async () => {
+    const f = documentSql({ textStatus: null, ragStatus: 'running' });
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('waiting');
+  });
+
+  it('decides by the stored read of its own organization, never by anything the client sent along', async () => {
+    const f = documentSql({ textStatus: 'queued' });
+    await pollDeferredSend(f.sql, 'ds_1');
+    const read = f.timeline.find((entry) =>
+      entry.text.includes('FROM app.file_metadata'),
+    );
+    expect(read?.text).toContain('text_status AS "textStatus"');
+    expect(read?.text).toContain('AND org_id =');
+    expect(read?.values).toEqual([PDF.fileId, 'org_1']);
+  });
+});
+
 describe('pollDeferredSend — settle at user append, trace on failure', () => {
   function readySql(overrides: Record<string, unknown> = {}) {
     let order = 0;

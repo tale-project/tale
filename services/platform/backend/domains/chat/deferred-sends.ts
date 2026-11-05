@@ -11,6 +11,7 @@ import {
   encodeChatError,
   type ChatErrorCode,
 } from '../../../lib/shared/chat-errors.ts';
+import { documentHoldsSend } from '../../../lib/shared/document-reading.ts';
 import { DEFERRED_SEND_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { validateTurnAttachments } from '../../core/chat/turn_action.ts';
 import { toJson } from '../../db/sql.ts';
@@ -39,10 +40,14 @@ import { ChatThreadError, loadOwnedThread } from './threads.ts';
  * row's stored identity — the moment every tracked medium is terminal and
  * the thread is idle.
  *
- * Readiness matrix (the 0.4 one): document uploads wait on `rag_status`
- * out of queued|running; A/V uploads on `transcription_status` likewise
- * (failed/skipped proceed degraded); images never gate. Video-link jobs
- * ride the video-links domain — absent rows read as "erased — proceed".
+ * Readiness matrix: a document waits for its read
+ * (`domains/knowledge/read-text.ts`, `documentHoldsSend`) — seconds on a
+ * worker — and for its index only when the read left it to the index (too
+ * large to read before it), so the embedding server never holds a message
+ * (CHAT-R47); A/V uploads wait on `transcription_status` out of
+ * queued|running (failed/skipped proceed degraded); images never gate.
+ * Video-link jobs ride the video-links domain — absent rows read as
+ * "erased — proceed".
  */
 
 const READY_POLL_MS = 3_000;
@@ -404,12 +409,17 @@ async function isDeferredSendReady(
   for (const attachment of row.attachments) {
     if (attachment.fileType.startsWith('image/')) continue;
     const metas = await sql<
-      { transcriptionStatus: string | null; ragStatus: string | null }[]
+      {
+        transcriptionStatus: string | null;
+        ragStatus: string | null;
+        textStatus: string | null;
+      }[]
     >`
       SELECT transcription_status AS "transcriptionStatus",
-             rag_status AS "ragStatus"
+             rag_status AS "ragStatus", text_status AS "textStatus"
       FROM app.file_metadata
       WHERE storage_ref = ${attachment.fileId}
+        AND org_id = ${row.organizationId}
       ORDER BY created_at_ms DESC
       LIMIT 1
     `;
@@ -421,9 +431,7 @@ async function isDeferredSendReady(
     ) {
       return false;
     }
-    if (meta.ragStatus === 'queued' || meta.ragStatus === 'running') {
-      return false;
-    }
+    if (documentHoldsSend(meta)) return false;
   }
   // The video leg: a claimed job still ingesting/transcribing holds the
   // send; a terminal job (completed, failed, skipped — and the Whisper
