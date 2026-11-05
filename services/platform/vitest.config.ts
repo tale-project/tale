@@ -70,6 +70,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
     },
+    // No project here runs in jsdom: the jsdom suite is `vitest.ui.config.ts`
+    // alone, the one `test:ui` and CI run. As a project it would lose that
+    // config's root-only settings (the worker cap, the console filter), and a
+    // second copy drifts from it (`tests/guards/jsdom-suite.guard.test.ts`).
     projects: [
       {
         extends: true,
@@ -89,11 +93,11 @@ export default defineConfig({
             'tests/e2e/**',
             '**/*.config.{js,ts}',
             '**/.{idea,git,cache,output,temp}/**',
+            // Component, feature, hook and route tests are the jsdom suite
+            // of `vitest.ui.config.ts` (`test:ui`).
             'app/components/**/*.test.{ts,tsx}',
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
-            // Route-level component tests are jsdom tests owned by the `ui`
-            // project (`vitest.ui.config.ts` includes `app/routes/**`).
             'app/routes/**/*.test.{ts,tsx}',
             '**/*.browser.test.{ts,tsx}',
             // PII suites run in the dedicated `pii` project below — they
@@ -137,21 +141,6 @@ export default defineConfig({
           },
           include: ['**/*.browser.test.{ts,tsx}'],
           exclude: ['node_modules', 'dist', 'tests/e2e/**'],
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: 'client',
-          environment: 'jsdom',
-          setupFiles: ['./tests/setup-ui.ts'],
-          include: [
-            'app/components/**/*.test.{ts,tsx}',
-            'app/features/**/*.test.{ts,tsx}',
-            'app/hooks/**/*.test.{ts,tsx}',
-          ],
-          // `*.browser.test.tsx` belong to the `browser` project (real Chromium).
-          exclude: ['node_modules', 'dist', '**/*.browser.test.{ts,tsx}'],
         },
       },
       {
