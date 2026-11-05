@@ -7,9 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { installFakeApi, list } from '@/tests/utils/fake-api';
+import { failure, installFakeApi, list } from '@/tests/utils/fake-api';
 import { meta } from '@/tests/utils/fixtures';
-import { renderApp } from '@/tests/utils/render';
+import { createTestQueryClient, renderApp } from '@/tests/utils/render';
 
 import { createAppRouter } from './router';
 
@@ -57,24 +57,32 @@ function PickGerman() {
   );
 }
 
-function renderAt(path: string) {
+function renderAt(
+  path: string,
+  routes: Parameters<typeof installFakeApi>[0] = {},
+) {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
-  installFakeApi({
+  const api = installFakeApi({
     'GET /meta': meta(),
     'GET /sessions': list([]),
     'GET /proxies': list([]),
     'GET /secrets': list([]),
+    ...routes,
   });
+  // The client the router's loaders fill is the one the page reads.
+  const queryClient = createTestQueryClient();
   const router = createAppRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
+    queryClient,
   });
   const view = renderApp(
     <ThemeProvider>
       <RouterProvider router={router} />
       <PickGerman />
     </ThemeProvider>,
+    { queryClient },
   );
-  return { ...view, router };
+  return { ...view, router, api };
 }
 
 beforeEach(() => {
@@ -86,6 +94,60 @@ afterEach(async () => {
   page.failure = null;
   localStorage.clear();
   await i18n.changeLanguage('en');
+});
+
+/**
+ * Every loading state the page shows from now on: masked rows (the status of a
+ * table or a list that loads) or the search box of a list's toolbar.
+ */
+function watchLoadingStates() {
+  const seen = new Set<string>();
+  const look = () => {
+    if (screen.queryByRole('status', { name: 'Loading content' })) {
+      seen.add('masked rows');
+    }
+    if (screen.queryByRole('textbox', { name: /^Search/ })) {
+      seen.add('a search box');
+    }
+  };
+  const observer = new MutationObserver(look);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+  });
+  return {
+    seen: () => {
+      observer.disconnect();
+      return [...seen];
+    },
+  };
+}
+
+describe('opening a page', () => {
+  it.each([
+    ['/proxies', 'GET /proxies', 'No proxies yet'],
+    ['/secrets', 'GET /secrets', 'No secrets yet'],
+    ['/sessions', 'GET /sessions', 'No sessions yet'],
+  ])(
+    '%s with nothing in it shows its empty state from the first frame, never masked rows or a toolbar that vanish',
+    async (path, read, empty) => {
+      const states = watchLoadingStates();
+      // The list never answers: the counts the root route waits for decide.
+      renderAt(path, { [read]: () => new Promise<never>(() => {}) });
+
+      expect(await screen.findByRole('heading', { name: empty })).toBeVisible();
+      expect(states.seen()).toEqual([]);
+    },
+  );
+
+  it('shows the page when the state of the app cannot be read: the page says so itself', async () => {
+    renderAt('/proxies', { 'GET /meta': failure(500, 'internal', 'Boom') });
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Proxies' }),
+    ).toBeVisible();
+  });
 });
 
 describe('an address that no route knows', () => {

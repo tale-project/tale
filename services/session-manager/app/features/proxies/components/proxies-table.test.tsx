@@ -615,6 +615,32 @@ describe('ProxiesTable', () => {
         screen.queryByRole('status', { name: 'Loading content' }),
       ).not.toBeInTheDocument();
     });
+
+    it('says there are none at once when the counts say so: no toolbar and no masked rows that vanish when the rows come', async () => {
+      installFakeApi({
+        // The first rows never come: the counts alone decide.
+        'GET /proxies': () => new Promise<never>(() => {}),
+        'GET /meta': () => meta({ counts: { proxies: 0 } }),
+      });
+      renderInShell(<ProxiesTable />);
+
+      expect(
+        await screen.findByRole('heading', { name: 'No proxies yet' }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole('status', { name: 'Loading content' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('textbox', { name: 'Search proxies' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Check all proxies' }),
+      ).not.toBeInTheDocument();
+      // The way to add is the empty state's.
+      expect(screen.getAllByRole('button', { name: 'Add proxy' })).toHaveLength(
+        1,
+      );
+    });
   });
 
   describe('without proxies', () => {
