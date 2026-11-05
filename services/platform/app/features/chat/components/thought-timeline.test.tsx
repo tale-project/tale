@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen } from '@/tests/utils/render';
 
 import type { MessagePart } from '../types';
@@ -350,6 +351,80 @@ describe('ThoughtTimeline — a failed step says what became of it [CHAT-R30]', 
     expect(
       screen.getByRole('button', {
         name: 'Running Python in a light sandbox',
+      }),
+    ).not.toHaveAccessibleDescription();
+  });
+});
+
+describe('ThoughtTimeline — a web read [CHAT-R30]', () => {
+  afterEach(async () => {
+    localStorage.removeItem('user-locale');
+    await i18n.changeLanguage('en');
+  });
+
+  const NOTICE = 'https://ted.europa.eu/de/notice/-/detail/721788-2026';
+  const read = (output: Record<string, unknown>): MessagePart[] => [
+    {
+      type: 'tool-call',
+      callId: 'c1',
+      capabilityId: 'web_fetch',
+      input: { url: NOTICE },
+    },
+    {
+      type: 'tool-result',
+      callId: 'c1',
+      capabilityId: 'web_fetch',
+      output,
+      structured: true,
+    },
+  ];
+  const FACTS =
+    "AWS WAF's bot check answered in place of the page on each of 3 attempts; rendered in a browser here, AWS WAF's bot check answered in its place, so the page was not read.";
+
+  it('says why it read nothing in the person’s language, and keeps the tool’s facts for the drill-down', async () => {
+    localStorage.setItem('user-locale', 'de');
+    await i18n.changeLanguage('de');
+    const { user } = render(
+      <ThoughtTimeline
+        parts={read({
+          status: 'error',
+          reason: 'bot_check_unrendered',
+          message: FACTS,
+        })}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+
+    const step = screen.getByRole('button', { name: 'Liest ted.europa.eu' });
+    expect(step).toHaveAccessibleDescription(
+      'Der Bot-Schutz der Website hat den Browser nicht durchgelassen',
+    );
+    await user.click(step);
+    // What the tool answered stays the record of the call: its facts, with
+    // neither its cause's code nor the result as JSON.
+    expect(screen.getByText(FACTS)).toBeInTheDocument();
+    expect(screen.queryByText(/bot_check_unrendered/)).toBeNull();
+    expect(screen.queryByText(/"status"/)).toBeNull();
+  });
+
+  it('names a page a browser drew as read in a browser', () => {
+    render(
+      <ThoughtTimeline
+        parts={read({
+          status: 'ok',
+          url: NOTICE,
+          rendered: true,
+          content: 'NOTICE TEXT',
+        })}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Reading ted.europa.eu in a browser',
       }),
     ).not.toHaveAccessibleDescription();
   });

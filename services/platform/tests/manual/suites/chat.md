@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 159 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 160 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -738,6 +738,20 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   for a guessed address; the German reply names the real path (Settings > API
   > REST in the German UI's words) and says the documentation describes the
   latest release when relevant.
+- [ ] `CHAT-F99` · **A page behind a browser check** — **Mode B + Docker
+  stack** (the sandbox service, which renders pages): with the app in German,
+  ask "Was steht in dieser Bekanntmachung?" with the address of a current
+  notice on ted.europa.eu, whose bot protection answers a plain read with a
+  browser check → The timeline shows a step **Liest ted.europa.eu im Browser**
+  (`chat.thinking.readingInBrowser`) and no red step, and the German reply
+  quotes the notice; asked for the rest of it, the reply reads on under steps
+  of the same title. Stop the spawner and ask about another notice → under
+  **Liest ted.europa.eu** (`chat.thinking.reading`) a red line reads **Die
+  Seite konnte nicht im Browser geöffnet werden**
+  (`chat.thinking.outcome.renderFailed`); the expanded step shows what the
+  tool met, not an instruction; and the German reply says the site keeps
+  automated readers out, gives the link and offers to read pasted text or an
+  attached PDF, without guessing what the notice says.
 
 ### Files and skills
 

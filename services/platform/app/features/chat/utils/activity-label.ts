@@ -32,6 +32,9 @@ export interface StepActivity {
   /** The raw call arguments, for the labels one argument cannot carry —
    * a rag_search list call has no query, only filters. */
   readonly input?: unknown;
+  /** A web read whose page a browser drew before it was read: its result
+   * said `rendered: true`. */
+  readonly rendered?: boolean;
 }
 
 /** Label key per listed kind — literal strings, so the i18n usage scan sees
@@ -83,12 +86,13 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
     step.tool === 'web_fetch' ||
     (step.tool === 'rag_fetch' && step.detail?.startsWith('http') === true)
   ) {
-    return t('thinking.reading', {
-      hostname:
-        step.detail !== undefined
-          ? (hostnameOf(step.detail) ?? step.detail)
-          : step.tool,
-    });
+    const hostname =
+      step.detail !== undefined
+        ? (hostnameOf(step.detail) ?? step.detail)
+        : step.tool;
+    return step.tool === 'web_fetch' && step.rendered === true
+      ? t('thinking.readingInBrowser', { hostname })
+      : t('thinking.reading', { hostname });
   }
   // A task ref is org state, not a citation, so it reads as work rather than
   // as a document. Checked before the document branch because both arrive on
@@ -192,7 +196,8 @@ const CODE_LANGUAGE_NAMES: Record<string, string> = {
 };
 
 /** A failed step's outcome by the cause its result names — literal keys, so
- * the i18n usage scan sees every one. */
+ * the i18n usage scan sees every one. The work tools' causes come first,
+ * then a web read's (`timed_out` serves both). */
 const FAILURE_REASON_KEYS: Record<string, string> = {
   sandboxes_busy: 'thinking.outcome.sandboxesBusy',
   sandbox_host_busy: 'thinking.outcome.sandboxHostBusy',
@@ -202,6 +207,21 @@ const FAILURE_REASON_KEYS: Record<string, string> = {
   program_failed: 'thinking.outcome.programFailed',
   timed_out: 'thinking.outcome.timedOut',
   files_not_staged: 'thinking.outcome.filesNotStaged',
+  invalid_url: 'thinking.outcome.invalidUrl',
+  address_refused: 'thinking.outcome.addressRefused',
+  unreachable: 'thinking.outcome.unreachable',
+  page_too_large: 'thinking.outcome.pageTooLarge',
+  page_not_found: 'thinking.outcome.pageNotFound',
+  access_denied: 'thinking.outcome.accessDenied',
+  http_error: 'thinking.outcome.httpError',
+  unsupported_type: 'thinking.outcome.unsupportedType',
+  page_empty: 'thinking.outcome.pageEmpty',
+  bot_check_captcha: 'thinking.outcome.botCheckCaptcha',
+  bot_check_blocked: 'thinking.outcome.botCheckBlocked',
+  bot_check_unrendered: 'thinking.outcome.botCheckUnrendered',
+  render_busy: 'thinking.outcome.renderBusy',
+  render_failed: 'thinking.outcome.renderFailed',
+  render_empty: 'thinking.outcome.renderEmpty',
 };
 
 /** …and, for a result that names no cause, by its status. */
@@ -215,10 +235,11 @@ const FAILURE_STATUS_KEYS: Record<string, string> = {
 
 /**
  * What became of a step that did not succeed, in words: the cause its result
- * names (no light sandbox free, the program ran out of time), else what its
- * status says, else that it failed. `undefined` for a step that answered
- * `ok` or no structured result — those read as done. The model's own message
- * stays in the step's detail; this is the person's line.
+ * names (no light sandbox free, the program ran out of time, a site's bot
+ * protection kept the browser out), else what its status says, else that it
+ * failed. `undefined` for a step that answered `ok` or no structured result
+ * — those read as done. The model's own message stays in the step's detail;
+ * this is the person's line.
  */
 export function stepOutcomeLabel(
   t: TFunction,
