@@ -11,6 +11,7 @@ import {
   type CredentialAuth,
 } from '../shared/providers/resolve_execution';
 import { isRecord } from '../utils/type-utils';
+import { SHORTENED_TOOL_RESULT_NOTE } from './context';
 import type { GuardrailFilter } from './guardrails';
 import {
   MAX_TOOL_CALLS_PER_ROUND,
@@ -1207,6 +1208,68 @@ describe('runTurn — the tool loop', () => {
       expect.any(Error),
     );
     warn.mockRestore();
+  });
+
+  it('sends an earlier page whole, and shortens it once the reply’s own results need the room (#5356)', async () => {
+    const page = {
+      url: 'https://docs.tale.dev/agents',
+      content: 'a'.repeat(60_000),
+    };
+    const history: ChatMessage[] = [
+      {
+        role: 'user',
+        parts: [{ type: 'text', text: 'How do I add an agent?' }],
+      },
+      {
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            callId: 'earlier',
+            capabilityId: 'web_fetch',
+            input: { url: page.url },
+          },
+          {
+            type: 'tool-result',
+            callId: 'earlier',
+            capabilityId: 'web_fetch',
+            output: page,
+            structured: true,
+          },
+          { type: 'text', text: 'Open the project and add one under Agents.' },
+        ],
+      },
+    ];
+    const { model, requests } = oneToolRoundModel();
+    // This round reads as much again: the window holds the earlier page or
+    // this result whole, not both.
+    const found = { status: 'ok', content: 'b'.repeat(60_000) };
+    const { executor } = fakeExecutor(found);
+    const d = deps({ model, tools: executor });
+
+    await runTurn(
+      request({
+        history,
+        budget: { maxTokens: 30_000, reserveOutputTokens: 1_000 },
+      }),
+      d.deps,
+    );
+
+    const result = (round: ModelCallRequest | undefined, callId: string) =>
+      round?.messages
+        .flatMap((message) => message.parts)
+        .find((part) => part.type === 'tool-result' && part.callId === callId);
+    expect(requests).toHaveLength(2);
+    expect(result(requests[0], 'earlier')).toMatchObject({ output: page });
+    expect(result(requests[1], 'earlier')).toMatchObject({
+      output: { note: SHORTENED_TOOL_RESULT_NOTE },
+    });
+    expect(result(requests[1], 'call_1')).toMatchObject({ output: found });
+    // Shortening was enough: no message was dropped to make room.
+    expect(requests[1]?.messages.slice(0, 2)).toEqual([
+      history[0],
+      expect.objectContaining({ role: 'assistant' }),
+    ]);
   });
 
   it('executes the calls, settles parts in order, and answers', async () => {

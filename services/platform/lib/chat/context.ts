@@ -29,10 +29,13 @@
  *  9. Full message history: tool messages, approval cards, and attachments as
  *     content parts
  *
- * On overflow the OLDEST messages are dropped and a visible notice takes their
- * place. There is deliberately NO LLM compaction: a summarizer is a second
- * model call that can hallucinate the conversation it is supposed to preserve,
- * and its failure mode — confidently wrong history — is invisible to the user.
+ * A history that fits the window is sent as stored, every tool result whole.
+ * On overflow the oldest tool results are shortened first, each with a note
+ * that says it was read whole when its call ran; when that is not enough, the
+ * OLDEST messages are dropped and a visible notice takes their place. There
+ * is deliberately NO LLM compaction: a summarizer is a second model call that
+ * can hallucinate the conversation it is supposed to preserve, and its
+ * failure mode — confidently wrong history — is invisible to the user.
  * Dropping messages is lossy in a way everyone can see.
  *
  * Deliberately NOT assembled here, each removed on purpose: auto-injected
@@ -61,6 +64,7 @@ import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
 import { renderTaskHandover, type TaskHandover } from './handover';
 import {
+  estimateJsonTokens,
   estimateMessageTokens,
   estimateTokens,
   type ChatMessage,
@@ -322,47 +326,79 @@ function noticeMessage(droppedMessages: number): ChatMessage {
  */
 const KEEP_RECENT_MESSAGES = 4;
 
-/** Bounds for deep-truncating tool payloads before they are sized or sent. */
+/** Bounds for a tool result shortened to make room in the window. */
 const TOOL_RESULT_MAX_STRING = 400;
 const TOOL_RESULT_MAX_ITEMS = 12;
 const TOOL_RESULT_MAX_DEPTH = 8;
 
 /**
- * Deep-truncate a tool result so one verbose payload cannot flood the
- * window: long strings are cut with a count marker, arrays capped, deep
- * nesting elided. The seam for the tool loop — text a USER wrote is never
- * rewritten (dropping whole old messages is honest; silently editing the
- * user's words is not).
+ * What a shortened tool result says ahead of what is left of it. Without it
+ * a detailed answer next to a 400-character stub of the page it came from
+ * reads as an answer the model could not have known, and a careful model
+ * corrects a truthful answer and reads the page again (#5356).
  */
-function boundToolResult(value: unknown, depth = 0): unknown {
-  return boundJson(
-    value,
-    {
+export const SHORTENED_TOOL_RESULT_NOTE =
+  'Shortened to fit the context window. When this call ran, its whole result was read, and the answer that followed was written from all of it. Cuts are marked …(+N chars) or …(+N more items); call the tool again only if you need what was cut.';
+
+/**
+ * A tool result shortened to make room, beside the note that says so: long
+ * strings are cut with a count marker, arrays capped, deep nesting elided.
+ * Only a tool's output is ever shortened — text a person wrote is never
+ * rewritten (dropping whole old messages is honest; silently editing their
+ * words is not).
+ */
+function shortenToolResult(output: unknown): unknown {
+  return {
+    note: SHORTENED_TOOL_RESULT_NOTE,
+    result: boundJson(output, {
       maxString: TOOL_RESULT_MAX_STRING,
       maxItems: TOOL_RESULT_MAX_ITEMS,
       maxDepth: TOOL_RESULT_MAX_DEPTH,
-    },
-    depth,
-  );
-}
-
-/** Apply the tool-result bound to a message's parts, leaving every other
- * part untouched. Returns the same reference when nothing changed. */
-function boundMessage(message: ChatMessage): ChatMessage {
-  let changed = false;
-  const parts: MessagePart[] = message.parts.map((part) => {
-    if (part.type !== 'tool-result') return part;
-    const bounded = boundToolResult(part.output);
-    if (bounded === part.output) return part;
-    changed = true;
-    return { ...part, output: bounded };
-  });
-  return changed ? { ...message, parts } : message;
+    }),
+  };
 }
 
 /**
- * Fit `history` into `available` tokens by dropping the OLDEST messages and
- * inserting a notice in their place.
+ * Shorten the tool results of `messages` oldest first — message by message,
+ * part by part — until they fit `available` tokens; a result the note would
+ * make no smaller stays whole. An earlier result is the cheapest thing to
+ * give up: the answer written from it carries what was used, and its note
+ * says it was read whole.
+ */
+function shortenOldestResults(
+  messages: readonly ChatMessage[],
+  available: number,
+): { messages: ChatMessage[]; costs: number[]; total: number } {
+  const fitted = [...messages];
+  const costs = fitted.map(estimateMessageTokens);
+  let total = costs.reduce((sum, cost) => sum + cost, 0);
+  for (const [index, message] of fitted.entries()) {
+    if (total <= available) break;
+    let parts: MessagePart[] | undefined;
+    for (const [partIndex, part] of message.parts.entries()) {
+      if (total <= available) break;
+      if (part.type !== 'tool-result') continue;
+      const output = shortenToolResult(part.output);
+      const saved =
+        estimateJsonTokens(part.output) - estimateJsonTokens(output);
+      if (saved <= 0) continue;
+      parts ??= [...message.parts];
+      parts[partIndex] = { ...part, output };
+      costs[index] = (costs[index] ?? 0) - saved;
+      total -= saved;
+    }
+    if (parts !== undefined) fitted[index] = { ...message, parts };
+  }
+  return { messages: fitted, costs, total };
+}
+
+/**
+ * Fit `history` into `available` tokens. A history that fits is sent as it
+ * is, every tool result whole. Over budget, its tool results are shortened
+ * oldest first until it fits. If every result is shortened and it still
+ * does not fit, the OLDEST messages are dropped and a notice takes their
+ * place; the messages kept are fitted again from whole, so the room the
+ * dropped ones freed goes to the newest results.
  *
  * The newest message is never dropped: a turn that sent nothing but a notice
  * would be a silent failure, and a single over-long message is better refused
@@ -373,9 +409,11 @@ function fitHistory(
   available: number,
   alreadyOmitted = 0,
 ): { messages: readonly ChatMessage[]; truncation?: ContextTruncation } {
-  const history = rawHistory.map(boundMessage);
-  const costs = history.map(estimateMessageTokens);
-  const total = costs.reduce((sum, cost) => sum + cost, 0);
+  const {
+    messages: history,
+    costs,
+    total,
+  } = shortenOldestResults(rawHistory, available);
   if (total <= available || history.length === 0) {
     // Nothing dropped HERE — but a bounded read may have cut older turns
     // before assembly ever saw them; the notice still owes the model that.
@@ -416,7 +454,12 @@ function fitHistory(
   }
   if (dropped === 0 && alreadyOmitted === 0) return { messages: history };
 
-  const kept = history.slice(dropped);
+  // Sized with every result shortened, the drop is as small as it can be;
+  // what it freed beyond that keeps the newest results whole.
+  const kept = shortenOldestResults(
+    rawHistory.slice(dropped),
+    available - noticeCost,
+  ).messages;
   const totalDropped = dropped + alreadyOmitted;
   return {
     messages: [noticeMessage(totalDropped), ...kept],

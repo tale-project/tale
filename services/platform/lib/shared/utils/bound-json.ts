@@ -7,8 +7,9 @@
  * Two callers with genuinely different budgets share this one algorithm rather
  * than keeping a copy each:
  *
- *  - the chat tool loop, fitting a tool result into a context window
- *    (hundreds of characters — the model only needs the gist);
+ *  - the chat context, shortening an earlier tool result when the history
+ *    overflows the window (hundreds of characters, beside a note that says
+ *    the result was read whole when its call ran);
  *  - the automations run log, bounding a run's diagnostic trace
  *    (tens of kilobytes — a human debugging a failure needs the real stack).
  *
