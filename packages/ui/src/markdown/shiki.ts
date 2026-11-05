@@ -3,8 +3,10 @@
  *
  * Strategy: the engine, the theme and 39 common grammars load together the
  * first time code is highlighted (or `preloadHighlighter` asks), not with the
- * page: a chat or a docs page without code never needs them. Anything else is
- * lazy-loaded on demand via a runtime dynamic import. Shiki's JS regex engine
+ * page: a chat or a docs page without code never needs them. Any other grammar
+ * Shiki ships loads the first time it is asked for, through Shiki's own map of
+ * its grammars (`bundledLanguages`), which imports each one by name, so the
+ * bundler emits every grammar as a chunk of its own. Shiki's JS regex engine
  * keeps the bundle off the WASM oniguruma path.
  *
  * Colours come from the `--code-*` variables in `globals.css` (Shiki's
@@ -333,26 +335,29 @@ export async function highlightCode(
 /**
  * The language the highlighter will tokenize `lang` as: the grammar once it
  * is loaded (a language outside the eager list loads on first use), else
- * plain text when it cannot be loaded.
+ * plain text: silently for a name Shiki has no grammar for, with a warning
+ * when a grammar fails to load.
  */
 async function loadedLanguage(
   highlighter: HighlighterCore,
   lang: string | undefined,
 ): Promise<string> {
   const resolvedLang = resolveLanguage(lang);
-  // Shiki's `text` grammar is a built-in no-highlight pass — there is no
-  // `shiki/langs/text.mjs` to load. Skip the load attempt entirely.
+  // Shiki's `text` grammar is a built-in no-highlight pass: there is no
+  // grammar to load. Skip the load attempt entirely.
   if (resolvedLang === 'text') return 'text';
   if (highlighter.getLoadedLanguages().includes(resolvedLang))
     return resolvedLang;
   try {
+    // A specifier built at run time would reach the browser as written, and
+    // a browser cannot resolve a bare one. Shiki's map names every grammar
+    // in an `import()` of its own, which the bundler turns into a chunk.
+    const { bundledLanguages } = await import('shiki/langs');
+    // The name comes from a fence or a file extension: never take a
+    // prototype member (`constructor`, `__proto__`) for a grammar.
+    if (!Object.hasOwn(bundledLanguages, resolvedLang)) return 'text';
     await highlighter.loadLanguage(
-      // Vite analyses dynamic imports statically; the `@vite-ignore`
-      // comment must sit *inside* the `import()` call (not in front of
-      // it) for Vite to honour it, hence the awkward placement.
-      import(
-        /* @vite-ignore */ `shiki/langs/${resolvedLang}.mjs`
-      ) as Parameters<HighlighterCore['loadLanguage']>[0],
+      bundledLanguages[resolvedLang as keyof typeof bundledLanguages],
     );
     return resolvedLang;
   } catch (err) {
