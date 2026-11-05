@@ -112,6 +112,33 @@ describe('HttpProxy', () => {
     socket.destroy();
   });
 
+  it('relays all of a big answer to clients that half-closed and read slowly', async () => {
+    const payload = Buffer.alloc(3_000_000, 'abcdefghij');
+    const site = await startTcpServer((socket) => {
+      socket.resume();
+      socket.once('end', () => socket.end(payload));
+    });
+    cleanups.push(() => site.stop());
+    const proxy = await started(new HttpProxy());
+    // One at a time, each pausing after every chunk it reads: the proxy then
+    // still holds the end of the answer when the site is done with it.
+    const whole: boolean[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const { socket, reader } = await connectThrough(
+        proxy.port,
+        `127.0.0.1:${site.port}`,
+      );
+      socket.end('request'); // a half-close: the answer is still to come
+      const answer = Buffer.concat([
+        reader.release(),
+        await readAll(socket, 5000, 20),
+      ]);
+      socket.destroy();
+      whole.push(answer.equals(payload));
+    }
+    expect(whole).toEqual([true, true, true, true, true, true]);
+  });
+
   it('asks for Basic credentials and checks them', async () => {
     const site = await origin();
     const proxy = await started(

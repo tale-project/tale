@@ -472,7 +472,7 @@ function isSocketError(error: unknown): boolean {
 }
 
 /**
- * Copy bytes both ways until the upstream side closes (or the browser aborts).
+ * Copy bytes both ways until both sides are done, or one of them is cut off.
  * A half-close is passed on: the browser finishing its request does not end the
  * response. `upload` is false when the browser's side already feeds the upstream.
  */
@@ -487,9 +487,17 @@ function relay(
   };
   client.on('error', teardown);
   upstream.on('error', teardown);
-  // One side gone for good: the other has nobody to talk to.
-  client.on('close', () => upstream.destroy());
-  upstream.on('close', () => client.destroy());
+  // A side that is cut off (reset or dropped) leaves the other nobody to talk
+  // to. One that closes after it ended both ways is only done: the other may
+  // still hold the last bytes it sent, and closes by itself once they are out.
+  const cutOff = (socket: net.Socket) =>
+    !(socket.readableEnded && socket.writableFinished);
+  client.on('close', () => {
+    if (cutOff(client)) upstream.destroy();
+  });
+  upstream.on('close', () => {
+    if (cutOff(upstream)) client.destroy();
+  });
   if (upload) client.pipe(upstream);
   upstream.pipe(client);
 }
