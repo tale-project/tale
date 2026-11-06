@@ -12,7 +12,10 @@ import {
   type ChatErrorCode,
 } from '../../../lib/shared/chat-errors.ts';
 import { documentHoldsSend } from '../../../lib/shared/document-reading.ts';
-import { DEFERRED_SEND_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import {
+  CHAT_MESSAGE_HINT_ENTITY,
+  DEFERRED_SEND_HINT_ENTITY,
+} from '../../../lib/shared/hint-entities.ts';
 import { validateTurnAttachments } from '../../core/chat/turn_action.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -694,9 +697,35 @@ export async function pollDeferredSend(
     if (!parkedAgain) {
       await settle();
       await releaseUnsentVideos(sql, row.organizationId, row.videoJobIds);
+      await hintThreadMessages(sql, row);
     }
   }
   return 'ran';
+}
+
+/**
+ * Tell the sender's open tabs that the thread's messages changed, once the
+ * fired turn has ended: its reply, or the trace a failure left. The thread's
+ * progress lane polls, and a turn that ended between two of its ticks never
+ * showed there. Best-effort, like the tray hint: the turn has run either way.
+ */
+async function hintThreadMessages(
+  sql: Sql,
+  target: { organizationId: string; userId: string; threadId: string },
+): Promise<void> {
+  try {
+    await emitHintInTx(sql, {
+      orgId: target.organizationId,
+      userId: target.userId,
+      entity: CHAT_MESSAGE_HINT_ENTITY,
+      entityId: target.threadId,
+    });
+  } catch (error) {
+    console.warn(
+      `[deferred-send] message hint for thread ${target.threadId} failed:`,
+      error,
+    );
+  }
 }
 
 /** The bind is what a deferred send holds on its videos; once the send is

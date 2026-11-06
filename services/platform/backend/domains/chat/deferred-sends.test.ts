@@ -443,6 +443,35 @@ describe('pollDeferredSend — settle at user append, trace on failure', () => {
     });
   }
 
+  it('tells the sender’s tabs the thread’s messages changed once the fired turn has ended', async () => {
+    // The progress lane polls, and a turn that ended between two of its
+    // ticks never showed there: its reply stayed off the page until a reload.
+    const f = readySql();
+    let hintedBeforeTurnEnd = false;
+    const messageHints = () =>
+      f.timeline.filter(
+        (entry) =>
+          entry.text.includes('INSERT INTO app_realtime.outbox') &&
+          entry.values[2] === 'chat_message',
+      );
+    runChatTurn.mockImplementation(
+      async (
+        _sql: unknown,
+        request: { onUserMessageAppended?: () => Promise<void> },
+      ) => {
+        await request.onUserMessageAppended?.();
+        hintedBeforeTurnEnd = messageHints().length > 0;
+        return { status: 'completed', steps: ['done'], text: 'ok' };
+      },
+    );
+
+    await expect(pollDeferredSend(f.sql, 'ds_1')).resolves.toBe('ran');
+    expect(hintedBeforeTurnEnd).toBe(false);
+    expect(messageHints().map((entry) => entry.values)).toEqual([
+      ['org_1', 'user_1', 'chat_message', 'thread_1'],
+    ]);
+  });
+
   it('settles the tray row the moment the user message is durable, before the turn settles', async () => {
     const f = readySql();
     let settledBeforeTurnEnd = false;

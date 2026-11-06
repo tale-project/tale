@@ -43,6 +43,17 @@ export const VIDEO_LINK_HINT_ENTITY = 'video_link';
 export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
 
 /**
+ * A thread's messages. The app's own send settles its turn in the request
+ * that sent it and on the thread's progress lane; a turn a parked send fires
+ * runs on a worker, and one that ended inside a single tick of that lane's
+ * poll — a quick refusal, a fast model — was never seen there, so its reply
+ * stayed off the page until a reload. The worker hints the sender under this
+ * entity once such a turn has ended, and the app keys the message read under
+ * it.
+ */
+export const CHAT_MESSAGE_HINT_ENTITY = 'chat_message';
+
+/**
  * An organization's AI-provider credentials — and everything derived from
  * them. What the credentials can serve is the answer behind the composer's
  * model catalog, the agent model pickers, the runtime status on the
