@@ -538,8 +538,9 @@ A step that could not do its work says so under it, in the person's language: ev
 sandbox is in use, the sandbox host is busy or not ready, the sandbox service cannot be reached,
 the sandbox stopped working, a file the program needs could not be copied into the sandbox, the
 program ended with an error or ran out of time, or it was stopped. A web page it could not read
-says why the same way: no page at the address, a site that keeps automated readers out, a
-CAPTCHA, a bot check that kept even the browser out, no browser free, or a render that failed.
+says why the same way: no page at the address, a site that did not answer in time, a site that
+keeps automated readers out, a CAPTCHA, a bot check that kept even the browser out, no browser
+free, or a render that failed.
 The model reads the same cause, and whether trying again can help.
 
 - **Example**: All of the organization's light sandboxes are running code when Mia's chat runs
@@ -653,7 +654,7 @@ for a free session.
   check → the notice is opened once in a sandboxed browser, the reply quotes it, and reading
   its next parts opens no second browser.
 - **Example**: The site asks Mia's chat for a CAPTCHA instead → nothing is opened, the step reads
-  that the site asks for a puzzle only a person can solve, and the reply gives the link.
+  that the site asks for a CAPTCHA, and the reply gives the link.
 - **Example**: The site answers Mia's chat with a browser check through one outbound proxy and
   with a CAPTCHA through the next → no third proxy is asked and nothing is opened.
 

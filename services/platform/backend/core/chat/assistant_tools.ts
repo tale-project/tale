@@ -259,7 +259,7 @@ function fetchFailureReason(error: unknown): WebFetchFailureReason {
       return 'address_refused';
     case 'timeout':
     case 'aborted':
-      return 'timed_out';
+      return 'site_timed_out';
     case 'response_too_large':
       return 'page_too_large';
     case 'dns_failed':

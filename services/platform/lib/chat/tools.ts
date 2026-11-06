@@ -140,8 +140,10 @@ export const WEB_FETCH_FAILURE_REASONS = [
   /** The site could not be reached: no such name, a refused connection, a
    * failed TLS handshake, redirects that led nowhere. */
   'unreachable',
-  /** The site did not answer in time. */
-  'timed_out',
+  /** The site did not answer in time. Its own cause, apart from the work
+   * tools' `timed_out`, which a step the round's time ran out on reads
+   * too. */
+  'site_timed_out',
   /** The page is larger than the tool reads. */
   'page_too_large',
   /** The site answered 404 or 410: no page at that address. */

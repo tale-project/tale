@@ -312,7 +312,10 @@ describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
     expect(
       stepOutcomeLabel(t, { status: 'unavailable', reason: 'render_busy' }),
     ).toBe('thinking.outcome.renderBusy');
-    // A web read shares "ran out of time" with the work tools.
+    // A site that did not answer is not a step that ran out of its time.
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'site_timed_out' }),
+    ).toBe('thinking.outcome.siteTimedOut');
     expect(stepOutcomeLabel(t, { status: 'error', reason: 'timed_out' })).toBe(
       'thinking.outcome.timedOut',
     );
