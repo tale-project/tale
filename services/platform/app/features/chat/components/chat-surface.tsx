@@ -85,7 +85,10 @@ import {
   resolveViewPath,
   selectionChainFor,
 } from '@/lib/shared/branch-selection';
-import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
+import {
+  CHAT_IMAGE_MODEL_MAX_SIZE,
+  CHAT_UPLOAD_ACCEPT,
+} from '@/lib/shared/file-types';
 import { documentTitle } from '@/lib/utils/seo';
 
 import { useArenaActions } from '../data/arena-actions';
@@ -1129,6 +1132,11 @@ function ChatSurfaceInner({
   // override), so no narrowing here. Bound to the open thread so the file
   // lifecycle follows it; a send from the index uploads before the thread
   // exists (the v1 grandfather path).
+  // A picked image is made smaller until the chat's model is shown it; a
+  // sandbox thread's agent reads its files as files, so there it is only
+  // redrawn, and no staged image is flagged as too large.
+  const modelImageLimit =
+    activeThread?.kind === 'sandbox' ? undefined : CHAT_IMAGE_MODEL_MAX_SIZE;
   const uploadConfig = useMemo(
     () => ({
       organizationId,
@@ -1142,11 +1150,13 @@ function ChatSurfaceInner({
       ...(threadId === undefined && projectId !== undefined
         ? { projectId }
         : {}),
+      ...(modelImageLimit !== undefined ? { modelImageLimit } : {}),
     }),
     [
       organizationId,
       threadId,
       projectId,
+      modelImageLimit,
       voiceCapabilities.hasTranscription,
       voiceCapabilities.transcriptionUnavailableReason,
       handleTranscriptionUnavailable,
@@ -2554,6 +2564,9 @@ function ChatSurfaceInner({
                         onRemoveAttachment: stableRemoveAttachment,
                         onCancelAttachmentUpload: stableCancelUpload,
                         attachAccept,
+                        ...(modelImageLimit !== undefined
+                          ? { modelImageMaxSize: modelImageLimit }
+                          : {}),
                         transcriptionStatuses,
                         onRetryTranscription: stableRetryTranscription,
                         indexingStatuses,

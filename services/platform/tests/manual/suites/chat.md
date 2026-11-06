@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 160 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 161 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -731,6 +731,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   reason on hover, and a toast explains it (`chat.documentNoTextDescription`);
   the message is not held back, and the reply says the file holds no
   readable text instead of guessing at it.
+- [ ] `CHAT-AT16` · **A large, detailed picture** — With a vision model, attach
+  a PNG over 3 MB whose pixels do not compress (a scan, a photo saved as PNG,
+  a busy screenshot) with legible text in it, and ask what the text says → The
+  chip shows 2 MB or less (the composer made it smaller, a JPEG unless the
+  picture has transparency), and the reply quotes the text instead of saying
+  it cannot read the image. Attach an animated GIF over 2 MB → under the chips
+  the strip says it is larger than 2 MB and the model only sees its file name
+  (`chat.imagesTooLargeForModel`); sent anyway, the reply says the image was
+  not sent to the model because of its size.
 - [ ] `CHAT-F51` · **Questions about Tale use its docs** — On a deployment that
   can reach docs.tale.dev, ask "Wie erstelle ich einen API-Key in Tale?" → The
   timeline shows reading steps (`chat.thinking.reading`) on **docs.tale.dev**

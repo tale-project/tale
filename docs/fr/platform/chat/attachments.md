@@ -27,7 +27,7 @@ Quand tu essaies de joindre de l’audio ou de la vidéo, Tale vérifie si l’o
 
 | Pièce jointe | Contenu utilisé | Vérification |
 | --- | --- | --- |
-| Image ou capture collée | L’image elle-même, si le modèle sait lire les images. | Choisis un modèle compatible et vérifie que le texte est lisible. |
+| Image ou capture collée | L’image elle-même, si le modèle sait lire les images. | Choisis un modèle compatible et vérifie que le texte est lisible. Tale réduit une image de plus de 1 Mo avant de la téléverser, à 2 Mo au plus, la plus grande image qu’un modèle reçoit. Un GIF animé n’est jamais réduit : au-delà de 2 Mo, le modèle n’en reçoit que le nom, et le champ de message te le signale. |
 | PDF, document Office récent ou fichier texte compatible | Le texte du document, que l’assistant lit avec ses outils de consultation : depuis l’index de recherche ou, tant que le document est encore en cours d’indexation, dans le texte que Tale a lu lors du téléversement. | Vérifie qu’une étape de lecture apparaît dans la réponse. Un fichier PDF, Word, PowerPoint ou OpenDocument de plus de 50 Mio, un tableur de plus de 20 Mio, un fichier texte de plus de 4 Mio ou un fichier de plus de quatre millions de caractères de texte environ ne peut être lu qu’une fois indexé. |
 | Fichier audio ou vidéo | Une transcription en texte. | Un admin doit configurer la transcription. Compare les noms, nombres et termes spécialisés avec l’enregistrement. |
 | Ancien fichier Office sans extracteur de texte | Le nom du fichier, sans texte consultable. | Enregistre-le en `.docx`, `.xlsx` ou `.pptx` et joins cette copie. |
@@ -61,6 +61,7 @@ Pour des questions récurrentes sur un brief ou une politique, ajoute le fichier
 | Symptôme | Action |
 | --- | --- |
 | Le modèle choisi ne peut pas lire l’image | Choisis un modèle compatible. Auto tient compte des modèles capables de lire les images ; s’il n’y en a aucun, demande à un admin d’en configurer un. |
+| Le champ de message signale une image de plus de 2 Mo | Le modèle n’en recevra que le nom. Joins une copie plus petite, ou un PNG ou un JPEG plutôt qu’un GIF animé. |
 | Le traitement échoue | Réessaie. Si un petit fichier compatible échoue aussi, demande à un admin de vérifier le stockage, l’indexation ou la transcription selon l’erreur. |
 | L’assistant connaît le nom, mais pas le contenu | Vérifie le format et l’état du traitement. Convertis les anciens fichiers dans un format récent compatible. |
 | Un document affiche **Illisible** | La détection de secrets ou la politique de confidentialité (PII) de ton organisation refuse son contenu. Retire du fichier le mot de passe, la clé ou les données personnelles et joins-le de nouveau, ou interroge un admin sur la politique. |

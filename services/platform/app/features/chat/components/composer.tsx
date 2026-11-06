@@ -195,6 +195,9 @@ interface ComposerProps {
    * upload policy when one is enabled; the default is the full chat family.
    * UX-only — the upload hook re-validates every file either way. */
   attachAccept?: string;
+  /** The largest image the conversation's model is shown, when a model is
+   * shown the images: the attachment strip names a staged image larger. */
+  modelImageMaxSize?: number;
   /** Live transcription status for staged audio/video — send is also
    * gated upstream while any are `queued`/`running`. */
   transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
@@ -260,6 +263,7 @@ export const Composer = memo(
       onRemoveAttachment,
       onCancelAttachmentUpload,
       attachAccept = CHAT_UPLOAD_ACCEPT,
+      modelImageMaxSize,
       transcriptionStatuses,
       onRetryTranscription,
       indexingStatuses,
@@ -673,6 +677,9 @@ export const Composer = memo(
                     onCancelAttachmentUpload?.(fileId)
                   }
                   {...(visionWarning !== undefined ? { visionWarning } : {})}
+                  {...(modelImageMaxSize !== undefined
+                    ? { modelImageMaxSize }
+                    : {})}
                   {...(transcriptionStatuses !== undefined
                     ? { transcriptionStatuses }
                     : {})}

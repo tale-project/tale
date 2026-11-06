@@ -4,7 +4,8 @@
  * refuses it with the server's English sentence; the chip says so in the
  * reader's language and points at where the limit's reset shows, while any
  * other failure keeps its stored reason on hover. A staged document the
- * assistant cannot read opens its reason for every way of reaching it.
+ * assistant cannot read opens its reason for every way of reaching it. A
+ * staged image larger than a model is shown says so before the send.
  */
 import '@testing-library/jest-dom/vitest';
 import { LOCALE_STORAGE_KEY } from '@tale/ui/i18n/detect-locale';
@@ -12,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
+import { CHAT_IMAGE_MODEL_MAX_SIZE } from '@/lib/shared/file-types';
 import { USAGE_LIMIT_REFUSAL_PREFIX } from '@/lib/shared/usage-limit';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { i18n } from '@/tests/utils/i18n-all-languages';
@@ -124,5 +126,95 @@ describe('a staged document the assistant cannot read', () => {
       i18n.t('documentRefusedSecret', { ns: 'chat', filename: 'keys.txt' }),
     );
     await checkAccessibility(container);
+  });
+});
+
+describe('a staged image larger than a model is shown', () => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a staged upload's ref, as the composer holds it
+  const big = 's3:blobs/acme/party' as BlobRef;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a staged upload's ref, as the composer holds it
+  const small = 's3:blobs/acme/scan' as BlobRef;
+  const attachments = [
+    {
+      fileId: big,
+      fileName: 'party.gif',
+      fileType: 'image/gif',
+      fileSize: CHAT_IMAGE_MODEL_MAX_SIZE + 1,
+    },
+    {
+      fileId: small,
+      fileName: 'scan.jpg',
+      fileType: 'image/jpeg',
+      fileSize: CHAT_IMAGE_MODEL_MAX_SIZE,
+    },
+  ];
+
+  it('names it before the send, in the reader’s language', async () => {
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'de');
+    await i18n.changeLanguage('de');
+    const { container } = render(
+      <ComposerAttachments
+        attachments={attachments}
+        uploadingFiles={[]}
+        onRemove={vi.fn()}
+        onCancelUpload={vi.fn()}
+        modelImageMaxSize={CHAT_IMAGE_MODEL_MAX_SIZE}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        i18n.getFixedT('de', 'chat')('imagesTooLargeForModel', {
+          names: 'party.gif',
+          count: 1,
+          maxSize: 2,
+        }),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/scan\.jpg/)).not.toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it('says nothing about an image that fits', () => {
+    render(
+      <ComposerAttachments
+        attachments={attachments.slice(1)}
+        uploadingFiles={[]}
+        onRemove={vi.fn()}
+        onCancelUpload={vi.fn()}
+        modelImageMaxSize={CHAT_IMAGE_MODEL_MAX_SIZE}
+      />,
+    );
+
+    expect(screen.queryByText(/2 MB/)).not.toBeInTheDocument();
+  });
+
+  it('leaves it to the warning of a model that sees no image at all', () => {
+    render(
+      <ComposerAttachments
+        attachments={attachments}
+        uploadingFiles={[]}
+        onRemove={vi.fn()}
+        onCancelUpload={vi.fn()}
+        modelImageMaxSize={CHAT_IMAGE_MODEL_MAX_SIZE}
+        visionWarning={t('modelCannotSeeImages')}
+      />,
+    );
+
+    expect(screen.getByText(t('modelCannotSeeImages'))).toBeVisible();
+    expect(screen.queryByText(/party\.gif/)).not.toBeInTheDocument();
+  });
+
+  it('says nothing where no model is shown the images (a sandbox agent)', () => {
+    render(
+      <ComposerAttachments
+        attachments={attachments}
+        uploadingFiles={[]}
+        onRemove={vi.fn()}
+        onCancelUpload={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/party\.gif/)).not.toBeInTheDocument();
   });
 });

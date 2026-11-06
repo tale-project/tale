@@ -291,6 +291,7 @@ uploadingFile: Uploading…
 cancelUpload: Cancel upload
 modelCannotSeeImages: This model can't view images — it only sees their file names.
 noModelCanSeeImages: None of the available models can view images — they only see file names.
+imagesTooLargeForModel: '{names} {count, plural, one {is} other {are}} larger than {maxSize} MB — the model only sees {count, plural, one {its file name} other {their file names}}.'
 fileTypes:
   image: IMG
 markdownImage:

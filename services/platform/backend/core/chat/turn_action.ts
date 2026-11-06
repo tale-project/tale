@@ -75,6 +75,7 @@ import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
+  CHAT_IMAGE_MODEL_MAX_SIZE,
   CHAT_MAX_FILE_COUNT,
   CHAT_UPLOAD_ALLOWED_TYPES,
   isAudioOrVideo,
@@ -99,6 +100,7 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { GATEWAY_REFUSAL_STATUSES } from '../lib/providers/gateway_refusal';
+import { sniffRasterMediaType } from '../lib/providers/image_wire';
 import {
   resolveChatModel,
   type ChatAutoResolutionRefusal,
@@ -474,10 +476,14 @@ export async function* streamSse(
   };
 }
 
-/** Ceiling for one inlined image. The composer compresses images toward
- * 1 MB before upload; anything past this bound reads as its text surface
- * instead of becoming a request body the provider would reject. */
-const INLINE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+/** Ceiling for one inlined image: the largest picture a chat model is shown.
+ * The composer fits what it uploads under it; an image over it (an animated
+ * GIF, which the composer never redraws, or an upload from before it fitted
+ * images) reads as its text surface and the reason, instead of becoming a
+ * request body the provider would reject. */
+const INLINE_IMAGE_MAX_BYTES = CHAT_IMAGE_MODEL_MAX_SIZE;
+
+const BYTES_PER_MB = 1024 * 1024;
 
 /** The text surface an image attachment falls back to when it cannot ride
  * the wire as pixels — the same spelling `messageText` uses everywhere. */
@@ -485,26 +491,42 @@ function attachmentSurface(name: string): string {
   return `[attachment: ${name}]`;
 }
 
+/** The surface of an image a vision model was meant to see and is not
+ * sent: the attachment's own spelling and why, so the model can tell the
+ * sender what happened instead of answering that it cannot read the
+ * picture. */
+function imageNotSentSurface(name: string, reason: string): string {
+  return `[attachment: ${name} — not sent to you: ${reason}]`;
+}
+
+const IMAGE_UNREADABLE = 'the image could not be read';
+
+/** One image attachment settled for the wire: its bytes, or why it is not
+ * sent, in the words the model reads in its place. */
+type WireImageLoad =
+  | { readonly image: WireImage }
+  | { readonly notSent: string };
+
 function appendWireContent(message: ChatWireMessage, text: string): void {
   message.content =
     message.content.length > 0 ? `${message.content}\n\n${text}` : text;
 }
 
-/** Read one attachment's bytes and encode them for the wire, or `null` when
+/** Read one attachment's bytes and encode them for the wire, or say why
  * they cannot ride (unresolvable org, missing blob, over the inline bound) —
- * the caller then falls back to the text surface. Never throws: a broken
- * attachment must degrade the message, not end the turn. */
+ * the caller then sends the text surface with that reason. Never throws: a
+ * broken attachment must degrade the message, not end the turn. */
 async function loadWireImage(
   ctx: ActionCtx,
   organizationId: string,
   ref: { fileId: string; name: string; mediaType: string },
-): Promise<WireImage | null> {
+): Promise<WireImageLoad> {
   const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
   if (orgSlug === null) {
     console.warn(
       `[chat] org ${organizationId} unresolvable; attachment "${ref.name}" not inlined`,
     );
-    return null;
+    return { notSent: IMAGE_UNREADABLE };
   }
   try {
     const bytes = await readBlobBytes(orgSlug, ref.fileId);
@@ -512,32 +534,40 @@ async function loadWireImage(
       console.warn(
         `[chat] attachment "${ref.name}" is ${bytes.byteLength} bytes — over the ${INLINE_IMAGE_MAX_BYTES}-byte inline bound; sending its text surface instead`,
       );
-      return null;
+      return {
+        notSent: `the image is ${(bytes.byteLength / BYTES_PER_MB).toFixed(2)} MB, over the ${INLINE_IMAGE_MAX_BYTES / BYTES_PER_MB} MB limit for one image`,
+      };
     }
     return {
-      mediaType: ref.mediaType,
-      dataBase64: Buffer.from(bytes).toString('base64'),
+      image: {
+        // The type the bytes are, before the one recorded with the file: an
+        // image the composer redrew as a JPEG used to keep the type it was
+        // picked with, and a provider may refuse bytes labelled otherwise.
+        mediaType: sniffRasterMediaType(bytes) ?? ref.mediaType,
+        dataBase64: Buffer.from(bytes).toString('base64'),
+      },
     };
   } catch (error) {
     console.warn(
       `[chat] attachment "${ref.name}" could not be read for the wire: ${error instanceof Error ? error.message : 'unknown'}`,
     );
-    return null;
+    return { notSent: IMAGE_UNREADABLE };
   }
 }
 
 /**
  * Settle every lifted attachment ref on the exploded wire: a vision model
  * gets the image inlined as bytes (fetched once per turn per file — the
- * cache spans tool rounds); everything else — non-vision model, missing
- * blob, oversize image — falls back to the attachment's text surface so the
- * model still knows a file was there.
+ * cache spans tool rounds), or, when the image cannot be sent (missing blob,
+ * oversize image), its text surface and the reason; a model without vision
+ * gets the text surface, so it still knows a file was there. Exported for
+ * its tests.
  */
-async function settleWireAttachments(
+export async function settleWireAttachments(
   ctx: ActionCtx,
   organizationId: string,
   messages: ChatWireMessage[],
-  options: { vision: boolean; cache: Map<string, WireImage | null> },
+  options: { vision: boolean; cache: Map<string, WireImageLoad> },
 ): Promise<void> {
   for (const message of messages) {
     const refs = message.attachmentRefs;
@@ -548,16 +578,16 @@ async function settleWireAttachments(
         appendWireContent(message, attachmentSurface(ref.name));
         continue;
       }
-      let image = options.cache.get(ref.fileId);
-      if (image === undefined) {
-        image = await loadWireImage(ctx, organizationId, ref);
-        options.cache.set(ref.fileId, image);
+      let load = options.cache.get(ref.fileId);
+      if (load === undefined) {
+        load = await loadWireImage(ctx, organizationId, ref);
+        options.cache.set(ref.fileId, load);
       }
-      if (image === null) {
-        appendWireContent(message, attachmentSurface(ref.name));
+      if ('notSent' in load) {
+        appendWireContent(message, imageNotSentSurface(ref.name, load.notSent));
         continue;
       }
-      images.push(image);
+      images.push(load.image);
     }
     if (images.length > 0) message.images = images;
   }
@@ -579,7 +609,7 @@ export function createDirectModelCall(
   let reasoningResolved = false;
   /** Attachment bytes resolved this turn, by blob ref — a tool loop replays
    * the same user images every round and must not refetch them. */
-  const imageCache = new Map<string, WireImage | null>();
+  const imageCache = new Map<string, WireImageLoad>();
   return async function* directModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
