@@ -28,10 +28,11 @@ import { DOMParser } from '@xmldom/xmldom';
 import JSZip from 'jszip';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const SCRIPTS = path.resolve(
+const SKILL = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../../../../../configs/platform/custom/skills/pptx/scripts',
+  '../../../../../configs/platform/custom/skills/pptx',
 );
+const SCRIPTS = path.join(SKILL, 'scripts');
 
 const P14 = 'http://schemas.microsoft.com/office/powerpoint/2010/main';
 const SECTIONS_EXT = '{521415D9-36F7-43E2-AB2F-B90AF26B5E84}';
@@ -74,17 +75,22 @@ afterAll(() => {
   if (root) rmSync(root, { recursive: true, force: true });
 });
 
-function run(script: string, ...args: string[]): string {
-  const result = spawnSync('python3', [path.join(SCRIPTS, script), ...args], {
+function python(args: string[], pythonPath = shim) {
+  return spawnSync('python3', args, {
+    cwd: root,
     encoding: 'utf8',
     env: {
       PATH: process.env.PATH,
-      PYTHONPATH: shim,
+      PYTHONPATH: pythonPath,
       PYTHONDONTWRITEBYTECODE: '1',
       PYTHONNOUSERSITE: '1',
       PYTHONUTF8: '1',
     },
   });
+}
+
+function run(script: string, ...args: string[]): string {
+  const result = python([path.join(SCRIPTS, script), ...args]);
   if (result.status !== 0) {
     throw new Error(
       `${script} exited ${result.status}: ${result.error?.message ?? result.stderr}`,
@@ -782,4 +788,56 @@ describe('sections.py on a finished .pptx (built without unpack and clean)', () 
 
     expect(readFileSync(file)).toEqual(before);
   });
+});
+
+describe('the scripts as modules of a program', () => {
+  function program(pythonPath: string, code: string, ...args: string[]) {
+    const result = python(['-c', code, ...args], pythonPath);
+    if (result.status !== 0) throw new Error(result.stderr);
+    return result.stdout;
+  }
+
+  const FROM = [
+    ['the skill folder', 'scripts.', SKILL],
+    ['the scripts folder', '', SCRIPTS],
+  ] as const;
+
+  it.each(FROM)(
+    'brings the sections in step in clean_unused_files, imported from %s',
+    (_, pkg, folder) => {
+      const dir = writeTemplate({ slides: 6, sections: STANDARD });
+      setDeck(dir, ['256', '258', '260']);
+
+      const removed = program(
+        `${shim}${path.delimiter}${folder}`,
+        `import sys; from pathlib import Path; from ${pkg}clean import clean_unused_files; print(clean_unused_files(Path(sys.argv[1])))`,
+        dir,
+      );
+
+      expect(removed).toContain('ppt/slides/slide2.xml');
+      expect(readUnpacked(dir).sections).toEqual([
+        { name: 'Title slides', slides: ['256'] },
+        { name: 'Content slides', slides: ['258'] },
+        { name: 'Closing slides', slides: ['260'] },
+      ]);
+    },
+  );
+
+  it.each(FROM)(
+    'duplicates a slide into its section through add_slide, imported from %s',
+    (_, pkg, folder) => {
+      const dir = writeTemplate({ slides: 6, sections: STANDARD });
+
+      const stdout = program(
+        `${shim}${path.delimiter}${folder}`,
+        `import sys; from pathlib import Path; from ${pkg}add_slide import duplicate_slide; duplicate_slide(Path(sys.argv[1]), "slide3.xml")`,
+        dir,
+      );
+
+      expect(stdout).toContain('<p:sldId id="262" r:id="rId262"/>');
+      expect(stdout).toContain(
+        'Listed it in section "Content slides" right after slide3.xml',
+      );
+    },
+  );
 });

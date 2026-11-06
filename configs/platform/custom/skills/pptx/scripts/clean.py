@@ -14,9 +14,10 @@ This script removes:
 - Unreferenced notes slides
 - Content-Type overrides for deleted files
 
-It also brings the slide sections in step with sldIdLst (see sections.py):
-deleted slides leave their sections, new slides join one, the sections this
-leaves empty go.
+It also brings the slide sections in step with sldIdLst (see sections.py),
+first: deleted slides leave their sections, new slides join one, the
+sections this leaves empty go. A presentation.xml that does not parse stops
+it before it removes anything.
 """
 
 import sys
@@ -24,7 +25,10 @@ from pathlib import Path
 
 import defusedxml.minidom
 
-from sections import sync_unpacked
+if __package__:
+    from .sections import sync_unpacked
+else:
+    from sections import sync_unpacked
 
 import re
 
@@ -256,6 +260,8 @@ def update_content_types(unpacked_dir: Path, removed_files: list[str]) -> None:
 def clean_unused_files(unpacked_dir: Path) -> list[str]:
     all_removed = []
 
+    sync_unpacked(unpacked_dir)
+
     slides_removed = remove_orphaned_slides(unpacked_dir)
     all_removed.extend(slides_removed)
 
@@ -291,6 +297,9 @@ if __name__ == "__main__":
         print(f"Error: {unpacked_dir} not found", file=sys.stderr)
         sys.exit(1)
 
+    # clean_unused_files syncs the sections as well; syncing here first
+    # keeps what changed for the report.
+    sections_changed, sections = sync_unpacked(unpacked_dir)
     removed = clean_unused_files(unpacked_dir)
 
     if removed:
@@ -300,7 +309,6 @@ if __name__ == "__main__":
     else:
         print("No unreferenced files found")
 
-    sections_changed, sections = sync_unpacked(unpacked_dir)
     if sections_changed and sections:
         print("Updated the slide sections in ppt/presentation.xml:")
         for name, count in sections:
