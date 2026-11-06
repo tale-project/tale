@@ -3,9 +3,10 @@
 /**
  * The REST door in front of the model endpoints, wired as the app wires it:
  * the key holder's Bearer key (a revoked or expired key is no key), the
- * organization header a multi-organization key must send, and the refused
- * `x-api-key` — each answered in the wire's own error shape, so an OpenAI or
- * Anthropic SDK reads the refusal where it looks for one.
+ * organization header a multi-organization key must send, a person's own
+ * key the organization blocked, and the refused `x-api-key` — each answered
+ * in the wire's own error shape, so an OpenAI or Anthropic SDK reads the
+ * refusal where it looks for one.
  */
 
 import { Hono } from 'hono';
@@ -27,6 +28,8 @@ vi.mock('../auth/auth.ts', () => ({
 
 const GOOD_KEY = 'tale_good';
 const MULTI_ORG_KEY = 'tale_multi';
+/** user-1's own key `key-blocked`, which org-1 blocked (APIKEY-R11). */
+const BLOCKED_KEY = 'tale_blocked';
 
 /** Membership answers for the door: user-1 is in org-1; user-2 in two. */
 function fakeSql(): Sql {
@@ -37,6 +40,19 @@ function fakeSql(): Sql {
     }
     if (text.includes('FROM app.rate_limits')) {
       return Promise.resolve([{ value: '0', ts: String(Date.now()) }]);
+    }
+    if (text.startsWith('SELECT 1 AS one FROM app.api_key_org_blocks')) {
+      const [organizationId, keyId] = values;
+      return Promise.resolve(
+        organizationId === 'org-1' && keyId === 'key-blocked'
+          ? [{ one: 1 }]
+          : [],
+      );
+    }
+    if (text.startsWith('SELECT o."slug" FROM app.api_key_org_blocks')) {
+      return Promise.resolve(
+        values[0] === 'key-blocked' ? [{ slug: 'org-1' }] : [],
+      );
     }
     const user = values.find(
       (value) => value === 'user-1' || value === 'user-2',
@@ -90,6 +106,12 @@ function fakeAuth(): Auth {
       return Promise.resolve({
         user: { id: 'user-2', email: 'multi@example.com' },
         session: { id: 'key-2' },
+      });
+    }
+    if (key === BLOCKED_KEY) {
+      return Promise.resolve({
+        user: { id: 'user-1', email: 'dev@example.com' },
+        session: { id: 'key-blocked' },
       });
     }
     return Promise.resolve(null);
@@ -163,6 +185,51 @@ describe('the REST door in front of the model endpoints', () => {
     expect(await res.json()).toMatchObject({
       error: { type: 'invalid_request_error', code: 'ORG_SLUG_REQUIRED' },
     });
+  });
+
+  it('refuses a person’s own key the organization blocked, in either wire’s shape [APIKEY-R11]', async () => {
+    const openai = await app().request(
+      'http://localhost/api/v1/openai/chat/completions',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${BLOCKED_KEY}` },
+        body: '{}',
+      },
+    );
+    expect(openai.status).toBe(403);
+    expect(await openai.json()).toEqual({
+      error: {
+        message:
+          'Organization "org-1" has blocked this API key; it works only in the organizations listed.',
+        type: 'permission_error',
+        param: null,
+        code: 'API_KEY_BLOCKED',
+      },
+    });
+
+    const anthropic = await app().request(
+      'http://localhost/api/v1/anthropic/v1/messages',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${BLOCKED_KEY}` },
+        body: '{}',
+      },
+    );
+    expect(anthropic.status).toBe(403);
+    expect(await anthropic.json()).toMatchObject({
+      type: 'error',
+      error: { type: 'permission_error', code: 'API_KEY_BLOCKED' },
+    });
+
+    // The holder's other key, which no block names, passes the door: what
+    // it gets is the model route's own answer.
+    const models = await app().request(
+      'http://localhost/api/v1/openai/models',
+      { headers: { authorization: `Bearer ${GOOD_KEY}` } },
+    );
+    expect(models.status).not.toBe(401);
+    const passed = (await models.json()) as { error?: { code?: string } };
+    expect(passed.error?.code).not.toBe('API_KEY_BLOCKED');
   });
 
   it('refuses x-api-key on the Anthropic endpoint, naming the auth token to use', async () => {

@@ -138,24 +138,51 @@ when each key expires.
 
 ### APIKEY-R8 · Admins see every key working here and end those made here; members see theirs
 
-Everyone sees their own keys. An Owner or Admin also sees every key bound to the organization;
-a member sees the keys made for them here. A key bound to an organization is ended at that
-organization's door, never through a person's own key settings (`API_KEY_ORGANIZATION_MANAGED`),
-and the audit log names who made and who ended it. A member's own key is theirs alone to end; an
-Owner or Admin cuts it off here by disabling or removing the member.
+Everyone sees their own keys, each one this organization blocked marked so (`APIKEY-R11`). An
+Owner or Admin also sees every key bound to the organization, and a member's own keys from that
+member's row in Settings > Members; a member sees the keys made for them here. A key bound to an
+organization is ended at that organization's door, never through a person's own key settings
+(`API_KEY_ORGANIZATION_MANAGED`), and the audit log names who made and who ended it. A member's
+own key is theirs alone to end; an Owner or Admin blocks it in their organization instead
+(`APIKEY-R11`), or cuts it off here by disabling or removing the member.
 
 An Owner or Admin can also list every key that works here (**All keys in this organization**,
 `GET /api/app/api-keys?scope=all`). It adds each member's own key, marked as a personal key, with
 its holder's name and e-mail. Such a row is read-only, since only its holder ends it, and shows no
 last use: the key may have been used in another organization, and nothing records its use here
-alone. A disabled or expired key and a former or disabled member's key are not listed, since none
-of them can act here. Anyone else who asks for every key gets the keys they see already; any other
+alone. A disabled or expired key, a former or disabled member's key, and a member's own key this
+organization blocked (`APIKEY-R11`) are not listed, since none of them can act here; a blocked key
+stays in its member's row, where the block is lifted, and the viewer's own blocked key keeps its
+place and its mark. Anyone else who asks for every key gets the keys they see already; any other
 list is refused (`INVALID_QUERY`).
 
 - **Example**: Mia opens Settings > API > REST → she sees her own keys and "Billing sync", and
   can end it; she does not see the Finance team's key.
 - **Example**: Ada, an admin, picks All keys in this organization → she also sees Mia's own key
   "Laptop", with Mia's name and e-mail; it offers no way to end it.
+- **Example**: Ada blocks Mia's "Laptop" here → All keys in this organization no longer lists it,
+  while Mia's own list still shows it, marked as blocked in this organization; Ada lifts the block
+  → it is listed again.
+- **Example**: Olav, the owner, blocks Ada's own key "Sync" here → Ada's All keys in this
+  organization still lists it, marked as blocked in this organization.
+
+### APIKEY-R11 · An Owner or Admin blocks a member's own key in this organization alone
+
+A person's own key works in every organization they belong to. An Owner or Admin of one of them
+can block it there, from the member's row in Settings > Members: its next request against that
+organization is refused (`API_KEY_BLOCKED`, which lists the organizations it still works in),
+while the block does not reach the holder's other organizations and the holder keeps it. The same
+roles lift the block. An Admin cannot block an Owner's key or lift its block, an Owner can do
+both on anyone's, and nobody blocks their own key, which they can end
+(`API_KEY_BLOCK_FORBIDDEN`). A key bound to an organization, the key its holder made after single
+sign-on included (`APIKEY-R13`), is ended, not blocked (`API_KEY_NOT_FOUND`). Each block and each
+lift is one audit row naming who did it and the key by its masked ends; the holder is told in the
+bell, and their own key list marks the key as blocked in that organization. Blocking or lifting
+again changes nothing and records nothing.
+
+- **Example**: Ada, an Admin of Acme, blocks Mia's own key "CI deploy" → its next call to Acme
+  is refused with `API_KEY_BLOCKED`, it still works in Beta, Mia's other organization, and Mia's
+  bell says that Ada blocked it in Acme.
 
 ## Whose limits a key's spend counts toward
 
@@ -176,9 +203,16 @@ an active user.
 
 - **Renaming a key, or changing its role or expiry** after it is made: make a new key and end the
   old one.
-- **Revoking a key stops what it would start, not what it started**: a run in flight or a REST
-  message already accepted finishes and spends as the key.
+- **Revoking a key, or blocking it here, stops what it would start, not what it started**: a run
+  in flight, a REST message already accepted or an answer already streaming finishes and spends
+  as the key.
+- **Where a blocked key still works, on the model endpoints**: their refusal keeps the code and
+  the message in the interface's own error shape but drops the list of organizations, which
+  only REST and MCP return.
 - **What a project's key starts in its project**: an agent run or an automation it starts there
   runs with that agent's or automation's own equipment, which may reach beyond the project.
-- **The live-schema proof**: the binding table's constraints and the cascades are proven against
-  Postgres by the `backend:integration` check, not by a test named here.
+- **A blocked holder can make a new key of their own**: the block holds for the key it names, and
+  a new personal key works in the organization until it is blocked too.
+- **The live-schema proof**: the binding table's constraints and the cascades, and the blocks
+  table, are proven against Postgres by the `backend:integration` check, not by a test named
+  here.

@@ -614,6 +614,10 @@ export interface ListedApiKey {
   /** Who made a key bound to this organization; null for a person's own. */
   createdBy: { userId: string; name: string | null } | null;
   canRevoke: boolean;
+  /** Whether this organization has blocked the viewer's own key here
+   * (APIKEY-R11); always false for a key bound to an organization, and for
+   * another member's own key, which every key lists only while unblocked. */
+  blockedHere: boolean;
 }
 
 interface ListedRow {
@@ -638,6 +642,7 @@ interface ListedRow {
   teamName: string | null;
   projectName: string | null;
   createdByName: string | null;
+  blockedHere: boolean;
   holderName: string | null;
   holderEmail: string | null;
   /** The live role here of the member a key bound to them acts as. */
@@ -706,10 +711,13 @@ export async function listApiKeysForViewer(
            mu."name" AS "memberName", mu."email" AS "memberEmail",
            t."name" AS "teamName", p.name AS "projectName",
            cu."name" AS "createdByName",
+           (o.api_key_id IS NULL AND b.api_key_id IS NOT NULL) AS "blockedHere",
            hu."name" AS "holderName", hu."email" AS "holderEmail",
            pm."role" AS "principalRole"
     FROM "apikey" k
     LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
+    LEFT JOIN app.api_key_org_blocks b
+      ON b.org_id = ${viewer.organizationId} AND b.api_key_id = k."id"
     LEFT JOIN "user" mu
       ON o.owner_kind = 'member' AND mu."id" = o.principal_user_id
     LEFT JOIN "member" pm
@@ -732,11 +740,13 @@ export async function listApiKeysForViewer(
                 OR (o.owner_kind = 'member'
                     AND o.principal_user_id = ${viewer.userId})))
        -- A member's own key, while it can act here: a disabled member is
-       -- refused at the door, and so are a disabled and an expired key.
+       -- refused at the door, and so are a disabled and an expired key and
+       -- a key this organization blocked (APIKEY-R11).
        OR (${everyKey}::boolean
            AND lower(m."role") <> 'disabled'
            AND k."enabled" IS NOT FALSE
-           AND (k."expiresAt" IS NULL OR k."expiresAt" > now()))
+           AND (k."expiresAt" IS NULL OR k."expiresAt" > now())
+           AND b.api_key_id IS NULL)
     ORDER BY k."createdAt" ASC, k."id" ASC
     LIMIT ${LISTED_KEY_LIMIT}
   `;
@@ -784,6 +794,7 @@ export async function listApiKeysForViewer(
           },
           viewer,
         ),
+      blockedHere: row.blockedHere,
     };
   });
 }

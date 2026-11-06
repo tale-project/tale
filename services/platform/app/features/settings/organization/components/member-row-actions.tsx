@@ -4,9 +4,10 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, KeyRound, Pencil, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { MemberApiKeysDialog } from '@/app/features/settings/api-keys/components/member-api-keys-dialog';
 import { useT } from '@/lib/i18n/client';
 
 import { DeleteMemberDialog } from './member-delete-dialog';
@@ -17,6 +18,7 @@ type MemberItem = {
   _id: string;
   _creationTime?: number;
   organizationId: string;
+  userId: string;
   identityId?: string;
   email?: string;
   role?: string;
@@ -41,10 +43,16 @@ export function MemberRowActions({
 }: MemberRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t: tSettings } = useT('settings');
-  const dialogs = useEntityRowDialogs(['edit', 'delete', 'transferOwnership']);
+  const dialogs = useEntityRowDialogs([
+    'edit',
+    'apiKeys',
+    'delete',
+    'transferOwnership',
+  ]);
 
   const isViewingSelf = memberContext?.member?._id === member._id;
   const canManageMembers = memberContext?.canManageMembers ?? false;
+  const callerIsAdmin = memberContext?.isAdmin ?? false;
   const isOwner = member.role?.toLowerCase() === 'owner';
   const callerIsOwner = memberContext?.role?.toLowerCase() === 'owner';
 
@@ -56,6 +64,15 @@ export function MemberRowActions({
         icon: Pencil,
         onClick: dialogs.open.edit,
         visible: canManageMembers && !isOwner && !isViewingSelf,
+      },
+      {
+        // A member's own keys, each of which an Owner or Admin can block
+        // here (APIKEY-R11); one's own keys are ended in one's own settings.
+        key: 'apiKeys',
+        label: tSettings('apiKeys.memberKeys.action'),
+        icon: KeyRound,
+        onClick: dialogs.open.apiKeys,
+        visible: callerIsAdmin && !isViewingSelf,
       },
       {
         key: 'transferOwnership',
@@ -78,6 +95,7 @@ export function MemberRowActions({
       tSettings,
       dialogs.open,
       canManageMembers,
+      callerIsAdmin,
       isViewingSelf,
       isOwner,
       callerIsOwner,
@@ -93,13 +111,22 @@ export function MemberRowActions({
       <EntityRowActions actions={actions} contentWidth="w-[11.5rem]" />
 
       {/* Each dialog mounts from its first open: every row of the list
-          carries all three. */}
+          carries all four. */}
       {dialogs.mounted.edit && (
         <EditMemberDialog
           open={dialogs.isOpen.edit}
           onOpenChange={dialogs.setOpen.edit}
           member={member}
           currentUserMemberId={memberContext?.member?._id}
+        />
+      )}
+
+      {dialogs.mounted.apiKeys && (
+        <MemberApiKeysDialog
+          open={dialogs.isOpen.apiKeys}
+          onOpenChange={dialogs.setOpen.apiKeys}
+          organizationId={member.organizationId}
+          member={member}
         />
       )}
 

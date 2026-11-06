@@ -900,5 +900,14 @@
  * the text could not be scanned whole. The document is not indexed, where it
  * used to be indexed unscanned, and every save of the PII policy, an
  * unchanged one included, re-queues it. Additive.
+ *
+ * 3.53.0 — 2026-11-06: an Owner or Admin can block a person's own API key
+ * in their organization. Every request of a blocked key that resolves to
+ * that organization, on the REST routes, the MCP server and the model
+ * endpoints alike, answers 403 `API_KEY_BLOCKED`, listing under
+ * `data.organizations` the organizations where the key still works (the
+ * model endpoints answer the code in their own error shape, without the
+ * list); the key keeps working there, and works here again once the block
+ * is lifted.
  */
-export const API_CONTRACT_VERSION = '3.52.0';
+export const API_CONTRACT_VERSION = '3.53.0';

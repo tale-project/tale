@@ -47,10 +47,10 @@ const MIAS_LAPTOP: ApiKey = {
   canRevoke: false,
 };
 
-function renderAllKeys() {
+function renderAllKeys(apiKeys: ApiKey[] = [OWN, MIAS_LAPTOP]) {
   return render(
     <ApiKeysTable
-      apiKeys={[OWN, MIAS_LAPTOP]}
+      apiKeys={apiKeys}
       organizationId="org-1"
       viewerUserId="ada"
       scope="all"
@@ -77,8 +77,33 @@ describe('ApiKeysTable with every key that works here [APIKEY-R8]', () => {
     expect(within(own).getByRole('button')).toBeInTheDocument();
   });
 
+  it('marks the viewer’s own key this organization blocked, which stays theirs to revoke [APIKEY-R11]', () => {
+    // A member's own key blocked here never reaches every key: the server
+    // leaves it out. The viewer's own keeps its place, marked.
+    renderAllKeys([{ ...OWN, blockedHere: true }, MIAS_LAPTOP]);
+    const own = screen.getByRole('row', { name: /CI deploy key/ });
+    expect(
+      within(own).getByText('Blocked in this organization'),
+    ).toBeInTheDocument();
+    expect(within(own).getByRole('checkbox')).toBeInTheDocument();
+    expect(within(own).getByRole('button')).toBeInTheDocument();
+
+    const mias = screen.getByRole('row', { name: /Laptop/ });
+    expect(
+      within(mias).queryByText('Blocked in this organization'),
+    ).not.toBeInTheDocument();
+  });
+
   it('passes axe audit with a member’s own key listed', async () => {
     const { container } = renderAllKeys();
+    await checkAccessibility(container);
+  });
+
+  it('passes axe audit with the viewer’s own key marked blocked here [APIKEY-R11]', async () => {
+    const { container } = renderAllKeys([
+      { ...OWN, blockedHere: true },
+      MIAS_LAPTOP,
+    ]);
     await checkAccessibility(container);
   });
 });

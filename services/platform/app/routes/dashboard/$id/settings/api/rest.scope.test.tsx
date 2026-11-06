@@ -145,6 +145,27 @@ describe('the API keys page’s choice of keys [APIKEY-R8]', () => {
     expect(screen.queryByText('Laptop')).not.toBeInTheDocument();
   });
 
+  it('keeps the viewer’s own key blocked here in every key, marked, beside the members’ own keys the server lists [APIKEY-R11]', async () => {
+    // The server leaves out a member's own key this organization blocked;
+    // the viewer's own blocked key stays in both views, with its mark.
+    const blockedOwn: ApiKey = { ...OWN, blockedHere: true };
+    backend.on(MANAGED, () => Response.json({ keys: [blockedOwn] }));
+    backend.on(ALL, () => Response.json({ keys: [blockedOwn, MIAS_LAPTOP] }));
+    h.member = { status: 'ok', userId: 'ada', role: 'admin', isAdmin: true };
+    const { user } = renderPage();
+
+    const blockedHere = i18n.t('apiKeys.owner.blockedHere', {
+      ns: 'settings',
+    });
+    expect(await screen.findByText('CI deploy key')).toBeInTheDocument();
+    expect(screen.getAllByText(blockedHere)).toHaveLength(1);
+
+    await user.click(screen.getByRole('radio', { name: allKeys() }));
+    expect(await screen.findByText('Laptop')).toBeInTheDocument();
+    expect(screen.getByText('CI deploy key')).toBeInTheDocument();
+    expect(screen.getAllByText(blockedHere)).toHaveLength(1);
+  });
+
   it('gives a member no choice, and asks only for the keys they manage', async () => {
     h.member = { status: 'ok', userId: 'mia', role: 'member', isAdmin: false };
     renderPage();

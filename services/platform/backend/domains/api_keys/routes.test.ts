@@ -2,8 +2,9 @@
 
 /**
  * /api/app/api-keys at the boundary: the body a key for someone else is
- * made from, the refusal envelope its domain errors answer in, and who the
- * service is told is acting.
+ * made from, the refusal envelope its domain errors answer in, who the
+ * service is told is acting, and the doors an Owner or Admin reads and
+ * blocks a member's own keys through.
  */
 
 import type { Context } from 'hono';
@@ -16,6 +17,10 @@ const service = vi.hoisted(() => ({
   listApiKeysForViewer: vi.fn(),
   revokeBoundApiKey: vi.fn(),
 }));
+const blocks = vi.hoisted(() => ({
+  listMemberPersonalApiKeys: vi.fn(),
+  setPersonalApiKeyBlock: vi.fn(),
+}));
 /** The organization the request's session is bound to: none for a password
  * sign-in, this one after single sign-on or a proxy. */
 const session = vi.hoisted(() => ({
@@ -26,6 +31,7 @@ vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   ...service,
 }));
+vi.mock('./blocks.ts', () => blocks);
 vi.mock('../../auth/auth.ts', () => ({
   loadTrustedProxies: () => Promise.resolve([]),
 }));
@@ -221,5 +227,117 @@ describe('GET /api/app/api-keys', () => {
     expect(bogus.status).toBe(400);
     expect(await bogus.json()).toMatchObject({ code: 'INVALID_QUERY' });
     expect(service.listApiKeysForViewer).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GET /api/app/api-keys/members/:userId/personal', () => {
+  it('lists a member’s own keys as the signed-in Owner or Admin may see them [APIKEY-R11]', async () => {
+    const answer = {
+      keys: [{ id: 'key-1', blocked: null }],
+      canBlock: true,
+    };
+    blocks.listMemberPersonalApiKeys.mockResolvedValueOnce(answer);
+    const res = await app().request('/members/mia%2Fk/personal');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(answer);
+    expect(blocks.listMemberPersonalApiKeys.mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org-1',
+      actor: { userId: 'ada', role: 'admin' },
+      memberUserId: 'mia/k',
+    });
+  });
+
+  it('answers a refusal with its code and status [APIKEY-R11]', async () => {
+    blocks.listMemberPersonalApiKeys.mockRejectedValueOnce(
+      new ApiKeyError(
+        'API_KEY_MEMBER_NOT_FOUND',
+        'Not a member of this organization.',
+        404,
+      ),
+    );
+    const res = await app().request('/members/stranger/personal');
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'API_KEY_MEMBER_NOT_FOUND',
+      message: 'Not a member of this organization.',
+    });
+  });
+});
+
+describe('PUT and DELETE /api/app/api-keys/:keyId/block', () => {
+  it('blocks the key here as the signed-in member, and lifts the block [APIKEY-R11]', async () => {
+    blocks.setPersonalApiKeyBlock.mockResolvedValue({ changed: true });
+    const blocked = await app().request('/key%2F1/block', {
+      method: 'PUT',
+      headers: { 'user-agent': 'probe' },
+    });
+    expect(blocked.status).toBe(200);
+    expect(await blocked.json()).toEqual({
+      ok: true,
+      blocked: true,
+      changed: true,
+    });
+    expect(blocks.setPersonalApiKeyBlock.mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org-1',
+      actor: {
+        userId: 'ada',
+        email: 'ada@example.test',
+        name: 'Ada',
+        role: 'admin',
+        userAgent: 'probe',
+      },
+      keyId: 'key/1',
+      blocked: true,
+    });
+
+    const lifted = await app().request('/key-1/block', { method: 'DELETE' });
+    expect(lifted.status).toBe(200);
+    expect(await lifted.json()).toEqual({
+      ok: true,
+      blocked: false,
+      changed: true,
+    });
+    expect(blocks.setPersonalApiKeyBlock.mock.calls[1]?.[1]).toMatchObject({
+      keyId: 'key-1',
+      blocked: false,
+    });
+    // Ending a key bound here is another door, and stays untouched.
+    expect(service.revokeBoundApiKey).not.toHaveBeenCalled();
+  });
+
+  it('says when a repeated block changed nothing [APIKEY-R11]', async () => {
+    blocks.setPersonalApiKeyBlock.mockResolvedValueOnce({ changed: false });
+    const res = await app().request('/key-1/block', { method: 'PUT' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      blocked: true,
+      changed: false,
+    });
+  });
+
+  it('answers a refused block and a key that is no member’s own key here with their code and status [APIKEY-R11]', async () => {
+    blocks.setPersonalApiKeyBlock.mockRejectedValueOnce(
+      new ApiKeyError(
+        'API_KEY_BLOCK_FORBIDDEN',
+        "An Admin cannot block or free an Owner's API keys.",
+        403,
+      ),
+    );
+    const refused = await app().request('/key-olav/block', { method: 'PUT' });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({
+      error: 'API_KEY_BLOCK_FORBIDDEN',
+      message: "An Admin cannot block or free an Owner's API keys.",
+    });
+
+    blocks.setPersonalApiKeyBlock.mockRejectedValueOnce(
+      new ApiKeyError('API_KEY_NOT_FOUND', 'API key not found.', 404),
+    );
+    const bound = await app().request('/key-bound/block', {
+      method: 'DELETE',
+    });
+    expect(bound.status).toBe(404);
+    expect(await bound.json()).toMatchObject({ error: 'API_KEY_NOT_FOUND' });
   });
 });
