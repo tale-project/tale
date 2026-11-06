@@ -450,13 +450,17 @@ async function renderPageOnce(
         why: "no browser was free to render it here (the organization's render sessions are all in use, or the sandbox host is busy; asking again later may work)",
       };
     }
+    // The render lane itself failed (no sandbox service, one that is not
+    // configured, a worker that left nothing): the deployment's fault, not
+    // the page's. The log names it; the model is told only that the render
+    // failed, never the deployment's setup.
     console.warn(
       `[chat] web_fetch: rendering ${host} failed: ${describeError(error)}`,
     );
     return {
       kind: 'failed',
       reason: 'render_failed',
-      why: `rendering it in a browser here failed (${clip(publicPageError(describeError(error)), 200)})`,
+      why: 'rendering it in a browser here failed',
     };
   }
 }
@@ -3180,11 +3184,13 @@ export function createChatToolExecutor(
     }
 
     if (response.status >= 400) {
+      // The status alone: the site's words reach the model only inside the
+      // page it sent, never as its status text.
       return refuseWebFetch(
         webFetchFailure(
           'error',
           httpFailureReason(response.status),
-          `The server answered ${response.status} ${response.statusText}.`,
+          `The server answered ${response.status}.`,
         ),
       );
     }
