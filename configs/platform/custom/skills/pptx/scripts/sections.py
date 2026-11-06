@@ -67,6 +67,49 @@ def list_sections(dom) -> list[tuple[str, int]]:
     ]
 
 
+def used_slide_ids(dom) -> set[int]:
+    """Every slide id <p:sldIdLst> or a section uses, whatever their prefixes."""
+    return {
+        int(value)
+        for namespace in (P_NS, P14_NS)
+        for sld_id in dom.getElementsByTagNameNS(namespace, "sldId")
+        if (value := sld_id.getAttribute("id")).isascii() and value.isdigit()
+    }
+
+
+def next_slide_id(unpacked_dir: Path) -> int:
+    """The id add_slide.py gives a new slide, which names its relationship.
+
+    The relationship of a slide add_slide.py makes is rId<slide id>, so the
+    slides made before whose <p:sldId> is not in <p:sldIdLst> yet still hold
+    their ids. The new id is above those and every id <p:sldIdLst> or a
+    section uses: a new slide never takes the id a section still lists for a
+    deleted slide. An id whose relationship name is taken is skipped.
+    """
+    dom = defusedxml.minidom.parse(str(unpacked_dir / "ppt" / "presentation.xml"))
+    rels = defusedxml.minidom.parse(
+        str(unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels")
+    ).getElementsByTagName("Relationship")
+    listed = {
+        sld_id.getAttributeNS(R_NS, "id")
+        for sld_id in dom.getElementsByTagNameNS(P_NS, "sldId")
+    }
+    held = {
+        int(rid[3:])
+        for rel in rels
+        if rel.getAttribute("Type").endswith("/slide")
+        and (rid := rel.getAttribute("Id")) not in listed
+        and rid.startswith("rId")
+        and rid[3:].isascii()
+        and rid[3:].isdigit()
+    }
+    taken = {rel.getAttribute("Id") for rel in rels}
+    slide_id = max(used_slide_ids(dom) | held | {255}) + 1
+    while f"rId{slide_id}" in taken:
+        slide_id += 1
+    return slide_id
+
+
 def sync_unpacked(unpacked_dir: Path) -> tuple[bool, list[tuple[str, int]]]:
     pres_path = unpacked_dir / "ppt" / "presentation.xml"
     if not pres_path.exists():
