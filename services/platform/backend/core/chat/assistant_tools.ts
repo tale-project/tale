@@ -139,7 +139,7 @@ export interface ChatToolContext {
  * never threaten the Convex value ceiling. */
 const WEB_FETCH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const WEB_FETCH_TIMEOUT_MS = 15_000;
-/** How many times a page that answers with a bot check is asked for through
+/** How many times a page that answers with a challenge is asked for through
  * the outbound proxies: the check is the site's verdict on one address, and
  * the next proxy leaves from another. */
 const WEB_FETCH_BOT_CHECK_ATTEMPTS = 3;
@@ -164,10 +164,12 @@ interface FetchedPage {
  * Fetch a public page for web_fetch. Nothing it sends is a credential, so a
  * redirect onto another site leaks nothing and is followed as a browser
  * follows it (`www.mozilla.org` sends Firefox's pages to `www.firefox.com`),
- * every hop still resolved, checked and pinned, and over https alone. A bot
- * check that came through an outbound proxy is asked for again through the
- * next one, while the attempts so far left the time for it; a retry that
- * fails leaves the check the answer.
+ * every hop still resolved, checked and pinned, and over https alone. A
+ * challenge that came through an outbound proxy is asked for again through
+ * the next one, while the attempts so far left the time for it; a retry that
+ * fails leaves the check the answer. A CAPTCHA or a block ends the attempts
+ * at once: asking again from another address would be a way around the
+ * site's demand for a person, or its refusal.
  */
 async function fetchPublicPage(url: URL): Promise<FetchedPage> {
   const started = Date.now();
@@ -203,7 +205,7 @@ async function fetchPublicPage(url: URL): Promise<FetchedPage> {
       walled = { response, botCheck, attempts };
     }
     const again =
-      botCheck !== null &&
+      botCheck?.kind === 'challenge' &&
       via !== undefined &&
       attempts < WEB_FETCH_BOT_CHECK_ATTEMPTS &&
       Date.now() - started < WEB_FETCH_TIMEOUT_MS;
@@ -3138,14 +3140,14 @@ export function createChatToolExecutor(
     const { response, botCheck } = fetched;
 
     if (botCheck !== null) {
-      const everyAttempt =
-        fetched.attempts > 1 ? ` on each of ${fetched.attempts} attempts` : '';
+      // A CAPTCHA or a block ended the attempts where it answered, whatever
+      // the attempts before it met.
       if (botCheck.kind === 'captcha') {
         return refuseWebFetch(
           webFetchFailure(
             'error',
             'bot_check_captcha',
-            `${botCheck.vendor}'s bot check asked for a CAPTCHA, a puzzle for a person to solve, in place of the page${everyAttempt}. A CAPTCHA is never solved here, so the page was not read.`,
+            `${botCheck.vendor}'s bot check asked for a CAPTCHA, a puzzle for a person to solve, in place of the page. A CAPTCHA is never solved here, so the page was not read.`,
           ),
         );
       }
@@ -3154,7 +3156,7 @@ export function createChatToolExecutor(
           webFetchFailure(
             'error',
             'bot_check_blocked',
-            `${botCheck.vendor}'s bot protection refused the request in place of the page${everyAttempt}, so the page was not read.`,
+            `${botCheck.vendor}'s bot protection refused the request in place of the page, so the page was not read.`,
           ),
         );
       }

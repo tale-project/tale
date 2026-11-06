@@ -627,22 +627,25 @@ open longer than the 15 minutes a link lives.
 ## Reading a web page
 
 The assistant reads a public page at an https:// address. When a site's bot protection answers
-in the page's place on every attempt, what it asks for decides what happens.
+in the page's place, what it asks for decides what happens.
 
 | The bot protection asks for | The assistant |
 | --- | --- |
-| A check a browser passes on its own | opens the page once in a sandboxed browser and reads it |
-| A puzzle only a person can solve (a CAPTCHA) | reads nothing, and never tries to solve it |
-| Nothing: it refuses the request | reads nothing |
+| A check a browser passes on its own | asks again through the next outbound proxy; met every time, opens the page once in a sandboxed browser and reads it |
+| A puzzle only a person can solve (a CAPTCHA) | reads nothing at once, asks no other proxy, and never tries to solve it |
+| Nothing: it refuses the request | reads nothing at once, and asks no other proxy |
 
 ### CHAT-R50 · A page behind a browser check is rendered once; a CAPTCHA never is
 
 A browser check is a script a browser runs on its own: AWS WAF's or Cloudflare's challenge,
-Vercel's checkpoint, Fastly's client challenge. Behind one, the page is opened once in a
-sandboxed browser that introduces itself as Tale's assistant, at the address the plain read
-reached, against the organization's render sessions, and what the browser shows is read as the
-page. A CAPTCHA or a refusal is never opened in the browser, and a browser that meets the check
-again reads nothing. For the rest of the reply, reading on through the page or asking for it
+Vercel's checkpoint, Fastly's client challenge. A plain read that meets one through an outbound
+proxy is asked again through the next, up to three attempts. Behind a check on every attempt,
+the page is opened once in a sandboxed browser that introduces itself as Tale's assistant, at
+the address the plain read reached, against the organization's render sessions, and what the
+browser shows is read as the page. A CAPTCHA or a refusal ends the plain reads where it
+answers, after a check too: no other proxy is asked, since another address's answer would be a
+way around it. A CAPTCHA or a refusal is never opened in the browser, and a browser that meets
+the check again reads nothing. For the rest of the reply, reading on through the page or asking for it
 again answers from that one render. A render that cannot run says so at once, without waiting
 for a free session.
 
@@ -651,6 +654,8 @@ for a free session.
   its next parts opens no second browser.
 - **Example**: The site asks Mia's chat for a CAPTCHA instead → nothing is opened, the step reads
   that the site asks for a puzzle only a person can solve, and the reply gives the link.
+- **Example**: The site answers Mia's chat with a browser check through one outbound proxy and
+  with a CAPTCHA through the next → no third proxy is asked and nothing is opened.
 
 ## Not yet
 
