@@ -197,7 +197,8 @@ const CODE_LANGUAGE_NAMES: Record<string, string> = {
 
 /** A failed step's outcome by the cause its result names — literal keys, so
  * the i18n usage scan sees every one. The work tools' causes come first,
- * then a web read's (`timed_out` serves both). */
+ * then a web read's; `timed_out` is a step's own time, whatever the tool,
+ * and `site_timed_out` a site that did not answer a web read in time. */
 const FAILURE_REASON_KEYS: Record<string, string> = {
   sandboxes_busy: 'thinking.outcome.sandboxesBusy',
   sandbox_host_busy: 'thinking.outcome.sandboxHostBusy',
@@ -210,6 +211,7 @@ const FAILURE_REASON_KEYS: Record<string, string> = {
   invalid_url: 'thinking.outcome.invalidUrl',
   address_refused: 'thinking.outcome.addressRefused',
   unreachable: 'thinking.outcome.unreachable',
+  site_timed_out: 'thinking.outcome.siteTimedOut',
   page_too_large: 'thinking.outcome.pageTooLarge',
   page_not_found: 'thinking.outcome.pageNotFound',
   access_denied: 'thinking.outcome.accessDenied',

@@ -731,13 +731,14 @@ thinking:
     invalidUrl: Keine gültige Webadresse
     addressRefused: Nur öffentliche https://-Adressen lassen sich lesen
     unreachable: Die Website ist nicht erreichbar
+    siteTimedOut: Die Website hat nicht rechtzeitig geantwortet
     pageTooLarge: Die Seite ist zu umfangreich zum Lesen
     pageNotFound: Unter dieser Adresse gibt es keine Seite
     accessDenied: Die Website verweigert den Zugriff
     httpError: Die Website hat mit einem Fehler geantwortet
     unsupportedType: Diese Art von Datei lässt sich hier nicht lesen
     pageEmpty: Die Seite enthält keinen Text
-    botCheckCaptcha: Die Website verlangt ein Rätsel, das nur ein Mensch lösen kann
+    botCheckCaptcha: Die Website verlangt ein CAPTCHA
     botCheckBlocked: Die Website sperrt automatisierte Zugriffe
     botCheckUnrendered: Der Bot-Schutz der Website hat den Browser nicht durchgelassen
     renderBusy: Gerade ist kein Browser frei

@@ -723,13 +723,14 @@ thinking:
     invalidUrl: Not a valid web address
     addressRefused: Only public https:// addresses can be read
     unreachable: The site couldn't be reached
+    siteTimedOut: The site didn't answer in time
     pageTooLarge: The page is too large to read
     pageNotFound: No page at this address
     accessDenied: The site refused access
     httpError: The site answered with an error
     unsupportedType: This kind of file can't be read here
     pageEmpty: The page has no text
-    botCheckCaptcha: The site asks for a puzzle only a person can solve
+    botCheckCaptcha: The site asks for a CAPTCHA
     botCheckBlocked: The site keeps automated readers out
     botCheckUnrendered: The site's bot protection didn't let the browser through
     renderBusy: No browser is free right now

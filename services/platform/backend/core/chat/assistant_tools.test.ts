@@ -1410,7 +1410,7 @@ describe('web_fetch', () => {
           new SafeFetchError('timeout', 'Request timed out after 15000ms'),
         ),
       'error',
-      'timed_out',
+      'site_timed_out',
     ],
     [
       'a name that does not resolve',
