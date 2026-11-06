@@ -9,7 +9,11 @@
  * own scripts with the machine's python3 on synthetic decks, the way its
  * editing guide tells the model to. The scripts parse with defusedxml, which
  * the sandbox image bakes; here a stand-in hands them the standard library's
- * minidom, which builds the same tree for these documents.
+ * minidom, which builds the same tree for these documents. A deck built
+ * with python-pptx loses its slides through `delete_slide`; python-pptx is
+ * not installed here, so stand-ins play the few objects it touches, and the
+ * sandbox image runs the real library (CHAT-F98 checks the result in
+ * PowerPoint).
  */
 
 import { spawnSync } from 'node:child_process';
@@ -44,8 +48,91 @@ const NAMESPACES =
 const REL =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
+/**
+ * Deletes slides of an unpacked deck through delete_slide, the way a
+ * python-pptx program would, with stand-ins for the python-pptx objects it
+ * touches; prints the relationships it dropped and every slide part's name.
+ */
+const PYTHON_PPTX_STAND_IN = `import json
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+from sections import delete_slide
+
+P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+for prefix, uri in {
+    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "r": R[1:-1],
+    "p": P[1:-1],
+    "p14": "${P14}",
+    "p15": "http://schemas.microsoft.com/office/powerpoint/2012/main",
+}.items():
+    ET.register_namespace(prefix, uri)
+
+
+class PackURI(str):
+    pass
+
+
+class Part:
+    def __init__(self, partname):
+        self.partname = PackURI(partname)
+
+
+class PresentationPart:
+    def __init__(self, related):
+        self.related = related
+        self.dropped = []
+
+    def related_part(self, rid):
+        return self.related[rid]
+
+    def drop_rel(self, rid):
+        self.dropped.append(rid)
+        del self.related[rid]
+
+    def rename_slide_parts(self, rids):
+        for number, rid in enumerate(rids, start=1):
+            self.related[rid].partname = PackURI(f"/ppt/slides/slide{number}.xml")
+
+
+class Presentation:
+    def __init__(self, element, part):
+        self.element = element
+        self.part = part
+
+
+class Slide:
+    def __init__(self, part):
+        self.part = part
+
+
+deck = Path(sys.argv[1])
+tree = ET.parse(deck / "ppt" / "presentation.xml")
+rels = ET.parse(deck / "ppt" / "_rels" / "presentation.xml.rels").getroot()
+parts = {
+    rel.get("Id"): Part("/ppt/" + rel.get("Target"))
+    for rel in rels
+    if rel.get("Type").endswith("/slide")
+}
+prs = Presentation(tree.getroot(), PresentationPart(dict(parts)))
+rid_of = {s.get("id"): s.get(R + "id") for s in tree.getroot().iter(P + "sldId")}
+try:
+    for slide_id in sys.argv[2:]:
+        delete_slide(prs, Slide(parts[rid_of[slide_id]]))
+except ValueError as error:
+    print(json.dumps({"error": str(error)}))
+    sys.exit(0)
+tree.write(deck / "ppt" / "presentation.xml", encoding="UTF-8", xml_declaration=True)
+names = {rid: str(part.partname) for rid, part in parts.items()}
+print(json.dumps({"dropped": prs.part.dropped, "parts": names}))
+`;
+
 let root = '';
 let shim = '';
+let standIn = '';
 
 beforeAll(() => {
   const probe = spawnSync(
@@ -69,6 +156,8 @@ beforeAll(() => {
     path.join(shim, 'defusedxml', 'minidom.py'),
     'from xml.dom.minidom import parse, parseString  # noqa: F401\n',
   );
+  standIn = path.join(root, 'python_pptx_stand_in.py');
+  writeFileSync(standIn, PYTHON_PPTX_STAND_IN);
 });
 
 afterAll(() => {
@@ -787,6 +876,111 @@ describe('sections.py on a finished .pptx (built without unpack and clean)', () 
     expect(run('sections.py', file)).toContain('has no sections');
 
     expect(readFileSync(file)).toEqual(before);
+  });
+});
+
+describe('delete_slide, for a deck built with python-pptx', () => {
+  interface Deleted {
+    dropped?: string[];
+    parts?: Record<string, string>;
+    error?: string;
+  }
+
+  function deleteSlides(dir: string, ...ids: string[]): Deleted {
+    const result = python(
+      [standIn, dir, ...ids],
+      `${shim}${path.delimiter}${SCRIPTS}`,
+    );
+    if (result.status !== 0)
+      throw new Error(`delete_slide failed: ${result.stderr}`);
+    return JSON.parse(result.stdout) as Deleted;
+  }
+
+  it('takes a slide out of its section, removes the sections it empties and numbers the slides left', () => {
+    const dir = writeTemplate({ slides: 6, sections: STANDARD, guides: true });
+
+    const deleted = deleteSlides(dir, '257', '261');
+
+    const deck = readUnpacked(dir);
+    expect(deck.order).toEqual(['256', '258', '259', '260']);
+    expect(deck.sections).toEqual([
+      { name: 'Title slides', slides: ['256'] },
+      { name: 'Content slides', slides: ['258', '259'] },
+      { name: 'Closing slides', slides: ['260'] },
+    ]);
+    expect(deck.extensions).toEqual([SECTIONS_EXT, GUIDES_EXT]);
+    expect(deleted.dropped).toEqual(['rId3', 'rId7']);
+    // python-pptx names a new slide's file after the slide count: slide5.xml
+    // is free now, and a slide another slide still links to keeps a name
+    // outside that numbering.
+    expect(deleted.parts).toEqual({
+      rId2: '/ppt/slides/slide1.xml',
+      rId3: '/ppt/slides/deleted-slide257.xml',
+      rId4: '/ppt/slides/slide2.xml',
+      rId5: '/ppt/slides/slide3.xml',
+      rId6: '/ppt/slides/slide4.xml',
+      rId7: '/ppt/slides/deleted-slide261.xml',
+    });
+  });
+
+  it('leaves the next slide python-pptx adds, which takes the deleted slide’s id, to the section of the slide before it', () => {
+    const dir = writeTemplate({ slides: 6, sections: STANDARD });
+    deleteSlides(dir, '261');
+    // python-pptx's next id: the highest in <p:sldIdLst> plus one.
+    setDeck(
+      dir,
+      ['256', '257', '258', '259', '260', '261'],
+      new Map([['261', '<p:sldId id="261" r:id="rId8"/>']]),
+    );
+
+    expect(run('sections.py', dir)).toContain('Updated the sections');
+
+    expect(readUnpacked(dir).sections).toEqual([
+      { name: 'Title slides', slides: ['256'] },
+      { name: 'Agenda', slides: ['257'] },
+      { name: 'Content slides', slides: ['258', '259'] },
+      { name: 'Closing slides', slides: ['260', '261'] },
+    ]);
+  });
+
+  it('removes the section list, and an extension list it leaves empty, with the last sectioned slide', () => {
+    const sections: TemplateSection[] = [
+      { name: 'Title slides', slides: [1] },
+      { name: 'Content slides', slides: [2] },
+    ];
+    const bare = writeTemplate({ slides: 2, sections });
+    const guided = writeTemplate({ slides: 2, sections, guides: true });
+
+    deleteSlides(bare, '256', '257');
+    deleteSlides(guided, '256', '257');
+
+    const xml = readFileSync(presentationOf(bare), 'utf8');
+    expect(readDeck(xml).order).toEqual([]);
+    expect(xml).not.toContain('sectionLst');
+    expect(xml).not.toContain('extLst');
+    expect(readUnpacked(guided).extensions).toEqual([GUIDES_EXT]);
+  });
+
+  it('leaves a section that listed no slide as it was, and refuses a slide no longer in the deck', () => {
+    const dir = writeTemplate({
+      slides: 3,
+      sections: [
+        { name: 'Intro', slides: [1] },
+        { name: 'Draft', slides: [] },
+        { name: 'Main', slides: [2, 3] },
+      ],
+    });
+
+    expect(deleteSlides(dir, '258', '258')).toEqual({
+      error: 'the slide is not in this presentation',
+    });
+    deleteSlides(dir, '258');
+
+    expect(readUnpacked(dir).sections).toEqual([
+      { name: 'Intro', slides: ['256'] },
+      { name: 'Draft', slides: [] },
+      { name: 'Main', slides: ['257'] },
+    ]);
   });
 });
 

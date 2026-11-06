@@ -40,7 +40,19 @@ python scripts/office/unpack.py presentation.pptx unpacked/
 1. Analyze template with `thumbnail.py`
 2. Unpack → manipulate slides → edit content → clean → pack
 
-`clean.py` also brings the template's sections (the named slide groups in PowerPoint's slide panel) in step with the slides you kept and added. Built a deck from a template another way, such as python-pptx? The file still lists the template's sections: run `python scripts/sections.py output.pptx` on the saved file before QA. With python-pptx, add new slides before you delete template slides: a slide added after a deletion can take the deleted slide's id and land in its section.
+`clean.py` also brings the template's sections (the named slide groups in PowerPoint's slide panel) in step with the slides you kept and added. Built a deck from a template another way, such as python-pptx? The file still lists the template's sections: run `python scripts/sections.py output.pptx` on the saved file before QA.
+
+python-pptx cannot delete a slide: delete each one with `delete_slide` from `scripts/sections.py`. A slide removed by hand stays listed in its section, and a slide python-pptx adds later can take its id, and with it that section, or overwrite another slide's file:
+
+```python
+import sys
+
+sys.path.insert(0, "scripts")  # the skill's scripts/ folder
+from sections import delete_slide
+
+for slide in [prs.slides[i] for i in (1, 6, 7)]:  # the slides to drop
+    delete_slide(prs, slide)
+```
 
 ---
 
