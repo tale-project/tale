@@ -151,6 +151,10 @@ const WEB_FETCH_USER_AGENT = 'TaleAssistant/1.0 (+chat web_fetch)';
  * starting pages 20 s before this, and a page gets 20 s to load and 5 s for
  * its network to go idle. */
 const WEB_FETCH_RENDER_EXEC_MS = 60_000;
+/** The longest address a web_fetch result names, as long as the canonical
+ * URL a page may give (`lib/knowledge/main-content.ts`); a redirect can lead
+ * to a longer one. */
+const WEB_FETCH_MAX_URL_CHARS = 2_048;
 
 /** A page web_fetch asked for, and the bot check it still met, if any. */
 interface FetchedPage {
@@ -3028,10 +3032,14 @@ export function createChatToolExecutor(
     // (`offset`/`nextOffset`/`totalChars`) matches rag_fetch exactly.
     const paged = windowText(read.page.text, offset, limit);
     await recordDispatch('web_fetch', 'ok');
+    // The site wrote both: the title outside the untrusted wrapper, as every
+    // tool's title is, cleaned and bounded; the address it led to bounded.
+    const title = read.title !== null ? sanitizeUntrustedField(read.title) : '';
+    const url = sanitizeUntrustedField(read.url, WEB_FETCH_MAX_URL_CHARS);
     return {
       status: 'ok',
-      url: read.url,
-      ...(read.title !== null ? { title: read.title } : {}),
+      url,
+      ...(title !== '' ? { title } : {}),
       // Where the page says it lives, when it was read at another address.
       ...(read.page.canonicalUrl !== null && read.page.canonicalUrl !== read.url
         ? { canonicalUrl: read.page.canonicalUrl }
@@ -3043,10 +3051,7 @@ export function createChatToolExecutor(
       ...(paged.nextOffset !== undefined
         ? { nextOffset: paged.nextOffset }
         : {}),
-      content: wrapUntrusted(paged.content, {
-        tool: 'web_fetch',
-        url: read.url,
-      }),
+      content: wrapUntrusted(paged.content, { tool: 'web_fetch', url }),
     };
   };
 
