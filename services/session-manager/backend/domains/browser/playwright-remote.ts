@@ -6,6 +6,12 @@
 //   page where it was, and a screencast of a still page uses half a core.)
 // * Mouse and keyboard events are replayed in the page. Characters that are
 //   not on a US keyboard are inserted as text.
+// * The browser does mouse events, wheel turns and switches of tabs one after
+//   the other, for all its tabs, and waits for the page to take each one. A
+//   mouse event is never sent to the first or the last row of the page, which
+//   the browser can lose (`pointerPlace`), and one that a page free to take it
+//   has not taken in time is not waited for any longer: what comes after it
+//   is refused, with the reason, until it is done (`#input`).
 // * The browser draws `<select>` lists and dialogs outside the page, where no
 //   picture shows them. A click on a `<select>` is therefore reported as a
 //   `select` event (the client draws the list), and `alert()`, `confirm()`
@@ -117,9 +123,17 @@ interface Clip {
   height: number;
 }
 
+/** A size in CSS pixels. */
+interface Size {
+  width: number;
+  height: number;
+}
+
 /** Where the picture of a page is cut, and whether the page said so or the asking failed (and may be tried again at `at`). */
 interface Room {
   clip: Clip | null;
+  /** The size of the pictures of the page: the room, or its viewport where it has all of it; null while not known. */
+  size: Size | null;
   measured: boolean;
   at: number;
 }
@@ -192,6 +206,14 @@ const PICTURE_RETRY = 1000;
 const NAVIGATION_TIMEOUT = 30_000;
 // A page that waits for an answer to alert() or confirm() answers nothing else.
 const RESPONSE_TIMEOUT = 15_000;
+// A mouse event, a turn of the wheel or a tab coming to the front that the
+// browser has not done in this time is stuck, unless its page is not free: a
+// dialog waits for an answer (the click that opened it returns once it is
+// answered), or a script keeps the page busy (the page does not answer within
+// FREE_TIMEOUT). A page that stays busy for BUSY_GIVE_UP is given up as well.
+const INPUT_TIMEOUT = 5000;
+const FREE_TIMEOUT = 1000;
+const BUSY_GIVE_UP = 60_000;
 // How long a start waits for its pages to begin loading (a slow proxy does not
 // hold it up longer).
 const RESTORE_WAIT = 5000;
@@ -213,6 +235,8 @@ const FALLBACK_VIEWPORT = { width: 1280, height: 720 };
 
 const NOT_RESPONDING =
   'The page does not respond. A dialog (alert, confirm) may be waiting for an answer.';
+const INPUT_STUCK =
+  'The browser has stopped taking the mouse, in every tab: it still waits for a page to take an earlier mouse event. Restart the session to use the mouse again.';
 /** What ends a line: the usual breaks plus U+001C-U+001E, U+0085, U+2028 and U+2029. */
 const LINE_BREAK = /\r\n|[\n\r\v\f\u001c-\u001e\u0085\u2028\u2029]/;
 
@@ -300,6 +324,11 @@ function selectedText(): string {
 
 function viewportSize(): number[] {
   return [window.innerWidth, window.innerHeight];
+}
+
+// What a page answers at once, unless a script keeps it busy.
+function pageIsFree(): boolean {
+  return true;
 }
 
 // The viewport the window reports and the height the page can really use. A
@@ -646,6 +675,33 @@ export function jpegSize(
   return null;
 }
 
+/**
+ * Where a mouse event is sent: the place it is asked for, in the picture of
+ * the page (`size`; null while it is not known) and off its first and last
+ * row. Camoufox rounds the place to a whole pixel of its window before it
+ * looks for what is under it, and the first row of a page can round onto the
+ * toolbar above it (with the fingerprint of Windows or of macOS), the last
+ * one past its end (with the one of Linux). The page never takes such an
+ * event, and the browser, which does every mouse event, wheel turn and switch
+ * of tabs only after the one before, in every tab, waits for it until it
+ * closes. The next row is one pixel away. A drag that leaves the picture goes
+ * on along its edge, where its release still reaches the page.
+ */
+export function pointerPlace(
+  x: number,
+  y: number,
+  size: Size | null,
+): { x: number; y: number } {
+  const clamp = (value: number, low: number, high: number): number =>
+    Math.min(Math.max(value, low), Math.max(high, low));
+  return size === null
+    ? { x: Math.max(x, 0), y: Math.max(y, 1) }
+    : {
+        x: clamp(x, 0, size.width - 1),
+        y: clamp(y, 1, size.height - 2),
+      };
+}
+
 /** How long to rest before the next picture, from what the last ones showed. */
 export function pictureDelay(state: {
   usedLately: boolean;
@@ -848,6 +904,8 @@ export class PlaywrightRemote implements Remote {
   #nextDialogId = 1;
   #attendedUntil = Number.NEGATIVE_INFINITY;
   #refs = new Map<number, PwElement>();
+  /** Input that the browser has not done long after it was due (see `#input`). */
+  readonly #stuckInput = new Set<Promise<unknown>>();
 
   constructor(context: PwContext, options: PlaywrightRemoteOptions) {
     this.#context = context;
@@ -930,9 +988,7 @@ export class PlaywrightRemote implements Remote {
   async activateTab(tab: number): Promise<void> {
     const target = this.#require(tab);
     this.#active = target.id;
-    await ignoringPageErrors('bring a tab to the front', () =>
-      target.page.bringToFront(),
-    );
+    await this.#toFront(target);
     this.#changed();
     this.#saveSoon(this.#saveDelay);
     this.#lastFrame = null; // the next picture is of this tab, whatever the last one was
@@ -960,6 +1016,9 @@ export class PlaywrightRemote implements Remote {
 
   async history(action: HistoryAction, tab?: number | null): Promise<void> {
     const page = this.#require(tab).page;
+    // The browser reloads in the line of the mouse events: behind a stuck one
+    // it would wait, and come as a surprise once that is let go of.
+    if (action === 'reload') this.#refuseWhileStuck();
     const options: { waitUntil: Navigation; timeout: number } = {
       waitUntil: 'commit',
       timeout: NAVIGATION_TIMEOUT,
@@ -1136,11 +1195,25 @@ export class PlaywrightRemote implements Remote {
   }
 
   async #focus(tab: TabState): Promise<void> {
-    await ignoringPageErrors('bring a tab to the front', () =>
-      tab.page.bringToFront(),
-    );
+    await this.#toFront(tab);
     this.#lastFrame = null;
     this.#poke();
+  }
+
+  /**
+   * Brings the page of a tab to the front of the browser. The tab is the
+   * active one all the same when that fails: its page is gone, or the browser
+   * has stopped taking input, which the next mouse event tells.
+   */
+  async #toFront(tab: TabState): Promise<void> {
+    try {
+      await this.#input(tab, () => tab.page.bringToFront());
+    } catch (error) {
+      if (!(error instanceof RemoteError) && !isPlaywrightError(error)) {
+        throw error;
+      }
+      debug(`bring a tab to the front: ${firstLine(error)}`);
+    }
   }
 
   async #load(page: PwPage, url: string): Promise<void> {
@@ -1473,19 +1546,27 @@ export class PlaywrightRemote implements Remote {
    * Where a picture of the page stops: at the room its window has, when that
    * is less than the viewport the page reports (a picture of the reported size
    * has a black bar where the window has nothing to show); `null` when it has
-   * all of it. A window does not change size, so it is asked once for each page
-   * (a window of its own may differ), with its first picture; an answer that
-   * did not come is asked for again after a while.
+   * all of it.
    */
   async #clipOf(page: PwPage): Promise<Clip | null> {
+    return (await this.#roomOf(page)).clip;
+  }
+
+  /**
+   * What the window of a page has room for. A window does not change size, so
+   * it is asked once for each page (a window of its own may differ), with its
+   * first picture or its first mouse event; an answer that did not come is
+   * asked for again after a while.
+   */
+  async #roomOf(page: PwPage): Promise<Room> {
     const known = this.#rooms.get(page);
     if (known !== undefined) {
       const room = await known;
-      if (room.measured || now() - room.at < ROOM_RETRY) return room.clip;
+      if (room.measured || now() - room.at < ROOM_RETRY) return room;
     }
     const asked = this.#measureRoom(page);
     this.#rooms.set(page, asked);
-    return (await asked).clip;
+    return await asked;
   }
 
   async #measureRoom(page: PwPage): Promise<Room> {
@@ -1499,6 +1580,10 @@ export class PlaywrightRemote implements Remote {
         const cut = height >= 1 && height < Math.floor(reported);
         return {
           clip: cut ? { x: 0, y: 0, width: Math.floor(width), height } : null,
+          size: {
+            width: Math.floor(width),
+            height: cut ? height : Math.floor(reported),
+          },
           measured: true,
           at: now(),
         };
@@ -1507,7 +1592,7 @@ export class PlaywrightRemote implements Remote {
       if (!isPlaywrightError(error) && !(error instanceof TimedOut))
         throw error;
     }
-    return { clip: null, measured: false, at: now() };
+    return { clip: null, size: null, measured: false, at: now() };
   }
 
   async #viewport(page: PwPage): Promise<{ width: number; height: number }> {
@@ -1545,11 +1630,110 @@ export class PlaywrightRemote implements Remote {
 
   // -- input ----------------------------------------------------------------------
 
+  /**
+   * Runs input of the tab that the browser does one after the other for all
+   * its tabs: a mouse event, a turn of the wheel, a page brought to the front.
+   * One that is not done in `INPUT_TIMEOUT` while its page is free is stuck
+   * (the browser waits for a page that will not take it), and every one after
+   * it would wait behind it, in every tab: they are refused at once, with the
+   * reason, until it is done after all. The browser lets go of it only when
+   * its page closes. While the page is not free (see `#pageState`) the input is
+   * waited for: it is done once the page is free again.
+   */
+  async #input<T>(tab: TabState, work: () => Promise<T>): Promise<T> {
+    this.#refuseWhileStuck();
+    const call = work();
+    let busySince: number | null = null;
+    for (;;) {
+      try {
+        return await withTimeout(call, INPUT_TIMEOUT);
+      } catch (error) {
+        if (!(error instanceof TimedOut)) throw error;
+      }
+      const state = await this.#pageState(tab);
+      if (state === 'dialog') {
+        busySince = null;
+        continue;
+      }
+      if (state === 'busy') {
+        busySince ??= now();
+        if (now() - busySince < BUSY_GIVE_UP) continue;
+      }
+      if (this.#stuckInput.size === 0) {
+        console.warn(
+          `the browser has stopped taking mouse input: an event was not done ${INPUT_TIMEOUT} ms after its page was free`,
+        );
+      }
+      this.#stuckInput.add(call);
+      void this.#unstuckWhenDone(call);
+      throw new RemoteError(INPUT_STUCK, 'input_stuck');
+    }
+  }
+
+  /** Input that would wait behind a stuck event is refused, with the reason. */
+  #refuseWhileStuck(): void {
+    if (this.#stuckInput.size > 0) {
+      throw new RemoteError(INPUT_STUCK, 'input_stuck');
+    }
+  }
+
+  /**
+   * Whether a page can take input now: `dialog` while a dialog of it waits
+   * for an answer, `busy` while it does not answer (a script keeps it busy, it
+   * navigates or closes), else `free`.
+   */
+  async #pageState(tab: TabState): Promise<'dialog' | 'busy' | 'free'> {
+    for (const pending of this.#dialogs.values()) {
+      if (pending.info.tab === tab.id) return 'dialog';
+    }
+    try {
+      await withTimeout(tab.page.evaluate(pageIsFree), FREE_TIMEOUT);
+      return 'free';
+    } catch (error) {
+      if (error instanceof TimedOut || isPlaywrightError(error)) return 'busy';
+      throw error;
+    }
+  }
+
+  /** Input is taken again once the stuck call is done after all. */
+  async #unstuckWhenDone(call: Promise<unknown>): Promise<void> {
+    try {
+      await call;
+    } catch (error) {
+      debug(`input that was stuck failed: ${firstLine(error)}`);
+    } finally {
+      this.#stuckInput.delete(call);
+    }
+  }
+
+  /**
+   * Where a mouse event of the tab goes (see `pointerPlace`): in the size of
+   * its last picture, the one the viewer aims in, else in the size of the page
+   * as measured.
+   */
+  async #place(
+    tab: TabState,
+    x: number,
+    y: number,
+  ): Promise<{ x: number; y: number }> {
+    const frame = this.#lastFrame;
+    const size =
+      frame?.tab === tab.id
+        ? { width: frame.width, height: frame.height }
+        : (await this.#roomOf(tab.page)).size;
+    return pointerPlace(x, y, size);
+  }
+
   /** Move the mouse there, unless it is there already (every call to the browser costs a few milliseconds). */
   async #moveTo(tab: TabState, x: number, y: number): Promise<void> {
     if (tab.mouseAt?.x !== x || tab.mouseAt.y !== y) {
       tab.mouseAt = { x, y };
-      await tab.page.mouse.move(x, y);
+      try {
+        await this.#input(tab, () => tab.page.mouse.move(x, y));
+      } catch (error) {
+        tab.mouseAt = null; // it is not known where the mouse went
+        throw error;
+      }
     }
   }
 
@@ -1564,21 +1748,24 @@ export class PlaywrightRemote implements Remote {
     const clickCount = options.clicks ?? 1;
     this.#poke();
     try {
+      const at = await this.#place(tab, x, y);
       if (action === 'move') {
-        await this.#moveTo(tab, x, y);
+        await this.#moveTo(tab, at.x, at.y);
       } else if (action === 'down') {
         this.#swallowMouseUp = false; // a new press: the release of an earlier one will not come
-        if (button === 'left' && (await this.#opensMenu(tab, x, y))) {
+        if (button === 'left' && (await this.#opensMenu(tab, at.x, at.y))) {
           this.#swallowMouseUp = true;
           return;
         }
-        await this.#moveTo(tab, x, y);
-        await tab.page.mouse.down({ button, clickCount });
+        await this.#moveTo(tab, at.x, at.y);
+        await this.#input(tab, () =>
+          tab.page.mouse.down({ button, clickCount }),
+        );
       } else if (this.#swallowMouseUp) {
         this.#swallowMouseUp = false;
       } else {
-        await this.#moveTo(tab, x, y);
-        await tab.page.mouse.up({ button, clickCount });
+        await this.#moveTo(tab, at.x, at.y);
+        await this.#input(tab, () => tab.page.mouse.up({ button, clickCount }));
       }
     } catch (error) {
       if (!isPlaywrightError(error)) throw error;
@@ -1591,8 +1778,9 @@ export class PlaywrightRemote implements Remote {
     const tab = this.#require();
     this.#poke();
     try {
-      await this.#moveTo(tab, x, y);
-      await tab.page.mouse.wheel(dx, dy);
+      const at = await this.#place(tab, x, y);
+      await this.#moveTo(tab, at.x, at.y);
+      await this.#input(tab, () => tab.page.mouse.wheel(dx, dy));
     } catch (error) {
       if (!isPlaywrightError(error)) throw error;
       debug(`wheel input failed: ${firstLine(error)}`);
@@ -1633,18 +1821,23 @@ export class PlaywrightRemote implements Remote {
     const button = options.button ?? 'left';
     this.#poke();
     try {
+      const at = await this.#place(tab, x, y);
       const listed =
-        button === 'left' ? await this.#listOptionsAt(tab.page, x, y) : null;
+        button === 'left'
+          ? await this.#listOptionsAt(tab.page, at.x, at.y)
+          : null;
       if (listed !== null) {
         throw new RemoteError(
           `The place ${x.toFixed(0)}, ${y.toFixed(0)} is a drop-down list (${listed}). Clicking it shows nothing: read the page, then choose with type_text, giving the list's element number and the option.`,
         );
       }
-      await this.#moveTo(tab, x, y);
-      await tab.page.mouse.click(x, y, {
-        button,
-        clickCount: options.count ?? 1,
-      });
+      await this.#moveTo(tab, at.x, at.y);
+      await this.#input(tab, () =>
+        tab.page.mouse.click(at.x, at.y, {
+          button,
+          clickCount: options.count ?? 1,
+        }),
+      );
     } catch (error) {
       if (!isPlaywrightError(error)) throw error;
       throw new RemoteError(
@@ -1658,7 +1851,8 @@ export class PlaywrightRemote implements Remote {
     const tab = this.#require();
     this.#poke();
     try {
-      await this.#moveTo(tab, x, y);
+      const at = await this.#place(tab, x, y);
+      await this.#moveTo(tab, at.x, at.y);
     } catch (error) {
       if (!isPlaywrightError(error)) throw error;
       throw new RemoteError(`Could not move the mouse: ${firstLine(error)}`);
@@ -1671,13 +1865,20 @@ export class PlaywrightRemote implements Remote {
     const mouse = tab.page.mouse;
     this.#poke();
     try {
-      await this.#moveTo(tab, x1, y1);
-      await mouse.down();
+      const from = await this.#place(tab, x1, y1);
+      const to = await this.#place(tab, x2, y2);
+      await this.#moveTo(tab, from.x, from.y);
+      await this.#input(tab, () => mouse.down());
+      // Where the mouse ends up is known only once all the moves are done.
+      tab.mouseAt = null;
       try {
-        await mouse.move(x2, y2, { steps: DRAG_STEPS }); // a drag needs the moves in between
-        tab.mouseAt = { x: x2, y: y2 };
+        // A drag needs the moves in between.
+        await this.#input(tab, () =>
+          mouse.move(to.x, to.y, { steps: DRAG_STEPS }),
+        );
+        tab.mouseAt = to;
       } finally {
-        await mouse.up();
+        await this.#input(tab, () => mouse.up());
       }
     } catch (error) {
       if (!isPlaywrightError(error)) throw error;
@@ -2019,6 +2220,8 @@ export class PlaywrightRemote implements Remote {
 
   async clickElement(ref: number): Promise<void> {
     this.#poke();
+    // The click is mouse events too, which would wait behind a stuck one.
+    this.#refuseWhileStuck();
     const tab = this.#activeTab();
     if (tab !== null) tab.mouseAt = null; // the click moves the mouse to the element
     try {

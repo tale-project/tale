@@ -455,6 +455,84 @@ describe('what the viewer does', () => {
     expect(socket.closes).toEqual([]);
   });
 
+  it('tells the viewer once that the browser has stopped taking the mouse, and goes on with the rest', async () => {
+    const { remote, socket, connection } = connect();
+    const stuck = new RemoteError(
+      'The browser has stopped taking the mouse.',
+      'input_stuck',
+    );
+    vi.spyOn(remote, 'mouse').mockRejectedValue(stuck);
+    vi.spyOn(remote, 'wheel').mockRejectedValue(stuck);
+    for (const message of [
+      { t: 'mouse', a: 'move', x: 10, y: 20 },
+      { t: 'mouse', a: 'down', x: 10, y: 20 },
+      { t: 'wheel', x: 10, y: 20, dx: 0, dy: 120 },
+      { t: 'key', a: 'down', k: 'a' },
+      { t: 'mouse', a: 'up', x: 10, y: 20 },
+      { t: 'tab', a: 'activate', id: 99 },
+    ]) {
+      sendJson(connection, message);
+    }
+    await settle(LOOPS * 6);
+    // Every move after the first is refused for the same reason: one notice says it.
+    expect(socket.messagesOf('error')).toEqual([
+      {
+        t: 'error',
+        message: 'The browser has stopped taking the mouse.',
+        notice: 'input_stuck',
+      },
+      { t: 'error', message: 'There is no such tab.', notice: 'tab_gone' },
+    ]);
+    expect(remote.events).toEqual([['key', 'down', 'a']]);
+    expect(socket.closes).toEqual([]);
+  });
+
+  it('tells the viewer again when the mouse stops anew after it worked in between', async () => {
+    const { remote, socket, connection } = connect();
+    const stuck = new RemoteError(
+      'The browser has stopped taking the mouse.',
+      'input_stuck',
+    );
+    vi.spyOn(remote, 'mouse')
+      .mockRejectedValueOnce(stuck)
+      .mockRejectedValueOnce(stuck)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(stuck);
+    for (const x of [1, 2, 3, 4]) {
+      sendJson(connection, { t: 'mouse', a: 'move', x, y: 5 });
+      await settle(LOOPS);
+    }
+    expect(socket.messagesOf('error').map((error) => error.notice)).toEqual([
+      'input_stuck',
+      'input_stuck',
+    ]);
+  });
+
+  it('tells the viewer when a reload waits for a mouse the browser no longer takes, once', async () => {
+    const { remote, socket, connection } = connect();
+    const stuck = new RemoteError(
+      'The browser has stopped taking the mouse.',
+      'input_stuck',
+    );
+    vi.spyOn(remote, 'history').mockRejectedValue(stuck);
+    vi.spyOn(remote, 'mouse').mockRejectedValue(stuck);
+    sendJson(connection, { t: 'go', a: 'reload' });
+    sendJson(connection, { t: 'go', a: 'reload' });
+    await settle(LOOPS * 2);
+    const told = [
+      {
+        t: 'error',
+        message: 'The browser has stopped taking the mouse.',
+        notice: 'input_stuck',
+      },
+    ];
+    expect(socket.messagesOf('error')).toEqual(told);
+    // The mouse that is refused next is refused for the same reason: said already.
+    sendJson(connection, { t: 'mouse', a: 'move', x: 1, y: 2 });
+    await settle(LOOPS);
+    expect(socket.messagesOf('error')).toEqual(told);
+  });
+
   it('answers a list and a dialog at once', async () => {
     const { remote, connection } = connect();
     sendJson(connection, { t: 'pick', token: 7, index: 0 });

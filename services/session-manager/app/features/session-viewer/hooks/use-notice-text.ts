@@ -20,6 +20,7 @@ export function useNoticeText(): (notice: LiveNotice) => string {
       tab_gone: t('notice.tabGone'),
       tab_not_opened: t('notice.tabNotOpened', { detail }),
       key_failed: t('notice.keyFailed', { detail }),
+      input_stuck: t('notice.inputStuck'),
       action_failed: t('notice.actionFailed', { detail }),
     };
     return sentences[code];

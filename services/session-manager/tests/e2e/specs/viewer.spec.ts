@@ -2119,6 +2119,7 @@ test.describe('what the browser could not do', () => {
       'key_failed',
       (detail: string) => fill(t('viewer.notice.keyFailed'), { detail }),
     ],
+    ['input_stuck', () => t('viewer.notice.inputStuck')],
     [
       'action_failed',
       (detail: string) => fill(t('viewer.notice.actionFailed'), { detail }),
@@ -2141,7 +2142,11 @@ test.describe('what the browser could not do', () => {
       const told = notice(page, t('viewer.notice.title'));
       await expect(told).toContainText(sentence(quoted(BROWSER_WORDS)));
       // The browser's own English is a detail where the sentence needs one, never the sentence.
-      if (code === 'address_refused' || code === 'tab_gone') {
+      if (
+        code === 'address_refused' ||
+        code === 'tab_gone' ||
+        code === 'input_stuck'
+      ) {
         await expect(told).not.toContainText(BROWSER_WORDS);
       }
       // Nothing ended: the picture is usable and what is typed goes on to the page.

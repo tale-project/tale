@@ -197,6 +197,12 @@ export class SessionSocket {
   #gone = false;
   /** Set while the sender waits for the socket to take more. */
   #resume: (() => void) | null = null;
+  /**
+   * The viewer was told that the browser has stopped taking the mouse. Every
+   * move after that is refused for the same reason, and saying it once is
+   * enough, until the mouse works again.
+   */
+  #toldInputStuck = false;
 
   constructor(socket: SocketLike, remote: Remote, sessionId: number) {
     this.#socket = socket;
@@ -388,17 +394,30 @@ export class SessionSocket {
   async #run(message: ClientMessage): Promise<void> {
     try {
       await this.#handle(message);
-    } catch (error) {
-      if (!(error instanceof RemoteError)) {
-        this.#fault(error);
-      } else if (!this.#closed && !this.#gone) {
-        this.#queue({
-          t: 'error',
-          message: error.message,
-          notice: error.notice ?? 'action_failed',
-        });
+      if (message.t === 'mouse' || message.t === 'wheel') {
+        this.#toldInputStuck = false; // the mouse works (again)
       }
+    } catch (error) {
+      if (error instanceof RemoteError) this.#refused(error, message.t);
+      else this.#fault(error);
     }
+  }
+
+  /** Tells the viewer what the browser could not do: that it takes no mouse, once. */
+  #refused(error: RemoteError, what: string): void {
+    if (this.#closed || this.#gone) return;
+    if (error.notice === 'input_stuck') {
+      if (this.#toldInputStuck) {
+        debug(`ignored ${what}: the browser takes no mouse`);
+        return;
+      }
+      this.#toldInputStuck = true;
+    }
+    this.#queue({
+      t: 'error',
+      message: error.message,
+      notice: error.notice ?? 'action_failed',
+    });
   }
 
   // -- the client's messages -------------------------------------------------------
@@ -512,11 +531,14 @@ export class SessionSocket {
     try {
       await work;
     } catch (error) {
-      // The page shows its own error when a navigation fails.
-      if (error instanceof RemoteError) {
-        debug(`a navigation failed: ${error.message}`);
-      } else {
+      if (!(error instanceof RemoteError)) {
         this.#fault(error);
+      } else if (error.notice === 'input_stuck') {
+        // A reload waits for the mouse, which the browser no longer takes.
+        this.#refused(error, 'a reload');
+      } else {
+        // The page shows its own error when a navigation fails.
+        debug(`a navigation failed: ${error.message}`);
       }
     }
   }

@@ -65,6 +65,7 @@ notice:
   tabGone: Cet onglet est déjà fermé.
   tabNotOpened: "Impossible d'ouvrir un nouvel onglet : {detail}."
   keyFailed: "Impossible d'envoyer cette touche à la page : {detail}."
+  inputStuck: Le navigateur ne réagit plus à la souris dans aucun onglet. Redémarre la session pour utiliser de nouveau la souris.
   actionFailed: "Le navigateur indique : {detail}."
   pasteCutTitle: Impossible de coller tout le texte
   pasteCut: Tu peux coller au maximum {max, number} caractères à la fois. Le reste a été ignoré.
