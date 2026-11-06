@@ -15,7 +15,8 @@ This script removes:
 - Content-Type overrides for deleted files
 
 It also brings the slide sections in step with sldIdLst (see sections.py):
-deleted slides leave their sections, new slides join one, empty sections go.
+deleted slides leave their sections, new slides join one, the sections this
+leaves empty go.
 """
 
 import sys

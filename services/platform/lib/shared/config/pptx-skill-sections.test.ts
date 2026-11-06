@@ -123,13 +123,17 @@ function writeTemplate(template: Template): string {
         .map(
           (section, i) => `
         <p14:section name="${section.name}" id="{${String(i + 1).padStart(8, '0')}-AAAA-4BBB-8CCC-${String(i + 1).padStart(12, '0')}}">
-          <p14:sldIdLst>${section.slides
-            .map(
-              (n) => `
+          ${
+            section.slides.length
+              ? `<p14:sldIdLst>${section.slides
+                  .map(
+                    (n) => `
             <p14:sldId id="${slideId(n)}"/>`,
-            )
-            .join('')}
-          </p14:sldIdLst>
+                  )
+                  .join('')}
+          </p14:sldIdLst>`
+              : '<p14:sldIdLst/>'
+          }
         </p14:section>`,
         )
         .join('')}
@@ -539,6 +543,70 @@ describe('the pptx skill keeps a template deck’s sections in step with its sli
 
     expect(readFileSync(presentationOf(dir))).toEqual(once);
     expect(stdout).toContain('already match');
+  });
+
+  // Someone's own deck, edited for its text: an empty section there is a
+  // placeholder they made, not one a deletion left behind.
+  const OWN_DECK: TemplateSection[] = [
+    { name: 'Intro', slides: [1] },
+    { name: 'Draft', slides: [] },
+    { name: 'Main', slides: [2, 3] },
+  ];
+
+  it('leaves sections that already match the slides byte for byte, an empty one included', () => {
+    const dir = writeTemplate({ slides: 3, sections: OWN_DECK });
+    const before = readFileSync(presentationOf(dir));
+
+    const stdout = run('clean.py', dir);
+
+    expect(readFileSync(presentationOf(dir))).toEqual(before);
+    expect(stdout).not.toContain('sections');
+    expect(run('sections.py', dir)).toContain('already match');
+    expect(readFileSync(presentationOf(dir))).toEqual(before);
+  });
+
+  it('keeps a section that listed no slide after the section it followed, and removes the ones a deletion empties', () => {
+    const dir = writeTemplate({
+      slides: 4,
+      sections: [...OWN_DECK, { name: 'Old', slides: [4] }],
+    });
+    setDeck(dir, ['256', '257']);
+
+    run('clean.py', dir);
+
+    expect(readUnpacked(dir).sections).toEqual([
+      { name: 'Intro', slides: ['256'] },
+      { name: 'Draft', slides: [] },
+      { name: 'Main', slides: ['257'] },
+    ]);
+
+    setDeck(dir, ['257', '256']);
+    run('clean.py', dir);
+
+    expect(readUnpacked(dir).sections).toEqual([
+      { name: 'Main', slides: ['257'] },
+      { name: 'Intro', slides: ['256'] },
+      { name: 'Draft', slides: [] },
+    ]);
+  });
+
+  it('keeps a slide that two sections list in the first of them', () => {
+    const dir = writeTemplate({
+      slides: 3,
+      sections: [
+        { name: 'Intro', slides: [1, 2] },
+        { name: 'Main', slides: [2, 3] },
+      ],
+    });
+
+    run('clean.py', dir);
+
+    const deck = readUnpacked(dir);
+    expect(deck.sections).toEqual([
+      { name: 'Intro', slides: ['256', '257'] },
+      { name: 'Main', slides: ['258'] },
+    ]);
+    expectOneRunPerSection(deck);
   });
 });
 

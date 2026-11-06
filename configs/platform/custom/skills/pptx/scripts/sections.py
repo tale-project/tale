@@ -10,6 +10,8 @@ A template's sections (p14:sectionLst in ppt/presentation.xml) keep listing
 slides after they leave <p:sldIdLst> and know nothing of slides added since,
 so PowerPoint shows the template's sections empty and the new slides outside
 them. This script:
+- Changes nothing while every slide is listed once, in deck order, and no
+  section lists a slide that is gone
 - Drops section entries for slides no longer in <p:sldIdLst>
 - Puts a slide that is in no section into the section of the slide before it
   (slides ahead of every sectioned slide into the first section that still
@@ -18,8 +20,9 @@ them. This script:
   slides sit together, and its slides elsewhere join the section of the
   slide before them (of the slide after them, at the start of the deck)
 - Orders the sections, and the slides in each, as <p:sldIdLst> orders them
-- Removes empty sections, and the whole section list when no slide is left in
-  one
+- Removes the sections it leaves empty, and the whole section list when no
+  slide is left in one. A section that listed no slide before is kept, after
+  the section it followed
 
 clean.py runs this on an unpacked directory. Run it yourself on a finished
 .pptx built another way (python-pptx on a template, for instance). A deck
@@ -131,6 +134,8 @@ def _reconcile(section_lst, order: list[str]) -> bool:
         [entry.getAttribute("id") for entry in _entries(section)]
         for section in sections
     ]
+    if [slide_id for slide_ids in listed for slide_id in slide_ids] == order:
+        return False
 
     in_deck = set(order)
     owner = {}
@@ -144,14 +149,17 @@ def _reconcile(section_lst, order: list[str]) -> bool:
         _remove_section_list(section_lst)
         return True
 
-    if [(sections[index], slide_ids) for index, slide_ids in runs] == list(
-        zip(sections, listed, strict=True)
-    ):
-        return False
+    # A section that listed no slide was empty on purpose (a placeholder in
+    # someone's own deck): keep it after the section it followed.
+    kept = [index for index, _ in runs]
+    for index, slide_ids in enumerate(listed):
+        if not slide_ids:
+            before = next((p for p in range(index - 1, -1, -1) if p in kept), None)
+            kept.insert(0 if before is None else kept.index(before) + 1, index)
 
     for index, slide_ids in runs:
         _set_slide_ids(sections[index], slide_ids)
-    _replace_children(section_lst, [sections[index] for index, _ in runs])
+    _replace_children(section_lst, [sections[index] for index in kept])
     return True
 
 
