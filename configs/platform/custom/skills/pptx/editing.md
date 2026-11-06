@@ -32,7 +32,7 @@ When using an existing presentation as a template:
 
 4. **Build presentation** (do this yourself, not with subagents):
    - Delete unwanted slides (remove from `<p:sldIdLst>`). A corporate template's instruction, "toolbox" and "how to use this template" slides are scaffolding for its users, not content: delete them unless the user asks to keep them; `clean.py` then removes their sections
-   - Duplicate slides you want to reuse (`add_slide.py`)
+   - Duplicate slides you want to reuse (`add_slide.py`). A copy is listed in its source's section: when you place it elsewhere, such as a toolbox slide copied for its shapes, move its `<p14:sldId>` into the section of the slides around it
    - Reorder slides in `<p:sldIdLst>`
    - **Complete all structural changes before step 5**
 
@@ -71,7 +71,7 @@ python scripts/add_slide.py unpacked/ slide2.xml      # Duplicate slide
 python scripts/add_slide.py unpacked/ slideLayout2.xml # From layout
 ```
 
-Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position. Each new slide gets its own id, also when you add several before inserting their `<p:sldId>` elements. A duplicate is listed in its source slide's section, right after it; put its `<p:sldId>` right after the source's to keep it there.
+Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position. Each new slide gets its own id, also when you add several before inserting their `<p:sldId>` elements. A duplicate is listed in its source slide's section, right after it; put its `<p:sldId>` right after the source's to keep it there. Placing it anywhere else, such as a toolbox or instruction slide copied for its layout and used among the content slides? Move the `<p14:sldId>` it prints, in `ppt/presentation.xml`, into the section of the slides around it. Left in place, the copy keeps the toolbox section in the deck, and a slide after it can end up in that section.
 
 ### clean.py
 

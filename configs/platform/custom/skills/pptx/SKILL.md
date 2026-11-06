@@ -188,7 +188,7 @@ A deck built from a template keeps the template's sections. Check them on the fi
 python scripts/sections.py output.pptx
 ```
 
-It brings sections that are out of step with the slides back in step, then lists each section with its slide numbers. Check every section against the slides it holds: no section is left from the template's instruction or toolbox slides, and no slide sits in a section that does not fit it. Fix the deck and run it again until the list is right.
+It brings sections that are out of step with the slides back in step, then lists each section with its slide numbers. Check every section against the slides it holds: no section is left from the template's instruction or toolbox slides, and no slide sits in a section that does not fit it (a copy of a toolbox slide keeps the toolbox section unless its `<p14:sldId>` was moved; see [editing.md](editing.md)). Fix the deck and run it again until the list is right.
 
 ### Visual QA
 

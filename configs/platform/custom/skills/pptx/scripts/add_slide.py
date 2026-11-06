@@ -16,7 +16,8 @@ Examples:
 To see available layouts: ls unpacked/ppt/slideLayouts/
 
 Prints the <p:sldId> element to add to presentation.xml. A duplicated slide
-joins the section of its source, listed right after it.
+joins the section of its source, listed right after it; placed elsewhere, its
+section entry has to move to the section of the slides around it.
 
 Every slide gets an id no other slide or section entry holds, also when
 several are added before their <p:sldId> elements go into <p:sldIdLst>.
@@ -134,14 +135,19 @@ def duplicate_slide(unpacked_dir: Path, source: str) -> None:
     _add_to_content_types(unpacked_dir, dest)
 
     rid = _add_to_presentation_rels(unpacked_dir, dest, slide_id)
-    section = add_after_source(unpacked_dir, source, slide_id)
+    listed = add_after_source(unpacked_dir, source, slide_id)
 
     print(f"Created {dest} from {source}")
     print(
         f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{slide_id}" r:id="{rid}"/>'
     )
-    if section is not None:
+    if listed is not None:
+        section, entry = listed
         print(f'Listed it in section "{section}" right after {source}')
+        print(
+            f"Placing it anywhere else? Move {entry} in presentation.xml into the"
+            " section of the slides around it"
+        )
 
 
 def _add_to_content_types(unpacked_dir: Path, dest: str) -> None:
