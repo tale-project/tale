@@ -17,6 +17,9 @@ To see available layouts: ls unpacked/ppt/slideLayouts/
 
 Prints the <p:sldId> element to add to presentation.xml. A duplicated slide
 joins the section of its source, listed right after it.
+
+Every slide gets an id no other slide or section entry holds, also when
+several are added before their <p:sldId> elements go into <p:sldIdLst>.
 """
 
 import re
@@ -24,7 +27,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from sections import add_after_source
+from sections import add_after_source, next_slide_id
 
 
 def get_next_slide_number(slides_dir: Path) -> int:
@@ -46,6 +49,7 @@ def create_slide_from_layout(unpacked_dir: Path, layout_file: str) -> None:
         print(f"Error: {layout_path} not found", file=sys.stderr)
         sys.exit(1)
 
+    slide_id = next_slide_id(unpacked_dir)
     next_num = get_next_slide_number(slides_dir)
     dest = f"slide{next_num}.xml"
     dest_slide = slides_dir / dest
@@ -85,13 +89,11 @@ def create_slide_from_layout(unpacked_dir: Path, layout_file: str) -> None:
 
     _add_to_content_types(unpacked_dir, dest)
 
-    rid = _add_to_presentation_rels(unpacked_dir, dest)
-
-    next_slide_id = _get_next_slide_id(unpacked_dir)
+    rid = _add_to_presentation_rels(unpacked_dir, dest, slide_id)
 
     print(f"Created {dest} from {layout_file}")
     print(
-        f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{next_slide_id}" r:id="{rid}"/>'
+        f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{slide_id}" r:id="{rid}"/>'
     )
 
 
@@ -105,6 +107,7 @@ def duplicate_slide(unpacked_dir: Path, source: str) -> None:
         print(f"Error: {source_slide} not found", file=sys.stderr)
         sys.exit(1)
 
+    slide_id = next_slide_id(unpacked_dir)
     next_num = get_next_slide_number(slides_dir)
     dest = f"slide{next_num}.xml"
     dest_slide = slides_dir / dest
@@ -127,14 +130,12 @@ def duplicate_slide(unpacked_dir: Path, source: str) -> None:
 
     _add_to_content_types(unpacked_dir, dest)
 
-    rid = _add_to_presentation_rels(unpacked_dir, dest)
-
-    next_slide_id = _get_next_slide_id(unpacked_dir)
-    section = add_after_source(unpacked_dir, source, next_slide_id)
+    rid = _add_to_presentation_rels(unpacked_dir, dest, slide_id)
+    section = add_after_source(unpacked_dir, source, slide_id)
 
     print(f"Created {dest} from {source}")
     print(
-        f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{next_slide_id}" r:id="{rid}"/>'
+        f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{slide_id}" r:id="{rid}"/>'
     )
     if section is not None:
         print(f'Listed it in section "{section}" right after {source}')
@@ -151,13 +152,13 @@ def _add_to_content_types(unpacked_dir: Path, dest: str) -> None:
         content_types_path.write_text(content_types, encoding="utf-8")
 
 
-def _add_to_presentation_rels(unpacked_dir: Path, dest: str) -> str:
+def _add_to_presentation_rels(unpacked_dir: Path, dest: str, slide_id: int) -> str:
     pres_rels_path = unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels"
     pres_rels = pres_rels_path.read_text(encoding="utf-8")
 
-    rids = [int(m) for m in re.findall(r'Id="rId(\d+)"', pres_rels)]
-    next_rid = max(rids) + 1 if rids else 1
-    rid = f"rId{next_rid}"
+    # Named after the slide's id: next_slide_id reads the ids of slides whose
+    # <p:sldId> is not in <p:sldIdLst> yet back from their relationships.
+    rid = f"rId{slide_id}"
 
     new_rel = f'<Relationship Id="{rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/{dest}"/>'
 
@@ -168,15 +169,6 @@ def _add_to_presentation_rels(unpacked_dir: Path, dest: str) -> str:
         pres_rels_path.write_text(pres_rels, encoding="utf-8")
 
     return rid
-
-
-def _get_next_slide_id(unpacked_dir: Path) -> int:
-    pres_path = unpacked_dir / "ppt" / "presentation.xml"
-    pres_content = pres_path.read_text(encoding="utf-8")
-    slide_ids = [
-        int(m) for m in re.findall(r'<(?:p|p14):sldId\b[^>]*\bid="(\d+)"', pres_content)
-    ]
-    return max(slide_ids) + 1 if slide_ids else 256
 
 
 def parse_source(source: str) -> tuple[str, str | None]:

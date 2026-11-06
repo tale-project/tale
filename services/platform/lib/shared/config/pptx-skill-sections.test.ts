@@ -104,6 +104,8 @@ interface Template {
   sections?: TemplateSection[];
   /** Another presentation extension the sections must leave alone. */
   guides?: boolean;
+  /** The section list's prefix (`p14` unless given); '' makes it the default namespace. */
+  sectionPrefix?: string;
 }
 
 const slideId = (n: number) => String(255 + n);
@@ -116,28 +118,30 @@ function writeTemplate(template: Template): string {
     writeFileSync(path.join(dir, name), content);
   };
 
+  const prefix = template.sectionPrefix ?? 'p14';
+  const tag = (name: string) => (prefix ? `${prefix}:${name}` : name);
   const sectionsExt = template.sections
     ? `
     <p:ext uri="${SECTIONS_EXT}">
-      <p14:sectionLst xmlns:p14="${P14}">${template.sections
+      <${tag('sectionLst')} ${prefix ? `xmlns:${prefix}` : 'xmlns'}="${P14}">${template.sections
         .map(
           (section, i) => `
-        <p14:section name="${section.name}" id="{${String(i + 1).padStart(8, '0')}-AAAA-4BBB-8CCC-${String(i + 1).padStart(12, '0')}}">
+        <${tag('section')} name="${section.name}" id="{${String(i + 1).padStart(8, '0')}-AAAA-4BBB-8CCC-${String(i + 1).padStart(12, '0')}}">
           ${
             section.slides.length
-              ? `<p14:sldIdLst>${section.slides
+              ? `<${tag('sldIdLst')}>${section.slides
                   .map(
                     (n) => `
-            <p14:sldId id="${slideId(n)}"/>`,
+            <${tag('sldId')} id="${slideId(n)}"/>`,
                   )
                   .join('')}
-          </p14:sldIdLst>`
-              : '<p14:sldIdLst/>'
+          </${tag('sldIdLst')}>`
+              : `<${tag('sldIdLst')}/>`
           }
-        </p14:section>`,
+        </${tag('section')}>`,
         )
         .join('')}
-      </p14:sectionLst>
+      </${tag('sectionLst')}>
     </p:ext>`
     : '';
   const guidesExt = template.guides
@@ -607,6 +611,80 @@ describe('the pptx skill keeps a template deck’s sections in step with its sli
       { name: 'Main', slides: ['258'] },
     ]);
     expectOneRunPerSection(deck);
+  });
+
+  it.each([
+    ['another prefix', 'q14'],
+    ['the default namespace', ''],
+  ])(
+    'reads a section list written with %s, and never hands out an id it lists',
+    (_, sectionPrefix) => {
+      const dir = writeTemplate({
+        slides: 6,
+        sections: STANDARD,
+        sectionPrefix,
+      });
+      const kept = ['256', '257', '258', '259', '260'];
+      setDeck(dir, kept);
+
+      const added = addSlide(dir, 'slideLayout1.xml');
+
+      expect(added.id).toBe('262');
+      setDeck(dir, [...kept, added.id], new Map([[added.id, added.entry]]));
+      run('clean.py', dir);
+      expect(readUnpacked(dir).sections).toEqual([
+        { name: 'Title slides', slides: ['256'] },
+        { name: 'Agenda', slides: ['257'] },
+        { name: 'Content slides', slides: ['258', '259'] },
+        { name: 'Closing slides', slides: ['260', added.id] },
+      ]);
+      expect(readFileSync(presentationOf(dir), 'utf8')).toContain(
+        sectionPrefix
+          ? `<${sectionPrefix}:sectionLst xmlns:${sectionPrefix}="${P14}">`
+          : `<sectionLst xmlns="${P14}">`,
+      );
+    },
+  );
+
+  it('gives every slide added before its <p:sldId> goes in an id of its own', () => {
+    const dir = writeTemplate({ slides: 6, sections: STANDARD });
+
+    const first = addSlide(dir, 'slideLayout1.xml');
+    const second = addSlide(dir, 'slideLayout1.xml');
+    const copy = addSlide(dir, 'slide4.xml');
+    const third = addSlide(dir, 'slideLayout1.xml');
+
+    expect([first, second, copy, third].map((added) => added.entry)).toEqual([
+      '<p:sldId id="262" r:id="rId262"/>',
+      '<p:sldId id="263" r:id="rId263"/>',
+      '<p:sldId id="264" r:id="rId264"/>',
+      '<p:sldId id="265" r:id="rId265"/>',
+    ]);
+    setDeck(
+      dir,
+      [
+        '256',
+        '257',
+        '258',
+        '259',
+        copy.id,
+        first.id,
+        second.id,
+        '260',
+        third.id,
+      ],
+      new Map([first, second, copy, third].map((a) => [a.id, a.entry])),
+    );
+    run('clean.py', dir);
+    expect(readUnpacked(dir).sections).toEqual([
+      { name: 'Title slides', slides: ['256'] },
+      { name: 'Agenda', slides: ['257'] },
+      {
+        name: 'Content slides',
+        slides: ['258', '259', copy.id, first.id, second.id],
+      },
+      { name: 'Closing slides', slides: ['260', third.id] },
+    ]);
   });
 });
 

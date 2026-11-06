@@ -71,7 +71,7 @@ python scripts/add_slide.py unpacked/ slide2.xml      # Duplicate slide
 python scripts/add_slide.py unpacked/ slideLayout2.xml # From layout
 ```
 
-Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position. A duplicate is listed in its source slide's section, right after it; put its `<p:sldId>` right after the source's to keep it there.
+Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position. Each new slide gets its own id, also when you add several before inserting their `<p:sldId>` elements. A duplicate is listed in its source slide's section, right after it; put its `<p:sldId>` right after the source's to keep it there.
 
 ### clean.py
 
