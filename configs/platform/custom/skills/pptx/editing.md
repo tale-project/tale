@@ -79,7 +79,7 @@ Prints `<p:sldId>` to add to `<p:sldIdLst>` at desired position. A duplicate is 
 python scripts/clean.py unpacked/
 ```
 
-Removes slides not in `<p:sldIdLst>`, unreferenced media, orphaned rels. Then brings the template's sections (`<p14:sectionLst>` in `ppt/presentation.xml`) in step with the slides: deleted slides leave their sections, a slide in no section joins the section of the slide before it, each section stays one run of slides in deck order, and empty sections are removed (the whole list when no slide is left in one).
+Removes slides not in `<p:sldIdLst>`, unreferenced media, orphaned rels. Then brings the template's sections (`<p14:sectionLst>` in `ppt/presentation.xml`) in step with the slides: deleted slides leave their sections, a slide in no section joins the section of the slide before it, each section stays one run of slides in deck order, and the sections this leaves empty are removed (the whole list when no slide is left in one). A section that held no slide before is kept, and sections that already match the slides are left as they are.
 
 ### sections.py
 
