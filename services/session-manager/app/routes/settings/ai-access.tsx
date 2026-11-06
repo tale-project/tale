@@ -17,5 +17,9 @@ export const Route = createFileRoute('/settings/ai-access')({
       },
     ),
   head: () => pageHead(i18n.t('settings:pages.aiAccess.title')),
+  // A page TanStack Router draws while its loader still waits suspends only
+  // itself: see `routes/sessions/$sessionId.tsx`.
+  wrapInSuspense: true,
+  pendingMinMs: 0,
   component: AiAccessPage,
 });

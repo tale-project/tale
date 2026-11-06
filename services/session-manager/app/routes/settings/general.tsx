@@ -20,5 +20,9 @@ export const Route = createFileRoute('/settings/general')({
   // The page's own name, as the platform's flat settings pages are titled; the
   // page itself is "General", which says nothing in a tab.
   head: () => pageHead(i18n.t('settings:pages.general.documentTitle')),
+  // A page TanStack Router draws while its loader still waits suspends only
+  // itself: see `routes/sessions/$sessionId.tsx`.
+  wrapInSuspense: true,
+  pendingMinMs: 0,
   component: GeneralPage,
 });
