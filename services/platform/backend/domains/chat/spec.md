@@ -551,7 +551,8 @@ The model reads the same cause, and whether trying again can help.
   file it was, the limit it broke and that trying again will not help.
 - **Example**: Mia, who reads Tale in German, asks about a page whose site's bot protection
   keeps even a browser out → the step reads, in German, that the site's bot protection didn't
-  let the browser through, and the reply gives the link to open in a browser.
+  let the browser through, opened it says the same instead of the tool's English, and the reply
+  gives the link to open in a browser.
 
 ### CHAT-R31 · The assistant can start from a picture the person attached
 

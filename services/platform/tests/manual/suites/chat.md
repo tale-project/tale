@@ -748,8 +748,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   of the same title. Stop the spawner and ask about another notice → under
   **Liest ted.europa.eu** (`chat.thinking.reading`) a red line reads **Die
   Seite konnte nicht im Browser geöffnet werden**
-  (`chat.thinking.outcome.renderFailed`); the expanded step shows what the
-  tool met, not an instruction; and the German reply says the site keeps
+  (`chat.thinking.outcome.renderFailed`); the expanded step shows the
+  address and the same German line, not the tool's English; and the German
+  reply says the site keeps
   automated readers out, gives the link and offers to read pasted text or an
   attached PDF, without guessing what the notice says.
 
