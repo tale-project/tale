@@ -2,6 +2,7 @@ import { queryOptions, type QueryClient } from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import {
+  CHAT_MESSAGE_HINT_ENTITY,
   DEFERRED_SEND_HINT_ENTITY,
   VIDEO_LINK_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
@@ -447,7 +448,7 @@ export function invalidateChatThreads(
 /** One thread's messages — the rows already carry the view shape. */
 export function chatMessagesQuery(organizationId: string, threadId: string) {
   return queryOptions({
-    queryKey: backendKey(organizationId, 'chat_message', threadId),
+    queryKey: backendKey(organizationId, CHAT_MESSAGE_HINT_ENTITY, threadId),
     queryFn: ({ signal }) =>
       backendFetch<{ messages: unknown[] }>(
         `/chat/threads/${encodeURIComponent(threadId)}/messages`,
@@ -758,7 +759,7 @@ export function invalidateChatMessages(
   threadId: string,
 ): void {
   void queryClient.invalidateQueries({
-    queryKey: backendKey(organizationId, 'chat_message', threadId),
+    queryKey: backendKey(organizationId, CHAT_MESSAGE_HINT_ENTITY, threadId),
   });
   void queryClient.invalidateQueries({
     queryKey: backendKey(organizationId, DEFERRED_SEND_HINT_ENTITY, threadId),
