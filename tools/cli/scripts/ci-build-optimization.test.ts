@@ -176,10 +176,86 @@ const outputs = (text: string) =>
       }),
   );
 
+/** Whether `promise` settles within `ms` milliseconds. */
+async function settles(promise: Promise<unknown>, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise.then(() => true),
+      new Promise<false>((settle) => {
+        timer = setTimeout(() => settle(false), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function signal(pid: number, name: NodeJS.Signals) {
+  try {
+    process.kill(pid, name);
+  } catch (error) {
+    // It may have exited since `ps` listed it.
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+  }
+}
+
+/** What `ps` lists for the processes of `group`, one row each. */
+function members(group: number) {
+  try {
+    return Bun.spawnSync(
+      ['ps', '-A', '-o', 'pid=,ppid=,pgid=,stat=,etime=,args='],
+      { timeout: 2_000 },
+    )
+      .stdout.toString()
+      .split('\n')
+      .map((row) => row.trim())
+      .filter((row) => row.split(/\s+/)[2] === String(group));
+  } catch (error) {
+    // Without `ps` the group is still killed; the report lists no process.
+    console.warn(`Could not list process group ${group}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Kills the process group of a script that outlived its deadline and says
+ * what it was waiting on: the group's processes, then its output after each
+ * process no other one waits on got SIGQUIT, on which Go programs such as
+ * docker and its plugins print every goroutine's stack (Bash ignores it).
+ */
+async function reap(
+  group: number,
+  deadline: number,
+  done: Promise<[number, string, string]>,
+) {
+  const rows = members(group);
+  try {
+    const fields = rows.map((row) => row.split(/\s+/));
+    const parents = new Set(fields.map(([, parent]) => parent));
+    for (const [pid] of fields)
+      if (!parents.has(pid)) signal(Number(pid), 'SIGQUIT');
+    await Bun.sleep(2_000);
+  } finally {
+    signal(-group, 'SIGKILL');
+  }
+  const settled = await Promise.race([done, Bun.sleep(2_000)]);
+  return [
+    `The script did not finish within ${deadline / 1000} s, so its process group was killed.`,
+    'Its processes at the deadline (pid ppid pgid stat elapsed command):',
+    ...rows,
+    'Its stdout and stderr:',
+    settled
+      ? settled[1] + settled[2]
+      : '(still open after the kill, so not read)',
+  ].join('\n');
+}
+
 async function execute(
   script: string,
   env: Record<string, string> = {},
   cwd?: string,
+  deadline?: number,
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'tale-build-ci-'));
   directories.push(directory);
@@ -200,12 +276,18 @@ async function execute(
     },
     stdout: 'pipe',
     stderr: 'pipe',
+    // Its own process group, which every command the script starts joins, so
+    // that a deadline can kill them all.
+    detached: deadline !== undefined,
   });
-  const [code, stdout, stderr] = await Promise.all([
+  const done = Promise.all([
     child.exited,
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ]);
+  if (deadline !== undefined && !(await settles(done, deadline)))
+    throw new Error(await reap(child.pid, deadline, done));
+  const [code, stdout, stderr] = await done;
   return {
     code,
     stdout,
@@ -483,8 +565,16 @@ test.skipIf(process.platform === 'win32' || !Bun.which('docker'))(
       {
         SERVICE: 'web',
         RUNNER_TEMP: directory,
+        // The plan needs no daemon. A socket that does not exist fails
+        // Compose's daemon lookups at once, where a daemon that does not
+        // answer holds them for about 2 s, and it outranks a configured
+        // context that would dial another host.
+        DOCKER_HOST: `unix://${join(directory, 'absent.sock')}`,
       },
       directory,
+      // docker waits on Compose, and Compose on buildx's metadata, with no
+      // timeout of their own: a stall fails here and names its process.
+      40_000,
     );
     expect(result.code, result.stdout + result.stderr).toBe(0);
     const plan = JSON.parse(
@@ -500,6 +590,7 @@ test.skipIf(process.platform === 'win32' || !Bun.which('docker'))(
     });
     expect(plan.target.web.dockerfile).toEndWith('Custom.Dockerfile');
   },
+  50_000,
 );
 
 test.skipIf(process.platform === 'win32')(
