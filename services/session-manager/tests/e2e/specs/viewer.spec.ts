@@ -4768,6 +4768,43 @@ test.describe('the session around the stage', () => {
     expect(mouseOf(await viewer.fake.events())).toEqual([]);
   });
 
+  test('the address bar stays where it is while another session of the list connects, and when its tabs come', async ({
+    page,
+    api,
+    control,
+  }) => {
+    const alpha = await api.startSession('alpha');
+    const beta = await api.startSession('beta');
+    // Every connection waits until it is released (the route must be there
+    // before the page loads: the next session's comes without a load).
+    const held = await holdLiveView(page);
+    const connecting = page
+      .getByRole('status')
+      .filter({ hasText: t('viewer.stage.connecting') })
+      .first();
+    const socketOf = (session: Session) =>
+      new RegExp(`/api/sessions/${session.id}/stream$`);
+    const viewer = await visitViewer(page, control, alpha);
+    await expect.poll(() => held.url()).toMatch(socketOf(alpha));
+    held.release();
+    await expect(viewer.picture).toBeVisible({ timeout: TIMEOUT.PICTURE });
+    const address = await boxOf(viewer.address);
+
+    // The connection of the next session answers nothing yet: what stands in
+    // for its tabs keeps their place.
+    await page.getByRole('link', { name: literally(beta.name) }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: beta.name }),
+    ).toBeVisible();
+    await expect(connecting).toBeVisible();
+    await expect.poll(() => held.url()).toMatch(socketOf(beta));
+    expect(await boxOf(viewer.address)).toEqual(address);
+
+    held.release();
+    await expect(viewer.picture).toBeVisible({ timeout: TIMEOUT.PICTURE });
+    expect(await boxOf(viewer.address)).toEqual(address);
+  });
+
   for (const address of ['abc', '99999', '0', '-1', '1.5', '007']) {
     test(`/sessions/${address} says that there is no such session`, async ({
       page,
