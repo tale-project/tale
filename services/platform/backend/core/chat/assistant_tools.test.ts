@@ -1825,6 +1825,34 @@ describe('web_fetch reads a page for its content', () => {
     expect(renderUrlsMock).toHaveBeenCalledTimes(2);
   });
 
+  it("reads an article that quotes AWS WAF's challenge page as the article, never rendering it", async () => {
+    const url = 'https://blog.example.com/aws-waf-challenge';
+    const quoted = recorded('aws-waf-challenge')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+    renderUrlsMock.mockReset();
+    safeFetchMock.mockResolvedValueOnce(
+      answer(
+        200,
+        `<html><head><title>What AWS WAF's challenge page does</title></head><body><main><h1>What AWS WAF's challenge page does</h1><p>A client without a token is answered 202, with this page:</p><pre><code>${quoted}</code></pre><p>Its script reloads the page once it holds a token.</p></main></body></html>`,
+        url,
+      ),
+    );
+
+    const { result } = await fetchPage(url);
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url,
+      title: "What AWS WAF's challenge page does",
+    });
+    expect(result).not.toHaveProperty('rendered');
+    expect(result.content).toContain('window.gokuProps');
+    expect(result.content).toContain('Its script reloads the page');
+    expect(renderUrlsMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       'an HTML page with no text',
@@ -2510,7 +2538,7 @@ describe('web_fetch renders a page behind a JavaScript challenge, once [CHAT-R50
       'the challenge again, told by its page alone',
       {
         kind: 'ok',
-        status: 200,
+        status: 202,
         finalUrl: TED_NOTICE,
         html: recorded('aws-waf-challenge'),
       },
@@ -2548,6 +2576,27 @@ describe('web_fetch renders a page behind a JavaScript challenge, once [CHAT-R50
       expect(renderUrlsMock).toHaveBeenCalledTimes(1);
     },
   );
+
+  it('reads a rendered page whose bot-check header holds a value outside Latin-1 as the page', async () => {
+    challengedThrice();
+    renderUrlsMock.mockResolvedValueOnce(
+      drawn({
+        kind: 'ok',
+        status: 200,
+        finalUrl: TED_NOTICE,
+        html: recorded('ted-notice-rendered'),
+        headers: { 'x-amzn-waf-action': 'challenge€' },
+      }),
+    );
+
+    const result = await fetchIn(
+      await makeExecutor(createCtx().ctx),
+      TED_NOTICE,
+    );
+
+    expect(result).toMatchObject({ status: 'ok', rendered: true });
+    expect(result.content).toContain('Notice 650000-2025');
+  });
 
   it('says when the browser was asked for a CAPTCHA, and solves none', async () => {
     challengedThrice();

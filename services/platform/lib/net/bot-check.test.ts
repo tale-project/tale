@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { botCheckOf } from './bot-check';
+import { botCheckOf, headerRecord, markedBotCheckOf } from './bot-check';
 
 /** The parts of the page wiki.mozilla.org served a data-center proxy exit in
  * place of the article (2026-10-30), verbatim. */
@@ -67,7 +67,25 @@ const AWS_WAF_SDK_ON_A_PAGE = `<!DOCTYPE html>
   <script src="https://PLACEHOLDER.edge.captcha-sdk.awswaf.com/PLACEHOLDER/jsapi.js"></script>
 </head><body><main><h1>Wettbewerb</h1><p>Datenverarbeitungsdienste</p></main></body></html>`;
 
-const page = (body: string, headers: Record<string, string> = {}) => ({
+/** An article that quotes AWS WAF's challenge page in a code block, as a
+ * write-up on bot protection does: the page's markup escaped, as text. */
+const ARTICLE_QUOTING_THE_CHALLENGE = `<!DOCTYPE html>
+<html lang="en"><head><title>What AWS WAF's challenge page does</title></head>
+<body><main>
+  <h1>What AWS WAF's challenge page does</h1>
+  <p>A client without a token is answered 202, with this page:</p>
+  <pre><code>${AWS_WAF_CHALLENGE.replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')}</code></pre>
+  <p>Its script reloads the page once it holds a token.</p>
+</main></body></html>`;
+
+const page = (
+  body: string,
+  headers: Record<string, string> = {},
+  status = 200,
+) => ({
+  status,
   headers: new Headers({ 'content-type': 'text/html', ...headers }),
   body,
 });
@@ -99,21 +117,38 @@ describe('botCheckOf', () => {
   );
 
   it("recognizes AWS WAF's challenge by its interstitial when no header marks it", () => {
-    expect(botCheckOf(page(AWS_WAF_CHALLENGE))).toEqual({
+    expect(botCheckOf(page(AWS_WAF_CHALLENGE, {}, 202))).toEqual({
+      vendor: 'AWS WAF',
+      kind: 'challenge',
+    });
+    // A letter that lengthens in lower case ahead of the script moves
+    // nothing: the script's code is read where it stands.
+    const lengthening = AWS_WAF_CHALLENGE.replace(
+      '<title></title>',
+      `<title>${'İ'.repeat(200)}</title>`,
+    );
+    expect(botCheckOf(page(lengthening, {}, 202))).toEqual({
       vendor: 'AWS WAF',
       kind: 'challenge',
     });
   });
 
   it("tells AWS WAF's CAPTCHA from its challenge by the puzzle it draws", () => {
-    expect(botCheckOf(page(AWS_WAF_CAPTCHA))).toEqual({
+    expect(botCheckOf(page(AWS_WAF_CAPTCHA, {}, 405))).toEqual({
       vendor: 'AWS WAF',
       kind: 'captcha',
     });
     // The header decides first: a CAPTCHA page marked as one stays one.
     expect(
-      botCheckOf(page(AWS_WAF_CAPTCHA, { 'x-amzn-waf-action': 'captcha' })),
+      botCheckOf(
+        page(AWS_WAF_CAPTCHA, { 'x-amzn-waf-action': 'captcha' }, 405),
+      ),
     ).toEqual({ vendor: 'AWS WAF', kind: 'captcha' });
+    // Answered as the CAPTCHA is, an interstitial is one, whatever it draws.
+    expect(botCheckOf(page(AWS_WAF_CHALLENGE, {}, 405))).toEqual({
+      vendor: 'AWS WAF',
+      kind: 'captcha',
+    });
   });
 
   it.each([
@@ -132,6 +167,26 @@ describe('botCheckOf', () => {
       page('<pre>window.gokuProps = { "key": "…" }</pre>'),
     ],
     [
+      "an article that quotes AWS WAF's challenge page",
+      page(ARTICLE_QUOTING_THE_CHALLENGE),
+    ],
+    [
+      "an article that quotes AWS WAF's challenge page, answered 202",
+      page(ARTICLE_QUOTING_THE_CHALLENGE, {}, 202),
+    ],
+    [
+      "AWS WAF's challenge page answered as a page is, 200",
+      page(AWS_WAF_CHALLENGE),
+    ],
+    [
+      "a long page whose own script holds AWS WAF's interstitial",
+      page(
+        `${AWS_WAF_CHALLENGE}<main>${'<p>Opening hours and prices.</p>'.repeat(600)}</main>`,
+        {},
+        202,
+      ),
+    ],
+    [
       'a header value Cloudflare does not send',
       page('<html><title>Forbidden</title></html>', {
         'cf-mitigated': 'block',
@@ -143,5 +198,29 @@ describe('botCheckOf', () => {
     ],
   ])('takes %s for the page itself', (_label, response) => {
     expect(botCheckOf(response)).toBeNull();
+  });
+});
+
+describe('markedBotCheckOf', () => {
+  it('reads the check a render kept the headers of', () => {
+    expect(
+      markedBotCheckOf(headerRecord({ 'x-amzn-waf-action': 'captcha' })),
+    ).toEqual({ vendor: 'AWS WAF', kind: 'captcha' });
+    expect(
+      markedBotCheckOf(headerRecord({ 'cf-mitigated': 'challenge' })),
+    ).toEqual({ vendor: 'Cloudflare', kind: 'challenge' });
+  });
+
+  it('takes a value outside Latin-1 for no mark, where Headers would throw', () => {
+    const record = { 'cf-mitigated': 'challenge\u20ac' };
+    expect(() => new Headers(record)).toThrow();
+    expect(markedBotCheckOf(headerRecord(record))).toBeNull();
+    expect(
+      botCheckOf({
+        status: 200,
+        headers: headerRecord(record),
+        body: '<html><title>Report</title></html>',
+      }),
+    ).toBeNull();
   });
 });
