@@ -27,7 +27,10 @@ import shutil
 import sys
 from pathlib import Path
 
-from sections import add_after_source, next_slide_id
+if __package__:
+    from .sections import add_after_source, next_slide_id
+else:
+    from sections import add_after_source, next_slide_id
 
 
 def get_next_slide_number(slides_dir: Path) -> int:
