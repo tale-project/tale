@@ -148,6 +148,8 @@ export const NOTICE_CODES = [
   'tab_not_opened',
   /** The page did not take a key. */
   'key_failed',
+  /** The browser has stopped taking the mouse, in every tab, until the session restarts. */
+  'input_stuck',
   /** Anything else the browser could not do. */
   'action_failed',
 ] as const;

@@ -65,6 +65,7 @@ notice:
   tabGone: That tab is already closed.
   tabNotOpened: "Couldn't open a new tab: {detail}."
   keyFailed: "Couldn't send that key to the page: {detail}."
+  inputStuck: The browser stopped responding to the mouse in every tab. Restart the session to use the mouse again.
   actionFailed: "The browser said: {detail}."
   pasteCutTitle: Couldn't paste all of the text
   pasteCut: You can paste up to {max, number} characters at once. The rest was left out.

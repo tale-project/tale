@@ -5,8 +5,8 @@
 //
 // They know nothing about HTML: what a page script finds out is what the test
 // put into `page.answers`; a few of them have a default (`viewportSize`,
-// `roomOfPage`, `titleAndState`, `selectedText`, `selectAt`, `readPage`). The
-// scripts are told apart by their name.
+// `roomOfPage`, `pageIsFree`, `titleAndState`, `selectedText`, `selectAt`,
+// `readPage`). The scripts are told apart by their name.
 
 import { EventEmitter } from 'node:events';
 
@@ -534,7 +534,7 @@ export class FakePage extends EventEmitter implements PwPage, HandleOwner {
   /**
    * What page scripts find out, by the name of the script. The defaults:
    * `viewportSize`, `roomOfPage`, `titleAndState` and `selectedText` from the fields below,
-   * `selectAt` finds no list, `readPage` reads `reading`.
+   * `pageIsFree` is true, `selectAt` finds no list, `readPage` reads `reading`.
    */
   readonly answers = new Map<string, (arg: unknown) => unknown>();
   currentUrl = 'about:blank';
@@ -714,6 +714,8 @@ export class FakePage extends EventEmitter implements PwPage, HandleOwner {
           this.viewport.height,
           this.viewport.height,
         ];
+      case 'pageIsFree':
+        return true;
       case 'titleAndState':
         return [this.titleText, this.readyState];
       case 'selectedText':

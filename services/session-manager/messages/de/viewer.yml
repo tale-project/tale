@@ -66,6 +66,7 @@ notice:
   tabGone: Dieser Tab ist bereits geschlossen.
   tabNotOpened: "Es konnte kein neuer Tab geöffnet werden: {detail}."
   keyFailed: "Die Taste konnte nicht an die Seite gesendet werden: {detail}."
+  inputStuck: Der Browser reagiert in keinem Tab mehr auf die Maus. Starte die Sitzung neu, um die Maus wieder zu verwenden.
   actionFailed: "Der Browser meldet: {detail}."
   pasteCutTitle: Text konnte nicht vollständig eingefügt werden
   pasteCut: Du kannst bis zu {max, number} Zeichen auf einmal einfügen. Der Rest wurde abgeschnitten.

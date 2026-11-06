@@ -70,6 +70,12 @@ mouse with side buttons if you have one, and both a standard and a high-density 
 - [ ] `VIEW-F11` · **Move across a menu that opens on hover, then flick the pointer quickly across
   several of them** → each opens promptly while the pointer is on it and closes when it leaves; none
   stays stuck open afterwards.
+- [ ] `VIEW-F38` · **On the image of `compose.session-manager.yml` (a Camoufox for Linux), in a
+  session whose fingerprint is Windows or macOS, bring the pointer slowly down from the address bar
+  so that it comes onto the picture at its top edge; then click a link of the page, enter an address
+  in the bar and open a tab with +. Do the same along the bottom edge in a session whose fingerprint
+  is Linux** → the link, Enter and + each answer at once; nothing waits, and no notice says that the
+  browser stopped responding to the mouse.
 - [ ] `VIEW-F12` · **Scroll a long article with a mouse wheel, then with a trackpad, ending each time
   with a hard flick** → the page follows your hand within a frame or two; the manager's own page does
   not scroll while the pointer is over the picture; after the last wheel event the page stops about

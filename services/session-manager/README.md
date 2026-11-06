@@ -310,6 +310,12 @@ enlarged; the browser's window size stays what its fingerprint says, so the page
 - **Touch.** A tap is a click and a double tap a double click. A finger that moves drags the page,
   which scrolls by the distance so that its content follows the finger; a finger that rests for half
   a second clicks the right button of the mouse where it rests (the page's own menu, if it has one).
+- **The edges of the page.** A mouse event aimed at the first or the last row of the page goes one
+  row further in: the browser can lose an event on those rows, and then takes no other one until it
+  closes. Should it still stop taking the mouse (an event it has not done five seconds after its
+  page was free: no dialog waiting for an answer, no script keeping it busy), the page says so.
+  Typing, addresses, back and forward and the tabs go on working; a reload waits for the mouse, and
+  restarting the session brings the mouse back.
 
 **Tabs are remembered.** A session that you stop (or whose browser dies, or that is stopped by
 Rotate IP or by quitting the app) opens the same tabs again when it starts; the one you were looking

@@ -17,6 +17,7 @@ import {
   jpegSize,
   pictureDelay,
   PlaywrightRemote,
+  pointerPlace,
 } from './playwright-remote.ts';
 import { RemoteError } from './remote.ts';
 import type { Remote, RemoteEvent, Tab } from './remote.ts';
@@ -328,6 +329,49 @@ describe('pictureDelay', () => {
 
   it('is never more than 800 ms, however slow the pictures are', () => {
     expect(pictureDelay({ ...idle, stillInARow: 0, tookMs: 5000 })).toBe(800);
+  });
+});
+
+describe('pointerPlace', () => {
+  const page = { width: 800, height: 600 };
+
+  it('keeps a place on the page as it is', () => {
+    expect(pointerPlace(10.5, 20.25, page)).toEqual({ x: 10.5, y: 20.25 });
+    expect(pointerPlace(799, 598, page)).toEqual({ x: 799, y: 598 });
+  });
+
+  it('moves a place on the first or the last row of the page one row further in', () => {
+    expect(pointerPlace(31, 0, page)).toEqual({ x: 31, y: 1 });
+    expect(pointerPlace(31, 0.6, page)).toEqual({ x: 31, y: 1 });
+    expect(pointerPlace(31, 599, page)).toEqual({ x: 31, y: 598 });
+    expect(pointerPlace(31, 598.7, page)).toEqual({ x: 31, y: 598 });
+  });
+
+  it('leaves the first and the last column alone', () => {
+    expect(pointerPlace(0, 300, page)).toEqual({ x: 0, y: 300 });
+    expect(pointerPlace(799, 300, page)).toEqual({ x: 799, y: 300 });
+  });
+
+  it('puts a place beside the page on its edge', () => {
+    expect(pointerPlace(-20, -20, page)).toEqual({ x: 0, y: 1 });
+    expect(pointerPlace(900, 700, page)).toEqual({ x: 799, y: 598 });
+    expect(pointerPlace(799.5, 300, page)).toEqual({ x: 799, y: 300 });
+  });
+
+  it('keeps a place off the first row and on the page on the left while its size is not known', () => {
+    expect(pointerPlace(-3, 0, null)).toEqual({ x: 0, y: 1 });
+    expect(pointerPlace(5000, 5000, null)).toEqual({ x: 5000, y: 5000 });
+  });
+
+  it('puts every place of a page lower than three rows on its second row', () => {
+    expect(pointerPlace(5, 0, { width: 10, height: 2 })).toEqual({
+      x: 5,
+      y: 1,
+    });
+    expect(pointerPlace(5, 9, { width: 10, height: 1 })).toEqual({
+      x: 5,
+      y: 1,
+    });
   });
 });
 
@@ -1218,6 +1262,7 @@ describe('saving the tabs', () => {
 
   it('does not let a save that was due run after a flush', async () => {
     const { remote, page, layouts } = launch();
+    await settle(); // the first page has come to the front: nothing waits for it
     page.navigate(A);
     remote.freeze({ flush: true });
     expect(vi.getTimerCount()).toBe(0);
@@ -1286,10 +1331,11 @@ describe('saving the tabs', () => {
     expect(attempts).toBe(1);
   });
 
-  it('schedules nothing without somebody to tell', () => {
+  it('schedules nothing without somebody to tell', async () => {
     const context = new FakeContext();
     const remote = new PlaywrightRemote(context, { startPage: START });
     remotes.push(remote);
+    await settle(); // the first page has come to the front: nothing waits for it
     context.pages()[0]?.navigate(A);
     expect(vi.getTimerCount()).toBe(0);
     expect(remote.layout()).toEqual({ urls: [A], active: 0 });
@@ -2821,6 +2867,12 @@ describe('mouse', () => {
       .of(`${launched.page.who}.mouse`)
       .map((call) => entry(call.method, call.args));
 
+  /** How often the page ran the script of this name. */
+  const asked = (launched: Launched, script: string): number =>
+    launched.context.log
+      .of(launched.page.who, 'evaluate')
+      .filter((call) => call.args[0] === script).length;
+
   it('moves to a place once, not again while it is there', async () => {
     const launched = launch();
     await launched.remote.mouse('move', 5, 6);
@@ -2923,21 +2975,21 @@ describe('mouse', () => {
     ]);
   });
 
-  it('scrolls at the place it is given, without asking the page how big it is', async () => {
+  it('scrolls at the place it is given, without asking the page where its middle is', async () => {
     const launched = launch();
     await launched.remote.scroll(10, 20, 30, 40);
     expect(mouseCalls(launched)).toEqual([
       ['move', 30, 40],
       ['wheel', 10, 20],
     ]);
-    expect(launched.context.log.count(launched.page.who, 'evaluate')).toBe(0);
+    expect(asked(launched, 'viewportSize')).toBe(0);
   });
 
-  it('asks the page when only one of the two coordinates is given', async () => {
+  it('asks the page where its middle is when only one of the two coordinates is given', async () => {
     const launched = launch();
     await launched.remote.scroll(0, 10, 30, null);
     await launched.remote.scroll(0, 10, null, 40);
-    expect(launched.context.log.count(launched.page.who, 'evaluate')).toBe(2);
+    expect(asked(launched, 'viewportSize')).toBe(2);
   });
 
   it('says why it cannot scroll, and that the page does not respond', async () => {
@@ -3086,6 +3138,24 @@ describe('mouse', () => {
     expect(mouseCalls(launched).map(([method]) => method)).toEqual(['move']);
   });
 
+  it('does not take the mouse to be where a drag that failed began', async () => {
+    const launched = launch();
+    await launched.remote.hover(5, 5);
+    launched.page.mouse.behave('move', {
+      error: playwrightError('mouse.move: Target closed'),
+      times: 1,
+    });
+    await capture(launched.remote.drag(5, 5, 9, 9));
+    await launched.remote.hover(5, 5); // moved there anew
+    expect(mouseCalls(launched).map(([method]) => method)).toEqual([
+      'move',
+      'down',
+      'move',
+      'up',
+      'move',
+    ]);
+  });
+
   it('needs a tab for everything', async () => {
     const { remote } = launch();
     await remote.closeTab(1);
@@ -3104,6 +3174,290 @@ describe('mouse', () => {
       remote.clickElement(1),
       'Element 1 is unknown: read the page again to get current numbers.',
     );
+  });
+
+  describe('on the first and the last row of the page', () => {
+    // The browser can lose a mouse event there, and then takes no other one
+    // (see `pointerPlace`): every event goes one row further in.
+
+    it('moves, presses, releases, turns the wheel, clicks, hovers and drags one row further in', async () => {
+      const launched = launch(); // a page of 1280 x 720
+      await launched.remote.mouse('move', 31, 0);
+      await launched.remote.mouse('down', 32, 0);
+      await launched.remote.mouse('up', 40, 719);
+      await launched.remote.wheel(50, 0, 0, 40);
+      await launched.remote.clickAt(60, 0);
+      await launched.remote.hover(70, 719.6);
+      await launched.remote.drag(80, 0, 90, 719);
+      expect(mouseCalls(launched)).toEqual([
+        ['move', 31, 1],
+        ['move', 32, 1],
+        ['down', { button: 'left', clickCount: 1 }],
+        ['move', 40, 718],
+        ['up', { button: 'left', clickCount: 1 }],
+        ['move', 50, 1],
+        ['wheel', 0, 40],
+        ['move', 60, 1],
+        ['click', 60, 1, { button: 'left', clickCount: 1 }],
+        ['move', 70, 718],
+        ['move', 80, 1],
+        ['down'],
+        ['move', 90, 718, { steps: 12 }],
+        ['up'],
+      ]);
+    });
+
+    it('keeps the mouse on the page: a place beside it goes to its edge', async () => {
+      const launched = launch();
+      await launched.remote.mouse('move', -40, 300);
+      await launched.remote.mouse('move', 1500, 300);
+      await launched.remote.mouse('move', 1279, 300); // there already
+      await launched.remote.mouse('move', 0, 300.5);
+      expect(mouseCalls(launched)).toEqual([
+        ['move', 0, 300],
+        ['move', 1279, 300],
+        ['move', 0, 300.5],
+      ]);
+    });
+
+    it('goes by the room the page has where its window has less than the viewport it reports', async () => {
+      const launched = launch();
+      launched.page.answers.set('roomOfPage', () => [1280, 720, 669]);
+      await launched.remote.mouse('move', 10, 668);
+      expect(mouseCalls(launched)).toEqual([['move', 10, 667]]);
+    });
+
+    it('measures the page once for all its mouse events', async () => {
+      const launched = launch();
+      await launched.remote.mouse('move', 1, 1);
+      await launched.remote.mouse('move', 2, 2);
+      await launched.remote.wheel(3, 3, 0, 1);
+      await launched.remote.clickAt(4, 4);
+      expect(asked(launched, 'roomOfPage')).toBe(1);
+    });
+
+    it('keeps off the first row while the size of the page is not known', async () => {
+      const launched = launch();
+      launched.page.answers.set('roomOfPage', () => {
+        throw playwrightError('page.evaluate: busy');
+      });
+      await launched.remote.mouse('move', 31, 0);
+      await launched.remote.mouse('move', 5000, 5000);
+      expect(mouseCalls(launched)).toEqual([
+        ['move', 31, 1],
+        ['move', 5000, 5000],
+      ]);
+    });
+
+    it('goes by the last picture of the tab, the one the viewer aims in, also while the page cannot be measured', async () => {
+      const launched = launch();
+      launched.page.answers.set('roomOfPage', () => {
+        throw playwrightError('page.evaluate: busy');
+      });
+      launched.page.jpeg = fakeJpeg({ width: 640, height: 480 });
+      const watcher = launched.remote.watch();
+      const first = capture(watcher.get());
+      await settle();
+      await first;
+      await launched.remote.mouse('move', 10, 479);
+      await launched.remote.mouse('move', 700, 300);
+      expect(mouseCalls(launched)).toEqual([
+        ['move', 10, 478],
+        ['move', 639, 300],
+      ]);
+      watcher.close();
+    });
+  });
+
+  describe('that the browser does not do in time', () => {
+    // The browser does mouse events, wheel turns and switches of tabs one after
+    // the other, for all its tabs: one that never ends holds up every other.
+    const STUCK = /^The browser has stopped taking the mouse, in every tab: /;
+
+    /** A browser whose mouse got stuck at 10, 10: what the test does next waits for nothing. */
+    async function stuck(
+      behaviour: { hang: true } | { delayMs: number } = { hang: true },
+    ): Promise<Launched> {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const launched = launch();
+      launched.page.mouse.behave('move', { ...behaviour, times: 1 });
+      const moving = track(launched.remote.mouse('move', 10, 10));
+      await wait(4999);
+      expect(moving.done).toBe(false);
+      await wait(1);
+      const outcome = outcomeOf(moving);
+      if (outcome.ok) throw new Error('the stuck move was not given up');
+      expect(outcome.error).toBeInstanceOf(RemoteError);
+      if (outcome.error instanceof RemoteError) {
+        expect(outcome.error.message).toMatch(STUCK);
+        expect(outcome.error.notice).toBe('input_stuck');
+      }
+      return launched;
+    }
+
+    it('is given up 5 seconds after it was due while its page was free, with the reason', async () => {
+      await stuck();
+    });
+
+    it('makes every mouse event, wheel turn, click and drag after it fail at once, in every tab', async () => {
+      const launched = await stuck();
+      await launched.remote.openTab('https://two.example/');
+      for (const work of [
+        () => launched.remote.mouse('move', 20, 20),
+        () => launched.remote.mouse('down', 20, 20),
+        () => launched.remote.wheel(20, 20, 0, 10),
+        () => launched.remote.clickAt(20, 20),
+        () => launched.remote.hover(30, 30),
+        () => launched.remote.drag(1, 1, 2, 2),
+      ]) {
+        await expectRemoteError(work(), STUCK, 'input_stuck');
+      }
+      // Nothing of it reached a page: only the stuck move did.
+      expect(
+        launched.context.log.of(`${launched.page.who}.mouse`),
+      ).toHaveLength(1);
+      const second = launched.context.pages()[1];
+      expect(second && launched.context.log.of(`${second.who}.mouse`)).toEqual(
+        [],
+      );
+    });
+
+    it('leaves the keyboard, the address bar and the tabs working', async () => {
+      const launched = await stuck();
+      await launched.remote.key('press', 'a');
+      await launched.remote.insertText('hello');
+      await launched.remote.goto('https://example.com/');
+      await launched.remote.openTab('https://two.example/');
+      // A tab that cannot come to the front is the active one all the same.
+      await launched.remote.activateTab(1);
+      expect(launched.remote.tabs().map((tab) => tab.active)).toEqual([
+        true,
+        false,
+      ]);
+      expect(
+        launched.context.log
+          .of(`${launched.page.who}.keyboard`)
+          .map((call) => entry(call.method, call.args)),
+      ).toEqual([
+        ['press', 'a'],
+        ['insertText', 'hello'],
+      ]);
+      expect(launched.context.log.count(launched.page.who, 'goto')).toBe(1);
+    });
+
+    it('takes input again once the stuck event is done after all', async () => {
+      const launched = await stuck({ delayMs: 8000 });
+      await expectRemoteError(
+        launched.remote.mouse('move', 20, 20),
+        STUCK,
+        'input_stuck',
+      );
+      await wait(3000); // the stuck move is done
+      await launched.remote.mouse('move', 30, 30);
+      expect(mouseCalls(launched)).toEqual([
+        ['move', 10, 10],
+        ['move', 30, 30],
+      ]);
+    });
+
+    it('says so once in the log, however much input is refused', async () => {
+      const launched = await stuck();
+      await capture(launched.remote.mouse('move', 20, 20));
+      await capture(launched.remote.wheel(20, 20, 0, 1));
+      await capture(launched.remote.activateTab(1));
+      expect(console.warn).toHaveBeenCalledTimes(1);
+      expect(console.warn).toHaveBeenCalledWith(
+        'the browser has stopped taking mouse input: an event was not done 5000 ms after its page was free',
+      );
+    });
+
+    it('keeps a tab active that does not come to the front in time, and refuses the mouse after it', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const launched = launch();
+      await launched.remote.openTab('https://two.example/');
+      await settle();
+      launched.page.behave('bringToFront', { hang: true });
+      const activating = track(launched.remote.activateTab(1));
+      await wait(5000);
+      expect(activating.done).toBe(true);
+      expect(outcomeOf(activating).ok).toBe(true);
+      expect(launched.remote.tabs().find((tab) => tab.active)?.id).toBe(1);
+      await expectRemoteError(
+        launched.remote.mouse('move', 5, 5),
+        STUCK,
+        'input_stuck',
+      );
+    });
+
+    it('is waited for while a dialog of its page waits for an answer, however long that takes', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const launched = launch();
+      listen(launched.remote); // somebody to answer the dialog
+      await launched.remote.mouse('move', 1, 1);
+      // The release of a click that opened confirm() returns once it is answered.
+      launched.page.mouse.behave('up', { delayMs: 30_000, times: 1 });
+      const clicking = track(launched.remote.mouse('up', 1, 1));
+      launched.page.openDialog('confirm', 'Sure?');
+      await wait(29_999);
+      expect(clicking.done).toBe(false);
+      await wait(1);
+      expect(outcomeOf(clicking).ok).toBe(true);
+      expect(console.warn).not.toHaveBeenCalled();
+      await launched.remote.mouse('move', 2, 2); // and the mouse is taken
+      expect(mouseCalls(launched).at(-1)).toEqual(['move', 2, 2]);
+    });
+
+    it('is waited for while a script keeps its page busy, and taken once the page is free', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const launched = launch();
+      await launched.remote.mouse('move', 1, 1);
+      launched.page.behave('evaluate', { hang: true, times: 2 }); // it answers nothing for a while
+      launched.page.mouse.behave('move', { delayMs: 12_000, times: 1 });
+      const moving = track(launched.remote.mouse('move', 10, 10));
+      await wait(13_000);
+      expect(outcomeOf(moving).ok).toBe(true);
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('is given up when its page has not answered for a minute', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const launched = launch();
+      await launched.remote.mouse('move', 1, 1);
+      launched.page.behave('evaluate', { hang: true });
+      launched.page.mouse.behave('move', { hang: true, times: 1 });
+      const moving = track(launched.remote.mouse('move', 10, 10));
+      await wait(60_000);
+      expect(moving.done).toBe(false);
+      await wait(15_000);
+      const outcome = outcomeOf(moving);
+      expect(
+        !outcome.ok &&
+          outcome.error instanceof RemoteError &&
+          outcome.error.notice,
+      ).toBe('input_stuck');
+    });
+
+    it('makes a reload fail at once, instead of letting it wait behind and come as a surprise', async () => {
+      const launched = await stuck();
+      await expectRemoteError(
+        launched.remote.history('reload'),
+        STUCK,
+        'input_stuck',
+      );
+      expect(launched.context.log.count(launched.page.who, 'reload')).toBe(0);
+      // Back and forward do not wait for the mouse.
+      await launched.remote.history('back');
+      expect(launched.context.log.count(launched.page.who, 'goBack')).toBe(1);
+    });
+
+    it('makes a click on an element of a page that was read fail at once', async () => {
+      const launched = await stuck();
+      await expectRemoteError(
+        launched.remote.clickElement(1),
+        STUCK,
+        'input_stuck',
+      );
+    });
   });
 });
 

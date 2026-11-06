@@ -58,6 +58,7 @@ describe('an error message of the server', () => {
       'tab_gone',
       'tab_not_opened',
       'key_failed',
+      'input_stuck',
       'action_failed',
     ]);
   });
