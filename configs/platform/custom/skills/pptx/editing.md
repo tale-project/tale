@@ -87,7 +87,7 @@ Removes slides not in `<p:sldIdLst>`, unreferenced media, orphaned rels. First i
 python scripts/sections.py output.pptx
 ```
 
-Brings the sections of a finished `.pptx` in step with its slides, in place, as `clean.py` does for an unpacked deck. Run it on a deck built from a template without `clean.py` (python-pptx, for instance), before QA; with python-pptx, delete slides with its `delete_slide` (see SKILL.md). A deck without sections is left as it is.
+Brings the sections of a finished `.pptx` in step with its slides, in place, as `clean.py` does for an unpacked deck, and lists each section with its slide numbers. Run it on a deck built from a template without `clean.py` (python-pptx, for instance), before QA; with python-pptx, delete slides with its `delete_slide` (see SKILL.md). A deck without sections is left as it is.
 
 ### pack.py
 

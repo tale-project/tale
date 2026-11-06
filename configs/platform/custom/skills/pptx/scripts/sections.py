@@ -23,6 +23,7 @@ them. This script:
 - Removes the sections it leaves empty, and the whole section list when no
   slide is left in one. A section that listed no slide before is kept, after
   the section it followed
+- Prints each section with the numbers of its slides
 
 clean.py runs this on an unpacked directory. Run it yourself on a finished
 .pptx built another way (python-pptx on a template, for instance). A deck
@@ -63,11 +64,37 @@ def reconcile_sections(dom) -> bool:
     return changed
 
 
-def list_sections(dom) -> list[tuple[str, int]]:
+def list_sections(dom) -> list[tuple[str, list[int]]]:
+    """Each section's name and the numbers (from 1, in deck order) of its slides."""
+    number = {slide_id: n for n, slide_id in enumerate(_deck_order(dom), start=1)}
     return [
-        (section.getAttribute("name"), len(_entries(section)))
+        (
+            section.getAttribute("name"),
+            [
+                number[entry.getAttribute("id")]
+                for entry in _entries(section)
+                if entry.getAttribute("id") in number
+            ],
+        )
         for section in dom.getElementsByTagNameNS(P14_NS, "section")
     ]
+
+
+def format_sections(sections: list[tuple[str, list[int]]]) -> list[str]:
+    lines = []
+    for name, numbers in sections:
+        spans = []
+        for n in numbers:
+            if spans and n == spans[-1][1] + 1:
+                spans[-1][1] = n
+            else:
+                spans.append([n, n])
+        where = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in spans)
+        if not numbers:
+            lines.append(f"  {name}: no slides")
+        else:
+            lines.append(f"  {name}: slide{'' if len(numbers) == 1 else 's'} {where}")
+    return lines
 
 
 def used_slide_ids(dom) -> set[int]:
@@ -113,7 +140,7 @@ def next_slide_id(unpacked_dir: Path) -> int:
     return slide_id
 
 
-def sync_unpacked(unpacked_dir: Path) -> tuple[bool, list[tuple[str, int]]]:
+def sync_unpacked(unpacked_dir: Path) -> tuple[bool, list[tuple[str, list[int]]]]:
     pres_path = unpacked_dir / "ppt" / "presentation.xml"
     if not pres_path.exists():
         return False, []
@@ -125,7 +152,7 @@ def sync_unpacked(unpacked_dir: Path) -> tuple[bool, list[tuple[str, int]]]:
     return changed, list_sections(dom)
 
 
-def sync_pptx(pptx_path: Path) -> tuple[bool, list[tuple[str, int]]]:
+def sync_pptx(pptx_path: Path) -> tuple[bool, list[tuple[str, list[int]]]]:
     with zipfile.ZipFile(pptx_path) as zf:
         if PRESENTATION not in zf.namelist():
             return False, []
@@ -499,5 +526,5 @@ if __name__ == "__main__":
         print(f"The sections of {target} already match its slides:")
     else:
         print(f"{target} has no sections")
-    for name, count in sections:
-        print(f"  {name}: {count} slide{'' if count == 1 else 's'}")
+    for line in format_sections(sections):
+        print(line)
