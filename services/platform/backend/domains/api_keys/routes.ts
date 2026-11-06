@@ -122,6 +122,9 @@ export function createApiKeyRoutes(deps: {
           organizationId: c.get('orgId'),
           userId: c.get('sessionBundle').user.id,
           role: c.get('orgMember').role,
+          sessionBound:
+            sessionOrganizationId(c.get('sessionBundle').session) ===
+            c.get('orgId'),
         },
         query.data.scope,
       ),

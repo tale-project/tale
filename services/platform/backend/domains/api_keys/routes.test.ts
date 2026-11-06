@@ -195,8 +195,19 @@ describe('GET /api/app/api-keys', () => {
       organizationId: 'org-1',
       userId: 'ada',
       role: 'admin',
+      // A password session: it may end the keys that work everywhere.
+      sessionBound: false,
     });
     expect(service.listApiKeysForViewer.mock.calls[0]?.[2]).toBe('managed');
+  });
+
+  it('tells the list when the session covers this organization alone [APIKEY-R13]', async () => {
+    session.trustedOrganizationId = 'org-1';
+    service.listApiKeysForViewer.mockResolvedValueOnce([]);
+    await app().request('/');
+    expect(service.listApiKeysForViewer.mock.calls[0]?.[1]).toMatchObject({
+      sessionBound: true,
+    });
   });
 
   it('passes on a request for every key here, and refuses any other scope [APIKEY-R8]', async () => {

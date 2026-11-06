@@ -750,7 +750,7 @@ describe('GET /my/api-keys', () => {
         ...values: unknown[]
       ) => {
         keyReads.push({ text: strings.join('?'), values });
-        return holdsKeys ? [{ id: 'key-1' }] : [];
+        return [{ holds: holdsKeys }];
       }) as never;
       const res = await createGovernanceRoutes({
         sql,
@@ -765,7 +765,11 @@ describe('GET /my/api-keys', () => {
       expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
       expect(mayConnectAgentIn).not.toHaveBeenCalled();
       expect(keyReads.map((read) => read.values)).toEqual([['u1', 'o1', 'u1']]);
-      expect(keyReads[0]?.text).toContain(
+      // Two probes, each on its own index: the person's own keys, then the
+      // keys made for them here.
+      const text = keyReads[0]?.text.replace(/\s+/g, ' ') ?? '';
+      expect(text).toContain('WHERE k."referenceId" = ?');
+      expect(text).toContain(
         `o.owner_kind = 'member' AND o.principal_user_id = ?`,
       );
     },

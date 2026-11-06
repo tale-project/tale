@@ -1364,6 +1364,30 @@ describe('/api/v1 door — a key bound to one organization', () => {
     expect(await refused.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
   });
 
+  it('charges a key the member made for themselves to the member, and a key made for them to the key [APIKEY-R13]', async () => {
+    const { auth } = fakeAuth();
+    // Mia made it herself after a sign-in that covers one organization: it
+    // shares her budget, so making more such keys buys no more requests.
+    const own = fakeSql(new Set(), {
+      keyOwners: { 'key-1': binding('member', { createdBy: 'mia' }) },
+    });
+    await boundDoor(own.sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(own.charges).toEqual([{ name: 'rest:api', key: 'user:mia' }]);
+
+    // An Admin made it for her: it has a budget of its own.
+    const made = fakeSql(new Set(), {
+      keyOwners: { 'key-1': binding('member') },
+    });
+    await boundDoor(made.sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(made.charges).toEqual([{ name: 'rest:api', key: 'user:user-1' }]);
+  });
+
   it('answers 401 for a binding that was revoked [APIKEY-R7]', async () => {
     const { sql } = fakeSql(new Set(), {
       keyOwners: { 'key-1': binding('team', { revokedAt: '5' }) },

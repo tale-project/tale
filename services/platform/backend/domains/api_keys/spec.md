@@ -62,13 +62,19 @@ their live role, while they stay an active member there, since no one above them
 Whether they may make one is the create rule read for this organization alone — Owner, Admin or
 Developer here, or a live grant here of a competence used with a key — checked again as the key
 is bound (`API_KEY_CREATE_FORBIDDEN`). They get no notification of their own key; they see it in
-their list and end it there, and an Owner or Admin sees and ends it like every key bound here. A
-password sign-in still makes a key that works everywhere, at the personal-key door
+their list and end it there, and an Owner or Admin sees and ends it like every key bound here,
+except that an Admin ends no Owner's own key: an Admin acts on nothing of a role above theirs
+(`APIKEY-R3`). The key shares its person's request budget, like every key of theirs, while a key an
+Owner or Admin made for someone has a budget of its own. Such a session ends none of the person's
+keys that work everywhere (`ORG_FORBIDDEN` at the personal-key door), so their list offers no way
+to. A password sign-in still makes a key that works everywhere, at the personal-key door
 (`API_KEY_MEMBER_SELF` at the organization's).
 
 - **Example**: Ada, an admin of Acme and Beta, signs in to Acme through single sign-on and creates
   "Laptop" for herself → it works in Acme alone, with Ada's role there; Olav, Acme's owner, sees
   it in Acme's list and can end it. Made after a password sign-in, it would work in Beta too.
+- **Example**: Olav, Acme's owner, signs in through single sign-on and creates "CI deploy" → Ada
+  sees it in Acme's list with no way to end it; another Owner of Acme can.
 
 ### APIKEY-R4 · A team's, a project's or the organization's key acts with the role it was given
 

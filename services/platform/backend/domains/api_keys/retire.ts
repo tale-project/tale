@@ -62,8 +62,10 @@ export type ApiKeyRetirementReason =
  * made for a member who left the organization, or the keys a member who
  * left had made for others (`makerUserId`) — a key acts as its member only
  * while its maker may. Each gets an `api_key.revoked` audit row from the
- * system, saying why. A person's own keys are theirs and stay — they simply
- * stop working here — and so do a team's, a project's and the
+ * system, saying why — the keys a member made for themselves after a
+ * sign-in that covers this organization alone included, since they are bound
+ * to it. A person's keys that work everywhere are theirs and stay — they
+ * simply stop working here — and so do a team's, a project's and the
  * organization's keys whose maker left.
  */
 export async function retireApiKeysInTx(

@@ -640,6 +640,33 @@ interface ListedRow {
   createdByName: string | null;
   holderName: string | null;
   holderEmail: string | null;
+  /** The live role here of the member a key bound to them acts as. */
+  principalRole: string | null;
+}
+
+/**
+ * An Owner's own key — one they made for themselves after a sign-in that
+ * covers this organization alone (`APIKEY-R13`) — is theirs or another
+ * Owner's to end, never an Admin's: an Admin acts on nothing of a role above
+ * theirs (`APIKEY-R3`).
+ */
+function shieldedFromActor(
+  key: {
+    readonly kind: string | null;
+    readonly createdBy: string | null;
+    readonly principalUserId: string | null;
+    readonly principalRole: string | null;
+  },
+  actor: { readonly userId: string; readonly role: string },
+): boolean {
+  return (
+    key.kind === 'member' &&
+    key.createdBy !== null &&
+    key.createdBy === key.principalUserId &&
+    key.principalRole?.toLowerCase() === 'owner' &&
+    actor.userId !== key.principalUserId &&
+    actor.role.toLowerCase() !== 'owner'
+  );
 }
 
 /** A generous bound: the keys table pages on the client. */
@@ -657,7 +684,14 @@ const LISTED_KEY_LIMIT = 1000;
  */
 export async function listApiKeysForViewer(
   db: Db,
-  viewer: { organizationId: string; userId: string; role: string },
+  viewer: {
+    organizationId: string;
+    userId: string;
+    role: string;
+    /** The viewer's session covers this organization alone: their own
+     * keys that work everywhere are ended after a password sign-in. */
+    sessionBound?: boolean;
+  },
   scope: ApiKeyListScope = 'managed',
 ): Promise<ListedApiKey[]> {
   const admin = isAdminRole(viewer.role);
@@ -672,11 +706,16 @@ export async function listApiKeysForViewer(
            mu."name" AS "memberName", mu."email" AS "memberEmail",
            t."name" AS "teamName", p.name AS "projectName",
            cu."name" AS "createdByName",
-           hu."name" AS "holderName", hu."email" AS "holderEmail"
+           hu."name" AS "holderName", hu."email" AS "holderEmail",
+           pm."role" AS "principalRole"
     FROM "apikey" k
     LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
     LEFT JOIN "user" mu
       ON o.owner_kind = 'member' AND mu."id" = o.principal_user_id
+    LEFT JOIN "member" pm
+      ON o.owner_kind = 'member'
+     AND pm."organizationId" = ${viewer.organizationId}
+     AND pm."userId" = o.principal_user_id
     LEFT JOIN "team" t ON t."id" = o.team_id
     LEFT JOIN app.projects p ON p.id = o.project_id
     LEFT JOIN "user" cu ON cu."id" = o.created_by
@@ -730,8 +769,21 @@ export async function listApiKeysForViewer(
           : { userId: row.createdBy, name: row.createdByName },
       // Every other key listed here is one the viewer may end: their own, one
       // made for them, or — as an Owner or Admin — one bound to this
-      // organization.
-      canRevoke: !personal,
+      // organization, an Owner's own excepted for an Admin. A session that
+      // covers this organization alone ends no key that works everywhere:
+      // the personal-key door refuses it (`ORG_FORBIDDEN`).
+      canRevoke:
+        !personal &&
+        !(owner.kind === 'user' && viewer.sessionBound === true) &&
+        !shieldedFromActor(
+          {
+            kind: row.ownerKind,
+            createdBy: row.createdBy,
+            principalUserId: row.principalUserId,
+            principalRole: row.principalRole,
+          },
+          viewer,
+        ),
     };
   });
 }
@@ -796,6 +848,30 @@ export async function revokeBoundApiKey(
       (owner.kind === 'member' && owner.principalUserId === args.actor.userId));
   if (!mayRevoke) {
     throw new ApiKeyError('API_KEY_NOT_FOUND', 'API key not found.', 404);
+  }
+  if (
+    owner.kind === 'member' &&
+    owner.createdBy === owner.principalUserId &&
+    owner.principalUserId !== args.actor.userId
+  ) {
+    const holder = await findOrganizationMember(
+      sql,
+      args.organizationId,
+      owner.principalUserId,
+    );
+    if (
+      shieldedFromActor(
+        {
+          kind: owner.kind,
+          createdBy: owner.createdBy,
+          principalUserId: owner.principalUserId,
+          principalRole: holder?.role ?? null,
+        },
+        args.actor,
+      )
+    ) {
+      throw new ApiKeyError('API_KEY_NOT_FOUND', 'API key not found.', 404);
+    }
   }
   const emailParts =
     args.actor.email !== undefined

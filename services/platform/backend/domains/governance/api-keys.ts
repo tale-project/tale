@@ -402,13 +402,25 @@ export async function holdsApiKeys(
   userId: string,
   organizationId: string,
 ): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    SELECT k."id" FROM "apikey" k
-    LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
-    WHERE (o.api_key_id IS NULL AND k."referenceId" = ${userId})
-       OR (o.org_id = ${organizationId} AND o.revoked_at_ms IS NULL
-           AND o.owner_kind = 'member' AND o.principal_user_id = ${userId})
-    LIMIT 1
+  // Two probes, each on its own index (`apikey_referenceId_idx`,
+  // `api_key_owners_member`): one OR across the outer join read every key of
+  // the deployment for a person who holds none, on every settings visit.
+  const rows = await sql<{ holds: boolean }[]>`
+    SELECT EXISTS (
+             SELECT 1 FROM "apikey" k
+             WHERE k."referenceId" = ${userId}
+               AND NOT EXISTS (
+                 SELECT 1 FROM app.api_key_owners o
+                 WHERE o.api_key_id = k."id"
+               )
+           )
+        OR EXISTS (
+             SELECT 1 FROM app.api_key_owners o
+             JOIN "apikey" k ON k."id" = o.api_key_id
+             WHERE o.org_id = ${organizationId} AND o.owner_kind = 'member'
+               AND o.principal_user_id = ${userId}
+               AND o.revoked_at_ms IS NULL
+           ) AS holds
   `;
-  return rows.length > 0;
+  return rows.some((row) => row.holds);
 }

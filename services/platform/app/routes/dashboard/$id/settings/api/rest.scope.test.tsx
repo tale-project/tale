@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   member: undefined as
     | undefined
     | { status: 'ok'; userId: string; role: string; isAdmin: boolean },
+  sessionBoundHere: false,
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -34,7 +35,7 @@ vi.mock(
   () => ({
     useApiSettingsAccess: () => ({
       createApiKeys: true,
-      sessionBoundHere: false,
+      sessionBoundHere: h.sessionBoundHere,
     }),
   }),
 );
@@ -100,6 +101,7 @@ beforeEach(() => {
 afterEach(() => {
   client.clear();
   vi.restoreAllMocks();
+  h.sessionBoundHere = false;
 });
 
 function renderPage() {
@@ -153,5 +155,25 @@ describe('the API keys page’s choice of keys [APIKEY-R8]', () => {
     ).not.toBeInTheDocument();
     expect(backend.count(MANAGED)).toBe(1);
     expect(backend.count(ALL)).toBe(0);
+  });
+});
+
+describe('a session that covers this organization alone [APIKEY-R13]', () => {
+  const note = () =>
+    i18n.t('apiKeys.everywhereKeysAfterPassword', { ns: 'settings' });
+
+  it('says why the keys that work everywhere cannot be revoked from it', async () => {
+    h.member = { status: 'ok', userId: 'ada', role: 'admin', isAdmin: true };
+    h.sessionBoundHere = true;
+    renderPage();
+    expect(await screen.findByText('CI deploy key')).toBeInTheDocument();
+    expect(document.body).toHaveTextContent(note());
+  });
+
+  it('says nothing after a password sign-in', async () => {
+    h.member = { status: 'ok', userId: 'ada', role: 'admin', isAdmin: true };
+    renderPage();
+    expect(await screen.findByText('CI deploy key')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(note());
   });
 });

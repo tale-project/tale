@@ -393,10 +393,12 @@ export async function removeMembershipCascade(
     userId,
     cause: 'member_removed',
   });
-  // The API keys an Owner or Admin made for the member here act as them in
-  // this organization alone; they end with the seat (the member's own keys
-  // are theirs and simply stop working here). So do the keys the member
-  // made for others: a key acts as its member only while its maker may.
+  // The API keys bound to the member here — made for them by an Owner or
+  // Admin, or by them after a sign-in that covers this organization alone —
+  // act as them in this organization only; they end with the seat (the
+  // member's keys that work everywhere are theirs and simply stop working
+  // here). So do the keys the member made for others: a key acts as its
+  // member only while its maker may.
   await retireApiKeysInTx(tx, {
     organizationId,
     reason: 'member_removed',

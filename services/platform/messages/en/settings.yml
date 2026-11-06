@@ -1227,7 +1227,8 @@ apiKeys:
     scopeHintHere: This key belongs to you and works in this organization
       only, because your sign-in covers this organization alone. It acts as
       you, with your role here, and needs no X-Organization-Slug header.
-      Owners and Admins here can see and revoke it.
+      Owners and Admins here can see and revoke it; an Admin cannot revoke
+      an Owner's.
     expiresIn: Expiration
     expiresOptions:
       7days: 7 days
@@ -1289,6 +1290,7 @@ apiKeys:
     managed: Keys you manage
     all: All keys in this organization
   allKeysDescription: Every API key that works in this organization, members' personal keys included. Only the member a personal key belongs to can revoke it.
+  everywhereKeysAfterPassword: Your keys that work in every organization can be revoked only after a password sign-in, since this session covers this organization alone.
   neverExpires: Never
   expired: Expired
   description: Manage API keys for external connectors
