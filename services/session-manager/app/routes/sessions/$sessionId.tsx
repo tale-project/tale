@@ -30,6 +30,15 @@ export const Route = createFileRoute('/sessions/$sessionId')({
       },
     );
   },
+  // TanStack Router can draw this page while its loader still waits: a
+  // navigation that interrupts another commits the newer one's matches before
+  // they have loaded. Such a page suspends, and a route with no boundary of its
+  // own suspends the root's, which hid the list of sessions beside it, and the
+  // row the keyboard was on, for half a second (`pendingMinMs`). Its own
+  // boundary leaves the list as it is and holds this page's place only until
+  // its read is in.
+  wrapInSuspense: true,
+  pendingMinMs: 0,
   head: () => pageHead(i18n.t('viewer:title')),
   component: SessionRoute,
 });
