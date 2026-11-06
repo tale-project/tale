@@ -527,7 +527,9 @@ async function settleFailedCreate(
  * sandbox image bakes and verifies at build time; launches Chromium with the
  * egress proxy passed EXPLICITLY (Chromium ignores proxy env vars, and the
  * sandbox bridge is internal-only — without `--proxy-server` every
- * navigation dies). Re-validates hostnames because the engine-side SSRF
+ * navigation dies), and with no bypass: the hosts NO_PROXY names for the
+ * session's programs, loopback included, are the proxy's to refuse for a
+ * page's requests. Re-validates hostnames because the engine-side SSRF
  * guard does not travel into the sandbox: single-label hosts (docker service
  * aliases like `convex`) and private/link-local IP literals are refused, on
  * the original URL and again on the post-redirect landing host. A page's HTML
@@ -695,9 +697,13 @@ const proxyServer =
   process.env.HTTP_PROXY || process.env.http_proxy;
 const launchOptions = { headless: true };
 if (proxyServer) {
-  launchOptions.proxy = { server: proxyServer };
-  const bypass = process.env.NO_PROXY || process.env.no_proxy;
-  if (bypass) launchOptions.proxy.bypass = bypass;
+  // Everything the page asks for goes through the egress proxy, which
+  // refuses loopback, private and metadata destinations. NO_PROXY is no
+  // bypass here: it names the session's own neighbours (the model gateway,
+  // the backend), which the session's programs reach directly and a page's
+  // scripts must not. \`<-loopback>\` takes back the bypass Chromium keeps
+  // for localhost of its own.
+  launchOptions.proxy = { server: proxyServer, bypass: '<-loopback>' };
 }
 
 const browser = await chromium.launch(launchOptions);
