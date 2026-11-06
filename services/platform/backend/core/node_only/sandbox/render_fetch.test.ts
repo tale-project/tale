@@ -819,7 +819,9 @@ function makePage() {
 }
 module.exports = {
   chromium: {
-    async launch() {
+    async launch(options) {
+      const launchFile = process.env.FAKE_LAUNCH_OPTIONS_FILE;
+      if (launchFile) fs.writeFileSync(launchFile, JSON.stringify(options || {}));
       if (process.env.FAKE_LAUNCH_FAILS) {
         throw new Error('browserType.launch: Failed to launch the browser process');
       }
@@ -1081,6 +1083,54 @@ describe('render worker — output budget in bytes', () => {
     await runWorker(['https://site.example/a'], caps, 10, { userAgent });
     expect(contextsOpened()).toEqual([{ userAgent }]);
   });
+
+  // The session's NO_PROXY names its neighbours on the sandbox network for
+  // its own programs. Handed to Chromium as a bypass, it let a page's
+  // scripts reach them straight, past the egress proxy that refuses them —
+  // the backend's unauthenticated /metrics among them.
+  it('launches the browser through the egress proxy with no bypass, NO_PROXY and loopback included', async () => {
+    const caps = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
+    const launched = path.join(root, 'launch-options.json');
+    const noProxy = {
+      HTTPS_PROXY: '',
+      https_proxy: '',
+      HTTP_PROXY: '',
+      http_proxy: '',
+      NO_PROXY: '',
+      no_proxy: '',
+    };
+    await runWorker(
+      ['https://site.example/a'],
+      caps,
+      10,
+      {},
+      {
+        ...noProxy,
+        HTTPS_PROXY: 'http://sandbox-egress:8888',
+        NO_PROXY:
+          '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+        FAKE_LAUNCH_OPTIONS_FILE: launched,
+      },
+    );
+    expect(JSON.parse(readFileSync(launched, 'utf8'))).toEqual({
+      headless: true,
+      proxy: { server: 'http://sandbox-egress:8888', bypass: '<-loopback>' },
+    });
+
+    await runWorker(
+      ['https://site.example/a'],
+      caps,
+      10,
+      {},
+      {
+        ...noProxy,
+        FAKE_LAUNCH_OPTIONS_FILE: launched,
+      },
+    );
+    expect(JSON.parse(readFileSync(launched, 'utf8'))).toEqual({
+      headless: true,
+    });
+  }, 30_000);
 
   it('hands back the markup with the layout written in, and the plain serialization when the page refuses the script', async () => {
     const caps = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
