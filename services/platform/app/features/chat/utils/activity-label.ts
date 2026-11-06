@@ -254,13 +254,28 @@ export function stepOutcomeLabel(
   ) {
     return undefined;
   }
-  const byReason =
-    typeof output.reason === 'string'
-      ? FAILURE_REASON_KEYS[output.reason]
-      : undefined;
-  return t(
-    byReason ?? FAILURE_STATUS_KEYS[output.status] ?? 'thinking.outcome.failed',
+  return (
+    stepReasonLabel(t, output) ??
+    t(FAILURE_STATUS_KEYS[output.status] ?? 'thinking.outcome.failed')
   );
+}
+
+/** The cause a step that did not succeed names, in words — `undefined` when
+ * its result names none, or one this vocabulary does not know. */
+export function stepReasonLabel(
+  t: TFunction,
+  output: unknown,
+): string | undefined {
+  if (
+    !isRecord(output) ||
+    typeof output.status !== 'string' ||
+    output.status === 'ok' ||
+    typeof output.reason !== 'string'
+  ) {
+    return undefined;
+  }
+  const key = FAILURE_REASON_KEYS[output.reason];
+  return key === undefined ? undefined : t(key);
 }
 
 /** A stored-blob reference (`s3:<key>`) or an email ref (`msg:<id>`) — an

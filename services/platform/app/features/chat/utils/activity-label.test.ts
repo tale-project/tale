@@ -7,6 +7,7 @@ import {
   ragSearchListingKind,
   stepActivityLabel,
   stepOutcomeLabel,
+  stepReasonLabel,
 } from './activity-label';
 
 /** A translator that renders the key and its params, so an assertion reads
@@ -342,5 +343,26 @@ describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
     expect(stepOutcomeLabel(t, { status: 'ok' })).toBeUndefined();
     expect(stepOutcomeLabel(t, 'plain text')).toBeUndefined();
     expect(stepOutcomeLabel(t, undefined)).toBeUndefined();
+  });
+});
+
+describe('stepReasonLabel — the cause a result names [CHAT-R30]', () => {
+  const t = fakeT();
+
+  it('words a cause it knows, for a step that did not succeed', () => {
+    expect(
+      stepReasonLabel(t, { status: 'error', reason: 'bot_check_captcha' }),
+    ).toBe('thinking.outcome.botCheckCaptcha');
+  });
+
+  it('has no words for a cause it does not know, none named, or a success', () => {
+    expect(
+      stepReasonLabel(t, { status: 'error', reason: 'a-new-cause' }),
+    ).toBeUndefined();
+    expect(stepReasonLabel(t, { status: 'error' })).toBeUndefined();
+    expect(
+      stepReasonLabel(t, { status: 'ok', reason: 'bot_check_captcha' }),
+    ).toBeUndefined();
+    expect(stepReasonLabel(t, 'plain text')).toBeUndefined();
   });
 });

@@ -54,7 +54,11 @@ import {
   type ThinkingAnchor,
 } from '../hooks/use-thinking-timer';
 import type { ChatMessageUsage, MessagePart } from '../types';
-import { stepActivityLabel, stepOutcomeLabel } from '../utils/activity-label';
+import {
+  stepActivityLabel,
+  stepOutcomeLabel,
+  stepReasonLabel,
+} from '../utils/activity-label';
 
 /** The retrieval tools get their own glyphs; anything unknown keeps the
  * generic wrench. */
@@ -89,14 +93,22 @@ function toolCallDetail(input: unknown): string | undefined {
   return undefined;
 }
 
-/** The outcome line of a failed step, as a prop — none for any other. */
+/** The outcome line of a failed step, as a prop — none for any other. A
+ * failed web read's result also states what happened in English, for the
+ * model: where it names its cause, the drill-down shows that cause in the
+ * person's language instead. */
 function stepOutcome(
   t: Parameters<typeof stepOutcomeLabel>[0],
   entry: Extract<TimelineEntry, { kind: 'step' }>,
-): { outcome?: string } {
+): { outcome?: string; outputText?: string } {
   if (entry.state !== 'failed') return {};
   const outcome = stepOutcomeLabel(t, entry.output);
-  return outcome === undefined ? {} : { outcome };
+  const cause =
+    entry.tool === 'web_fetch' ? stepReasonLabel(t, entry.output) : undefined;
+  return {
+    ...(outcome !== undefined ? { outcome } : {}),
+    ...(cause !== undefined ? { outputText: cause } : {}),
+  };
 }
 
 /** True when a structured tool result reports anything but success. */
@@ -380,11 +392,15 @@ function TimelineStepRow({
   entry,
   title,
   outcome,
+  outputText: wordedOutput,
 }: {
   entry: Extract<TimelineEntry, { kind: 'step' }>;
   title: string;
   /** What became of a failed step, for the line below its title. */
   outcome?: string;
+  /** What the drill-down shows of the result, when the step words it in
+   * the person's language rather than showing what the tool answered. */
+  outputText?: string;
 }) {
   const bodyId = useId();
   const outcomeId = useId();
@@ -392,7 +408,7 @@ function TimelineStepRow({
   const Icon = TOOL_ICONS[entry.tool] ?? Wrench;
   const failed = entry.state === 'failed';
   const inputText = toolInputText(entry.input);
-  const outputText = toolOutputText(entry.output);
+  const outputText = wordedOutput ?? toolOutputText(entry.output);
   const hasDetail = inputText !== undefined || outputText !== undefined;
 
   const StateIcon =
