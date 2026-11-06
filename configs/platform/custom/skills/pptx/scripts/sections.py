@@ -164,7 +164,14 @@ def sync_pptx(pptx_path: Path) -> tuple[bool, list[tuple[str, list[int]]]]:
     return changed, list_sections(dom)
 
 
-def add_after_source(unpacked_dir: Path, source: str, new_id: int) -> str | None:
+def add_after_source(
+    unpacked_dir: Path, source: str, new_id: int
+) -> tuple[str, str] | None:
+    """List a duplicate right after its source in the source's section.
+
+    Returns the section's name and the new entry as written, or None when
+    the source is in no section.
+    """
     pres_path = unpacked_dir / "ppt" / "presentation.xml"
     rels_path = unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels"
     if not pres_path.exists() or not rels_path.exists():
@@ -196,7 +203,7 @@ def add_after_source(unpacked_dir: Path, source: str, new_id: int) -> str | None
                 new_entry.setAttribute("id", str(new_id))
                 _insert_after(entry, new_entry)
                 _write_unpacked(pres_path, dom)
-                return section.getAttribute("name")
+                return section.getAttribute("name"), new_entry.toxml()
 
     return None
 

@@ -373,6 +373,25 @@ function addSlide(
   return { id: entry[1], entry: entry[0], stdout };
 }
 
+/**
+ * Move a slide's `<p14:sldId>` to right after another slide's, in that
+ * slide's section: what the editing guide has the model do with a copy it
+ * places away from its source.
+ */
+function moveSectionEntry(dir: string, id: string, afterId: string): void {
+  const file = presentationOf(dir);
+  const xml = readFileSync(file, 'utf8');
+  const entry = `<p14:sldId id="${id}"/>`;
+  const anchor = `<p14:sldId id="${afterId}"/>`;
+  const without = xml.replace(new RegExp(`\\s*${entry}`), '');
+  if (without === xml || !without.includes(anchor))
+    throw new Error(`no section entry ${entry} to move after ${anchor}`);
+  writeFileSync(
+    file,
+    without.replace(anchor, `${anchor}\n            ${entry}`),
+  );
+}
+
 interface Sections {
   order: string[];
   sections: { name: string; slides: string[] }[];
@@ -782,6 +801,45 @@ describe('the pptx skill keeps a template deck’s sections in step with its sli
       },
       { name: 'Closing slides', slides: ['260', third.id] },
     ]);
+  });
+
+  it('files a copy of a toolbox slide among the content slides once its entry is moved there, as the guide says', () => {
+    const dir = writeTemplate({
+      slides: 6,
+      sections: [
+        { name: 'Title slides', slides: [1] },
+        { name: 'Content slides', slides: [2, 3] },
+        { name: 'Toolbox', slides: [4, 5] },
+        { name: 'Closing slides', slides: [6] },
+      ],
+    });
+
+    const copy = addSlide(dir, 'slide4.xml');
+
+    expect(copy.id).toBe('262');
+    expect(copy.stdout).toContain(
+      'Listed it in section "Toolbox" right after slide4.xml\n' +
+        'Placing it anywhere else? Move <p14:sldId id="262"/> in presentation.xml into the section of the slides around it\n',
+    );
+    // Between the two content slides, with the toolbox slides deleted.
+    setDeck(
+      dir,
+      ['256', '257', copy.id, '258', '261'],
+      new Map([[copy.id, copy.entry]]),
+    );
+    moveSectionEntry(dir, copy.id, '257');
+    run('clean.py', dir);
+
+    const deck = readUnpacked(dir);
+    expect(deck.sections).toEqual([
+      { name: 'Title slides', slides: ['256'] },
+      { name: 'Content slides', slides: ['257', copy.id, '258'] },
+      { name: 'Closing slides', slides: ['261'] },
+    ]);
+    expectOneRunPerSection(deck);
+    expect(run('sections.py', dir)).toContain(
+      '  Title slides: slide 1\n  Content slides: slides 2-4\n  Closing slides: slide 5\n',
+    );
   });
 });
 
