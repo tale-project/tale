@@ -637,7 +637,7 @@ in the page's place, what it asks for decides what happens.
 | A puzzle only a person can solve (a CAPTCHA) | reads nothing at once, asks no other proxy, and never tries to solve it |
 | Nothing: it refuses the request | reads nothing at once, and asks no other proxy |
 
-### CHAT-R50 · A page behind a browser check is rendered once; a CAPTCHA never is
+### CHAT-R50 · A page behind a browser check is rendered once; a CAPTCHA is never solved
 
 A browser check is a script a browser runs on its own: AWS WAF's or Cloudflare's challenge,
 Vercel's checkpoint, Fastly's client challenge. A plain read that meets one through an outbound
@@ -646,10 +646,13 @@ the page is opened once in a sandboxed browser that introduces itself as Tale's 
 the address the plain read reached, against the organization's render sessions, and what the
 browser shows is read as the page. A CAPTCHA or a refusal ends the plain reads where it
 answers, after a check too: no other proxy is asked, since another address's answer would be a
-way around it. A CAPTCHA or a refusal is never opened in the browser, and a browser that meets
-the check again reads nothing. For the rest of the reply, reading on through the page or asking for it
-again answers from that one render. A render that cannot run says so at once, without waiting
-for a free session.
+way around it, and the page is never opened in the browser. Nothing is ever solved: a browser
+that meets the check again, or a CAPTCHA the check turned into, reads nothing. Cloudflare marks
+every check alike, and whether one passes on its own or waits for a person to tick a box is
+decided in the browser, so a Cloudflare check is rendered, and one that waits for a person reads
+nothing. For the rest of the reply, reading on through the page or asking for it again answers
+from that one render. A render that cannot run says so at once, without waiting for a free
+session.
 
 - **Example**: Mia asks about a tender notice whose site answers every plain read with a browser
   check → the notice is opened once in a sandboxed browser, the reply quotes it, and reading
@@ -658,6 +661,8 @@ for a free session.
   that the site asks for a CAPTCHA, and the reply gives the link.
 - **Example**: The site answers Mia's chat with a browser check through one outbound proxy and
   with a CAPTCHA through the next → no third proxy is asked and nothing is opened.
+- **Example**: The check the sandboxed browser meets asks it for a CAPTCHA → nothing is solved,
+  and the step reads that the site asks for a CAPTCHA.
 
 ## Not yet
 

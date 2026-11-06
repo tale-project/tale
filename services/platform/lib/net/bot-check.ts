@@ -27,6 +27,12 @@
  * `challenge.js` and `jsapi.js`) sets no `gokuProps`, and is the page. So is
  * a page that quotes the interstitial, as an article on bot protection does:
  * there its markup is text the page shows, not a script it runs.
+ *
+ * Cloudflare marks every check alike, whether its script passes on its own
+ * or waits for a person to tick a box: which of them a visitor gets is
+ * decided in the browser, and nothing in the first answer tells them apart
+ * reliably. A Cloudflare check is a challenge here, then: a browser passes
+ * it, or meets it again and reads nothing.
  */
 
 /** What a check is read from of a response's headers: `Headers`, or the
