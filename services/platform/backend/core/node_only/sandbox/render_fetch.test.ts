@@ -799,9 +799,16 @@ function makePage() {
         }),
         async finished() { return null; },
       }));
-      for (const response of responses) {
-        for (const listener of listeners) listener(response);
-      }
+      // A document with a delay arrives that long after the goto settled,
+      // as the reload a check's script makes once it has passed.
+      responses.forEach((response, index) => {
+        const emit = () => {
+          for (const listener of listeners) listener(response);
+        };
+        const delayMs = documents[index].delayMs || 0;
+        if (delayMs > 0) setTimeout(emit, delayMs);
+        else emit();
+      });
       return responses[0];
     },
     async waitForLoadState() {},
@@ -1365,6 +1372,65 @@ describe('render worker — output budget in bytes', () => {
       transient: false,
       headers: { 'cf-mitigated': 'challenge' },
     });
+  }, 30_000);
+
+  // Cloudflare's check page says "Just a moment..." and settles at once; its
+  // script reloads the page seconds later. The page was captured as the
+  // check, a 403 marked `cf-mitigated`, before the reload came.
+  it('waits for the reload of a check whose page settled before its script was done, and renders the page', async () => {
+    const { results } = await runWorker(
+      [A],
+      CAPS,
+      10,
+      { perPageTimeoutMs: 5_000 },
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [
+            {
+              documents: [
+                { status: 403, headers: { 'cf-mitigated': 'challenge' } },
+                { status: 200, delayMs: 4_000 },
+              ],
+            },
+          ],
+        }),
+      },
+    );
+    expect(results.get(A)).toEqual({
+      kind: 'ok',
+      status: 200,
+      finalUrl: A,
+      html: `<html><body>${'é'.repeat(10)}</body></html>`,
+    });
+  }, 30_000);
+
+  it('reports a check that never lets the page through once the page’s own time is spent', async () => {
+    const started = Date.now();
+    const { results } = await runWorker(
+      [A],
+      CAPS,
+      10,
+      { perPageTimeoutMs: 1_000 },
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [
+            {
+              documents: [
+                { status: 403, headers: { 'cf-mitigated': 'challenge' } },
+              ],
+            },
+          ],
+        }),
+      },
+    );
+    expect(results.get(A)).toEqual({
+      kind: 'failed',
+      reason: 'HTTP 403 at render time',
+      transient: false,
+      headers: { 'cf-mitigated': 'challenge' },
+    });
+    // One second to load, as much to settle: the wait ends with them.
+    expect(Date.now() - started).toBeLessThan(15_000);
   }, 30_000);
 
   it("a frame's document never stands for the page's", async () => {
