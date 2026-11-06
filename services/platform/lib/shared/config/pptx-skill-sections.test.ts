@@ -660,7 +660,9 @@ describe('the pptx skill keeps a template deck’s sections in step with its sli
 
     expect(readFileSync(presentationOf(dir))).toEqual(before);
     expect(stdout).not.toContain('sections');
-    expect(run('sections.py', dir)).toContain('already match');
+    expect(run('sections.py', dir)).toContain(
+      'already match its slides:\n  Intro: slide 1\n  Draft: no slides\n  Main: slides 2-3\n',
+    );
     expect(readFileSync(presentationOf(dir))).toEqual(before);
   });
 

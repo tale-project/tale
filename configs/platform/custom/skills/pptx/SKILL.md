@@ -180,6 +180,16 @@ python -m markitdown output.pptx | grep -iE "xxxx|lorem|ipsum|this.*(page|slide)
 
 If grep returns results, fix them before declaring success.
 
+### Sections QA
+
+A deck built from a template keeps the template's sections. Check them on the final file:
+
+```bash
+python scripts/sections.py output.pptx
+```
+
+It brings sections that are out of step with the slides back in step, then lists each section with its slide numbers. Check every section against the slides it holds: no section is left from the template's instruction or toolbox slides, and no slide sits in a section that does not fit it. Fix the deck and run it again until the list is right.
+
 ### Visual QA
 
 **⚠️ USE SUBAGENTS** — even for 2-3 slides. You've been staring at the code and will see what you expect, not what's there. Subagents have fresh eyes.

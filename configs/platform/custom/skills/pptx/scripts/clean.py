@@ -26,9 +26,9 @@ from pathlib import Path
 import defusedxml.minidom
 
 if __package__:
-    from .sections import sync_unpacked
+    from .sections import format_sections, sync_unpacked
 else:
-    from sections import sync_unpacked
+    from sections import format_sections, sync_unpacked
 
 import re
 
@@ -311,7 +311,7 @@ if __name__ == "__main__":
 
     if sections_changed and sections:
         print("Updated the slide sections in ppt/presentation.xml:")
-        for name, count in sections:
-            print(f"  {name}: {count} slide{'' if count == 1 else 's'}")
+        for line in format_sections(sections):
+            print(line)
     elif sections_changed:
         print("Removed the slide sections: no slide is left in one")
