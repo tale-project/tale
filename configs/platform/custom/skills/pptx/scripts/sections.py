@@ -27,6 +27,9 @@ them. This script:
 clean.py runs this on an unpacked directory. Run it yourself on a finished
 .pptx built another way (python-pptx on a template, for instance). A deck
 without sections is left as it is.
+
+python-pptx has no way to delete a slide; delete one with delete_slide(prs,
+slide) from this module, which takes it out of its section as well.
 """
 
 import os
@@ -169,6 +172,76 @@ def add_after_source(unpacked_dir: Path, source: str, new_id: int) -> str | None
                 return section.getAttribute("name")
 
     return None
+
+
+def delete_slide(prs, slide) -> None:
+    """Delete a slide from a python-pptx Presentation, and from its section.
+
+    Removing only the slide's <p:sldId> leaves it listed in its section, and
+    python-pptx gives the next slide it adds the highest id in <p:sldIdLst>
+    plus one, so that slide can take the deleted slide's id and section. It
+    also names a new slide's file after the slide count, which a remaining
+    slide can still hold. This removes the slide's <p:sldId>, its
+    relationship, its section entries and a section that keeps no slide
+    (the section list too when none is left), and numbers the remaining
+    slide files in deck order. Save the deck and run sections.py on it.
+    """
+    pres = prs.element
+    presentation = prs.part
+    sld_id_lst = pres.find(f"{{{P_NS}}}sldIdLst")
+    slides = [] if sld_id_lst is None else sld_id_lst.findall(f"{{{P_NS}}}sldId")
+    sld_id = next(
+        (
+            sld_id
+            for sld_id in slides
+            if presentation.related_part(sld_id.get(f"{{{R_NS}}}id")) is slide.part
+        ),
+        None,
+    )
+    if sld_id is None:
+        raise ValueError("the slide is not in this presentation")
+
+    slide_id = sld_id.get("id")
+    sld_id_lst.remove(sld_id)
+    presentation.drop_rel(sld_id.get(f"{{{R_NS}}}id"))
+
+    for ext_lst in pres.findall(f"{{{P_NS}}}extLst"):
+        for ext in ext_lst.findall(f"{{{P_NS}}}ext"):
+            for section_lst in ext.findall(f"{{{P14_NS}}}sectionLst"):
+                if _unlist(section_lst, slide_id):
+                    ext.remove(section_lst)
+                    if len(ext) == 0:
+                        ext_lst.remove(ext)
+                        if len(ext_lst) == 0:
+                            pres.remove(ext_lst)
+
+    presentation.rename_slide_parts(
+        [entry.get(f"{{{R_NS}}}id") for entry in sld_id_lst.findall(f"{{{P_NS}}}sldId")]
+    )
+    # A slide another slide still links to stays in the package: keep its
+    # file name out of the way of the slides numbered above.
+    slide.part.partname = type(slide.part.partname)(
+        f"/ppt/slides/deleted-slide{slide_id}.xml"
+    )
+
+
+def _unlist(section_lst, slide_id: str) -> bool:
+    """Drop a slide's entries, and each section that leaves without a slide.
+
+    True when that took the list's last section.
+    """
+    removed = False
+    for section in section_lst.findall(f"{{{P14_NS}}}section"):
+        dropped = False
+        for entries in section.findall(f"{{{P14_NS}}}sldIdLst"):
+            for entry in entries.findall(f"{{{P14_NS}}}sldId"):
+                if entry.get("id") == slide_id:
+                    entries.remove(entry)
+                    dropped = True
+        if dropped and section.find(f"{{{P14_NS}}}sldIdLst/{{{P14_NS}}}sldId") is None:
+            section_lst.remove(section)
+            removed = True
+    return removed and section_lst.find(f"{{{P14_NS}}}section") is None
 
 
 def _reconcile(section_lst, order: list[str]) -> bool:
