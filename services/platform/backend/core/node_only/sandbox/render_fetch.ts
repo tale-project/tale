@@ -33,7 +33,10 @@
  * A page's status is its last document's, with the bot-check headers that
  * document carried (`BOT_CHECK_HEADERS`): a site's bot check whose script
  * passes in the browser reloads the page, so the navigation's first answer
- * is the check, and the page the browser ends on answered the reload.
+ * is the check, and the page the browser ends on answered the reload. A
+ * check whose page holds text (Cloudflare's) settles before its script is
+ * done, so while the last document still carries a check's mark the worker
+ * waits for the next one, within the page's own time.
  *
  * One session per batch, destroyed in `finally` — a session never spans
  * loop iterations or scan continuation links. A batch whose create failed
@@ -601,8 +604,10 @@ const maxHtmlBytes = input.maxHtmlBytes || 6291456;
 const maxTotalBytes = input.maxTotalBytes || 15728640;
 const crawlDelayMs = Number(input.crawlDelayMs) || 0;
 // What one page may take by its own budgets: the load, the idle wait and
-// the settle loop, twice over for the retry in a fresh context.
-const pageRoomMs = 2 * (perPageTimeoutMs + idleTimeoutMs + Math.min(perPageTimeoutMs, 15000));
+// the settle loop (a bot check's reload is awaited within it); the room it
+// needs is twice that, for the retry in a fresh context.
+const pageTimeMs = perPageTimeoutMs + idleTimeoutMs + Math.min(perPageTimeoutMs, 15000);
+const pageRoomMs = 2 * pageTimeMs;
 const userAgent =
   typeof input.userAgent === 'string' && input.userAgent !== ''
     ? input.userAgent
@@ -719,6 +724,31 @@ async function openContext() {
   context = await browser.newContext(userAgent ? { userAgent } : {});
 }
 
+// SPAs go network-quiet between boot and their data fetch, so idle alone
+// captures the shell. Wait until the rendered TEXT stops growing: stable
+// across two samples (or the cap) is the document. Never past \`deadline\`.
+async function settle(page, deadline) {
+  await page
+    .waitForLoadState('networkidle', {
+      timeout: Math.max(1, Math.min(idleTimeoutMs, deadline - Date.now())),
+    })
+    .catch(() => {});
+  const settleDeadline = Math.min(Date.now() + Math.min(perPageTimeoutMs, 15000), deadline);
+  let previousLength = -1;
+  let stableSamples = 0;
+  while (Date.now() < settleDeadline && stableSamples < 2) {
+    const length = await page
+      .evaluate('document.body ? document.body.innerText.length : 0')
+      .catch(() => 0);
+    if (length === previousLength && length > 0) stableSamples += 1;
+    else stableSamples = 0;
+    previousLength = length;
+    if (stableSamples < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
+}
+
 // One navigation. \`ok\` carries the rendered document. A failure carries the
 // browser's words and their class: \`page\` (this page's own — a non-2xx, a
 // blocked redirect, an oversized DOM, a load timeout), \`crash\` (the browser
@@ -734,34 +764,36 @@ async function renderOnce(url) {
   } catch (error) {
     return { ok: false, cls: 'browser', error: errorText(error) };
   }
+  const pageDeadline = Date.now() + pageTimeMs;
   let lastDocument = null;
+  // Set while the next main document is awaited; called when it arrives.
+  let documentArrived = null;
   page.on('response', (response) => {
-    if (isMainDocument(page, response)) lastDocument = response;
+    if (!isMainDocument(page, response)) return;
+    lastDocument = response;
+    if (documentArrived) documentArrived();
   });
   try {
     const navigated = await page.goto(url, {
       timeout: perPageTimeoutMs,
       waitUntil: 'domcontentloaded',
     });
-    await page
-      .waitForLoadState('networkidle', { timeout: idleTimeoutMs })
-      .catch(() => {});
-    // SPAs go network-quiet between boot and their data fetch, so idle
-    // alone captures the shell. Wait until the rendered TEXT stops
-    // growing: stable across two samples (or the cap) is the document.
-    const settleDeadline = Date.now() + Math.min(perPageTimeoutMs, 15000);
-    let previousLength = -1;
-    let stableSamples = 0;
-    while (Date.now() < settleDeadline && stableSamples < 2) {
-      const length = await page
-        .evaluate('document.body ? document.body.innerText.length : 0')
-        .catch(() => 0);
-      if (length === previousLength && length > 0) stableSamples += 1;
-      else stableSamples = 0;
-      previousLength = length;
-      if (stableSamples < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
+    await settle(page, pageDeadline);
+    // A bot check whose page holds text (Cloudflare's "Just a moment...")
+    // settles before its script has passed and reloaded the page. While the
+    // last document still carries a check's mark, the next one is awaited
+    // within the page's own time, and settles in turn.
+    while (markedHeaders(lastDocument || navigated) && Date.now() < pageDeadline) {
+      const arrived = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(false), pageDeadline - Date.now());
+        documentArrived = () => {
+          clearTimeout(timer);
+          resolve(true);
+        };
+      });
+      documentArrived = null;
+      if (!arrived) break;
+      await settle(page, pageDeadline);
     }
     const response = lastDocument || navigated;
     const headers = markedHeaders(response);
