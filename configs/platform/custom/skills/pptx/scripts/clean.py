@@ -26,9 +26,9 @@ from pathlib import Path
 import defusedxml.minidom
 
 if __package__:
-    from .sections import format_sections, sync_unpacked
+    from .sections import INPUT_ERRORS, format_sections, sync_unpacked
 else:
-    from sections import format_sections, sync_unpacked
+    from sections import INPUT_ERRORS, format_sections, sync_unpacked
 
 import re
 
@@ -297,10 +297,14 @@ if __name__ == "__main__":
         print(f"Error: {unpacked_dir} not found", file=sys.stderr)
         sys.exit(1)
 
-    # clean_unused_files syncs the sections as well; syncing here first
-    # keeps what changed for the report.
-    sections_changed, sections = sync_unpacked(unpacked_dir)
-    removed = clean_unused_files(unpacked_dir)
+    try:
+        # clean_unused_files syncs the sections as well; syncing here first
+        # keeps what changed for the report.
+        sections_changed, sections = sync_unpacked(unpacked_dir)
+        removed = clean_unused_files(unpacked_dir)
+    except INPUT_ERRORS as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
 
     if removed:
         print(f"Removed {len(removed)} unreferenced files:")

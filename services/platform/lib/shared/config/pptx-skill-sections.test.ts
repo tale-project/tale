@@ -9,17 +9,20 @@
  * own scripts with the machine's python3 on synthetic decks, the way its
  * editing guide tells the model to. The scripts parse with defusedxml, which
  * the sandbox image bakes; here a stand-in hands them the standard library's
- * minidom, which builds the same tree for these documents. A deck built
- * with python-pptx loses its slides through `delete_slide`; python-pptx is
- * not installed here, so stand-ins play the few objects it touches, and the
- * sandbox image runs the real library (CHAT-F98 checks the result in
- * PowerPoint).
+ * minidom, which builds the same tree for these documents, and refuses an
+ * entity declaration as defusedxml does. A deck built with python-pptx loses
+ * its slides through `delete_slide`; python-pptx is not installed here, so
+ * stand-ins play the few objects it touches, and the sandbox image runs the
+ * real library (CHAT-F98 checks the result in PowerPoint).
  */
 
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -47,6 +50,43 @@ const NAMESPACES =
   'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
 const REL =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+/** Root bypasses file permissions, so a folder it cannot write cannot be made. */
+const IS_ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
+
+const DEFUSEDXML = `class DefusedXmlException(ValueError):
+    pass
+
+
+class EntitiesForbidden(DefusedXmlException):
+    def __str__(self):
+        return f"EntitiesForbidden(name={self.args[0]!r})"
+`;
+
+const DEFUSEDXML_MINIDOM = `from xml.dom.expatbuilder import ExpatBuilderNS
+
+from defusedxml import EntitiesForbidden
+
+
+class _Builder(ExpatBuilderNS):
+    def install(self, parser):
+        super().install(parser)
+        parser.EntityDeclHandler = self._refuse
+
+    def _refuse(self, name, *_):
+        raise EntitiesForbidden(name)
+
+
+def parse(source):
+    if not isinstance(source, str):
+        return _Builder().parseFile(source)
+    with open(source, "rb") as file:
+        return _Builder().parseFile(file)
+
+
+def parseString(string):
+    return _Builder().parseString(string)
+`;
 
 /**
  * Deletes slides of an unpacked deck through delete_slide, the way a
@@ -139,22 +179,22 @@ beforeAll(() => {
     'python3',
     [
       '-c',
-      'import xml.dom.minidom, zipfile; xml.dom.minidom.parseString("<a/>")',
+      'import sys, xml.dom.minidom, zipfile; assert sys.version_info >= (3, 10), sys.version; xml.dom.minidom.parseString("<a/>")',
     ],
     { encoding: 'utf8' },
   );
   if (probe.status !== 0) {
     throw new Error(
-      `the pptx skill's scripts need a python3 that parses XML: ${probe.error?.message ?? probe.stderr}`,
+      `the pptx skill's scripts need python3 3.10 or later that parses XML: ${probe.error?.message ?? probe.stderr}`,
     );
   }
   root = mkdtempSync(path.join(tmpdir(), 'pptx-sections-'));
   shim = path.join(root, 'shim');
   mkdirSync(path.join(shim, 'defusedxml'), { recursive: true });
-  writeFileSync(path.join(shim, 'defusedxml', '__init__.py'), '');
+  writeFileSync(path.join(shim, 'defusedxml', '__init__.py'), DEFUSEDXML);
   writeFileSync(
     path.join(shim, 'defusedxml', 'minidom.py'),
-    'from xml.dom.minidom import parse, parseString  # noqa: F401\n',
+    DEFUSEDXML_MINIDOM,
   );
   standIn = path.join(root, 'python_pptx_stand_in.py');
   writeFileSync(standIn, PYTHON_PPTX_STAND_IN);
@@ -188,6 +228,28 @@ function run(script: string, ...args: string[]): string {
   return result.stdout;
 }
 
+/** Run a script on input it should refuse; its exit status and output. */
+function attempt(script: string, ...args: string[]) {
+  const result = python([path.join(SCRIPTS, script), ...args]);
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+}
+
+/** A refusal is one `Error:` line, never a traceback. */
+function expectRefusal(
+  result: ReturnType<typeof attempt>,
+  message: RegExp,
+): void {
+  expect(result.status).toBe(1);
+  expect(result.stderr).toMatch(/^Error: /);
+  expect(result.stderr).toMatch(message);
+  expect(result.stderr).not.toContain('Traceback');
+  expect(result.stderr.trim().split('\n')).toHaveLength(1);
+}
+
 interface TemplateSection {
   name: string;
   /** 1-based slide numbers: slide n is `slide{n}.xml` with id 255 + n. */
@@ -205,6 +267,12 @@ interface Template {
 
 const slideId = (n: number) => String(255 + n);
 
+const escapeXml = (text: string) =>
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('"', '&quot;');
+
 function writeTemplate(template: Template): string {
   const dir = mkdtempSync(path.join(root, 'deck-'));
   const numbers = Array.from({ length: template.slides }, (_, i) => i + 1);
@@ -221,7 +289,7 @@ function writeTemplate(template: Template): string {
       <${tag('sectionLst')} ${prefix ? `xmlns:${prefix}` : 'xmlns'}="${P14}">${template.sections
         .map(
           (section, i) => `
-        <${tag('section')} name="${section.name}" id="{${String(i + 1).padStart(8, '0')}-AAAA-4BBB-8CCC-${String(i + 1).padStart(12, '0')}}">
+        <${tag('section')} name="${escapeXml(section.name)}" id="{${String(i + 1).padStart(8, '0')}-AAAA-4BBB-8CCC-${String(i + 1).padStart(12, '0')}}">
           ${
             section.slides.length
               ? `<${tag('sldIdLst')}>${section.slides
@@ -841,65 +909,109 @@ describe('the pptx skill keeps a template deck’s sections in step with its sli
       '  Title slides: slide 1\n  Content slides: slides 2-4\n  Closing slides: slide 5\n',
     );
   });
+
+  const NAMED: TemplateSection[] = [
+    { name: 'Übersicht & Ziele', slides: [1] },
+    { name: '“Ergebnisse” – Q3', slides: [2] },
+    { name: 'Обзор <draft>', slides: [3, 4] },
+    { name: '目录 ‘Agenda’', slides: [5] },
+    { name: 'Anleitung', slides: [6] },
+  ];
+
+  it('keeps section names in any script, with an ampersand and smart quotes', () => {
+    const dir = writeTemplate({ slides: 6, sections: NAMED });
+    setDeck(dir, ['256', '257', '258', '260']);
+
+    const stdout = run('clean.py', dir);
+
+    expect(readUnpacked(dir).sections).toEqual([
+      { name: 'Übersicht & Ziele', slides: ['256'] },
+      { name: '“Ergebnisse” – Q3', slides: ['257'] },
+      { name: 'Обзор <draft>', slides: ['258'] },
+      { name: '目录 ‘Agenda’', slides: ['260'] },
+    ]);
+    const xml = readFileSync(presentationOf(dir), 'utf8');
+    // The smart quotes as the unpacked deck's entities, as unpack.py writes them.
+    expect(xml).toContain('name="&#x201C;Ergebnisse&#x201D; – Q3"');
+    expect(xml).toContain('name="Übersicht &amp; Ziele"');
+    expect(stdout).toContain('  目录 ‘Agenda’: slide 4\n');
+  });
+
+  it('keeps section names in any script in a finished .pptx', async () => {
+    const file = await writePptx(true, NAMED);
+
+    const stdout = run('sections.py', file);
+
+    const xml =
+      (await entries(file)).get('ppt/presentation.xml')?.toString('utf8') ?? '';
+    expect(readDeck(xml).sections).toEqual([
+      { name: 'Übersicht & Ziele', slides: ['256'] },
+      { name: 'Обзор <draft>', slides: ['258', '262'] },
+    ]);
+    expect(stdout).toContain('  Обзор <draft>: slides 2-3\n');
+  });
 });
 
+// What python-pptx saves from a template: compact parts with a standalone
+// declaration, the deleted slides still listed in their sections, and a
+// new slide in none.
+async function writePptx(
+  sectioned: boolean,
+  sections: TemplateSection[] = STANDARD,
+): Promise<string> {
+  const dir = writeTemplate({
+    slides: 6,
+    sections: sectioned ? sections : undefined,
+    guides: true,
+  });
+  setDeck(
+    dir,
+    ['256', '258', '262'],
+    new Map([['262', '<p:sldId id="262" r:id="rId99"/>']]),
+  );
+  const zip = new JSZip();
+  const compact = (xml: string) =>
+    xml
+      .replace(
+        '<?xml version="1.0" encoding="utf-8"?>',
+        "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>",
+      )
+      .replace(/>\s+</g, '><');
+  zip.file(
+    '[Content_Types].xml',
+    compact(readFileSync(path.join(dir, '[Content_Types].xml'), 'utf8')),
+  );
+  zip.file(
+    'ppt/presentation.xml',
+    compact(readFileSync(presentationOf(dir), 'utf8')),
+  );
+  zip.file(
+    'ppt/_rels/presentation.xml.rels',
+    readFileSync(path.join(dir, 'ppt/_rels/presentation.xml.rels')),
+  );
+  zip.file(
+    'ppt/slides/slide1.xml',
+    readFileSync(path.join(dir, 'ppt/slides/slide1.xml')),
+  );
+  const file = path.join(dir, 'deck.pptx');
+  writeFileSync(
+    file,
+    await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }),
+  );
+  return file;
+}
+
+async function entries(file: string): Promise<Map<string, Buffer>> {
+  const zip = await JSZip.loadAsync(readFileSync(file));
+  const out = new Map<string, Buffer>();
+  for (const name of Object.keys(zip.files)) {
+    const entry = zip.file(name);
+    if (entry) out.set(name, await entry.async('nodebuffer'));
+  }
+  return out;
+}
+
 describe('sections.py on a finished .pptx (built without unpack and clean)', () => {
-  // What python-pptx saves from a template: compact parts with a standalone
-  // declaration, the deleted slides still listed in their sections, and a
-  // new slide in none.
-  async function writePptx(sectioned: boolean): Promise<string> {
-    const dir = writeTemplate({
-      slides: 6,
-      sections: sectioned ? STANDARD : undefined,
-      guides: true,
-    });
-    setDeck(
-      dir,
-      ['256', '258', '262'],
-      new Map([['262', '<p:sldId id="262" r:id="rId99"/>']]),
-    );
-    const zip = new JSZip();
-    const compact = (xml: string) =>
-      xml
-        .replace(
-          '<?xml version="1.0" encoding="utf-8"?>',
-          "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>",
-        )
-        .replace(/>\s+</g, '><');
-    zip.file(
-      '[Content_Types].xml',
-      compact(readFileSync(path.join(dir, '[Content_Types].xml'), 'utf8')),
-    );
-    zip.file(
-      'ppt/presentation.xml',
-      compact(readFileSync(presentationOf(dir), 'utf8')),
-    );
-    zip.file(
-      'ppt/_rels/presentation.xml.rels',
-      readFileSync(path.join(dir, 'ppt/_rels/presentation.xml.rels')),
-    );
-    zip.file(
-      'ppt/slides/slide1.xml',
-      readFileSync(path.join(dir, 'ppt/slides/slide1.xml')),
-    );
-    const file = path.join(dir, 'deck.pptx');
-    writeFileSync(
-      file,
-      await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }),
-    );
-    return file;
-  }
-
-  async function entries(file: string): Promise<Map<string, Buffer>> {
-    const zip = await JSZip.loadAsync(readFileSync(file));
-    const out = new Map<string, Buffer>();
-    for (const name of Object.keys(zip.files)) {
-      const entry = zip.file(name);
-      if (entry) out.set(name, await entry.async('nodebuffer'));
-    }
-    return out;
-  }
-
   it('rewrites only ppt/presentation.xml, in place, and keeps its declaration', async () => {
     const file = await writePptx(true);
     const before = await entries(file);
@@ -1092,6 +1204,112 @@ describe('the scripts as modules of a program', () => {
       expect(stdout).toContain(
         'Listed it in section "Content slides" right after slide3.xml',
       );
+    },
+  );
+});
+
+describe('the scripts refuse a deck they cannot read in one line, and change nothing', () => {
+  // Deterministic bytes that are no zip.
+  const noise = Buffer.from(
+    Array.from({ length: 4096 }, (_, i) => (i * 7919 + 13) % 251),
+  );
+  // An encrypted .pptx is an OLE compound file, not a zip.
+  const encrypted = Buffer.concat([
+    Buffer.from('d0cf11e0a1b11ae1', 'hex'),
+    Buffer.alloc(4088),
+  ]);
+  const ENTITIES = `<?xml version="1.0"?>
+<!DOCTYPE p:presentation [
+  <!ENTITY lol "lol">
+  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+]>
+<p:presentation ${NAMESPACES}><p:sldIdLst>&lol2;</p:sldIdLst></p:presentation>
+`;
+
+  it('sections.py: random bytes, a truncated zip, an encrypted .pptx', async () => {
+    const valid = readFileSync(await writePptx(true));
+    const dir = mkdtempSync(path.join(root, 'broken-'));
+    const files = {
+      'random.pptx': noise,
+      'truncated.pptx': valid.subarray(0, Math.floor(valid.length / 2)),
+      'encrypted.pptx': encrypted,
+    };
+
+    for (const [name, bytes] of Object.entries(files)) {
+      const file = path.join(dir, name);
+      writeFileSync(file, bytes);
+
+      expectRefusal(
+        attempt('sections.py', file),
+        /is not a valid \.pptx file: File is not a zip file/,
+      );
+      expect(readFileSync(file)).toEqual(bytes);
+    }
+  });
+
+  it.each([
+    ['does not parse', '<p:presentation'],
+    ['declares entities', ENTITIES],
+  ])(
+    'clean.py, add_slide.py and sections.py: a presentation.xml that %s',
+    (_, broken) => {
+      const dir = writeTemplate({ slides: 3, sections: STANDARD.slice(0, 2) });
+      writeFileSync(presentationOf(dir), broken);
+      const slides = path.join(dir, 'ppt', 'slides');
+      const rels = path.join(dir, 'ppt', '_rels', 'presentation.xml.rels');
+      const before = { files: readdirSync(slides), rels: readFileSync(rels) };
+
+      for (const result of [
+        attempt('clean.py', dir),
+        attempt('add_slide.py', dir, 'slide1.xml'),
+        attempt('add_slide.py', dir, 'slideLayout1.xml'),
+        attempt('sections.py', dir),
+      ])
+        expectRefusal(result, /ppt\/presentation\.xml: /);
+
+      expect(readdirSync(slides)).toEqual(before.files);
+      expect(readFileSync(rels)).toEqual(before.rels);
+      expect(readFileSync(presentationOf(dir), 'utf8')).toBe(broken);
+    },
+  );
+
+  it.skipIf(IS_ROOT)(
+    'sections.py and clean.py: a folder they cannot write',
+    async () => {
+      const file = await writePptx(true);
+      const deck = writeTemplate({ slides: 6, sections: STANDARD });
+      setDeck(deck, ['256', '258', '260']);
+      const slides = path.join(deck, 'ppt', 'slides');
+      const before = readFileSync(file);
+      chmodSync(path.dirname(file), 0o555);
+      chmodSync(slides, 0o555);
+      try {
+        expectRefusal(attempt('sections.py', file), /Permission denied/);
+        expectRefusal(attempt('clean.py', deck), /Permission denied/);
+      } finally {
+        chmodSync(path.dirname(file), 0o755);
+        chmodSync(slides, 0o755);
+      }
+      expect(readFileSync(file)).toEqual(before);
+      expect(existsSync(path.join(slides, 'slide2.xml'))).toBe(true);
+    },
+  );
+
+  it.skipIf(IS_ROOT)(
+    'add_slide.py prints the <p:sldId> line before it lists the copy in its section',
+    () => {
+      const dir = writeTemplate({ slides: 6, sections: STANDARD });
+      chmodSync(presentationOf(dir), 0o444);
+      try {
+        const result = attempt('add_slide.py', dir, 'slide3.xml');
+
+        expectRefusal(result, /Permission denied/);
+        expect(result.stdout).toContain(
+          'Add to presentation.xml <p:sldIdLst>: <p:sldId id="262" r:id="rId262"/>',
+        );
+      } finally {
+        chmodSync(presentationOf(dir), 0o644);
+      }
     },
   );
 });

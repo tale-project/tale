@@ -29,9 +29,9 @@ import sys
 from pathlib import Path
 
 if __package__:
-    from .sections import add_after_source, next_slide_id
+    from .sections import INPUT_ERRORS, add_after_source, next_slide_id
 else:
-    from sections import add_after_source, next_slide_id
+    from sections import INPUT_ERRORS, add_after_source, next_slide_id
 
 
 def get_next_slide_number(slides_dir: Path) -> int:
@@ -135,12 +135,12 @@ def duplicate_slide(unpacked_dir: Path, source: str) -> None:
     _add_to_content_types(unpacked_dir, dest)
 
     rid = _add_to_presentation_rels(unpacked_dir, dest, slide_id)
-    listed = add_after_source(unpacked_dir, source, slide_id)
 
     print(f"Created {dest} from {source}")
     print(
         f'Add to presentation.xml <p:sldIdLst>: <p:sldId id="{slide_id}" r:id="{rid}"/>'
     )
+    listed = add_after_source(unpacked_dir, source, slide_id)
     if listed is not None:
         section, entry = listed
         print(f'Listed it in section "{section}" right after {source}')
@@ -210,7 +210,11 @@ if __name__ == "__main__":
 
     source_type, layout_file = parse_source(source)
 
-    if source_type == "layout" and layout_file is not None:
-        create_slide_from_layout(unpacked_dir, layout_file)
-    else:
-        duplicate_slide(unpacked_dir, source)
+    try:
+        if source_type == "layout" and layout_file is not None:
+            create_slide_from_layout(unpacked_dir, layout_file)
+        else:
+            duplicate_slide(unpacked_dir, source)
+    except INPUT_ERRORS as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)

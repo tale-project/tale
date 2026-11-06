@@ -38,7 +38,9 @@ import stat
 import sys
 import tempfile
 import zipfile
+import zlib
 from pathlib import Path
+from xml.parsers.expat import ExpatError
 
 import defusedxml.minidom
 
@@ -53,6 +55,22 @@ SMART_QUOTE_REPLACEMENTS = {
     "\u2018": "&#x2018;",
     "\u2019": "&#x2019;",
 }
+
+# What a deck that is not what it should be, or a folder that cannot be
+# written, raises: no zip at all (an encrypted .pptx is an OLE file), a
+# truncated or corrupt one, an encrypted member, XML that does not parse or
+# declares entities (defusedxml's refusals are ValueErrors, as is a part that
+# is not UTF-8), a file that cannot be read or written. The command-line
+# entry points print these as one line.
+INPUT_ERRORS = (
+    OSError,
+    ValueError,
+    RuntimeError,
+    EOFError,
+    zipfile.BadZipFile,
+    zlib.error,
+    ExpatError,
+)
 
 
 def reconcile_sections(dom) -> bool:
@@ -116,9 +134,9 @@ def next_slide_id(unpacked_dir: Path) -> int:
     section uses: a new slide never takes the id a section still lists for a
     deleted slide. An id whose relationship name is taken is skipped.
     """
-    dom = defusedxml.minidom.parse(str(unpacked_dir / "ppt" / "presentation.xml"))
-    rels = defusedxml.minidom.parse(
-        str(unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels")
+    dom = _parse(unpacked_dir / "ppt" / "presentation.xml")
+    rels = _parse(
+        unpacked_dir / "ppt" / "_rels" / "presentation.xml.rels"
     ).getElementsByTagName("Relationship")
     listed = {
         sld_id.getAttributeNS(R_NS, "id")
@@ -145,7 +163,7 @@ def sync_unpacked(unpacked_dir: Path) -> tuple[bool, list[tuple[str, list[int]]]
     if not pres_path.exists():
         return False, []
 
-    dom = defusedxml.minidom.parse(str(pres_path))
+    dom = _parse(pres_path)
     changed = reconcile_sections(dom)
     if changed:
         _write_unpacked(pres_path, dom)
@@ -156,7 +174,7 @@ def sync_pptx(pptx_path: Path) -> tuple[bool, list[tuple[str, list[int]]]]:
     with zipfile.ZipFile(pptx_path) as zf:
         if PRESENTATION not in zf.namelist():
             return False, []
-        dom = defusedxml.minidom.parseString(zf.read(PRESENTATION))
+        dom = _parse_string(zf.read(PRESENTATION), f"{pptx_path}: {PRESENTATION}")
 
     changed = reconcile_sections(dom)
     if changed:
@@ -177,14 +195,14 @@ def add_after_source(
     if not pres_path.exists() or not rels_path.exists():
         return None
 
-    rels_dom = defusedxml.minidom.parse(str(rels_path))
+    rels_dom = _parse(rels_path)
     source_rids = {
         rel.getAttribute("Id")
         for rel in rels_dom.getElementsByTagName("Relationship")
         if rel.getAttribute("Target") in (f"slides/{source}", f"/ppt/slides/{source}")
     }
 
-    dom = defusedxml.minidom.parse(str(pres_path))
+    dom = _parse(pres_path)
     source_id = next(
         (
             sld_id.getAttribute("id")
@@ -481,6 +499,20 @@ def _remove_section_list(section_lst) -> None:
         _remove(ext_lst)
 
 
+def _parse(path: Path):
+    try:
+        return defusedxml.minidom.parse(str(path))
+    except (ExpatError, ValueError) as error:
+        raise ValueError(f"{path}: {error}") from error
+
+
+def _parse_string(data: bytes, name: str):
+    try:
+        return defusedxml.minidom.parseString(data)
+    except (ExpatError, ValueError) as error:
+        raise ValueError(f"{name}: {error}") from error
+
+
 def _serialize(dom) -> bytes:
     return dom.toxml(encoding="UTF-8", standalone=dom.standalone)
 
@@ -517,12 +549,21 @@ if __name__ == "__main__":
 
     target = Path(sys.argv[1])
 
-    if target.is_dir():
-        changed, sections = sync_unpacked(target)
-    elif target.is_file() and target.suffix.lower() == ".pptx":
-        changed, sections = sync_pptx(target)
-    else:
-        print(f"Error: {target} is not a .pptx file or a directory", file=sys.stderr)
+    try:
+        if target.is_dir():
+            changed, sections = sync_unpacked(target)
+        elif target.is_file() and target.suffix.lower() == ".pptx":
+            changed, sections = sync_pptx(target)
+        else:
+            print(
+                f"Error: {target} is not a .pptx file or a directory", file=sys.stderr
+            )
+            sys.exit(1)
+    except zipfile.BadZipFile as error:
+        print(f"Error: {target} is not a valid .pptx file: {error}", file=sys.stderr)
+        sys.exit(1)
+    except INPUT_ERRORS as error:
+        print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
     if changed and sections:
