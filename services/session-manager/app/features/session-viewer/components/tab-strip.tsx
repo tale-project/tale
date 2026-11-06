@@ -216,8 +216,9 @@ export function TabStrip({
                 // Where the first tab will be. The stage says that it connects; this only keeps the place.
                 <div aria-hidden="true">
                   <Skeletonize loading>
-                    <SkeletonBox>
-                      <span className="block h-8 w-44" />
+                    {/* The box is the mask itself, as tall as a tab: a box in a line of text would stand on its baseline, and the strip, a few pixels taller, would push the address bar down until the tabs came. */}
+                    <SkeletonBox asChild>
+                      <span className="block h-8 w-44 rounded-md" />
                     </SkeletonBox>
                   </Skeletonize>
                 </div>

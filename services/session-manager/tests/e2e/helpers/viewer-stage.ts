@@ -763,29 +763,35 @@ export class LiveSockets {
 
 /**
  * A socket that is open but has no server behind it until it is released: the
- * live view is connecting. `sent` is what the page said to it meanwhile.
+ * live view is connecting. `sent` is what the page said to it meanwhile. Each
+ * socket the page opens is held so; `release` lets the last one through.
  */
 export async function holdLiveView(page: Page) {
   const sent: string[] = [];
-  const link: { page?: WebSocketRoute; server?: WebSocketRoute } = {};
+  let last: WebSocketRoute | undefined;
+  const servers = new Map<WebSocketRoute, WebSocketRoute>();
   await page.routeWebSocket(STREAM, (route) => {
-    link.page = route;
+    last = route;
     route.onMessage((message) => {
       sent.push(String(message));
-      link.server?.send(message);
+      servers.get(route)?.send(message);
     });
   });
   return {
     sent,
+    /** The address of the socket the page opened last (wait for it before releasing it). */
+    url(): string | undefined {
+      return last?.url();
+    },
     /** The server answers: what it sends goes to the page, what the page sends goes to it. */
     release(): void {
-      const open = link.page;
+      const open = last;
       if (open === undefined) throw new Error('the page opened no socket');
       const server = open.connectToServer();
       server.onMessage((message) => {
         open.send(message);
       });
-      link.server = server;
+      servers.set(open, server);
     },
   };
 }
