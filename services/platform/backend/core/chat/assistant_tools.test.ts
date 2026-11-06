@@ -2522,6 +2522,70 @@ describe('web_fetch renders a page behind a JavaScript challenge, once [CHAT-R50
     expect(renderUrlsMock).not.toHaveBeenCalled();
   });
 
+  /** AWS WAF's CAPTCHA, as an exit `entry` of the outbound proxies meets it. */
+  const awsCaptcha = (entry: number) => ({
+    status: 405,
+    statusText: 'Method Not Allowed',
+    headers: new Headers({
+      'content-type': 'text/html',
+      'x-amzn-waf-action': 'captcha',
+    }),
+    body: '<html><title>Human Verification</title></html>',
+    finalUrl: TED_NOTICE,
+    outboundProxy: { label: PROXY, entry },
+  });
+  /** Vercel's refusal, as an exit `entry` meets it. */
+  const vercelDeny = (entry: number) => ({
+    status: 403,
+    statusText: 'Forbidden',
+    headers: new Headers({
+      'content-type': 'text/plain',
+      'x-vercel-mitigated': 'deny',
+    }),
+    body: 'Forbidden',
+    finalUrl: TED_NOTICE,
+    outboundProxy: { label: PROXY, entry },
+  });
+
+  // Another exit may be served a challenge instead, which the browser would
+  // pass: asking it would be a way around the CAPTCHA, or the refusal.
+  it.each([
+    ['a CAPTCHA on the first answer', [awsCaptcha(1)], 'bot_check_captcha'],
+    [
+      'a CAPTCHA after a challenge',
+      [awsChallenge(1), awsCaptcha(2)],
+      'bot_check_captcha',
+    ],
+    ['a refusal on the first answer', [vercelDeny(1)], 'bot_check_blocked'],
+    [
+      'a refusal after a challenge',
+      [awsChallenge(1), vercelDeny(2)],
+      'bot_check_blocked',
+    ],
+  ])(
+    'asks no other outbound proxy once it meets %s, and renders nothing',
+    async (_case, answers, reason) => {
+      for (const answered of answers) {
+        safeFetchMock.mockResolvedValueOnce(answered);
+      }
+      // What a further exit would be served: a challenge, and the page
+      // behind it.
+      safeFetchMock.mockResolvedValue(awsChallenge(9));
+      renderUrlsMock.mockResolvedValue(notice());
+
+      const result = await fetchIn(
+        await makeExecutor(createCtx().ctx),
+        TED_NOTICE,
+      );
+
+      expect(result).toMatchObject({ status: 'error', reason });
+      expect(result.message).not.toContain('attempts');
+      expect(result.content).toBeUndefined();
+      expect(safeFetchMock).toHaveBeenCalledTimes(answers.length);
+      expect(renderUrlsMock).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     [
       'the challenge again, marked on the document it ended on',
