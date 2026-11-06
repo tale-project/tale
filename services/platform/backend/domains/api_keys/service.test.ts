@@ -789,6 +789,7 @@ describe('listApiKeysForViewer', () => {
     createdByName: null,
     holderName: null,
     holderEmail: null,
+    principalRole: null,
     ...extra,
   });
 
@@ -805,13 +806,14 @@ describe('listApiKeysForViewer', () => {
         userId: 'mia',
         role,
       });
-      // The holder's membership here is joined first.
-      expect(statements[0]?.values[0]).toBe(ORG);
-      expect(statements[0]?.values.slice(1, 4)).toEqual(['mia', ORG, admin]);
+      // The bound member's role here, then the holder's membership here,
+      // are joined first.
+      expect(statements[0]?.values.slice(0, 2)).toEqual([ORG, ORG]);
+      expect(statements[0]?.values.slice(2, 5)).toEqual(['mia', ORG, admin]);
       // A member's keys are the ones made for them here.
-      expect(statements[0]?.values[4]).toBe('mia');
+      expect(statements[0]?.values[5]).toBe('mia');
       // The members' own keys stay out of the keys a viewer manages.
-      expect(statements[0]?.values[5]).toBe(false);
+      expect(statements[0]?.values[6]).toBe(false);
     }
   });
 
@@ -831,8 +833,8 @@ describe('listApiKeysForViewer', () => {
       );
       const [statement] = statements;
       // Only a member of this organization's own key joins, by its holder.
-      expect(statement?.values[0]).toBe(ORG);
-      expect(statement?.values[5]).toBe(everyKey);
+      expect(statement?.values[1]).toBe(ORG);
+      expect(statement?.values[6]).toBe(everyKey);
       // Only while it can act here: no disabled member's key, and no
       // disabled or expired key.
       expect(statement?.text).toContain(`lower(m."role") <> 'disabled'`);
@@ -948,6 +950,88 @@ describe('listApiKeysForViewer', () => {
   });
 });
 
+describe('listApiKeysForViewer — who may end a key [APIKEY-R13]', () => {
+  const ownersOwn = {
+    id: 'olav-ci',
+    name: 'CI deploy',
+    start: 'tale_s',
+    prefix: 'tale',
+    suffix: 'ABCD',
+    enabled: true,
+    expiresAt: null,
+    createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    lastRequest: null,
+    referenceId: 'olav-ci-identity',
+    ownerKind: 'member',
+    principalUserId: 'olav',
+    teamId: null,
+    projectId: null,
+    role: null,
+    createdBy: 'olav',
+    memberName: 'Olav',
+    memberEmail: 'olav@example.test',
+    teamName: null,
+    projectName: null,
+    createdByName: 'Olav',
+    holderName: null,
+    holderEmail: null,
+    principalRole: 'owner',
+  };
+
+  it('offers an Admin no way to end the Owner’s own key; the Owner and the holder may', async () => {
+    for (const [viewer, may] of [
+      [{ userId: 'ada', role: 'admin' }, false],
+      [{ userId: 'otto', role: 'owner' }, true],
+      [{ userId: 'olav', role: 'owner' }, true],
+    ] as const) {
+      const { sql } = fakeSql({ listed: [ownersOwn] });
+      const [key] = await listApiKeysForViewer(sql, {
+        organizationId: ORG,
+        ...viewer,
+      });
+      expect(key?.canRevoke).toBe(may);
+    }
+  });
+
+  it('lets an Admin end a key an Owner made for a member, and a member’s own key below them', async () => {
+    for (const listed of [
+      { ...ownersOwn, principalRole: 'owner', createdBy: 'otto' },
+      { ...ownersOwn, principalRole: 'member' },
+    ]) {
+      const { sql } = fakeSql({ listed: [listed] });
+      const [key] = await listApiKeysForViewer(sql, {
+        organizationId: ORG,
+        userId: 'ada',
+        role: 'admin',
+      });
+      expect(key?.canRevoke).toBe(true);
+    }
+  });
+
+  it('offers a session bound to this organization no way to end a key that works everywhere', async () => {
+    const own = {
+      ...ownersOwn,
+      id: 'laptop',
+      ownerKind: null,
+      referenceId: 'ada',
+      principalRole: null,
+    };
+    for (const [sessionBound, may] of [
+      [true, false],
+      [false, true],
+    ] as const) {
+      const { sql } = fakeSql({ listed: [own] });
+      const [key] = await listApiKeysForViewer(sql, {
+        organizationId: ORG,
+        userId: 'ada',
+        role: 'admin',
+        sessionBound,
+      });
+      expect(key).toMatchObject({ owner: { kind: 'user' }, canRevoke: may });
+    }
+  });
+});
+
 describe('revokeBoundApiKey', () => {
   const binding = (kind: string, extra: Record<string, unknown> = {}) => ({
     apiKeyId: 'key-1',
@@ -992,6 +1076,41 @@ describe('revokeBoundApiKey', () => {
           previousState: { owner: kind },
         }),
       ]);
+    }
+  });
+
+  it('keeps an Admin from ending the Owner’s own key, never the Owner [APIKEY-R13]', async () => {
+    const ownersOwn = binding('member', {
+      principalUserId: 'olav',
+      createdBy: 'olav',
+    });
+    const { sql, statements } = fakeSql({
+      bindings: { 'key-1': ownersOwn },
+      members: { olav: 'owner' },
+    });
+    await expect(
+      revokeBoundApiKey(
+        { sql },
+        { organizationId: ORG, actor: ADMIN, keyId: 'key-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'API_KEY_NOT_FOUND', status: 404 });
+    expect(statementsMatching(statements, 'DELETE FROM "apikey"')).toEqual([]);
+
+    for (const actor of [
+      { userId: 'otto', role: 'owner' },
+      { userId: 'olav', role: 'owner' },
+    ]) {
+      const owner = fakeSql({
+        bindings: { 'key-1': ownersOwn },
+        members: { olav: 'owner' },
+      });
+      await revokeBoundApiKey(
+        { sql: owner.sql },
+        { organizationId: ORG, actor, keyId: 'key-1' },
+      );
+      expect(
+        statementsMatching(owner.statements, 'DELETE FROM "apikey"'),
+      ).toHaveLength(1);
     }
   });
 

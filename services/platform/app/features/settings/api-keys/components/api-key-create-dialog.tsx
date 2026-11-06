@@ -481,7 +481,9 @@ export function ApiKeyCreateDialog({
           />
         )}
         {modelNote !== null && (
-          <Text variant="muted">
+          // Announced as it changes with Belongs to, Acts as and the member:
+          // nobody tabs to a line of text.
+          <Text variant="muted" role="status">
             {modelNote.messageKey === 'apiKeys.form.modelApi.needsGrant'
               ? tSettings(modelNote.messageKey, { name: modelNote.name })
               : tSettings(modelNote.messageKey)}

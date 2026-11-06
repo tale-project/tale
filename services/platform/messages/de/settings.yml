@@ -1284,7 +1284,8 @@ apiKeys:
       Organisation, weil deine Anmeldung nur für sie gilt. Er handelt in
       deinem Namen, mit deiner Rolle hier, und braucht keinen Header
       X-Organization-Slug. Inhaber und Admins dieser Organisation sehen ihn
-      und können ihn widerrufen.
+      und können ihn widerrufen; ein Admin kann den Schlüssel eines Inhabers
+      nicht widerrufen.
     expiresIn: Ablaufzeit
     expiresOptions:
       7days: 7 Tage
@@ -1346,6 +1347,7 @@ apiKeys:
     managed: Von dir verwaltete Schlüssel
     all: Alle Schlüssel dieser Organisation
   allKeysDescription: Alle API-Schlüssel, die in dieser Organisation funktionieren, auch die persönlichen Schlüssel der Mitglieder. Einen persönlichen Schlüssel kann nur das Mitglied widerrufen, dem er gehört.
+  everywhereKeysAfterPassword: Deine Schlüssel, die in jeder Organisation funktionieren, kannst du nur nach einer Anmeldung mit Passwort widerrufen, da diese Sitzung nur für diese Organisation gilt.
   neverExpires: Nie
   expired: Abgelaufen
   description: API-Schlüssel für externe Connectors verwalten

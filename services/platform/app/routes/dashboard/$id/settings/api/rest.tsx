@@ -1,3 +1,4 @@
+import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -54,6 +55,11 @@ function ApiRestPage() {
   const scope: ApiKeyListScope = canSeeAll ? chosen : 'managed';
 
   const { data: apiKeys, error, refetch } = useApiKeys(organizationId, scope);
+  // A session that covers this organization alone ends none of the keys
+  // that work everywhere: the list offers no way to, and this says why.
+  const everywhereKeysListed =
+    sessionBoundHere &&
+    (apiKeys ?? []).some((apiKey) => apiKey.owner.kind === 'user');
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
@@ -104,6 +110,11 @@ function ApiRestPage() {
           error={error}
           onRetry={() => void refetch()}
         />
+        {everywhereKeysListed && (
+          <Text variant="muted" className="mt-3">
+            {tSettings('apiKeys.everywhereKeysAfterPassword')}
+          </Text>
+        )}
       </SettingsSection>
     </SettingsPage>
   );

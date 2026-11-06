@@ -46,7 +46,7 @@ afterEach(async () => {
   await i18n.changeLanguage('en');
 });
 
-function renderCreate() {
+function renderCreate(options: { sessionBoundHere?: boolean } = {}) {
   const onOpenChange = vi.fn();
   const onSuccess = vi.fn();
   function Harness() {
@@ -62,6 +62,9 @@ function renderCreate() {
           }}
           onSuccess={onSuccess}
           organizationId="org-1"
+          {...(options.sessionBoundHere === true
+            ? { sessionBoundHere: true }
+            : {})}
         />
         <Toaster />
       </QueryClientProvider>
@@ -237,6 +240,44 @@ describe('API-key refusal feedback', () => {
       expect(await screen.findByText(detail)).toBeInTheDocument();
     },
   );
+
+  it('words the create rule’s refusal from the organization’s door too [APIKEY-R13]', async () => {
+    // A session that covers this organization alone makes its own key at the
+    // organization's door, which answers the code in `error`.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          error: 'API_KEY_CREATE_FORBIDDEN',
+          message:
+            'Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.',
+        },
+        { status: 403 },
+      ),
+    );
+    const { user } = renderCreate({ sessionBoundHere: true });
+    await user.type(
+      screen.getByRole('textbox', {
+        name: i18n.t('apiKeys.form.name', { ns: 'settings' }),
+      }),
+      'Audit key',
+    );
+    const submit = screen.getByRole('button', {
+      name: i18n.t('apiKeys.createKeySubmit', { ns: 'settings' }),
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await user.click(submit);
+
+    expect(
+      await screen.findByText(
+        i18n.t('apiKeys.createForbidden', { ns: 'settings' }),
+      ),
+    ).toBeInTheDocument();
+    expect(apiKey.create).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api-keys'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 
   it('shows a non-authentication refusal without discarding the draft', async () => {
     apiKey.create.mockResolvedValueOnce({

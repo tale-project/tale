@@ -590,6 +590,21 @@ describe('ApiKeyCreateDialog', () => {
       ).toEqual([expect.stringContaining('Mia Keller')]);
     });
 
+    it('keeps saying why a member is not listed when the picker closes without a choice [APIKEY-R3]', async () => {
+      const { user } = renderForAdmin();
+      await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
+      await user.click(screen.getByRole('option', { name: 'Another member' }));
+      // Ada looks for Ines, a fellow admin, does not find her, and closes it.
+      await user.click(screen.getByRole('button', { name: /^Member/ }));
+      await user.keyboard('{Escape}');
+      // The refusal, and beside it why Ines was not there to pick.
+      expect(
+        document.getElementById('api-key-member'),
+      ).toHaveAccessibleDescription(
+        'Choose whom the key belongs to. Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.',
+      );
+    });
+
     it('says why members at or above the maker are not listed, whenever it leaves one out [APIKEY-R3]', async () => {
       const hint =
         'Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.';
@@ -716,11 +731,10 @@ describe('ApiKeyCreateDialog', () => {
         expect(screen.queryByText(/model endpoints/)).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: /^Member/ }));
         await user.click(screen.getByRole('option', { name: /Mia Keller/ }));
-        expect(
-          screen.getByText(
-            'This key calls the model endpoints only while Mia Keller holds the Call models over the API competence, which an Admin grants.',
-          ),
-        ).toBeInTheDocument();
+        // A polite status: announced as it changes, since nobody tabs to it.
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'This key calls the model endpoints only while Mia Keller holds the Call models over the API competence, which an Admin grants.',
+        );
       });
     });
 

@@ -1317,7 +1317,7 @@ apiKeys:
       organisation, car ta connexion ne couvre qu'elle. Elle agit en ton nom,
       avec ton rôle ici, et n'a pas besoin de l'en-tête X-Organization-Slug.
       Les propriétaires et admins de cette organisation la voient et peuvent
-      la révoquer.
+      la révoquer ; un admin ne peut pas révoquer celle d’un propriétaire.
     expiresIn: Expiration
     expiresOptions:
       7days: 7 jours
@@ -1379,6 +1379,7 @@ apiKeys:
     managed: Clés que tu gères
     all: Toutes les clés de cette organisation
   allKeysDescription: Toutes les clés API qui fonctionnent dans cette organisation, y compris les clés personnelles des membres. Seul le membre à qui appartient une clé personnelle peut la révoquer.
+  everywhereKeysAfterPassword: Tes clés qui fonctionnent dans toutes les organisations ne peuvent être révoquées qu’après une connexion par mot de passe, car cette session ne couvre que cette organisation.
   neverExpires: Jamais
   expired: Expirée
   description: Gérer les clés API pour les connectors externes

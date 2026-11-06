@@ -324,10 +324,25 @@ export function createRestV1Routes(deps: {
       return unauthorized(c, 'Invalid API key', 'invalid_token', agentSignIn);
     }
 
+    // The api-key plugin verifies the bearer into a session whose id IS
+    // the key row's id (`@better-auth/api-key`: `session.id = apiKey.id`);
+    // `/me` reads the key's name and expiry from it.
+    const sessionKeyId: unknown = session.session?.id;
+    const apiKeyId = typeof sessionKeyId === 'string' ? sessionKeyId : '';
+    const owner = await readApiKeyOwner(deps.sql, apiKeyId);
+
     // Authenticated: the shared `rest:api` budget belongs to the key holder,
     // charged before org resolution so a misdirected request still counts.
+    // A key a person made for themselves after a sign-in that covers one
+    // organization (`APIKEY-R13`) is theirs like every key of theirs, and
+    // shares their budget: making more of them buys no more requests. A key
+    // an Owner or Admin made for someone has a budget of its own.
+    const budgetHolder =
+      owner?.kind === 'member' && owner.createdBy === owner.principalUserId
+        ? owner.principalUserId
+        : session.user.id;
     try {
-      await checkUserRateLimit(deps.sql, 'rest:api', session.user.id);
+      await checkUserRateLimit(deps.sql, 'rest:api', budgetHolder);
     } catch (error) {
       if (error instanceof RateLimitExceededError) {
         return restRateLimited(c, error);
@@ -341,17 +356,10 @@ export function createRestV1Routes(deps: {
     const orgSlugRaw = c.req.header('x-organization-slug')?.trim();
     const orgSlugHeader = orgSlugRaw?.toLowerCase();
 
-    // The api-key plugin verifies the bearer into a session whose id IS
-    // the key row's id (`@better-auth/api-key`: `session.id = apiKey.id`);
-    // `/me` reads the key's name and expiry from it.
-    const sessionKeyId: unknown = session.session?.id;
-    const apiKeyId = typeof sessionKeyId === 'string' ? sessionKeyId : '';
-
     // A key bound to ONE organization — made for a member, or a team's, a
     // project's or the organization's own — works there and nowhere else,
     // with no header needed; a header naming another organization is
     // refused with its own organization listed (`bound-key.ts`).
-    const owner = await readApiKeyOwner(deps.sql, apiKeyId);
     if (owner !== null) {
       const bound = await resolveBoundKeyCaller(deps.sql, {
         owner,

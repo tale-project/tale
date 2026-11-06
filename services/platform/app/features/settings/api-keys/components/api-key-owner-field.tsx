@@ -207,14 +207,18 @@ interface TargetPickerState {
   onClosed: (() => void) | undefined;
 }
 
-/** The picker's refusal, else its hint, under its trigger, and the check on
- * close. */
+/** The picker's refusal and its hint under its trigger, and the check on
+ * close. The hint stays beside the refusal: it says why the person looked
+ * for was not listed, exactly when the picker is closed without a choice. */
 function targetPickerProps({
   error,
   onClosed,
   hint,
 }: TargetPickerState & { hint?: string | undefined }) {
-  const description = error ?? hint;
+  const description =
+    error !== undefined && hint !== undefined
+      ? `${error} ${hint}`
+      : (error ?? hint);
   return {
     error: error !== undefined,
     ...(description !== undefined ? { description } : {}),
