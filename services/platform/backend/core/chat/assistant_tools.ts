@@ -57,7 +57,12 @@ import {
 } from '../../../lib/knowledge/main-content';
 import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
-import { botCheckOf, type BotCheck } from '../../../lib/net/bot-check';
+import {
+  botCheckOf,
+  headerRecord,
+  markedBotCheckOf,
+  type BotCheck,
+} from '../../../lib/net/bot-check';
 import {
   SafeFetchError,
   isPrivateIp,
@@ -408,7 +413,7 @@ async function renderPageOnce(
     if (outcome?.kind === 'ok') return outcome;
     const check =
       outcome?.kind === 'failed' && outcome.headers !== undefined
-        ? botCheckOf({ headers: new Headers(outcome.headers), body: '' })
+        ? markedBotCheckOf(headerRecord(outcome.headers))
         : null;
     if (check !== null) {
       console.warn(
@@ -498,7 +503,8 @@ function readDrawnPage(drawn: DrawnPage, cause: RenderCause): RenderedRead {
     };
   }
   const check = botCheckOf({
-    headers: new Headers(drawn.headers ?? {}),
+    status: drawn.status,
+    headers: headerRecord(drawn.headers ?? {}),
     body: drawn.html,
   });
   if (check !== null) {
