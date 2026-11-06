@@ -163,6 +163,20 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/settings/api/rest`,
   },
+  // The member's API keys, where the key blocked here is marked so.
+  api_key_blocked: {
+    row: {
+      params: { name: 'Sam Rivera', keyName: 'CI deploy', apiKeys: true },
+    },
+    path: `/dashboard/${ORG}/settings/api/rest`,
+  },
+  // The member's API keys, where the key works here again.
+  api_key_unblocked: {
+    row: {
+      params: { name: 'Sam Rivera', keyName: 'CI deploy', apiKeys: true },
+    },
+    path: `/dashboard/${ORG}/settings/api/rest`,
+  },
   // The connected agents, where the member sees which of theirs was
   // disconnected and which still work.
   agent_connection_ended: {

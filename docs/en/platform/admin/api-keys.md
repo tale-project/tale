@@ -23,7 +23,7 @@ Owners and Admins can also create a key for another member, a team, a project, o
 
 The complete secret is shown once. The table later shows only a masked fragment, whom the key belongs to, the day it expires, the creation date, and when it was last used. It lists your own keys and the keys an Admin made for you in this organization; Owners and Admins also see every key made here for a member, a team, a project, or the organization, the keys members made for themselves after an SSO sign-in included. Under **Belongs to**, a team's, a project's, or the organization's key shows the role it acts as, and a key made for a member shows who made it.
 
-Owners and Admins can also pick **All keys in this organization** above the table. The list then adds the keys members made for themselves after a password sign-in, which work here because they are members. Each is marked **Personal key** and shows its holder's name and email under **Belongs to**. Such a key also works in its holder's other organizations, and its last use may have been there, so **Last used** reads **Not available**. The row offers no way to revoke it: only its holder can. Disabled and expired keys and the keys of disabled or former members are not listed, since they cannot act here.
+Owners and Admins can also pick **All keys in this organization** above the table. The list then adds the keys members made for themselves after a password sign-in, which work here because they are members. Each is marked **Personal key** and shows its holder's name and email under **Belongs to**. Such a key also works in its holder's other organizations, and its last use may have been there, so **Last used** reads **Not available**. The row offers no way to revoke it: only its holder can. Disabled and expired keys, the keys of disabled or former members, and a member's own key [blocked here](#block-a-members-own-key) are not listed, since they cannot act here; a blocked key stays in that member's **Personal API keys**, where you lift the block. Your own keys stay listed, each one blocked here marked **Blocked in this organization**.
 
 <Warning>
 
@@ -75,9 +75,17 @@ Tale does not automatically rotate keys. Key creation and revocation happen in t
 
 Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate, calls to the model endpoints included; an answer that is already streaming finishes. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
 
-An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys, which **All keys in this organization** lists, are theirs to revoke, except one made [after an SSO sign-in](#your-key-after-sso), which belongs to this organization like a key made for them; to cut the others off here, disable or remove the member. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
+An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys, which **All keys in this organization** lists, are theirs to revoke, except one made [after an SSO sign-in](#your-key-after-sso), which belongs to this organization like a key made for them; to stop one of the others in this organization alone, [block it](#block-a-members-own-key), and to cut them all off here, disable or remove the member. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
 
 Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
+
+## Block a member's own key {#block-a-members-own-key}
+
+A member's own key works in every organization they belong to. An Owner or Admin can stop one in this organization alone: under **Settings > Members**, open the member's row menu and select **Personal API keys**. The dialog lists the member's own keys that are still valid, each marked **Works here** or **Blocked here**. Select **Block** and confirm with **Block key**. The key's next request to this organization is refused with `403 API_KEY_BLOCKED`, whose answer lists the organizations it still works in; the block does not reach the member's other organizations, and the member keeps it. **Lift block** ends the block.
+
+An Admin sees an Owner's keys but can neither block them nor lift their block; an Owner can do both on anyone's key. Nobody blocks their own key: revoke it instead. A key made here for a member, a team, a project, or the organization, or one a member made [after an SSO sign-in](#your-key-after-sso), is revoked, not blocked. Each block and each lift leaves a row in the audit log naming who did it and the key by its masked ends. The member is told in their notifications, and their own list under **Settings > API > REST** marks the key **Blocked in this organization**.
+
+A block holds for the key it names: it does not cover a new key the member creates for themselves, which has to be blocked too.
 
 ## Understand permissions and limits
 

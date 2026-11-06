@@ -495,6 +495,34 @@ Restore any toggled setting after the run.
   the key answers 403 `ORG_FORBIDDEN` ("whoever made it is no longer an Owner
   or Admin above the member"); remove that Admin instead → the key is revoked
   with the reason `maker_removed`.
+- [ ] `SET-F103` · **Block a member's own key here** — with a Developer who
+  belongs to this organization and a second one and holds a key they made
+  for themselves after a password sign-in (SET-F32), as an Owner or Admin
+  open `/dashboard/{org}/settings/members` → the Developer's row actions →
+  **Personal API keys** (`settings.apiKeys.memberKeys.action`) → **Block**
+  (`settings.apiKeys.memberKeys.block`) → **Block key**
+  (`settings.apiKeys.memberKeys.blockDialog.confirm`) → The row turns from
+  **Works here** (`settings.apiKeys.memberKeys.works`) to **Blocked here**
+  (`settings.apiKeys.memberKeys.blocked`), naming you and the day
+  (`settings.apiKeys.memberKeys.blockedBy`). `GET /api/v1/me` with the key and
+  this organization's `X-Organization-Slug` answers 403 `API_KEY_BLOCKED`
+  listing the second organization and not this one; with the second
+  organization's slug it answers 200. `POST /api/v1/mcp` and
+  `GET /api/v1/openai/models` with the key and this organization's slug
+  answer 403 `API_KEY_BLOCKED` too, the second in the OpenAI error shape.
+  Signed in as the Developer, the bell shows **Your API key was blocked in
+  this organization** (`inbox.apiKeyBlockedForYou`), and
+  `/dashboard/{org}/settings/api/rest` still lists the key, marked **Blocked
+  in this organization** (`settings.apiKeys.owner.blockedHere`). The audit
+  log (**Settings → Governance → Logs**) shows one **API key blocked**
+  (`settings.logs.audit.actionLabels.api_key.blocked`) row by you, naming the
+  key by its name and masked ends, never its secret. **Lift block**
+  (`settings.apiKeys.memberKeys.unblock`) → the key answers 200 here again,
+  the bell says **The block on your API key was lifted in this organization**
+  (`inbox.apiKeyUnblockedForYou`), and the log adds **API key block lifted**
+  (`settings.logs.audit.actionLabels.api_key.unblocked`). Repeat with Deutsch
+  and Français → the dialog, its confirmations, the toasts, the bell and the
+  mark are localized.
 - [ ] `SET-F111` · **Your own key after single sign-on** — as a Developer of
   organization A who also belongs to B, sign in through A's single sign-on
   (`AUTH-F12`) → `/dashboard/{A}/settings/api/rest` → **Create API key**
@@ -529,11 +557,16 @@ Restore any toggled setting after the run.
   /api/v1/me` with it, and neither a checkbox nor a row menu; your own keys
   keep theirs. Change the Member's role to **Disabled**, or remove them from
   the organization, then open the view again → their own key has left it and
-  still works in their other organizations. Signed in as the Member, the page
-  offers no **Keys to show**, and `GET /api/app/api-keys?scope=all` from their
-  session answers their own keys alone; `?scope=everyone` answers 400
-  `INVALID_QUERY`. Repeat with Deutsch and Français → the choice, the mark and
-  **Not available** are localized.
+  still works in their other organizations. Block the Member's key here as
+  SET-F103 does and open the view again → the key has left it; signed in as
+  the Member, their own list still shows it, marked **Blocked in this
+  organization** (`settings.apiKeys.owner.blockedHere`). Lift the block → it
+  is listed again. Have an Owner block your own key → the view keeps it,
+  marked the same way. Signed in as the Member, the page offers no **Keys to
+  show**, and `GET /api/app/api-keys?scope=all` from their session answers
+  their own keys alone; `?scope=everyone` answers 400 `INVALID_QUERY`. Repeat
+  with Deutsch and Français → the choice, the marks and **Not available** are
+  localized.
 - [ ] `SET-F113` · **What the create dialog says before a key exists** — as
   an Admin, with the organization's **Model endpoints for API keys**
   (`governance.modelAccess.modelApi.title`) switched off:
@@ -1210,6 +1243,19 @@ Restore any toggled setting after the run.
   API** offers no **Create API key**, and the same org-door request answers
   403 `API_KEY_CREATE_FORBIDDEN`; signed in to B with a password, the
   personal-key door still makes the key.
+- [ ] `SET-B48` · **Who may block a member's own key** — as an Admin, open an
+  Owner's row actions → **Personal API keys** → The Owner's keys are listed
+  with no **Block**, under a note that only an Owner can block them
+  (`settings.apiKeys.memberKeys.cannotBlock`); `PUT
+  /api/app/api-keys/{id}/block` for one of them from the Admin's session
+  answers 403 `API_KEY_BLOCK_FORBIDDEN` and nothing is logged. Your own row
+  offers no **Personal API keys**, and signed in as a Member or a Developer
+  no row does. A key an Admin made for a member (SET-F77), one a member made
+  for themselves after a single sign-on (SET-F111), and one that belongs to
+  a team, a project or the organization (SET-F78) are not listed, and their
+  `PUT …/block` answers 404 `API_KEY_NOT_FOUND`: they are ended, not
+  blocked. A holder whose key is blocked can still make a new key of their
+  own, which works here.
 - [ ] `SET-B7` · **API key edge cases** — Create with a blank **Key name**;
   after SET-F32's revoke, call a REST endpoint with the revoked key (e.g.
   `curl -H "Authorization: Bearer <key>"` against the API) → The blank name is

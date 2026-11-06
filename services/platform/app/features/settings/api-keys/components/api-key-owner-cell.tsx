@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
@@ -7,7 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import type { ApiKey } from '../types';
 
 interface ApiKeyOwnerCellProps {
-  apiKey: Pick<ApiKey, 'owner' | 'role' | 'createdBy'>;
+  apiKey: Pick<ApiKey, 'owner' | 'role' | 'createdBy' | 'blockedHere'>;
   /** The signed-in member: a key made for them reads as theirs. */
   viewerUserId: string | undefined;
 }
@@ -15,9 +16,10 @@ interface ApiKeyOwnerCellProps {
 /**
  * Whose a key is, and — under it — what it acts as: the role of a team's, a
  * project's or the organization's key, who made a key for a member, or the
- * address of the member who holds their own key. The viewer's own key made
- * from a session bound to this organization works here alone, and says so
- * where their other own keys say only "You".
+ * address of the member who holds their own key; and whether this
+ * organization has blocked the viewer's own key here. The viewer's own key
+ * made from a session bound to this organization works here alone, and says
+ * so where their other own keys say only "You".
  */
 export function ApiKeyOwnerCell({
   apiKey,
@@ -92,6 +94,17 @@ export function ApiKeyOwnerCell({
         >
           {detail}
         </Text>
+      )}
+      {apiKey.blockedHere === true && (
+        // Held to the column, and wrapping in it: a badge as wide as its
+        // words ran over the next column's date, more so in German and
+        // French, and cut to fit it would lose the organization it names.
+        <Badge
+          variant="destructive"
+          className="mt-1 w-fit max-w-full whitespace-normal [&>span]:whitespace-normal"
+        >
+          {t('apiKeys.owner.blockedHere')}
+        </Badge>
       )}
     </div>
   );

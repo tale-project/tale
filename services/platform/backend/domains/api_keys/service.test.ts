@@ -787,6 +787,7 @@ describe('listApiKeysForViewer', () => {
     teamName: null,
     projectName: null,
     createdByName: null,
+    blockedHere: false,
     holderName: null,
     holderEmail: null,
     principalRole: null,
@@ -806,14 +807,14 @@ describe('listApiKeysForViewer', () => {
         userId: 'mia',
         role,
       });
-      // The bound member's role here, then the holder's membership here,
-      // are joined first.
-      expect(statements[0]?.values.slice(0, 2)).toEqual([ORG, ORG]);
-      expect(statements[0]?.values.slice(2, 5)).toEqual(['mia', ORG, admin]);
+      // This organization's blocks (APIKEY-R11), the bound member's role
+      // here, then the holder's membership here, are joined first.
+      expect(statements[0]?.values.slice(0, 3)).toEqual([ORG, ORG, ORG]);
+      expect(statements[0]?.values.slice(3, 6)).toEqual(['mia', ORG, admin]);
       // A member's keys are the ones made for them here.
-      expect(statements[0]?.values[5]).toBe('mia');
+      expect(statements[0]?.values[6]).toBe('mia');
       // The members' own keys stay out of the keys a viewer manages.
-      expect(statements[0]?.values[6]).toBe(false);
+      expect(statements[0]?.values[7]).toBe(false);
     }
   });
 
@@ -833,8 +834,8 @@ describe('listApiKeysForViewer', () => {
       );
       const [statement] = statements;
       // Only a member of this organization's own key joins, by its holder.
-      expect(statement?.values[1]).toBe(ORG);
-      expect(statement?.values[6]).toBe(everyKey);
+      expect(statement?.values[2]).toBe(ORG);
+      expect(statement?.values[7]).toBe(everyKey);
       // Only while it can act here: no disabled member's key, and no
       // disabled or expired key.
       expect(statement?.text).toContain(`lower(m."role") <> 'disabled'`);
@@ -947,6 +948,61 @@ describe('listApiKeysForViewer', () => {
       canRevoke: true,
     });
     expect(keys[0]?.createdBy).toBeNull();
+  });
+
+  it('marks a person’s own key this organization blocked [APIKEY-R11]', async () => {
+    const { sql, statements } = fakeSql({
+      listed: [row({ id: 'own', blockedHere: true }), row({ id: 'other' })],
+    });
+    const keys = await listApiKeysForViewer(sql, {
+      organizationId: ORG,
+      userId: 'mia',
+      role: 'member',
+    });
+    expect(keys.map((key) => [key.id, key.blockedHere])).toEqual([
+      ['own', true],
+      ['other', false],
+    ]);
+    // Only a personal key reads as blocked: a bound key is ended instead.
+    expect(statements[0]?.text).toContain(
+      '(o.api_key_id IS NULL AND b.api_key_id IS NOT NULL) AS "blockedHere"',
+    );
+  });
+
+  it('leaves another member’s own key blocked here out of every key, and keeps the viewer’s own with its mark [APIKEY-R8]', async () => {
+    // Mia's own key is blocked here: her own list still shows it, marked.
+    const mia = fakeSql({ listed: [row({ id: 'laptop', blockedHere: true })] });
+    const own = await listApiKeysForViewer(mia.sql, {
+      organizationId: ORG,
+      userId: 'mia',
+      role: 'member',
+    });
+    expect(own).toMatchObject([{ id: 'laptop', blockedHere: true }]);
+    // An admin's own blocked key keeps its place and its mark in every key.
+    const ada = fakeSql({ listed: [row({ id: 'own', blockedHere: true })] });
+    const all = await listApiKeysForViewer(
+      ada.sql,
+      { organizationId: ORG, userId: 'ada', role: 'admin' },
+      'all',
+    );
+    expect(all).toMatchObject([
+      { id: 'own', owner: { kind: 'user' }, blockedHere: true },
+    ]);
+    // Another member's own key joins only while no block of this
+    // organization names it: the block of that key here, and nothing else,
+    // keeps it out, so the holder's other keys stay listed and a lifted
+    // block lists it again. The viewer's own keys and the keys bound here
+    // never ask.
+    const text = ada.statements[0]?.text ?? '';
+    expect(text).toContain(
+      'LEFT JOIN app.api_key_org_blocks b ON b.org_id = ? AND b.api_key_id = k."id"',
+    );
+    expect(ada.statements[0]?.values[0]).toBe(ORG);
+    const where = text.slice(text.indexOf(' WHERE ('));
+    const memberBranch = where.indexOf('OR (?::boolean AND lower(m."role")');
+    expect(memberBranch).toBeGreaterThan(0);
+    expect(where.slice(memberBranch)).toContain('AND b.api_key_id IS NULL)');
+    expect(where.slice(0, memberBranch)).not.toContain('b.api_key_id');
   });
 });
 
