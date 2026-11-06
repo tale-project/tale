@@ -27,7 +27,7 @@ When you try to attach audio or video, Tale checks whether the organization has 
 
 | Attachment | What the model uses | What to check |
 | --- | --- | --- |
-| Image or pasted screenshot | The image itself, when the selected model supports vision. | Confirm the picker offers an image-capable model and the text is legible. |
+| Image or pasted screenshot | The image itself, when the selected model supports vision. | Confirm the picker offers an image-capable model and the text is legible. Tale makes an image over 1 MB smaller before it uploads it, to 2 MB at most, the largest image a model is shown. An animated GIF is never made smaller: over 2 MB, the model gets only its name, and the composer says so. |
 | PDF, modern Office document, or supported text file | The document’s text, which the assistant reads with its retrieval tools: from the search index, or, while the document is still being indexed, from the text Tale read when it was uploaded. | Check for a reading step in the reply. A PDF, Word, PowerPoint, or OpenDocument file over 50 MiB, a spreadsheet over 20 MiB, a text file over 4 MiB, or a file with more than about four million characters of text can only be read once it is indexed. |
 | Audio or video file | A text transcript. | An admin must configure transcription; check names, numbers, and specialist terms against the recording. |
 | Legacy Office file without a text extractor | The filename, without searchable document text. | Save it as `.docx`, `.xlsx`, or `.pptx` and attach that copy. |
@@ -61,6 +61,7 @@ For recurring questions about a brief or policy, put the file in the appropriate
 | Symptom | Action |
 | --- | --- |
 | The image cannot be read by the selected model | Choose a vision-capable model. On Auto, Tale considers compatible image models; if none are available, ask an admin to configure one. |
+| The composer says an image is larger than 2 MB | The model will get only that image’s name. Attach a smaller copy, or a PNG or JPEG instead of an animated GIF. |
 | Processing fails | Retry the file. If a small supported file also fails, ask an admin to check storage, indexing, or transcription as indicated by the error. |
 | The assistant knows the name but not the contents | Check the format and processing status. Convert legacy files to a supported modern format. |
 | A document shows **Can't be read** | Your organization’s secret scan or privacy (PII) policy refuses its content. Remove the password, key, or personal data from the file and attach it again, or ask an admin about the policy. |

@@ -15,7 +15,10 @@
  * When the picked model cannot see images (no `vision` catalog tag) the
  * strip says so up front — the alternative is a model politely explaining
  * it is blind, one full turn too late. Audio never needs that warning:
- * it rides the turn as transcribed text.
+ * it rides the turn as transcribed text. The same goes for an image still
+ * larger than a model is shown once the composer fitted it — an animated
+ * GIF, which is never redrawn, or an image the browser could not redraw:
+ * the model gets its name only, and the strip says so before the send.
  */
 
 import { formatFileSize } from '@tale/ui/format';
@@ -47,6 +50,10 @@ interface ComposerAttachmentsProps {
   /** Why staged images would go unseen (pinned model is blind, or no model
    * in the catalog can see) — rendered as a warning while any are staged. */
   visionWarning?: string;
+  /** The largest image the conversation's model is shown; a staged image
+   * still larger is named under the strip. Absent where no model is shown
+   * the images (a sandbox agent reads them as files). */
+  modelImageMaxSize?: number;
   /** Live transcription status for staged audio/video attachments. */
   transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
   transcriptionAvailable?: boolean;
@@ -292,6 +299,7 @@ export function ComposerAttachments({
   onRemove,
   onCancelUpload,
   visionWarning,
+  modelImageMaxSize,
   transcriptionStatuses,
   transcriptionAvailable,
   transcriptionUnavailableReason,
@@ -307,6 +315,12 @@ export function ComposerAttachments({
   if (attachments.length === 0 && uploadingFiles.length === 0) return null;
 
   const hasImages = attachments.some((a) => isImage(a.fileType));
+  const imagesTooLarge =
+    modelImageMaxSize === undefined
+      ? []
+      : attachments.filter(
+          (a) => isImage(a.fileType) && a.fileSize > modelImageMaxSize,
+        );
 
   return (
     <div>
@@ -377,6 +391,22 @@ export function ComposerAttachments({
           />
           <Text variant="muted" className="text-xs">
             {visionWarning}
+          </Text>
+        </Row>
+      )}
+      {/* A blind model sees no image at all, which the warning above says. */}
+      {visionWarning === undefined && imagesTooLarge.length > 0 && (
+        <Row gap={1} align="center" className="mt-1.5">
+          <TriangleAlert
+            aria-hidden
+            className="size-3.5 shrink-0 text-amber-600 dark:text-amber-500"
+          />
+          <Text variant="muted" className="text-xs">
+            {t('imagesTooLargeForModel', {
+              names: imagesTooLarge.map((a) => a.fileName).join(', '),
+              count: imagesTooLarge.length,
+              maxSize: (modelImageMaxSize ?? 0) / (1024 * 1024),
+            })}
           </Text>
         </Row>
       )}

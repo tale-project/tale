@@ -27,7 +27,7 @@ Wenn du Audio oder Video anhängen möchtest, prüft Tale, ob die Organisation e
 
 | Anhang | Verwendeter Inhalt | Darauf achten |
 | --- | --- | --- |
-| Bild oder eingefügter Screenshot | Das Bild selbst, sofern das Modell Bilder verarbeiten kann. | Wähle ein bildfähiges Modell und achte auf lesbaren Text. |
+| Bild oder eingefügter Screenshot | Das Bild selbst, sofern das Modell Bilder verarbeiten kann. | Wähle ein bildfähiges Modell und achte auf lesbaren Text. Tale verkleinert ein Bild über 1 MB vor dem Hochladen auf höchstens 2 MB, das größte Bild, das ein Modell zu sehen bekommt. Ein animiertes GIF wird nie verkleinert: Ist es größer als 2 MB, bekommt das Modell nur seinen Namen, und das Nachrichtenfeld sagt es dir. |
 | PDF, modernes Office-Dokument oder unterstützte Textdatei | Den Text des Dokuments, den der Assistent mit seinen Abrufwerkzeugen liest: aus dem Suchindex oder, solange das Dokument noch indexiert wird, aus dem Text, den Tale beim Hochladen gelesen hat. | Prüfe den Leseschritt in der Antwort. Eine PDF-, Word-, PowerPoint- oder OpenDocument-Datei über 50 MiB, eine Tabelle über 20 MiB, eine Textdatei über 4 MiB oder eine Datei mit mehr als etwa vier Millionen Zeichen Text kann erst gelesen werden, wenn sie indexiert ist. |
 | Audio- oder Videodatei | Ein Texttranskript. | Ein Admin muss die Transkription einrichten. Prüfe Namen, Zahlen und Fachbegriffe anhand der Aufnahme. |
 | Alte Office-Datei ohne Textextraktor | Den Dateinamen, ohne durchsuchbaren Dokumenttext. | Speichere sie als `.docx`, `.xlsx` oder `.pptx` und hänge diese Kopie an. |
@@ -61,6 +61,7 @@ Lege ein Briefing oder eine Richtlinie für wiederkehrende Fragen einmal im pass
 | Beobachtung | Maßnahme |
 | --- | --- |
 | Das gewählte Modell kann das Bild nicht lesen | Wähle ein bildfähiges Modell. Auto berücksichtigt passende Bildmodelle. Sind keine verfügbar, bitte einen Admin um die Einrichtung. |
+| Das Nachrichtenfeld meldet ein Bild größer als 2 MB | Das Modell bekommt nur den Namen dieses Bildes. Hänge eine kleinere Kopie an, oder ein PNG oder JPEG statt eines animierten GIFs. |
 | Die Verarbeitung schlägt fehl | Versuche den Upload erneut. Scheitert auch eine kleine unterstützte Datei, sollte ein Admin je nach Fehlermeldung Speicher, Indexierung oder Transkription prüfen. |
 | Der Assistent kennt den Namen, aber nicht den Inhalt | Prüfe Format und Verarbeitungsstatus. Wandle alte Dateien in ein unterstütztes modernes Format um. |
 | Ein Dokument zeigt **Nicht lesbar** | Die Prüfung auf Zugangsdaten oder die Datenschutzrichtlinie (PII) deiner Organisation lehnt seinen Inhalt ab. Entferne das Passwort, den Schlüssel oder die personenbezogenen Daten aus der Datei und hänge sie erneut an, oder frag einen Admin nach der Richtlinie. |

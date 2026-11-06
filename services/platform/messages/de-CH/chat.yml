@@ -1,4 +1,5 @@
 fileSizeExceededMultiple: '{names} überschreitet das Dateigrössenlimit von {maxSize} MB.'
+imagesTooLargeForModel: '{names} {count, plural, one {ist} other {sind}} grösser als {maxSize} MB — das Modell bekommt nur {count, plural, one {den Dateinamen} other {die Dateinamen}}.'
 budgetWarningDismiss: Schliessen
 skillPicker:
   empty: Kein Skill heisst "{query}". Die Nachricht wird so gesendet, wie sie ist.

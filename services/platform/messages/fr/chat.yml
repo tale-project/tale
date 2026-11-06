@@ -291,6 +291,7 @@ uploadingFile: Téléversement…
 cancelUpload: Annuler le téléversement
 modelCannotSeeImages: Ce modèle ne peut pas voir les images — il ne reçoit que leurs noms de fichier.
 noModelCanSeeImages: Aucun des modèles disponibles ne peut voir les images — ils ne reçoivent que les noms de fichier.
+imagesTooLargeForModel: '{names} {count, plural, one {dépasse} other {dépassent}} {maxSize} Mo — le modèle ne reçoit que {count, plural, one {son nom de fichier} other {leurs noms de fichier}}.'
 fileTypes:
   image: IMG
 markdownImage:

@@ -292,6 +292,7 @@ uploadingFile: Lädt hoch…
 cancelUpload: Upload abbrechen
 modelCannotSeeImages: Dieses Modell kann keine Bilder sehen — es bekommt nur die Dateinamen.
 noModelCanSeeImages: Keines der verfügbaren Modelle kann Bilder sehen — sie bekommen nur die Dateinamen.
+imagesTooLargeForModel: '{names} {count, plural, one {ist} other {sind}} größer als {maxSize} MB — das Modell bekommt nur {count, plural, one {den Dateinamen} other {die Dateinamen}}.'
 fileTypes:
   image: BILD
 markdownImage:

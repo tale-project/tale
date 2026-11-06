@@ -578,6 +578,15 @@ export const CHAT_MAX_FILE_COUNT = 10;
 /** Max total attachment size per chat message (200 MB) */
 export const CHAT_MAX_TOTAL_SIZE = 200 * 1024 * 1024;
 
+/**
+ * The largest image a chat model is shown (2 MiB). The platform puts an
+ * image's bytes into the model request only up to this size, because a
+ * provider refuses a larger request body; a larger image reaches the model
+ * as its name, with a note saying why it was left out. The composer fits
+ * every image it can redraw under it before uploading (`compressImage`).
+ */
+export const CHAT_IMAGE_MODEL_MAX_SIZE = 2 * 1024 * 1024;
+
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 

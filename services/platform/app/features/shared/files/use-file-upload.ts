@@ -96,6 +96,10 @@ interface FileUploadConfig {
   /** Files already uploaded that the list starts with — a task drafted from
    * a chat carries the files shared there. Read once, on mount. */
   initialAttachments?: readonly FileAttachment[];
+  /** The largest image the conversation's model is shown, when a model is
+   * shown the images: a picked image is made smaller until it fits. A task's
+   * files, which an agent reads as files, are only redrawn as before. */
+  modelImageLimit?: number;
 }
 
 const DEFAULT_UPLOAD_CONFIG = {
@@ -415,11 +419,19 @@ export function useFileUpload(config: FileUploadConfig) {
         reservedTasks.map(async ({ file, resolvedType, fileId }) => {
           if (resolvedType.startsWith('image/')) {
             try {
-              const compressionResult = await compressImage(file);
+              const compressionResult = await compressImage(file, {
+                limit: config.modelImageLimit ?? Number.POSITIVE_INFINITY,
+              });
               return {
                 file,
                 fileToUpload: compressionResult.file,
-                resolvedType,
+                // A redraw can change the format (a PNG becomes a JPEG to fit
+                // what a model is shown): the upload, its metadata and the
+                // attachment carry the type of the bytes sent, or a model is
+                // handed JPEG bytes labelled as a PNG.
+                resolvedType: compressionResult.wasCompressed
+                  ? compressionResult.file.type
+                  : resolvedType,
                 fileId,
               };
             } catch (error) {
@@ -642,6 +654,7 @@ export function useFileUpload(config: FileUploadConfig) {
       config.threadId,
       config.projectId,
       config.disableIndexing,
+      config.modelImageLimit,
       mergedConfig,
       policyLimits,
       t,

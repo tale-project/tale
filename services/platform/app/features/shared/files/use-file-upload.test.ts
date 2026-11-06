@@ -728,3 +728,108 @@ describe('useFileUpload — a project’s new chat', () => {
     expect(registered).not.toHaveProperty('projectId');
   });
 });
+
+describe('an image the composer redrew in another format', () => {
+  it('uploads, records and stages it under the type of the bytes sent', async () => {
+    const { result } = renderHook(() => useFileUpload(config));
+
+    let upload: Promise<void> | undefined;
+    act(() => {
+      upload = result.current.uploadFiles([
+        makeFile('scan.png', 3_000_000, 'image/png'),
+      ]);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await upload;
+    });
+
+    // The redraw made a JPEG of the PNG: a model handed JPEG bytes labelled
+    // as a PNG may refuse them.
+    expect(generateBlobUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ contentType: 'image/jpeg' }),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ headers: { 'Content-Type': 'image/jpeg' } }),
+    );
+    expect(saveFileMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'scan.jpg',
+        contentType: 'image/jpeg',
+      }),
+    );
+    expect(result.current.attachments).toMatchObject([
+      { fileName: 'scan.jpg', fileType: 'image/jpeg', fileSize: 200 },
+    ]);
+  });
+
+  it('keeps the picked type when the image was left as it is', async () => {
+    compressImageMock.mockImplementationOnce(async (file: File) => ({
+      file,
+      wasCompressed: false,
+      originalSize: file.size,
+      finalSize: file.size,
+    }));
+    const { result } = renderHook(() => useFileUpload(config));
+
+    let upload: Promise<void> | undefined;
+    act(() => {
+      upload = result.current.uploadFiles([
+        makeFile('logo.png', 500, 'image/png'),
+      ]);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await upload;
+    });
+
+    expect(saveFileMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'logo.png',
+        contentType: 'image/png',
+      }),
+    );
+    expect(result.current.attachments).toMatchObject([
+      { fileName: 'logo.png', fileType: 'image/png' },
+    ]);
+  });
+
+  it('fits an image under the chat model’s limit only when one is given', async () => {
+    const chat = renderHook(() =>
+      useFileUpload({ ...config, modelImageLimit: 2 * 1024 * 1024 }),
+    );
+    let upload: Promise<void> | undefined;
+    act(() => {
+      upload = chat.result.current.uploadFiles([
+        makeFile('chat.png', 3_000_000, 'image/png'),
+      ]);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await upload;
+    });
+    expect(compressImageMock).toHaveBeenLastCalledWith(expect.any(File), {
+      limit: 2 * 1024 * 1024,
+    });
+
+    // A task's files are read by an agent as files: only redrawn.
+    const task = renderHook(() => useFileUpload(config));
+    act(() => {
+      upload = task.result.current.uploadFiles([
+        makeFile('task.png', 3_000_000, 'image/png'),
+      ]);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await upload;
+    });
+    expect(compressImageMock).toHaveBeenLastCalledWith(expect.any(File), {
+      limit: Number.POSITIVE_INFINITY,
+    });
+  });
+});
