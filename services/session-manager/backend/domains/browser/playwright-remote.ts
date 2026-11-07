@@ -7,11 +7,13 @@
 // * Mouse and keyboard events are replayed in the page. Characters that are
 //   not on a US keyboard are inserted as text.
 // * The browser does mouse events, wheel turns and switches of tabs one after
-//   the other, for all its tabs, and waits for the page to take each one. A
-//   mouse event is never sent to the first or the last row of the page, which
-//   the browser can lose (`pointerPlace`), and one that a page free to take it
-//   has not taken in time is not waited for any longer: what comes after it
-//   is refused, with the reason, until it is done (`#input`).
+//   the other, for all its tabs, and waits for the page to take each one. The
+//   app changes the installed build so that it gives up on an event that a
+//   page does not take (`juggler.ts`). A mouse event is never sent to the
+//   first or the last row of the page, which the browser can lose
+//   (`pointerPlace`), and one that a page free to take it has not taken in
+//   time is not waited for any longer: what comes after it is refused, with
+//   the reason, until it is done (`#input`).
 // * The browser draws `<select>` lists and dialogs outside the page, where no
 //   picture shows them. A click on a `<select>` is therefore reported as a
 //   `select` event (the client draws the list), and `alert()`, `confirm()`
@@ -684,8 +686,9 @@ export function jpegSize(
  * one past its end (with the one of Linux). The page never takes such an
  * event, and the browser, which does every mouse event, wheel turn and switch
  * of tabs only after the one before, in every tab, waits for it until it
- * closes. The next row is one pixel away. A drag that leaves the picture goes
- * on along its edge, where its release still reaches the page.
+ * closes (for a second, in a build the app has changed: `juggler.ts`). The
+ * next row is one pixel away. A drag that leaves the picture goes on along
+ * its edge, where its release still reaches the page.
  */
 export function pointerPlace(
   x: number,
@@ -1636,9 +1639,12 @@ export class PlaywrightRemote implements Remote {
    * One that is not done in `INPUT_TIMEOUT` while its page is free is stuck
    * (the browser waits for a page that will not take it), and every one after
    * it would wait behind it, in every tab: they are refused at once, with the
-   * reason, until it is done after all. The browser lets go of it only when
-   * its page closes. While the page is not free (see `#pageState`) the input is
-   * waited for: it is done once the page is free again.
+   * reason, until it is done after all. A build the app has changed (see
+   * `juggler.ts`) gives up on an unanswered mouse event after a second, and
+   * on a switch of tabs or any other input after 30 s; one it could not change
+   * lets go only when the page closes. While the page is not free (see
+   * `#pageState`) the input is waited for: it is done once the page is free
+   * again.
    */
   async #input<T>(tab: TabState, work: () => Promise<T>): Promise<T> {
     this.#refuseWhileStuck();

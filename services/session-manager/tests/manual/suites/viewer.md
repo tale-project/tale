@@ -76,6 +76,11 @@ mouse with side buttons if you have one, and both a standard and a high-density 
   in the bar and open a tab with +. Do the same along the bottom edge in a session whose fingerprint
   is Linux** → the link, Enter and + each answer at once; nothing waits, and no notice says that the
   browser stopped responding to the mouse.
+- [ ] `VIEW-F39` · **On the image of `compose.session-manager.yml`, with Google as the start page,
+  keep moving the pointer over the picture while you open a tab with +, while a link of a Google page
+  takes you to another site, and while the session restarts** → at most a pause of a second or so
+  while each page changes, then the pointer follows again; the link, Enter and + answer, and no
+  notice says that the browser stopped responding to the mouse.
 - [ ] `VIEW-F12` · **Scroll a long article with a mouse wheel, then with a trackpad, ending each time
   with a hard flick** → the page follows your hand within a frame or two; the manager's own page does
   not scroll while the pointer is over the picture; after the last wheel event the page stops about

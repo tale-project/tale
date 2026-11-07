@@ -80,6 +80,8 @@ function rig(overrides: Partial<CamoufoxDeps> = {}, blockWebrtc = false): Rig {
     deps: {
       isInstalled: () => true,
       installBrowser: async () => null,
+      boundInputWaits: async () => 'bounded',
+      clearStaleScripts: async () => {},
       warmUpGeo: async () => {},
       browserVersion: () => '1.2.3-beta.4',
       makeDirectory: async (path) => {
@@ -625,8 +627,10 @@ describe('closing the backend', () => {
 
   it('closes a browser that finished starting after it closed', async () => {
     const gate = new Gate();
+    let starting = false;
     const r = rig({
       launchPersistentContext: async () => {
+        starting = true;
         await gate.wait();
         const context = new FakeSessionContext();
         r.contexts.push(context);
@@ -635,6 +639,7 @@ describe('closing the backend', () => {
     });
     const launching = r.backend.launch(fakeLaunchSpec());
     const assertion = expect(launching).rejects.toThrow('closed');
+    await vi.waitFor(() => expect(starting).toBe(true));
     await r.backend.close();
     gate.open();
     await assertion;
@@ -825,6 +830,156 @@ describe('warming up', () => {
       installing: false,
       error: null,
     });
+  });
+});
+
+describe('the waits of the mouse in the build', () => {
+  it('are bounded before the first browser starts, once, after camoufox-js may have installed the build', async () => {
+    const gate = new Gate();
+    const steps: string[] = [];
+    const boundInputWaits = vi.fn(async () => {
+      steps.push('bound the waits');
+      await gate.wait();
+      return 'changed' as const;
+    });
+    const r = rig({
+      boundInputWaits,
+      launchOptions: async () => {
+        steps.push('launchOptions');
+        return CAMOUFOX_OPTIONS;
+      },
+    });
+    const launching = r.backend.launch(fakeLaunchSpec());
+    await settle(3);
+    expect(steps).toEqual(['launchOptions', 'bound the waits']);
+    expect(r.launched).toHaveLength(0);
+
+    gate.open();
+    await launching;
+    expect(r.launched).toHaveLength(1);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining('no longer stops its mouse'),
+    );
+    await r.backend.launch(fakeLaunchSpec({ profileDir: '/data/profiles/2' }));
+    expect(boundInputWaits).toHaveBeenCalledTimes(1);
+  });
+
+  it('are bounded by the warm-up once it has installed the browser', async () => {
+    const steps: string[] = [];
+    let installed = false;
+    const { backend } = rig({
+      isInstalled: () => installed,
+      installBrowser: async () => {
+        steps.push('install');
+        installed = true;
+        return null;
+      },
+      boundInputWaits: async () => {
+        steps.push('bound the waits');
+        return 'changed';
+      },
+      warmUpGeo: async () => {
+        steps.push('GeoIP');
+      },
+    });
+    await backend.warmUp();
+    expect(steps).toEqual(['install', 'bound the waits', 'GeoIP']);
+  });
+
+  it('are looked at again while there is no build', async () => {
+    const boundInputWaits = vi.fn(async () => 'missing' as const);
+    const r = rig({ boundInputWaits });
+    await r.backend.warmUp();
+    await r.backend.launch(fakeLaunchSpec());
+    expect(boundInputWaits).toHaveBeenCalledTimes(2);
+  });
+
+  it('are left as they are in a build the app does not know: the browser starts all the same, with a warning', async () => {
+    const r = rig({ boundInputWaits: async () => 'unknown' });
+    await r.backend.launch(fakeLaunchSpec());
+    expect(r.launched).toHaveLength(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('not the build the app knows how to change'),
+    );
+  });
+
+  it('are left as they are when the build cannot be changed, and tried again at the next launch', async () => {
+    const failure = new Error('ENOSPC: no space left on device');
+    let fails = true;
+    const boundInputWaits = vi.fn(async () => {
+      if (fails) throw failure;
+      return 'changed' as const;
+    });
+    const r = rig({ boundInputWaits });
+    await r.backend.launch(fakeLaunchSpec());
+    expect(r.launched).toHaveLength(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Could not change the Camoufox browser'),
+      failure,
+    );
+
+    fails = false;
+    await r.backend.launch(fakeLaunchSpec({ profileDir: '/data/profiles/2' }));
+    expect(boundInputWaits).toHaveBeenCalledTimes(2);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining('no longer stops its mouse'),
+    );
+  });
+
+  it('start no browser when the backend closes while the build is changed', async () => {
+    const gate = new Gate();
+    const r = rig({
+      boundInputWaits: async () => {
+        await gate.wait();
+        return 'changed';
+      },
+    });
+    const launching = r.backend.launch(fakeLaunchSpec());
+    await settle(3);
+    const closing = r.backend.close();
+    gate.open();
+    await expect(launching).rejects.toThrow('closed');
+    await closing;
+    expect(r.launched).toHaveLength(0);
+  });
+});
+
+describe('the old compiled scripts of a profile', () => {
+  it('are cleared before its browser starts, every time', async () => {
+    const steps: string[] = [];
+    const clearStaleScripts = vi.fn(async (profileDir: string) => {
+      steps.push(`clear ${profileDir}`);
+    });
+    const r = rig({
+      clearStaleScripts,
+      launchPersistentContext: async (profileDir) => {
+        steps.push(`launch ${profileDir}`);
+        return new FakeSessionContext();
+      },
+    });
+    await r.backend.launch(fakeLaunchSpec({ profileDir: '/data/profiles/1' }));
+    await r.backend.launch(fakeLaunchSpec({ profileDir: '/data/profiles/1' }));
+    expect(steps).toEqual([
+      'clear /data/profiles/1',
+      'launch /data/profiles/1',
+      'clear /data/profiles/1',
+      'launch /data/profiles/1',
+    ]);
+  });
+
+  it('that cannot be cleared do not stop the browser, which starts with a warning', async () => {
+    const failure = new Error('EACCES: permission denied');
+    const r = rig({
+      clearStaleScripts: async () => {
+        throw failure;
+      },
+    });
+    await r.backend.launch(fakeLaunchSpec());
+    expect(r.launched).toHaveLength(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('old compiled scripts of a profile'),
+      failure,
+    );
   });
 });
 

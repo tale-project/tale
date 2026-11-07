@@ -310,12 +310,17 @@ enlarged; the browser's window size stays what its fingerprint says, so the page
 - **Touch.** A tap is a click and a double tap a double click. A finger that moves drags the page,
   which scrolls by the distance so that its content follows the finger; a finger that rests for half
   a second clicks the right button of the mouse where it rests (the page's own menu, if it has one).
-- **The edges of the page.** A mouse event aimed at the first or the last row of the page goes one
-  row further in: the browser can lose an event on those rows, and then takes no other one until it
-  closes. Should it still stop taking the mouse (an event it has not done five seconds after its
-  page was free: no dialog waiting for an answer, no script keeping it busy), the page says so.
-  Typing, addresses, back and forward and the tabs go on working; a reload waits for the mouse, and
-  restarting the session brings the mouse back.
+- **A mouse event the page does not take.** The browser can lose a mouse event: one on the first or
+  the last row of the page (an event aimed there goes one row further in), and one that arrives
+  while a tab moves to another process, which Firefox does when a tab opens or leaves a site it
+  keeps apart (a new tab whose start page is Google, a link from Google to another site). The
+  Camoufox build that camoufox-js installs then takes no other mouse event, in any tab, until that
+  tab closes. Before the first browser starts, the app changes the installed build so that it gives
+  up on such an event after a second (`backend/domains/browser/juggler.ts`): the mouse pauses and
+  goes on. Should the browser still stop taking the mouse (an event it has not done five seconds
+  after its page was free: no dialog waiting for an answer, no script keeping it busy), the page
+  says so. Typing, addresses, back and forward and the tabs go on working; a reload waits for the
+  mouse, and restarting the session brings the mouse back.
 
 **Tabs are remembered.** A session that you stop (or whose browser dies, or that is stopped by
 Rotate IP or by quitting the app) opens the same tabs again when it starts; the one you were looking
@@ -408,7 +413,12 @@ ignores `data` and `.env` here, but not `*proxies*.txt`.
 Each Camoufox build the app launches stays in `browsers/official/<build>` inside the install
 directory. A new build (after a `camoufox-js` update) adds about 1.2 GB and nothing removes the old
 one: delete the older ones while no session is running, and keep the one that the `config.json` in
-that directory names.
+that directory names. The app changes one file of the build it launches, `omni.ja` (see [Using a
+session](#using-a-session): a mouse event the page does not take), and keeps the file as it came
+next to it as `omni.ja.orig`. Before a browser starts, the app deletes the compiled copies of the
+browser's scripts that its profile keeps (`startupCache/`, which Firefox makes again) unless they
+were made from the `omni.ja` it starts with, which it notes in the profile
+(`session-manager-scripts.json`).
 
 The app sends nothing to Tale or to any analytics or error-reporting service, and nothing about
 you to any account, because there are none (the `UMAMI_*` variables that the other Tale services
