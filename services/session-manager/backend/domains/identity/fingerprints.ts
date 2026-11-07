@@ -59,11 +59,19 @@ export interface CreateIdentityOptions {
   deps?: IdentityDeps;
 }
 
-export const OS_WEIGHTS = {
-  windows: 0.6,
-  macos: 0.2,
-  linux: 0.2,
-} as const satisfies Record<IdentityOs, number>;
+/**
+ * What "random" picks from, and how often: Windows three times as often as
+ * macOS. Never Linux: so few people browse the web on it that a Linux
+ * fingerprint stands out, so a session only has one when it is chosen.
+ */
+export const RANDOM_OS_WEIGHTS = {
+  windows: 0.75,
+  macos: 0.25,
+} as const satisfies Partial<Record<IdentityOs, number>>;
+const RANDOM_OS_NAMES = [
+  'windows',
+  'macos',
+] as const satisfies readonly (keyof typeof RANDOM_OS_WEIGHTS)[];
 export const OS_CHOICES = ['random', 'windows', 'macos', 'linux'] as const;
 const OS_NAMES = ['windows', 'macos', 'linux'] as const;
 
@@ -105,19 +113,23 @@ const NOISE_KEYS = [
   'mediaDevices',
 ];
 
-/** Resolve "random" to a weighted OS pick; pass explicit OS names through. */
+/**
+ * Resolve "random" to a weighted pick of Windows or macOS
+ * (`RANDOM_OS_WEIGHTS`); pass explicit OS names through.
+ */
 export function pickOs(
   choice: string,
   random: () => number = Math.random,
 ): IdentityOs {
   if (choice === 'random') {
     let threshold =
-      random() * OS_NAMES.reduce((sum, name) => sum + OS_WEIGHTS[name], 0);
-    for (const name of OS_NAMES) {
-      threshold -= OS_WEIGHTS[name];
+      random() *
+      RANDOM_OS_NAMES.reduce((sum, name) => sum + RANDOM_OS_WEIGHTS[name], 0);
+    for (const name of RANDOM_OS_NAMES) {
+      threshold -= RANDOM_OS_WEIGHTS[name];
       if (threshold < 0) return name;
     }
-    return OS_NAMES[OS_NAMES.length - 1];
+    return RANDOM_OS_NAMES[RANDOM_OS_NAMES.length - 1];
   }
   const os = OS_NAMES.find((name) => name === choice);
   if (os) return os;

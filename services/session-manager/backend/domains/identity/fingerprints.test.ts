@@ -13,7 +13,7 @@ import {
   FALLBACK_SCREEN,
   MAX_UNIQUE_TRIES,
   OS_CHOICES,
-  OS_WEIGHTS,
+  RANDOM_OS_WEIGHTS,
   createIdentity,
   drawIdentity,
   largestScreen,
@@ -219,31 +219,28 @@ describe('pickOs', () => {
     for (const os of OSES) expect(pickOs(os)).toBe(os);
   });
 
-  it('draws an OS by weight for "random"', () => {
+  it('draws Windows or macOS for "random", never Linux', () => {
     const picked = new Set(Array.from({ length: 200 }, () => pickOs('random')));
-    expect(picked).toEqual(new Set(OSES));
+    expect(picked).toEqual(new Set(['windows', 'macos']));
   });
 
-  it('divides the range of the draw as 60 % Windows, 20 % macOS, 20 % Linux', () => {
+  it('divides the range of the draw as 75 % Windows, 25 % macOS', () => {
     const at = (draw: number) => pickOs('random', () => draw);
     expect(at(0)).toBe('windows');
-    expect(at(0.59)).toBe('windows');
-    expect(at(0.61)).toBe('macos');
-    expect(at(0.79)).toBe('macos');
-    expect(at(0.81)).toBe('linux');
-    expect(at(0.999999)).toBe('linux');
-    expect(at(1)).toBe('linux');
+    expect(at(0.74)).toBe('windows');
+    expect(at(0.76)).toBe('macos');
+    expect(at(0.999999)).toBe('macos');
+    expect(at(1)).toBe('macos');
   });
 
   it('follows the weights over many draws', () => {
     const random = seeded(42);
     const counts = { windows: 0, macos: 0, linux: 0 };
     for (let n = 0; n < 10_000; n++) counts[pickOs('random', random)] += 1;
-    expect(counts.windows / 10_000).toBeCloseTo(0.6, 1);
-    expect(counts.macos / 10_000).toBeCloseTo(0.2, 1);
-    expect(counts.linux / 10_000).toBeCloseTo(0.2, 1);
-    expect(counts.macos).toBeGreaterThan(1500);
-    expect(counts.linux).toBeGreaterThan(1500);
+    expect(counts.windows / 10_000).toBeCloseTo(0.75, 1);
+    expect(counts.macos / 10_000).toBeCloseTo(0.25, 1);
+    expect(counts.linux).toBe(0);
+    expect(counts.macos).toBeGreaterThan(2000);
   });
 
   it.each(['android', 'Windows', 'ios', ''])('refuses %j', (name) => {
@@ -254,11 +251,11 @@ describe('pickOs', () => {
   });
 
   it('has the weights and choices of the API', () => {
-    expect(OS_WEIGHTS).toEqual({ windows: 0.6, macos: 0.2, linux: 0.2 });
+    expect(RANDOM_OS_WEIGHTS).toEqual({ windows: 0.75, macos: 0.25 });
     expect(OS_CHOICES).toEqual(['random', 'windows', 'macos', 'linux']);
     expect(OS_CHOICES).toEqual(API_OS_CHOICES);
     expect(
-      Object.values(OS_WEIGHTS).reduce((sum, weight) => sum + weight, 0),
+      Object.values(RANDOM_OS_WEIGHTS).reduce((sum, weight) => sum + weight, 0),
     ).toBeCloseTo(1);
   });
 });
@@ -1220,7 +1217,7 @@ describe('createIdentity', () => {
     const { deps } = setup();
     const created = await createIdentity('random', new Set(), {
       maxScreen: BOUND,
-      deps: { ...deps, random: () => 0.7 },
+      deps: { ...deps, random: () => 0.8 },
     });
     expect(created.identity.os).toBe('macos');
   });

@@ -85,7 +85,7 @@ add:
   nameHint: Leer lassen, um die nächste freie Nummer zu verwenden.
   system: Betriebssystem
   os:
-    random: Zufällig
+    random: Zufällig (Windows oder macOS)
     windows: Windows
     macos: macOS
     linux: Linux
