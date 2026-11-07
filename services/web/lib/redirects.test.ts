@@ -33,11 +33,11 @@ describe('UI documentation entry redirect', () => {
   });
 });
 
-describe('retired hardware pricing redirect', () => {
+describe('retired pricing page redirect', () => {
   for (const [from, to] of [
-    ['/hardware-pricing', '/pricing'],
-    ['/de/hardware-pricing', '/de/pricing'],
-    ['/fr/hardware-pricing', '/fr/pricing'],
+    ['/pricing', '/'],
+    ['/de/pricing', '/de'],
+    ['/fr/pricing', '/fr'],
   ] as const) {
     for (const method of ['GET', 'HEAD'] as const) {
       it(`${method} ${from} redirects to ${to} and preserves the query`, () => {
@@ -49,4 +49,14 @@ describe('retired hardware pricing redirect', () => {
       });
     }
   }
+
+  it('does not redirect the retired hardware pricing URLs', () => {
+    for (const path of [
+      '/hardware-pricing',
+      '/de/hardware-pricing',
+      '/fr/hardware-pricing',
+    ]) {
+      expect(resolveWebRedirect(path)).toBeNull();
+    }
+  });
 });

@@ -1,6 +1,6 @@
 /**
- * Canonical marketing CTA destinations. Header, footer, hero, feature pages,
- * and pricing all read from here so a path change lands once.
+ * Canonical marketing CTA destinations. Header, footer, hero, and feature
+ * pages all read from here so a path change lands once.
  */
 
 import { GET_STARTED_URL } from '@/lib/docs-url';

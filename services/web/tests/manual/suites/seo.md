@@ -13,7 +13,7 @@ the `dist-seo` artifacts (`sitemap.xml`, `robots.txt`, `llms.txt`,
 
 | Surface         | Route                                                                                                                      |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Marketing pages | All `MARKETING_ROUTE_URLS` (home, about, pricing, platform/\*, changelog, contact, request-demo) × `/de`, `/fr` |
+| Marketing pages | All `MARKETING_ROUTE_URLS` (home, about, platform/\*, changelog, contact, request-demo) × `/de`, `/fr` |
 | Legal pages     | `/legal/{slug}` (× locales) — **noindex**, excluded from sitemap                                                           |
 | 404             | `/404` — **noindex**, HTTP 404 when served from dist                                                                       |
 | Sitemap         | `/sitemap.xml`                                                                                                             |
@@ -32,7 +32,7 @@ nothing here.
 > for SEO-F7. Expected title/description strings resolve from the `seo.*`
 > namespace in `messages/{locale}.yml`; the prerenderer appends the `&nbsp;|
 > Tale` brand suffix. Prefer question-shaped titles that match the visible H1
-> (e.g. `<title>How much does Tale cost? — Community &amp; Enterprise |
+> (e.g. `<title>Who is behind Tale? — About Ruler GmbH |
 > Tale</title>`).
 
 ## Functional tests
@@ -45,13 +45,13 @@ nothing here.
   name="description"`, `og:title`, `og:description`, `twitter:card` →
   Description matches `seo.{page}.description`; `og:*`/`twitter:*` mirror
   title + description; `og:site_name` = **Tale**.
-- [ ] `SEO-F3` · **Canonical per locale** — `curl -s {base}/pricing` and
-  `{base}/de/pricing`; grep `rel="canonical"` → `https://tale.dev/pricing` and
-  `https://tale.dev/de/pricing` respectively — each locale page is its own
+- [ ] `SEO-F3` · **Canonical per locale** — `curl -s {base}/platform` and
+  `{base}/de/platform`; grep `rel="canonical"` → `https://tale.dev/platform` and
+  `https://tale.dev/de/platform` respectively — each locale page is its own
   canonical; `<html lang>` is `en` / `de` in the raw HTML.
-- [ ] `SEO-F4` · **Localized titles** — `curl -s {base}/de/pricing`; grep
-  `<title>` · The German title from `messages/de.yml` `seo.pricing.title`
-  (question-shaped, matching the DE H1) + ` \ → Tale` — prerendering is per
+- [ ] `SEO-F4` · **Localized titles** — `curl -s {base}/de/platform`; grep
+  `<title>` · The German title from `messages/de.yml` `seo.platform.title`
+  (matching the DE H1) + ` \ → Tale` — prerendering is per
   locale, not English-only.
 - [ ] `SEO-F5` · **Sitemap** — `curl -s {base}/sitemap.xml` → Lists every
   marketing page (en + localised variants) with `xhtml:link rel="alternate"
@@ -73,16 +73,16 @@ nothing here.
   grep `robots` → `<meta name="robots" content="noindex,nofollow">` present on
   legal pages; **absent** on marketing pages.
 - [ ] `SEO-F9` · **JSON-LD structured data** — `curl -s {base}/`,
-  `{base}/pricing`, `{base}/changelog`, `{base}/about`,
+  `{base}/changelog`, `{base}/about`,
   `{base}/platform/chat`; extract every `<script type="application/ld+json">`
-  block → `/` and `/pricing` embed the **Organization** +
+  block → `/` embeds the **Organization** +
   **SoftwareApplication** nodes (`lib/seo/organization.ts`,
   `lib/seo/software-application.ts` — Ruler GmbH, `@id: …/#software`);
   `/changelog` embeds a **BreadcrumbList** + an **ItemList** of releases;
   `/about` re-declares the **Organization** node (same `@id: …/#org`) + a
   **BreadcrumbList**; platform pages embed a **BreadcrumbList** (Tale →
   Platform overview → page) + **FAQPage**; every block parses as valid JSON.
-- [ ] `SEO-F10` · **HTTP security headers** — `curl -sI {base}/pricing` (mode
+- [ ] `SEO-F10` · **HTTP security headers** — `curl -sI {base}/platform` (mode
   B or a HTTPS deploy) → Response carries the
   `defaultReactServerSecurityHeaders` set
   (`packages/ui/src/server/security-headers.ts`, wired in `server.ts`): a
@@ -100,9 +100,9 @@ nothing here.
   (`noindex`) when served from the built static server / container — asserted
   by `container-web-test` probe `/nope`. Dev SPA may still soft-route; prove
   against `bun run --filter @tale/web start` or the container.
-- [ ] `SEO-B2` · **Trailing slash** — `curl -sI {base}/pricing/` → Resolves to
+- [ ] `SEO-B2` · **Trailing slash** — `curl -sI {base}/platform/` → Resolves to
   the same page (no duplicate-content split: either serves identical canonical
-  `https://tale.dev/pricing` or redirects); record which.
+  `https://tale.dev/platform` or redirects); record which.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -16,13 +16,13 @@ interface LocalizedLinkProps extends ForwardedLinkProps {
 }
 
 /**
- * `<Link>` wrapper that resolves a canonical marketing path (`/pricing`,
+ * `<Link>` wrapper that resolves a canonical marketing path (`/platform`,
  * `/`, …) into the URL for the locale of the current page.
  *
  * Pages are mounted under two parallel route trees: the unprefixed English
- * tree (`/pricing`) and the `$lang/...` tree (`/de/pricing`, `/fr/pricing`).
+ * tree (`/platform`) and the `$lang/...` tree (`/de/platform`, `/fr/platform`).
  * Components don't know — or care — which tree they happen to be rendered
- * under; they just say `<LocalizedLink to="/pricing">…</LocalizedLink>` and
+ * under; they just say `<LocalizedLink to="/platform">…</LocalizedLink>` and
  * this wrapper routes to the correct file-based path with the right `lang`
  * param.
  *

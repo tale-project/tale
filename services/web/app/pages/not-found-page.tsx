@@ -52,9 +52,6 @@ export function NotFoundPage() {
           <MarketingLink to="/platform" tone="subtle">
             {tFooter('platform')}
           </MarketingLink>
-          <MarketingLink to="/pricing" tone="subtle">
-            {tFooter('pricing')}
-          </MarketingLink>
           <MarketingLink to="/changelog" tone="subtle">
             {tFooter('changelog')}
           </MarketingLink>

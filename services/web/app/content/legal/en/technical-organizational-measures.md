@@ -88,7 +88,7 @@ a) Tale snapshots application databases daily and object storage hourly. Snapsho
 
 b) A disaster-recovery replica is maintained within the customer's selected region (Geneva for Switzerland, Dublin for the European Union).
 
-c) Restores from snapshot are initiated by the Customer via support and meet the recovery time objective stated in the Service Agreement.
+c) Restores from snapshot are initiated by the Customer via support and meet the recovery time objective stated in the agreement with the Customer.
 
 d) Backup integrity is verified at least quarterly by restoring a representative snapshot to an isolated environment.
 

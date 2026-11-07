@@ -5,16 +5,11 @@ seo:
     description: Plan projects, delegate tasks to AI agents, and review results with your
       team. An open-source workspace with agent sandboxes, shared context, and
       workflows.
-  pricing:
-    title: How much does Tale cost? — Community & Enterprise
-    description:
-      Tale Enterprise is CHF 12 (EUR 14) per user/month, two months free
-      on yearly billing. Community is free to self-host as open-source software.
   contact:
     title: Contact the Tale team — sales, support, demos
     description:
       "Talk to the Tale team about coordinating teammates and AI agents:
-      project workflows, deployment, pricing, or a guided demo."
+      project workflows, deployment, or a guided demo."
   about:
     title: Who is behind Tale? — About Ruler GmbH
     description: Tale is built by Ruler GmbH in Spiez, Switzerland. We build an
@@ -81,7 +76,6 @@ pageError:
 nav:
   platform: Platform
   resources: Resources
-  pricing: Pricing
   openMenu: Open menu
   closeMenu: Close menu
   homeAriaLabel: Tale home
@@ -140,9 +134,7 @@ footer:
   taleUi: Tale UI
   resources: Resources
   legal: Legal
-  pricing: Pricing
   contact: Contact
-  serviceAgreement: Service Agreement
   privacyPolicy: Privacy Policy
   termsOfService: Terms of Service
   processingAgreement: Processing Agreement
@@ -458,19 +450,12 @@ home:
         connections. Cloud models, external tools, and connectors can send
         data outside your network when enabled; self-hosting alone does not
         make them local.
-    enterprisePricing:
-      q: How does Enterprise pricing work?
-      a:
-        Enterprise is billed per user/month, with two months free when paying yearly.
-        Storage beyond the included quota is billed per TB/month. The Community
-        edition stays free for self-hosted use.
 
     byoModels:
       q: Do I have to bring my own AI models?
       a:
         No. You can bring your own models, but it's not required. Tale supports most
-        major AI providers without markup — cloud model usage is billed at your
-        provider's rates and is not included in the plans.
+        major AI providers without markup — cloud model usage is billed at your provider's rates.
 
 
 
@@ -506,106 +491,6 @@ complianceTrust:
     iso27001: Ruler GmbH · ISO 27001
     mit: Open source
     openSource: Open Source
-pricing:
-  title: How much does Tale cost?
-  description:
-    Tale Enterprise is CHF 12 (EUR 14) per user/month, with two months
-    free on yearly billing. The open-source Community edition is free to
-    self-host.
-  note: All product features are included in both Community and Enterprise.
-    Additional cloud AI model usage is billed at your provider's rates.
-  popular: Popular
-  planIncludes: 'Plan includes:'
-  billing:
-    ariaLabel: Billing period
-    monthly: Monthly
-    yearly: Yearly (2 months free)
-  billingNote:
-    monthly: Billed monthly
-    yearly: Billed yearly · 2 months free
-  users:
-    label: Number of users
-    minTooltip: Minimum is 25 users
-  region:
-    ariaLabel: Currency
-    CH: CHF
-    DE: EUR
-  community:
-    deployment: Self-hosted only
-    price: Free
-    priceSuffix: ''
-    tagline: Every product feature, free to self-host — support happens on GitHub.
-    cta: Get started
-    feature1: Self-hosted
-    feature2: Open source
-    feature3: Community-maintained (GitHub)
-    feature4: Community support (GitHub)
-  enterprise:
-    deployment: Cloud or self-hosted
-    priceSuffix: /month + VAT
-    storageAddOn: 1 TB + {price}/TB/month additional storage
-    userBreakdown: '{count} users × {perUser}/user/month'
-    tagline: Everything in Community, professionally run — installation,
-      maintenance, and support, in the cloud or self-hosted.
-    cta: Contact us
-    feature1: Self-hosted or cloud
-    feature2: Professional operation by ISO 27001-certified Ruler GmbH
-    feature3: Data processing agreement (DPA)
-    feature4: Email, phone & remote support
-    feature5: Installation & ongoing maintenance
-    feature7: Influence on product roadmap
-  compare:
-    title: Compare Plans
-    subtitle: Breakdown of each plan
-    categories:
-      deployment: Deployment
-      compliance: Compliance
-      support: Support
-      installation: Standard installation
-      maintenance: Maintenance
-      customDevelopment: Custom development
-      consulting: Consulting
-      roadmap: Influence on product roadmap
-    values:
-      installationFee:
-        CH: CHF 1'990
-        DE: EUR 2,290
-      hourlyRate:
-        CH: CHF 180 / h
-        DE: EUR 200–260 / h
-    sections:
-      services: Professional services
-      other: Other
-    rows:
-      selfHosted: Self-hosted
-      cloud: Cloud
-      localDataCenters: Local data centers (CH & EU)
-      dpa: Data processing agreement (DPA)
-      iso: ISO 27001-certified operation
-      piiRedaction: PII redaction
-      customDpa: Custom DPA
-      customDpaInfo: We also accept custom Data Processing Agreements with our customers.
-      emailSupport: Email support
-      emailSupportInfo: 'Replies during business hours: Mon–Fri, 08:00–17:00 (CET/CEST).'
-      phoneSupport: Phone support
-      phoneSupportInfo: 'Available during business hours: Mon–Fri, 08:00–17:00 (CET/CEST).'
-      remoteSupport: Remote support
-      remoteSupportInfo: 'Available during business hours: Mon–Fri, 08:00–17:00 (CET/CEST).'
-    cellLabels:
-      yes: Included
-      no: Not included
-  extras:
-    cloudProviders:
-      title: Cloud AI providers
-      description:
-        We support OpenAI, Anthropic, Gemini, and other major cloud AI
-        providers in CH & EU — no markup; usage is billed at the provider's
-        rates.
-  terms:
-    title: Terms
-    prefix: All configurations are subject to our
-    linkLabel: service agreement
-    suffix: .
 requestDemo:
   eyebrow: Demo
   title: See Tale in action
@@ -729,7 +614,7 @@ about:
       title: Open source, no asterisks
       body: The entire codebase is public and open source on GitHub. The
         free Community edition ships identical features; Enterprise adds
-        support and services at CHF 12 (EUR 14) per user/month.
+        support and services.
     deployment:
       title: Your infrastructure or ours
       body: Self-host on your own infrastructure or choose managed hosting in
@@ -1541,7 +1426,7 @@ platformProjects:
         files.
       reply1:
         The launch checklist still lists the redirect-map review and the
-        pricing page copy.
+        landing page copy.
       reply2: It calls for a staging pass once both are ready.
       reply3: DNS cutover is booked with IT for Thursday 06:00,
       reply4: and the checklist flags the untested /docs redirect as an open risk.
@@ -1550,11 +1435,11 @@ platformProjects:
       composerModel: Claude Opus
     govern:
       label: "Illustrative demo: a configured publishing workflow pauses for
-        connector approval before attempting to publish the new pricing page."
-      approvalTitle: Publish the new pricing page to production?
+        connector approval before attempting to publish the new landing page."
+      approvalTitle: Publish the new landing page to production?
       requester: Website relaunch · Publishing workflow
       audit1: Approved by mira@nordwind.eu
-      audit2: Pricing page published
+      audit2: Landing page published
       audit3: Decision recorded in the audit log
       budgetValue: CHF 120 / 400
     tasks:
@@ -1564,7 +1449,7 @@ platformProjects:
       title1: Finish /docs redirect map
       assignee1: Unassigned
       id2: WEB-15
-      title2: Rewrite pricing hero copy
+      title2: Rewrite landing hero copy
       assignee2: Mira
       id3: WEB-12
       title3: Draft migration guide for relaunch
@@ -1726,20 +1611,6 @@ platformGovernance:
       model4: Claude Sonnet
       agent5: Exceptions Agent
       model5: Claude Opus
-pricingPage:
-  relatedHeading: Related
-  ctaTitle: Put a number on your setup
-  ctaDescription: Request a demo or talk to the team about Enterprise seats
-    and storage.
-  faq:
-    heading: Pricing FAQ
-    items:
-      - q: How much does Tale Enterprise cost?
-        a:
-          Tale Enterprise is CHF 12 (EUR 14) per user/month, with two months free on
-          yearly billing. Storage is CHF 10 (EUR 12) per TB/month.
-      - q: Is Community free?
-        a: Yes. The open-source Community edition is free to self-host.
 changelogPage:
   eyebrow: Changelog
   title: What's new in Tale?

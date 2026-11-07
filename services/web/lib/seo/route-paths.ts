@@ -6,7 +6,6 @@
 export const ROUTE_PATHS = {
   '/': { en: '/', prefixed: '/$lang' },
   '/about': { en: '/about', prefixed: '/$lang/about' },
-  '/pricing': { en: '/pricing', prefixed: '/$lang/pricing' },
   '/contact': { en: '/contact', prefixed: '/$lang/contact' },
   '/request-demo': { en: '/request-demo', prefixed: '/$lang/request-demo' },
   '/platform': { en: '/platform', prefixed: '/$lang/platform' },

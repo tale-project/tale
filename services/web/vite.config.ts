@@ -58,7 +58,7 @@ function mountReleaseFeedRoute(middlewares: Connect.Server): void {
 
 export default defineConfig({
   // Absolute base so the SPA shell loads its assets correctly when served
-  // as the fallback for nested URLs (e.g. /de/pricing) — relative './assets/'
+  // as the fallback for nested URLs (e.g. /de/platform) — relative './assets/'
   // resolves against the request path and 404s under any /<locale>/<route>.
   base: '/',
   preview: {

@@ -8,7 +8,7 @@ import { publishedMarketingContent } from '../content/server';
 import { localizedPath, type SupportedLocale } from '../i18n/locales';
 
 interface MarketingRoute {
-  /** Site-relative URL, e.g. `/`, `/pricing`. */
+  /** Site-relative URL, e.g. `/`, `/platform`. */
   url: string;
   /** English canonical path used by the alternate cluster. */
   path: string;
@@ -45,7 +45,6 @@ interface MarketingSeoEntry {
 const ROUTE_SEO_KEYS = [
   { url: '/', key: 'home' },
   { url: '/about', key: 'about' },
-  { url: '/pricing', key: 'pricing' },
   { url: '/contact', key: 'contact' },
   { url: '/request-demo', key: 'requestDemo' },
   { url: '/platform', key: 'platform' },

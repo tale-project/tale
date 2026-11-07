@@ -15,7 +15,6 @@ const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 const MARKETING_PATHS = [
   '/',
   '/about',
-  '/pricing',
   '/contact',
   '/request-demo',
   '/platform',
@@ -35,9 +34,6 @@ test.describe('web marketing smoke', () => {
     const errors = collectConsoleErrors(page);
     await gotoClientPage(page, '/');
     await expectPageRenders(page);
-    await expect(
-      page.getByRole('link', { name: t('nav.pricing') }).first(),
-    ).toBeVisible();
     await expect(
       page.getByRole('button', { name: t('nav.platform') }),
     ).toBeVisible();
@@ -78,13 +74,13 @@ test.describe('web marketing smoke', () => {
 
       await page.keyboard.press('Enter');
       await expect(panel).toBeVisible();
-      const pricing = page
-        .getByRole('link', { name: t('nav.pricing') })
-        .first();
-      await pricing.focus();
+      const getStarted = page
+        .locator('header')
+        .getByRole('link', { name: t('nav.getStarted') });
+      await getStarted.focus();
       await page.keyboard.press('Escape');
       await expect(panel).not.toBeVisible();
-      await expect(pricing).toBeFocused();
+      await expect(getStarted).toBeFocused();
     });
   }
 
@@ -150,10 +146,10 @@ test.describe('web marketing smoke', () => {
     });
   }
 
-  test('German platform + pricing routes render', async ({ page }) => {
+  test('German platform + about routes render', async ({ page }) => {
     await gotoClientPage(page, '/de/platform');
     await expectPageRenders(page);
-    await gotoClientPage(page, '/de/pricing');
+    await gotoClientPage(page, '/de/about');
     await expectPageRenders(page);
   });
 
@@ -304,10 +300,10 @@ test.describe('web marketing smoke', () => {
     }
   });
 
-  test('platform and pricing keep a single h1 and no skipped levels in main', async ({
+  test('platform and about keep a single h1 and no skipped levels in main', async ({
     page,
   }) => {
-    for (const path of ['/platform', '/pricing'] as const) {
+    for (const path of ['/platform', '/about'] as const) {
       await gotoClientPage(page, path);
       await expectPageRenders(page);
       const outline = await page.evaluate(() =>

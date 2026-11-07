@@ -152,7 +152,7 @@ describe('marketing cold start', () => {
 
   it('mounts after an initial redirect that stays in the app', async () => {
     load.mockImplementation(async () => {
-      routerState.redirect = { options: { href: '/pricing?source=legacy' } };
+      routerState.redirect = { options: { href: '/platform?source=legacy' } };
     });
     await import('./main');
 

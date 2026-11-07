@@ -5,16 +5,11 @@ seo:
     description: Planifie tes projets, délègue des tâches aux agents IA et examine les
       résultats en équipe. Un espace open source avec sandboxes, contexte
       partagé et workflows.
-  pricing:
-    title: Combien coûte Tale ? — Community & Enterprise
-    description:
-      'Tale Enterprise : CHF 12 (EUR 14) par utilisateur/mois, deux mois
-      offerts en annuel. Community est gratuite en auto-hébergement en open source.'
   contact:
     title: Contacter l’équipe Tale — ventes, support, démos
     description:
       "Parle à l’équipe Tale de la collaboration avec les agents IA : projets,
-      déploiement, tarifs ou démonstration adaptée à ton équipe."
+      déploiement ou démonstration adaptée à ton équipe."
   about:
     title: Qui est derrière Tale ? — À propos de Ruler GmbH
     description: "Ruler GmbH, à Spiez en Suisse, construit Tale : un espace de projet
@@ -82,7 +77,6 @@ pageError:
 nav:
   platform: Plateforme
   resources: Ressources
-  pricing: Tarifs
   openMenu: Ouvrir le menu
   closeMenu: Fermer le menu
   homeAriaLabel: Accueil Tale
@@ -141,9 +135,7 @@ footer:
   taleUi: Tale UI
   resources: Ressources
   legal: Mentions légales
-  pricing: Tarifs
   contact: Contact
-  serviceAgreement: Contrat de service
   privacyPolicy: Politique de confidentialité
   termsOfService: Conditions d’utilisation
   processingAgreement: Contrat de sous-traitance
@@ -469,20 +461,13 @@ home:
         connexions sortantes restreintes. Les modèles cloud, outils et
         connecteurs externes peuvent transmettre des données hors de ton
         réseau lorsqu’ils sont activés.
-    enterprisePricing:
-      q: Comment fonctionne la tarification Enterprise ?
-      a:
-        Enterprise est facturé par utilisateur et par mois, avec deux mois offerts en
-        paiement annuel. Le stockage au-delà du quota inclus est facturé par
-        To/mois. L’édition Community reste gratuite pour un usage auto-hébergé.
 
     byoModels:
       q: Dois-je apporter mes propres modèles d’IA ?
       a:
         Non. Tu peux apporter tes propres modèles, sans obligation. Tale prend en
         charge la plupart des grands fournisseurs d’IA sans majoration — l’usage
-        cloud est facturé aux tarifs de ton fournisseur et n’est pas inclus dans
-        les plans.
+        cloud est facturé aux tarifs de ton fournisseur.
 
 
 
@@ -519,114 +504,6 @@ complianceTrust:
     iso27001: Ruler GmbH · ISO 27001
     mit: Open source
     openSource: Open source
-pricing:
-  title: Combien coûte Tale ?
-  description: Tale Enterprise coûte CHF 12 (EUR 14) par utilisateur/mois, avec
-    deux mois offerts en facturation annuelle. L’édition Community open source est
-    gratuite en auto-hébergement.
-  note: Toutes les fonctionnalités sont incluses dans Community et Enterprise.
-    L’usage supplémentaire de modèles IA cloud est facturé aux tarifs de ton
-    fournisseur.
-  popular: Populaire
-  planIncludes: 'Le plan inclut :'
-  billing:
-    ariaLabel: Période de facturation
-    monthly: Mensuel
-    yearly: Annuel (2 mois offerts)
-  billingNote:
-    monthly: Facturé mensuellement
-    yearly: Facturé annuellement · 2 mois offerts
-  users:
-    label: Nombre d’utilisateurs
-    minTooltip: Minimum de 25 utilisateurs
-  region:
-    ariaLabel: Devise
-    CH: CHF
-    DE: EUR
-  community:
-    deployment: Auto-hébergé uniquement
-    price: Gratuit
-    priceSuffix: ''
-    tagline: Chaque fonctionnalité du produit, gratuite en auto-hébergement — le
-      support passe par GitHub.
-    cta: Démarrer
-    feature1: Auto-hébergé
-    feature2: Open source
-    feature3: Maintenu par la communauté (GitHub)
-    feature4: Support communautaire (GitHub)
-  enterprise:
-    deployment: Cloud ou auto-hébergé
-    priceSuffix: /mois + TVA
-    storageAddOn: 1 To + {price}/To/mois de stockage supplémentaire
-    userBreakdown: '{count} utilisateurs × {perUser}/utilisateur/mois'
-    tagline:
-      Tout Community, exploité par des pros — installation, maintenance et
-      support, dans le cloud ou en auto-hébergement.
-    cta: Nous contacter
-    feature1: Auto-hébergé ou cloud
-    feature2: Exploitation professionnelle par Ruler GmbH, certifiée ISO 27001
-    feature3: Accord de traitement des données (DPA)
-    feature4: Support email, téléphone et à distance
-    feature5: Installation et maintenance continue
-    feature7: Influence sur la feuille de route
-  compare:
-    title: Comparer les plans
-    subtitle: Détail de chaque plan
-    categories:
-      deployment: Déploiement
-      compliance: Conformité
-      support: Support
-      installation: Installation standard
-      maintenance: Maintenance
-      customDevelopment: Développement sur mesure
-      consulting: Conseil
-      roadmap: Influence sur la feuille de route
-    values:
-      installationFee:
-        CH: CHF 1 990
-        DE: EUR 2 290
-      hourlyRate:
-        CH: CHF 180 / h
-        DE: EUR 200–260 / h
-    sections:
-      services: Services professionnels
-      other: Autres
-    rows:
-      selfHosted: Auto-hébergé
-      cloud: Cloud
-      localDataCenters: Centres de données locaux (CH & UE)
-      dpa: Accord de traitement des données (DPA)
-      iso: Exploitation certifiée ISO 27001
-      piiRedaction: Masquage des données personnelles
-      customDpa: DPA personnalisé
-      customDpaInfo:
-        Nous acceptons également des accords de traitement des données
-        personnalisés avec nos clients.
-      emailSupport: Support par email
-      emailSupportInfo:
-        'Réponses durant les heures ouvrables : lun.–ven., 08h00–17h00
-        (CET/CEST).'
-      phoneSupport: Support téléphone
-      phoneSupportInfo: 'Disponible durant les heures ouvrables : lun.–ven.,
-        08h00–17h00 (CET/CEST).'
-      remoteSupport: Support à distance
-      remoteSupportInfo: 'Disponible durant les heures ouvrables : lun.–ven.,
-        08h00–17h00 (CET/CEST).'
-    cellLabels:
-      yes: Inclus
-      no: Non inclus
-  extras:
-    cloudProviders:
-      title: Fournisseurs d’IA cloud
-      description:
-        Nous prenons en charge OpenAI, Anthropic, Gemini et d’autres grands
-        fournisseurs d’IA cloud en CH & UE — sans marge ; l’usage est facturé
-        aux tarifs du fournisseur.
-  terms:
-    title: Conditions
-    prefix: Toutes les configurations sont soumises à notre
-    linkLabel: contrat de service
-    suffix: .
 requestDemo:
   eyebrow: Démo
   title: Regarde Tale en action
@@ -754,7 +631,7 @@ about:
       title: Open source, sans astérisque
       body: Tout le code est public et open source sur GitHub. La version
         Community gratuite embarque les mêmes fonctionnalités ; Enterprise
-        ajoute support et services pour CHF 12 (EUR 14) par utilisateur/mois.
+        ajoute support et services.
     deployment:
       title: Ton infrastructure ou la nôtre
       body: Auto-héberge Tale sur ton infrastructure ou choisis un hébergement
@@ -1765,7 +1642,7 @@ platformProjects:
         fichiers pertinents.
       reply1:
         La checklist de lancement mentionne encore la vérification des
-        redirections et les textes de la page de tarifs.
+        redirections et les textes de la landing page.
       reply2:
         Elle prévoit un test en préproduction lorsque ces deux points seront
         prêts.
@@ -1778,12 +1655,11 @@ platformProjects:
     govern:
       label:
         "Exemple illustré : un workflow de publication configuré attend
-        l’approbation du Connector avant de tenter de publier la nouvelle page
-        de tarifs."
-      approvalTitle: Publier la nouvelle page tarifs en production ?
+        l’approbation du Connector avant de tenter de publier la nouvelle landing page."
+      approvalTitle: Publier la nouvelle landing page en production ?
       requester: Refonte du site · Workflow de publication
       audit1: Approuvé par mira@nordwind.eu
-      audit2: Page tarifs publiée
+      audit2: Landing page publiée
       audit3: Décision enregistrée dans le journal d’audit
       budgetValue: CHF 120 / 400
     tasks:
@@ -1792,7 +1668,7 @@ platformProjects:
       title1: Finir la carte de redirections /docs
       assignee1: Non assigné
       id2: WEB-15
-      title2: Réécrire le hero de la page pricing
+      title2: Réécrire le hero de la landing page
       assignee2: Mira
       id3: WEB-12
       title3: Rédiger le guide de migration du relaunch
@@ -1803,21 +1679,6 @@ platformProjects:
       id5: WEB-9
       title5: Publier le set de tokens de marque
       assignee5: Design Agent
-pricingPage:
-  relatedHeading: À suivre
-  ctaTitle: Mets un chiffre sur ta configuration
-  ctaDescription: Demande une démo ou parle à l’équipe des sièges Enterprise et du
-    stockage.
-  faq:
-    heading: FAQ tarifs
-    items:
-      - q: Combien coûte Tale Enterprise ?
-        a:
-          Tale Enterprise coûte 12 CHF (14 €) par utilisateur et par mois, avec deux
-          mois offerts en facturation annuelle. Le stockage coûte 10 CHF (12 €)
-          par To et par mois.
-      - q: Community est-il gratuit ?
-        a: Oui. L’édition Community est gratuite à auto-héberger en open source.
 changelogPage:
   eyebrow: Changelog
   title: Quoi de neuf dans Tale ?

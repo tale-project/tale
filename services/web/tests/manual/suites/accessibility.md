@@ -14,8 +14,7 @@ the place to log _systemic_ findings.
 ## Scope & routes
 
 Run each check on a representative set: `/` (long marketing page with animated
-demos), `/platform` (demo-stage tour), `/pricing` (segmented controls + slider
-+ compare table), `/contact` (form), `/legal/data-processing-agreement` (long
+demos), `/platform` (demo-stage tour), `/contact` (form), `/legal/data-processing-agreement` (long
 document + tabs), `/changelog` (sticky timeline nav).
 
 ## Preconditions
@@ -46,19 +45,12 @@ their own `vitest-axe` coverage.
   mobile drawer nav and footer's **four column navs**, labelled by their
   headings. The company address is an `<address>` in the footer's bottom bar.
 - [ ] `A11Y-A3` · **Heading order** — Walk headings top→bottom on `/`,
-  `/platform`, and `/pricing` → One `<h1>` per page (the hero / page title);
-  levels never skip (no `h1`→`h3`). `/platform` + `/pricing` are automated by
+  `/platform`, and `/about` → One `<h1>` per page (the hero / page title);
+  levels never skip (no `h1`→`h3`). `/platform` + `/about` are automated by
   `smoke.spec.ts`; walk `/` and spot-check the module pages manually.
-- [ ] `A11Y-A4` · **Keyboard reach** — Tab through `/pricing`: billing
-  radiogroup, currency radiogroup, users slider, FAQ accordions, compare-table
-  info triggers → Every interactive control receives focus and operates by
-  keyboard (radios switch, the slider arrows, accordions toggle with
-  Enter/Space); nothing is mouse-only.
 - [ ] `A11Y-A5` · **Contrast** — Sample body text, muted text
   (`text-fg-muted`), primary/secondary buttons — in **both** themes → Body ≥
-  4.5:1, large text ≥ 3:1, non-text UI ≥ 3:1; colour is never the only signal
-  (e.g. compare-table cells pair icon + `sr-only`/label text: **Included** /
-  **Not included**, `pricing.compare.cellLabels.*`)
+  4.5:1, large text ≥ 3:1, non-text UI ≥ 3:1; colour is never the only signal.
 - [ ] `A11Y-A6` · **Visible focus** — Tab through header, hero CTAs, footer
   links, switchers — both themes → A focus ring is visible on every focused
   control (the shared controls use `focus-visible:ring-2`); no `outline: none`
@@ -76,6 +68,9 @@ their own `vitest-axe` coverage.
   scenes expose descriptive aria-labels from their scenario namespace;
   decorative icons inside are hidden from AT. Icon-only buttons/links
   (GitHub, hamburger) expose labels (`footer.githubAriaLabel`, `nav.openMenu`).
+- [ ] `A11Y-A9` · **Keyboard reach** — Tab through the FAQ accordion on `/`
+  → Every question receives focus and toggles with Enter/Space, its answer
+  is announced as expanded or collapsed, and nothing is mouse-only.
 
 ## Boundary & error tests
 
