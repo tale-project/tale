@@ -1,11 +1,11 @@
 import type { Page } from '@playwright/test';
 
 import type { AppApi } from '../helpers/api';
-import type { Control } from '../helpers/control';
+import { timesShown, typedTexts, type Control } from '../helpers/control';
 import { TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
 import { fill, literally, t } from '../helpers/i18n';
-import { waitForPictures, watchLiveView } from '../helpers/live-view';
+import { animationsDone } from '../helpers/nav-a11y';
 import {
   describeStop,
   focusRestsOnAControl,
@@ -14,11 +14,10 @@ import {
   tabWalkFaults,
   walkTabOrder,
 } from '../helpers/nav-focus';
-import { handshake, serveOtherSite } from '../helpers/nav-http';
+import { serveOtherSite } from '../helpers/nav-http';
 import { horizontalOverflow } from '../helpers/nav-overflow';
 import { AT_REST, pillState } from '../helpers/nav-pill';
 import {
-  fakeTabTitle,
   proxiesWorkingAndNot,
   secretsOfEveryKind,
   sessionsInEveryState,
@@ -41,7 +40,6 @@ import {
 } from '../helpers/settings-i18n';
 import { AI_ACCESS_OFF, McpClient } from '../helpers/settings-mcp';
 import { expectSettingsNotRead } from '../helpers/settings-pages';
-import { animationsDone } from '../helpers/viewer-stage';
 
 // What a test changes in the manager's settings, or scripts in the fakes, goes
 // back to the defaults when it ends, whether it passed or not.
@@ -1010,7 +1008,7 @@ async function expectNoOverflow(
     await expect(heading(page, name), `${path} in ${label}`).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
-    // Let a table and a live view find their size.
+    // Let a table find its size.
     await page.evaluate(() => document.fonts.ready);
     const overflow = await horizontalOverflow(page);
     expect(overflow, `${path} in ${label}`).toEqual({
@@ -1243,9 +1241,9 @@ test.describe('The skip link', () => {
         }
       });
 
-      // Once the live view has told the page its tabs, the strip scrolls the
-      // active tab into view by its own `scrollLeft`: the starting point of the
-      // Tab key is left alone, and the first stop is the skip link.
+      // The card of a running session takes no focus of its own when it comes:
+      // the starting point of the Tab key is left alone, and the first stop is
+      // the skip link.
       test('is also the first stop of the page of a running session', async ({
         page,
         api,
@@ -1253,10 +1251,11 @@ test.describe('The skip link', () => {
         const running = await api.startSession('running');
         await page.goto(`/sessions/${running.id}`);
         await expect(
-          page.getByRole('tab', {
-            name: fakeTabTitle('https://www.google.com'),
+          page.getByRole('heading', {
+            level: 2,
+            name: t('viewer.window.title'),
           }),
-        ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+        ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
         await page.keyboard.press('Tab');
         expect(await focusedStop(page)).toMatchObject({
@@ -1286,6 +1285,7 @@ test.describe('The order of the keyboard', () => {
         await secretsOfEveryKind(api, running.id);
         const paths = [
           '/sessions',
+          `/sessions/${running.id}`,
           `/sessions/${stopped.id}`,
           `/sessions/${failed.id}`,
           '/proxies',
@@ -1364,71 +1364,31 @@ test.describe('The order of the keyboard', () => {
           walkPage('/settings/ai-access'));
       });
 
-      test('walks the page of a running session to its picture, which takes the keyboard and gives it back by Ctrl+L / ⌘L', async ({
+      test('walks the page of a running session from its header to the card: Show window, then Secrets', async ({
         page,
         api,
       }) => {
         const running = await api.startSession('running');
-        const live = watchLiveView(page);
         await page.goto(`/sessions/${running.id}`);
-        await waitForPictures(live);
-        const keyboard = t('viewer.stage.keyboard');
+        await expect(
+          page.getByRole('heading', {
+            level: 2,
+            name: t('viewer.window.title'),
+          }),
+        ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+        await page.waitForLoadState('networkidle');
 
-        // The keyboard walks the tabs, the address bar and Secrets, and arrives in the picture.
-        const walk = await walkTabOrder(page, {
-          stopAt: (stop) => stop.name === keyboard,
-        });
-        expect(walk.stoppedAt, 'the walk reached the picture').not.toBeNull();
+        const walk = await walkTabOrder(page);
         const names = walk.stops.map((stop) => stop.name);
-        expect(names[0]).toBe(t('navigation.skipToContent'));
-        expect(
-          walk.stops.filter((stop) => stop.name.trim() === ''),
-          'stops without a name',
-        ).toEqual([]);
-        // The last stop before the picture is the button of the secrets of the
-        // session, named for what it opens (the rail has a Secrets of its own).
-        expect(names.at(-2)).toBe(t('viewer.secrets.title'));
-        expect(names).toEqual(
-          expect.arrayContaining([
-            // The only tab left: closing it stops the session, and says so.
-            fill(t('viewer.tabs.closeLast'), {
-              title: fakeTabTitle('https://www.google.com'),
-            }),
-            t('viewer.tabs.new'),
-            t('viewer.address.back'),
-            t('viewer.address.forward'),
-            t('viewer.address.reload'),
-            t('viewer.address.label'),
-          ]),
-        );
-        // The walk stopped at the picture, so what it did not reach is not asked.
-        const faults = await tabWalkFaults(page);
-        expect(faults.repeated, 'a stop came twice').toEqual([]);
-        expect(faults.outOfOrder, 'document order').toEqual([]);
-
-        // The picture takes every key, Tab included...
-        await page.keyboard.press('Tab');
-        expect(await focusedStop(page)).toMatchObject({ name: keyboard });
-        // ...and says how to get out; that way works.
-        const [before = '', after = ''] = t('viewer.stage.canvasHint').split(
-          '{shortcut}',
-        );
-        await expect(
-          page.getByText(
-            new RegExp(
-              `${literally(before).source}(?:Command|Control)\\+L${literally(after).source}`,
-            ),
-          ),
-        ).toBeAttached();
-        await page.keyboard.press('ControlOrMeta+L');
-        await expect(
-          page.getByRole('textbox', { name: t('viewer.address.label') }),
-        ).toBeFocused();
-        // From the address bar the keyboard goes on as usual.
-        await page.keyboard.press('Tab');
-        expect(await focusedStop(page)).toMatchObject({
-          name: t('viewer.secrets.title'),
-        });
+        expect(walk.ended, `the order ends\n${names.join('\n')}`).toBe(true);
+        // The header says what the session is and stops it; the card that
+        // follows leads with the window, then the secrets to type into it.
+        const stop = names.indexOf(t('viewer.actions.stop'));
+        const show = names.indexOf(t('viewer.window.show'));
+        const secrets = names.indexOf(t('viewer.secrets.title'));
+        expect(stop, names.join('\n')).toBeGreaterThan(-1);
+        expect(show, names.join('\n')).toBeGreaterThan(stop);
+        expect(secrets, names.join('\n')).toBe(show + 1);
       });
     });
   }
@@ -1779,29 +1739,6 @@ test.describe('Host protection', () => {
     // The refusal carries the protective headers of every other answer.
     expect(response.headers()['x-content-type-options']).toBe('nosniff');
   });
-
-  test('the live view refuses a handshake that names another host, as a refused host', async ({
-    api,
-    server,
-  }) => {
-    const session = await api.startSession('watched');
-    const path = `/api/sessions/${session.id}/stream`;
-    const allowed = await handshake({
-      port: server.port,
-      path,
-      host: `localhost:${server.port}`,
-    });
-    expect(allowed).toMatchObject({ upgraded: true, status: 101 });
-
-    const foreign = await handshake({
-      port: server.port,
-      path,
-      host: 'evil.example',
-    });
-    expect(foreign.upgraded).toBe(false);
-    expect(foreign.status).toBe(403);
-    expect(JSON.parse(foreign.body)).toMatchObject({ error: 'forbidden_host' });
-  });
 });
 
 test.describe('Cross-origin protection', () => {
@@ -2044,56 +1981,46 @@ test.describe('Cross-origin protection', () => {
     }
   });
 
-  test("a page of another website cannot open the live view, a page of the app's own can", async ({
-    page,
+  // Typing into a session's window is the one write that reaches the person's
+  // own browser: a value planted in a field they clicked. Another site is
+  // turned away from it, and from bringing the window to the front, both by
+  // what it names as its origin and by what the browser says of it.
+  test("another site cannot type into a session's window, nor bring the window to the front", async ({
+    request,
     api,
+    control,
     server,
   }) => {
-    const session = await api.startSession('watched');
-    const socket = (address: string) =>
-      page.evaluate(
-        (url) =>
-          new Promise<'open' | 'refused'>((resolve) => {
-            const ws = new WebSocket(url);
-            ws.addEventListener('open', () => {
-              ws.close();
-              resolve('open');
-            });
-            ws.addEventListener('error', () => resolve('refused'));
-          }),
-        address,
-      );
-    const path = `/api/sessions/${session.id}/stream`;
-
-    // The app's own page, on either of its names.
-    await page.goto(`${server.origin}/settings/general`);
-    expect(await socket(`ws://localhost:${server.port}${path}`)).toBe('open');
-
-    // The same name for another port is another site.
-    const site = await serveOtherSite();
-    try {
-      await page.goto(site.origin);
-      expect(await socket(`ws://localhost:${server.port}${path}`)).toBe(
-        'refused',
-      );
-      expect(await socket(`ws://127.0.0.1:${server.port}${path}`)).toBe(
-        'refused',
-      );
-    } finally {
-      await site.close();
+    const session = await api.startSession('typed-into');
+    const before = await control.browser(session.name);
+    const writes = [
+      { path: `/api/sessions/${session.id}/type`, data: { text: 'planted' } },
+      { path: `/api/sessions/${session.id}/show`, data: undefined },
+    ];
+    const foreign: Record<string, string>[] = [
+      { Origin: FOREIGN },
+      { 'Sec-Fetch-Site': 'cross-site' },
+    ];
+    for (const headers of foreign) {
+      for (const { path, data } of writes) {
+        const refused = await request.post(path, { data, headers });
+        const what = `POST ${path} with ${JSON.stringify(headers)}`;
+        expect(refused.status(), what).toBe(403);
+        expect((await refused.json()).error, what).toBe('forbidden_origin');
+      }
     }
+    const after = await control.browser(session.name);
+    expect(typedTexts(after)).toEqual([]);
+    expect(timesShown(after)).toBe(timesShown(before));
 
-    // By hand, the reason: the origin is not the host's.
-    const refused = await handshake({
-      port: server.port,
-      path,
-      host: `localhost:${server.port}`,
-      origin: 'https://evil.example',
-    });
-    expect(refused).toMatchObject({ upgraded: false, status: 403 });
-    expect(JSON.parse(refused.body)).toMatchObject({
-      error: 'forbidden_origin',
-    });
+    // The same writes from the app's own origin are made.
+    for (const { path, data } of writes) {
+      const made = await request.post(path, {
+        data,
+        headers: { Origin: server.origin },
+      });
+      expect(made.status(), path).toBe(204);
+    }
   });
 
   test('the endpoint shows the same refusal whether or not AI access is on for a foreign site', async ({
@@ -2228,36 +2155,6 @@ test.describe('Cross-origin protection', () => {
       window.location.href = url;
     }, target);
     expect((await saved).suggestedFilename()).toBe('proxy.json');
-  });
-
-  test('the live view refuses a handshake a browser marks as started by another site, though it names the app as host and origin', async ({
-    api,
-    server,
-  }) => {
-    const session = await api.startSession('watched');
-    const request = {
-      port: server.port,
-      path: `/api/sessions/${session.id}/stream`,
-      host: `localhost:${server.port}`,
-      origin: server.origin,
-    };
-
-    for (const fetchSite of ['cross-site', 'same-site']) {
-      const refused = await handshake({ ...request, fetchSite });
-      expect(refused, fetchSite).toMatchObject({
-        upgraded: false,
-        status: 403,
-      });
-      expect(JSON.parse(refused.body), fetchSite).toMatchObject({
-        error: 'forbidden_origin',
-      });
-    }
-    for (const fetchSite of ['same-origin', 'none', undefined]) {
-      expect(
-        await handshake({ ...request, fetchSite }),
-        String(fetchSite),
-      ).toMatchObject({ upgraded: true, status: 101 });
-    }
   });
 });
 

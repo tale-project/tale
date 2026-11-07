@@ -6,7 +6,6 @@ import type { Control } from '../helpers/control';
 import { TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
 import { fill, literally, t } from '../helpers/i18n';
-import { waitForPictures, watchLiveView } from '../helpers/live-view';
 import {
   LIBRARY_GAPS,
   MIN_FOCUS_CONTRAST,
@@ -17,8 +16,7 @@ import {
   runningAnimations,
   withoutGaps,
 } from '../helpers/nav-a11y';
-import { focusedStop, releaseFocus, tabTo } from '../helpers/nav-focus';
-import { controlViewerSockets } from '../helpers/nav-live';
+import { focusedStop, tabTo } from '../helpers/nav-focus';
 import {
   CHANGED_EXIT_IP,
   SHOP_TITLE,
@@ -71,8 +69,8 @@ test.afterEach(async ({ api, control }) => {
 
 // Every state is audited with axe (WCAG 2.0/2.1 A and AA, colour contrast
 // included) in light and in dark, at the width of a computer and of a phone.
-// The session screens and the viewer are audited in a phone held sideways as
-// well (844 x 390), where a menu or a dialog has hardly any height to spare.
+// The session screens are audited in a phone held sideways as well (844 x
+// 390), where a menu or a dialog has hardly any height to spare.
 // A violation is the app's to fix; nothing is excluded from an audit, except
 // the one rule of the component library that is a Known gap, in the states of
 // that gap only (`LIBRARY_GAPS`). Motion is reduced while auditing, so that no
@@ -141,23 +139,13 @@ interface AuditOptions {
  * `scrollable-region-focusable`, which the component library breaks in a phone
  * held sideways (a Known gap of the change): a Radix menu taller than the room
  * under its button scrolls, and holds nothing the Tab key reaches (its items
- * take the arrow keys). Measured in these states: the row menu of a running
- * session and that of a stopped one on the list, and the menu of tabs; the row
- * menu at the top of the list and the menu in the header of a page fit. Every
+ * take the arrow keys). Measured in these states: the row menus of a running, a
+ * stopped and a failed session on the list, and the menu in the header of the
+ * page of a stopped session (Show window, which leads each of them, made them
+ * taller); the menu in the header of the page of a running session fits. Every
  * other rule is asserted there as well.
  */
 const SCROLLING_MENU: AuditOptions = { gaps: [LIBRARY_GAPS.scrollableRegion] };
-
-/**
- * The viewer's strip of tabs while the first connection is made: its
- * placeholder is wider than the strip in a phone held sideways, and no
- * control (`scrollable-region-focusable`, a Known gap), and masks stand in the
- * place of the tabs for as long as nothing answers.
- */
-const CONNECTING: AuditOptions = {
-  gaps: [LIBRARY_GAPS.scrollableRegion],
-  loading: true,
-};
 
 /** Audits what the page shows now. */
 async function expectAccessible(
@@ -201,9 +189,9 @@ interface Scene {
 }
 
 /**
- * The session screens and the viewer are audited twice: on a computer and a
- * phone upright, and on a phone held sideways. `body` is the audit of one
- * screen, given the modes of the run.
+ * The session screens are audited twice: on a computer and a phone upright,
+ * and on a phone held sideways. `body` is the audit of one screen, given the
+ * modes of the run.
  */
 function auditSessionScreens(
   title: string,
@@ -220,6 +208,10 @@ function auditSessionScreens(
 
 const heading1 = (page: Page, name: string) =>
   page.getByRole('heading', { level: 1, name, exact: true });
+
+/** "Running in its own window": the heading of the card on the page of a running session. */
+const windowHeading = (page: Page) =>
+  page.getByRole('heading', { level: 2, name: t('viewer.window.title') });
 
 // Things the specs open over and over.
 
@@ -262,11 +254,6 @@ async function closeOverlay(page: Page): Promise<void> {
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.getByRole('listbox')).toHaveCount(0);
-}
-
-/** Waits for a picture newer than the ones the live view has sent so far. */
-function nextPicture(live: ReturnType<typeof watchLiveView>): Promise<void> {
-  return waitForPictures(live, live.pictures() + 1);
 }
 
 // =============================================================================
@@ -404,29 +391,18 @@ test.describe('Axe: the pages', () => {
         control,
         request,
       );
-      const live = watchLiveView(page);
 
       await inEveryMode(
         page,
         async (mode) => {
-          const drawn = nextPicture(live);
+          // The card: what it says, Show window, Secrets and the details.
           await page.goto(`/sessions/${running.id}`);
-          await expect(page.getByRole('tab').first()).toBeVisible({
-            timeout: TIMEOUT.VISIBLE,
+          await expect(windowHeading(page)).toBeVisible({
+            timeout: TIMEOUT.FIRST_PAINT,
           });
-          await drawn;
           await expectAccessible(page, 'a running session', mode);
 
-          // A second tab, which the browser keeps for the modes that follow.
-          if ((await page.getByRole('tab').count()) === 1) {
-            await page
-              .getByRole('button', { name: t('viewer.tabs.new') })
-              .click();
-          }
-          await expect(page.getByRole('tab')).toHaveCount(2);
-          await expectAccessible(page, 'a running session with two tabs', mode);
-
-          // The session whose IP changed: the amber bar and the chip.
+          // The session whose IP changed: the amber bar over the card, and the chip.
           await page.goto(`/sessions/${drifted.id}`);
           await expect(
             page.getByText(t('viewer.place.warningTitle')),
@@ -978,6 +954,7 @@ test.describe('Axe: dialogs and menus of the sessions', () => {
             page,
             'the menu of a session that could not start',
             mode,
+            SCROLLING_MENU,
           );
 
           // Rename.
@@ -1068,6 +1045,7 @@ test.describe('Axe: dialogs and menus of the sessions', () => {
             page,
             'the menu in the header of a session',
             mode,
+            SCROLLING_MENU,
           );
           await closeOverlay(page);
 
@@ -1081,6 +1059,15 @@ test.describe('Axe: dialogs and menus of the sessions', () => {
             })
             .last()
             .click();
+          // A running session's menu leads with Show window, which it can do.
+          await expect(
+            page.getByRole('menuitem', { name: t('sessions.menu.showWindow') }),
+          ).toBeEnabled();
+          await expectAccessible(
+            page,
+            'the menu in the header of a running session',
+            mode,
+          );
           await page
             .getByRole('menuitem', { name: t('common.actions.delete') })
             .click();
@@ -1622,67 +1609,27 @@ test.describe('Axe: dialogs and menus of the secrets', () => {
   });
 });
 
-test.describe('Axe: the page of a session, its dialogs and its lists', () => {
-  /** The line that says how to leave the picture, at its foot for a moment once the keyboard came in. */
-  const keyboardHint = (page: Page) => {
-    const [before = '', after = ''] = t('viewer.stage.keyboardHint').split(
-      '{shortcut}',
-    );
-    return page
-      .getByRole('status')
-      .getByText(
-        new RegExp(
-          `${literally(before).source}(?:Command|Control)\\+L${literally(after).source}`,
-        ),
-      );
-  };
-
-  /** The button of the toolbar that opens the secrets of the session. */
+test.describe('Axe: the secrets of a session, typed into its window', () => {
+  /** The card's button that opens the secrets of the session. */
   const secretsButton = (page: Page) =>
     page
       .getByRole('main')
       .getByRole('button', { name: t('viewer.secrets.title'), exact: true });
 
   auditSessionScreens(
-    'the keyboard in the picture, which says how to leave it',
-    async ({ page, api }, modes) => {
-      const running = await api.startSession('typing');
-      const live = watchLiveView(page);
-
-      await inEveryMode(
-        page,
-        async (mode) => {
-          const drawn = nextPicture(live);
-          await page.goto(`/sessions/${running.id}`);
-          await drawn;
-          await tabTo(page, (stop) => stop.name === t('viewer.stage.keyboard'));
-          await expect(keyboardHint(page)).toBeVisible();
-          await expectAccessible(
-            page,
-            'the picture that has the keyboard',
-            mode,
-          );
-        },
-        modes,
-      );
-    },
-  );
-
-  auditSessionScreens(
-    'the secrets of a session: the groups, a secret opened, its masked value shown',
+    'the secrets of a session: the groups, a secret opened, its masked value shown, and a value that could not be typed',
     async ({ page, api, control }, modes) => {
       const { running } = await sessionsInEveryState(api, control);
       await secretsOfEveryKind(api, running.id);
-      const live = watchLiveView(page);
+      // Nothing in the window takes text: a value chosen is refused, in a toast.
+      await control.focusField(running.name, false);
 
       await inEveryMode(
         page,
         async (mode) => {
-          const drawn = nextPicture(live);
           await page.goto(`/sessions/${running.id}`);
-          await drawn;
-          await expect(page.getByRole('tab')).toBeVisible({
-            timeout: TIMEOUT.VISIBLE,
+          await expect(windowHeading(page)).toBeVisible({
+            timeout: TIMEOUT.FIRST_PAINT,
           });
 
           await secretsButton(page).click();
@@ -1716,7 +1663,24 @@ test.describe('Axe: the page of a session, its dialogs and its lists', () => {
             'the secrets of a session, a value shown',
             mode,
           );
-          await closeOverlay(page);
+
+          await popover
+            .getByRole('button', {
+              name: fill(t('viewer.secrets.typeLabel'), {
+                label: t('secrets.fields.username'),
+              }),
+            })
+            .click();
+          await expect(
+            page
+              .getByRole('listitem')
+              .filter({ hasText: t('errors.no_field_focused') }),
+          ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+          await expectAccessible(
+            page,
+            'the toast of a value that could not be typed',
+            mode,
+          );
         },
         modes,
       );
@@ -1727,14 +1691,14 @@ test.describe('Axe: the page of a session, its dialogs and its lists', () => {
     'the secrets of a session that has none, and the form that adds one over the page',
     async ({ page, api }, modes) => {
       const bare = await api.startSession('bare');
-      const live = watchLiveView(page);
 
       await inEveryMode(
         page,
         async (mode) => {
-          const drawn = nextPicture(live);
           await page.goto(`/sessions/${bare.id}`);
-          await drawn;
+          await expect(windowHeading(page)).toBeVisible({
+            timeout: TIMEOUT.FIRST_PAINT,
+          });
 
           await secretsButton(page).click();
           const popover = page
@@ -1763,170 +1727,6 @@ test.describe('Axe: the page of a session, its dialogs and its lists', () => {
             mode,
           );
           await closeOverlay(page);
-        },
-        modes,
-      );
-    },
-  );
-
-  auditSessionScreens(
-    'the dialogs of the page, and the list of a select',
-    async ({ page, api, control }, modes) => {
-      const { running } = await sessionsInEveryState(api, control);
-      const live = watchLiveView(page);
-
-      await inEveryMode(
-        page,
-        async (mode) => {
-          const drawn = nextPicture(live);
-          await page.goto(`/sessions/${running.id}`);
-          await drawn;
-          await expect(page.getByRole('tab')).toBeVisible({
-            timeout: TIMEOUT.VISIBLE,
-          });
-
-          // The dialogs the page opens: one at a time, in the order they came.
-          for (const [kind, message] of [
-            ['alert', 'Your order has shipped.'],
-            ['confirm', 'Delete the draft?'],
-            ['prompt', 'Your name?'],
-            ['beforeunload', ''],
-          ] as const) {
-            await control.openDialog(running.name, {
-              kind,
-              message,
-              defaultValue: kind === 'prompt' ? 'Jane' : '',
-            });
-            await expect(page.getByRole('dialog')).toBeVisible({
-              timeout: TIMEOUT.VISIBLE,
-            });
-            await expectAccessible(page, `the ${kind} of a page`, mode);
-            // Answer it, so the page does not wait.
-            await page.getByRole('dialog').getByRole('button').last().click();
-            await expect(page.getByRole('dialog')).toHaveCount(0);
-          }
-
-          // The list of a <select> the browser would draw outside the page.
-          await control.openSelect(running.name, ['First', 'Second', 'Third']);
-          await expect(page.getByRole('listbox')).toBeVisible({
-            timeout: TIMEOUT.VISIBLE,
-          });
-          await expectAccessible(page, 'the list of a select', mode);
-          await page.keyboard.press('Escape');
-          await expect(page.getByRole('listbox')).toHaveCount(0);
-        },
-        modes,
-      );
-    },
-  );
-
-  // Thirteen tabs do not fit the strip: it scrolls, and the menu next to it
-  // lists them all.
-  auditSessionScreens(
-    'the strip of tabs and the menu of tabs, with thirteen tabs open',
-    async ({ page, api }, modes) => {
-      const running = await api.startSession('many-tabs');
-      const live = watchLiveView(page);
-      const TABS = 13;
-
-      await inEveryMode(
-        page,
-        async (mode) => {
-          const drawn = nextPicture(live);
-          await page.goto(`/sessions/${running.id}`);
-          await drawn;
-          // The browser keeps the tabs for the modes that follow.
-          const tabs = page.getByRole('tab');
-          await expect(tabs.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-          for (let open = await tabs.count(); open < TABS; open += 1) {
-            await page
-              .getByRole('button', { name: t('viewer.tabs.new') })
-              .click();
-            await expect(tabs).toHaveCount(open + 1);
-          }
-          await expectAccessible(page, 'the strip of thirteen tabs', mode);
-
-          const more = page.getByRole('button', {
-            name: t('viewer.tabs.more'),
-          });
-          await more.click();
-          await expect(page.getByRole('menu')).toBeVisible();
-          await expect(page.getByRole('menuitem')).toHaveCount(TABS);
-          await expectAccessible(
-            page,
-            'the menu of thirteen tabs',
-            mode,
-            SCROLLING_MENU,
-          );
-          await closeOverlay(page);
-          // The button took the keyboard back, and with it its tooltip.
-          await expect(more).toBeFocused();
-          await releaseFocus(page);
-        },
-        modes,
-      );
-    },
-  );
-
-  auditSessionScreens(
-    'the page of a session while its live view is connecting, once it is lost, and when the server refuses it',
-    async ({ page, api, control }, modes) => {
-      const { running, stopped } = await sessionsInEveryState(api, control);
-      // The page is told that the stopped session runs, and the server, which
-      // knows better, refuses its live view.
-      await showSessionPatches(
-        page,
-        new Map([[stopped.id, { status: 'running', activity: null }]]),
-      );
-      const live = watchLiveView(page);
-      const sockets = await controlViewerSockets(page);
-
-      await inEveryMode(
-        page,
-        async (mode) => {
-          // Connecting: the socket is open and nothing answers.
-          sockets.mode = 'silent';
-          await page.goto(`/sessions/${running.id}`);
-          await expect(
-            page.getByText(t('viewer.stage.connecting')).first(),
-          ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-          await expectAccessible(
-            page,
-            'a live view that is connecting',
-            mode,
-            CONNECTING,
-          );
-
-          // Lost: live first, then the network goes and stays away.
-          sockets.mode = 'through';
-          const drawn = nextPicture(live);
-          await page.goto(`/sessions/${running.id}`);
-          await drawn;
-          await sockets.cut();
-          await expect(
-            page.getByText(t('viewer.stage.lost')).first(),
-          ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-          await expectAccessible(page, 'a live view that was lost', mode);
-          // After two failed tries the page offers to connect at once.
-          await expect(
-            page.getByRole('button', { name: t('common.actions.tryAgain') }),
-          ).toBeVisible({ timeout: TIMEOUT.BACKGROUND });
-          await expectAccessible(
-            page,
-            'a live view that was lost, with the offer to connect at once',
-            mode,
-          );
-
-          // Refused: the server says the session does not run.
-          sockets.mode = 'through';
-          await page.goto(`/sessions/${stopped.id}`);
-          await expect(
-            page.getByRole('heading', {
-              level: 2,
-              name: t('viewer.stage.refusedTitle'),
-            }),
-          ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-          await expectAccessible(page, 'a live view the server refuses', mode);
         },
         modes,
       );
@@ -2220,14 +2020,15 @@ test.describe('Focus is visible', () => {
           },
           {
             path: `/sessions/${running.id}`,
-            what: 'a tab',
-            is: (s) => s.role === 'tab',
+            what: 'the Show window button of the card',
+            is: (s) =>
+              s.role === 'button' && s.name === t('viewer.window.show'),
           },
           {
             path: `/sessions/${running.id}`,
-            what: 'the address bar',
+            what: 'the Secrets button of the card',
             is: (s) =>
-              s.role === 'textbox' && s.name === t('viewer.address.label'),
+              s.role === 'button' && s.name === t('viewer.secrets.title'),
           },
           {
             path: '/proxies',

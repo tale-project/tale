@@ -3,7 +3,6 @@ import type { Locator, Page, Route } from '@playwright/test';
 import { TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
 import { fill, literally, t } from '../helpers/i18n';
-import { waitForPictures, watchLiveView } from '../helpers/live-view';
 import { fakeTabTitle } from '../helpers/nav-scenes';
 import { PHONE } from '../helpers/nav-viewports';
 import {
@@ -200,8 +199,8 @@ test.describe('General: the start page', () => {
   test('an address is completed by the server, kept across a reload and opened by the next session', async ({
     page,
     api,
+    control,
   }) => {
-    const live = watchLiveView(page);
     await openSettings(page, 'general');
     const field = startPageField(page);
 
@@ -216,22 +215,10 @@ test.describe('General: the start page', () => {
     await page.reload();
     await expect(startPageField(page)).toHaveValue('https://example.com');
 
-    // A session started afterwards opens it.
+    // A session started afterwards opens it, in the one tab of its window.
     const session = await api.startSession('opens-start-page');
-    await page.goto(`/sessions/${session.id}`);
-    await expect(
-      page.getByRole('tab', { name: fakeTabTitle('https://example.com') }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(
-      page.getByRole('textbox', { name: t('viewer.address.label') }),
-    ).toHaveValue('https://example.com');
-    await waitForPictures(live);
-    expect(
-      live
-        .received()
-        .flatMap((message) => (message.t === 'tabs' ? message.tabs : []))
-        .map((tab) => tab.url),
-    ).toContain('https://example.com');
+    const { tabs } = await control.browser(session.name);
+    expect(tabs.map((tab) => tab.url)).toEqual(['https://example.com']);
   });
 
   test('a session you stop keeps its tabs; one whose last tab was closed opens the new start page', async ({
@@ -264,18 +251,13 @@ test.describe('General: the start page', () => {
       await api.waitForStatus(id, 'running');
     }
 
-    await page.goto(`/sessions/${kept.id}`);
-    await expect(
-      page.getByRole('tab', { name: fakeTabTitle('https://www.google.com') }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(
-      page.getByRole('tab', { name: fakeTabTitle('https://example.org') }),
-    ).toHaveCount(0);
-
-    await page.goto(`/sessions/${closed.id}`);
-    await expect(
-      page.getByRole('tab', { name: fakeTabTitle('https://example.org') }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // The windows the two starts opened: the one the first session had, and
+    // the new start page for the second.
+    const { defaultStartPage } = await api.settings();
+    const urlsOf = async (name: string) =>
+      (await control.browser(name)).tabs.map((tab) => tab.url);
+    expect(await urlsOf(kept.name)).toEqual([defaultStartPage]);
+    expect(await urlsOf(closed.name)).toEqual(['https://example.org']);
   });
 
   test('an address that is not a web address is refused in the words of the page, and nothing is saved', async ({
@@ -1170,9 +1152,9 @@ test.describe('AI access: the endpoint obeys the switch', () => {
     expect(server.protocolVersion).toBe(PROTOCOL_VERSION);
     expect(server.capabilities.tools).toBeDefined();
     const tools = await mcp.toolNames();
-    expect(tools).toHaveLength(42);
+    expect(tools).toHaveLength(43);
     expect(tools).toEqual(
-      expect.arrayContaining(['overview', 'list_sessions']),
+      expect.arrayContaining(['overview', 'list_sessions', 'show_window']),
     );
     const listing = await mcp.call('list_sessions');
     expect(listing.isError).toBe(false);
@@ -1663,7 +1645,7 @@ test.describe('AI access: what it lets an assistant do', () => {
       overview: 3,
       sessions: 11,
       proxies: 5,
-      browser: 17,
+      browser: 18,
       secrets: 6,
     };
     for (const [group, count] of Object.entries(counts)) {

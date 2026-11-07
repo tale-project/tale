@@ -5,6 +5,7 @@ import {
   sessionCreateSchema,
   sessionUpdateSchema,
   startRequestSchema,
+  typeTextSchema,
 } from '../../../lib/api/schemas.ts';
 import {
   parseBody,
@@ -17,7 +18,8 @@ import type { Manager } from './manager.ts';
 /**
  * `/api/sessions`: the browsers. Starting, stopping, restarting and rotating
  * answer 202 with the session as it is then: the work goes on in the
- * background, and the session's status tells how far it is.
+ * background, and the session's status tells how far it is. A running
+ * session's window can be brought to the front, and typed into.
  */
 export function createSessionRoutes(manager: Manager): Hono {
   const routes = new Hono();
@@ -44,9 +46,13 @@ export function createSessionRoutes(manager: Manager): Hono {
 
   routes.get('/:id', (c) => c.json(manager.session(pathId(c, 'session'))));
 
+  // A browser the person starts here comes up in front of the page (`show`).
   routes.post('/', async (c) => {
     const { name, os } = await parseBody(c, sessionCreateSchema);
-    return c.json(await manager.createSession({ name, os }), 201);
+    return c.json(
+      await manager.createSession({ name, os }, { show: true }),
+      201,
+    );
   });
 
   routes.patch('/:id', async (c) => {
@@ -58,7 +64,7 @@ export function createSessionRoutes(manager: Manager): Hono {
   routes.post('/:id/start', async (c) => {
     const id = pathId(c, 'session');
     const { force } = await parseOptionalBody(c, startRequestSchema);
-    return c.json(await manager.startSession(id, { force }), 202);
+    return c.json(await manager.startSession(id, { force, show: true }), 202);
   });
 
   routes.post('/:id/stop', async (c) =>
@@ -68,7 +74,10 @@ export function createSessionRoutes(manager: Manager): Hono {
   // Closes the browser and opens it again with the same proxy and tabs: its
   // timezone and location are derived again from the proxy's exit IP as it is now.
   routes.post('/:id/restart', async (c) =>
-    c.json(await manager.restartSession(pathId(c, 'session')), 202),
+    c.json(
+      await manager.restartSession(pathId(c, 'session'), { show: true }),
+      202,
+    ),
   );
 
   // Looks at the exit IP of the session's proxy now (see `location.inSync`).
@@ -77,8 +86,24 @@ export function createSessionRoutes(manager: Manager): Hono {
   );
 
   routes.post('/:id/rotate', async (c) =>
-    c.json(await manager.rotateSession(pathId(c, 'session')), 202),
+    c.json(
+      await manager.rotateSession(pathId(c, 'session'), { show: true }),
+      202,
+    ),
   );
+
+  routes.post('/:id/show', async (c) => {
+    await manager.showSession(pathId(c, 'session'));
+    return c.body(null, 204);
+  });
+
+  // Where the focus of the page is: the field the person clicked in the window.
+  routes.post('/:id/type', async (c) => {
+    const id = pathId(c, 'session');
+    const { text } = await parseBody(c, typeTextSchema);
+    await manager.typeIntoSession(id, text);
+    return c.body(null, 204);
+  });
 
   routes.delete('/:id', async (c) => {
     await manager.deleteSession(pathId(c, 'session'));

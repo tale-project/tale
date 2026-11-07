@@ -18,8 +18,7 @@ import { RestartSessionDialog } from './restart-session-dialog';
  * for a useful part of it (cut with an ellipsis), and Restart session beside
  * it. What is left out of sight is read out, as the platform's banners do
  * (`embedding-setup-alert.tsx`): the hint always, the sentence where the line
- * is narrower than 30rem. Left to grow it was 182 px of a 390 px window, and
- * the picture 82 px wide.
+ * is narrower than 30rem. Left to grow it was 182 px of a 390 px window.
  *
  * It is the same markup in both shapes (nothing is announced again when a
  * phone is turned), so the library's alert is bent to it by its classes: its
@@ -35,8 +34,8 @@ const ONE_LINE_ALERT = cn(
 );
 
 /**
- * The bar under the toolbar of a session whose proxy now exits through another
- * IP than the one its time zone and location are for: it says so and offers
+ * The bar over the card of a running session whose proxy now exits through
+ * another IP than the one its time zone and location are for: it says so and offers
  * the restart that fits the session to the new IP again. The one prominent
  * warning of that state; the details of the session carry the same facts.
  *

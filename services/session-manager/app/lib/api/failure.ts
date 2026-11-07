@@ -70,6 +70,12 @@ function wordedCode(code: string, extra: unknown, t: TFunction): string {
         ? t('unknown_ip_location')
         : t('unknown_ip_location_reason', { reason });
     }
+    case 'browser_error': {
+      const reason = causeOf(fields.reason);
+      return reason === null
+        ? t('browser_error')
+        : t('browser_error_reason', { reason });
+    }
     case 'no_working_proxy': {
       const failed = countOf(fields.failed);
       return failed === null
@@ -107,22 +113,11 @@ function wordedCode(code: string, extra: unknown, t: TFunction): string {
  */
 export function failureText(error: unknown, t: TFunction): string {
   if (error instanceof ApiError) {
-    return failureTextOfCode(error.code, t, error.extra);
+    return hasWords(error.code)
+      ? wordedCode(error.code, error.extra, t)
+      : t('fallback');
   }
   return readableErrorMessage(error) ?? t('fallback');
-}
-
-/**
- * The sentence of a code that did not come in an `ApiError`: the live view
- * refuses a connection with a code of its own, worded as the same code is
- * anywhere else, and a code the app has no words for is the generic line.
- */
-export function failureTextOfCode(
-  code: string,
-  t: TFunction,
-  extra?: unknown,
-): string {
-  return hasWords(code) ? wordedCode(code, extra, t) : t('fallback');
 }
 
 /** The answers that say only that the call failed and to try again, and nothing a person could mend. */

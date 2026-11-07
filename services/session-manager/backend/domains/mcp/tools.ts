@@ -32,9 +32,9 @@ export function findTool(name: string): McpTool | undefined {
 
 /**
  * The routes of the web API that each tool does the same as: `METHOD /path`
- * relative to `/api`, `:id` for the number in the path, `WEBSOCKET` for the
- * live view (which the tools of the browser stand for). A tool can mirror
- * several routes (adding proxies has two), or none (`wait`).
+ * relative to `/api`, `:id` for the number in the path. A tool can mirror
+ * several routes (adding proxies has two), or none: most tools of the browser
+ * do what the person does in its window, which is no route.
  */
 export const MCP_TOOL_ROUTES: Readonly<Record<string, readonly string[]>> =
   Object.fromEntries(MCP_TOOLS.map((tool) => [tool.name, tool.routes]));

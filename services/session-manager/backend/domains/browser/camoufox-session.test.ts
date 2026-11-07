@@ -285,6 +285,7 @@ describe('a session whose last tab is closed', () => {
     expect(context.closeCalls).toBe(1);
     expect(remote.calls).toEqual([
       'forgetLayout',
+      'followWindow',
       'freeze flush=true',
       'aclose',
     ]);
@@ -302,15 +303,51 @@ describe('a session whose last tab is closed', () => {
   });
 });
 
+describe('showing the window of a session', () => {
+  it('brings its tab forward, then the windows of its browser process', async () => {
+    const activate = vi.fn(async (_pid: number) => true);
+    const { session, remote } = newSession({ activate });
+    await session.show();
+    expect(remote.events).toEqual([['toFront']]);
+    expect(activate).toHaveBeenCalledWith(103);
+  });
+
+  it('brings only the tab forward when it finds no browser process', async () => {
+    const activate = vi.fn(async (_pid: number) => true);
+    const { session, remote } = newSession({
+      activate,
+      listProcesses: listing(''),
+    });
+    await session.show();
+    expect(remote.events).toEqual([['toFront']]);
+    expect(activate).not.toHaveBeenCalled();
+  });
+});
+
 describe('closing a session', () => {
-  it('closes the remote and then the browser, saving the tabs first', async () => {
+  it('closes the remote and then the browser, saving the tabs first, with the one the person was at', async () => {
     const { session, context, remote } = newSession();
     await session.close();
 
-    expect(remote.calls).toEqual(['freeze flush=true', 'aclose']);
+    expect(remote.calls).toEqual([
+      'followWindow',
+      'freeze flush=true',
+      'aclose',
+    ]);
     expect(context.closeCalls).toBe(1);
     expect(remote.closed).toBe(true);
     await session.waitClosed(); // the browser said it is gone
+  });
+
+  it('saves the tabs all the same when the remote cannot tell the one in front', async () => {
+    const { session, remote } = newSession();
+    vi.spyOn(remote, 'followWindow').mockRejectedValue(new Error('gone'));
+    await session.close();
+    expect(remote.calls).toEqual(['freeze flush=true', 'aclose']);
+    expect(console.error).toHaveBeenCalledWith(
+      `could not tell which tab of ${PROFILE} is in front`,
+      expect.any(Error),
+    );
   });
 
   it('is one close however often it is asked for', async () => {
@@ -321,7 +358,11 @@ describe('closing a session', () => {
     await session.close();
 
     expect(context.closeCalls).toBe(1);
-    expect(remote.calls).toEqual(['freeze flush=true', 'aclose']);
+    expect(remote.calls).toEqual([
+      'followWindow',
+      'freeze flush=true',
+      'aclose',
+    ]);
   });
 
   it('kills the browser when closing it fails', async () => {

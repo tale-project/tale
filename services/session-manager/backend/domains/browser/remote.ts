@@ -1,14 +1,11 @@
 // What can be done with a running browser from outside: look at its tabs,
-// watch the active one, use mouse and keyboard.
+// read a page, use mouse and keyboard on it, bring it to the front.
 //
-// The web client's stream, the MCP tools and the tests all work through
-// `Remote` (`playwright-remote.ts` has the real one, `../../testing` a fake).
-// The browser runs without a window, so everything a person would see or do in
-// a window goes through here. Durations are milliseconds.
+// The person uses the browser in its own window; the MCP tools, typing a
+// secret from the web page and the tests work through `Remote`
+// (`playwright-remote.ts` has the real one, `../../testing` a fake). Durations
+// are milliseconds.
 
-import type { NoticeCode } from '../../../lib/live-view.ts';
-
-export type MouseAction = 'move' | 'down' | 'up';
 export type KeyAction = 'down' | 'up' | 'press';
 export type HistoryAction = 'back' | 'forward' | 'reload';
 export type Navigation = 'commit' | 'domcontentloaded' | 'load';
@@ -16,17 +13,21 @@ export type MouseButton = 'left' | 'middle' | 'right';
 
 /**
  * An action that cannot be done (no such tab, the page is gone, a navigation
- * failed). The message is for the person using the app, in English: the web
- * client words the `notice`, when there is one, in the person's own language
- * and shows the message as a quoted detail.
+ * failed). The message says why, in English: an AI assistant reads it as it
+ * is, and the web page shows it as a quoted detail.
  */
 export class RemoteError extends Error {
-  readonly notice: NoticeCode | undefined;
-
-  constructor(message: string, notice?: NoticeCode) {
+  constructor(message: string) {
     super(message);
     this.name = 'RemoteError';
-    this.notice = notice;
+  }
+}
+
+/** The page did not answer in time: most often a dialog waits for an answer. */
+export class PageNotRespondingError extends RemoteError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PageNotRespondingError';
   }
 }
 
@@ -38,38 +39,6 @@ export interface Tab {
   active: boolean;
 }
 
-/**
- * A picture of the active tab. `width` and `height` are the size of the
- * picture in the CSS pixels of the page, from its top left corner: the space
- * that mouse coordinates are in. It is the page's viewport, or the room the
- * page really has in its window where that is less than the viewport it
- * reports (a headless window on macOS keeps the room of a toolbar).
- */
-export interface Frame {
-  tab: number;
-  width: number;
-  height: number;
-  jpeg: Uint8Array;
-}
-
-export interface SelectOption {
-  label: string;
-  selected: boolean;
-  disabled: boolean;
-  group: string | null;
-}
-
-/** A drop-down list the browser would draw outside the page. */
-export interface SelectMenu {
-  token: number;
-  /** The `<select>` element's rectangle in the viewport. */
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  options: readonly SelectOption[];
-}
-
 export interface PageDialog {
   id: number;
   tab: number;
@@ -78,14 +47,6 @@ export interface PageDialog {
   message: string;
   default: string;
 }
-
-export type RemoteEvent =
-  | { type: 'tabs'; tabs: readonly Tab[] }
-  | { type: 'select'; menu: SelectMenu }
-  | { type: 'dialog'; dialog: PageDialog }
-  | { type: 'dialog_closed'; id: number }
-  /** The browser is gone. */
-  | { type: 'closed' };
 
 /** Something on a page to click or fill in. `ref` works until the page is read again. */
 export interface PageElement {
@@ -114,41 +75,23 @@ export interface PageReading {
   problem: string | null;
 }
 
-/**
- * A viewer's feed of pictures. Only the newest one matters: a slow viewer skips
- * frames. Call `close` when done, it stops the pictures once nobody watches.
- */
-export interface Watcher {
-  /** The next picture. Rejects with a `RemoteError` when the browser is gone. */
-  get(): Promise<Frame>;
-  close(): void;
-}
-
 export interface Remote {
   /** The tabs as last seen. */
   tabs(): readonly Tab[];
 
-  /**
-   * The tabs with up to date titles (`tabs` has the ones last seen: they are
-   * only kept current while the session is watched).
-   */
+  /** The tabs with up to date titles (`tabs` has the ones last seen). */
   listTabs(): Promise<readonly Tab[]>;
 
   /**
-   * Call `listener` on every change; returns the function that unsubscribes.
-   * While somebody listens, dialogs wait for an answer instead of being
-   * dismissed.
+   * The active tab forward in its window: the one the person last clicked or
+   * typed in. The window itself is the system's to raise (see
+   * `BrowserHandle.show`).
    */
-  subscribe(listener: (event: RemoteEvent) => void): () => void;
+  toFront(): Promise<void>;
 
   /**
-   * Pictures of the active tab (they are only taken while somebody watches).
-   */
-  watch(): Watcher;
-
-  /**
-   * Somebody without a viewer (an AI assistant) is working in the session for
-   * the next `ms`: dialogs wait for its answer, as they do for a viewer.
+   * An AI assistant is working in the session for the next `ms`: dialogs wait
+   * for its answer (in a window the person can answer them too).
    */
   attend(ms: number): void;
 
@@ -169,14 +112,6 @@ export interface Remote {
 
   /** A JPEG of the viewport. */
   screenshot(tab?: number | null): Promise<Uint8Array>;
-
-  mouse(
-    action: MouseAction,
-    x: number,
-    y: number,
-    options?: { button?: MouseButton; clicks?: number },
-  ): Promise<void>;
-  wheel(x: number, y: number, dx: number, dy: number): Promise<void>;
 
   /**
    * Scroll like a mouse wheel at a place in the viewport (the middle of the
@@ -206,10 +141,14 @@ export interface Remote {
 
   key(action: KeyAction, key: string): Promise<void>;
   insertText(text: string): Promise<void>;
+  /**
+   * Whether what has the focus in the active tab takes typed text: a field, an
+   * editor or a frame. A page that does not answer (a dialog waits) rejects
+   * with a `RemoteError`.
+   */
+  takesText(): Promise<boolean>;
   selectedText(): Promise<string>;
 
-  /** The answer to a `select` event: the chosen option, or `null` if the list was dismissed. */
-  pickOption(token: number, index: number | null): Promise<void>;
   answerDialog(
     dialogId: number,
     options: { accept: boolean; text?: string | null },

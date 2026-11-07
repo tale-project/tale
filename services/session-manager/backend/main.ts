@@ -1,13 +1,12 @@
 // The composition root: the store, the browser backend, the manager and the
-// three surfaces that call it (the HTTP API, the live view's WebSocket and the
-// MCP endpoint), served by the shared React server next to the built page.
+// two surfaces that call it (the HTTP API and the MCP endpoint), served by the
+// shared React server next to the built page.
 
 import { chmodSync, mkdirSync } from 'node:fs';
 
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
-  type ReactServerWebSocket,
 } from '@tale/ui/server';
 
 import { createApp } from './app.ts';
@@ -16,16 +15,12 @@ import { openStore } from './db/store.ts';
 import type { BrowserBackend } from './domains/browser/backend.ts';
 import { CamoufoxBackend } from './domains/browser/camoufox-backend.ts';
 import { countryOf } from './domains/identity/geo.ts';
-import {
-  createLiveViewSocket,
-  type LiveViewData,
-} from './domains/live_view/index.ts';
 import { createMcpEndpoint } from './domains/mcp/server.ts';
 import { HttpExitIpChecker } from './domains/proxies/exit-ip.ts';
 import type { ExitIpChecker } from './domains/proxies/types.ts';
 import type { Manager } from './domains/sessions/manager.ts';
 import { createManager } from './domains/sessions/service.ts';
-import { requestRefusal, websocketRefusal } from './security.ts';
+import { requestRefusal } from './security.ts';
 
 /** What a test (or another host) swaps for the real browser and the real network. */
 export interface BackendOverrides {
@@ -37,8 +32,6 @@ export interface Backend {
   manager: Manager;
   /** Answers `/api/*` and `/mcp` (and refuses what the security checks refuse). */
   fetch: (request: Request) => Promise<Response>;
-  /** The live view of a session. */
-  websocket: ReactServerWebSocket<LiveViewData>;
   /** Closes every browser, stops the background work and closes the database. */
   close: () => Promise<void>;
 }
@@ -106,16 +99,9 @@ export function createBackend(
       serverInfo: { name: 'session-manager', version: config.version },
     }),
   });
-  const websocket = createLiveViewSocket({
-    manager,
-    allowedHosts: config.allowedHosts,
-    websocketRefusal,
-  });
-
   return {
     manager,
     fetch: async (request) => app.fetch(request),
-    websocket,
     close: async () => {
       watch.abort();
       await manager.close();
@@ -126,7 +112,7 @@ export function createBackend(
 }
 
 export interface RunningServer {
-  server: ReturnType<typeof startReactServer<LiveViewData>>;
+  server: ReturnType<typeof startReactServer>;
   backend: Backend;
   stop: () => Promise<void>;
 }
@@ -139,19 +125,17 @@ export function startServer(
   overrides: BackendOverrides = {},
 ): RunningServer {
   const backend = createBackend(config, overrides);
-  let server: ReturnType<typeof startReactServer<LiveViewData>>;
+  let server: ReturnType<typeof startReactServer>;
   try {
-    server = startReactServer<LiveViewData>({
+    server = startReactServer({
       port: config.port,
       hostname: config.host,
       distDir: config.distDir,
       logPrefix: 'session-manager',
       servingService: 'session-manager',
       localeRouting: 'none',
-      shutdownMarkerPath: config.shutdownMarkerPath,
       securityHeaders: defaultReactServerSecurityHeaders,
       idleTimeout: IDLE_TIMEOUT_SECONDS,
-      websocket: backend.websocket,
       // The manager has no visitors to count, and a shell that exports
       // `UMAMI_*` for another service (the platform's development shell does)
       // must not make it send anything anywhere or put a script in its page.
@@ -185,11 +169,11 @@ export function startServer(
     server,
     backend,
     stop: async () => {
-      // Bun's `server.stop()` waits for every open socket, and a live view
-      // keeps its socket open for as long as its page is: awaited first, a
-      // viewer would keep the browsers (and their tabs, which are saved as they
-      // close) from ever being closed. So: refuse new connections, close the
-      // browsers (each viewer is told its session closed), then cut what is left.
+      // Bun's `server.stop()` waits for every open connection, and an AI
+      // assistant's tool can keep one open for up to two minutes: awaited
+      // first, it would keep the browsers (and their tabs, which are saved as
+      // they close) from being closed. So: refuse new connections, close the
+      // browsers, then cut what is left.
       const refusing = server.stop();
       try {
         await backend.close();

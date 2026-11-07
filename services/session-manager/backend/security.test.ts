@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { localOnly, requestRefusal, websocketRefusal } from './security.ts';
-import type { HeaderReader } from './security.ts';
+import { localOnly, requestRefusal } from './security.ts';
 
 const HOSTS: ReadonlySet<string> = new Set([
   '127.0.0.1:3004',
@@ -55,15 +54,6 @@ function call(
 }
 
 const JSON_BODY = '{"proxy":"192.0.2.1:8080"}';
-
-/** Whether a WebSocket handshake with these headers is let through. */
-function websocketAllowed(
-  headers: HeaderReader,
-  hosts: ReadonlySet<string>,
-  secure?: boolean,
-): boolean {
-  return websocketRefusal(headers, hosts, secure) === null;
-}
 
 describe('the Host header', () => {
   it.each([
@@ -214,59 +204,6 @@ describe('the Origin of a state-changing request', () => {
       expect(response.status).toBe(200);
     },
   );
-
-  describe('over TLS', () => {
-    const SECURE = 'https://127.0.0.1:3004';
-
-    it('refuses an https origin on a plain request', async () => {
-      const { app } = guarded();
-      const response = await call(app, { method: 'POST', origin: SECURE });
-      expect(response.status).toBe(403);
-    });
-
-    it('accepts an https origin when the request itself is https', async () => {
-      const { app } = guarded();
-      const response = await call(app, {
-        method: 'POST',
-        url: SECURE,
-        origin: SECURE,
-      });
-      expect(response.status).toBe(200);
-    });
-
-    it.each(['https', 'HTTPS', 'https, http'])(
-      'accepts an https origin when a proxy in front says X-Forwarded-Proto: %s',
-      async (proto) => {
-        const { app } = guarded();
-        const response = await call(app, {
-          method: 'POST',
-          origin: SECURE,
-          headers: { 'X-Forwarded-Proto': proto },
-        });
-        expect(response.status).toBe(200);
-      },
-    );
-
-    it('does not take X-Forwarded-Proto: http for TLS', async () => {
-      const { app } = guarded();
-      const response = await call(app, {
-        method: 'POST',
-        origin: SECURE,
-        headers: { 'X-Forwarded-Proto': 'http' },
-      });
-      expect(response.status).toBe(403);
-    });
-
-    it('still refuses a foreign https origin', async () => {
-      const { app } = guarded();
-      const response = await call(app, {
-        method: 'POST',
-        url: SECURE,
-        origin: 'https://evil.example',
-      });
-      expect(response.status).toBe(403);
-    });
-  });
 });
 
 describe('the body of a state-changing request', () => {
@@ -432,31 +369,6 @@ describe('Sec-Fetch-Site', () => {
       'forbidden_origin',
     );
   });
-
-  it('is asked of a WebSocket handshake too', () => {
-    const base = { host: '127.0.0.1:3004', origin: 'http://127.0.0.1:3004' };
-    expect(
-      websocketAllowed(
-        new Headers({ ...base, 'sec-fetch-site': 'same-origin' }),
-        HOSTS,
-      ),
-    ).toBe(true);
-    expect(
-      websocketAllowed(
-        new Headers({ host: base.host, 'sec-fetch-site': 'none' }),
-        HOSTS,
-      ),
-    ).toBe(true);
-    for (const site of ['cross-site', 'same-site', 'bogus']) {
-      expect(
-        websocketAllowed(
-          new Headers({ ...base, 'sec-fetch-site': site }),
-          HOSTS,
-        ),
-        site,
-      ).toBe(false);
-    }
-  });
 });
 
 describe('requestRefusal', () => {
@@ -492,106 +404,5 @@ describe('requestRefusal', () => {
       body: '{}',
     });
     expect(requestRefusal(request, HOSTS)).toBeNull();
-  });
-});
-
-describe('websocketRefusal', () => {
-  it('says which check a handshake fails: the host, then the site and origin', () => {
-    const own = { host: '127.0.0.1:3004', origin: 'http://127.0.0.1:3004' };
-    expect(websocketRefusal(new Headers(own), HOSTS)).toBeNull();
-    expect(
-      websocketRefusal(
-        new Headers({ ...own, host: 'evil.example:3004' }),
-        HOSTS,
-      ),
-    ).toEqual({
-      code: 'forbidden_host',
-      message: 'Requests must address the app as 127.0.0.1 or localhost.',
-    });
-    // Both wrong: the host is named, as for any other request.
-    expect(
-      websocketRefusal(
-        new Headers({
-          host: 'evil.example:3004',
-          origin: 'http://evil.example',
-        }),
-        HOSTS,
-      )?.code,
-    ).toBe('forbidden_host');
-    for (const headers of [
-      { ...own, origin: 'http://evil.example' },
-      { ...own, 'sec-fetch-site': 'cross-site' },
-    ]) {
-      expect(websocketRefusal(new Headers(headers), HOSTS)).toEqual({
-        code: 'forbidden_origin',
-        message: 'Cross-site requests are not allowed.',
-      });
-    }
-    expect(websocketRefusal(new Headers(), HOSTS)?.code).toBe('forbidden_host');
-  });
-});
-
-describe('a WebSocket handshake', () => {
-  it.each<[string, Record<string, string>, boolean]>([
-    ['a program: no Origin', { host: '127.0.0.1:3004' }, true],
-    [
-      'the page at 127.0.0.1',
-      { host: '127.0.0.1:3004', origin: 'http://127.0.0.1:3004' },
-      true,
-    ],
-    [
-      'the page at localhost',
-      { host: 'localhost:3004', origin: 'http://localhost:3004' },
-      true,
-    ],
-    [
-      'an upper-case host',
-      { host: 'LOCALHOST:3004', origin: 'http://localhost:3004' },
-      true,
-    ],
-    [
-      'another site',
-      { host: '127.0.0.1:3004', origin: 'http://evil.example' },
-      false,
-    ],
-    [
-      'another site, even if also local',
-      { host: '127.0.0.1:3004', origin: 'http://localhost:3004' },
-      false,
-    ],
-    [
-      'an https origin on a plain connection',
-      { host: '127.0.0.1:3004', origin: 'https://127.0.0.1:3004' },
-      false,
-    ],
-    ['a null origin', { host: '127.0.0.1:3004', origin: 'null' }, false],
-    ['an empty origin', { host: '127.0.0.1:3004', origin: '' }, false],
-    ['DNS rebinding', { host: 'evil.example:3004' }, false],
-    ['a host without the port', { host: '127.0.0.1' }, false],
-    ['no headers', {}, false],
-  ])('%s', (_name, headers, allowed) => {
-    expect(websocketAllowed(new Headers(headers), HOSTS)).toBe(allowed);
-  });
-
-  it('accepts the https origin of the page when the connection is TLS', () => {
-    const headers = new Headers({
-      host: '127.0.0.1:3004',
-      origin: 'https://127.0.0.1:3004',
-    });
-    expect(websocketAllowed(headers, HOSTS, true)).toBe(true);
-    headers.set('x-forwarded-proto', 'https');
-    expect(websocketAllowed(headers, HOSTS)).toBe(true);
-    headers.set('origin', 'https://evil.example');
-    expect(websocketAllowed(headers, HOSTS, true)).toBe(false);
-  });
-
-  it('reads headers from anything that has a get', () => {
-    const map = new Map([
-      ['host', 'localhost:3004'],
-      ['origin', 'http://localhost:3004'],
-    ]);
-    expect(
-      websocketAllowed({ get: (name) => map.get(name) ?? null }, HOSTS),
-    ).toBe(true);
   });
 });

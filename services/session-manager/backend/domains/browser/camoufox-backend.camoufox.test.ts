@@ -150,6 +150,7 @@ describe.skipIf(!ready)('the Camoufox backend with a real browser', () => {
   function newBackend(overrides: Partial<CamoufoxDeps> = {}): CamoufoxBackend {
     const backend = new CamoufoxBackend({
       blockWebrtc: false,
+      headless: true,
       deps: { launchOptions: launchOptionsWithoutAddons, ...overrides },
     });
     backends.push(backend);

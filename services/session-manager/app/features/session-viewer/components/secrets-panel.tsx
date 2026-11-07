@@ -1,5 +1,6 @@
 import { Button, LinkButton } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
+import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Heading } from '@tale/ui/heading';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -59,6 +60,9 @@ function moveBetweenRows(event: KeyboardEvent<HTMLElement>) {
   event.preventDefault();
   rows[next]?.focus();
 }
+
+/** The list grows to a height of its own, then scrolls inside the popover. */
+const LIST_CLASS = 'max-h-96 min-h-0 flex-1 overflow-y-auto overscroll-contain';
 
 /** Rows of the shape the list has, while the list is read. */
 function LoadingList({ label }: { label: string }) {
@@ -141,62 +145,74 @@ export function SecretsPanel({
           {t('secrets.hint')}
         </Text>
       </div>
-      {/* The rows are the one stop of each secret and have heard a key before
-          it gets here: the list only moves the keyboard between them. */}
-      <div
-        ref={list}
-        role="presentation"
-        onKeyDown={moveBetweenRows}
-        // It grows to a height of its own, then scrolls inside the popover.
-        className="max-h-96 min-h-0 flex-1 overflow-y-auto overscroll-contain"
-      >
-        {secrets.isPending && <LoadingList label={t('secrets.loading')} />}
-        {secrets.isError && (
-          <div className="p-2">
-            <CatalogLoadError
-              message={readFailureText(
-                t('secrets.loadFailed'),
-                secrets.error,
-                tErrors,
-              )}
-              onRetry={() => void secrets.refetch()}
-              isRetrying={secrets.isFetching}
-            />
-          </div>
-        )}
-        {empty && (
+      {empty ? (
+        // Nothing to Tab to in it: where it has to scroll (a phone held
+        // sideways), the list takes the keyboard itself, named by the heading.
+        <div
+          role="region"
+          aria-labelledby={headingId}
+          tabIndex={0}
+          className={cn(
+            LIST_CLASS,
+            'focus-visible:ring-ring outline-none focus-visible:ring-2 focus-visible:ring-inset',
+          )}
+        >
           <EmptyState
             icon={KeyRound}
             title={t('secrets.empty')}
             description={t('secrets.emptyHint')}
             className="px-6 py-8"
           />
-        )}
-        {groups.map((group) => (
-          <section
-            key={group.kind}
-            aria-label={labels.kind(group.kind)}
-            className="pb-1"
-          >
-            {/* Named by the region around it: read once. Stays at the top
-                while the secrets of its group go by. */}
-            <div
-              aria-hidden="true"
-              className="bg-popover dark:bg-muted sticky top-0 z-10"
-            >
-              <SubPanelSectionHeader
-                label={labels.kind(group.kind)}
-                className="px-3"
+        </div>
+      ) : (
+        // The rows are the one stop of each secret and have heard a key before
+        // it gets here: the list only moves the keyboard between them.
+        <div
+          ref={list}
+          role="presentation"
+          onKeyDown={moveBetweenRows}
+          className={LIST_CLASS}
+        >
+          {secrets.isPending && <LoadingList label={t('secrets.loading')} />}
+          {secrets.isError && (
+            <div className="p-2">
+              <CatalogLoadError
+                message={readFailureText(
+                  t('secrets.loadFailed'),
+                  secrets.error,
+                  tErrors,
+                )}
+                onRetry={() => void secrets.refetch()}
+                isRetrying={secrets.isFetching}
               />
             </div>
-            <ul className="flex flex-col gap-0.5 px-1">
-              {group.secrets.map((secret) => (
-                <SecretItem key={secret.id} secret={secret} onType={onType} />
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+          )}
+          {groups.map((group) => (
+            <section
+              key={group.kind}
+              aria-label={labels.kind(group.kind)}
+              className="pb-1"
+            >
+              {/* Named by the region around it: read once. Stays at the top
+                  while the secrets of its group go by. */}
+              <div
+                aria-hidden="true"
+                className="bg-popover dark:bg-muted sticky top-0 z-10"
+              >
+                <SubPanelSectionHeader
+                  label={labels.kind(group.kind)}
+                  className="px-3"
+                />
+              </div>
+              <ul className="flex flex-col gap-0.5 px-1">
+                {group.secrets.map((secret) => (
+                  <SecretItem key={secret.id} secret={secret} onType={onType} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
       {(empty || groups.length > 0) && (
         <div className="border-border flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t p-1">
           <Button

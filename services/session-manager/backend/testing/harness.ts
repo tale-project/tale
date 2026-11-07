@@ -28,7 +28,7 @@
 // Options: `store` ('memory' | 'file'), `dataDir` (use this directory; it is
 // never removed), `version`, your own `backend` / `checker`, and the manager's
 // seams (`now`, `monotonic`, `sleep`, `shutdownTimeoutMs`, `checkConcurrency`,
-// `startBridge`: see `ManagerDeps`).
+// `startBridge`, `typeTimeoutMs`: see `ManagerDeps`).
 //
 // The helpers wrap the manager like `tests/helpers/api.py` wrapped the API:
 //
@@ -84,6 +84,7 @@ type Seams = Pick<
   | 'shutdownTimeoutMs'
   | 'checkConcurrency'
   | 'startBridge'
+  | 'typeTimeoutMs'
 >;
 
 export interface TestManagerOptions extends Seams {

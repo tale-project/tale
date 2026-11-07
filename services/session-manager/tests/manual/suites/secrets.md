@@ -8,8 +8,8 @@ a place only devtools show (storage, a URL), and a long list. What the specs hol
 limits, masking by label and by card number, reveal and hide, scope, filters, search, the details, delete,
 the keyboard, the list following the backend) is in
 [`../reference/automation.md`](../reference/automation.md); a box here never restates it. Typing a
-secret into a real page is in [`viewer.md`](viewer.md) (`VIEW-F34`); an assistant reading one is in
-[`settings.md`](settings.md).
+secret into a session's window is in [`windows.md`](windows.md) (`WIN-F7`); an assistant reading one
+is in [`settings.md`](settings.md).
 
 ## Preconditions
 
@@ -42,8 +42,8 @@ only: never a real card number or password in a round.
 - [ ] `SECRET-F13` · **With the Network panel open, load Secrets, open a secret with a password and close it, then
   look in devtools at Application: local storage, session storage and cookies** → the list's answer
   (`GET /api/secrets…`) holds ids, titles, kinds, previews and dates and no field value of any kind; the values
-  come with `GET /api/secrets/{id}` when a secret is opened (the viewer's popover does the same when you open
-  one secret); no value is in a URL, in `localStorage`, in `sessionStorage` or in a cookie.
+  come with `GET /api/secrets/{id}` when a secret is opened (the Secrets popover of a session's page does the
+  same when you open one secret); no value is in a URL, in `localStorage`, in `sessionStorage` or in a cookie.
 - [ ] `SECRET-P1` · **Create 500 secrets (stack A: a loop of `POST /api/secrets` with a one-line note each), open
   Secrets, scroll and search** → the list opens in about a second, scrolls without lag, and a search answers as
   you type.

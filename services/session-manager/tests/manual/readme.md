@@ -3,9 +3,10 @@
 The manual layer of Session Manager's test suite, beside the automated lanes: the server and UI
 tests, the real-browser lane and the Playwright specs in [`../e2e`](../e2e). Everything here is
 driven by a human (or a chauffeur script) against a running instance — the edges no headless run can
-judge: how typing and scrolling feel through a picture of a browser, layout and focus on a phone,
-what a screen reader says, whether a fingerprint or a leak test accepts what a session claims,
-degraded modes that need a real install, a real network or a real disk, and exploratory pokes.
+judge: a session's window coming to the front and a value typed into the field clicked in it, layout
+and focus on a phone, what a screen reader says, whether a fingerprint or a leak test accepts what a
+session claims, degraded modes that need a real install, a real network or a real disk, and
+exploratory pokes.
 
 **Suites and rounds are separate things.** The files under [`suites/`](suites)
 are the tests: evergreen, re-runnable, and **never ticked in place**.
@@ -44,7 +45,7 @@ accessibility boxes are read together.
 |---|---|---|---|---|
 | [smoke](suites/smoke.md) | `SMOKE-` | is this build even drivable: the shell, then one session from proxy to deletion on a real browser — run it before investing in anything bigger | once, at the start | 15 min |
 | [sessions](suites/sessions.md) | `SESS-` | watching a session start on a real browser, the look of the list in every state, a list of 120, what a rotation keeps, the rhythm of the requests, stopping the whole manager | once, at the start | 35 min |
-| [viewer](suites/viewer.md) | `VIEW-` | the page of a running session in a real browser: typing, pointer and scrolling, the clipboard of your computer, the picture, links that open windows, secrets in a real login form, shortcuts | none | 60 min |
+| [windows](suites/windows.md) | `WIN-` | a session's own Camoufox window on a Mac: opening in front and fitting the screen, its tabs in one window, Show window, an assistant's start, a secret typed into the field clicked in the window, the window's dialogs, popups, position and downloads, a window or a browser that goes away | once, at the start | 50 min |
 | [proxies](suites/proxies.md) | `PROXY-` | a table of a thousand rows while a thousand checks run, what the network says about a failing proxy, and that no password turns up where a person would look | once, at the start | 30 min |
 | [secrets](suites/secrets.md) | `SECRET-` | the real clipboard, masked fields in three browsers, devtools storage and network, a long list | once, at the start | 25 min |
 | [settings](suites/settings.md) | `SET-` | the app read in German and in French by a native reader, and AI access with real assistants connected to `/mcp` | once, at the start | 60 min |
@@ -79,7 +80,7 @@ always a finding, on any page.** Check it against the known-benign list in
 |---|---|---|
 | **Smoke** | [`suites/smoke.md`](suites/smoke.md) | before investing in anything bigger; after a dependency bump |
 | **Change-scoped** | the rows below that the change touches | the ordinary case — a feature or a fix landed |
-| **Full** | every suite | before a release, after a change to the browser layer or to the live view, or when a round is asked for by name |
+| **Full** | every suite | before a release, after a change to the browser layer or to the windows, or when a round is asked for by name |
 
 Change-scoped, by area:
 
@@ -87,23 +88,23 @@ Change-scoped, by area:
 |---|---|
 | routing, the rail, the titles, an unknown address | `SMOKE-F1`, `SMOKE-F2`, `SMOKE-F3` |
 | the sessions list, start, stop, restart, rotate, delete, the IP check | `SMOKE-F8` to `SMOKE-F12`, then [sessions](suites/sessions.md) |
-| the live view: typing, pointer, scroll, clipboard, tabs, dialogs | [viewer](suites/viewer.md) · [`automation.md`](reference/automation.md) first |
+| a session's window: Show window, typing a value, its tabs, dialogs, closing it | [windows](suites/windows.md) · [`automation.md`](reference/automation.md) first |
 | proxy parsing, import, health, assignment | `SMOKE-F7`, then [proxies](suites/proxies.md) |
-| secrets, masking, the Secrets popover | [secrets](suites/secrets.md), `VIEW-F34`, `VIEW-F35` |
+| secrets, masking, the Secrets popover | [secrets](suites/secrets.md), `WIN-F7`, `WIN-F8` |
 | Settings, AI access, an MCP tool | `SMOKE-F13`, then [settings](suites/settings.md) |
 | copy or catalogs (any locale) | `SET-F9` |
 | controls, focus, geometry, motion, contrast, theme | [responsive-a11y](suites/responsive-a11y.md) · [`automation.md`](reference/automation.md) first |
 | fingerprints, places, proxies in a real browser, WebRTC, the credential bridge | [real-browser-realism](suites/real-browser-realism.md) |
 | start-up, the install, the GeoIP database, shutdown, the data directory | [degraded-modes](suites/degraded-modes.md), `SESS-B4` |
-| a Camoufox, Playwright or Bun update | smoke, [viewer](suites/viewer.md), [real-browser-realism](suites/real-browser-realism.md), `DEG-F1` to `DEG-F3` |
+| a Camoufox, Playwright or Bun update | smoke, [windows](suites/windows.md), [real-browser-realism](suites/real-browser-realism.md), `DEG-F1` to `DEG-F3` |
 
 ## How a box works
 
 Every box is one line of markdown that a round can tick, cite and diff:
 
 ```
-- [ ] `SMOKE-F9` · **Wait for the picture** → the tab strip shows one tab, the address bar shows
-  the start page, and the canvas shows the page within a few seconds of **Running**.
+- [ ] `SMOKE-F9` · **Wait for the window** → a Camoufox window opens in front within a few seconds
+  of **Running**, with one tab on the start page.
 ```
 
 - **Do the bolded action, judge against everything after the `→`.** A box that
@@ -155,7 +156,7 @@ Ask, in this order:
 | Severity | Means | Examples |
 |---|---|---|
 | `blocker` | Data loss, a secret or a password shown where it must not be, a crash, an exit IP that is yours instead of the proxy's, or a core path with **no** workaround. | A proxy password in an API answer; the manager that cannot be stopped; a session that shares cookies with another. |
-| `bug` | Wrong behaviour with a workaround, or a violated documented contract. | A time zone that is not the exit IP's; a toast that names the wrong session; a stage that stays Connecting. |
+| `bug` | Wrong behaviour with a workaround, or a violated documented contract. | A time zone that is not the exit IP's; a toast that names the wrong session; a window that stays behind when you press Show window. |
 | `polish` | Cosmetic / UX nit, no functional impact. | Truncation one character too early; a focus ring that is faint; a button over a line of text. |
 | `docs` | These files or the service readme are inaccurate. | The guide names a control that is called something else now. |
 
@@ -167,7 +168,7 @@ When a box fails: assign the next `R<round>-<box-id>`, capture evidence
 
 | Situation | Do |
 |---|---|
-| a **blocker on a state-feeding box** (anything a later box depends on: the smoke chain, the viewer's one running session) | halt that suite; reset and restart it once the fix lands |
+| a **blocker on a state-feeding box** (anything a later box depends on: the smoke chain, the running sessions of the windows suite) | halt that suite; reset and restart it once the fix lands |
 | an **isolated or read-only failure** | log it and **continue**, so one bug does not mask the rest |
 | any failure, mid-suite | **never fix in place** — fixes are a separate batched phase, so a round's findings stay comparable |
 

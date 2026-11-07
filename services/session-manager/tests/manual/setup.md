@@ -17,7 +17,8 @@ states, and the things that silently invalidate a whole pass. The suites themsel
 | **For a real round: the Camoufox build** | About 1.3 GB, build `152.0.4-beta.30`. Install it once into a directory of your own: `CAMOUFOX_INSTALL_DIR=<dir> bunx camoufox-js fetch` from `services/session-manager`, or point the variable at an install that exists (the folder `services/session-manager/.camoufox-tests`, ignored by git, is where the README installs the one the real-browser lane runs on). Never another program's cache: the build in use is recorded in a `config.json` there. |
 | **For a real round: proxies** | See [Proxies for a real round](#proxies-for-a-real-round). |
 | **For a real round: the internet** | Proxy checks ask exit-IP services through the proxy, and the first launch downloads the uBlock Origin add-on. [`degraded-modes.md`](suites/degraded-modes.md) says what happens without it. |
-| **Tools some boxes name** | `curl`, `lsof`, `sqlite3`, a screen recorder that can do 60 frames per second, devtools. Optional: a Claude Code installation for [`settings.md`](suites/settings.md). |
+| **For a real round: a Mac with a screen** | Each session's browser opens a window on the desktop of the computer the manager runs on, and macOS is what the app is made on: run stack B at that computer, never over SSH or without a display. [`windows.md`](suites/windows.md) judges the windows; elsewhere the system decides about them ([`not-a-finding.md`](reference/not-a-finding.md)). |
+| **Tools some boxes name** | `curl`, `lsof`, `sqlite3`, `lsappinfo` (macOS: which app is in front), a screen recorder that can do 60 frames per second, devtools. Optional: a Claude Code installation for [`settings.md`](suites/settings.md). |
 
 ## Baseline
 
@@ -31,7 +32,6 @@ anything already red is environment, not a finding.
 | types, lint, server and UI tests of this service | `bun run --filter @tale/session-manager typecheck`, `lint`, `test`, `test:ui` | repo root |
 | the page in a browser, against the fakes | `bun run --filter @tale/session-manager test:e2e` (four servers: run it on its own port range, see [Reset choreography](#reset-choreography)) | repo root |
 | the real browser lane (before a real round) | `CAMOUFOX_INSTALL_DIR=<dir> bun run --filter @tale/session-manager test:camoufox` | repo root |
-| the container image (only when the image is in question; needs Docker) | `bun run docker:test:session-manager` | repo root |
 | the links the service README holds | `bun run lint:links` | repo root |
 | the manual layer's own shape | `bun run lint:manual` | repo root |
 
@@ -41,9 +41,9 @@ Three ways to run the app. Every suite header names the one it needs.
 
 ### A. The fake backend (no browser, no internet)
 
-The real HTTP stack (the page, the API, the live view, `/mcp`) over a fake browser and a fake
-exit-IP checker, on a throw-away data directory. This is the stack the e2e lane tests, and the
-quickest one for a human: a session starts in under a second, so the interesting states need the
+The real HTTP stack (the page, the API, `/mcp`) over a fake browser and a fake exit-IP checker, on a
+throw-away data directory. This is the stack the e2e lane tests, and the quickest one for a human: a
+session starts in under a second, so the interesting states need the
 [control server](#the-control-server) to slow them down.
 
 ```bash
@@ -53,9 +53,10 @@ E2E_BACKEND_PORT=3204 bun tests/e2e/server.ts
 
 It prints `[session-manager] listening on :3204` and `[e2e] backend on :3204, control on :4204,
 data in <a temp directory>`. Open **http://localhost:3204**. A session starts after 400 ms, a
-proxy check takes 150 ms, a proxy `a.b.c.d` exits through `203.0.113.d` in Germany, and the page of
-a session is a coloured mock-up that differs per tab (its tab titles read "Title of <address>").
-The data directory is deleted when the process ends (SIGINT or SIGTERM).
+proxy check takes 150 ms, a proxy `a.b.c.d` exits through `203.0.113.d` in Germany, and a running
+session has no window: its page shows the card all the same, and what Show window and Type did is
+read from the [control server](#the-control-server) (the fake's tabs are titled "Title of
+<address>"). The data directory is deleted when the process ends (SIGINT or SIGTERM).
 
 `E2E_BACKEND_PORT=3204` is also where `bun run dev` puts its backend, so run the fake on another
 port beside a dev server, or beside someone else's round: any port pair works (`3215` gives
@@ -66,7 +67,8 @@ built elsewhere, which leaves `dist/` alone, is served with `E2E_DIST_DIR=<dir>`
 
 ### B. The real browser
 
-The app as a person runs it, with a data directory made for the round.
+The app as a person runs it, with a data directory made for the round, at the Mac whose screen the
+sessions' windows open on (see [Prerequisites](#prerequisites)).
 
 ```bash
 cd services/session-manager
@@ -94,11 +96,11 @@ it. If 3004 is taken, Vite does not start and says the port is in use: free 3004
 |---|---|
 | [smoke](suites/smoke.md) | B for the chain; A for a quick pass |
 | [sessions](suites/sessions.md) | B; A for `SESS-P1` |
-| [viewer](suites/viewer.md) | B |
+| [windows](suites/windows.md) | B, on a Mac |
 | [proxies](suites/proxies.md) | A for the table of 1000 rows and the failures; B for the network's own words |
 | [secrets](suites/secrets.md) | A or B |
 | [settings](suites/settings.md) | A, or B for the assistants (a real session to work in) |
-| [responsive-a11y](suites/responsive-a11y.md) | A for the zoom and the screen reader boxes; B for the picture |
+| [responsive-a11y](suites/responsive-a11y.md) | A |
 | [real-browser-realism](suites/real-browser-realism.md) | B only |
 | [degraded-modes](suites/degraded-modes.md) | B; A where a box says so |
 
@@ -110,10 +112,9 @@ for whoever drives a round: nothing in the page uses it.
 
 ```bash
 C=http://127.0.0.1:4204
-curl -s $C/browsers/0001                          # what the fake browser of session 0001 was told, its open dialogs
+curl -s $C/browsers/0001                          # what the fake browser of session 0001 was told, its tabs, its open dialogs
 curl -s -X POST $C/browsers/0001/dialog -d '{"kind":"confirm","message":"Delete everything?"}'   # alert, confirm, prompt, beforeunload
-curl -s -X POST $C/browsers/0001/select -d '{"options":["Alpha","Beta","Gamma"]}'                # a drop-down list opens
-curl -s -X POST $C/browsers/0001/selection -d '{"text":"what the page has selected"}'            # what a copy brings back
+curl -s -X POST $C/browsers/0001/focus -d '{"field":false}'   # no field of the window has the focus: Type is refused; true puts it back
 curl -s -X POST $C/browsers/0001/crash            # the browser dies, as if its process was killed
 curl -s -X POST $C/browsers/0001/close-tabs       # the person closes every tab
 curl -s -X PUT  $C/faults -d '{"launchDelayMs":8000,"checkDelayMs":3000}'      # slow starts and checks: see every state
@@ -125,9 +126,10 @@ curl -s -X DELETE $C/state                        # withdraw every fault and scr
 ```
 
 `DELETE /state` withdraws faults and scripted exit IPs; it does not empty the manager's data.
-`GET /browsers/<name>` lists `events` as the fake browser received them (`["key","down","a"]`,
-`["mouse","down",x,y,"left",1]`, `["text","…"]`, `["goto",url,…]`), the quickest way to judge
-what the page sent.
+`GET /browsers/<name>` lists `events` as the fake browser received them (`["toFront"]` for a window
+brought forward, `["text","…"]` for a value typed, `["key","press","Enter"]`, `["goto",url,…]`),
+the quickest way to judge what the page or an assistant sent: on stack A there is no window to look
+at.
 
 ## Reset choreography
 
@@ -138,7 +140,7 @@ The single source of truth: every "reset" elsewhere in these files means exactly
 2. **Stack A:** stop the process with Ctrl+C or `kill <the PID you started>`, and start it again.
    Its data directory is deleted at exit, so sessions, proxies, secrets and settings are gone and
    the fakes start fresh.
-3. **Stack B:** stop the app with Ctrl+C (the browsers close, the tabs are saved), delete the
+3. **Stack B:** stop the app with Ctrl+C (the windows close, the tabs are saved), delete the
    round's data directory (`rm -rf /tmp/session-manager-qa/data`, the one you made, never another),
    and start again. Keep `CAMOUFOX_INSTALL_DIR`: it holds the 1.3 GB.
 4. **A reset wipes everything, secrets included.** An open page shows the red connection banner
@@ -185,7 +187,7 @@ made for the round; say so in the log and never write its password anywhere in t
 
 | Account | Role | Used by |
 |---|---|---|
-| a throw-away account on any site with a login form | none | [`viewer.md`](suites/viewer.md), [`real-browser-realism.md`](suites/real-browser-realism.md) |
+| a throw-away account on any site with a login form | none | [`windows.md`](suites/windows.md), [`real-browser-realism.md`](suites/real-browser-realism.md) |
 
 ## Chauffeur scripts
 

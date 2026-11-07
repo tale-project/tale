@@ -57,7 +57,7 @@ export interface E2ePlan {
 /** One server of a plan, as a spec sees it. */
 export interface E2eServerAddress {
   index: number;
-  /** The backend: the page, `/api`, the live view and `/mcp`. */
+  /** The backend: the page, `/api` and `/mcp`. */
   port: number;
   controlPort: number;
   /** What a page is opened at (`http://localhost:<port>`); an origin of its own, with no path. */

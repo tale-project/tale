@@ -66,19 +66,51 @@ beforeEach(() => {
 
 describe('SessionActionsMenu', () => {
   describe('the menu', () => {
-    it('offers every action of a running session, Delete apart from the rest', async () => {
+    it('offers every action of a running session, its window first and Delete apart from the rest', async () => {
       const { user } = renderMenu(runningSession());
       const menu = await openMenu(user);
       const items = within(menu).getAllByRole('menuitem');
 
-      expect(items).toHaveLength(5);
-      ['Rename', 'Restart', 'Rotate IP', 'Check IP', 'Delete'].forEach(
-        (label, index) => {
-          expect(items[index]).toHaveTextContent(new RegExp(`^${label}`));
-          expect(items[index]).not.toHaveAttribute('aria-disabled', 'true');
-        },
+      expect(items).toHaveLength(6);
+      [
+        'Show window',
+        'Rename',
+        'Restart',
+        'Rotate IP',
+        'Check IP',
+        'Delete',
+      ].forEach((label, index) => {
+        expect(items[index]).toHaveTextContent(new RegExp(`^${label}`));
+        expect(items[index]).not.toHaveAttribute('aria-disabled', 'true');
+      });
+      expect(within(menu).getAllByRole('separator')).toHaveLength(2);
+    });
+
+    it('brings the window of a running session to the front', async () => {
+      const api = installFakeApi({
+        'GET /meta': meta(),
+        ...noSecrets(),
+        'POST /sessions/:id/show': undefined,
+      });
+      const { user } = renderMenu(runningSession({ id: 4 }));
+      await openMenu(user);
+      await user.click(screen.getByRole('menuitem', { name: 'Show window' }));
+      await waitFor(() =>
+        expect(api.callsTo('POST /sessions/:id/show')).toHaveLength(1),
       );
-      expect(within(menu).getByRole('separator')).toBeInTheDocument();
+      expect(api.callsTo('POST /sessions/:id/show')[0]?.path).toBe(
+        '/sessions/4/show',
+      );
+    });
+
+    it('says that a session that does not run has no window to show', async () => {
+      const { user } = renderMenu(session());
+      const menu = await openMenu(user);
+      const item = within(menu).getByRole('menuitem', {
+        name: /^Show window/,
+      });
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      expect(item).toHaveTextContent('Only a running session has a window.');
     });
 
     it('explains what Rotate IP does', async () => {
@@ -161,12 +193,12 @@ describe('SessionActionsMenu', () => {
       const menu = await screen.findByRole('menu');
       await waitFor(() =>
         expect(
-          within(menu).getByRole('menuitem', { name: 'Rename' }),
+          within(menu).getByRole('menuitem', { name: 'Show window' }),
         ).toHaveFocus(),
       );
       await user.keyboard('{ArrowDown}');
       expect(
-        within(menu).getByRole('menuitem', { name: /^Restart/ }),
+        within(menu).getByRole('menuitem', { name: 'Rename' }),
       ).toHaveFocus();
       await user.keyboard('{Escape}');
 

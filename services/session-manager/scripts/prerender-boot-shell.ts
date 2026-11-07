@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 /*
-  Build step, after `vite build` (`bun run build`, the Dockerfile): bakes the
-  boot shell, the frame of the app with its rail masked, into the `#root` of
-  the built `index.html`, so the first paint of every address is that frame
-  rather than a blank page while the scripts load. The server answers every
+  Build step, after `vite build` (`bun run build`): bakes the boot shell, the
+  frame of the app with its rail masked, into the `#root` of the built
+  `index.html`, so the first paint of every address is that frame rather than
+  a blank page while the scripts load. The server answers every
   address with this one file, so the shell needs no work at request time.
   Rendered from the component React draws over it
   (`app/components/layout/app-frame-placeholder.tsx`): no hand-written copy to

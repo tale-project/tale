@@ -19,7 +19,7 @@ interface WorkerFixtures {
    * The server of this worker: `parallelIndex` `i` talks to backend port
    * `E2E_BACKEND_PORT + i` and control port `E2E_CONTROL_PORT + i`, which no
    * other worker uses. A spec that needs an address (the `Host` and `Origin`
-   * checks, a socket by hand) reads it here and never computes a port.
+   * checks) reads it here and never computes a port.
    */
   server: E2eServerAddress;
 }

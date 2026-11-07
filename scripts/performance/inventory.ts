@@ -89,7 +89,7 @@ const coverage: Record<string, Coverage> = {
   '@tale/session-manager': {
     workloads: [],
     remaining:
-      'Real Camoufox browsers, the live-view screencast and the MCP tools need a browser build, a proxy and a disposable data directory: measure session start, frame rate and browser memory against them.',
+      'Real Camoufox browsers in their windows and the MCP tools need a browser build, a proxy, a screen and a disposable data directory: measure session start and browser memory against them.',
   },
   '@tale/cli': {
     workloads: ['cli.help'],

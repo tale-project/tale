@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import type { Page } from '@playwright/test';
 
-import { proxyExportSchema } from '../../../lib/api/schemas';
+import { proxyExportSchema, type Session } from '../../../lib/api/schemas';
 import type { AppApi } from '../helpers/api';
 import type { Control } from '../helpers/control';
 import { TIMEOUT } from '../helpers/env';
@@ -69,8 +69,10 @@ const CALL_LOG = 'Call log';
 //    an error code and the cause the backend names is `errors.<code>_<what>`.
 //  - A row is called `<name> <state>` or `<name> <state> <line>` (`rowName`);
 //    a session's page is its name as the heading, its state and where it exits
-//    on the line under it, and, when the browser is not running, the details
-//    of the session in its body.
+//    on the line under it, and a card in its body: while the browser runs, the
+//    card of its window ("Running in its own window", Show window, Secrets);
+//    otherwise what is under way or went wrong. Both end with the details of
+//    the session.
 //  - A toast lives five seconds and is read through `SessionsPage.toast`.
 
 test.describe('the empty list', () => {
@@ -345,7 +347,7 @@ test.describe('starting a session that has no proxy when none is free', () => {
     await expect(dialog).toBeHidden();
     const running = await api.waitForStatus(alpha.id, 'running');
     expect(running.proxy).not.toBeNull();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await sessions.expectRow(
@@ -499,6 +501,7 @@ test.describe('adding a session', () => {
       sessions.pageStatus(t('sessions.status.starting')),
     ).toBeVisible();
     await expect(sessions.detailsHeading).toBeVisible();
+    await expect(sessions.windowCard).toHaveCount(0);
 
     // Nobody reloads or navigates: the page asks again while the session is busy.
     const created = await api.waitForStatus(id, 'running');
@@ -508,7 +511,7 @@ test.describe('adding a session', () => {
       lineOf(created),
       TIMEOUT.BACKGROUND,
     );
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await expect(sessions.headerState('running')).toBeVisible();
@@ -517,7 +520,9 @@ test.describe('adding a session', () => {
         exitLine(created.proxy?.exitIp ?? '', created.proxy?.country ?? ''),
       ),
     ).toBeVisible();
-    await expect(sessions.detailsHeading).toHaveCount(0);
+    await expect(
+      sessions.pageStatus(t('sessions.status.starting')),
+    ).toHaveCount(0);
     expect(
       await page.evaluate(() => Reflect.get(window, 'sessionsStayedOpen')),
     ).toBe(true);
@@ -568,7 +573,7 @@ test.describe('adding a session', () => {
     await sessions.rowLink('Alpha').click();
     await expect(page).toHaveURL(new RegExp(`/sessions/${alpha.id}$`));
     await expect(sessions.titleOf('Alpha')).toBeVisible();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     // The row of the open page is marked as the current one.
@@ -636,7 +641,7 @@ test.describe('the header of a session’s page', () => {
     await sessions.headerStart.focus();
     await page.keyboard.press('Enter');
     // The session starts, and the same button now says Stop.
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await expect(sessions.headerStop).toBeVisible();
@@ -646,9 +651,10 @@ test.describe('the header of a session’s page', () => {
     );
 
     await page.keyboard.press('Enter');
-    await expect(sessions.detailsHeading).toBeVisible({
+    await expect(sessions.windowCard).toHaveCount(0, {
       timeout: TIMEOUT.BACKGROUND,
     });
+    await expect(sessions.detailsHeading).toBeVisible();
     await expect(sessions.headerStart).toBeVisible();
     expect(await isFocusedNode(page, button), await describeFocus(page)).toBe(
       true,
@@ -1360,7 +1366,7 @@ test.describe('stopping, starting and restarting', () => {
       lineOf(alpha),
       TIMEOUT.BACKGROUND,
     );
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     const again = await api.session(alpha.id);
@@ -1390,6 +1396,8 @@ test.describe('stopping, starting and restarting', () => {
     ).toBeVisible();
     await sessions.expectRow('Alpha', 'stopped', undefined, TIMEOUT.BACKGROUND);
     await expect(sessions.headerState('stopped')).toBeVisible();
+    // The browser came up all the same, and was closed at once.
+    expect((await control.browser('Alpha')).closed).toBe(true);
   });
 
   test('a session that is stopping cannot be stopped twice: the buttons that would are off, with the reason', async ({
@@ -1539,17 +1547,17 @@ test.describe('stopping, starting and restarting', () => {
     const alpha = await api.startSession('Alpha');
     const sessions = new SessionsPage(page);
     await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await expect(sessions.headerStop).toBeEnabled();
 
     await sessions.stop('Alpha');
-    // The browser gives way to the details of a stopped session.
+    // The card of the window gives way to the card of a stopped session.
+    await expect(sessions.windowCard).toHaveCount(0);
     await expect(sessions.detailsHeading).toBeVisible();
     await expect(sessions.headerState('stopped')).toBeVisible();
     await expect(sessions.headerStart).toBeEnabled();
-    await expect(sessions.liveStage).toHaveCount(0);
 
     await control.faults({ launchDelayMs: SLOW_START_MS });
     await sessions.start('Alpha');
@@ -1557,32 +1565,38 @@ test.describe('stopping, starting and restarting', () => {
       sessions.pageStatus(t('sessions.status.starting')),
     ).toBeVisible();
     await expect(sessions.headerStop).toBeEnabled();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
-    await expect(sessions.detailsHeading).toHaveCount(0);
+    await expect(
+      sessions.pageStatus(t('sessions.status.starting')),
+    ).toHaveCount(0);
   });
 
   test('the page of a session starts and stops it from its own header', async ({
     page,
     api,
+    control,
   }) => {
     const alpha = await api.startSession('Alpha');
     const sessions = new SessionsPage(page);
     await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
 
     await sessions.headerStop.click();
-    await expect(sessions.detailsHeading).toBeVisible({
+    await expect(sessions.windowCard).toHaveCount(0, {
       timeout: TIMEOUT.BACKGROUND,
     });
+    await expect(sessions.detailsHeading).toBeVisible();
     await sessions.expectRow('Alpha', 'stopped');
+    // Stopping the session closed its window.
+    expect((await control.browser('Alpha')).closed).toBe(true);
     expect((await api.session(alpha.id)).status).toBe('stopped');
 
     await sessions.headerStart.click();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await sessions.expectRow(
@@ -1593,31 +1607,44 @@ test.describe('stopping, starting and restarting', () => {
     );
   });
 
-  test('the keyboard goes to the page’s heading when the browser it was typing into goes away', async ({
-    page,
-    api,
-  }) => {
-    const alpha = await api.startSession('Alpha');
-    const sessions = new SessionsPage(page);
-    await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.picture).toBeVisible({ timeout: TIMEOUT.PICTURE });
-    await sessions.picture.focus();
-    await expect(
-      page.getByRole('textbox', { name: t('viewer.stage.keyboard') }),
-    ).toBeFocused();
+  for (const [what, end] of [
+    [
+      'is stopped somewhere else',
+      async (api: AppApi, _control: Control, session: Session) => {
+        await api.stopSession(session.id);
+      },
+    ],
+    [
+      'loses its browser, which crashed',
+      (_api: AppApi, control: Control, session: Session) =>
+        control.crash(session.name),
+    ],
+  ] as const) {
+    test(`the keyboard goes to the page’s heading when the session it was on ${what}`, async ({
+      page,
+      api,
+      control,
+    }) => {
+      const alpha = await api.startSession('Alpha');
+      const sessions = new SessionsPage(page);
+      await sessions.open(`/sessions/${alpha.id}`);
+      await sessions.showWindowButton.focus();
+      await expect(sessions.showWindowButton).toBeFocused();
 
-    // Somewhere else the session is stopped: the field the person typed into
-    // is gone with its browser, and the keyboard must not fall to the page.
-    await api.stopSession(alpha.id);
-    await expect(sessions.detailsHeading).toBeVisible({
-      timeout: TIMEOUT.BACKGROUND,
+      // The card of the window is gone with the browser, and with it the
+      // button the keyboard was on: the keyboard must not fall to the page.
+      await end(api, control, alpha);
+      await expect(sessions.windowCard).toHaveCount(0, {
+        timeout: TIMEOUT.BACKGROUND,
+      });
+      await expect(sessions.detailsHeading).toBeVisible();
+      await expect(sessions.title).toBeFocused();
     });
-    await expect(sessions.title).toBeFocused();
-  });
+  }
 });
 
 test.describe('the keyboard when a page gives way', () => {
-  test('goes to the page’s heading when the details it was in give way to the browser', async ({
+  test('goes to the page’s heading when the card it was in gives way to the card of the window', async ({
     page,
     api,
     request,
@@ -1630,10 +1657,10 @@ test.describe('the keyboard when a page gives way', () => {
       .getByRole('button', { name: t('viewer.details.copyIp'), exact: true })
       .focus();
 
-    // Started somewhere else: the details are replaced by the browser, with
-    // the button the keyboard was on.
+    // Started somewhere else: the card of a stopped session is replaced by
+    // the card of the window, with the button the keyboard was on.
     await startAgain(request, alpha.id);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await expect(sessions.title).toBeFocused();
@@ -1760,7 +1787,7 @@ test.describe('deleting a session', () => {
     const alpha = await api.startSession('Alpha');
     const sessions = new SessionsPage(page);
     await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
 
@@ -1811,7 +1838,7 @@ test.describe('deleting a session', () => {
     await api.startSession('Bravo');
     const sessions = new SessionsPage(page);
     await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
 
@@ -1823,7 +1850,7 @@ test.describe('deleting a session', () => {
       .click();
     await expect(sessions.row('Bravo')).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`/sessions/${alpha.id}$`));
-    await expect(sessions.liveStage).toBeVisible();
+    await expect(sessions.windowCard).toBeVisible();
 
     // The row of the open session: its page is gone with it.
     await sessions.choose('Alpha', 'delete');
@@ -1843,7 +1870,7 @@ test.describe('deleting a session', () => {
     const alpha = await api.startSession('Alpha');
     const sessions = new SessionsPage(page);
     await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
 
@@ -2322,7 +2349,7 @@ test.describe('checking the exit IP', () => {
       exitLine('198.51.100.7', 'FR'),
       TIMEOUT.BACKGROUND,
     );
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await expect(sessions.outOfSyncBar).toHaveCount(0);
@@ -2541,7 +2568,7 @@ test.describe('starting a session whose exit IP another running session uses', (
       TIMEOUT.BACKGROUND,
     );
     await sessions.expectRow('Alpha', 'running', lineOf(alpha));
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
   });
@@ -2585,7 +2612,7 @@ test.describe('starting a session whose exit IP another running session uses', (
       })
       .click();
     await expect(dialog).toBeHidden();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     expect((await api.session(bravo.id)).status).toBe('running');
@@ -2780,7 +2807,7 @@ test.describe('a start that goes wrong', () => {
     await control.faults({ launchError: null });
     await sessions.headerStart.click();
     const running = await api.waitForStatus(id, 'running');
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await sessions.expectRow(
@@ -2872,7 +2899,7 @@ test.describe('a start that goes wrong', () => {
     await expect(dialog).toBeHidden();
     const running = await api.waitForStatus(alpha.id, 'running');
     expect(running.proxy?.exitIp).toBe('203.0.113.64');
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
   });
@@ -2939,7 +2966,7 @@ test.describe('a browser that dies', () => {
       lineOf(alpha),
       TIMEOUT.BACKGROUND,
     );
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     expect((await control.browser('Alpha')).closed).toBe(false);
@@ -2953,22 +2980,22 @@ test.describe('a browser that dies', () => {
     const alpha = await api.startSession('Alpha');
     const sessions = new SessionsPage(page);
     await sessions.open(`/sessions/${alpha.id}`);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
 
     await control.crash('Alpha');
-    await expect(sessions.detailsHeading).toBeVisible({
+    await expect(sessions.windowCard).toHaveCount(0, {
       timeout: TIMEOUT.BACKGROUND,
     });
+    await expect(sessions.detailsHeading).toBeVisible();
     await expect(sessions.headerState('stopped')).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
-    await expect(sessions.liveStage).toHaveCount(0);
     await sessions.expectRow('Alpha', 'stopped');
 
     await sessions.headerStart.click();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await sessions.expectRow(
@@ -3074,7 +3101,7 @@ test.describe('a proxy that stops working', () => {
       .toBe(spare?.id);
     const running = await api.waitForStatus(alpha.id, 'running');
     expect(running.error).toBeNull();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await sessions.expectRow(
@@ -4061,10 +4088,6 @@ test.describe('a list that cannot be loaded', () => {
 test.describe('the out-of-sync bar on a window that is not tall', () => {
   /** The most a bar of one line takes of the window, border and padding with it (CSS pixels). */
   const ONE_LINE_BAR_MAX_PX = 56;
-  /** Under it, the bar took more of the picture than a line of text is worth. */
-  const PICTURE_KEEPS = 0.75;
-  /** Where the window has room to spare, the picture is the size it had. */
-  const PICTURE_UNCHANGED = 0.95;
 
   const windows = [
     { width: 844, height: 390, label: 'a phone held sideways' },
@@ -4075,7 +4098,7 @@ test.describe('the out-of-sync bar on a window that is not tall', () => {
     test.describe(`${label} (${width} × ${height})`, () => {
       test.use({ viewport: { width, height } });
 
-      test('has a bar of one line, which leaves the picture most of its size', async ({
+      test('has a bar of one line over the card, with Restart session in it', async ({
         page,
         api,
         control,
@@ -4084,11 +4107,9 @@ test.describe('the out-of-sync bar on a window that is not tall', () => {
         const alpha = await api.startSession('Alpha');
         const sessions = new SessionsPage(page);
         await sessions.openSession(alpha.id, alpha.name);
-        await expect(sessions.picture).toBeVisible({
-          timeout: TIMEOUT.PICTURE,
+        await expect(sessions.windowCard).toBeVisible({
+          timeout: TIMEOUT.BACKGROUND,
         });
-        const without = await sessions.picture.boundingBox();
-        if (without === null) throw new Error('The picture has no box');
 
         await control.exitIps({
           [hostPortOf(alpha)]: { ip: '198.51.100.7', country: 'FR' },
@@ -4099,22 +4120,15 @@ test.describe('the out-of-sync bar on a window that is not tall', () => {
         });
 
         const bar = await sessions.outOfSyncStrip.boundingBox();
-        expect(bar?.height).toBeLessThanOrEqual(ONE_LINE_BAR_MAX_PX);
-        // The picture made room for it: smaller, but by the bar's height and no more.
-        await expect
-          .poll(async () => (await sessions.picture.boundingBox())?.height ?? 0)
-          .toBeLessThan(without.height);
-        const withBar = await sessions.picture.boundingBox();
-        expect((withBar?.height ?? 0) / without.height).toBeGreaterThan(
-          PICTURE_KEEPS,
-        );
-        expect((withBar?.width ?? 0) / without.width).toBeGreaterThan(
-          PICTURE_KEEPS,
-        );
+        if (bar === null) throw new Error('The bar has no box');
+        expect(bar.height).toBeLessThanOrEqual(ONE_LINE_BAR_MAX_PX);
         // Restart session is still there, in the bar's one line.
         await expect(
           sessions.button(sessions.outOfSyncBar, t('viewer.place.restart')),
         ).toBeVisible();
+        // The card goes on under the bar, which covers none of it.
+        const card = await sessions.windowCard.boundingBox();
+        expect(card?.y ?? 0).toBeGreaterThanOrEqual(bar.y + bar.height);
       });
     });
   }
@@ -4128,7 +4142,7 @@ test.describe('the out-of-sync bar on a window that is not tall', () => {
     test.describe(`${label} (${width} × ${height})`, () => {
       test.use({ viewport: { width, height } });
 
-      test('has the roomy bar, and the picture keeps its size', async ({
+      test('has the roomy bar, which says what to do about it', async ({
         page,
         api,
         control,
@@ -4137,11 +4151,9 @@ test.describe('the out-of-sync bar on a window that is not tall', () => {
         const alpha = await api.startSession('Alpha');
         const sessions = new SessionsPage(page);
         await sessions.openSession(alpha.id, alpha.name);
-        await expect(sessions.picture).toBeVisible({
-          timeout: TIMEOUT.PICTURE,
+        await expect(sessions.windowCard).toBeVisible({
+          timeout: TIMEOUT.BACKGROUND,
         });
-        const without = await sessions.picture.boundingBox();
-        if (without === null) throw new Error('The picture has no box');
 
         await control.exitIps({
           [hostPortOf(alpha)]: { ip: '198.51.100.7', country: 'FR' },
@@ -4157,10 +4169,6 @@ test.describe('the out-of-sync bar on a window that is not tall', () => {
         await expect(
           sessions.outOfSyncBar.getByText(t('viewer.place.warningHint')),
         ).toBeVisible();
-        const withBar = await sessions.picture.boundingBox();
-        expect((withBar?.height ?? 0) / without.height).toBeGreaterThan(
-          PICTURE_UNCHANGED,
-        );
       });
     });
   }
@@ -4209,7 +4217,7 @@ test.describe('on a phone', () => {
     await sessions.rowLink('Alpha').tap();
     await expect(page).toHaveURL(new RegExp(`/sessions/${alpha.id}$`));
     await expect(sessions.titleOf('Alpha')).toBeVisible();
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     await expect(sessions.list).toHaveCount(0);
@@ -4270,7 +4278,7 @@ test.describe('on a phone', () => {
     // Start opens the session, as it does beside a page.
     await sessions.startButton('Zulu').tap();
     await expect(page).toHaveURL(new RegExp(`/sessions/${alpha.id}$`));
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
   });
@@ -4289,7 +4297,7 @@ test.describe('on a phone', () => {
     const dialog = await sessions.add({ name: 'Alpha', os: 'linux' });
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/\/sessions\/\d+$/);
-    await expect(sessions.liveStage).toBeVisible({
+    await expect(sessions.windowCard).toBeVisible({
       timeout: TIMEOUT.BACKGROUND,
     });
     expect((await api.sessions()).map((session) => session.os)).toEqual([
@@ -4395,11 +4403,12 @@ test.describe('with the keyboard', () => {
     await expect(sessions.menuButton('Bravo')).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(sessions.menu('Bravo')).toBeVisible();
-    await expect(sessions.menuItem('Bravo', 'rename')).toBeFocused();
+    // A running session's menu leads with Show window.
+    await expect(sessions.menuItem('Bravo', 'showWindow')).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(sessions.menuItem('Bravo', 'restart')).toBeFocused();
-    await page.keyboard.press('ArrowUp');
     await expect(sessions.menuItem('Bravo', 'rename')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(sessions.menuItem('Bravo', 'showWindow')).toBeFocused();
 
     await page.keyboard.press('Escape');
     await expect(sessions.menu('Bravo')).toBeHidden();
@@ -4468,15 +4477,19 @@ test.describe('with the keyboard', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
 
-    // In the address field of the browser, a text field of the page itself.
-    const address = page.getByRole('textbox', {
-      name: t('viewer.address.label'),
+    // In a text field of the page itself, outside any dialog. The page of a
+    // session has none of its own: one is put into it, as a page could have.
+    await page.evaluate(() => {
+      const field = document.createElement('input');
+      field.setAttribute('aria-label', 'A field of the page');
+      document.querySelector('main')?.append(field);
     });
-    await address.focus();
+    const field = page.getByRole('textbox', { name: 'A field of the page' });
+    await field.focus();
     await page.keyboard.press('Alt+ArrowDown');
     await page.keyboard.press('Alt+ArrowUp');
     await expect(page).toHaveURL(new RegExp(`/sessions/${alpha?.id}$`));
-    await expect(address).toBeFocused();
+    await expect(field).toBeFocused();
   });
 
   test('the rename dialog keeps the focus inside, starts in its field, and Escape closes it and returns the focus to the menu button', async ({
@@ -4492,6 +4505,8 @@ test.describe('with the keyboard', () => {
     await page.keyboard.press('Tab');
     await expect(sessions.menuButton('Alpha')).toBeFocused();
     await page.keyboard.press('Enter');
+    await expect(sessions.menuItem('Alpha', 'showWindow')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
     await expect(sessions.menuItem('Alpha', 'rename')).toBeFocused();
     await page.keyboard.press('Enter');
 
@@ -4586,7 +4601,7 @@ test.describe('with the keyboard', () => {
     await page.keyboard.press('Tab');
     await expect(sessions.menuButton('Alpha')).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(sessions.menuItem('Alpha', 'rename')).toBeFocused();
+    await expect(sessions.menuItem('Alpha', 'showWindow')).toBeFocused();
     await page.keyboard.press('End');
     await expect(sessions.menuItem('Alpha', 'delete')).toBeFocused();
     await page.keyboard.press('Enter');
@@ -4709,7 +4724,7 @@ test.describe('with the keyboard', () => {
     await page.keyboard.press('Tab');
     await expect(sessions.menuButton('Bravo')).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(sessions.menuItem('Bravo', 'rename')).toBeFocused();
+    await expect(sessions.menuItem('Bravo', 'showWindow')).toBeFocused();
     await page.keyboard.press('End');
     await expect(sessions.menuItem('Bravo', 'delete')).toBeFocused();
     await page.keyboard.press('Enter');

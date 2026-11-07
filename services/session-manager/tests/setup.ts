@@ -64,8 +64,7 @@ Element.prototype.hasPointerCapture = vi.fn(() => false);
 Element.prototype.setPointerCapture = vi.fn();
 Element.prototype.releasePointerCapture = vi.fn();
 
-// Canvas stub so axe-core's icon-ligature detection does not throw. A test of
-// the live view's canvas stubs its own context.
+// Canvas stub so axe-core's icon-ligature detection does not throw.
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   configurable: true,
   writable: true,

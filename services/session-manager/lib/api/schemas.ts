@@ -151,6 +151,14 @@ export const startRequestSchema = z.object({
   force: z.boolean().default(false),
 });
 
+/**
+ * What the page types into the window of a session, where its focus is: a
+ * value of a secret, so no more than the longest one.
+ */
+export const typeTextSchema = z.object({
+  text: atMost(MAX_VALUE).refine((text) => text !== '', 'Nothing to type'),
+});
+
 /** The address of the start page. */
 export const startPageSchema = atMost(MAX_START_PAGE);
 

@@ -6,6 +6,8 @@ toasts:
   restartFailed: Couldn't restart the session
   rotateFailed: Couldn't rotate the IP
   checkIpFailed: Couldn't check the IP
+  showFailed: Couldn't show the window
+  typeFailed: Couldn't type the value
   deleteFailed: Couldn't delete the session
   exportFailed: Couldn't export the proxies
 status:
@@ -51,6 +53,8 @@ block:
   busy: The session is busy.
   stopping: The session is already stopping.
 menu:
+  showWindow: Show window
+  showWindowOnlyRunning: Only a running session has a window.
   rename: Rename
   restart: Restart
   restartOnlyRunning: Only a running session can be restarted.

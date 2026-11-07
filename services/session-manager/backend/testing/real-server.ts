@@ -1,6 +1,6 @@
 // The whole server over the real browser, for the tests of the real-browser
-// lane: `startServer` as `server.ts` calls it (HTTP API, live view socket,
-// MCP endpoint), with the real `CamoufoxBackend` and a scripted exit-IP check
+// lane: `startServer` as `server.ts` calls it (HTTP API and MCP endpoint),
+// with the real `CamoufoxBackend` (headless) and a scripted exit-IP check
 // (`FakeExitIpChecker`: the proxies are on this host, and the GeoIP database,
 // which is offline, knows the addresses the test says they exit through).
 //
@@ -42,8 +42,6 @@ export interface RealServer {
   readonly backend: RecordingBackend;
   readonly checker: FakeExitIpChecker;
   readonly running: RunningServer;
-  /** `ws://127.0.0.1:<port>/api/sessions/<id>/stream` */
-  streamUrl(sessionId: number): string;
   /** The profile directory of a session. */
   profileDir(sessionId: number): string;
   /** A request of the API (or of `/mcp`), with a JSON body if one is given. */
@@ -102,8 +100,6 @@ export async function startRealServer(
     backend,
     checker,
     running,
-    streamUrl: (sessionId) =>
-      `ws://127.0.0.1:${port}/api/sessions/${sessionId}/stream`,
     profileDir: (sessionId) => join(dataDir, 'profiles', String(sessionId)),
     call(method, path, body) {
       const init: RequestInit = { method };

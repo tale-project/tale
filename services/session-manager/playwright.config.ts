@@ -7,9 +7,9 @@ import { healthUrl, planFrom } from './tests/e2e/servers.ts';
 
 /**
  * Browser tests of the production build: `bun run build`, then
- * `tests/e2e/launcher.ts`, which serves the built page, the API, the live view
- * and the MCP endpoint from one port per worker over a fake browser and a fake
- * exit-IP checker. The real Camoufox is not needed (the real-browser lane is
+ * `tests/e2e/launcher.ts`, which serves the built page, the API and the MCP
+ * endpoint from one port per worker over a fake browser and a fake exit-IP
+ * checker. The real Camoufox is not needed (the real-browser lane is
  * `bun run test:camoufox`), and the data directories are thrown away with the
  * process. The inherited house defaults come from `@tale/e2e/config`.
  *

@@ -28,13 +28,23 @@
 // - A switch of tabs, and a whole turn (an event with everything it waits for,
 //   the steps of a drag included), are each waited for TURN_WAIT_MS at most.
 //
+// A second change, of its own (`openPagesInTabs`), keeps the pages Playwright
+// asks for in one window: Juggler's `newPage` opens a browser window for each
+// of them, so a session in a window of the screen would reopen each of its
+// tabs, and open each tab an AI tool asks for, as another window. With the
+// preference PAGES_IN_TABS on (the backend sets it for a browser that has a
+// window), `newPage` adds a tab to the window used last instead, and opens a
+// window only when there is none. Without it (the browsers of the tests)
+// nothing is different.
+//
 // Firefox keeps compiled copies of these scripts in each profile
 // (`startupCache/`) and runs those instead of the files: before a browser
 // starts, its profile's copies are deleted unless they were made from the
 // `omni.ja` it starts with (`clearStaleScripts`). A build whose files are not
-// the ones these changes were written for is left as it is, with a warning: its
-// mouse can still stop, and the live view then says so (`input_stuck`, see
-// `playwright-remote.ts`).
+// the ones these changes were written for is left as it is, with a warning: the
+// mouse of the AI tools can still stop there, and the tools then say so
+// (`INPUT_STUCK`, see `playwright-remote.ts`). The person's own mouse, in the
+// window, does not go through Juggler.
 
 import { randomUUID } from 'node:crypto';
 import {
@@ -71,6 +81,12 @@ function smWithin(promise, ms, what) {
   return Promise.race([promise, late]).finally(() => smClearTimeout(timer));
 }
 `;
+
+/** The preference that makes Juggler's `newPage` open a tab (`openPagesInTabs`). */
+export const PAGES_IN_TABS = 'sessionmanager.pagesInTabs';
+
+/** The first line of what `openPagesInTabs` adds: a file that has it is changed already. */
+export const TABS_MARKER = '// session-manager: pages in tabs';
 
 /** One change to a file: `find` must be in it `times` times (once if not said), each one is changed. */
 export interface Edit {
@@ -114,11 +130,47 @@ export const EDITS: Readonly<Record<string, readonly Edit[]>> = {
   ],
 };
 
+/** The start of `newPage` in `TargetRegistry.js`, which `openPagesInTabs` changes. */
+export const TABS_EDIT: Edit = {
+  find: '    const browserContext = this.browserContextForId(browserContextId);\n    const features = "chrome,dialog=no,all";',
+  replace: `    const browserContext = this.browserContextForId(browserContextId);
+    ${TABS_MARKER} (services/session-manager/backend/domains/browser/juggler.ts)
+    const smWindow = Services.prefs.getBoolPref('${PAGES_IN_TABS}', false) ? Services.wm.getMostRecentWindow('navigator:browser') : null;
+    if (smWindow && smWindow.gBrowser) {
+      const tab = smWindow.gBrowser.addTab('about:blank', {
+        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+        userContextId: browserContext.userContextId,
+      });
+      let target = this._browserToTarget.get(tab.linkedBrowser);
+      while (!target) {
+        await helper.awaitEvent(this, TargetRegistry.Events.TargetCreated);
+        target = this._browserToTarget.get(tab.linkedBrowser);
+      }
+      if (browserContext.crossProcessCookie.settings.timezoneId) {
+        if (await target.hasFailedToOverrideTimezone())
+          throw new Error('Failed to override timezone');
+      }
+      return target.id();
+    }
+    const features = "chrome,dialog=no,all";`,
+};
+
 /**
  * What a later build has in `PageHandler.js` once it bounds these waits itself
  * (its deadline for an answer): such a build needs no change.
  */
 const BOUNDED_UPSTREAM = 'kAckDeadlineMs';
+
+/** What `openPagesInTabs` did. */
+export type PagesInTabs =
+  /** The build was changed now. */
+  | 'changed'
+  /** The build was changed before. */
+  | 'done'
+  /** `newPage` is not the one the change was written for: left as it is. */
+  | 'unknown'
+  /** There is no `omni.ja` there (the browser is not installed). */
+  | 'missing';
 
 /** What `boundInputWaits` did. */
 export type InputWaits =
@@ -183,21 +235,46 @@ async function replaceFile(
   }
 }
 
+/** The `omni.ja` at that path, or null when there is none. */
+async function readOmniJa(omniJa: string): Promise<AdmZip | null> {
+  let data: Buffer;
+  try {
+    data = await readFile(omniJa);
+  } catch (error) {
+    if (hasCode(error, 'ENOENT')) return null;
+    throw error;
+  }
+  // `noSort`: the entries stay in the order Mozilla packed them in.
+  return new AdmZip(data, { noSort: true });
+}
+
+/** Puts the text in place of an entry, stored as it was (Firefox reads both; Mozilla stores these uncompressed). */
+function updateEntry(zip: AdmZip, entry: AdmZip.IZipEntry, text: string): void {
+  const method = entry.header.method;
+  zip.updateFile(entry, Buffer.from(text, 'utf8'));
+  entry.header.method = method;
+}
+
+/** Writes the changed `omni.ja`, the first time keeping the file as it came next to it. */
+async function writeOmniJa(omniJa: string, zip: AdmZip): Promise<void> {
+  const { mode } = await stat(omniJa);
+  const original = `${omniJa}.orig`;
+  if (!(await exists(original))) {
+    await replaceFile(original, (temporary) => copyFile(omniJa, temporary));
+  }
+  await replaceFile(omniJa, (temporary) =>
+    writeFile(temporary, zip.toBuffer(), { mode }),
+  );
+}
+
 /**
  * Makes the waits of the build's Juggler end (see the top of this file), in
  * the `omni.ja` at that path. The file as it came is kept next to it as
  * `omni.ja.orig`. Run it while no browser of the build is open.
  */
 export async function boundInputWaits(omniJa: string): Promise<InputWaits> {
-  let data: Buffer;
-  try {
-    data = await readFile(omniJa);
-  } catch (error) {
-    if (hasCode(error, 'ENOENT')) return 'missing';
-    throw error;
-  }
-  // `noSort`: the entries stay in the order Mozilla packed them in.
-  const zip = new AdmZip(data, { noSort: true });
+  const zip = await readOmniJa(omniJa);
+  if (zip === null) return 'missing';
   const files: {
     entry: AdmZip.IZipEntry;
     text: string;
@@ -216,22 +293,35 @@ export async function boundInputWaits(omniJa: string): Promise<InputWaits> {
   // One file changed and the other not: no build the changes know.
   if (marked > 0) return 'unknown';
 
-  for (const { entry, text, edits } of files) {
-    const edited = applyEdits(text, edits);
-    if (edited === null) return 'unknown';
-    const method = entry.header.method;
-    zip.updateFile(entry, Buffer.from(edited, 'utf8'));
-    // Stored as it was (Firefox reads both; Mozilla stores these uncompressed).
-    entry.header.method = method;
+  const edited = files.map(({ entry, text, edits }) => ({
+    entry,
+    text: applyEdits(text, edits),
+  }));
+  if (edited.some(({ text }) => text === null)) return 'unknown';
+  for (const { entry, text } of edited) {
+    if (text !== null) updateEntry(zip, entry, text);
   }
-  const { mode } = await stat(omniJa);
-  const original = `${omniJa}.orig`;
-  if (!(await exists(original))) {
-    await replaceFile(original, (temporary) => copyFile(omniJa, temporary));
-  }
-  await replaceFile(omniJa, (temporary) =>
-    writeFile(temporary, zip.toBuffer(), { mode }),
-  );
+  await writeOmniJa(omniJa, zip);
+  return 'changed';
+}
+
+/**
+ * Makes Juggler's `newPage` open a tab of the window used last when
+ * PAGES_IN_TABS is on (see the top of this file), in the `omni.ja` at that
+ * path. The file as it came is kept next to it as `omni.ja.orig`, unless an
+ * earlier change kept it. Run it while no browser of the build is open.
+ */
+export async function openPagesInTabs(omniJa: string): Promise<PagesInTabs> {
+  const zip = await readOmniJa(omniJa);
+  if (zip === null) return 'missing';
+  const entry = zip.getEntry(TARGET_REGISTRY);
+  if (entry === null) return 'unknown';
+  const text = entry.getData().toString('utf8');
+  if (text.includes(TABS_MARKER)) return 'done';
+  const edited = applyEdits(text, [TABS_EDIT]);
+  if (edited === null) return 'unknown';
+  updateEntry(zip, entry, edited);
+  await writeOmniJa(omniJa, zip);
   return 'changed';
 }
 

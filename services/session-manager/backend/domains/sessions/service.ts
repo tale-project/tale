@@ -1,6 +1,7 @@
 // The application rules: the proxy pool and its health, exclusive proxy
-// assignment, the session lifecycle, the secrets and the settings (`manager.ts`
-// is the interface the HTTP routes, the live view and the MCP tools use).
+// assignment, the session lifecycle, the windows of the sessions, the secrets
+// and the settings (`manager.ts` is the interface the HTTP routes and the MCP
+// tools use).
 //
 // Everything runs on the event loop, so code between two awaits is atomic. Where
 // an operation awaits and must not be joined by another, it holds a lock: one
@@ -44,7 +45,8 @@ import { abortable, isCancelled, sleep } from '../../lib/abort.ts';
 import { KeyedMutex, Mutex } from '../../lib/mutex.ts';
 import { DEFAULT_START_PAGE, EMPTY_LAYOUT, webUrl } from '../../lib/web-url.ts';
 import type { TabLayout } from '../../lib/web-url.ts';
-import type { BrowserBackend } from '../browser/backend.ts';
+import type { BrowserBackend, BrowserHandle } from '../browser/backend.ts';
+import { PageNotRespondingError, RemoteError } from '../browser/remote.ts';
 import type { Remote } from '../browser/remote.ts';
 import {
   GeoLookupError,
@@ -80,7 +82,7 @@ import {
 } from '../settings/preferences.ts';
 import type { Preferences } from '../settings/preferences.ts';
 import { rankCandidates } from './assignment.ts';
-import type { Manager, Page, SecretScope } from './manager.ts';
+import type { Manager, Page, SecretScope, ShowOption } from './manager.ts';
 import { nextAutoName, validateName } from './names.ts';
 import * as refuse from './refusals.ts';
 import { SessionRuntime } from './runtime.ts';
@@ -93,6 +95,8 @@ import type { Launch, SessionState } from './runtime.ts';
 export const FIRST_RECHECK_MS = 30_000;
 export const RECHECK_EVERY_MS = 300_000;
 export const WATCH_TICK_MS = 10_000;
+/** How long the page of a session has to take what is typed into it. */
+const TYPE_TIMEOUT_MS = 15_000;
 
 export interface ManagerDeps {
   /** Holds `profiles/<session id>/`; the database is the caller's (`store`). */
@@ -122,6 +126,18 @@ export interface ManagerDeps {
   checkConcurrency?: number;
   /** Starts the bridge for a proxy with credentials. Default: the real one. */
   startBridge?: (upstream: ProxyConfig) => Promise<RunningBridge>;
+  /** Default `TYPE_TIMEOUT_MS`. */
+  typeTimeoutMs?: number;
+}
+
+/** What the browser could not do (`RemoteError`) as the refusal the person reads; anything else as it is. */
+function browserRefusal(error: unknown): unknown {
+  if (error instanceof PageNotRespondingError) {
+    return refuse.browserNotResponding();
+  }
+  return error instanceof RemoteError
+    ? refuse.browserFailed(error.message)
+    : error;
 }
 
 export function createManager(deps: ManagerDeps): Manager {
@@ -179,6 +195,7 @@ class SessionManager implements Manager {
   readonly #now: () => Date;
   readonly #monotonic: () => number;
   readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
+  readonly #typeTimeoutMs: number;
 
   /**
    * Proxy id -> session id, while the proxy is checked for that session (an
@@ -201,6 +218,7 @@ class SessionManager implements Manager {
     this.#now = deps.now ?? (() => new Date());
     this.#monotonic = deps.monotonic ?? (() => performance.now());
     this.#sleep = deps.sleep ?? sleep;
+    this.#typeTimeoutMs = deps.typeTimeoutMs ?? TYPE_TIMEOUT_MS;
     this.#runtime = new SessionRuntime(deps.backend, {
       shutdownTimeoutMs: deps.shutdownTimeoutMs,
       sleep: deps.sleep,
@@ -578,8 +596,12 @@ class SessionManager implements Manager {
     };
   }
 
-  /** The live browser of a running session: its tabs, its picture, mouse and keyboard. */
+  /** The browser of a running session: its tabs, its pages, mouse and keyboard. */
   remote(sessionId: number): Remote {
+    return this.#runningHandle(sessionId).remote;
+  }
+
+  #runningHandle(sessionId: number): BrowserHandle {
     const session = this.#requireSession(sessionId);
     const handle = this.#runtime.handle(sessionId);
     if (
@@ -588,7 +610,42 @@ class SessionManager implements Manager {
     ) {
       throw refuse.sessionNotRunning(session.name, { startFirst: true });
     }
-    return handle.remote;
+    return handle;
+  }
+
+  async showSession(sessionId: number): Promise<void> {
+    const handle = this.#runningHandle(sessionId);
+    try {
+      await handle.show();
+    } catch (error) {
+      throw browserRefusal(error);
+    }
+  }
+
+  async typeIntoSession(sessionId: number, text: string): Promise<void> {
+    const { remote } = this.#runningHandle(sessionId);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expired = new Promise<'expired'>((done) => {
+      timer = setTimeout(() => done('expired'), this.#typeTimeoutMs);
+    });
+    // Nothing is typed unless a field has the focus: a value typed into a
+    // page that takes it as shortcuts could do anything there. A page that
+    // hangs is left to finish on its own: what it fails with then is of no
+    // interest.
+    const typing = (async () => {
+      if (!(await remote.takesText())) return 'no field' as const;
+      await remote.insertText(text);
+      return 'typed' as const;
+    })();
+    try {
+      const outcome = await Promise.race([typing, expired]);
+      if (outcome === 'expired') throw refuse.browserNotResponding();
+      if (outcome === 'no field') throw refuse.noFieldFocused();
+    } catch (error) {
+      throw browserRefusal(error);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
@@ -598,6 +655,7 @@ class SessionManager implements Manager {
    */
   async createSession(
     input: { name?: string | null; os?: string } = {},
+    options: ShowOption = {},
   ): Promise<Session> {
     const given = input.name;
     const requested =
@@ -632,7 +690,7 @@ class SessionManager implements Manager {
         if (error instanceof NameTakenError) throw refuse.nameTaken(name);
         throw error;
       }
-      this.#startWithAssignment(session.id, first);
+      this.#startWithAssignment(session.id, first, options.show);
       return this.session(session.id);
     });
   }
@@ -660,7 +718,7 @@ class SessionManager implements Manager {
    */
   startSession(
     sessionId: number,
-    options: { force?: boolean } = {},
+    options: { force?: boolean } & ShowOption = {},
   ): Promise<Session> {
     return this.#sessionLocks.run(sessionId, async () => {
       const session = this.#requireSession(sessionId);
@@ -674,7 +732,11 @@ class SessionManager implements Manager {
       this.#ensureBrowserInstalled();
       const proxy = this.#proxyOf(session);
       if (proxy === null) {
-        this.#startWithAssignment(sessionId, this.#firstCandidate());
+        this.#startWithAssignment(
+          sessionId,
+          this.#firstCandidate(),
+          options.show,
+        );
       } else {
         const exitIp = await this.#preflight(session, proxy, {
           force: options.force === true,
@@ -682,6 +744,7 @@ class SessionManager implements Manager {
         this.#runtime.start(sessionId, {
           profileDir: this.#profileDir(sessionId),
           prepare: (signal) => this.#prepare(sessionId, proxy, exitIp, signal),
+          show: options.show,
         });
       }
       return this.session(sessionId);
@@ -702,7 +765,7 @@ class SessionManager implements Manager {
    * session is restarted with it; if no candidate works, the session keeps its
    * proxy.
    */
-  rotateSession(sessionId: number): Promise<Session> {
+  rotateSession(sessionId: number, options: ShowOption = {}): Promise<Session> {
     return this.#sessionLocks.run(sessionId, async () => {
       const session = this.#requireSession(sessionId);
       const state = this.#runtime.state(sessionId);
@@ -718,6 +781,7 @@ class SessionManager implements Manager {
             prepare: (signal) =>
               this.#assignAndPrepare(sessionId, first.id, 'rotate', signal),
             assigning: true,
+            show: options.show,
           });
         } else {
           this.#runtime.changeProxy(sessionId, (signal) =>
@@ -737,7 +801,10 @@ class SessionManager implements Manager {
    * same tabs. Its timezone and location are derived again then, for the
    * proxy's exit IP as it is now (it may have changed).
    */
-  restartSession(sessionId: number): Promise<Session> {
+  restartSession(
+    sessionId: number,
+    options: ShowOption = {},
+  ): Promise<Session> {
     return this.#sessionLocks.run(sessionId, async () => {
       const session = this.#requireSession(sessionId);
       if (this.#runtime.state(sessionId).status !== 'running') {
@@ -754,6 +821,7 @@ class SessionManager implements Manager {
         profileDir: this.#profileDir(sessionId),
         prepare: (signal) => this.#prepare(sessionId, proxy, exitIp, signal),
         assigning: false,
+        show: options.show,
       });
       return this.session(sessionId);
     });
@@ -867,7 +935,11 @@ class SessionManager implements Manager {
     return first;
   }
 
-  #startWithAssignment(sessionId: number, first: ProxyState): void {
+  #startWithAssignment(
+    sessionId: number,
+    first: ProxyState,
+    show: boolean | undefined,
+  ): void {
     this.#reserved.set(first.id, sessionId);
     try {
       this.#runtime.start(sessionId, {
@@ -875,6 +947,7 @@ class SessionManager implements Manager {
         prepare: (signal) =>
           this.#assignAndPrepare(sessionId, first.id, 'start', signal),
         assigning: true,
+        show,
       });
     } catch (error) {
       this.#unreserve(first.id, sessionId);

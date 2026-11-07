@@ -13,7 +13,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 
 import { loadConfig } from './config.ts';
 import { StoreOpenError } from './db/store.ts';
@@ -105,18 +104,6 @@ describe('the server', () => {
     }
   });
 
-  it('tells a supervisor it is shutting down once the marker file exists', async () => {
-    const marker = join(directory, 'draining');
-    const { origin } = await start({ SHUTDOWN_MARKER_PATH: marker });
-    expect((await fetch(`${origin}/api/health`)).status).toBe(200);
-
-    writeFileSync(marker, '');
-
-    const health = await fetch(`${origin}/api/health`);
-    expect(health.status).toBe(503);
-    expect(await health.json()).toEqual({ status: 'shutting_down' });
-  });
-
   it('answers the API through the backend and keeps its refusals', async () => {
     const { origin } = await start();
 
@@ -191,63 +178,6 @@ describe('the server', () => {
     ).toBe(200);
   });
 
-  it('refuses a live view handshake by the host it fails first: the name of the host, then the site', async () => {
-    const { port } = await start();
-    const handshake = {
-      Upgrade: 'websocket',
-      Connection: 'Upgrade',
-      'Sec-WebSocket-Version': '13',
-      'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
-    };
-    const path = '/api/sessions/1/stream';
-    const rebinding = await getWithHost(port, path, 'rebind.example', {
-      ...handshake,
-      Origin: 'http://rebind.example',
-    });
-    expect(rebinding.status).toBe(403);
-    expect(JSON.parse(rebinding.body)).toMatchObject({
-      error: 'forbidden_host',
-    });
-
-    const foreign = await getWithHost(port, path, `127.0.0.1:${port}`, {
-      ...handshake,
-      Origin: 'http://evil.example',
-    });
-    expect(foreign.status).toBe(403);
-    expect(JSON.parse(foreign.body)).toMatchObject({
-      error: 'forbidden_origin',
-    });
-
-    const crossSite = await getWithHost(port, path, `127.0.0.1:${port}`, {
-      ...handshake,
-      'Sec-Fetch-Site': 'cross-site',
-    });
-    expect(crossSite.status).toBe(403);
-    expect(JSON.parse(crossSite.body)).toMatchObject({
-      error: 'forbidden_origin',
-    });
-  });
-
-  it('opens the live view of a session and tells a session that is not there', async () => {
-    const { port } = await start();
-    const socket = new WebSocket(
-      `ws://127.0.0.1:${port}/api/sessions/404/stream`,
-    );
-    const first = await new Promise<string>((resolve, reject) => {
-      socket.addEventListener('message', (event) => {
-        resolve(String(event.data));
-      });
-      socket.addEventListener('error', () => {
-        reject(new Error('the socket failed'));
-      });
-    });
-    expect(JSON.parse(first)).toMatchObject({
-      t: 'error',
-      code: 'session_not_found',
-    });
-    socket.close();
-  });
-
   it('keeps the MCP endpoint shut until the person switches AI access on', async () => {
     const { origin } = await start();
     const call = () =>
@@ -298,53 +228,6 @@ describe('the server', () => {
     await running?.stop();
     running = undefined;
     await expect(fetch(`${origin}/api/health`)).rejects.toThrow();
-  });
-
-  it('stops while a live view is open: the browser closes first, then the socket', async () => {
-    // Bun's `server.stop()` waits for every open socket: a page that shows a
-    // session must not keep SIGTERM from closing the browsers (and saving
-    // their tabs), or `docker stop` ends in SIGKILL.
-    const { origin, port, backend } = await start();
-    const post = (path: string, body: unknown) =>
-      fetch(`${origin}/api${path}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    await post('/proxies/import', { text: '203.0.113.9:8080' });
-    const created = await post('/sessions', { name: 'live', os: 'random' });
-    const { id } = z.object({ id: z.number() }).parse(await created.json());
-    await expect
-      .poll(async () => {
-        const answer = await fetch(`${origin}/api/sessions/${id}`);
-        return z.object({ status: z.string() }).parse(await answer.json())
-          .status;
-      })
-      .toBe('running');
-
-    const socket = new WebSocket(
-      `ws://127.0.0.1:${port}/api/sessions/${id}/stream`,
-    );
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener('message', () => resolve(), { once: true });
-      socket.addEventListener('error', () => reject(new Error('socket')), {
-        once: true,
-      });
-    });
-    const closed = new Promise<void>((resolve) => {
-      socket.addEventListener('close', () => resolve(), { once: true });
-    });
-
-    const stopping = running?.stop();
-    running = undefined;
-    const outcome = await Promise.race([
-      stopping?.then(() => 'stopped'),
-      new Promise<string>((resolve) => setTimeout(() => resolve('hung'), 3000)),
-    ]);
-
-    expect(outcome).toBe('stopped');
-    await closed;
-    expect(backend.launches[0]?.closed).toBe(true);
   });
 });
 

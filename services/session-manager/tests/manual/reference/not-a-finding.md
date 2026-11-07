@@ -19,10 +19,13 @@ gets re-filed every round.
   computer and listens on the loopback only; the defences are about who can reach the address
   (Host and Origin checks, AI access off by default), not about who the user is. Anything that
   would let a second person in belongs in front of the manager, not in it.
-- **File uploads, downloads, printing, permission prompts, `<input type="date">` pickers and the
-  right-click menu inside a session.** They need the browser's own windows, and a session is a
-  windowless browser shown as a picture. `alert`, `confirm`, `prompt`, "leave this page?" and
-  `<select>` lists are supported: the page draws them.
+- **Downloads inside a session.** A download is refused and nothing is written to the disk:
+  Playwright would keep it in a temporary folder until the session ends, where a page could fill the
+  disk. Uploads, printing, the browser's pickers, its right-click menu and its dialogs are the
+  window's own, as in any Firefox.
+- **Running the manager without a screen**: in a container, on a server, over SSH. Each session's
+  browser opens a window on the desktop of the computer the manager runs on; there is no image and no
+  compose stack for it, and a session's window shows on that computer only.
 - **SOCKS4 and SOCKS4a proxies.** They have no authentication and are IPv4 only; the manager
   refuses them with a sentence that says to use SOCKS5 or HTTP.
 - **A session without a proxy of its own, or two sessions on one proxy.** Every session has its
@@ -33,7 +36,7 @@ gets re-filed every round.
   of foreign files.
 - **Turning AI access on or off from an assistant.** No tool does it, on purpose: only the person
   at the page can (Settings, AI access: "An assistant can do everything you can do in Session Manager,
-  except switch AI access on or off"; the 42 tools of the README's table have no such tool).
+  except switch AI access on or off"; the 43 tools of the README's table have no such tool).
 - **An event stream, sessions or `DELETE` on `/mcp`.** The endpoint is `POST` only, answers JSON
   and keeps no session; `GET` answers `405`.
 - **Browsers other than Camoufox, and extensions other than uBlock Origin.**
@@ -57,8 +60,25 @@ Intentional behaviours that look surprising but are correct by design.
   window regains focus.
 - **A toast stays for five seconds in the top right corner, over the header's buttons**, and its timer
   stops while the pointer or the keyboard is on it. Wait for it, or use the control from the keyboard.
-- **The pointer over a session's picture is always an arrow.** The picture is a canvas, and the live
-  view carries no cursor shape: a link does not show a hand and a text field does not show a caret.
+- **Off macOS, Show window only brings the tab forward.** On macOS the window comes above the app
+  you are in (the app asks the system to bring the browser's process forward); elsewhere the tab
+  comes forward in its window and the window manager decides about the window, which may only flash
+  in the task bar. A new fingerprint's screen is 1920×1080 there, whatever the displays, unless
+  `SESSION_MANAGER_MAX_SCREEN` says otherwise: only macOS can be asked for its largest display.
+- **Every running session has a Camoufox icon of its own in the Dock**, all alike: each session is a
+  browser process of its own, and its icon goes when the session stops. A window does not name its
+  session (its title is its page's); Show window, on the session's page or in its menu, brings a
+  given session's window forward.
+- **A session whose window you closed reads Stopped up to five seconds later.** The session ends
+  1.5 seconds after its last tab closed, and the page asks every five seconds while nothing is busy.
+  Quitting its Camoufox or killing its browser ends it at once, and the page tells within the same
+  five seconds.
+- **The tab you work in is the one you last clicked or typed in, in its page.** Camoufox tells the
+  app nothing about a change of tabs, so a tab chosen in the window's tab bar does not count until you
+  click or type in its page: Show window and Type go to the tab before it (`WIN-F10`).
+- **A page that asks where you are gets the position of the exit IP at once, while the permission it
+  reads stays "prompt".** The app hands the browser that position itself, so the window asks you
+  nothing and the page is never told that you allowed it.
 - **The search boxes of Proxies and Secrets are read-only until they are focused.** It is the shared
   search input's trick against browsers that fill it in.
 - **What a proxy check or a start says about a proxy is the network's English** (for example "the
@@ -74,10 +94,6 @@ Intentional behaviours that look surprising but are correct by design.
   only when the country changed.
 - **WebRTC stays available by default** and reports the proxy's exit IP only; the switch that
   removes it is `SESSION_MANAGER_BLOCK_WEBRTC`, read at start.
-- **The address bar searches what it cannot open.** A single word without a dot (`intranet`), a
-  text with a space and anything that starts like `javascript:` or `about:` without `//` goes to
-  the search engine as text; only an address written `scheme://` that is not http or https
-  (`file:///…`) is refused, with a toast, and never searched.
 - **A secret value is masked when it is saved,** also when the form showed it plainly, if its label
   names something private (`PIN`, `token`, `API key`, `recovery`, …) or its text is a card number.
 - **The proxy table holds only the rows near the viewport in the page.** It is virtualised and loads
@@ -90,22 +106,22 @@ defect, with the reason. Anything not on this list is a finding, on any page.
 
 In the browser's console:
 
-- `WebSocket connection to 'ws://localhost:3004/api/sessions/{id}/stream' failed: WebSocket is closed
-  before the connection is established` — **`bun run dev` only**: React's StrictMode mounts the live
-  view twice, the first connection is closed at once. The built page does not do it.
-- `Failed to load resource: the server responded with a status of 404`, `409`, `422`, `502` or `503`
-  — **Chromium only**: it reports every answer that is not a success, also the refusals the page
-  handles itself (a session that was deleted, a duplicate proxy, a refused form). Benign when the
-  step you are on provokes that answer; Firefox and Safari print nothing for it. A `500` is never
-  expected: it is a finding unless the box says `internal_error` (see
-  [`error-codes.md`](error-codes.md)).
-- `Failed to load resource: net::ERR_CONNECTION_REFUSED` and `WebSocket connection to … failed: Error
-  in connection establishment: net::ERR_CONNECTION_REFUSED` — **while the manager is stopped** and
-  a page of it is open: every poll and every reconnection attempt is reported, with growing pauses.
+- `Failed to load resource: the server responded with a status of 404`, `409`, `422`, `502`, `503`
+  or `504` — **Chromium only**: it reports every answer that is not a success, also the refusals the
+  page handles itself (a session that was deleted, a duplicate proxy, a refused form, a value with no
+  field to type it into). Benign when the step you are on provokes that answer; Firefox and Safari
+  print nothing for it. A `500` is never expected: it is a finding unless the box says
+  `internal_error` (see [`error-codes.md`](error-codes.md)).
+- `Failed to load resource: net::ERR_CONNECTION_REFUSED` — **while the manager is stopped** and a
+  page of it is open: every poll is reported, with growing pauses.
 
 In the manager's log (a terminal, not the console):
 
 - `[session-manager] listening on :{port}` at every start.
+- `Changed the Camoufox browser so that a mouse event that a page does not take no longer stops its
+  mouse for good` and `Changed the Camoufox browser so that the tabs a session reopens, and the ones
+  the AI tools open, come up in its window` before the first browser of a build starts: the app
+  changes the build once, and says nothing at the next starts.
 - `The Camoufox browser is not installed: downloading it (about 1.3 GB)` while the browser is
   installed for the first time, and `retrying (n/5)...` with a stack after each failed download
   while it cannot be reached; `Camoufox warm-up failed` and `Failed to download and extract UBO`

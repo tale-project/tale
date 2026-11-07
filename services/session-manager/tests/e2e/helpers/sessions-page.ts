@@ -15,6 +15,7 @@ export type Shown =
 
 /** The entries of a session's menu, by the words they carry. */
 const MENU_ITEMS = {
+  showWindow: () => t('sessions.menu.showWindow'),
   rename: () => t('sessions.menu.rename'),
   restart: () => t('sessions.menu.restart'),
   rotate: () => t('sessions.menu.rotate'),
@@ -339,8 +340,9 @@ export class SessionsPage {
   }
 
   /**
-   * "Session details" on the page of a session that is not running: the
-   * heading of its body. A running session shows its browser instead.
+   * "Session details" on the page of a session: the heading of the details in
+   * its body, which the card of a session that is not running and the card of
+   * a running one both end with.
    */
   get detailsHeading(): Locator {
     return this.page
@@ -348,7 +350,7 @@ export class SessionsPage {
       .getByRole('heading', { level: 2, name: t('viewer.details.title') });
   }
 
-  /** The body of the page of a session that is not running: its heading, the list of details and what follows it. */
+  /** The details in the body of the page of a session: their heading, the list and what follows it. */
   get pageDetails(): Locator {
     return this.detailsHeading.locator('xpath=..');
   }
@@ -358,26 +360,47 @@ export class SessionsPage {
     return this.page.getByRole('status').filter({ hasText: text });
   }
 
-  /** The browser of a running session: its tabs. */
-  get liveStage(): Locator {
-    return this.page.getByRole('tablist', { name: t('viewer.tabs.label') });
+  /**
+   * "Running in its own window": the heading of the card in the body of the
+   * page of a running session, whose browser is a window of its own on the
+   * screen. The page of a session that is not running has none.
+   */
+  get windowHeading(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('heading', { level: 2, name: t('viewer.window.title') });
   }
 
-  /** The picture of the browser of a running session. */
-  get picture(): Locator {
-    return this.page.getByRole('application', {
-      name: t('viewer.stage.canvas'),
-    });
+  /** The card of a running session: what it says, Show window, Secrets and the details. */
+  get windowCard(): Locator {
+    return this.windowHeading.locator('xpath=../..');
   }
 
-  /** The bar under the toolbar of a running session whose proxy now exits through another IP. */
+  /** The card's Show window, which brings the window of the session to the front. */
+  get showWindowButton(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('button', { name: t('viewer.window.show'), exact: true });
+  }
+
+  /**
+   * The card's Secrets, which opens the secrets to type into the window. It is
+   * named after what it opens: the rail has a Secrets of its own.
+   */
+  get secretsButton(): Locator {
+    return this.page
+      .getByRole('main')
+      .getByRole('button', { name: t('viewer.secrets.title'), exact: true });
+  }
+
+  /** The bar over the card of a running session whose proxy now exits through another IP. */
   get outOfSyncBar(): Locator {
     return this.page
       .getByRole('alert')
       .filter({ hasText: t('viewer.place.warningTitle') });
   }
 
-  /** The bar with its border and padding: the room it takes from the picture. */
+  /** The bar with its border and padding: the room it takes from the page. */
   get outOfSyncStrip(): Locator {
     return this.outOfSyncBar.locator('xpath=..');
   }

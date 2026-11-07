@@ -107,6 +107,8 @@ export interface StartOptions {
    * proxy does not). Default: no for `start`, yes for `restart`.
    */
   assigning?: boolean;
+  /** Bring the window of the browser to the front once it is up. */
+  show?: boolean;
 }
 
 export interface RuntimeOptions {
@@ -323,14 +325,14 @@ export class SessionRuntime {
 
   #start(
     sessionId: number,
-    { profileDir, prepare }: StartOptions,
+    { profileDir, prepare, show = false }: StartOptions,
     assigning: boolean,
   ): void {
     const run = newRun('starting', assigning ? 'assigning_proxy' : 'launching');
     // The tasks that are over before this one begins: not this one itself.
     const previous = this.#unfinished(sessionId);
     this.#begin(sessionId, run, () =>
-      this.#launch(run, previous, profileDir, prepare),
+      this.#launch(run, previous, { profileDir, prepare, show }),
     );
   }
 
@@ -357,8 +359,7 @@ export class SessionRuntime {
   async #launch(
     run: Run,
     previous: readonly Task[],
-    profileDir: string,
-    prepare: Prepare,
+    { profileDir, prepare, show }: Required<Omit<StartOptions, 'assigning'>>,
   ): Promise<void> {
     const { signal } = run.abort;
     try {
@@ -371,7 +372,7 @@ export class SessionRuntime {
       signal.throwIfAborted();
       run.preparing = false;
       run.activity = 'launching';
-      await this.#runBrowser(run, launch, profileDir);
+      await this.#runBrowser(run, launch, profileDir, show);
       run.status = 'stopped';
     } catch (error) {
       if (isCancelled(error)) {
@@ -399,6 +400,7 @@ export class SessionRuntime {
     run: Run,
     launch: Launch,
     profileDir: string,
+    show: boolean,
   ): Promise<void> {
     let bridge: RunningBridge | null = null;
     let handle: BrowserHandle | null = null;
@@ -423,7 +425,10 @@ export class SessionRuntime {
       });
       run.handle = handle;
       run.activity = null;
-      if (!run.stopRequested.isSet) run.status = 'running';
+      if (!run.stopRequested.isSet) {
+        run.status = 'running';
+        if (show) void bringForward(handle, profileDir);
+      }
       await Promise.race([
         closedOf(handle, profileDir),
         run.stopRequested.wait(),
@@ -467,6 +472,21 @@ function requestStop(run: Run): void {
   } else if (ACTIVE.has(run.status)) {
     run.status = 'stopping';
     run.stopRequested.set();
+  }
+}
+
+/** The window of a browser that just came up, in front; one that cannot come stays where it is. */
+async function bringForward(
+  handle: BrowserHandle,
+  profileDir: string,
+): Promise<void> {
+  try {
+    await handle.show();
+  } catch (error) {
+    console.warn(
+      `could not bring the window of the browser in ${profileDir} to the front`,
+      error,
+    );
   }
 }
 

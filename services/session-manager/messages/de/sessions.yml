@@ -6,6 +6,8 @@ toasts:
   restartFailed: Sitzung konnte nicht neu gestartet werden
   rotateFailed: IP konnte nicht gewechselt werden
   checkIpFailed: IP konnte nicht geprüft werden
+  showFailed: Das Fenster konnte nicht angezeigt werden
+  typeFailed: Der Wert konnte nicht eingetippt werden
   deleteFailed: Sitzung konnte nicht gelöscht werden
   exportFailed: Proxies konnten nicht exportiert werden
 status:
@@ -51,6 +53,8 @@ block:
   busy: Die Sitzung ist gerade beschäftigt.
   stopping: Die Sitzung stoppt bereits.
 menu:
+  showWindow: Fenster zeigen
+  showWindowOnlyRunning: Nur eine laufende Sitzung hat ein Fenster.
   rename: Umbenennen
   restart: Neu starten
   restartOnlyRunning: Nur eine laufende Sitzung lässt sich neu starten.

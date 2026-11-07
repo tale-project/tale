@@ -15,9 +15,9 @@ and the panel beside the page.
 ## Preconditions
 
 Stack A after a reset ([`../setup.md`](../setup.md)) with three sessions (one running, one stopped with
-a 60-character name, one in **Error**), a few proxies and secrets of each kind; stack B for the boxes
-that name a real page. A real phone (about 390 px wide) that reaches the manager, which listens on the
-loopback only: an Android phone over USB with Chrome's port forwarding (`chrome://inspect`, forward 3004 to
+a 60-character name, one in **Error**), a few proxies and secrets of each kind. A real phone (about
+390 px wide) that reaches the manager, which listens on the loopback only: an Android phone over USB
+with Chrome's port forwarding (`chrome://inspect`, forward 3004 to
 `localhost:3004`, then open `http://localhost:3004` on the phone), or any phone on a network you trust with the
 manager started as `SESSION_MANAGER_HOST=0.0.0.0 SESSION_MANAGER_ALLOWED_HOSTS={the computer's address}:3004`
 (there is no login: stop it again afterwards). Also the browser's zoom, VoiceOver on a Mac (⌘F5) with Safari
@@ -31,28 +31,24 @@ and with Chrome, and the operating system's Increase contrast setting.
 ## A real phone
 
 - [ ] `RESP-F1` · **On a real phone, open Sessions, a running session, Proxies, Secrets and Settings, add a secret and
-  type into the picture, for five minutes** → the tab bar never covers the last row of a list or the picture;
-  nothing scrolls sideways (the proxy and secret tables are one entry per row on a phone); the on-screen
-  keyboard leaves the address bar or the field you are typing in in view; the buttons are easy to hit with a
-  thumb; nothing is cut off by the notch or the browser's own toolbar, also in landscape; the page of a
+  open a running session's Secrets, for five minutes** → the tab bar never covers the last row of a list or the
+  end of a session's card; nothing scrolls sideways (the proxy and secret tables are one entry per row on a
+  phone); the on-screen keyboard leaves the field you are typing in in view; the buttons are easy to hit with
+  a thumb; nothing is cut off by the notch or the browser's own toolbar, also in landscape; the page of a
   session starts with its own header (back arrow, name, actions) and no empty bar stands above it, as none
   does above "Page not found".
-- [ ] `RESP-F4` · **Tap, swipe and press and hold in the picture of a session on a phone (stack B)** → a
-  tap clicks what it hits; a swipe scrolls the page by the distance, its content following the finger;
-  a finger that rests for half a second clicks the right button where it rests; the manager's own page
-  does not scroll or zoom while a finger is on the picture.
-- [ ] `RESP-B1` · **Open Secrets and its form at 844×390 (a phone on its side)** → the layout is the wide one
-  (rail and panel: 844 px is above the 768 px breakpoint), the dialog fits the window and scrolls inside
-  itself, its Cancel and Add secret buttons stay reachable at its foot, and nothing is hidden behind the
-  browser's own toolbar; on an open session the toolbar is one row (tabs, buttons, address, Secrets), so the
-  picture keeps the room.
+- [ ] `RESP-B1` · **Open Secrets and its form, then a running session, at 844×390 (a phone on its side)** → the
+  layout is the wide one (rail and panel: 844 px is above the 768 px breakpoint), the dialog fits the window
+  and scrolls inside itself, its Cancel and Add secret buttons stay reachable at its foot, and nothing is
+  hidden behind the browser's own toolbar; the session's card starts at its top and scrolls inside the page,
+  with Show window and Secrets in reach.
 
 ## Zoom and text size
 
 - [ ] `RESP-F10` · **Zoom the page to 200% on a 1280-wide window, then to 400%, on Sessions, Proxies,
   Secrets, Settings and an open session** → the layout reflows to the phone layout with nothing lost and no
-  sideways scrolling of the page (the tables turn into one entry per row, the picture of a session shrinks to
-  fit); no text is clipped or overlaps; dialogs scroll inside themselves.
+  sideways scrolling of the page (the tables turn into one entry per row, a session's card fits the width);
+  no text is clipped or overlaps; dialogs scroll inside themselves.
 - [ ] `RESP-F11` · **Raise only the text size to 200% (Firefox: View, Zoom, Zoom Text Only; or the
   browser's font setting) and open each dialog** → labels wrap instead of being cut, buttons grow with
   their text, and no control is covered.
@@ -66,8 +62,8 @@ and with Chrome, and the operating system's Increase contrast setting.
   link says its state in words, after the name.
 - [ ] `A11Y-A6` · **Turn on a high-contrast mode (macOS Increase contrast, or devtools Emulate CSS
   forced-colors: active) and go through the same screens** → text, icons and borders stay visible; the focus
-  ring round the picture and round controls is an outline that survives; a switch, the open row, the selected
-  tab and the badges can still be told apart; nothing relies on a colour that is replaced.
+  ring round controls is an outline that survives; a switch, the open row, the selected tab and the badges
+  can still be told apart; nothing relies on a colour that is replaced.
 
 ## Screen reader
 
@@ -75,11 +71,11 @@ and with Chrome, and the operating system's Increase contrast setting.
   headings, form controls, links)** → the first link is "Skip to main content"; landmarks: "Session Manager
   sidebar" (the rail, with the logo link "Session Manager" in it) holding the one "Main navigation" (the
   sections, and Settings at the foot), the main area with the navigation "Sessions" (the panel); one level-1
-  heading, the session's name; the exit-IP button opens "Session details"; the tab strip is a tab list "Open
-  tabs" and says which tab is selected; each tab has a close button named `Close tab "{title}"` (the last one
-  `Close tab "{title}" and stop the session`); the address field is "Address"; the picture is an application
-  named "Session browser" and, on reaching it, VoiceOver reads "Everything you type goes to the page. To go to
-  the address bar, press Command+L."
+  heading, the session's name, then the level-2 headings "Running in its own window" and "Session details";
+  the exit-IP button opens "Session details"; the card's buttons are "Show window" and "Secrets for this
+  session", and the header's menu is "Actions for {name}"; in the Secrets popover each value has the buttons
+  "Copy {label}" and "Type {label} into the window", a masked one "Show {label}" too, and a masked value is
+  read as "Hidden value", never as dots.
 - [ ] `A11Y-A9` · **With VoiceOver, add a session, watch it start and stop it** → the dialog's title and
   text are read; a refusal beside a field is read with the field; while it starts, the card's status region
   announces "Assigning proxy" and "Starting", each once and not at every refresh (reaching **Running** is not
@@ -92,12 +88,10 @@ and with Chrome, and the operating system's Increase contrast setting.
   as "Hidden" or "Hidden value", never as dots or digits; in the form a masked value is a secure text field
   whose typing is not echoed, and Show and Hide say what they will do.
 - [ ] `A11Y-A11` · **With VoiceOver, trigger a notice (add a proxy), a failure toast (stack A: make a running
-  session's proxy fail with `PUT {control}/exit-ips`, then choose Check IP in its menu), a page dialog (an
-  alert) and the lost connection (stop the manager)** → each is announced once and politely: the notice, the
-  failure with its reason ("Couldn't check the IP", "This session's proxy isn't working: {reason}. Choose
-  Rotate IP to give the session another proxy."), **The page says** with the page's text, and "Can't reach
-  Session Manager. We're trying to reconnect."; a page's own `<select>` opens a listbox named "Options" whose
-  options are read.
+  session's proxy fail with `PUT {control}/exit-ips`, then choose Check IP in its menu) and the lost
+  connection (stop the manager)** → each is announced once and politely: the notice, the failure with its
+  reason ("Couldn't check the IP", "This session's proxy isn't working: {reason}. Choose Rotate IP to give
+  the session another proxy."), and "Can't reach Session Manager. We're trying to reconnect."
 - [ ] `A11Y-A12` · **Switch the page to Deutsch and then Français and read a page with VoiceOver in each** →
   the page's `lang` changes with the language, so the voice changes with it; names and labels are the translated
   ones; counts are read with the right plural ("1 Sitzung wird angezeigt", "Alle 2 Sitzungen werden angezeigt").

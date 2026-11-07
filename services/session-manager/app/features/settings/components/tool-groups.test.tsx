@@ -35,7 +35,7 @@ describe('ToolGroups', () => {
       ['Overview and settings', '3 tools'],
       ['Sessions', '11 tools'],
       ['Proxies', '5 tools'],
-      ["A running session's browser", '17 tools'],
+      ["A running session's browser", '18 tools'],
       ['Secrets and notes', '6 tools'],
     ] as const;
     for (const [name, count] of rows) {
@@ -128,7 +128,7 @@ describe('ToolGroups', () => {
     ).toBeInTheDocument();
     expect(
       within(group('Der Browser einer laufenden Sitzung')).getByText(
-        '17 Tools',
+        '18 Tools',
       ),
     ).toBeInTheDocument();
     expect(

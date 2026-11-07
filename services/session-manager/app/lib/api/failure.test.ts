@@ -323,6 +323,33 @@ describe('failureText: an exit IP without a place', () => {
   });
 });
 
+describe('failureText: what the browser of a session could not do', () => {
+  it('says why, in the words of the browser', () => {
+    const reason = 'No tab is open.';
+    expect(failureText(refusal('browser_error', { reason }), t)).toBe(
+      "The session's browser couldn't do this: No tab is open.",
+    );
+    expect(failureText(refusal('browser_error', { reason }), german)).toBe(
+      'Der Browser der Sitzung konnte das nicht ausführen: No tab is open.',
+    );
+    expect(failureText(refusal('browser_error', { reason }), french)).toBe(
+      `Le navigateur de la session n'a pas pu le faire${NBSP}: No tab is open.`,
+    );
+  });
+
+  it('says only that it could not when the backend names no cause', () => {
+    expect(failureText(refusal('browser_error'), t)).toBe(
+      "The session's browser couldn't do this. Try again.",
+    );
+  });
+
+  it('says what to look for in the window when the browser does not respond', () => {
+    expect(failureText(refusal('browser_not_responding'), t)).toBe(
+      "The session's browser didn't respond. If a dialog is open in its window, answer it, then try again.",
+    );
+  });
+});
+
 describe('failureText: a busy session', () => {
   it.each([
     [

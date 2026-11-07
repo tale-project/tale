@@ -6,6 +6,8 @@ toasts:
   restartFailed: Impossible de redémarrer la session
   rotateFailed: Impossible de changer l'IP
   checkIpFailed: Impossible de vérifier l'IP
+  showFailed: Impossible d'afficher la fenêtre
+  typeFailed: Impossible de saisir la valeur
   deleteFailed: Impossible de supprimer la session
   exportFailed: Impossible d'exporter les proxys
 status:
@@ -51,6 +53,8 @@ block:
   busy: La session est occupée.
   stopping: "La session est déjà en cours d'arrêt."
 menu:
+  showWindow: Afficher la fenêtre
+  showWindowOnlyRunning: Seule une session en cours a une fenêtre.
   rename: Renommer
   restart: Redémarrer
   restartOnlyRunning: Seule une session en cours peut être redémarrée.

@@ -76,7 +76,7 @@ aiAccess:
     claudeDesktop: Add this to the configuration of Claude Desktop. This setup needs Node.js.
   tools:
     title: What assistants can do
-    description: An assistant can do everything you can do in Session Manager, except switch AI access on or off. You can watch it work in a session's page and take over at any time.
+    description: An assistant can do everything you can do in Session Manager, except switch AI access on or off. You can watch it work in the session's window and take over at any time.
     count: "{count, plural, one {# tool} other {# tools}}"
     overview:
       title: Overview and settings
@@ -89,7 +89,7 @@ aiAccess:
       description: List, add, check and delete proxies.
     browser:
       title: A running session's browser
-      description: "Work in a running session: manage tabs, navigate, read the page, click, type, scroll and answer the page's own dialogs."
+      description: "Work in a running session: bring its window to the front, manage tabs, navigate, read the page, click, type, scroll and answer the page's own dialogs."
     secrets:
       title: Secrets and notes
       description: List, read, add, change and delete secrets. An assistant can also type one value into a page without seeing it.

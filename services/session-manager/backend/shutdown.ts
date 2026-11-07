@@ -1,5 +1,5 @@
-// What the server does when it is told to stop (Ctrl+C, `docker stop`, a
-// closed terminal): stop gracefully, so that every browser closes and the tabs
+// What the server does when it is told to stop (Ctrl+C, a closed terminal, a
+// signal from another program): stop gracefully, so that every browser closes and the tabs
 // of each session are saved; but never hang. A stop that does not finish
 // (Bun's `server.stop()` can wait for a socket for ever) is ended by a
 // deadline, and a second signal from a person who is tired of waiting ends it

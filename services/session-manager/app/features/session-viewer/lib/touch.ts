@@ -1,7 +1,6 @@
 /**
- * What a control of the browser's chrome that has no library component grows
- * to under a finger: a tab, its close button, the rows of a list the page
- * opened. The controls the library draws (buttons, the address field) keep the
+ * What a control that has no library component grows to under a finger: a row
+ * of the list of secrets. The controls the library draws (buttons) keep the
  * library's own sizes, as everywhere in the app; these are the ones whose size
  * is this feature's to give, and they take it from this one place.
  */

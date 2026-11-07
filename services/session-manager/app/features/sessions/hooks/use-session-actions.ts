@@ -84,6 +84,19 @@ export function useSessionActions() {
     invalidates: AFFECTS,
   });
 
+  // Neither changes what the lists show: the window of the session is not
+  // part of it.
+  const show = useApiMutation({
+    mutationFn: ({ id }: { id: number }) => sessionsApi.show(id),
+    errorTitle: t('toasts.showFailed'),
+  });
+
+  const type = useApiMutation({
+    mutationFn: ({ id, text }: { id: number; text: string }) =>
+      sessionsApi.type(id, text),
+    errorTitle: t('toasts.typeFailed'),
+  });
+
   const remove = useApiMutation({
     // Named, so that whatever reads the session can tell it is going away
     // and not ask for it (see `removalOf`).
@@ -130,6 +143,8 @@ export function useSessionActions() {
     restart,
     rotate,
     checkIp,
+    show,
+    type,
     remove,
     exportProxies,
   };

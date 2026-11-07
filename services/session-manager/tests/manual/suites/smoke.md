@@ -14,16 +14,17 @@ real thing.
 
 ## Preconditions
 
-The stack up per [`../setup.md`](../setup.md), stack B for the chain (stack A drives the same boxes
-for a quick pass, with a mock-up for a picture), on a fresh data directory (a reset just now), devtools
-open, a 1440×900 viewport. The chain needs one working proxy of your own.
+The stack up per [`../setup.md`](../setup.md), stack B for the chain, on a Mac (stack A drives the same
+boxes for a quick pass, with no window: the control server says what the fake browser was told), on a
+fresh data directory (a reset just now), devtools open, a 1440×900 viewport. The chain needs one
+working proxy of your own.
 
 > **Agent note**: wait on state, never on time. The page is ready when the rail (the `navigation`
 > "Main navigation", `navigation.aria.main`, inside the `complementary` "Session Manager sidebar",
 > `navigation.landmark`; on a phone the tab bar "Primary navigation") is on screen. A session is up when
 > its header says **Running** (poll `GET /api/sessions/{sessionId}` for `status` `running` and
-> `activity` `null`), and its picture is there when the canvas (`role="application"`, "Session
-> browser", `viewer.stage.canvas`) is no longer hidden.
+> `activity` `null`), and its page then shows the card "Running in its own window" (a level-2 heading,
+> `viewer.window.title`). The window itself is for your eyes: no script sees it.
 
 ## The shell
 
@@ -61,22 +62,24 @@ open, a 1440×900 viewport. The chain needs one working proxy of your own.
   becomes `/sessions/{sessionId}`; the session is named after the number the dialog showed as a
   placeholder (`0001`) and heads the list; its header goes **Assigning proxy**, **Starting**,
   **Running**, and no state flickers back; the row's second line ends on the exit IP and country.
-- [ ] `SMOKE-F9` · **Wait for the picture** → the tab strip shows one tab, the address bar shows
-  the start page (`https://www.google.com`), and the canvas shows the page within a few seconds
-  of **Running**; the toolbar's buttons are enabled.
-- [ ] `SMOKE-F10` · **Click in the picture, click a text field of the page and type `hello`** → the keys reach
-  the page (the letters are in the field); Ctrl+L (⌘L on a Mac) moves the keyboard to the address bar and
-  selects its text. (Stack A: read what arrived with `curl -s http://127.0.0.1:4204/browsers/0001`:
-  `["key","down","h"]` and so on.)
+- [ ] `SMOKE-F9` · **Wait for the window** → a Camoufox window opens in front within a few seconds
+  of **Running**, with one tab on the start page (`https://www.google.com`); the page of the session
+  shows "Running in its own window" (`viewer.window.title`) with **Show window** and **Secrets**
+  enabled.
+- [ ] `SMOKE-F10` · **Type `hello` into the search field of the window, click back into the manager's
+  page, then press Show window (`viewer.window.show`)** → the letters are in the field; the window comes
+  back in front of the manager's browser, as it was. (Stack A: no window; read what arrived with
+  `curl -s http://127.0.0.1:4204/browsers/0001`: one `["toFront"]` more than before the press, the
+  start having brought it forward once already.)
 - [ ] `SMOKE-F11` · **Press Stop session in the header, wait, then press Start session** → the row reads
-  **Stopping**, then **Stopped**, then **Starting** and **Running** again; the page comes back
-  with the same single tab and address; nothing asked for a confirmation.
+  **Stopping**, then **Stopped**, then **Starting** and **Running** again; the window closes at Stop and
+  opens again, in front, with the same single tab and address; nothing asked for a confirmation.
 - [ ] `SMOKE-F12` · **Open the menu "Actions for 0001" (`sessions.row.menu`), choose Delete, read
   the dialog and press Delete session (`sessions.delete.confirm`)** → the dialog asks whether to
   delete the session by its name (`sessions.delete.title`) and says "The session's browser profile
   (cookies, site data, history) and its own secrets are deleted permanently. Its proxy becomes
-  free." and, for a running session, "The browser is closed first."; afterwards the address is
-  `/sessions`, the list is empty, and on Proxies the proxy reads **Free**.
+  free." and, for a running session, "The browser is closed first."; afterwards the window is gone, the
+  address is `/sessions`, the list is empty, and on Proxies the proxy reads **Free**.
 - [ ] `SMOKE-F13` · **Open the AI access page of Settings without touching the switch, then run
   `curl -si -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:3004/mcp` (your
   own port)** → **Allow AI assistants to connect** is off, a warning says a connected assistant

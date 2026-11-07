@@ -81,17 +81,15 @@ terminal for the shell commands.
 
 - [ ] `DEG-F4` · **With the page of a running session open, stop the manager with Ctrl+C, wait twenty seconds,
   start it again on the same port, and do all of it a second time with `kill -9 {pid}` in place of Ctrl+C
-  (stack B; on stack A the session is gone at the end)** → after Ctrl+C the stage says "The browser has
-  closed" within a few seconds; after the kill it says "Can't reach the browser. Reconnecting…" and tries
-  again after one, two, four and eight seconds, then every ten (from the second failed try **Try again**
-  connects at once); in both, within about ten seconds (the page asks again three seconds after the first
-  poll that got no answer, and says so only if that fails too) a red strip across the top says "Can't reach
-  Session Manager. We're trying to reconnect.", the tab is titled "Reconnecting - Session Manager", and the
-  list, whose rows stay, says "Couldn't load the latest sessions. What's listed may be incomplete or out of
-  date." with **Try again**; the header may say **Running** until the page can ask again; after the restart
-  the page recovers by itself and without a reload, within about thirty seconds at the most (it asks again
-  after 5, 10 and 20 seconds and then every 30 while the manager does not answer): the session is
-  **Stopped** and its card offers **Start session** with the tabs it had.
+  (stack B; on stack A the session is gone at the end)** → in both, the session's window closes within a few
+  seconds, its browser going with the manager; within about ten seconds (the page asks again three seconds
+  after the first poll that got no answer, and says so only if that fails too) a red strip across the top
+  says "Can't reach Session Manager. We're trying to reconnect.", the tab is titled "Reconnecting - Session
+  Manager", and the list, whose rows stay, says "Couldn't load the latest sessions. What's listed may be
+  incomplete or out of date." with **Try again**; the header may say **Running** until the page can ask
+  again; after the restart the page recovers by itself and without a reload, within about thirty seconds at
+  the most (it asks again after 5, 10 and 20 seconds and then every 30 while the manager does not answer):
+  the session is **Stopped**, and **Start session** opens its window with the tabs it had.
 - [ ] `DEG-B3` · **Run two sessions with two tabs each, kill the manager with `kill -9 {pid}`, list the browsers
   that are left for ten seconds (`ps -axo pid=,command= | grep -- '-profile .*/profiles/'`), start the manager
   again and press Start session on both** → no browser process outlives the manager by more than a few

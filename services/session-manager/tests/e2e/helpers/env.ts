@@ -27,6 +27,4 @@ export const TIMEOUT = {
    * proxy check finishing. The page polls every 1.5 s while something is busy.
    */
   BACKGROUND: 20_000,
-  /** A picture arriving over the live view's socket. */
-  PICTURE: 15_000,
 } as const;

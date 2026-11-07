@@ -47,6 +47,10 @@ invalid_scope: Cette portée n'existe pas.
 invalid_start_page: La page de démarrage doit être une adresse web, par exemple https://www.google.com.
 browser_installing: Le navigateur est encore en cours d'installation. Réessaie dès qu'il sera prêt.
 browser_not_installed: Le navigateur n'est pas encore installé.
+browser_error: Le navigateur de la session n'a pas pu le faire. Réessaie.
+browser_error_reason: "Le navigateur de la session n'a pas pu le faire : {reason}."
+browser_not_responding: Le navigateur de la session n'a pas répondu. Si une boîte de dialogue est ouverte dans sa fenêtre, réponds-y, puis réessaie.
+no_field_focused: Rien dans la fenêtre de la session ne peut recevoir de texte. Clique d'abord dans le champ de la fenêtre, puis réessaie.
 fingerprint_exhausted: Impossible de générer une empreinte différente de celles des sessions existantes. Essaie un autre système d'exploitation.
 unknown_ip_location: Impossible de déterminer le fuseau horaire et la position de l'IP de sortie du proxy.
 unknown_ip_location_reason: "Impossible de déterminer le fuseau horaire et la position de l'IP de sortie du proxy : {reason}."

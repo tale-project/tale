@@ -21,8 +21,6 @@ details:
 card:
   couldNotStart: Échec du démarrage
   hint: Au démarrage, la session rouvre les onglets qu'elle avait au moment de son arrêt.
-  closed: Le navigateur s'est fermé
-  closedHint: La session apparaîtra comme arrêtée dans un instant.
   system: Système d'exploitation
   screen: Écran
   language: Langue
@@ -32,57 +30,20 @@ card:
   ipAddress: IP de sortie
   noProxyYet: Attribuée au démarrage de la session
   notChecked: Pas encore vérifiée
-tabs:
-  label: Onglets ouverts
-  new: Nouvel onglet
-  untitled: Nouvel onglet
-  close: Fermer l'onglet « {title} »
-  closeLast: Fermer l'onglet « {title} » et arrêter la session
-  more: Autres onglets
-address:
-  label: Adresse
-  placeholder: Rechercher ou saisir une adresse
-  back: Aller à la page précédente
-  forward: Aller à la page suivante
-  reload: Recharger la page
+window:
+  title: Ouverte dans sa propre fenêtre
+  description: Le navigateur de cette session est une fenêtre sur cet ordinateur, où tu l'utilises comme n'importe quel autre navigateur. Les assistants IA travaillent dans la même fenêtre.
+  show: Afficher la fenêtre
 place:
   warningTitle: L'IP de sortie a changé
   warning: L'IP de sortie du proxy est maintenant {current}, mais cette session indique toujours le fuseau horaire et la position de {reported}.
   warningUnknown: Le proxy a maintenant une autre IP de sortie, mais cette session indique toujours le fuseau horaire et la position de {reported}.
   warningHint: Si cela se répète, le proxy change probablement d'IP. Utilise un proxy à IP fixe.
   restart: Redémarrer la session
-stage:
-  canvas: Navigateur de la session
-  canvasHint: Tout ce que tu tapes est envoyé à la page. Appuie sur {shortcut} pour aller à la barre d'adresse.
-  keyboard: Saisie au clavier pour la page
-  keyboardHint: Tout ce que tu tapes est envoyé à la page. Appuie sur {shortcut} pour aller à la barre d'adresse.
-  connecting: Connexion au navigateur en cours…
-  lost: Impossible de joindre le navigateur. Reconnexion…
-  refusedTitle: Impossible d'afficher le navigateur
-notice:
-  title: Action impossible dans le navigateur
-  addressRefused: Impossible d'ouvrir cette adresse. Utilise une adresse qui commence par http:// ou https://.
-  tabGone: Cet onglet est déjà fermé.
-  tabNotOpened: "Impossible d'ouvrir un nouvel onglet : {detail}."
-  keyFailed: "Impossible d'envoyer cette touche à la page : {detail}."
-  inputStuck: Le navigateur ne réagit plus à la souris dans aucun onglet. Redémarre la session pour utiliser de nouveau la souris.
-  actionFailed: "Le navigateur indique : {detail}."
-  pasteCutTitle: Impossible de coller tout le texte
-  pasteCut: Tu peux coller au maximum {max, number} caractères à la fois. Le reste a été ignoré.
-select:
-  label: Options
-dialog:
-  title: La page indique
-  leaveTitle: Quitter cette page ?
-  leaveBody: Cette page demande une confirmation avant que tu la quittes.
-  answer: Réponse
-  ok: OK
-  stay: Rester sur la page
-  leave: Quitter la page
 secrets:
   button: Secrets
   title: Secrets pour cette session
-  hint: Clique sur un champ dans la page, puis choisis une valeur pour la saisir.
+  hint: Clique sur un champ dans la fenêtre de la session, puis choisis une valeur pour la saisir.
   loading: Chargement…
   loadFailed: "Impossible de charger les secrets."
   valuesFailed: "Impossible de charger les valeurs."
@@ -97,5 +58,5 @@ secrets:
   moreLines: "{count, plural, one {+# ligne} other {+# lignes}}"
   show: Afficher « {label} »
   copy: Copier « {label} »
-  typeLabel: Saisir « {label} » dans la page
+  typeLabel: Saisir « {label} » dans la fenêtre
   type: Saisir

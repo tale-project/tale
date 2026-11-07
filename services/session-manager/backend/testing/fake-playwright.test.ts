@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  isPlaywrightError,
-  jpegSize,
-} from '../domains/browser/playwright-remote.ts';
+import { isPlaywrightError } from '../domains/browser/playwright-remote.ts';
 import {
   CallLog,
   FakeContext,
@@ -189,19 +186,7 @@ describe('errors', () => {
   });
 });
 
-describe('a JPEG that says how big it is', () => {
-  it('has a frame header that can be read', () => {
-    expect(jpegSize(fakeJpeg())).toEqual({ width: 1280, height: 720 });
-    expect(jpegSize(fakeJpeg({ width: 2176, height: 1190 }))).toEqual({
-      width: 2176,
-      height: 1190,
-    });
-    expect(jpegSize(fakeJpeg({ width: 3, height: 5 }))).toEqual({
-      width: 3,
-      height: 5,
-    });
-  });
-
+describe('a fake JPEG', () => {
   it('starts like a JPEG and ends like one', () => {
     const jpeg = fakeJpeg();
     expect(Array.from(jpeg.subarray(0, 2))).toEqual([0xff, 0xd8]);
@@ -212,12 +197,6 @@ describe('a JPEG that says how big it is', () => {
     expect(fakeJpeg({ tag: 1 }).equals(fakeJpeg({ tag: 1 }))).toBe(true);
     expect(fakeJpeg({ tag: 1 }).equals(fakeJpeg({ tag: 2 }))).toBe(false);
     expect(fakeJpeg({ tag: 'a' }).equals(fakeJpeg({ tag: 'b' }))).toBe(false);
-    expect(
-      jpegSize(fakeJpeg({ tag: 'some longer tag', width: 9, height: 8 })),
-    ).toEqual({
-      width: 9,
-      height: 8,
-    });
   });
 });
 
@@ -363,7 +342,7 @@ describe('a page', () => {
     expect(context.pages()).toEqual([]);
   });
 
-  it('shows the picture it is given, or makes a new one every time', async () => {
+  it('shows the picture it is given', async () => {
     const { page } = onePage();
     page.jpeg = fakeJpeg({ tag: 'one' });
     const options = { type: 'jpeg' };
@@ -371,11 +350,6 @@ describe('a page', () => {
     expect(Buffer.from(await page.screenshot(options)).equals(page.jpeg)).toBe(
       true,
     );
-    let count = 0;
-    page.pictures = () => fakeJpeg({ tag: count++ });
-    const first = await page.screenshot(options);
-    const second = await page.screenshot(options);
-    expect(Buffer.from(first).equals(Buffer.from(second))).toBe(false);
   });
 
   it('answers page scripts by their name, with defaults for a few', async () => {
@@ -456,31 +430,16 @@ describe('a page', () => {
 });
 
 describe('an element', () => {
-  it('knows its tag, its options and the rectangle of its list', async () => {
+  it('knows its tag and the labels of its options', async () => {
     const { page } = onePage();
     const select = page.element({
       tag: 'SELECT',
-      rect: { x: 1, y: 2, width: 3, height: 4 },
-      options: [
-        { label: 'A', selected: true },
-        { label: 'B', disabled: true, group: 'G' },
-      ],
+      options: [{ label: 'A' }, { label: 'B' }],
     });
     function tagName(): void {}
     function optionLabels(): void {}
-    function selectMenu(): void {}
     expect(await select.evaluate(tagName)).toBe('SELECT');
     expect(await select.evaluate(optionLabels)).toEqual(['A', 'B']);
-    expect(await select.evaluate(selectMenu)).toEqual({
-      x: 1,
-      y: 2,
-      width: 3,
-      height: 4,
-      options: [
-        { label: 'A', selected: true, disabled: false, group: null },
-        { label: 'B', selected: false, disabled: true, group: 'G' },
-      ],
-    });
   });
 
   it('can be told other answers, and is a bug of the test for any it does not know', async () => {

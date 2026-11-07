@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { LaunchSpec } from '../domains/browser/backend.ts';
 import { RemoteError } from '../domains/browser/remote.ts';
-import type { RemoteEvent } from '../domains/browser/remote.ts';
 import {
   GeoLookupError,
   IdentityError,
@@ -46,12 +45,6 @@ function newRemote(overrides: Partial<LaunchSpec> = {}) {
     onEmpty,
   );
   return { remote, layouts, onEmpty };
-}
-
-function heardBy(remote: FakeRemote): RemoteEvent[] {
-  const events: RemoteEvent[] = [];
-  remote.subscribe((event) => events.push(event));
-  return events;
 }
 
 describe('Gate', () => {
@@ -351,7 +344,6 @@ describe('FakeBackend launches', () => {
 describe('FakeBrowser', () => {
   it('closes its remote and ends the session when it is closed', async () => {
     const browser = new FakeBrowser(fakeLaunchSpec());
-    const heard = heardBy(browser.remote);
     const waiting = track(browser.waitClosed());
     await settle();
     expect(waiting.settled).toBe(false);
@@ -363,16 +355,21 @@ describe('FakeBrowser', () => {
     expect(browser.closed).toBe(true);
     expect(browser.closeCalls).toBe(1);
     expect(browser.remote.closed).toBe(true);
-    expect(heard).toEqual([{ type: 'closed' }]);
   });
 
-  it('counts every close call and announces the end once', async () => {
+  it('counts every close call', async () => {
     const browser = new FakeBrowser(fakeLaunchSpec());
-    const heard = heardBy(browser.remote);
     await browser.close();
     await browser.close();
     expect(browser.closeCalls).toBe(2);
-    expect(heard).toEqual([{ type: 'closed' }]);
+  });
+
+  it('counts the times its window is brought to the front, and brings its tab forward', async () => {
+    const browser = new FakeBrowser(fakeLaunchSpec());
+    await browser.show();
+    await browser.show();
+    expect(browser.shows).toBe(2);
+    expect(browser.remote.events).toEqual([['toFront'], ['toFront']]);
   });
 
   it('ends the session when the browser dies, without a close call', async () => {
@@ -435,7 +432,6 @@ describe('FakeRemote tabs', () => {
 
   it('opens a tab on the start page or on a url, and activates it', async () => {
     const { remote, layouts } = newRemote();
-    const heard = heardBy(remote);
 
     const blank = await remote.openTab();
     expect(blank).toMatchObject({
@@ -459,8 +455,6 @@ describe('FakeRemote tabs', () => {
       ],
       active: 2,
     });
-    expect(heard).toHaveLength(2);
-    expect(heard[0]).toEqual({ type: 'tabs', tabs: expect.any(Array) });
   });
 
   it('goes to a url in the active tab or in a given one', async () => {
@@ -538,13 +532,11 @@ describe('FakeRemote tabs', () => {
 
   it('reports an empty layout and ends the session when the last tab closes', async () => {
     const { remote, layouts, onEmpty } = newRemote();
-    const heard = heardBy(remote);
     await remote.closeTab(1);
 
     expect(layouts.at(-1)).toEqual(EMPTY_LAYOUT);
     expect(onEmpty).toHaveBeenCalledTimes(1);
     expect(remote.tabs()).toEqual([]);
-    expect(heard).toEqual([]); // the session is over: nobody hears a change
   });
 
   it('keeps its layout when the browser dies instead', async () => {
@@ -566,33 +558,6 @@ describe('FakeRemote tabs', () => {
     await remote.closeAllTabs();
     expect(remote.tabs()).toEqual([]);
   });
-
-  it('tells listeners about every change until they unsubscribe', async () => {
-    const { remote } = newRemote();
-    const heard: RemoteEvent[] = [];
-    const unsubscribe = remote.subscribe((event) => heard.push(event));
-    await remote.openTab('https://two.example');
-    await remote.activateTab(1);
-    expect(heard.map((event) => event.type)).toEqual(['tabs', 'tabs']);
-
-    unsubscribe();
-    unsubscribe(); // harmless the second time
-    await remote.openTab('https://three.example');
-    expect(heard).toHaveLength(2);
-    expect(remote.listeners).toEqual([]);
-  });
-
-  it('lets a listener unsubscribe while it is called', () => {
-    const { remote } = newRemote();
-    const calls: string[] = [];
-    const stop = remote.subscribe(() => {
-      calls.push('first');
-      stop();
-    });
-    remote.subscribe(() => calls.push('second'));
-    remote.emit({ type: 'closed' });
-    expect(calls).toEqual(['first', 'second']);
-  });
 });
 
 describe('FakeRemote input', () => {
@@ -600,9 +565,6 @@ describe('FakeRemote input', () => {
     const { remote } = newRemote();
     await remote.history('back');
     await remote.history('reload', 1);
-    await remote.mouse('move', 10, 20.5);
-    await remote.mouse('down', 10, 20, { button: 'right', clicks: 2 });
-    await remote.wheel(5, 6, 0, 120);
     await remote.scroll(0, -100);
     await remote.scroll(70, 0, 10, 20);
     await remote.scroll(1, 2, null, 5);
@@ -612,8 +574,7 @@ describe('FakeRemote input', () => {
     await remote.drag(1, 2, 300, 4);
     await remote.key('press', 'Enter');
     await remote.insertText('ü€ paste');
-    await remote.pickOption(7, 0);
-    await remote.pickOption(8, null);
+    await remote.toFront();
     await remote.clickElement(2);
     await remote.fillElement(1, 'me@example.com');
     await remote.fillElement(1, 'again', { submit: true });
@@ -621,9 +582,6 @@ describe('FakeRemote input', () => {
     expect(remote.events).toEqual([
       ['history', 'back', null],
       ['history', 'reload', 1],
-      ['mouse', 'move', 10, 20.5, 'left', 1],
-      ['mouse', 'down', 10, 20, 'right', 2],
-      ['wheel', 5, 6, 0, 120],
       ['scroll', 0, -100],
       ['scroll', 70, 0, 10, 20],
       ['scroll', 1, 2],
@@ -633,8 +591,7 @@ describe('FakeRemote input', () => {
       ['drag', 1, 2, 300, 4],
       ['key', 'press', 'Enter'],
       ['text', 'ü€ paste'],
-      ['pick', 7, 0],
-      ['pick', 8, null],
+      ['toFront'],
       ['clickElement', 2],
       ['fillElement', 1, 'me@example.com', false],
       ['fillElement', 1, 'again', true],
@@ -687,10 +644,9 @@ describe('FakeRemote input', () => {
   });
 });
 
-describe('FakeRemote dialogs and lists', () => {
-  it('opens a dialog that waits for an answer, and tells the listeners', () => {
+describe('FakeRemote dialogs', () => {
+  it('opens a dialog that waits for an answer', () => {
     const { remote } = newRemote();
-    const heard = heardBy(remote);
     const dialog = remote.openDialog('prompt', 'Your name?', 'Anna');
 
     expect(dialog).toEqual({
@@ -702,7 +658,6 @@ describe('FakeRemote dialogs and lists', () => {
     });
     expect(remote.dialogs()).toEqual([dialog]);
     expect(remote.pending).toEqual([dialog]);
-    expect(heard).toEqual([{ type: 'dialog', dialog }]);
     expect(remote.openDialog()).toMatchObject({
       id: 2,
       kind: 'confirm',
@@ -715,12 +670,10 @@ describe('FakeRemote dialogs and lists', () => {
     const { remote } = newRemote();
     const first = remote.openDialog();
     remote.openDialog('alert', 'Done');
-    const heard = heardBy(remote);
 
     await remote.answerDialog(first.id, { accept: true, text: 'Bo' });
     await remote.answerDialog(99, { accept: false }); // answers nothing
     expect(remote.dialogs().map((dialog) => dialog.id)).toEqual([2]);
-    expect(heard).toEqual([{ type: 'dialog_closed', id: 1 }]);
     expect(remote.events).toEqual([
       ['answer', 1, true, 'Bo'],
       ['answer', 99, false, null],
@@ -803,165 +756,9 @@ describe('FakeRemote dialogs and lists', () => {
     remote.close();
     await expect(click).rejects.toBeInstanceOf(RemoteError);
   });
-
-  it('opens a drop-down list with a fresh token each time', async () => {
-    const { remote } = newRemote();
-    const heard = heardBy(remote);
-    const first = remote.openSelect();
-    const second = remote.openSelect({
-      x: 1,
-      y: 2,
-      options: [
-        { label: 'Swiss', selected: true, disabled: false, group: null },
-      ],
-    });
-
-    expect([first.token, second.token]).toEqual([1, 2]);
-    expect(first.options.map((option) => option.label)).toEqual([
-      'First',
-      'Second',
-    ]);
-    expect(second).toMatchObject({ x: 1, y: 2, width: 120, height: 24 });
-    expect(heard).toEqual([
-      { type: 'select', menu: first },
-      { type: 'select', menu: second },
-    ]);
-    await remote.pickOption(second.token, 0);
-    expect(remote.events).toEqual([['pick', 2, 0]]);
-  });
-
-  it('delivers any event a test emits', () => {
-    const { remote } = newRemote();
-    const heard = heardBy(remote);
-    const dialog = {
-      id: 3,
-      tab: 1,
-      kind: 'prompt',
-      message: 'Your name?',
-      default: 'Anna',
-    };
-    remote.emit({ type: 'dialog', dialog });
-    remote.emit({ type: 'dialog_closed', id: 3 });
-    expect(heard).toEqual([
-      { type: 'dialog', dialog },
-      { type: 'dialog_closed', id: 3 },
-    ]);
-  });
 });
 
-describe('FakeRemote pictures', () => {
-  it('gives a watcher a picture of the active tab at once', async () => {
-    const { remote } = newRemote();
-    const watcher = remote.watch();
-    const frame = await watcher.get();
-    expect(frame).toMatchObject({ tab: 1, width: 800, height: 600 });
-    expect(text(frame.jpeg)).toBe('jpeg-1');
-    expect(remote.watchers).toEqual([watcher]);
-  });
-
-  it('waits for the next picture and hands out pictures in order', async () => {
-    const { remote } = newRemote();
-    const watcher = remote.watch();
-    await watcher.get();
-
-    const next = watcher.get();
-    const state = track(next);
-    await settle();
-    expect(state.settled).toBe(false);
-
-    remote.showNewPicture();
-    remote.showNewPicture();
-    expect(text((await next).jpeg)).toBe('jpeg-2');
-    expect(text((await watcher.get()).jpeg)).toBe('jpeg-3');
-  });
-
-  it('shows the same new picture to every watcher', async () => {
-    const { remote } = newRemote();
-    const a = remote.watch();
-    const b = remote.watch();
-    await a.get();
-    await b.get();
-    remote.showNewPicture();
-    expect(await a.get()).toBe(await b.get());
-  });
-
-  it('numbers the pictures of the tab that is active', async () => {
-    const { remote } = newRemote();
-    await remote.openTab('https://two.example');
-    expect(remote.picture()).toMatchObject({ tab: 2 });
-    expect(text(remote.picture().jpeg)).toBe('jpeg-2');
-  });
-
-  it('gives every watcher a picture of what it looks at when the tabs change, as a screencast does', async () => {
-    const { remote } = newRemote();
-    const a = remote.watch();
-    const b = remote.watch();
-    await a.get();
-    await b.get();
-
-    await remote.openTab('https://two.example');
-    expect(await a.get()).toMatchObject({ tab: 2 });
-    expect(await b.get()).toMatchObject({ tab: 2 });
-    await remote.activateTab(1);
-    expect(await a.get()).toMatchObject({ tab: 1 });
-    await remote.goto('https://one.example/page');
-    expect(await a.get()).toMatchObject({ tab: 1 });
-    await remote.closeTab(1);
-    expect(await a.get()).toMatchObject({ tab: 2 });
-    // One picture per change, no more: the next one waits for the next change.
-    const next = track(a.get());
-    await settle();
-    expect(next.settled).toBe(false);
-    remote.showNewPicture();
-    await settle();
-    expect(next.settled).toBe(true);
-  });
-
-  it('draws no picture for a change that nobody watches, so that the numbering goes on', async () => {
-    const { remote } = newRemote();
-    await remote.openTab('https://two.example');
-    await remote.activateTab(1);
-    expect(text(remote.picture().jpeg)).toBe('jpeg-1');
-  });
-
-  it('stops delivering to a watcher that closed', async () => {
-    const { remote } = newRemote();
-    const watcher = remote.watch();
-    const pending = (async () => {
-      await watcher.get();
-      return watcher.get();
-    })();
-    await settle();
-    watcher.close();
-    watcher.close(); // harmless the second time
-
-    await expect(pending).rejects.toBeInstanceOf(RemoteError);
-    expect(remote.watchers).toEqual([]);
-    remote.showNewPicture(); // nobody watches
-    await expect(watcher.get()).rejects.toThrow('The watcher is closed.');
-  });
-
-  it('fails a waiting watcher with a remote error once the browser closes', async () => {
-    const { remote } = newRemote();
-    const watcher = remote.watch();
-    await watcher.get();
-    const waiting = watcher.get();
-    remote.close();
-    await expect(waiting).rejects.toBeInstanceOf(RemoteError);
-    await expect(waiting).rejects.toThrow('The browser has closed.');
-    await expect(watcher.get()).rejects.toThrow('The browser has closed.');
-  });
-
-  it('hands out the queued pictures before it reports that the browser closed', async () => {
-    const { remote } = newRemote();
-    const watcher = remote.watch();
-    remote.showNewPicture();
-    remote.close();
-    expect(text((await watcher.get()).jpeg)).toBe('jpeg-1');
-    expect(text((await watcher.get()).jpeg)).toBe('jpeg-2');
-    await expect(watcher.get()).rejects.toBeInstanceOf(RemoteError);
-  });
-
+describe('fake pictures', () => {
   it('writes the bytes of a fake picture as text', () => {
     expect(text(fakeJpeg(7))).toBe('jpeg-7');
     expect(text(fakeJpeg('screenshot'))).toBe('jpeg-screenshot');
@@ -969,15 +766,12 @@ describe('FakeRemote pictures', () => {
 });
 
 describe('FakeRemote closing', () => {
-  it('announces the end once, then stops talking to its listeners', () => {
+  it('is closed once', () => {
     const { remote } = newRemote();
-    const heard = heardBy(remote);
     expect(remote.closed).toBe(false);
     remote.close();
     remote.close();
     expect(remote.closed).toBe(true);
-    expect(heard).toEqual([{ type: 'closed' }]);
-    expect(remote.listeners).toEqual([]);
   });
 });
 

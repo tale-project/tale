@@ -2,9 +2,9 @@
 // (`camoufox-backend.ts`) is the real one; tests use `FakeBackend`
 // (`../../testing/fake-browser.ts`).
 //
-// Every session is its own Firefox process with its own profile directory. The
-// browsers have no window: the web client watches and controls them through
-// `BrowserHandle.remote`.
+// Every session is its own Firefox process with its own profile directory, in
+// a window of its own on the screen of this computer: the person uses the
+// browser there, and the AI tools drive it through `BrowserHandle.remote`.
 
 import type { InstallProgress } from '../../../lib/api/schemas.ts';
 import type { TabLayout } from '../../lib/web-url.ts';
@@ -45,8 +45,11 @@ export interface BrowserInstall {
 }
 
 export interface BrowserHandle {
-  /** What the web client and the AI tools use to see and control the browser. */
+  /** What the AI tools (and typing a secret from the page) use to control the browser. */
   readonly remote: Remote;
+
+  /** Brings the browser's window to the front of the screen, its open tab forward. */
+  show(): Promise<void>;
 
   /**
    * Resolves when the session is over: the browser exited, or the user closed

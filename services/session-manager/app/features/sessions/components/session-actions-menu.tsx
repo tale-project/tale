@@ -2,6 +2,7 @@ import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { IconButton } from '@tale/ui/icon-button';
 import {
+  AppWindow,
   Ellipsis,
   MapPin,
   Pencil,
@@ -38,11 +39,11 @@ const DISABLED_WITH_REASON =
   'data-disabled:opacity-100 data-disabled:text-muted-foreground';
 
 /**
- * The "more actions" menu of a session (Rename, Restart, Rotate IP, Check IP,
- * Delete, each with its dialog), shared by a row of the sessions panel and the
- * header of a session's page. Start and Stop are separate buttons. An action
- * that cannot be done now says why in the menu; one under way shows on the
- * button that opened the menu.
+ * The "more actions" menu of a session (Show window, Rename, Restart, Rotate
+ * IP, Check IP, Delete, each with its dialog), shared by a row of the sessions
+ * panel and the header of a session's page. Start and Stop are separate
+ * buttons. An action that cannot be done now says why in the menu; one under
+ * way shows on the button that opened the menu.
  */
 export function SessionActionsMenu({
   session,
@@ -50,7 +51,7 @@ export function SessionActionsMenu({
 }: SessionActionsMenuProps) {
   const { t } = useT('sessions');
   const { t: tCommon } = useT('common');
-  const { restart } = useSessionActions();
+  const { restart, show } = useSessionActions();
   const checkIp = useCheckIp();
   const flow = useProxyFlow();
   const [dialog, setDialog] = useState<MenuDialog | null>(null);
@@ -64,6 +65,7 @@ export function SessionActionsMenu({
   const rotating = flow.isRotating(session.id);
   const pending = restart.isPending || rotating || checkIp.isPending;
 
+  const showReason = !running ? t('menu.showWindowOnlyRunning') : undefined;
   const restartReason = !running
     ? t('menu.restartOnlyRunning')
     : busy
@@ -97,6 +99,19 @@ export function SessionActionsMenu({
 
   // Built when the menu opens: every row of the list carries one.
   const items = (): DropdownMenuGroup[] => [
+    [
+      {
+        type: 'item',
+        label: <MenuLabel title={t('menu.showWindow')} note={showReason} />,
+        icon: AppWindow,
+        disabled: showReason !== undefined,
+        className: cn(
+          showReason !== undefined && MENU_ITEM_WITH_NOTE,
+          showReason !== undefined && DISABLED_WITH_REASON,
+        ),
+        onClick: () => show.mutate({ id: session.id }),
+      },
+    ],
     [
       {
         type: 'item',

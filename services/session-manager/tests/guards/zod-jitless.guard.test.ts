@@ -80,9 +80,8 @@ afterEach(() => {
 describe('the modules that build zod schemas', () => {
   it('are found', () => {
     expect(MODULES).toContain('lib/api/schemas.ts');
-    expect(MODULES).toContain('lib/live-view.ts');
     expect(MODULES).toContain('lib/zod-config.ts');
-    expect(MODULES.length).toBeGreaterThan(8);
+    expect(MODULES.length).toBeGreaterThan(5);
   });
 
   it.each(MODULES)(

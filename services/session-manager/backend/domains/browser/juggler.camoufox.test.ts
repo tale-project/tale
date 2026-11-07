@@ -21,7 +21,14 @@ import type { BrowserContext } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { isInstalled } from './install.ts';
-import { ANSWER_WAIT_MS, EDITS, MARKER, boundInputWaits } from './juggler.ts';
+import {
+  ANSWER_WAIT_MS,
+  EDITS,
+  MARKER,
+  TABS_MARKER,
+  boundInputWaits,
+  openPagesInTabs,
+} from './juggler.ts';
 
 const ready = process.env.CAMOUFOX_INSTALL_DIR !== undefined && isInstalled();
 
@@ -67,6 +74,26 @@ describe.skipIf(!ready)('the waits of the installed build', () => {
     for (const name of Object.keys(EDITS)) {
       expect(zip.getEntry(name)?.getData().toString('utf8')).toContain(MARKER);
     }
+  });
+
+  it('have a newPage the app knows how to make open tabs', async () => {
+    const installed = await installedOmniJa();
+    const original = existsSync(`${installed}.orig`)
+      ? `${installed}.orig`
+      : installed;
+    const dir = tempDir('sm-juggler-');
+    const omniJa = join(dir, 'omni.ja');
+    copyFileSync(original, omniJa);
+
+    expect(
+      await openPagesInTabs(omniJa),
+      'newPage of this build is not the one juggler.ts changes: write TABS_EDIT anew',
+    ).toBe('changed');
+    const registry = new AdmZip(omniJa)
+      .getEntry('chrome/juggler/content/TargetRegistry.js')
+      ?.getData()
+      .toString('utf8');
+    expect(registry).toContain(TABS_MARKER);
   });
 });
 

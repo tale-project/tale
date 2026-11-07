@@ -1,23 +1,23 @@
 #!/usr/bin/env bun
 /*
   The backend for the e2e specs and for a look around without a browser build or
-  the internet: the real HTTP stack (API, live view, MCP, the built page when
-  there is one) over the fake browser and the fake exit-IP checker, on a
-  throw-away data directory. `bun tests/e2e/server.ts` starts ONE server on
+  the internet: the real HTTP stack (API, MCP, the built page when there is
+  one) over the fake browser and the fake exit-IP checker, on a throw-away data
+  directory. `bun tests/e2e/server.ts` starts ONE server on
   `E2E_BACKEND_PORT` (default 3204), where `vite.config.ts` points the dev
   server's proxy. The suite itself runs one server per Playwright worker, all
   started by `launcher.ts` through `startE2eServer`; everything a server holds
   (the fakes, the data directory, the control server) belongs to that call, so
   two servers in one process share nothing.
 
-  The fake browser draws small page mock-ups (one colour per tab), so the live
-  view shows something a real browser can decode. A proxy exits through
-  203.0.113.<last octet of its host>, in Germany.
+  The fake browser opens no window: what the page does to the window of a
+  session (bring it to the front, type into it) is written down for a spec to
+  read. A proxy exits through 203.0.113.<last octet of its host>, in Germany.
 
   The fakes can be driven from outside through `control.ts` (on
   `E2E_CONTROL_PORT`, default the backend's port + 1000): a spec makes a page
-  open a dialog, a browser crash, a proxy fail, and reads the input the fake
-  browser received.
+  open a dialog, a browser crash, a field of a window lose the focus, a proxy
+  fail, and reads what the fake browser was told.
 
   `E2E_DIST_DIR` serves a page built somewhere else than `dist/` (a private
   build), `E2E_APP_PORT` (default 3004) is the dev server the page may be
@@ -33,7 +33,6 @@ import { loadConfig } from '../../backend/config.ts';
 import { startServer } from '../../backend/main.ts';
 import { FakeBackend } from '../../backend/testing/fake-browser.ts';
 import { FakeExitIpChecker } from '../../backend/testing/fake-exit-ip.ts';
-import { pictureForTab } from '../../backend/testing/fake-pictures.ts';
 import { startControlServer } from './control.ts';
 import {
   DEFAULT_APP_PORT,
@@ -90,7 +89,6 @@ export function startE2eServer(options: E2eServerOptions): E2eServer {
     );
 
     const backend = new FakeBackend();
-    backend.pictureOf = (_n, tab) => pictureForTab(tab);
     backend.geo = {
       country: 'DE',
       locale: 'de-DE',

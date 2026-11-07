@@ -1,9 +1,13 @@
-// The real `Remote`: a Camoufox persistent context driven through Playwright.
+// The real `Remote`: a Camoufox persistent context driven through Playwright,
+// for the AI tools and for what the page of a session does in its window.
 //
-// * The picture is a screenshot of the active tab, taken as often as the page
-//   changes and only sent when it did. (Not Playwright's screencast: while a
-//   page scrolls, its pictures come two or three times a second and show the
-//   page where it was, and a screencast of a still page uses half a core.)
+// * In a window (`windowed`), the person uses the same browser. The active tab
+//   is the one they last clicked or typed in, unless a tool chose another one
+//   since (`#followWindow`): Camoufox shows every tab of a window to
+//   Playwright as visible and focused, so their last input is what tells. A
+//   page's dialogs are theirs to answer unless an assistant is at work.
+//   Without a window (the tests of the real browser) the remote brings the
+//   tabs forward itself, and dismisses a dialog nobody attends to.
 // * Mouse and keyboard events are replayed in the page. Characters that are
 //   not on a US keyboard are inserted as text.
 // * The browser does mouse events, wheel turns and switches of tabs one after
@@ -14,10 +18,7 @@
 //   (`pointerPlace`), and one that a page free to take it has not taken in
 //   time is not waited for any longer: what comes after it is refused, with
 //   the reason, until it is done (`#input`).
-// * The browser draws `<select>` lists and dialogs outside the page, where no
-//   picture shows them. A click on a `<select>` is therefore reported as a
-//   `select` event (the client draws the list), and `alert()`, `confirm()`
-//   and `prompt()` as `dialog` events.
+// * A screenshot is of the active tab, cut to the room its window has.
 //
 // Durations are milliseconds. Set the environment variable
 // `DEBUG=session-manager` to see what is ignored on purpose (a page that
@@ -34,21 +35,17 @@ import {
   sameLayout,
 } from '../../lib/web-url.ts';
 import type { TabLayout } from '../../lib/web-url.ts';
-import { RemoteError } from './remote.ts';
+import { PageNotRespondingError, RemoteError } from './remote.ts';
 import type {
-  Frame,
   HistoryAction,
   KeyAction,
-  MouseAction,
   MouseButton,
   Navigation,
   PageDialog,
   PageElement,
   PageReading,
   Remote,
-  RemoteEvent,
   Tab,
-  Watcher,
 } from './remote.ts';
 
 // -- what is used of Playwright -------------------------------------------------
@@ -176,35 +173,20 @@ export interface PwPage {
 export interface PwContext {
   pages(): PwPage[];
   newPage(): Promise<PwPage>;
+  addInitScript(script: PageScript): Promise<unknown>;
   on(event: 'page', listener: (page: PwPage) => void): unknown;
   off(event: 'page', listener: (page: PwPage) => void): unknown;
 }
 
 // -- tuning -----------------------------------------------------------------------
 
-const PICTURE_QUALITY = 70;
 const SCREENSHOT_QUALITY = 80;
 const SHOT_TIMEOUT = 5000;
 // What the window has room for is asked of the page once; a page that does not
-// answer (its script is busy) holds a picture up no longer than this, and is not
-// asked again for a while.
+// answer (its script is busy) holds a screenshot up no longer than this, and is
+// not asked again for a while.
 const ROOM_TIMEOUT = 2000;
 const ROOM_RETRY = 1000;
-// Pictures: back to back (at most every FASTEST) while the page is used
-// (ACTIVE_FOR after the last input) or keeps changing; otherwise the pause
-// grows from IDLE_FLOOR to IDLE_CEILING while nothing changes, and is never
-// less than six times the time a picture takes, so that a heavy page is not
-// kept busy by being watched.
-const ACTIVE_FOR = 1000;
-const FASTEST = 20;
-const IDLE_FLOOR = 150;
-const IDLE_CEILING = 800;
-const IDLE_GROWTH = 1.25;
-const IDLE_GROWTH_STEPS = 8;
-const PICTURE_COST_FACTOR = 6;
-/** What a picture "took" while there is nothing to take one of. */
-const NOTHING_TO_SHOOT = 250;
-const PICTURE_RETRY = 1000;
 const NAVIGATION_TIMEOUT = 30_000;
 // A page that waits for an answer to alert() or confirm() answers nothing else.
 const RESPONSE_TIMEOUT = 15_000;
@@ -220,7 +202,6 @@ const BUSY_GIVE_UP = 60_000;
 // hold it up longer).
 const RESTORE_WAIT = 5000;
 const DIALOG_TIMEOUT = 120_000;
-const TITLE_POLL = 1500;
 // A page that waits for an answer to alert() does not hold up the titles of
 // the others.
 const TITLE_TIMEOUT = 2000;
@@ -230,10 +211,8 @@ const ELEMENT_LIMIT = 80;
 const READ_ATTEMPTS = 3;
 const READ_RETRY_PAUSE = 400;
 const ELEMENT_TIMEOUT = 5000;
-const PICK_TIMEOUT = 3000;
 const DRAG_STEPS = 12;
 const LISTED_OPTIONS = 20;
-const FALLBACK_VIEWPORT = { width: 1280, height: 720 };
 
 const NOT_RESPONDING =
   'The page does not respond. A dialog (alert, confirm) may be waiting for an answer.';
@@ -276,28 +255,53 @@ function selectAt([x, y]: readonly [number, number]): HTMLSelectElement | null {
     : null;
 }
 
-function selectMenu(select: HTMLSelectElement) {
-  const r = select.getBoundingClientRect();
-  return {
-    x: r.x,
-    y: r.y,
-    width: r.width,
-    height: r.height,
-    options: [...select.options].map((o) => {
-      const parent:
-        | (HTMLElement & { disabled?: boolean; label?: string })
-        | null = o.parentElement;
-      return {
-        label: o.label || o.text,
-        selected: o.selected,
-        disabled: o.disabled || (parent !== null && parent.disabled === true),
-        group:
-          parent !== null && parent.tagName === 'OPTGROUP'
-            ? (parent.label ?? null)
-            : null,
-      };
-    }),
+/**
+ * Keeps the time a mouse button or a key was last pressed in the page, by the
+ * person in the window or by a tool: the tab they work in. An init script:
+ * Camoufox runs it, like everything Playwright runs in a page, in a world of
+ * its own, which the page's scripts cannot see.
+ */
+function watchInput(): void {
+  Reflect.set(globalThis, '__smInputAt', 0);
+  const mark = (event: Event): void => {
+    if (event.isTrusted) Reflect.set(globalThis, '__smInputAt', Date.now());
   };
+  addEventListener('pointerdown', mark, true);
+  addEventListener('keydown', mark, true);
+}
+
+function inputAt(): unknown {
+  return Reflect.get(globalThis, '__smInputAt') ?? 0;
+}
+
+/**
+ * Whether what has the focus takes typed text: a text field, an editor, or a
+ * frame (its inside belongs to another page, which cannot be looked at here).
+ */
+function focusTakesText(): boolean {
+  const element = document.activeElement;
+  if (element === null) return false;
+  if (element.localName === 'iframe' || element.localName === 'frame') {
+    return true;
+  }
+  if (element instanceof HTMLTextAreaElement) {
+    return !element.disabled && !element.readOnly;
+  }
+  if (element instanceof HTMLInputElement) {
+    const types = [
+      'text',
+      'search',
+      'email',
+      'url',
+      'tel',
+      'password',
+      'number',
+    ];
+    return (
+      !element.disabled && !element.readOnly && types.includes(element.type)
+    );
+  }
+  return element instanceof HTMLElement && element.isContentEditable;
 }
 
 function optionLabels(select: HTMLSelectElement): string[] {
@@ -453,20 +457,6 @@ function readPage(limit: number) {
 const sizeSchema = z.tuple([z.number(), z.number()]);
 const roomSchema = z.tuple([z.number(), z.number(), z.number()]);
 const titleStateSchema = z.tuple([z.string(), z.string()]);
-const menuSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
-  options: z.array(
-    z.object({
-      label: z.string(),
-      selected: z.boolean(),
-      disabled: z.boolean(),
-      group: z.string().nullable(),
-    }),
-  ),
-});
 const labelsSchema = z.array(z.string());
 const itemsSchema = z.array(
   z.object({
@@ -631,51 +621,7 @@ function isSingleCharacter(key: string): boolean {
   return [...CHARACTERS.segment(key)].length === 1;
 }
 
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-  return (
-    a.length === b.length &&
-    Buffer.from(a.buffer, a.byteOffset, a.length).equals(b)
-  );
-}
-
 // -- small pure helpers -------------------------------------------------------------
-
-/** Width and height of a JPEG, from its start-of-frame marker. */
-export function jpegSize(
-  data: Uint8Array,
-): { width: number; height: number } | null {
-  let i = 2;
-  while (i + 9 < data.length) {
-    if (data[i] !== 0xff) {
-      i += 1;
-      continue;
-    }
-    const marker = data[i + 1] ?? 0;
-    // A frame header.
-    if (
-      marker >= 0xc0 &&
-      marker <= 0xcf &&
-      marker !== 0xc4 &&
-      marker !== 0xc8 &&
-      marker !== 0xcc
-    ) {
-      return {
-        width: ((data[i + 7] ?? 0) << 8) | (data[i + 8] ?? 0),
-        height: ((data[i + 5] ?? 0) << 8) | (data[i + 6] ?? 0),
-      };
-    }
-    if (
-      marker === 0xd8 ||
-      marker === 0x01 ||
-      (marker >= 0xd0 && marker <= 0xd7)
-    ) {
-      i += 2; // markers without a length
-    } else {
-      i += 2 + (((data[i + 2] ?? 0) << 8) | (data[i + 3] ?? 0));
-    }
-  }
-  return null;
-}
 
 /**
  * Where a mouse event is sent: the place it is asked for, in the picture of
@@ -703,25 +649,6 @@ export function pointerPlace(
         x: clamp(x, 0, size.width - 1),
         y: clamp(y, 1, size.height - 2),
       };
-}
-
-/** How long to rest before the next picture, from what the last ones showed. */
-export function pictureDelay(state: {
-  usedLately: boolean;
-  changedInARow: number;
-  stillInARow: number;
-  /** How long the last picture took. */
-  tookMs: number;
-}): number {
-  if (state.usedLately || state.changedInARow >= 2) return FASTEST;
-  return Math.min(
-    IDLE_CEILING,
-    Math.max(
-      IDLE_FLOOR *
-        IDLE_GROWTH ** Math.min(state.stillInARow, IDLE_GROWTH_STEPS),
-      PICTURE_COST_FACTOR * state.tookMs,
-    ),
-  );
 }
 
 /**
@@ -792,6 +719,15 @@ export interface PlaywrightRemoteOptions {
   saveDelayMs?: number;
   /** Default 1500. */
   removalDelayMs?: number;
+  /**
+   * The browser has a window on the screen, where a person uses it: the tab
+   * they last clicked or typed in is the active one (`#followWindow`), the
+   * browser shows the tabs that open and close as it sees fit, and a dialog is
+   * theirs to answer unless an AI assistant is at work. Without a window (the
+   * tests of the real browser) the remote brings the tabs forward itself and
+   * dismisses a dialog nobody can answer.
+   */
+  windowed?: boolean;
 }
 
 interface TabState {
@@ -814,77 +750,22 @@ interface PendingDialog {
   answered: Flag;
 }
 
-interface OpenMenu {
-  token: number;
-  tab: number;
-  element: PwElement;
-}
-
-interface Subscription {
-  listener: (event: RemoteEvent) => void;
-}
-
-/** A viewer's feed: only the newest picture is kept. */
-class PictureFeed implements Watcher {
-  readonly #isClosed: () => boolean;
-  readonly #onClose: () => void;
-  readonly #ready = new Flag();
-  #frame: Frame | null = null;
-  #released = false;
-
-  constructor(isClosed: () => boolean, onClose: () => void) {
-    this.#isClosed = isClosed;
-    this.#onClose = onClose;
-  }
-
-  /** A new picture, or (without one) a wake-up that makes `get` notice that the browser is gone. */
-  push(frame?: Frame): void {
-    if (frame !== undefined) this.#frame = frame;
-    this.#ready.set();
-  }
-
-  async get(): Promise<Frame> {
-    for (;;) {
-      const frame = this.#frame;
-      if (frame !== null) {
-        this.#frame = null;
-        return frame;
-      }
-      if (this.#isClosed()) throw new RemoteError('The browser has closed.');
-      // Whoever closes a feed does not wait for its next picture.
-      if (this.#released) throw new RemoteError('The picture feed is closed.');
-      this.#ready.clear();
-      await this.#ready.wait();
-    }
-  }
-
-  close(): void {
-    this.#released = true;
-    this.#ready.set();
-    this.#onClose();
-  }
-}
-
 export class PlaywrightRemote implements Remote {
   readonly #context: PwContext;
   readonly #startPage: string;
   readonly #onLayout: ((layout: TabLayout) => void) | undefined;
   readonly #saveDelay: number;
   readonly #removalDelay: number;
+  readonly #windowed: boolean;
+  /** Settles once the pages keep the time of their last input (`watchInput`); in a window only. */
+  readonly #watching: Promise<void>;
+  /** When the remote last chose the active tab itself (`Date.now()`, as the pages keep it). */
+  #chosenAt = 0;
   readonly #tabs = new Map<number, TabState>();
   #active: number | null = null;
   #nextTabId = 1;
-  readonly #subscriptions = new Set<Subscription>();
-  readonly #watchers = new Set<PictureFeed>();
-  #pictures: AbortController | null = null;
-  /** Something happened that the pictures should show soon. */
-  readonly #wake = new Flag();
-  #lastInput = Number.NEGATIVE_INFINITY;
-  #lastFrame: Frame | null = null;
   /** What each page's window has room for (see `#clipOf`). */
   readonly #rooms = new WeakMap<PwPage, Promise<Room>>();
-  /** How long the last picture took. */
-  #took = 0;
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
   #saveDue = 0;
   #saved: TabLayout | null = null;
@@ -892,15 +773,10 @@ export class PlaywrightRemote implements Remote {
   #frozen = false;
   #closed = false;
   #restoring = false;
-  #pollingTitles = false;
-  #refreshing = 0;
   /** Aborts when the remote closes: nothing started by it carries on. */
   readonly #closing = new AbortController();
   readonly #tasks = new Set<Promise<void>>();
   readonly #detachContext: () => void;
-  #menu: OpenMenu | null = null;
-  #nextMenuToken = 1;
-  #swallowMouseUp = false;
   readonly #dialogs = new Map<number, PendingDialog>();
   /** A dialog is waiting. */
   readonly #dialogEvent = new Flag();
@@ -916,6 +792,10 @@ export class PlaywrightRemote implements Remote {
     this.#onLayout = options.onLayout;
     this.#saveDelay = options.saveDelayMs ?? 500;
     this.#removalDelay = options.removalDelayMs ?? 1500;
+    this.#windowed = options.windowed ?? false;
+    this.#watching = this.#windowed
+      ? this.#watchInput(context)
+      : Promise.resolve();
     const onPage = (page: PwPage): void => {
       this.#guard('a new page', () => this.#tabOf(page));
     };
@@ -941,6 +821,8 @@ export class PlaywrightRemote implements Remote {
    * navigation of its own) does not get interrupted by one of them.
    */
   async restore(urls: readonly string[], active = 0): Promise<void> {
+    // Its pages are to keep the time of their last input from their first load.
+    await this.#watching;
     this.#restoring = true;
     const pages: PwPage[] = [];
     try {
@@ -970,12 +852,14 @@ export class PlaywrightRemote implements Remote {
       page = await this.#context.newPage();
     } catch (error) {
       if (!isPlaywrightError(error)) throw error;
-      throw new RemoteError(
-        `Could not open a tab: ${firstLine(error)}`,
-        'tab_not_opened',
-      );
+      throw new RemoteError(`Could not open a tab: ${firstLine(error)}`);
     }
     const tab = this.#tabOf(page);
+    if (this.#windowed) {
+      // The tab to work in, also in the window.
+      this.#choose(tab.id);
+      void this.#spawn(() => this.#focus(tab));
+    }
     const goingTo = url || this.#startPage;
     tab.goingTo = goingTo;
     void this.#spawn(() => this.#load(page, goingTo));
@@ -988,14 +872,21 @@ export class PlaywrightRemote implements Remote {
     );
   }
 
+  async followWindow(): Promise<void> {
+    await this.#followWindow();
+  }
+
+  /** The active tab forward in its window: in a window, the one the person last used. */
+  async toFront(): Promise<void> {
+    const tab = await this.#target();
+    await this.#toFront(tab);
+  }
+
   async activateTab(tab: number): Promise<void> {
     const target = this.#require(tab);
-    this.#active = target.id;
+    this.#choose(target.id);
     await this.#toFront(target);
-    this.#changed();
     this.#saveSoon(this.#saveDelay);
-    this.#lastFrame = null; // the next picture is of this tab, whatever the last one was
-    this.#poke();
   }
 
   async goto(
@@ -1003,9 +894,8 @@ export class PlaywrightRemote implements Remote {
     tab?: number | null,
     wait: Navigation = 'commit',
   ): Promise<void> {
-    const target = this.#require(tab);
+    const target = await this.#target(tab);
     target.goingTo = url;
-    this.#poke();
     try {
       await target.page.goto(url, {
         waitUntil: wait,
@@ -1018,7 +908,7 @@ export class PlaywrightRemote implements Remote {
   }
 
   async history(action: HistoryAction, tab?: number | null): Promise<void> {
-    const page = this.#require(tab).page;
+    const { page } = await this.#target(tab);
     // The browser reloads in the line of the mouse events: behind a stuck one
     // it would wait, and come as a surprise once that is let go of.
     if (action === 'reload') this.#refuseWhileStuck();
@@ -1111,11 +1001,13 @@ export class PlaywrightRemote implements Remote {
       page.off('dialog', onDialog);
     };
     if (!this.#restoring) {
-      // A new tab, a popup or a link that opens a tab comes to the front.
-      this.#active = tab.id;
-      void this.#spawn(() => this.#focus(tab));
+      // A new tab, a popup or a link that opens a tab comes to the front. A
+      // window has put it there itself (a link the person opened in the
+      // background stays behind, until their next click tells where they
+      // work: `#followWindow`).
+      this.#choose(tab.id);
+      if (!this.#windowed) void this.#spawn(() => this.#focus(tab));
     }
-    this.#changed();
     this.#saveSoon(this.#saveDelay);
     return tab;
   }
@@ -1137,10 +1029,64 @@ export class PlaywrightRemote implements Remote {
         tab === undefined || tab === null
           ? 'No tab is open.'
           : 'There is no such tab.',
-        'tab_gone',
       );
     }
     return found;
+  }
+
+  /**
+   * The tab, or the active one: in a window, the one the person last used
+   * (`#followWindow`).
+   */
+  async #target(tab?: number | null): Promise<TabState> {
+    if (tab === undefined || tab === null) await this.#followWindow();
+    return this.#require(tab);
+  }
+
+  #choose(tab: number): void {
+    this.#active = tab;
+    this.#chosenAt = Date.now();
+  }
+
+  async #watchInput(context: PwContext): Promise<void> {
+    try {
+      await withTimeout(context.addInitScript(watchInput), RESPONSE_TIMEOUT);
+    } catch (error) {
+      // Without it the active tab is the one the remote chose last.
+      console.warn('could not watch the input of the pages', error);
+    }
+  }
+
+  /**
+   * In a window, the active tab is the one the person works in: where a mouse
+   * button or a key was last pressed (`watchInput`), unless the remote chose
+   * another tab since (a tool switched to it or opened it). The browser shows
+   * every tab of a window to Playwright as visible and focused, and reports
+   * no switch of tabs: the last input is what tells. A page that does not
+   * answer within FREE_TIMEOUT (a dialog waits) is skipped.
+   */
+  async #followWindow(): Promise<void> {
+    if (!this.#windowed || this.#tabs.size === 0) return;
+    const tabs = [...this.#tabs.values()];
+    const times = await Promise.all(tabs.map((tab) => this.#inputAtOf(tab)));
+    let latest = this.#chosenAt;
+    tabs.forEach((tab, index) => {
+      const at = times[index] ?? 0;
+      if (at > latest) {
+        latest = at;
+        this.#active = tab.id;
+      }
+    });
+  }
+
+  async #inputAtOf(tab: TabState): Promise<number> {
+    try {
+      const at = await withTimeout(tab.page.evaluate(inputAt), FREE_TIMEOUT);
+      return typeof at === 'number' && Number.isFinite(at) ? at : 0;
+    } catch (error) {
+      if (error instanceof TimedOut || isPlaywrightError(error)) return 0;
+      throw error;
+    }
   }
 
   #activeTab(): TabState | null {
@@ -1154,37 +1100,29 @@ export class PlaywrightRemote implements Remote {
     tab.url = frame.url();
     tab.loading = true;
     tab.mouseAt = null; // a new page: where its mouse is is not known any more
-    this.#changed();
     this.#saveSoon(this.#saveDelay);
-    this.#poke();
   }
 
   #loaded(tab: TabState): void {
     tab.loading = false;
-    this.#changed();
-    this.#refreshTitlesSoon();
-    this.#poke();
   }
 
   #pageClosed(tab: TabState): void {
     if (!this.#tabs.delete(tab.id)) return;
     tab.detach(); // a page that is gone has nothing more to say, and is not kept alive by us
-    if (this.#menu !== null || this.#dialogs.size > 0) {
-      void this.#spawn(() => this.#dropPending(tab));
-    }
+    this.#dropPending(tab);
     if (tab.id === this.#active) {
-      // The one opened before it, else the first.
+      // The one opened before it, else the first. A window has already shown
+      // the tab the browser chose, which the person's next click there tells
+      // (`#followWindow`).
       const ids = [...this.#tabs.keys()];
       const before = ids.findLast((id) => id < tab.id);
       this.#active = before ?? ids[0] ?? null;
-      if (this.#active !== null) {
+      if (this.#active !== null && !this.#windowed) {
         const next = this.#active;
         void this.#spawn(() => this.#activateQuietly(next));
-      } else {
-        this.#lastFrame = null;
       }
     }
-    this.#changed();
     this.#saveSoon(this.#removalDelay);
   }
 
@@ -1199,8 +1137,6 @@ export class PlaywrightRemote implements Remote {
 
   async #focus(tab: TabState): Promise<void> {
     await this.#toFront(tab);
-    this.#lastFrame = null;
-    this.#poke();
   }
 
   /**
@@ -1226,37 +1162,6 @@ export class PlaywrightRemote implements Remote {
     );
   }
 
-  // -- what the browser reports ---------------------------------------------------
-
-  subscribe(listener: (event: RemoteEvent) => void): () => void {
-    const subscription: Subscription = { listener };
-    this.#subscriptions.add(subscription);
-    this.#startTitlePolling();
-    return () => {
-      this.#subscriptions.delete(subscription);
-      if (!this.#attended()) {
-        // Nobody to answer any more: pages are not kept waiting.
-        void this.#spawn(() => this.#dismissDialogs());
-      }
-    };
-  }
-
-  #emit(event: RemoteEvent): void {
-    for (const { listener } of Array.from(this.#subscriptions)) {
-      try {
-        listener(event);
-      } catch (error) {
-        console.error('a listener of the remote failed', error);
-      }
-    }
-  }
-
-  #changed(): void {
-    if (this.#subscriptions.size > 0) {
-      this.#emit({ type: 'tabs', tabs: this.tabs() });
-    }
-  }
-
   /** Runs a page's event handler: an error in it must not reach Playwright's event loop. */
   #guard(what: string, work: () => unknown): void {
     try {
@@ -1266,56 +1171,20 @@ export class PlaywrightRemote implements Remote {
     }
   }
 
-  #startTitlePolling(): void {
-    if (this.#pollingTitles) return;
-    this.#pollingTitles = true;
-    void this.#pollTitles()
-      .catch((error: unknown) => {
-        console.warn('could not poll the titles', error);
-      })
-      .finally(() => {
-        this.#pollingTitles = false;
-      });
-  }
-
-  async #pollTitles(): Promise<void> {
-    while (this.#subscriptions.size > 0 && !this.#closed) {
-      try {
-        await this.#refreshTitles();
-      } catch (error) {
-        // The titles are a nicety: whatever went wrong, try again.
-        console.warn('could not refresh the titles', error);
-      }
-      await sleep(TITLE_POLL, this.#closing.signal);
-    }
-  }
-
-  #refreshTitlesSoon(): void {
-    if (this.#subscriptions.size > 0 && this.#refreshing === 0) {
-      void this.#spawn(() => this.#refreshTitles());
-    }
-  }
-
   /**
-   * The tabs with up to date titles (nothing reports their change, so they are
-   * only polled while the session is watched).
+   * The tabs with up to date titles (nothing reports their change: they are
+   * asked for), and in a window the one the person last used as the active one.
    */
   async listTabs(): Promise<readonly Tab[]> {
+    await this.#followWindow();
     await this.#refreshTitles();
     return this.tabs();
   }
 
   async #refreshTitles(): Promise<void> {
-    this.#refreshing += 1;
-    let changes: boolean[];
-    try {
-      changes = await Promise.all(
-        [...this.#tabs.values()].map((tab) => this.#refreshTitle(tab)),
-      );
-    } finally {
-      this.#refreshing -= 1;
-    }
-    if (changes.some(Boolean)) this.#changed();
+    await Promise.all(
+      [...this.#tabs.values()].map((tab) => this.#refreshTitle(tab)),
+    );
   }
 
   /**
@@ -1407,118 +1276,7 @@ export class PlaywrightRemote implements Remote {
     return true;
   }
 
-  // -- the picture ----------------------------------------------------------------
-
-  watch(): Watcher {
-    const feed: PictureFeed = new PictureFeed(
-      () => this.#closed,
-      () => {
-        this.#watchers.delete(feed);
-        if (this.#watchers.size === 0) this.#stopPictures();
-      },
-    );
-    this.#watchers.add(feed);
-    if (this.#lastFrame !== null) feed.push(this.#lastFrame); // a still page sends nothing new: show the last picture at once
-    if (this.#pictures === null && !this.#closed) {
-      const controller = new AbortController();
-      this.#pictures = controller;
-      void this.#takePictures(controller.signal).catch((error: unknown) => {
-        console.error('the pictures stopped', error);
-      });
-    }
-    this.#poke(); // and a new one soon
-    return feed;
-  }
-
-  #stopPictures(): void {
-    this.#pictures?.abort();
-    this.#pictures = null;
-  }
-
-  /** The page is being used or something changed: pictures come as fast as they can for a while. */
-  #poke(): void {
-    this.#lastInput = now();
-    this.#wake.set();
-  }
-
-  /**
-   * Pictures of the active tab, for as long as someone watches.
-   *
-   * How often depends on what the page does: back to back while it is used (or
-   * changes all the time: a video, an animation, a page that loads), less and
-   * less often while it stays as it is. The pictures that are the same as the
-   * one before are not sent.
-   */
-  async #takePictures(signal: AbortSignal): Promise<void> {
-    let changedInARow = 0;
-    let stillInARow = 0;
-    while (!signal.aborted) {
-      let changed: boolean;
-      try {
-        changed = await this.#takePicture(signal);
-      } catch (error) {
-        // Whatever it was, the view must not stay without pictures for good.
-        if (!signal.aborted) console.error('could not take a picture', error);
-        await sleep(PICTURE_RETRY, signal);
-        continue;
-      }
-      if (signal.aborted) return;
-      if (changed) {
-        changedInARow += 1;
-        stillInARow = 0;
-      } else {
-        changedInARow = 0;
-        stillInARow += 1;
-      }
-      await this.#rest(
-        pictureDelay({
-          usedLately: now() - this.#lastInput < ACTIVE_FOR,
-          changedInARow,
-          stillInARow,
-          tookMs: this.#took,
-        }),
-        signal,
-      );
-    }
-  }
-
-  /** One picture of the active tab, sent to the watchers if it is new. Whether it was. */
-  async #takePicture(signal: AbortSignal): Promise<boolean> {
-    const tab = this.#activeTab();
-    if (tab === null || this.#dialogs.size > 0) {
-      // Nothing to show, or a page that waits for an answer cannot be drawn.
-      this.#took = NOTHING_TO_SHOOT;
-      return false;
-    }
-    const started = now();
-    const jpeg = await this.#shoot(tab.page, PICTURE_QUALITY);
-    this.#took = now() - started;
-    if (
-      signal.aborted ||
-      jpeg === null ||
-      tab.id !== this.#active ||
-      !this.#differs(tab, jpeg)
-    ) {
-      return false;
-    }
-    const size = jpegSize(jpeg) ?? (await this.#viewport(tab.page));
-    if (signal.aborted) return false;
-    const frame: Frame = { tab: tab.id, ...size, jpeg };
-    this.#lastFrame = frame;
-    for (const watcher of this.#watchers) watcher.push(frame);
-    return true;
-  }
-
-  #differs(tab: TabState, jpeg: Uint8Array): boolean {
-    const last = this.#lastFrame;
-    return last === null || last.tab !== tab.id || !sameBytes(last.jpeg, jpeg);
-  }
-
-  /** Pause, or less if something happens meanwhile. */
-  async #rest(ms: number, signal: AbortSignal): Promise<void> {
-    if (!this.#wake.isSet) await this.#wake.wait({ timeoutMs: ms, signal });
-    this.#wake.clear();
-  }
+  // -- the screenshot -------------------------------------------------------------
 
   /**
    * A JPEG of the page's viewport, cut to the room the page has where the
@@ -1598,29 +1356,9 @@ export class PlaywrightRemote implements Remote {
     return { clip: null, size: null, measured: false, at: now() };
   }
 
-  async #viewport(page: PwPage): Promise<{ width: number; height: number }> {
-    try {
-      const size = sizeSchema.safeParse(
-        await withTimeout(page.evaluate(viewportSize), RESPONSE_TIMEOUT),
-      );
-      if (size.success) {
-        return {
-          width: Math.trunc(size.data[0]),
-          height: Math.trunc(size.data[1]),
-        };
-      }
-    } catch (error) {
-      if (!isPlaywrightError(error) && !(error instanceof TimedOut))
-        throw error;
-    }
-    return this.#lastFrame === null
-      ? FALLBACK_VIEWPORT
-      : { width: this.#lastFrame.width, height: this.#lastFrame.height };
-  }
-
   async screenshot(tab?: number | null): Promise<Uint8Array> {
     const picture = await this.#shoot(
-      this.#require(tab).page,
+      (await this.#target(tab)).page,
       SCREENSHOT_QUALITY,
     );
     if (picture === null) {
@@ -1672,14 +1410,14 @@ export class PlaywrightRemote implements Remote {
       }
       this.#stuckInput.add(call);
       void this.#unstuckWhenDone(call);
-      throw new RemoteError(INPUT_STUCK, 'input_stuck');
+      throw new RemoteError(INPUT_STUCK);
     }
   }
 
   /** Input that would wait behind a stuck event is refused, with the reason. */
   #refuseWhileStuck(): void {
     if (this.#stuckInput.size > 0) {
-      throw new RemoteError(INPUT_STUCK, 'input_stuck');
+      throw new RemoteError(INPUT_STUCK);
     }
   }
 
@@ -1712,22 +1450,13 @@ export class PlaywrightRemote implements Remote {
     }
   }
 
-  /**
-   * Where a mouse event of the tab goes (see `pointerPlace`): in the size of
-   * its last picture, the one the viewer aims in, else in the size of the page
-   * as measured.
-   */
+  /** Where a mouse event of the tab goes (see `pointerPlace`): in the size of the page as measured. */
   async #place(
     tab: TabState,
     x: number,
     y: number,
   ): Promise<{ x: number; y: number }> {
-    const frame = this.#lastFrame;
-    const size =
-      frame?.tab === tab.id
-        ? { width: frame.width, height: frame.height }
-        : (await this.#roomOf(tab.page)).size;
-    return pointerPlace(x, y, size);
+    return pointerPlace(x, y, (await this.#roomOf(tab.page)).size);
   }
 
   /** Move the mouse there, unless it is there already (every call to the browser costs a few milliseconds). */
@@ -1743,46 +1472,9 @@ export class PlaywrightRemote implements Remote {
     }
   }
 
-  async mouse(
-    action: MouseAction,
-    x: number,
-    y: number,
-    options: { button?: MouseButton; clicks?: number } = {},
-  ): Promise<void> {
-    const tab = this.#require();
-    const button = options.button ?? 'left';
-    const clickCount = options.clicks ?? 1;
-    this.#poke();
-    try {
-      const at = await this.#place(tab, x, y);
-      if (action === 'move') {
-        await this.#moveTo(tab, at.x, at.y);
-      } else if (action === 'down') {
-        this.#swallowMouseUp = false; // a new press: the release of an earlier one will not come
-        if (button === 'left' && (await this.#opensMenu(tab, at.x, at.y))) {
-          this.#swallowMouseUp = true;
-          return;
-        }
-        await this.#moveTo(tab, at.x, at.y);
-        await this.#input(tab, () =>
-          tab.page.mouse.down({ button, clickCount }),
-        );
-      } else if (this.#swallowMouseUp) {
-        this.#swallowMouseUp = false;
-      } else {
-        await this.#moveTo(tab, at.x, at.y);
-        await this.#input(tab, () => tab.page.mouse.up({ button, clickCount }));
-      }
-    } catch (error) {
-      if (!isPlaywrightError(error)) throw error;
-      debug(`mouse input failed: ${firstLine(error)}`);
-    }
-    this.#poke();
-  }
-
-  async wheel(x: number, y: number, dx: number, dy: number): Promise<void> {
-    const tab = this.#require();
-    this.#poke();
+  /** A turn of the wheel at a place of the active tab's viewport. */
+  async #wheel(x: number, y: number, dx: number, dy: number): Promise<void> {
+    const tab = await this.#target();
     try {
       const at = await this.#place(tab, x, y);
       await this.#moveTo(tab, at.x, at.y);
@@ -1791,7 +1483,6 @@ export class PlaywrightRemote implements Remote {
       if (!isPlaywrightError(error)) throw error;
       debug(`wheel input failed: ${firstLine(error)}`);
     }
-    this.#poke();
   }
 
   async scroll(
@@ -1801,21 +1492,22 @@ export class PlaywrightRemote implements Remote {
     y?: number | null,
   ): Promise<void> {
     if (x === undefined || x === null || y === undefined || y === null) {
-      const page = this.#require().page;
+      const page = (await this.#target()).page;
       let size: [number, number];
       try {
         size = sizeSchema.parse(
           await withTimeout(page.evaluate(viewportSize), RESPONSE_TIMEOUT),
         );
       } catch (error) {
-        if (error instanceof TimedOut) throw new RemoteError(NOT_RESPONDING);
+        if (error instanceof TimedOut)
+          throw new PageNotRespondingError(NOT_RESPONDING);
         if (!isPlaywrightError(error)) throw error;
         throw new RemoteError(`Could not scroll: ${firstLine(error)}`);
       }
-      await this.wheel(size[0] / 2, size[1] / 2, dx, dy);
+      await this.#wheel(size[0] / 2, size[1] / 2, dx, dy);
       return;
     }
-    await this.wheel(x, y, dx, dy);
+    await this.#wheel(x, y, dx, dy);
   }
 
   async clickAt(
@@ -1823,9 +1515,8 @@ export class PlaywrightRemote implements Remote {
     y: number,
     options: { button?: MouseButton; count?: number } = {},
   ): Promise<void> {
-    const tab = this.#require();
+    const tab = await this.#target();
     const button = options.button ?? 'left';
-    this.#poke();
     try {
       const at = await this.#place(tab, x, y);
       const listed =
@@ -1850,12 +1541,10 @@ export class PlaywrightRemote implements Remote {
         `Could not click at ${x.toFixed(0)}, ${y.toFixed(0)}: ${firstLine(error)}`,
       );
     }
-    this.#poke();
   }
 
   async hover(x: number, y: number): Promise<void> {
-    const tab = this.#require();
-    this.#poke();
+    const tab = await this.#target();
     try {
       const at = await this.#place(tab, x, y);
       await this.#moveTo(tab, at.x, at.y);
@@ -1863,13 +1552,11 @@ export class PlaywrightRemote implements Remote {
       if (!isPlaywrightError(error)) throw error;
       throw new RemoteError(`Could not move the mouse: ${firstLine(error)}`);
     }
-    this.#poke();
   }
 
   async drag(x1: number, y1: number, x2: number, y2: number): Promise<void> {
-    const tab = this.#require();
+    const tab = await this.#target();
     const mouse = tab.page.mouse;
-    this.#poke();
     try {
       const from = await this.#place(tab, x1, y1);
       const to = await this.#place(tab, x2, y2);
@@ -1890,12 +1577,10 @@ export class PlaywrightRemote implements Remote {
       if (!isPlaywrightError(error)) throw error;
       throw new RemoteError(`Could not drag: ${firstLine(error)}`);
     }
-    this.#poke();
   }
 
   async key(action: KeyAction, key: string): Promise<void> {
-    const keyboard = this.#require().page.keyboard;
-    this.#poke();
+    const keyboard = (await this.#target()).page.keyboard;
     try {
       if (action === 'down') await keyboard.down(key);
       else if (action === 'up') await keyboard.up(key);
@@ -1907,26 +1592,40 @@ export class PlaywrightRemote implements Remote {
         // A character that is not on a US keyboard ("ü", "€") has no key code.
         await this.insertText(key);
       } else if (unknown && action !== 'press') {
-        // A key of the viewer's keyboard that has no counterpart ("Dead", "AltGraph").
+        // A key that has no counterpart here ("Dead", "AltGraph").
         debug(`no counterpart for the key ${key}`);
       } else {
-        throw new RemoteError(
-          `Could not press ${key}: ${firstLine(error)}`,
-          'key_failed',
-        );
+        throw new RemoteError(`Could not press ${key}: ${firstLine(error)}`);
       }
     }
   }
 
   async insertText(text: string): Promise<void> {
-    this.#poke();
+    const tab = await this.#target();
     await ignoringPageErrors('insert text', () =>
-      this.#require().page.keyboard.insertText(text),
+      tab.page.keyboard.insertText(text),
     );
   }
 
+  async takesText(): Promise<boolean> {
+    const tab = await this.#target();
+    try {
+      return (
+        (await withTimeout(tab.page.evaluate(focusTakesText), FREE_TIMEOUT)) ===
+        true
+      );
+    } catch (error) {
+      if (error instanceof TimedOut)
+        throw new PageNotRespondingError(NOT_RESPONDING);
+      if (!isPlaywrightError(error)) throw error;
+      // The page went while it was asked (a navigation): nothing has the focus.
+      debug(`ask what has the focus: ${firstLine(error)}`);
+      return false;
+    }
+  }
+
   async selectedText(): Promise<string> {
-    const tab = this.#require();
+    const tab = await this.#target();
     try {
       return z
         .string()
@@ -1939,19 +1638,7 @@ export class PlaywrightRemote implements Remote {
     }
   }
 
-  // -- lists and dialogs the browser draws itself -----------------------------------
-
-  /** A click on a <select>: report its options instead of clicking (the browser's own list is invisible). */
-  async #opensMenu(tab: TabState, x: number, y: number): Promise<boolean> {
-    try {
-      return await this.#openMenu(tab, x, y);
-    } catch (error) {
-      // Looking failed (the page is navigating): the click goes through.
-      if (!isPlaywrightError(error)) throw error;
-      debug(`could not look for a <select> at ${x}, ${y}: ${firstLine(error)}`);
-      return false;
-    }
-  }
+  // -- drop-down lists and dialogs ----------------------------------------------------
 
   async #selectAt(
     page: PwPage,
@@ -1981,54 +1668,13 @@ export class PlaywrightRemote implements Remote {
     return `options: ${labels.slice(0, LISTED_OPTIONS).join(', ')}${labels.length > LISTED_OPTIONS ? ', …' : ''}`;
   }
 
-  async #openMenu(tab: TabState, x: number, y: number): Promise<boolean> {
-    const element = await this.#selectAt(tab.page, x, y);
-    if (element === null) return false;
-    await this.#closeMenu();
-    let data: z.infer<typeof menuSchema>;
-    try {
-      data = menuSchema.parse(await element.evaluate(selectMenu));
-    } catch (error) {
-      await disposeAll([element]);
-      throw error;
-    }
-    const token = this.#nextMenuToken++;
-    this.#menu = { token, tab: tab.id, element };
-    this.#emit({ type: 'select', menu: { token, ...data } });
-    return true;
-  }
-
-  async pickOption(token: number, index: number | null): Promise<void> {
-    this.#poke();
-    const menu = this.#menu;
-    if (menu === null || menu.token !== token) return;
-    this.#menu = null;
-    try {
-      if (index !== null) {
-        await menu.element.selectOption({ index }, { timeout: PICK_TIMEOUT });
-      }
-    } catch (error) {
-      if (!isPlaywrightError(error)) throw error;
-      debug(`could not choose option ${index}: ${firstLine(error)}`);
-    } finally {
-      await disposeAll([menu.element]);
-    }
-  }
-
-  async #closeMenu(): Promise<void> {
-    const menu = this.#menu;
-    if (menu === null) return;
-    this.#menu = null;
-    await disposeAll([menu.element]);
-  }
-
   attend(ms: number): void {
     this.#attendedUntil = Math.max(this.#attendedUntil, now() + ms);
   }
 
-  /** Is there somebody to answer a dialog: a viewer, or an AI assistant that is at work in the session? */
+  /** Is an AI assistant at work in the session, who answers the dialogs of its pages? */
   #attended(): boolean {
-    return this.#subscriptions.size > 0 || now() < this.#attendedUntil;
+    return now() < this.#attendedUntil;
   }
 
   dialogs(): readonly PageDialog[] {
@@ -2050,13 +1696,17 @@ export class PlaywrightRemote implements Remote {
   }
 
   /**
-   * alert, confirm, prompt: they are shown to somebody who can answer, and the
-   * page waits for the answer. Without one (or if nobody answers in time) the
-   * dialog is dismissed, as Playwright does by default.
+   * alert, confirm, prompt: the page waits for the answer. In a window the
+   * browser shows the dialog, and the person answers it there; while an AI
+   * assistant is at work it can answer it too (`answerDialog`), and a dialog it
+   * leaves for DIALOG_TIMEOUT is left to the person. Without a window and
+   * without an assistant nobody can answer, and the dialog is dismissed, as
+   * Playwright does by default; so is one nobody answers in time.
    */
   async #dialogOpened(tab: TabState, dialog: PwDialog): Promise<void> {
     if (!this.#attended()) {
-      await answer(dialog, { accept: false });
+      // Left alone, the dialog waits in the window for the person.
+      if (!this.#windowed) await answer(dialog, { accept: false });
       return;
     }
     const id = this.#nextDialogId++;
@@ -2070,14 +1720,22 @@ export class PlaywrightRemote implements Remote {
     const answered = new Flag();
     this.#dialogs.set(id, { dialog, info, answered });
     this.#dialogEvent.set();
-    this.#emit({ type: 'dialog', dialog: info });
     const inTime = await answered.wait({
       timeoutMs: DIALOG_TIMEOUT,
       signal: this.#closing.signal,
     });
     if (!inTime && !this.#closed) {
-      await this.#finishDialog(id, { accept: false, text: null });
+      if (this.#windowed) this.#forgetDialog(id);
+      else await this.#finishDialog(id, { accept: false, text: null });
     }
+  }
+
+  /** A dialog left to the person in the window: the assistant is not told of it any more. */
+  #forgetDialog(id: number): void {
+    const pending = this.#dialogs.get(id);
+    if (pending === undefined) return;
+    this.#dialogs.delete(id);
+    pending.answered.set();
   }
 
   async answerDialog(
@@ -2091,38 +1749,26 @@ export class PlaywrightRemote implements Remote {
     id: number,
     options: { accept: boolean; text?: string | null },
   ): Promise<void> {
-    this.#poke();
     const pending = this.#dialogs.get(id);
     if (pending === undefined) return;
     this.#dialogs.delete(id);
-    this.#emit({ type: 'dialog_closed', id });
     pending.answered.set();
     await answer(pending.dialog, options);
-    this.#poke();
   }
 
-  async #dismissDialogs(): Promise<void> {
-    for (const id of Array.from(this.#dialogs.keys())) {
-      await this.#finishDialog(id, { accept: false, text: null });
-    }
-    await this.#closeMenu();
-  }
-
-  /** A closed tab's dialogs and list are gone with it. */
-  async #dropPending(tab: TabState): Promise<void> {
+  /** A closed tab's dialogs are gone with it. */
+  #dropPending(tab: TabState): void {
     for (const [id, pending] of Array.from(this.#dialogs)) {
       if (pending.info.tab !== tab.id) continue;
       this.#dialogs.delete(id);
       pending.answered.set();
-      this.#emit({ type: 'dialog_closed', id });
     }
-    if (this.#menu?.tab === tab.id) await this.#closeMenu();
   }
 
   // -- for AI assistants ------------------------------------------------------------
 
   async readPage(tab?: number | null): Promise<PageReading> {
-    const target = this.#require(tab);
+    const target = await this.#target(tab);
     let read: ReadResult | undefined;
     for (let attempt = 1; read === undefined; attempt++) {
       const reading = this.#read(target);
@@ -2136,7 +1782,7 @@ export class PlaywrightRemote implements Remote {
             .catch((lateError: unknown) => {
               debug(`a late reading failed: ${firstLine(lateError)}`);
             });
-          throw new RemoteError(NOT_RESPONDING);
+          throw new PageNotRespondingError(NOT_RESPONDING);
         }
         if (!isPlaywrightError(error)) throw error;
         if (
@@ -2225,7 +1871,6 @@ export class PlaywrightRemote implements Remote {
   }
 
   async clickElement(ref: number): Promise<void> {
-    this.#poke();
     // The click is mouse events too, which would wait behind a stuck one.
     this.#refuseWhileStuck();
     const tab = this.#activeTab();
@@ -2246,7 +1891,6 @@ export class PlaywrightRemote implements Remote {
     options: { submit?: boolean } = {},
   ): Promise<void> {
     const element = this.#element(ref);
-    this.#poke();
     try {
       if ((await element.evaluate(tagName)) === 'SELECT') {
         await element.selectOption(
@@ -2273,10 +1917,6 @@ export class PlaywrightRemote implements Remote {
     if (this.#closed) return;
     this.#closed = true;
     this.#cancelSave();
-    this.#emit({ type: 'closed' });
-    this.#subscriptions.clear();
-    for (const watcher of this.#watchers) watcher.push();
-    this.#stopPictures();
     this.#closing.abort();
     // Nothing of ours listens to the pages any more: a page that is gone or a
     // dialog that opens now is the browser's business.

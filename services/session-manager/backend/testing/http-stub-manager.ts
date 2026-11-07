@@ -37,6 +37,8 @@ export function strictManager(overrides: Partial<Manager> = {}): Manager {
     session: unexpected('session'),
     exportProxies: unexpected('exportProxies'),
     remote: unexpected('remote'),
+    showSession: unexpected('showSession'),
+    typeIntoSession: unexpected('typeIntoSession'),
     createSession: unexpected('createSession'),
     renameSession: unexpected('renameSession'),
     startSession: unexpected('startSession'),

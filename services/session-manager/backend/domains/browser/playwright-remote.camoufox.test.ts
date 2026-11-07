@@ -2,8 +2,8 @@
 // the pages of `testing/test-pages.ts`. Opt in with `bun run test:camoufox`.
 // What a fake page cannot show is checked here: that the browser does what
 // the remote expects (characters off the US keyboard, lists and dialogs it
-// draws itself, a page that blocks while a dialog waits, pictures of a page
-// that scrolls).
+// draws itself, a page that blocks while a dialog waits). The remote runs as
+// it does without a window (`windowed` off): it picks the tab in front.
 //
 // The browser is started once for the whole file. Every test gets a new
 // remote on a context with one blank tab.
@@ -31,7 +31,7 @@ import { runProbe, SLOW_MS, startTestPages } from '../../testing/test-pages.ts';
 import type { TestPages } from '../../testing/test-pages.ts';
 import { PlaywrightRemote } from './playwright-remote.ts';
 import { RemoteError } from './remote.ts';
-import type { PageDialog, RemoteEvent } from './remote.ts';
+import type { PageDialog } from './remote.ts';
 
 // `launchOptions` of camoufox-js reads this when it is imported.
 process.env.CAMOUFOX_INSTALL_DIR ??= fileURLToPath(
@@ -120,13 +120,6 @@ async function open(path: string, tab?: number): Promise<Page> {
   return current();
 }
 
-/** A click the way a viewer makes it: events, not a call that waits for the page. */
-async function click(x: number, y: number): Promise<void> {
-  await remote.mouse('move', x, y);
-  await remote.mouse('down', x, y);
-  await remote.mouse('up', x, y);
-}
-
 const tabUrls = (): string[] => remote.tabs().map((tab) => tab.url);
 
 /**
@@ -150,62 +143,29 @@ function clickInBackground(
   return { done: () => done, failure: () => failure, finished };
 }
 
-function listen(): { events: RemoteEvent[]; stop: () => void } {
-  const events: RemoteEvent[] = [];
-  const stop = remote.subscribe((event) => {
-    events.push(event);
-  });
-  return { events, stop };
-}
-
-function selectEvents(events: readonly RemoteEvent[]) {
-  return events.flatMap((event) => (event.type === 'select' ? [event] : []));
-}
-
-function dialogEvents(events: readonly RemoteEvent[]) {
-  return events.flatMap((event) => (event.type === 'dialog' ? [event] : []));
-}
-
 const poll = { timeout: 20_000, interval: 50 };
 
 // -- seeing and using a page ------------------------------------------------------
 
 describe('a page seen through the remote', () => {
-  it('is a JPEG of the viewport, in the space the mouse works in', async () => {
-    const page = await open('/form.html');
-    const watcher = remote.watch();
-    const frame = await watcher.get();
-    watcher.close();
-    expect(Array.from(frame.jpeg.subarray(0, 2))).toEqual([0xff, 0xd8]);
-    expect(frame.width).toBeGreaterThan(400);
-    expect(frame.height).toBeGreaterThan(300);
-    // The room the page has: a window that is pinned to the size of a
-    // fingerprint may give it less than the `innerHeight` it reports (a
-    // headless window on macOS keeps the room of a toolbar it does not draw).
-    expect(
-      await page.evaluate(() => [
-        innerWidth,
-        Math.floor(
-          Math.min(innerHeight, visualViewport?.height ?? innerHeight),
-        ),
-      ]),
-    ).toEqual([frame.width, frame.height]);
-    expect(frame.tab).toBe(1);
-    expect((await remote.screenshot()).length).toBeGreaterThan(1000);
-  });
-
-  it('shows the tab that is in front', async () => {
+  it('is a JPEG of the viewport', async () => {
     await open('/form.html');
-    const watcher = remote.watch();
-    expect((await watcher.get()).tab).toBe(1);
-    await remote.openTab(site('/long.html'));
-    await expect.poll(async () => (await watcher.get()).tab, poll).toBe(2);
-    await remote.activateTab(1);
-    await expect.poll(async () => (await watcher.get()).tab, poll).toBe(1);
-    watcher.close();
+    const shot = await remote.screenshot();
+    expect(Array.from(shot.subarray(0, 2))).toEqual([0xff, 0xd8]);
+    expect(shot.length).toBeGreaterThan(1000);
   });
 
-  it('leaves no mark in the page when it is watched and read', async () => {
+  it('shows the tab that is in front, or the one asked for', async () => {
+    await open('/form.html');
+    const form = Buffer.from(await remote.screenshot());
+    await remote.openTab(site('/long.html'));
+    await expect.poll(() => tabUrls()[1], poll).toBe(site('/long.html'));
+    await context.pages()[1]?.waitForLoadState('load');
+    expect(Buffer.from(await remote.screenshot()).equals(form)).toBe(false);
+    expect(Buffer.from(await remote.screenshot(1)).equals(form)).toBe(true);
+  });
+
+  it('leaves no mark in the page when it is read', async () => {
     const page = await open('/read.html');
     await page.evaluate(() => {
       const records: string[] = [];
@@ -221,13 +181,10 @@ describe('a page seen through the remote', () => {
         characterData: true,
       });
     });
-    const watcher = remote.watch();
-    await watcher.get();
     await remote.readPage();
     await remote.screenshot();
     await remote.selectedText();
     await sleep(1500);
-    watcher.close();
     expect(
       await page.evaluate(() => Reflect.get(globalThis, '__records')),
     ).toEqual([]);
@@ -237,7 +194,7 @@ describe('a page seen through the remote', () => {
 describe('the keyboard', () => {
   it('types US keys, other characters as text, editing keys and pasted text', async () => {
     const page = await open('/form.html');
-    await click(...(await center(page, '#name')));
+    await remote.clickAt(...(await center(page, '#name')));
     for (const key of ['A', 'b', 'ü', '€', 'Backspace']) {
       await remote.key('down', key);
       await remote.key('up', key);
@@ -260,7 +217,7 @@ describe('the keyboard', () => {
 
   it('types characters of any script, emoji too', async () => {
     const page = await open('/form.html');
-    await click(...(await center(page, '#name')));
+    await remote.clickAt(...(await center(page, '#name')));
     for (const character of ['日', 'ß', '👍', 'é']) {
       await remote.key('down', character);
       await remote.key('up', character);
@@ -270,7 +227,7 @@ describe('the keyboard', () => {
 
   it('holds keys down: shift for a capital, and select all', async () => {
     const page = await open('/form.html');
-    await click(...(await center(page, '#name')));
+    await remote.clickAt(...(await center(page, '#name')));
     // The viewer's keyboard says "A" with shift held, and "b" without it.
     await remote.key('down', 'Shift');
     await remote.key('down', 'A');
@@ -296,9 +253,9 @@ describe('the keyboard', () => {
 describe('the mouse', () => {
   it('clicks, as events', async () => {
     const page = await open('/form.html');
-    await click(...(await center(page, '#go')));
+    await remote.clickAt(...(await center(page, '#go')));
     expect(await page.textContent('#log')).toBe('clicked;');
-    await click(...(await center(page, '#go')));
+    await remote.clickAt(...(await center(page, '#go')));
     expect(await page.textContent('#log')).toBe('clicked;clicked;');
   });
 
@@ -351,7 +308,7 @@ describe('the mouse', () => {
 
   it('scrolls the page by the wheel, at a place or in the middle', async () => {
     const page = await open('/long.html');
-    await remote.wheel(400, 300, 0, 100);
+    await remote.scroll(0, 100, 400, 300);
     await expect.poll(() => page.evaluate(() => scrollY), poll).toBe(100);
     await remote.scroll(0, 200);
     await expect.poll(() => page.evaluate(() => scrollY), poll).toBe(300);
@@ -361,74 +318,14 @@ describe('the mouse', () => {
 });
 
 describe('drop-down lists', () => {
-  it('are reported to the viewer instead of clicked, and the choice is passed back', async () => {
-    const page = await open('/form.html');
-    const { events, stop } = listen();
-    await click(...(await center(page, '#country')));
-    const [opened] = selectEvents(events);
-    expect(selectEvents(events)).toHaveLength(1);
-    expect(
-      opened?.menu.options.map((o) => [
-        o.label,
-        o.selected,
-        o.disabled,
-        o.group,
-      ]),
-    ).toEqual([
-      ['Switzerland', true, false, null],
-      ['Germany', false, false, null],
-      ['France', false, false, null],
-    ]);
-    const box = await page.locator('#country').boundingBox();
-    // the rectangle of the <select> in the viewport, to a hundredth of a pixel
-    expect(opened?.menu.x).toBeCloseTo(box?.x ?? Number.NaN, 2);
-    expect(opened?.menu.y).toBeCloseTo(box?.y ?? Number.NaN, 2);
-    expect(opened?.menu.width).toBeCloseTo(box?.width ?? Number.NaN, 2);
-    expect(opened?.menu.height).toBeCloseTo(box?.height ?? Number.NaN, 2);
-    await remote.pickOption(opened?.menu.token ?? -1, 2);
-    expect(await page.inputValue('#country')).toBe('fr');
-    expect(await page.textContent('#log')).toContain('country=fr');
-    stop();
-  });
-
-  it('can be dismissed without a choice', async () => {
-    const page = await open('/form.html');
-    const { events, stop } = listen();
-    await click(...(await center(page, '#country')));
-    await remote.pickOption(selectEvents(events)[0]?.menu.token ?? -1, null);
-    expect(await page.inputValue('#country')).toBe('ch');
-    stop();
-  });
-
-  it('are described with their groups and disabled options', async () => {
-    const page = await open('/lists.html');
-    const { events, stop } = listen();
-    await click(...(await center(page, '#single')));
-    expect(
-      selectEvents(events)[0]?.menu.options.map((o) => [
-        o.label,
-        o.disabled,
-        o.group,
-      ]),
-    ).toEqual([
-      ['Alpha', false, null],
-      ['Beta', false, 'Group'],
-      ['Gamma', true, 'Group'],
-    ]);
-    stop();
-  });
-
   it('are left to the page when it draws them itself: several choices, a box, a list that is off', async () => {
     const page = await open('/lists.html');
-    const { events, stop } = listen();
     for (const selector of ['#multiple', '#box', '#off']) {
-      await click(...(await center(page, selector)));
+      await remote.clickAt(...(await center(page, selector)));
     }
-    expect(selectEvents(events)).toEqual([]);
     await remote.clickAt(...(await center(page, '#box')));
     await remote.clickAt(...(await center(page, '#multiple')));
     expect(await page.inputValue('#box')).not.toBe('');
-    stop();
   });
 
   it('cannot be clicked open by an assistant, which is told what to do', async () => {
@@ -445,30 +342,27 @@ describe('drop-down lists', () => {
 });
 
 describe('dialogs', () => {
-  it('wait for the viewer’s answer', async () => {
+  it('wait for the answer of an assistant at work', async () => {
     const page = await open('/form.html');
-    const { events, stop } = listen();
+    remote.attend(60_000);
     const [x, y] = await center(page, '#ask');
     // The release of the button is what opens the dialog, and it does not
     // return before the dialog is answered.
     const clicking = clickInBackground(x, y);
-    await expect.poll(() => dialogEvents(events).length, poll).toBe(1);
-    const [opened] = dialogEvents(events);
-    expect(opened?.dialog).toMatchObject({
+    const opened = await remote.waitForDialog(10_000);
+    expect(opened).toMatchObject({
       tab: 1,
       kind: 'confirm',
       message: 'Sure?',
     });
     expect(clicking.done()).toBe(false);
     expect(remote.dialogs()).toHaveLength(1);
-    await remote.answerDialog(opened?.dialog.id ?? -1, { accept: true });
+    await remote.answerDialog(opened?.id ?? -1, { accept: true });
     await clicking.finished;
     await expect
       .poll(() => page.textContent('#log'), poll)
       .toContain('confirm=true');
     expect(remote.dialogs()).toEqual([]);
-    expect(events.at(-1)).toMatchObject({ type: 'dialog_closed' });
-    stop();
   });
 
   it('are dismissed when nobody is there to answer: the page is not kept waiting', async () => {
@@ -524,139 +418,21 @@ describe('dialogs', () => {
     );
   });
 
-  it('are dismissed when the last viewer leaves', async () => {
-    const page = await open('/dialogs.html');
-    const { events, stop } = listen();
-    const clicking = clickInBackground(...(await center(page, '#confirm')));
-    await expect.poll(() => dialogEvents(events).length, poll).toBe(1);
-    stop();
-    await clicking.finished;
-    await expect
-      .poll(() => page.textContent('#log'), poll)
-      .toContain('confirm=false');
-    expect(remote.dialogs()).toEqual([]);
-  });
-
   it('are given up after a tab closes', async () => {
     const page = await open('/dialogs.html');
-    const { events, stop } = listen();
+    remote.attend(60_000);
     await remote.openTab(site('/dialogs.html'));
     await expect.poll(() => tabUrls().length, poll).toBe(2);
     const second = context.pages()[1];
     if (second === undefined) throw new Error('no second page');
     await second.waitForLoadState('load');
     const clicking = clickInBackground(...(await center(second, '#alert')));
-    await expect.poll(() => dialogEvents(events).length, poll).toBe(1);
+    expect(await remote.waitForDialog(10_000)).toMatchObject({ tab: 2 });
     await remote.closeTab(2);
     await expect.poll(() => remote.dialogs(), poll).toEqual([]);
-    expect(events.some((event) => event.type === 'dialog_closed')).toBe(true);
     await clicking.finished; // the click of a page that is gone fails
     expect(clicking.failure()).toBeInstanceOf(RemoteError);
     expect(page.url()).toContain('/dialogs.html');
-    stop();
-  });
-});
-
-describe('pictures', () => {
-  it('show every step of a scroll at once, and cost almost nothing while the page is still', async () => {
-    const page = await open('/long.html');
-    const shots: number[] = [];
-    const takeShot = page.screenshot.bind(page);
-    page.screenshot = async (options) => {
-      shots.push(performance.now());
-      return await takeShot(options);
-    };
-    const frames: { at: number; jpeg: Buffer }[] = [];
-    const watcher = remote.watch();
-    const collecting = (async () => {
-      try {
-        for (;;) {
-          const frame = await watcher.get();
-          frames.push({ at: performance.now(), jpeg: Buffer.from(frame.jpeg) });
-        }
-      } catch (error) {
-        if (!(error instanceof RemoteError)) throw error;
-      }
-    })();
-
-    await sleep(3000);
-    expect(frames.length).toBeLessThanOrEqual(5); // pictures of a page that does not change
-    // it shoots every 0.8 s once nothing has happened for a second
-    const first = shots[0] ?? 0;
-    const quiet = shots.filter((at) => at > first + 1500);
-    expect(quiet.length).toBeLessThanOrEqual(4);
-
-    const started = performance.now();
-    for (let step = 0; step < 90; step++) {
-      // a wheel turning 60 times a second
-      await remote.wheel(400, 300, 0, 40);
-      await sleep(1000 / 60);
-    }
-    const scrolling = performance.now() - started;
-    await sleep(1000);
-    expect(await page.evaluate(() => scrollY)).toBe(3600); // all of it arrived
-
-    const during = frames.filter(
-      (frame) => frame.at >= started && frame.at <= started + scrolling,
-    );
-    expect(during.length / (scrolling / 1000)).toBeGreaterThanOrEqual(10);
-    // each shows something new
-    expect(
-      new Set(during.map((frame) => frame.jpeg.toString('base64'))).size,
-    ).toBe(during.length);
-    const last = frames.at(-1);
-    expect(last).toBeDefined();
-    // the end of the scroll was shown at once ...
-    expect((last?.at ?? 0) - (started + scrolling)).toBeLessThan(1500);
-    // ... and the last picture is what the page shows now, cut as the remote
-    // cuts it to the room the page has.
-    page.screenshot = takeShot;
-    const [width, reported, usable] = await page.evaluate(() => [
-      innerWidth,
-      innerHeight,
-      visualViewport?.height ?? innerHeight,
-    ]);
-    const height = Math.floor(Math.min(reported, usable));
-    const now = await page.screenshot({
-      type: 'jpeg',
-      quality: 70,
-      scale: 'css',
-      caret: 'initial',
-      animations: 'allow',
-      ...(height < Math.floor(reported)
-        ? { clip: { x: 0, y: 0, width: Math.floor(width), height } }
-        : {}),
-    });
-    expect(last?.jpeg.equals(now)).toBe(true);
-    watcher.close();
-    await collecting;
-  });
-
-  it('stop when nobody watches', async () => {
-    const page = await open('/form.html');
-    let count = 0;
-    const takeShot = page.screenshot.bind(page);
-    page.screenshot = async (options) => {
-      count += 1;
-      return await takeShot(options);
-    };
-    const watcher = remote.watch();
-    await watcher.get();
-    watcher.close();
-    await sleep(300);
-    const stopped = count;
-    await sleep(2500);
-    expect(count).toBe(stopped);
-    page.screenshot = takeShot;
-  });
-
-  it('end with an error when the browser is gone', async () => {
-    await open('/form.html');
-    const watcher = remote.watch();
-    await watcher.get();
-    const waiting = watcher.get();
-    await remote.aclose();
-    await expect(waiting).rejects.toThrow(RemoteError);
   });
 });
 
@@ -773,7 +549,7 @@ describe('reading a page', () => {
 describe('text that is selected', () => {
   it('is what a field has selected', async () => {
     const page = await open('/form.html');
-    await click(...(await center(page, '#name')));
+    await remote.clickAt(...(await center(page, '#name')));
     await remote.insertText('hello world');
     await remote.key('press', 'ControlOrMeta+a');
     expect(await remote.selectedText()).toBe('hello world');
@@ -859,7 +635,7 @@ describe('tabs', () => {
     await expect.poll(() => tabUrls()[2], poll).toBe(site('/form.html'));
   });
 
-  it('have the titles of their pages on request, and while somebody watches', async () => {
+  it('have the titles of their pages on request', async () => {
     await open('/form.html');
     await remote.openTab(site('/long.html'));
     await expect.poll(() => tabUrls().length, poll).toBe(2);
@@ -867,19 +643,10 @@ describe('tabs', () => {
     await expect
       .poll(async () => (await remote.listTabs()).map((tab) => tab.title), poll)
       .toEqual(['form', 'long']);
-
-    const { events, stop } = listen();
     await remote.goto(site('/storage.html'), 1, 'load');
     await expect
-      .poll(
-        () =>
-          events.flatMap((event) =>
-            event.type === 'tabs' ? [event.tabs[0]?.title] : [],
-          ),
-        poll,
-      )
-      .toContain('storage');
-    stop();
+      .poll(async () => (await remote.listTabs())[0]?.title, poll)
+      .toBe('storage');
   });
 
   it('are told to onLayout, and a closing browser does not make them forgotten', async () => {
@@ -917,10 +684,8 @@ describe('restoring tabs', () => {
       false,
     ]);
     await expect.poll(() => layouts.at(-1), poll).toEqual({ urls, active: 1 });
-    // what is in front is what is seen
-    const watcher = remote.watch();
-    expect((await watcher.get()).tab).toBe(2);
-    watcher.close();
+    // what is in front is what the assistant works in
+    expect((await remote.readPage()).url).toBe(site('/form.html'));
     await expect
       .poll(async () => (await remote.listTabs()).map((tab) => tab.title), poll)
       .toEqual(['storage', 'form', 'long']);

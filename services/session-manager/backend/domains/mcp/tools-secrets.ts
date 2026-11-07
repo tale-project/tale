@@ -14,14 +14,7 @@ import { casefold } from '../../lib/casefold.ts';
 import { act, typeInto } from './acting.ts';
 import { elementNumber, pressEnter, sessionRef } from './args.ts';
 import { remoteOf, sessionIdOf } from './lookup.ts';
-import {
-  DESTRUCTIVE,
-  LIVE_VIEW,
-  READ_ONLY,
-  ToolError,
-  defineTool,
-  json,
-} from './tool.ts';
+import { DESTRUCTIVE, READ_ONLY, ToolError, defineTool, json } from './tool.ts';
 import { paced } from './waiting.ts';
 
 const secretId = z.int().describe('The id of the secret (see list_secrets).');
@@ -111,7 +104,7 @@ const typeSecret = defineTool({
       .describe('Which of several values with that label (1 is the first).'),
     submit: pressEnter,
   }),
-  routes: [LIVE_VIEW],
+  routes: ['POST /sessions/:id/type'],
   async run(
     { session, secret_id, field, element, occurrence, submit },
     context,

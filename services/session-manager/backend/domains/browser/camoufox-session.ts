@@ -12,6 +12,7 @@ import { execFile } from 'node:child_process';
 import { describeError } from '../../lib/error-text.ts';
 import type { BrowserHandle } from './backend.ts';
 import type { Remote } from './remote.ts';
+import { activateWindow } from './window.ts';
 
 /** How long a session without pages waits before it ends. */
 export const NO_PAGES_GRACE_MS = 1500;
@@ -46,6 +47,12 @@ export interface RemoteLifecycle extends Remote {
   restore(urls: readonly string[], active?: number): Promise<void>;
   /** The user closed the last tab: the next start opens the start page. */
   forgetLayout(): void;
+  /**
+   * In a window, the tab the person last used becomes the active one (the
+   * remote asks the pages only when it needs to know), before the tabs are
+   * saved.
+   */
+  followWindow(): Promise<void>;
   /** No more changes to the layout: reported now (`flush`) or left as last reported. */
   freeze(options: { flush: boolean }): void;
   /** The browser is closing or gone: stop everything that touches it. */
@@ -60,6 +67,8 @@ export interface SessionOptions {
   listProcesses?: () => Promise<string>;
   /** Default: SIGKILL through `process.kill`. */
   kill?: (pid: number) => void;
+  /** Brings the windows of a process to the front; default `activateWindow`. */
+  activate?: (pid: number) => Promise<boolean>;
 }
 
 function escapeRegExp(text: string): string {
@@ -68,8 +77,7 @@ function escapeRegExp(text: string): string {
 
 /**
  * The process listing, `ps -axo pid=,command=` (`ww`: whole command lines,
- * whatever the width of the terminal). Needs `ps` on the host: a slim
- * container image has it in procps.
+ * whatever the width of the terminal).
  */
 export function listProcesses(): Promise<string> {
   return new Promise<string>((resolve) => {
@@ -150,6 +158,7 @@ export class CamoufoxSession implements BrowserHandle {
   readonly #graceMs: number;
   readonly #listProcesses: () => Promise<string>;
   readonly #kill: (pid: number) => void;
+  readonly #activate: (pid: number) => Promise<boolean>;
   readonly #timers = new Set<ReturnType<typeof setTimeout>>();
   readonly #ended = Promise.withResolvers<void>();
   readonly #contextClosed = Promise.withResolvers<void>();
@@ -169,6 +178,7 @@ export class CamoufoxSession implements BrowserHandle {
     this.#graceMs = options.noPagesGraceMs ?? NO_PAGES_GRACE_MS;
     this.#listProcesses = options.listProcesses ?? listProcesses;
     this.#kill = options.kill ?? killProcess;
+    this.#activate = options.activate ?? activateWindow;
     context.on('close', this.#onContextClosed);
     context.on('page', this.#watchPage);
     for (const page of context.pages()) this.#watchPage(page);
@@ -193,6 +203,17 @@ export class CamoufoxSession implements BrowserHandle {
   #windUpRemote(flush: boolean): Promise<void> {
     this.#remoteClosing ??= (async () => {
       // Whatever fails, the remote has to stop and the browser to close.
+      if (flush) {
+        // The next start shows the tab the person was at.
+        try {
+          await this.remote.followWindow();
+        } catch (error) {
+          console.error(
+            `could not tell which tab of ${this.#profileDir} is in front`,
+            error,
+          );
+        }
+      }
       try {
         this.remote.freeze({ flush });
       } catch (error) {
@@ -240,6 +261,17 @@ export class CamoufoxSession implements BrowserHandle {
 
   waitClosed(): Promise<void> {
     return this.#ended.promise;
+  }
+
+  /**
+   * The open tab forward in its window (the browser's own way), then the
+   * window above whatever is in front of it (the system's: the browser cannot
+   * raise itself above another app).
+   */
+  async show(): Promise<void> {
+    await this.remote.toFront();
+    const pid = await findBrowserPid(this.#profileDir, this.#listProcesses);
+    if (pid !== null) await this.#activate(pid);
   }
 
   /** Resolves when the browser process is gone (`waitClosed` may be earlier). */
