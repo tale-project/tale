@@ -239,6 +239,7 @@ class SessionManager implements Manager {
       browserVersion: this.#backend.browserVersion,
       browserInstalled: installed,
       browserInstalling: install.installing,
+      browserInstallProgress: install.installing ? install.progress : null,
       browserInstallError: installed ? null : install.error,
       osOptions: [...OS_CHOICES],
       secretKinds: KINDS.map((kind) => ({

@@ -11,6 +11,7 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 
+import type { InstallProgress } from '../../../lib/api/schemas.ts';
 import { isRecord } from '../../../lib/is-record.ts';
 import { errorText } from '../../lib/error-text.ts';
 
@@ -120,6 +121,35 @@ export interface FetchOptions {
   installed?: () => boolean;
   /** Kills the command and rejects with the signal's reason. */
   signal?: AbortSignal;
+  /** Told how far the install has come, each time that changes. */
+  onProgress?: (progress: InstallProgress) => void;
+}
+
+/** How much of the output's end is read for the progress: its last few lines. */
+const PROGRESS_TAIL_CHARS = 2048;
+/**
+ * A line of the download's progress bar (cli-progress without a terminal, as
+ * camoufox-js draws it): `Downloading Camoufox... [███░░░] 45% | ETA: 30s |
+ * 280 MB/624 MB`.
+ */
+const PROGRESS_LINE = /Downloading Camoufox\.\.\.[^\n\r]*?(\d{1,3})%/gu;
+
+/**
+ * How far the install has come by what `camoufox-js fetch` printed: the
+ * percentage of the last line of the download's bar, and once that reached
+ * 100, the archive being checked and unpacked (which prints nothing until it
+ * is done). Before the first line: downloading, without a percentage yet.
+ */
+export function progressOf(output: string): InstallProgress {
+  let percent: number | null = null;
+  for (const match of output
+    .slice(-PROGRESS_TAIL_CHARS)
+    .matchAll(PROGRESS_LINE)) {
+    percent = Math.min(Number(match[1]), 100);
+  }
+  return percent === 100
+    ? { phase: 'unpacking', percent }
+    : { phase: 'downloading', percent };
 }
 
 type Ended =
@@ -134,6 +164,7 @@ type Ended =
 function run(
   command: readonly string[],
   signal: AbortSignal | undefined,
+  onOutput?: (output: string) => void,
 ): Promise<Ended> {
   return new Promise<Ended>((resolve, reject) => {
     const [program, ...args] = command;
@@ -161,6 +192,7 @@ function run(
       stream.setEncoding('utf8');
       stream.on('data', (chunk: string) => {
         output = (output + chunk).slice(-MAX_OUTPUT_CHARS);
+        onOutput?.(output);
       });
     }
     // Not `once`: an error event nobody listens to would end the app.
@@ -211,9 +243,18 @@ export async function fetchBrowser(
   console.info(
     'The Camoufox browser is not installed: downloading it (about 1.3 GB)',
   );
+  let told: string | null = null;
+  const tell = (output: string): void => {
+    if (options.onProgress === undefined) return;
+    const progress = progressOf(output);
+    const key = JSON.stringify(progress);
+    if (key === told) return;
+    told = key;
+    options.onProgress(progress);
+  };
   let ended: Ended;
   try {
-    ended = await run(options.command ?? fetchCommand(), options.signal);
+    ended = await run(options.command ?? fetchCommand(), options.signal, tell);
   } catch (error) {
     if (options.signal?.aborted) throw error;
     // The runtime cannot find camoufox-js, say.

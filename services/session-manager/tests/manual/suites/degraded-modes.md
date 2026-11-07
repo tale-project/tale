@@ -53,6 +53,13 @@ terminal for the shell commands.
   seconds and without a reload, the banner is gone, Add session is enabled and About says Browser
   installed **Yes**; stop here and restart the manager without the variable before you start a session
   (this one cannot download the GeoIP database).
+- [ ] `DEG-F7` · **Start the manager on an empty install directory without `HTTPS_PROXY`, with the internet
+  (a new `CAMOUFOX_INSTALL_DIR`), and watch the banner until it is gone** → under "The browser is being
+  installed (about 1.3 GB to download). Sessions can start once it is ready." a bar named "Download of the
+  browser" (`banners.browser.progress`) fills, its percentage beside it, a few seconds behind what the
+  manager's log prints; at 100 % the banner says "The browser is downloaded and being unpacked. Sessions can
+  start in a moment." (`banners.browser.unpacking`) and has no bar; then it goes without a reload, Add
+  session is enabled and a session starts.
 - [ ] `DEG-B1` · **With the browser installed, stop the manager, delete `GeoLite2-City.mmdb` from the install
   directory, start it with `HTTPS_PROXY=http://127.0.0.1:9`, wait for its log to say "Camoufox warm-up
   failed", add a proxy that works, then Start a session on it** → the session spends about twenty-five

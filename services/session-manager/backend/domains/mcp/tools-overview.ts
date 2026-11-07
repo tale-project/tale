@@ -34,6 +34,7 @@ const overview = defineTool({
       browser: {
         installed: meta.browserInstalled,
         installing: meta.browserInstalling,
+        progress: meta.browserInstallProgress,
         problem: meta.browserInstallError,
       },
       version: meta.version,

@@ -437,6 +437,15 @@ export const countsSchema = z.object({
 });
 export type Counts = z.infer<typeof countsSchema>;
 
+/** How far the app has come with installing the browser. */
+export const installProgressSchema = z.object({
+  /** Downloading the archive, then checking and unpacking it. */
+  phase: z.enum(['downloading', 'unpacking']),
+  /** How much of the archive is in, 0 to 100; null until the download says. */
+  percent: z.number().int().min(0).max(100).nullable(),
+});
+export type InstallProgress = z.infer<typeof installProgressSchema>;
+
 export const metaSchema = z.object({
   version: z.string(),
   /** The version of the Camoufox browser build this release works with. */
@@ -444,6 +453,8 @@ export const metaSchema = z.object({
   browserInstalled: z.boolean(),
   /** The app is downloading the browser itself. */
   browserInstalling: z.boolean(),
+  /** How far that has come; null when no install is under way. */
+  browserInstallProgress: installProgressSchema.nullable(),
   /** Why that failed: the browser has to be installed by hand. */
   browserInstallError: z.string().nullable(),
   osOptions: z.array(z.string()),

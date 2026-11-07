@@ -7,7 +7,7 @@
 // State a test sets:
 //   browserVersion          what `browserVersion` says
 //   installed               `browserInstalled()` (default true)
-//   install                 `browserInstall()` ({ installing: false, error: null })
+//   install                 `browserInstall()` ({ installing: false, error: null, progress: null })
 //   installGate/installError  what `warmUp()` does while `installed` is false:
 //                           `install.installing` is true until `installGate` (if
 //                           any) opens, then the install fails with
@@ -863,7 +863,7 @@ export class FakeBrowser implements BrowserHandle {
 export class FakeBackend implements BrowserBackend {
   browserVersion = '0.0.0-fake';
   installed = true;
-  install: BrowserInstall = { installing: false, error: null };
+  install: BrowserInstall = { installing: false, error: null, progress: null };
   /** What `warmUp()` does while `installed` is false (see the header). */
   installGate: Gate | null = null;
   installError: string | null = null;
@@ -904,13 +904,17 @@ export class FakeBackend implements BrowserBackend {
   async warmUp(): Promise<void> {
     this.warmUps += 1;
     if (this.installed) return;
-    this.install = { installing: true, error: null };
+    this.install = { installing: true, error: null, progress: null };
     await this.installGate?.wait();
     if (this.installError === null) {
       this.installed = true;
-      this.install = { installing: false, error: null };
+      this.install = { installing: false, error: null, progress: null };
     } else {
-      this.install = { installing: false, error: this.installError };
+      this.install = {
+        installing: false,
+        error: this.installError,
+        progress: null,
+      };
     }
   }
 

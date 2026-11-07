@@ -677,6 +677,7 @@ describe('the install of the browser', () => {
     expect(rig().backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
   });
 
@@ -696,6 +697,7 @@ describe('the install of the browser', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
   });
 
@@ -711,12 +713,14 @@ describe('the install of the browser', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
     await backend.warmUp();
-    expect(seen).toEqual([{ installing: true, error: null }]);
+    expect(seen).toEqual([{ installing: true, error: null, progress: null }]);
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: 'no space left on device',
+      progress: null,
     });
   });
 
@@ -730,12 +734,43 @@ describe('the install of the browser', () => {
       },
     });
     const warming = backend.warmUp();
-    expect(backend.browserInstall()).toEqual({ installing: true, error: null });
+    expect(backend.browserInstall()).toEqual({
+      installing: true,
+      error: null,
+      progress: null,
+    });
     gate.open();
     await warming;
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
+    });
+  });
+
+  it('tells how far the install has come while it is under way, and forgets it once it is done', async () => {
+    const gate = new Gate();
+    const { backend } = rig({
+      isInstalled: () => false,
+      installBrowser: async (_signal, onProgress) => {
+        onProgress({ phase: 'downloading', percent: 45 });
+        await gate.wait();
+        onProgress({ phase: 'unpacking', percent: 100 });
+        return null;
+      },
+    });
+    const warming = backend.warmUp();
+    expect(backend.browserInstall()).toEqual({
+      installing: true,
+      error: null,
+      progress: { phase: 'downloading', percent: 45 },
+    });
+    gate.open();
+    await warming;
+    expect(backend.browserInstall()).toEqual({
+      installing: false,
+      error: null,
+      progress: null,
     });
   });
 
@@ -750,6 +785,7 @@ describe('the install of the browser', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: 'TypeError: fetch failed',
+      progress: null,
     });
     expect(console.error).toHaveBeenCalled();
   });
@@ -774,6 +810,7 @@ describe('the install of the browser', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
     expect(warmUpGeo).not.toHaveBeenCalled();
   });
@@ -829,6 +866,7 @@ describe('warming up', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
   });
 });

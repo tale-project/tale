@@ -6,6 +6,7 @@
 // browsers have no window: the web client watches and controls them through
 // `BrowserHandle.remote`.
 
+import type { InstallProgress } from '../../../lib/api/schemas.ts';
 import type { TabLayout } from '../../lib/web-url.ts';
 import type {
   GeneratedIdentity,
@@ -39,6 +40,8 @@ export interface LaunchSpec {
 export interface BrowserInstall {
   installing: boolean;
   error: string | null;
+  /** How far it has come while it is under way, else null. */
+  progress: InstallProgress | null;
 }
 
 export interface BrowserHandle {

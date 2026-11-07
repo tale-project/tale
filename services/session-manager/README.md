@@ -56,9 +56,9 @@ does not wait any longer and exits with code 130, and a stop that has not finish
 exits with code 1.
 
 The first start downloads the Camoufox browser (about 1.3 GB, build `152.0.4-beta.30`, the one
-`camoufox-js` pins) and the GeoIP database into `<data dir>/camoufox`. The page says so while it
-runs, and sessions can start once it is done. If the download fails, the page shows what the
-download printed. Install the browser by hand with the same `CAMOUFOX_INSTALL_DIR` the app uses
+`camoufox-js` pins) and the GeoIP database into `<data dir>/camoufox`. While it runs the page shows
+how much of the browser is in, then that it is being unpacked, and sessions can start once it is
+done. If the download fails, the page shows what the download printed. Install the browser by hand with the same `CAMOUFOX_INSTALL_DIR` the app uses
 (by default the data directory's `camoufox` folder), and the page notices within seconds:
 
 ```bash
@@ -146,8 +146,8 @@ What to know about running it in a container, with either command:
   `-v session-manager-browser:/camoufox -e CAMOUFOX_INSTALL_DIR=/camoufox`.
 - **The first start downloads the browser,** in the background: the Camoufox archive (about 624 MB),
   the GeoIP database (about 51 MB) and the uBlock Origin add-on, unpacked to about 1.26 GB under
-  `/data/camoufox`. That takes about a minute on a fast connection. The page shows that the download
-  is under way, and the container reports healthy meanwhile.
+  `/data/camoufox`. That takes about a minute on a fast connection. The page shows how far the download
+  has come, and the container reports healthy meanwhile.
 - **Give the container 2 GB of memory, and 3 GB when `/tmp` is a tmpfs.** The first start saves the
   archive in `/tmp` and reads it into memory to unpack it (the peak is about 1.3 GB); `/tmp` needs
   1 GB. After that each running session is a Firefox of its own, about 1 GB on a heavy page.

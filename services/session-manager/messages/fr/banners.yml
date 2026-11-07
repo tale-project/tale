@@ -1,5 +1,7 @@
 browser:
   installing: Le navigateur est en cours d'installation (environ 1,3 Go à télécharger). Tu pourras démarrer des sessions dès qu'il sera prêt.
+  unpacking: Le navigateur est téléchargé et en cours de décompression. Tu pourras démarrer des sessions dans un instant.
+  progress: Téléchargement du navigateur
   installFailed: Impossible d'installer le navigateur
   installFailedHint: Vérifie ta connexion et redémarre Session Manager, ou installe le navigateur à la main avec la commande ci-dessous. Cette page se met à jour dès que le navigateur est installé.
   notInstalled: Le navigateur n'est pas encore installé. Session Manager l'installe au démarrage.

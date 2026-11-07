@@ -21,6 +21,7 @@ import {
   isInstalled,
   issue,
   outputTail,
+  progressOf,
 } from './install.ts';
 
 const requireModule = createRequire(import.meta.url);
@@ -87,6 +88,69 @@ describe('outputTail', () => {
   it('has no lines for no output', () => {
     expect(outputTail('')).toEqual([]);
     expect(outputTail('\r\n \r\n')).toEqual([]);
+  });
+});
+
+describe('progressOf', () => {
+  const bar = (percent: number) =>
+    `Downloading Camoufox... [${'█'.repeat(percent / 10)}${'░'.repeat(10 - percent / 10)}] ${percent}% | ETA: 30s | ${percent * 6} MB/624 MB\n`;
+
+  it('is a download without a percentage before the bar has drawn a line', () => {
+    expect(progressOf('')).toEqual({ phase: 'downloading', percent: null });
+    expect(progressOf('Fetching the latest release...\n')).toEqual({
+      phase: 'downloading',
+      percent: null,
+    });
+  });
+
+  it('is the percentage of the last line of the bar', () => {
+    expect(progressOf(bar(10) + bar(20) + bar(40))).toEqual({
+      phase: 'downloading',
+      percent: 40,
+    });
+  });
+
+  it('is the archive being checked and unpacked once the bar reached 100', () => {
+    expect(progressOf(bar(90) + bar(100))).toEqual({
+      phase: 'unpacking',
+      percent: 100,
+    });
+  });
+
+  it('reads only the end of a long output', () => {
+    const long = bar(30) + 'x'.repeat(10_000) + bar(70);
+    expect(progressOf(long)).toEqual({ phase: 'downloading', percent: 70 });
+  });
+});
+
+describe('fetchBrowser progress', () => {
+  it('tells each change of the progress the command prints, once', async () => {
+    // One line at a time, as the bar draws them every few seconds.
+    const code = `
+      const lines = [
+        'Downloading Camoufox... [░░] 0% | ETA: 9s | 0 B/624 MB',
+        'Downloading Camoufox... [█░] 50% | ETA: 4s | 312 MB/624 MB',
+        'Downloading Camoufox... [█░] 50% | ETA: 4s | 312 MB/624 MB',
+        'Downloading Camoufox... [██] 100% | ETA: 0s | 624 MB/624 MB',
+      ];
+      let next = 0;
+      const print = () => {
+        console.log(lines[next++]);
+        if (next < lines.length) setTimeout(print, 40);
+      };
+      print();
+    `;
+    const told: unknown[] = [];
+    await fetchBrowser({
+      command: script(code),
+      installed: () => true,
+      onProgress: (progress) => told.push(progress),
+    });
+    expect(told).toEqual([
+      { phase: 'downloading', percent: 0 },
+      { phase: 'downloading', percent: 50 },
+      { phase: 'unpacking', percent: 100 },
+    ]);
   });
 });
 

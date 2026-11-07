@@ -90,6 +90,7 @@ describe('FakeBackend installs', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
     expect(backend.browserVersion).not.toBe('');
   });
@@ -101,6 +102,7 @@ describe('FakeBackend installs', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
   });
 
@@ -110,7 +112,11 @@ describe('FakeBackend installs', () => {
     backend.installGate = new Gate();
 
     const warming = backend.warmUp();
-    expect(backend.browserInstall()).toEqual({ installing: true, error: null });
+    expect(backend.browserInstall()).toEqual({
+      installing: true,
+      error: null,
+      progress: null,
+    });
     expect(backend.browserInstalled()).toBe(false);
 
     backend.installGate.open();
@@ -119,6 +125,7 @@ describe('FakeBackend installs', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: null,
+      progress: null,
     });
   });
 
@@ -131,13 +138,14 @@ describe('FakeBackend installs', () => {
     expect(backend.browserInstall()).toEqual({
       installing: false,
       error: 'no space left on device',
+      progress: null,
     });
   });
 
   it('lets a test script the state directly', () => {
     const backend = new FakeBackend();
     backend.installed = false;
-    backend.install = { installing: true, error: null };
+    backend.install = { installing: true, error: null, progress: null };
     expect(backend.browserInstalled()).toBe(false);
     expect(backend.browserInstall().installing).toBe(true);
   });

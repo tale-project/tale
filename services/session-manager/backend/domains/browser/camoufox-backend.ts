@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path';
 
 import type { launchOptions as camoufoxLaunchOptions } from 'camoufox-js';
 
+import type { InstallProgress } from '../../../lib/api/schemas.ts';
 import { isRecord } from '../../../lib/is-record.ts';
 import { describeError } from '../../lib/error-text.ts';
 import type { TabLayout } from '../../lib/web-url.ts';
@@ -92,8 +93,14 @@ export interface CamoufoxDeps {
     context: SessionContext,
     options: RemoteOptions,
   ) => RemoteLifecycle | Promise<RemoteLifecycle>;
-  /** `camoufox-js fetch`: null once installed, else the issue. Rejects when aborted. */
-  installBrowser: (signal: AbortSignal) => Promise<string | null>;
+  /**
+   * `camoufox-js fetch`: null once installed, else the issue. Rejects when
+   * aborted. `onProgress` is told how far it has come.
+   */
+  installBrowser: (
+    signal: AbortSignal,
+    onProgress: (progress: InstallProgress) => void,
+  ) => Promise<string | null>;
   isInstalled: () => boolean;
   /**
    * Makes the installed build stop waiting for ever for a mouse event that a
@@ -285,7 +292,7 @@ const DEFAULT_DEPS: CamoufoxDeps = {
     return NewBrowser(firefox, true, options, profileDir);
   },
   createRemote: createPlaywrightRemote,
-  installBrowser: (signal) => fetchBrowser({ signal }),
+  installBrowser: (signal, onProgress) => fetchBrowser({ signal, onProgress }),
   isInstalled: () => isInstalled(),
   async boundInputWaits() {
     const omniJa = await installedOmniJa();
@@ -330,7 +337,7 @@ export class CamoufoxBackend implements BrowserBackend {
   /** Aborts when the backend closes: an install under way stops. */
   readonly #shutdown = new AbortController();
   readonly #sessions = new Set<CamoufoxSession>();
-  #install: BrowserInstall = { installing: false, error: null };
+  #install: BrowserInstall = { installing: false, error: null, progress: null };
   #warmingUp: Promise<void> | null = null;
   #inputWaits: Promise<void> | null = null;
   #version: string | null = null;
@@ -370,10 +377,14 @@ export class CamoufoxBackend implements BrowserBackend {
   async #warmUp(): Promise<void> {
     const { signal } = this.#shutdown;
     if (!this.#deps.isInstalled()) {
-      this.#install = { installing: true, error: null };
+      this.#install = { installing: true, error: null, progress: null };
       let error: string | null = null;
       try {
-        error = await this.#deps.installBrowser(signal);
+        error = await this.#deps.installBrowser(signal, (progress) => {
+          if (this.#install.installing) {
+            this.#install = { ...this.#install, progress };
+          }
+        });
       } catch (cause) {
         // Not an issue to show: the app is shutting down.
         if (!signal.aborted) {
@@ -382,7 +393,7 @@ export class CamoufoxBackend implements BrowserBackend {
         }
       } finally {
         // Also when cancelled at shutdown.
-        this.#install = { installing: false, error };
+        this.#install = { installing: false, error, progress: null };
       }
     }
     if (signal.aborted) return;

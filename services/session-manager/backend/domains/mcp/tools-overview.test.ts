@@ -21,7 +21,12 @@ describe('overview', () => {
       proxies: { total: 0, free: 0, failed: 0, being_checked: 0 },
       secrets: 0,
       start_page: 'https://www.google.com',
-      browser: { installed: true, installing: false, problem: null },
+      browser: {
+        installed: true,
+        installing: false,
+        progress: null,
+        problem: null,
+      },
       version: '0.1.0',
     });
   });
@@ -60,12 +65,18 @@ describe('overview', () => {
         metaFixture({
           browserInstalled: false,
           browserInstalling: true,
+          browserInstallProgress: { phase: 'downloading', percent: 45 },
           browserInstallError: 'No network.',
         }),
       listSessions: () => [],
     });
     expect(jsonOf(await callTool(manager, 'overview'))).toMatchObject({
-      browser: { installed: false, installing: true, problem: 'No network.' },
+      browser: {
+        installed: false,
+        installing: true,
+        progress: { phase: 'downloading', percent: 45 },
+        problem: 'No network.',
+      },
     });
   });
 
