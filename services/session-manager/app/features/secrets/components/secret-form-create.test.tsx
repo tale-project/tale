@@ -65,8 +65,6 @@ const save = () => screen.getByRole('button', { name: 'Add secret' });
 const field = (name: string) => screen.getByLabelText(name);
 /** The button of the list of sessions: named by its label, it shows who it is for. */
 const scope = () => screen.getByRole('button', { name: 'Available to' });
-const keepHidden = (position = 0) =>
-  screen.getAllByRole('checkbox', { name: /^Keep hidden/ })[position];
 
 async function chooseKind(
   user: Awaited<ReturnType<typeof renderCreate>>['user'],
@@ -101,13 +99,12 @@ describe('the form to add a secret', () => {
             Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
       });
-      expect(
-        within(group).getAllByRole('checkbox', { name: /^Keep hidden/ }),
-      ).toHaveLength(labels.length);
+      // Whether a value is hidden is not asked: the kind and the label say it.
+      expect(within(group).queryByRole('checkbox')).not.toBeInTheDocument();
     },
   );
 
-  it('is titled for adding, with the kind to choose first and what it holds', async () => {
+  it('is titled for adding, with the kind to choose first and nothing said about it the fields do not show', async () => {
     await renderCreate();
     expect(
       screen.getByRole('dialog', { name: 'Add secret' }),
@@ -116,8 +113,8 @@ describe('the form to add a secret', () => {
       'Credentials',
     );
     expect(
-      screen.getByText('A website with its username and password.'),
-    ).toBeInTheDocument();
+      screen.queryByText('A website with its username and password.'),
+    ).not.toBeInTheDocument();
   });
 
   it.each([
@@ -137,23 +134,23 @@ describe('the form to add a secret', () => {
         .map((button) => button.getAttribute('aria-label'));
     const { unmount } = await renderCreate({ kind: 'credentials' });
     expect(shows()).toEqual(['Show Password']);
-    expect(keepHidden(2)).toBeChecked();
-    expect(keepHidden(1)).not.toBeChecked();
+    expect(field('Password')).toHaveAttribute('type', 'password');
+    expect(field('Username')).toHaveAttribute('type', 'text');
     unmount();
 
     await renderCreate({ kind: 'card' });
     expect(shows()).toEqual(['Show Card number', 'Show CVC']);
   });
 
-  it('draws every value on one edge: the buttons of a hidden value sit inside its field', async () => {
+  it('draws every value on one edge: the button of a hidden value sits inside its field, and a new value has no copy', async () => {
     await renderCreate({ kind: 'credentials' });
     const password = field('Password');
     expect(password.parentElement).toContainElement(
       screen.getByRole('button', { name: 'Show Password' }),
     );
-    expect(password.parentElement).toContainElement(
-      screen.getByRole('button', { name: 'Copy Password' }),
-    );
+    expect(
+      screen.queryByRole('button', { name: 'Copy Password' }),
+    ).not.toBeInTheDocument();
   });
 
   it('gives the fields a kind marks multiline a text area', async () => {
@@ -266,13 +263,11 @@ describe('the form to add a secret', () => {
     expect(screen.queryByText('Enter a title.')).not.toBeInTheDocument();
   });
 
-  it('explains what a hidden value is', async () => {
+  it('needs no words about hidden values: the masked fields show which they are', async () => {
     await renderCreate();
-    expect(
-      screen.getByText(
-        'Hidden values show as dots here and are left out of the list.',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Values' })).not.toHaveAttribute(
+      'aria-describedby',
+    );
   });
 });
 
@@ -390,7 +385,7 @@ describe('adding a secret', () => {
 });
 
 describe('choosing the kind of a new secret', () => {
-  it('swaps the fields for those of the other kind, and the hint and the example title with them', async () => {
+  it('swaps the fields for those of the other kind, and the example title with them', async () => {
     const { user } = await renderCreate();
     await chooseKind(user, 'Credit card');
 
@@ -401,9 +396,6 @@ describe('choosing the kind of a new secret', () => {
     expect(
       screen.queryByRole('textbox', { name: 'Website' }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Cardholder, card number, expiration date and CVC.'),
-    ).toBeInTheDocument();
     expect(title()).toHaveAttribute('placeholder', 'e.g. Visa ending 4242');
   });
 
@@ -450,15 +442,34 @@ describe('choosing the kind of a new secret', () => {
   it('keeps a typed label of a field that was added', async () => {
     const { user } = await renderCreate();
     await user.click(screen.getByRole('button', { name: 'Add field' }));
-    await user.type(screen.getByRole('textbox', { name: 'Label' }), 'PIN');
+    await user.type(screen.getByRole('textbox', { name: 'Label' }), 'Door');
     await user.type(screen.getByRole('textbox', { name: 'Value' }), '4821');
 
     await chooseKind(user, 'Credit card');
 
-    const group = screen.getByRole('group', { name: 'PIN' });
+    const group = screen.getByRole('group', { name: 'Door' });
     expect(within(group).getByRole('textbox', { name: 'Value' })).toHaveValue(
       '4821',
     );
+  });
+
+  it('keeps a hidden value hidden when it becomes a field of its own', async () => {
+    const { user, api } = await renderCreate({ kind: 'card' });
+    await user.type(title(), 'T');
+    await user.type(field('CVC'), '123');
+
+    await chooseKind(user, 'Note');
+
+    const group = screen.getByRole('group', { name: 'CVC' });
+    expect(within(group).getByLabelText('Value')).toHaveAttribute(
+      'type',
+      'password',
+    );
+    await user.click(save());
+    await waitFor(() => expect(createBody(api)).toBeDefined());
+    expect(createBody(api)).toMatchObject({
+      fields: [{ label: 'CVC', value: '123', hidden: true }],
+    });
   });
 
   it('is asked about when closing, once something was typed', async () => {
@@ -509,19 +520,16 @@ describe('adding fields to a new secret', () => {
     });
   });
 
-  it('sends an added field as hidden once it is made hidden, and as not hidden once the person undid it', async () => {
+  it('hides an added field whose label names something private, masked as it is typed', async () => {
     const { user, api } = await renderCreate();
     await user.type(title(), 'T');
     await user.click(screen.getByRole('button', { name: 'Add field' }));
     await user.type(screen.getByRole('textbox', { name: 'Label' }), 'PIN');
-    await user.type(screen.getByRole('textbox', { name: 'Value' }), '4821');
-    const toggle = within(screen.getByRole('group', { name: 'PIN' })).getByRole(
-      'checkbox',
-      { name: /^Keep hidden/ },
-    );
+    const group = screen.getByRole('group', { name: 'PIN' });
+    const value = within(group).getByLabelText('Value');
+    expect(value).toHaveAttribute('type', 'password');
+    await user.type(value, '4821');
 
-    await user.click(toggle);
-    expect(toggle).toBeChecked();
     await user.click(save());
     await waitFor(() => expect(createBody(api)).toBeDefined());
     expect(createBody(api)).toMatchObject({
@@ -529,7 +537,7 @@ describe('adding fields to a new secret', () => {
     });
   });
 
-  it('leaves the flag of an added field to the server until the person decides', async () => {
+  it('leaves the flag of any other added field to the server, which hides what looks like a card number', async () => {
     const { user, api } = await renderCreate();
     await user.type(title(), 'T');
     await user.click(screen.getByRole('button', { name: 'Add field' }));
@@ -955,7 +963,7 @@ describe('the keyboard in the form to add a secret', () => {
     expect(api.callsTo('POST /secrets')).toHaveLength(0);
   });
 
-  it('moves through the fields in reading order: each value, then the choice to keep it hidden', async () => {
+  it('moves through the fields in reading order: each value, and the button that shows a hidden one', async () => {
     const { user } = await renderCreate();
     expect(title()).toHaveFocus();
     await user.tab();
@@ -963,19 +971,11 @@ describe('the keyboard in the form to add a secret', () => {
     await user.tab();
     expect(field('Website')).toHaveFocus();
     await user.tab();
-    expect(keepHidden(0)).toHaveFocus();
-    await user.tab();
     expect(field('Username')).toHaveFocus();
-    await user.tab();
-    expect(keepHidden(1)).toHaveFocus();
     await user.tab();
     expect(field('Password')).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole('button', { name: 'Copy Password' })).toHaveFocus();
-    await user.tab();
     expect(screen.getByRole('button', { name: 'Show Password' })).toHaveFocus();
-    await user.tab();
-    expect(keepHidden(2)).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('button', { name: 'Add field' })).toHaveFocus();
   });
@@ -1068,16 +1068,11 @@ describe('the form to add a secret in German', () => {
     expect(
       screen.getByRole('button', { name: 'Passwort anzeigen' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getAllByRole('checkbox', { name: /^Verborgen halten/ }),
-    ).toHaveLength(3);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Titel' })).toHaveAttribute(
       'placeholder',
       'z. B. Shop-Login',
     );
-    expect(
-      screen.getByText('Eine Website mit Benutzername und Passwort.'),
-    ).toBeInTheDocument();
 
     // Pressed with a title only, it tells what to do next.
     await user.type(screen.getByRole('textbox', { name: 'Titel' }), 'Shop');

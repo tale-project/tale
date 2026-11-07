@@ -89,8 +89,8 @@ and with Chrome, and the operating system's Increase contrast setting.
 - [ ] `A11Y-A10` · **With VoiceOver, read the proxy table and the secret list** → the table is named ("Proxies in
   the pool", "Secrets"), its column headers are read with each cell, a health badge is read as a word and
   its reason follows, a row's menu is "Actions for {host:port}" or "Actions for {title}"; a masked value is read
-  as "Hidden" or "Hidden value", never as dots or digits; "Keep hidden: {label}" is announced as a checkbox,
-  checked or not, and Show and Hide say what they will do.
+  as "Hidden" or "Hidden value", never as dots or digits; in the form a masked value is a secure text field
+  whose typing is not echoed, and Show and Hide say what they will do.
 - [ ] `A11Y-A11` · **With VoiceOver, trigger a notice (add a proxy), a failure toast (stack A: make a running
   session's proxy fail with `PUT {control}/exit-ips`, then choose Check IP in its menu), a page dialog (an
   alert) and the lost connection (stop the manager)** → each is announced once and politely: the notice, the

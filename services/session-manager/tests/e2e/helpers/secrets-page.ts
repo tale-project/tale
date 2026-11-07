@@ -440,14 +440,6 @@ export class SecretsPage {
     });
   }
 
-  /** The choice to keep a value hidden, by the label of the value. */
-  keepHidden(dialog: Locator, label: string): Locator {
-    return dialog.getByRole('checkbox', {
-      name: fill(t('secrets.row.keepHiddenFor'), { label }),
-      exact: true,
-    });
-  }
-
   /**
    * The buttons beside a value, by the label of the value: in the form and in
    * the details dialog, which has the same Show, Hide and Copy.

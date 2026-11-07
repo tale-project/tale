@@ -1,21 +1,15 @@
 import { BorderedSection } from '@tale/ui/bordered-section';
-import { Checkbox } from '@tale/ui/checkbox';
 import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
-import { Row, Stack } from '@tale/ui/layout';
+import { Row } from '@tale/ui/layout';
 import { Textarea } from '@tale/ui/textarea';
 import { Trash2 } from 'lucide-react';
 import { memo } from 'react';
-import {
-  useWatch,
-  type Control,
-  type UseFormRegister,
-  type UseFormSetValue,
-} from 'react-hook-form';
+import { useWatch, type Control, type UseFormRegister } from 'react-hook-form';
 
 import { useT } from '@/lib/i18n/client';
 
-import type { FormValues } from '../lib/form';
+import { isHiddenRow, type FormValues } from '../lib/form';
 
 /**
  * What keeps a password manager out of a hidden value: it is a secret the
@@ -48,16 +42,18 @@ interface SecretFieldRowProps {
   position: number;
   control: Control<FormValues>;
   register: UseFormRegister<FormValues>;
-  setValue: UseFormSetValue<FormValues>;
   labelError?: string;
   valueError?: string;
   onRemove: (index: number) => void;
 }
 
 /**
- * One value of the secret: its label, the value, and whether it is kept
- * hidden. A hidden value is masked until shown and copied without showing it,
- * by the field's own buttons inside its edge; it stays out of the lists.
+ * One value of the secret: its label and the value. Whether it is hidden is
+ * not asked: a stored value is as it was stored, and a new one is hidden when
+ * it is a password, a card number, a CVC or labelled like something private
+ * (`isHiddenRow`), as the server decides. A hidden value is masked until shown,
+ * by the field's own button inside its edge, and stays out of the lists; a
+ * stored one can also be copied without showing it.
  * Showing it here changes nothing about the secret. The value is read and
  * written through the form (uncontrolled), so typing in one row re-renders no
  * other.
@@ -74,33 +70,44 @@ export const SecretFieldRow = memo(function SecretFieldRow({
   position,
   control,
   register,
-  setValue,
   labelError,
   valueError,
   onRemove,
 }: SecretFieldRowProps) {
   const { t } = useT('secrets');
-  const [hidden, label] = useWatch({
+  const [template, label, storedHidden, stored] = useWatch({
     control,
-    name: [`rows.${index}.hidden`, `rows.${index}.label`],
+    name: [
+      `rows.${index}.template`,
+      `rows.${index}.label`,
+      `rows.${index}.hidden`,
+      `rows.${index}.decided`,
+    ],
+  });
+  const hidden = isHiddenRow({
+    template,
+    label,
+    hidden: storedHidden,
+    decided: stored,
   });
 
   const added = fixedLabel === undefined;
   const name = fixedLabel ?? (label.trim() || t('row.name', { position }));
 
-  const keepHidden = (keep: boolean) => {
-    setValue(`rows.${index}.hidden`, keep, { shouldDirty: true });
-    setValue(`rows.${index}.decided`, true);
-  };
-
-  // What a hidden value's field carries: masked, the two buttons named for this
-  // value. The field is keyed by the choice, so a value made hidden is masked
-  // again, however it was left before, and one made visible has nothing to show.
+  // What a hidden value's field carries: masked, its buttons named for this
+  // value. Only a stored value can be copied: a value typed here a moment ago
+  // has nothing to copy that the person does not have. The field is keyed by
+  // whether it is hidden, so a value whose label makes it hidden is masked,
+  // however it was left before.
   const secret = hidden
     ? {
-        copyable: true,
-        copyLabel: t('row.copy', { label: name }),
-        copiedLabel: t('row.copied', { label: name }),
+        ...(stored
+          ? {
+              copyable: true,
+              copyLabel: t('row.copy', { label: name }),
+              copiedLabel: t('row.copied', { label: name }),
+            }
+          : {}),
         revealLabels: {
           show: t('row.show', { label: name }),
           hide: t('row.hide', { label: name }),
@@ -153,17 +160,6 @@ export const SecretFieldRow = memo(function SecretFieldRow({
       />
     </Row>
   ) : null;
-  const keep = (
-    <Checkbox
-      label={t('row.keepHidden')}
-      // The words on screen come first, then which value they are about: a
-      // list of the form's controls would otherwise read "Keep hidden" over
-      // and over.
-      aria-label={t('row.keepHiddenFor', { label: name })}
-      checked={hidden}
-      onCheckedChange={(checked) => keepHidden(checked === true)}
-    />
-  );
 
   // A row the person added has two fields with the same names as every other
   // added row's: its group, a frame of its own, says which row they belong to.
@@ -171,12 +167,8 @@ export const SecretFieldRow = memo(function SecretFieldRow({
     <BorderedSection role="group" aria-label={name}>
       {labelRow}
       {valueField}
-      {keep}
     </BorderedSection>
   ) : (
-    <Stack gap={2}>
-      {valueField}
-      {keep}
-    </Stack>
+    valueField
   );
 });

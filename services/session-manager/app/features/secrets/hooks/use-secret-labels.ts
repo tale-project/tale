@@ -6,8 +6,6 @@ import { useT } from '@/lib/i18n/client';
 export interface SecretLabels {
   /** "Credit card": the name of a kind of secret. */
   kind: (kind: SecretKind) => string;
-  /** One line on what a kind of secret holds. */
-  kindHint: (kind: SecretKind) => string;
   /** A made-up title of a kind, as the title field's placeholder. */
   titleExample: (kind: SecretKind) => string;
   /**
@@ -33,12 +31,6 @@ export function useSecretLabels(): SecretLabels {
       credentials: t('kinds.credentials'),
       card: t('kinds.card'),
       note: t('kinds.note'),
-    };
-    const hints: Record<SecretKind, string> = {
-      personal: t('kindHints.personal'),
-      credentials: t('kindHints.credentials'),
-      card: t('kindHints.card'),
-      note: t('kindHints.note'),
     };
     const examples: Record<SecretKind, string> = {
       personal: t('titleExamples.personal'),
@@ -68,7 +60,6 @@ export function useSecretLabels(): SecretLabels {
         : t('scope.session', { name: session.name });
     return {
       kind: (kind) => kinds[kind],
-      kindHint: (kind) => hints[kind],
       titleExample: (kind) => examples[kind],
       field: (label) => fields.get(label.trim().toLowerCase()) ?? label,
       summary: (secret) =>

@@ -81,7 +81,8 @@ test.describe('an empty vault', () => {
   }) => {
     const secrets = await SecretsPage.open(page);
     const dialog = await secrets.openCreate();
-    await expect(dialog).toContainText(t('secrets.form.hiddenHint'));
+    // Whether a value is hidden is not asked: the kind and the label say it.
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
     await dialog
       .getByRole('button', { name: t('common.actions.cancel') })
       .click();
@@ -170,10 +171,7 @@ test.describe('adding a secret', () => {
       ).toHaveText(kindLabel('credentials'));
       await secrets.chooseKind(dialog, creation.kind);
 
-      // The kind's hint, an example of a title, and exactly its own fields.
-      await expect(dialog).toContainText(
-        t(`secrets.kindHints.${creation.kind}`),
-      );
+      // An example of a title, and exactly the kind's own fields.
       await expect(secrets.titleField(dialog)).toHaveAttribute(
         'placeholder',
         t(`secrets.titleExamples.${creation.kind}`),
@@ -265,9 +263,6 @@ test.describe('adding a secret', () => {
     );
     await expect(secrets.customValue(dialog, 1)).toHaveValue(PASSWORD);
     // The password is still masked, and still kept out of the list.
-    await expect(
-      secrets.keepHidden(dialog, startingField('password')),
-    ).toBeChecked();
     await expect(secrets.customValue(dialog, 1)).toHaveCSS(
       '-webkit-text-security',
       'disc',
@@ -563,7 +558,9 @@ test.describe('the values of a secret', () => {
     await secrets.customValue(dialog, 1).fill('4711');
 
     // Once it has a label, the row is named by it (so are its buttons).
-    await expect(secrets.keepHidden(dialog, 'Backup code')).not.toBeChecked();
+    await expect(
+      secrets.valueButton(dialog, 'remove', 'Backup code'),
+    ).toBeVisible();
     await secrets.valueButton(dialog, 'remove', 'Customer number').click();
     await expect(secrets.customRows(dialog)).toHaveCount(1);
     // The focus stays in reach: on the button that adds a row.
@@ -581,7 +578,7 @@ test.describe('the values of a secret', () => {
     ]);
   });
 
-  test('are masked by what they are called or look like, as the server decides, and a value can be kept hidden by hand', async ({
+  test('are masked by what they are called or look like, as the server decides, and shown otherwise', async ({
     page,
     api,
     request,
@@ -590,8 +587,9 @@ test.describe('the values of a secret', () => {
     const dialog = await secrets.openCreate();
     await secrets.titleField(dialog).fill('Mixed');
     await secrets.valueField(dialog, startingField('username')).fill('ann');
-    // A label that names something private, a value that is a card number
-    // (whatever it is called), and a value the person chooses to hide.
+    // A label that names something private, masked as it is typed; a value
+    // that is a card number (whatever it is called), hidden once it is saved;
+    // and a value that is neither.
     const extras: Array<[string, string]> = [
       ['API token', 'tok-4f9a'],
       ['Backup', '4111 1111 1111 1111'],
@@ -602,8 +600,14 @@ test.describe('the values of a secret', () => {
       await secrets.customLabel(dialog, index).fill(label);
       await secrets.customValue(dialog, index).fill(value);
     }
-    await secrets.keepHidden(dialog, 'Nickname').check();
-    await expect(secrets.keepHidden(dialog, 'Nickname')).toBeChecked();
+    await expect(secrets.customValue(dialog, 0)).toHaveAttribute(
+      'type',
+      'password',
+    );
+    await expect(secrets.customValue(dialog, 2)).toHaveAttribute(
+      'type',
+      'text',
+    );
     await secrets.submit(dialog, t('secrets.form.createSubmit')).click();
     await soon(dialog).toBeHidden();
 
@@ -615,15 +619,16 @@ test.describe('the values of a secret', () => {
       Username: false,
       'API token': true,
       Backup: true,
-      Nickname: true,
+      Nickname: false,
     });
-    // The list shows the user name and the last four digits of the card, no more.
-    await expect(secrets.row('Mixed').details).toHaveText('•••• 1111 · ann');
+    // The list shows the last four digits of the card and what is not hidden.
+    await expect(secrets.row('Mixed').details).toHaveText(
+      '•••• 1111 · ann · annie',
+    );
     expect(
       await leaksOf(page, {
         'the token': 'tok-4f9a',
         'the card number': '4111 1111 1111 1111',
-        'the nickname': 'annie',
       }),
     ).toEqual([]);
   });
@@ -958,26 +963,29 @@ test.describe('hidden values', () => {
     );
   });
 
-  test('copying from the form takes the typed value and leaves it masked', async ({
+  test('copying a stored value from the form takes it and leaves it masked; a value being typed has nothing to copy', async ({
     page,
+    api,
   }) => {
     await page
       .context()
       .grantPermissions(['clipboard-read', 'clipboard-write']);
+    await api.createSecret(CREDENTIALS);
     const secrets = await SecretsPage.open(page);
-    const dialog = await secrets.openCreate();
     const label = startingField('password');
+
+    // Adding a secret: the password is masked, and there is no copy of it.
+    let dialog = await secrets.openCreate();
+    await expect(secrets.valueButton(dialog, 'show', label)).toBeVisible();
+    await expect(secrets.valueButton(dialog, 'copy', label)).toHaveCount(0);
+    await dialog
+      .getByRole('button', { name: t('common.actions.cancel') })
+      .click();
+    await soon(dialog).toBeHidden();
+
+    dialog = await secrets.openEdit(CREDENTIALS.title);
     const field = secrets.valueField(dialog, label);
-    await secrets.titleField(dialog).fill('Copy me');
     await page.evaluate(() => navigator.clipboard.writeText('before'));
-
-    // Nothing typed, nothing to copy: the clipboard keeps what it had.
-    await secrets.valueButton(dialog, 'copy', label).click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      'before',
-    );
-
-    await field.fill(PASSWORD);
     await secrets.valueButton(dialog, 'copy', label).click();
     await soon(
       dialog.getByText(fill(t('secrets.row.copied'), { label })),
@@ -1142,7 +1150,7 @@ test.describe('changing a secret', () => {
     ]);
   });
 
-  test('a lock hides a value from the list and unlocking shows it again', async ({
+  test('keeps each stored value as hidden or shown as it was stored, and hides a new one whose label names something private', async ({
     page,
     api,
     request,
@@ -1150,42 +1158,37 @@ test.describe('changing a secret', () => {
     const created = await api.createSecret(CREDENTIALS);
     const secrets = await SecretsPage.open(page);
     const username = startingField('username');
-    await expect(secrets.row(CREDENTIALS.title).details).toHaveText(
-      'https://shop.example · ann',
-    );
+    const password = startingField('password');
 
-    let dialog = await secrets.openEdit(CREDENTIALS.title);
-    const lock = secrets.keepHidden(dialog, username);
-    await expect(lock).not.toBeChecked();
-    await lock.check();
-    await expect(lock).toBeChecked();
-    // Locked, the value is drawn as dots and gets its Show and Copy.
-    await expect(secrets.valueField(dialog, username)).toHaveCSS(
-      '-webkit-text-security',
-      'disc',
+    const dialog = await secrets.openEdit(CREDENTIALS.title);
+    // Nothing to tick: the stored password is masked, with its Show and its
+    // Copy; the user name is plain text.
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    await expect(secrets.valueButton(dialog, 'show', password)).toBeVisible();
+    await expect(secrets.valueButton(dialog, 'copy', password)).toBeVisible();
+    await expect(secrets.valueButton(dialog, 'show', username)).toHaveCount(0);
+
+    // A new value labelled like something private is masked as it is typed.
+    await secrets.addFieldButton(dialog).click();
+    await secrets.customLabel(dialog, 0).fill('PIN');
+    await expect(secrets.customValue(dialog, 0)).toHaveAttribute(
+      'type',
+      'password',
     );
-    await expect(secrets.valueButton(dialog, 'show', username)).toBeVisible();
+    await secrets.customValue(dialog, 0).fill('4821');
     await secrets.submit(dialog, t('common.actions.save')).click();
     await soon(dialog).toBeHidden();
 
     await expect(secrets.row(CREDENTIALS.title).details).toHaveText(
-      'https://shop.example',
-    );
-    expect(
-      (await storedSecret(request, created.id)).fields.find(
-        (field) => field.label === 'Username',
-      ),
-    ).toEqual({ label: 'Username', value: 'ann', hidden: true });
-
-    // Unlocked, it is part of the list again.
-    dialog = await secrets.openEdit(CREDENTIALS.title);
-    await expect(secrets.keepHidden(dialog, username)).toBeChecked();
-    await secrets.keepHidden(dialog, username).uncheck();
-    await secrets.submit(dialog, t('common.actions.save')).click();
-    await soon(dialog).toBeHidden();
-    await expect(secrets.row(CREDENTIALS.title).details).toHaveText(
       'https://shop.example · ann',
     );
+    expect((await storedSecret(request, created.id)).fields).toEqual([
+      { label: 'Website', value: 'https://shop.example', hidden: false },
+      { label: 'Username', value: 'ann', hidden: false },
+      { label: 'Password', value: PASSWORD, hidden: true },
+      { label: 'PIN', value: '4821', hidden: true },
+    ]);
+    expect(await leaksOf(page, { 'the PIN': '4821' })).toEqual([]);
   });
 
   test('who it is for: moved from every session to a session, to another, and back', async ({

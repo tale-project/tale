@@ -22,14 +22,10 @@ describe('useSecretLabels', () => {
     );
   });
 
-  it('says in one line what each kind holds and gives a made-up title of it', () => {
+  it('gives a made-up title of each kind', () => {
     const { result } = renderHookApp(useSecretLabels);
-    expect(result.current.kindHint('credentials')).toBe(
-      'A website with its username and password.',
-    );
     expect(result.current.titleExample('card')).toBe('e.g. Visa ending 4242');
     for (const kind of SECRET_KINDS) {
-      expect(result.current.kindHint(kind)).not.toBe('');
       expect(result.current.titleExample(kind)).not.toBe('');
     }
   });

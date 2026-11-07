@@ -65,8 +65,6 @@ const save = () => screen.getByRole('button', { name: 'Save' });
 const box = (name: string) => screen.getByLabelText(name);
 /** The button of the list of sessions: named by its label, it shows who it is for. */
 const scope = () => screen.getByRole('button', { name: 'Available to' });
-const keepHidden = (position: number) =>
-  screen.getAllByRole('checkbox', { name: /^Keep hidden/ })[position];
 
 const patchBody = (api: Awaited<ReturnType<typeof renderEdit>>['api']) =>
   secretUpdateSchema.parse(api.callsTo('PATCH /secrets/:id')[0]?.body);
@@ -98,9 +96,8 @@ describe('the form to change a secret', () => {
     expect(
       screen.queryByRole('button', { name: 'Show Website' }),
     ).not.toBeInTheDocument();
-    expect(
-      [0, 1, 2].map((at) => keepHidden(at).getAttribute('aria-checked')),
-    ).toEqual(['false', 'false', 'true']);
+    // Whether a value is hidden is not asked here either.
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('puts a hidden value in no text of the page, only behind its field', async () => {
@@ -156,8 +153,8 @@ describe('the form to change a secret', () => {
       within(group).getByRole('button', { name: 'Show Backup code' }),
     ).toBeInTheDocument();
     expect(
-      within(group).getByRole('checkbox', { name: /^Keep hidden/ }),
-    ).toBeChecked();
+      within(group).getByRole('button', { name: 'Copy Backup code' }),
+    ).toBeInTheDocument();
   });
 
   it('keeps the flag a field is stored with: a value that is shown is not masked because its label sounds private', async () => {
@@ -183,9 +180,6 @@ describe('the form to change a secret', () => {
     expect(
       within(group).queryByRole('button', { name: 'Show Pass phrase' }),
     ).not.toBeInTheDocument();
-    expect(
-      within(group).getByRole('checkbox', { name: /^Keep hidden/ }),
-    ).not.toBeChecked();
   });
 });
 
@@ -418,27 +412,43 @@ describe('saving a changed secret', () => {
     ]);
   });
 
-  it('sends the flag a person changed, not the one the server would pick', async () => {
-    const { user, api } = await renderEdit();
-    await user.click(keepHidden(2));
-    expect(save()).toBeEnabled();
+  it('sends the flags of the stored values as they are stored, whatever the server would pick', async () => {
+    const odd = secret({
+      id: 21,
+      kind: 'credentials',
+      title: 'Odd',
+      fields: [
+        field('Website', 'x.test'),
+        field('Pass phrase', 'visible on purpose', false),
+      ],
+    });
+    const backend = installSecretsApi({ secrets: [odd] });
+    const { user } = renderApp(
+      <SecretFormDialog
+        target={{ type: 'edit', secret: summaryOf(odd) }}
+        onOpenChange={() => {}}
+      />,
+    );
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Website' }),
+      '/',
+    );
     await user.click(save());
 
     await waitFor(() =>
-      expect(api.callsTo('PATCH /secrets/:id')).toHaveLength(1),
+      expect(backend.api.callsTo('PATCH /secrets/:id')).toHaveLength(1),
     );
-    expect(
-      patchBody(api).fields?.find((entry) => entry.label === 'Password'),
-    ).toMatchObject({
-      hidden: false,
-    });
+    expect(patchBody(backend.api).fields).toEqual([
+      { label: 'Website', value: 'x.test/', hidden: false },
+      { label: 'Pass phrase', value: 'visible on purpose', hidden: false },
+    ]);
   });
 
-  it('adds a field to a stored secret', async () => {
+  it('adds a field to a stored secret, hidden when its label names something private', async () => {
     const { user, api } = await renderEdit();
     await user.click(screen.getByRole('button', { name: 'Add field' }));
     await user.type(screen.getByRole('textbox', { name: 'Label' }), 'PIN');
-    await user.type(screen.getByRole('textbox', { name: 'Value' }), '4821');
+    await user.type(screen.getByLabelText('Value'), '4821');
     expect(save()).toBeEnabled();
     await user.click(save());
 
@@ -446,7 +456,11 @@ describe('saving a changed secret', () => {
       expect(api.callsTo('PATCH /secrets/:id')).toHaveLength(1),
     );
     expect(patchBody(api).fields).toHaveLength(4);
-    expect(patchBody(api).fields?.[3]).toEqual({ label: 'PIN', value: '4821' });
+    expect(patchBody(api).fields?.[3]).toEqual({
+      label: 'PIN',
+      value: '4821',
+      hidden: true,
+    });
   });
 
   it('is saved the same once a change is put back as it was: it asks nothing and sends nothing', async () => {
