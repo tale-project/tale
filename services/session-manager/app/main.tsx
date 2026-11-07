@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { i18n } from '@/lib/i18n/i18n';
 
 import { queryClient } from './lib/query-client';
+import { readsSettled } from './lib/route-read';
 import { installStaleBundleReload } from './lib/stale-bundle-reload';
 import { router } from './router';
 
@@ -21,6 +22,12 @@ const root: HTMLElement = rootElement;
 // A tab that outlived an update of the manager reloads onto the new build when
 // a navigation misses a chunk the update replaced.
 installStaleBundleReload({ navigating: () => router.state.isLoading });
+
+// The first frame is the page as it opens, not a change: nothing in it fades
+// or glides into place (the highlight of the rail, of a panel's row). The root
+// route lets transitions run again once that frame is painted
+// (`useOpeningDone`, `locals.css`).
+document.documentElement.dataset.opening = '';
 
 // `<AppShell>` enforces the standard `<ThemeProvider> → <LocaleProvider>
 // → <I18nextProvider> → <LocaleSync>` stack every Tale frontend uses. The
@@ -47,10 +54,13 @@ function renderApp() {
 // shell stays on screen, and the first commit paints the page, as the
 // platform's does (`services/platform/app/main.tsx`). A redirect is followed
 // inside `load()`; a failure mounts the app anyway, where the router's own
-// error page tells it. The mount's own load then runs over the page that is
-// already there, without taking it away.
+// error page tells it. The lists the page asked for and does not wait for are
+// waited for too (at most a second, `readsSettled`), so the first frame has
+// their rows. The mount's own load then runs over the page that is already
+// there, without taking it away.
 router
   .load()
+  .then(() => readsSettled(queryClient))
   .catch((error: unknown) => {
     console.warn('Failed to load the first page; mounting anyway', error);
   })

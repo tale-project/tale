@@ -27,3 +27,38 @@ export async function waitForRead(
     clearTimeout(timer);
   }
 }
+
+/** What `readsSettled` needs of the query client: how many reads are in flight, and word of a change. */
+export interface ReadsInFlight {
+  isFetching(): number;
+  getQueryCache(): { subscribe(listener: () => void): () => void };
+}
+
+/**
+ * Waits until no read is in flight, at most `ms`. Before the first frame
+ * (`app/main.tsx`): the lists a route asks for with its page and does not
+ * wait for (a navigation is never held back by a list) are there by the first
+ * frame too, so the page opens with its rows instead of masked ones that an
+ * answer replaces a moment later. It never fails.
+ */
+export function readsSettled(
+  client: ReadsInFlight,
+  ms: number = ROUTE_READ_WAIT_MS,
+): Promise<void> {
+  return new Promise((resolve) => {
+    if (client.isFetching() === 0) {
+      resolve();
+      return;
+    }
+    let unsubscribe = (): void => {};
+    const done = (): void => {
+      clearTimeout(timer);
+      unsubscribe();
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    unsubscribe = client.getQueryCache().subscribe(() => {
+      if (client.isFetching() === 0) done();
+    });
+  });
+}

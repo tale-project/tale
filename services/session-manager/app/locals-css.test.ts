@@ -35,4 +35,19 @@ describe('locals.css', () => {
       /overscroll-behavior:\s*none/,
     );
   });
+
+  it('shows the boot shell only once a load takes longer than a blink, never before', () => {
+    expect(ruleOf('[data-boot-shell]')).toMatch(
+      /animation:\s*boot-shell-reveal\s+1ms\s+linear\s+400ms\s+both/,
+    );
+    const frames = ruleOf('@keyframes boot-shell-reveal');
+    expect(frames).toMatch(/from\s*{\s*visibility:\s*hidden;\s*}/);
+    expect(frames).toMatch(/to\s*{\s*visibility:\s*visible;\s*}/);
+  });
+
+  it('holds every transition back while the app opens, so its first frame fades nothing in', () => {
+    expect(ruleOf(':root[data-opening] *')).toMatch(
+      /transition:\s*none\s*!important/,
+    );
+  });
 });

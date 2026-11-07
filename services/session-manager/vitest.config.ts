@@ -18,10 +18,12 @@ export default defineConfig({
     // and settings of its servers, two servers in one process); its specs are
     // `*.spec.ts`, run by Playwright, and its launcher has no test of its own.
     // `tests/guards` holds the checks of how the service is put together
-    // (which side imports what, which settings are documented).
+    // (which side imports what, which settings are documented); `scripts`
+    // the steps of the build.
     include: [
       'backend/**/*.test.ts',
       'lib/**/*.test.ts',
+      'scripts/**/*.test.ts',
       'tests/e2e/*.test.ts',
       'tests/guards/*.test.ts',
     ],

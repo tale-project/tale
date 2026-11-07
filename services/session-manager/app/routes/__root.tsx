@@ -11,6 +11,7 @@ import { AppFrame } from '@/app/components/layout/app-frame';
 import { SkipLink } from '@/app/components/layout/skip-link';
 import { ProxyFlowProvider } from '@/app/features/sessions/components/proxy-flow-provider';
 import { metaQuery } from '@/app/hooks/use-meta';
+import { useOpeningDone } from '@/app/hooks/use-opening-done';
 import { useRetitleOnLanguageChange } from '@/app/hooks/use-retitle-on-language-change';
 import { pageHead } from '@/app/lib/page-head';
 import { waitForRead } from '@/app/lib/route-read';
@@ -39,6 +40,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
   useRetitleOnLanguageChange();
+  useOpeningDone();
   return (
     <>
       <HeadContent />

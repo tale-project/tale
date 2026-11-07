@@ -33,6 +33,26 @@ test('the page the server sends is the frame of the app, its rail where the app 
   expect(masked).toEqual(await centersOf(rail.locator('svg')));
 });
 
+test('the frame the server sent stays out of sight for a blink, so a page that is ready sooner paints once', async ({
+  page,
+}) => {
+  await recordFrames(page);
+  await page.goto('/proxies');
+  await expect(
+    page.getByRole('heading', { name: t('proxies.empty.title') }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+  const frames = await framesOf(page);
+  expect(frames.some((frame) => frame.root === 'shell')).toBe(true);
+  // Shown, if at all, only once 0.4 s have passed (`locals.css`): never in a
+  // frame before, whatever the machine.
+  expect(
+    frames
+      .filter((frame) => frame.shellShown && frame.t < 400)
+      .map((frame) => frame.t),
+  ).toEqual([]);
+});
+
 const EMPTY_LISTS = [
   { address: '/sessions', empty: t('sessions.empty.title') },
   { address: '/proxies', empty: t('proxies.empty.title') },

@@ -43,9 +43,12 @@ bun run --filter @tale/session-manager start      # http://127.0.0.1:3004
 ```
 
 The build bakes the frame of the app, its rail masked, into the page it writes
-(`scripts/prerender-boot-shell.ts`), so every address paints that frame before any script runs, and
-the page waits for the counts and the browser's state before its first frame: a list with nothing in
-it opens on its empty state. The dev server does the same.
+(`scripts/prerender-boot-shell.ts`), with preloads of the fonts its first frame draws with. The page
+waits for the counts, the browser's state and the rows of its list before its first frame (a second at
+most), and that frame comes in one go: nothing in it fades in, and a list with nothing in it opens on
+its empty state. The frame of the app shows only once a load takes longer than 0.4 seconds, so a page
+served from this computer paints once, finished, and a slow one shows the frame meanwhile. The dev
+server does the same, without the preloads.
 
 `start` serves `dist/`, so build first. Stop it with Ctrl+C: every browser closes gracefully (the
 app waits up to 30 seconds), and each session reopens its tabs at its next start. A second Ctrl+C

@@ -52,3 +52,32 @@ body {
     transform: none;
   }
 }
+
+/* The boot shell, the frame of the app the build bakes into the page
+   (`scripts/prerender-boot-shell.ts`), shows only once a load takes longer
+   than a blink. A page that is ready sooner, as it is from a server on this
+   computer, paints once and finished, not as an empty frame that the page
+   replaces a tenth of a second later. */
+[data-boot-shell] {
+  animation: boot-shell-reveal 1ms linear 400ms both;
+}
+
+@keyframes boot-shell-reveal {
+  from {
+    visibility: hidden;
+  }
+
+  to {
+    visibility: visible;
+  }
+}
+
+/* The first frame of the app is the page as it opens, not a change: while the
+   document is marked as opening (`app/main.tsx`, until the first frame is
+   painted, `useOpeningDone`), nothing transitions, so the highlight of the
+   rail and of a panel's row stand where they are instead of fading in. */
+:root[data-opening] *,
+:root[data-opening] *::before,
+:root[data-opening] *::after {
+  transition: none !important;
+}

@@ -125,12 +125,15 @@ COPY services/session-manager/public ./services/session-manager/public
 COPY services/session-manager/messages ./services/session-manager/messages
 COPY services/session-manager/lib ./services/session-manager/lib
 COPY services/session-manager/app ./services/session-manager/app
-COPY services/session-manager/scripts/prerender-boot-shell.ts ./services/session-manager/scripts/
+COPY services/session-manager/scripts/prerender-boot-shell.ts \
+     services/session-manager/scripts/font-preloads.ts \
+     ./services/session-manager/scripts/
 
 ENV NODE_ENV=production
 WORKDIR /app/services/session-manager
-# The page, then its boot shell baked into `dist/index.html` (the frame of the
-# app as the first paint): the same steps as `bun run build`.
+# The page, then its boot shell and the preloads of its first fonts baked into
+# `dist/index.html` (the frame of the app as the first paint): the same steps as
+# `bun run build`.
 RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun scripts/prerender-boot-shell.ts
 WORKDIR /app

@@ -4,6 +4,10 @@ import type { Locator, Page } from '@playwright/test';
 export interface Frame {
   /** `#root` is empty (blank), holds the boot shell the server sent, or the app's page. */
   root: 'blank' | 'shell' | 'app';
+  /** The boot shell is drawn where it can be seen (it waits out a blink first, `locals.css`). */
+  shellShown: boolean;
+  /** Milliseconds from the start of the navigation to the frame. */
+  t: number;
   /** Masked rows: a status that says a table or a list is loading. */
   masked: boolean;
   /** The search box of a list's toolbar, in the page. */
@@ -35,11 +39,12 @@ export async function recordFrames(page: Page): Promise<void> {
       const style = getComputedStyle(element);
       return style.visibility !== 'hidden' && style.display !== 'none';
     };
-    const read = (): Frame | null => {
+    const read = (): Omit<Frame, 't'> | null => {
       const root = document.getElementById('root');
       if (root === null) return null;
       const all = (selector: string) =>
         Array.from(document.querySelectorAll(selector)).filter(shown);
+      const tile = root.querySelector('[data-boot-shell] [data-skeleton-mask]');
       return {
         root:
           root.childElementCount === 0
@@ -47,6 +52,8 @@ export async function recordFrames(page: Page): Promise<void> {
             : root.querySelector('[data-boot-shell]') !== null
               ? 'shell'
               : 'app',
+        shellShown:
+          tile !== null && getComputedStyle(tile).visibility !== 'hidden',
         masked: all('[role="status"][aria-busy="true"]').some(
           (status) => status.closest('[data-boot-shell]') === null,
         ),
@@ -62,7 +69,7 @@ export async function recordFrames(page: Page): Promise<void> {
       const frame = read();
       const key = JSON.stringify(frame);
       if (frame !== null && key !== last) {
-        frames.push(frame);
+        frames.push({ ...frame, t: Math.round(performance.now()) });
         last = key;
       }
       requestAnimationFrame(sample);
