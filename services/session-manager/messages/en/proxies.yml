@@ -63,7 +63,6 @@ add:
   submit: Add proxy
 import:
   title: Import proxies
-  description: "Paste one proxy per line, or choose a .txt file. Blank lines and lines starting with # are skipped."
   label: Proxies, one per line
   placeholder: |-
     proxy.example.com:8080

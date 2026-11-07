@@ -63,7 +63,6 @@ add:
   submit: Ajouter un proxy
 import:
   title: Importer des proxys
-  description: "Colle un proxy par ligne ou choisis un fichier .txt. Les lignes vides et celles qui commencent par # sont ignorées."
   label: Proxys, un par ligne
   placeholder: |-
     proxy.example.com:8080

@@ -47,6 +47,13 @@ export interface FormDialogProps {
   customHeader?: React.ReactNode;
   /** Custom footer content (replaces default buttons) */
   customFooter?: React.ReactNode;
+  /**
+   * What the footer holds before Cancel and the submit button, at its start:
+   * a second way to fill the form (a file to load) or the keyboard shortcut
+   * that submits it. The row is as the platform's task dialog has it. Ignored
+   * with `customFooter`, which replaces the whole row.
+   */
+  footerStart?: React.ReactNode;
   /** Use large dialog variant with scroll support */
   large?: boolean;
   /**
@@ -101,6 +108,7 @@ export function FormDialog({
   className,
   customHeader,
   customFooter,
+  footerStart,
   large = false,
   stickyFooter = false,
   size,
@@ -192,6 +200,12 @@ export function FormDialog({
 
   const footer = customFooter ?? (
     <>
+      {footerStart === undefined ? null : (
+        // It takes the room the buttons leave, so they stay at the end.
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+          {footerStart}
+        </div>
+      )}
       <Button
         type="button"
         variant="secondary"
