@@ -392,7 +392,10 @@ test.describe('adding a session', () => {
       t('sessions.add.os.linux'),
     ]);
     await expect(
-      page.getByRole('option', { name: t('sessions.add.os.random') }),
+      page.getByRole('option', {
+        name: t('sessions.add.os.random'),
+        exact: true,
+      }),
     ).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -4541,15 +4544,24 @@ test.describe('with the keyboard', () => {
     await system.focus();
     await page.keyboard.press('Enter');
     await expect(
-      page.getByRole('option', { name: t('sessions.add.os.random') }),
+      page.getByRole('option', {
+        name: t('sessions.add.os.random'),
+        exact: true,
+      }),
     ).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(
-      page.getByRole('option', { name: t('sessions.add.os.windows') }),
+      page.getByRole('option', {
+        name: t('sessions.add.os.windows'),
+        exact: true,
+      }),
     ).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(
-      page.getByRole('option', { name: t('sessions.add.os.macos') }),
+      page.getByRole('option', {
+        name: t('sessions.add.os.macos'),
+        exact: true,
+      }),
     ).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(system).toHaveText(t('sessions.add.os.macos'));

@@ -228,7 +228,7 @@ new: it can use the proxy, though it cannot read the password.
 **Adding a session starts it.** The name is optional: without one, the session is named after the
 smallest free number, `0001`, `0002`, and so on. A name has 1 to 80 characters (an emoji counts as
 one), no control characters, and is unique without regard to case. The system is **Random**
-(Windows 60 %, macOS 20 %, Linux 20 %) unless you choose one. The session appears at once, gets a
+(Windows 75 %, macOS 25 %, never Linux) unless you choose one. The session appears at once, gets a
 proxy in the background (**Assigning proxy**), then its browser launches (**Starting**), and the
 page opens on it.
 

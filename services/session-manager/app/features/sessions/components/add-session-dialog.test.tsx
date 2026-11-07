@@ -79,7 +79,7 @@ describe('AddSessionDialog', () => {
     expect(nameField()).toHaveFocus();
     expect(
       screen.getByRole('combobox', { name: 'Operating system' }),
-    ).toHaveTextContent('Random');
+    ).toHaveTextContent('Random (Windows or macOS)');
   });
 
   it('offers the systems the app knows, in words', async () => {
@@ -92,7 +92,7 @@ describe('AddSessionDialog', () => {
 
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['Random', 'Windows', 'macOS', 'Linux']);
+    ).toEqual(['Random (Windows or macOS)', 'Windows', 'macOS', 'Linux']);
   });
 
   it('leaves out a system the backend does not offer', async () => {
@@ -110,7 +110,7 @@ describe('AddSessionDialog', () => {
     await waitFor(() =>
       expect(
         screen.getAllByRole('option').map((option) => option.textContent),
-      ).toEqual(['Random', 'Linux']),
+      ).toEqual(['Random (Windows or macOS)', 'Linux']),
     );
   });
 
