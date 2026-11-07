@@ -28,6 +28,7 @@
  */
 
 import type { MessagePart } from '@/lib/chat/types';
+import { withoutRunningReply as withoutRunningRow } from '@/lib/shared/running-reply';
 
 import type {
   ChatGenerationView,
@@ -232,15 +233,13 @@ function isTerminalRow(row: ChatMessageView): boolean {
  * CHAT-R2): all but the reply a turn is still writing — `pending`, its
  * finalize not landed. Without the live lane that row would sit
  * half-written or as a thinking bubble; a later read brings it settled. The
- * array keeps its identity when nothing is left out. */
+ * server's read already leaves it out for a reader; this keeps the view
+ * right for any row list it is handed. The array keeps its identity when
+ * nothing is left out. */
 export function withoutRunningReply(
   messages: readonly ChatMessageView[],
 ): readonly ChatMessageView[] {
-  const running = (row: ChatMessageView) =>
-    row.status === 'pending' && !isTerminalRow(row);
-  return messages.some(running)
-    ? messages.filter((row) => !running(row))
-    : messages;
+  return withoutRunningRow(messages);
 }
 
 /** Which row the live turn is writing: the one the generation names, else the

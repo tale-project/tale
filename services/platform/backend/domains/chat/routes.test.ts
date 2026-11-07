@@ -887,6 +887,131 @@ describe('GET /threads/:threadId/messages for a project reader [CHAT-R2]', () =>
   });
 });
 
+/**
+ * The reply a running turn is still writing is the owner's: the messages
+ * read leaves its `pending` placeholder — and the parts the turn saved to
+ * it so far — out for a project reader, and serves it once it settled.
+ */
+describe('GET /threads/:threadId/messages while a turn runs [CHAT-R2]', () => {
+  const question = {
+    id: 'm-question',
+    role: 'user',
+    parts: [{ type: 'text', text: 'Draft the launch plan' }],
+    sequence: 0,
+    model: null,
+    providerSlug: null,
+    usage: null,
+    blockedReason: null,
+    error: null,
+    status: 'complete',
+    createdAt: 1,
+  };
+  const reply = (status: string, text: string) => ({
+    id: 'm-reply',
+    role: 'assistant',
+    parts: [{ type: 'text', text }],
+    sequence: 1,
+    model: 'model-a',
+    providerSlug: null,
+    usage: null,
+    blockedReason: null,
+    error: null,
+    status,
+    createdAt: 2,
+  });
+
+  /** A fake `sql`: the thread is the caller's own when `owner` is set,
+   * and its rows are `messages`. */
+  function fakeSql(owner: boolean, messages: unknown[]): unknown {
+    const view = {
+      id: 't1',
+      title: 'Launch plan',
+      projectId: 'p1',
+      generationStatus: 'generating',
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    const tag = (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      if (text.includes('t.user_id = ?')) {
+        return Promise.resolve(owner ? [view] : []);
+      }
+      if (text.includes('tm.generation_status AS "generationStatus"')) {
+        return Promise.resolve([view]);
+      }
+      if (text.includes('FROM app.messages')) return Promise.resolve(messages);
+      return Promise.resolve([]);
+    };
+    tag.unsafe = (text: string) => text;
+    return tag;
+  }
+
+  async function readIds(sql: unknown): Promise<string[]> {
+    const res = await makeApp(sql).request('/threads/t1/messages?orgId=o1');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { messages: { id: string }[] };
+    return body.messages.map((row) => row.id);
+  }
+
+  beforeEach(() => {
+    loadProjectSharedThread.mockResolvedValue({
+      id: 't1',
+      organizationId: 'o1',
+      userId: 'owner',
+    });
+    projectSharedViewLeaf.mockResolvedValue('t1');
+  });
+
+  it('leaves the running reply and its saved parts out for a reader', async () => {
+    const res = await makeApp(
+      fakeSql(false, [question, reply('pending', 'Step one: half-wri')]),
+    ).request('/threads/t1/messages?orgId=o1');
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('half-wri');
+    expect(
+      (JSON.parse(text) as { messages: { id: string }[] }).messages.map(
+        (row) => row.id,
+      ),
+    ).toEqual(['m-question']);
+  });
+
+  it('serves the owner the running reply as before', async () => {
+    const res = await makeApp(
+      fakeSql(true, [question, reply('pending', 'Step one: half-wri')]),
+    ).request('/threads/t1/messages?orgId=o1');
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      messages: { id: string; status?: string }[];
+    };
+    expect(body.messages.map((row) => [row.id, row.status])).toEqual([
+      ['m-question', 'complete'],
+      ['m-reply', 'pending'],
+    ]);
+    expect(loadProjectSharedThread).not.toHaveBeenCalled();
+  });
+
+  it('serves the reader the reply once the turn settled', async () => {
+    expect(
+      await readIds(
+        fakeSql(false, [question, reply('complete', 'Step one: ship it.')]),
+      ),
+    ).toEqual(['m-question', 'm-reply']);
+  });
+
+  it('serves the reader a reply whose turn failed, with its error', async () => {
+    // A watchdog or the finalize marks a turn that never settled failed;
+    // a pending row that already carries its error is settled too.
+    const failed = { ...reply('pending', ''), error: 'interrupted' };
+    expect(await readIds(fakeSql(false, [question, failed]))).toEqual([
+      'm-question',
+      'm-reply',
+    ]);
+  });
+});
+
 describe('GET /threads/archived — the numeric query params are a boundary', () => {
   beforeEach(() => {
     listArchivedThreads.mockResolvedValue({ rows: [], nextCursor: null });
