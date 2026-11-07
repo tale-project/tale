@@ -2264,7 +2264,7 @@ describe('web_fetch meets a bot check', () => {
       'couldn’t load.</div></body></html>',
     finalUrl: 'https://wiki.mozilla.org/Release_Management/Calendar',
     ...(entry !== undefined
-      ? { outboundProxy: { label: 'http://p.webshare.io:80', entry } }
+      ? { outboundProxy: { label: 'http://p.example.net:80', entry } }
       : {}),
   });
   const article = (entry: number) => ({
@@ -2273,7 +2273,7 @@ describe('web_fetch meets a bot check', () => {
     headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
     body: '<html><head><title>Release Calendar</title></head><body><p>Nightly 147 starts on 10 November.</p></body></html>',
     finalUrl: 'https://whattrainisitnow.com/calendar',
-    outboundProxy: { label: 'http://p.webshare.io:80', entry },
+    outboundProxy: { label: 'http://p.example.net:80', entry },
   });
   const fetchCalendar = async () =>
     (await makeExecutor(createCtx().ctx)).execute({
@@ -2392,7 +2392,7 @@ describe('web_fetch meets a bot check', () => {
       .mockRejectedValueOnce(
         new SafeFetchError(
           'timeout',
-          'Request timed out after 15000ms (through the outbound proxy http://p.webshare.io:80)',
+          'Request timed out after 15000ms (through the outbound proxy http://p.example.net:80)',
         ),
       );
     noBrowserFree();
@@ -2433,7 +2433,7 @@ describe('web_fetch meets a bot check', () => {
         }),
         body: '<html><title>Just a moment...</title></html>',
         finalUrl: 'https://example.com/report',
-        outboundProxy: { label: 'http://p.webshare.io:80', entry: 4 },
+        outboundProxy: { label: 'http://p.example.net:80', entry: 4 },
       })
       .mockResolvedValueOnce(article(5));
 
@@ -2456,7 +2456,7 @@ describe('web_fetch renders a page behind a JavaScript challenge, once [CHAT-R50
 
   const TED_NOTICE = 'https://ted.europa.eu/en/notice/-/detail/650000-2025';
   const CHAT_AGENT = 'TaleAssistant/1.0 (+chat web_fetch)';
-  const PROXY = 'http://p.webshare.io:80';
+  const PROXY = 'http://p.example.net:80';
 
   /** A page recorded from a real site, kept beside the reader's tests. */
   const recorded = (name: string): string =>
