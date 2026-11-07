@@ -990,6 +990,10 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *    bridge's longest tool can answer and whose calls are not kept alive by
  *    the bridge's progress reports. The value is the platform's bridge call
  *    bound, never the YAML's.
+ *    `serverFields`: fields every mounted server takes besides its launch
+ *    shape, for a CLI that needs a setting of its own to offer a server's
+ *    tools to the model at all (Pi's `exposure: direct`; its default keeps
+ *    them inside its code-mode scripts).
  *  - `instructionsRef`: when instructions are staged as a file
  *    (`stagedInstructions`), set `path` to `[prefix + stagedPath]` so the
  *    CLI discovers the staged file.
@@ -1016,6 +1020,12 @@ const docFragmentSchema = z.union([
               unit: z.enum(['ms', 's']),
             })
             .strict()
+            .optional(),
+          serverFields: z
+            .record(
+              z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),
+              docValueSchema,
+            )
             .optional(),
         })
         .strict(),

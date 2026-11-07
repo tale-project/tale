@@ -54,13 +54,17 @@ const WRAPPERS = [
 ] as const;
 type Wrapper = (typeof WRAPPERS)[number];
 
-// Records what the exec's process sees, then waits to be signalled (as the
-// same process: no fork for a group signal to race) or exits with the status
-// it is given.
+// Records what the exec's process sees (Pi's: the config dir the wrapper
+// staged, and its mcp.json), then waits to be signalled (as the same process:
+// no fork for a group signal to race) or exits with the status it is given.
 const FAKE_CLI = `#!/bin/sh
 echo "$$" > "$FAKE_RECORD.pid"
 pwd > "$FAKE_RECORD.cwd"
 cat > "$FAKE_RECORD.stdin"
+if [ -n "$PI_CODING_AGENT_DIR" ]; then
+  ls "$PI_CODING_AGENT_DIR" > "$FAKE_RECORD.agentdir"
+  if [ -f "$PI_CODING_AGENT_DIR/mcp.json" ]; then cp "$PI_CODING_AGENT_DIR/mcp.json" "$FAKE_RECORD.mcp"; fi
+fi
 touch "$FAKE_RECORD.started"
 if [ -n "$FAKE_WAIT" ]; then exec sleep 30; fi
 exit "\${FAKE_EXIT:-0}"
@@ -83,7 +87,8 @@ function wrapperPath(wrapper: Wrapper): string {
     : resolve(import.meta.dir, '../..', wrapper.name);
 }
 
-function payload(wrapper: Wrapper, prompt: string): string {
+function payload(wrapper: Wrapper, prompt: string, body?: string): string {
+  if (body !== undefined) return body;
   return wrapper.cli === 'gemini'
     ? geminiPayload(root, { prompt })
     : JSON.stringify({ prompt, system_prompt: 'be brief' });
@@ -99,7 +104,12 @@ function installCli(wrapper: Wrapper): void {
 function start(
   wrapper: Wrapper,
   run: string,
-  options: { wait?: boolean; exit?: number; prompt?: string } = {},
+  options: {
+    wait?: boolean;
+    exit?: number;
+    prompt?: string;
+    body?: string;
+  } = {},
 ) {
   if (PYTHON === null) throw new Error('python3 is missing');
   const child = spawn(
@@ -124,7 +134,7 @@ function start(
   child.stdout?.on('data', (chunk: Buffer) => {
     stdout += chunk.toString('utf8');
   });
-  child.stdin?.end(payload(wrapper, options.prompt ?? 'p'));
+  child.stdin?.end(payload(wrapper, options.prompt ?? 'p', options.body));
   const exited = new Promise<{
     code: number | null;
     signal: NodeJS.Signals | null;
@@ -146,7 +156,10 @@ async function startedCli(run: string): Promise<void> {
   expect(existsSync(started)).toBe(true);
 }
 
-function record(run: string, what: 'pid' | 'cwd' | 'stdin'): string {
+function record(
+  run: string,
+  what: 'pid' | 'cwd' | 'stdin' | 'agentdir' | 'mcp',
+): string {
   return readFileSync(join(root, 'records', `${run}.${what}`), 'utf8');
 }
 
@@ -254,3 +267,44 @@ for (const wrapper of WRAPPERS) {
     );
   });
 }
+
+describe('tale-pi-run stages the MCP servers Pi reads', () => {
+  const pi = WRAPPERS[1];
+  const servers = {
+    connectors: {
+      command: 'tale-connectors-mcp',
+      env: {
+        TALE_CONNECTORS_URL: 'http://platform.internal/api/connectors',
+        TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}',
+      },
+      exposure: 'direct',
+    },
+  };
+
+  pyTest(
+    'a turn that mounts a server gets them as mcp.json, verbatim',
+    async () => {
+      installCli(pi);
+      const run = start(pi, 'a', {
+        body: JSON.stringify({ prompt: 'p', mcp: { mcpServers: servers } }),
+      });
+      expect((await run.exited).code).toBe(0);
+      expect(record('a', 'agentdir').split('\n')).toContain('mcp.json');
+      expect(JSON.parse(record('a', 'mcp'))).toEqual({ mcpServers: servers });
+    },
+    20_000,
+  );
+
+  pyTest(
+    'a turn that mounts none gets no mcp.json',
+    async () => {
+      installCli(pi);
+      const run = start(pi, 'a', {
+        body: JSON.stringify({ prompt: 'p', mcp: {} }),
+      });
+      expect((await run.exited).code).toBe(0);
+      expect(record('a', 'agentdir').split('\n')).not.toContain('mcp.json');
+    },
+    20_000,
+  );
+});

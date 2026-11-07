@@ -615,7 +615,14 @@ describe('shipped harnesses', () => {
       mcp: true,
       resume: true,
     });
-    expect(table.get('pi')?.capabilities.mcp).toBe(false);
+    // Every shipped harness mounts the platform bridge, and so reaches the
+    // workspace tools, but these two (`harnessMountsMcp`).
+    expect(
+      [...table.values()]
+        .filter((harness) => !harness.capabilities.mcp)
+        .map((harness) => harness.slug)
+        .sort(),
+    ).toEqual(['cursor', 'hermes']);
     // The one harness the platform never resumes (its `--resume` replays
     // every tool result twice); every other shipped harness continues.
     for (const harness of table.values()) {

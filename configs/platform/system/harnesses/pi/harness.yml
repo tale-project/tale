@@ -1,14 +1,16 @@
 # Sandbox harness — Pi, driven through the tale-pi-run wrapper (prompt +
 # per-exec config as one JSON object on stdin, staged to disk before the CLI
 # starts — process lists leak argv, and a prompt starting with '-' would
-# parse as a flag). This adapter does not stage Pi's MCP configuration, so
-# MCP-delivered tooling (browser server, connector bridge) is unavailable. Its
-# bring-your-own backend is commonly OpenRouter-style and speaks the
-# catalog's vendor-prefixed ids, so refs resolve in the catalog dialect.
+# parse as a flag). Its bring-your-own backend is commonly OpenRouter-style
+# and speaks the catalog's vendor-prefixed ids, so refs resolve in the
+# catalog dialect.
 #
 # The wrapper stages the config files into a private per-exec
 # PI_CODING_AGENT_DIR, then pipes the prompt into the CLI's stdin (Pi's
-# native headless prompt source). Instructions are staged as
+# native headless prompt source). The MCP servers (the browser and the
+# capability bridge, which carries every workspace tool) are staged as
+# <agentDir>/mcp.json, the user-level file Pi reads without asking for
+# project trust. Instructions are staged as
 # <agentDir>/APPEND_SYSTEM.md — auto-discovered and APPENDED to Pi's default
 # system prompt without replacing it (SYSTEM.md would replace it and drop
 # the defaults). Pi has NO native web tools (built-in tools: read, bash,
@@ -37,7 +39,7 @@ promptTransport: stdin-ndjson
 capabilities:
   planMode: false
   steering: false
-  mcp: false
+  mcp: true
   resume: true
 parser: pi-jsonl
 exec:
@@ -91,6 +93,28 @@ exec:
                   tale-gateway:
                     models:
                       - id: '${model}'
+      # Staged as <agentDir>/mcp.json (stdio: command/args/env — Pi's MCP
+      # server config). Pi offers a server's tools to the model only with
+      # `exposure: direct`: its default keeps them inside its code-mode
+      # scripts, where an agent told to call the workspace tools by name
+      # never finds them. The bridge token rides `${TALE_GATEWAY_TOKEN}`,
+      # which Pi resolves from its own environment when it starts the server
+      # (its stdio servers inherit that environment), so the staged file
+      # never holds the key. No call timeout: Pi asks every call for progress,
+      # and the bridge's reports on a long one (an image generation) restart
+      # Pi's 60 s timer.
+      - doc:
+          key: mcp
+          fragments:
+            - mcpServers:
+                path: mcpServers
+                serverShape: command-args
+                bridgeEnvField: env
+                bridgeEnv:
+                  TALE_CONNECTORS_URL: '${bridgeUrl}'
+                  TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                serverFields:
+                  exposure: direct
   env:
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'

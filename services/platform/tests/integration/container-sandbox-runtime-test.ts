@@ -22,10 +22,12 @@ import { join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { checkBridgeReach } from './lib/bridge-reach';
 import { checkCodexRoundTrip } from './lib/codex-round-trip';
 import { sleep } from './lib/docker';
 import { capture, ok, projectRoot, stdoutOf, stream } from './lib/exec';
 import { BOLD, GREEN, NC, RED } from './lib/log';
+import { checkPiBridgeRoundTrip } from './lib/pi-bridge-round-trip';
 
 const PROJECT_ROOT = projectRoot();
 const IMAGE = process.env.IMAGE || 'tale-sandbox-runtime:contest';
@@ -469,6 +471,17 @@ try {
   pass('codex completes a native tool round trip with parsed text and usage');
 } catch (error) {
   fail(`codex native tool round trip: ${String(error)}`);
+}
+// Pi reaches the workspace tools only through the bridge in its staged
+// mcp.json: a loopback model asks for workspace_status, the bridge relays the
+// call to a loopback platform with the session key, the answer comes back.
+try {
+  await checkPiBridgeRoundTrip(IMAGE);
+  pass(
+    'pi calls a workspace tool over the platform bridge and reads its answer',
+  );
+} catch (error) {
+  fail(`pi bridge round trip: ${String(error)}`);
 }
 // The entrypoint creates every harness state root a harness.yml points at
 // under HOME, or the harness refuses to start (Codex above). Registry and
@@ -1800,6 +1813,36 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
   } finally {
     if (cid) await ok(['docker', 'rm', '-f', cid]);
   }
+}
+
+console.log('');
+console.log('--- the platform bridge reaches every harness that mounts it ---');
+// Every workspace tool (the task tools, the knowledge pair, the heavy-phase
+// leases, image generation) rides the capability bridge, which a harness
+// starts from the MCP servers its exec mounts. Every harness the platform runs
+// on a managed credential, run as a task turn runs it (a model and the bridge,
+// through runnerd in a booted session) against a stub model endpoint, gets the
+// bridge's tools to its model, declared or found by its tool search, when its
+// YAML declares `capabilities.mcp`, and none when it does not
+// (`harnessMountsMcp`).
+try {
+  for (const harness of await checkBridgeReach(IMAGE)) {
+    if (harness.mcp && harness.reached) {
+      pass(`${harness.slug} gets the bridge's workspace tools to its model`);
+    } else if (harness.mcp) {
+      fail(
+        `${harness.slug} does not get the bridge's workspace tools to its model (runnerd: ${harness.runnerd})`,
+      );
+    } else if (!harness.reached) {
+      pass(
+        `${harness.slug}, which mounts no MCP server, offers no workspace tool`,
+      );
+    } else {
+      fail(`${harness.slug} offers workspace tools it declares no channel for`);
+    }
+  }
+} catch (error) {
+  fail(`the bridge check could not run: ${String(error)}`);
 }
 
 console.log('');

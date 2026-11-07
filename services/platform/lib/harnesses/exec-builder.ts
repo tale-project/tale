@@ -484,13 +484,15 @@ export function buildHarnessExec(
 
   /** The requested MCP server table in one harness dialect, or undefined
    * when nothing mounts. Browser first, then the managed-only bridge —
-   * matching the retired per-slug insertion order. */
+   * matching the retired per-slug insertion order. `serverFields` close
+   * every server's entry (Pi's `exposure`). */
   const buildMcpServers = (
     serverShape: 'command-args' | 'opencode-local',
     bridgeEnvField: string,
     bridgeEnv: Readonly<Record<string, string>>,
     visionOmitsImages: boolean,
     bridgeCallTimeout?: { field: string; unit: 'ms' | 's' },
+    serverFields: Readonly<Record<string, unknown>> = {},
   ): DocTree | undefined => {
     const servers: DocTree = {};
     if (spec.mcp?.browser) {
@@ -502,11 +504,12 @@ export function buildHarnessExec(
       ];
       servers.playwright =
         serverShape === 'command-args'
-          ? { command: PLAYWRIGHT_MCP_COMMAND, args }
+          ? { command: PLAYWRIGHT_MCP_COMMAND, args, ...serverFields }
           : {
               type: 'local',
               command: [PLAYWRIGHT_MCP_COMMAND, ...args],
               enabled: true,
+              ...serverFields,
             };
     }
     if (spec.mcp?.bridgeUrl && managed) {
@@ -522,13 +525,19 @@ export function buildHarnessExec(
             };
       servers.connectors =
         serverShape === 'command-args'
-          ? { command: BRIDGE_MCP_COMMAND, [bridgeEnvField]: env, ...timeout }
+          ? {
+              command: BRIDGE_MCP_COMMAND,
+              [bridgeEnvField]: env,
+              ...timeout,
+              ...serverFields,
+            }
           : {
               type: 'local',
               command: [BRIDGE_MCP_COMMAND],
               [bridgeEnvField]: env,
               enabled: true,
               ...timeout,
+              ...serverFields,
             };
     }
     return Object.keys(servers).length > 0 ? servers : undefined;
@@ -553,6 +562,7 @@ export function buildHarnessExec(
           f.bridgeEnv,
           false,
           f.bridgeCallTimeout,
+          f.serverFields,
         );
         if (servers) setPath(doc, f.path, servers);
       } else if ('instructionsRef' in fragment) {

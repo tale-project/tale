@@ -266,7 +266,7 @@ describe('image generation on an automation agent node', () => {
     vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
     await startWorkflowAgentTurnImpl(makeCtx({ status: 'running' }), {
       ...START,
-      harness: 'pi',
+      harness: 'hermes',
     } as never);
     expect(resolveTurnImageGeneration).not.toHaveBeenCalled();
     expect(scopeOf(0).toolGrants).not.toContain('generate_image');

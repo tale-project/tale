@@ -213,28 +213,31 @@ describe('image generation on a task run', () => {
     expect(io.instructions[0]).not.toContain('generate_image');
   });
 
-  it('is granted with the turn op and named once while a model resolves', async () => {
-    vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
-    await startTaskAgentTurnImpl(
-      makeCtx({ status: 'queued', execId: 'exec-1' }),
-      { ...KEYS, sweep: true } as never,
-    );
-    expect(scopeOf(0).toolGrants).toEqual([
-      'rag_search',
-      'rag_fetch',
-      'task_find',
-      'generate_image',
-      'host_lease_acquire',
-      'host_lease_release',
-    ]);
-    expect(scopeOf(0).turnOp).toEqual({
-      kind: 'task-agent',
-      execId: 'exec-1',
-    });
-    const instructions = io.instructions[0] ?? '';
-    expect(instructions.split('tool: "generate_image"')).toHaveLength(2);
-    expect(instructions).toContain('saves them into /agent/output/task-1/');
-  });
+  it.each(['claude-code', 'pi'])(
+    'is granted with the turn op and named once on %s while a model resolves',
+    async (harness) => {
+      vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
+      await startTaskAgentTurnImpl(
+        makeCtx({ status: 'queued', execId: 'exec-1' }),
+        { ...KEYS, harness, sweep: true } as never,
+      );
+      expect(scopeOf(0).toolGrants).toEqual([
+        'rag_search',
+        'rag_fetch',
+        'task_find',
+        'generate_image',
+        'host_lease_acquire',
+        'host_lease_release',
+      ]);
+      expect(scopeOf(0).turnOp).toEqual({
+        kind: 'task-agent',
+        execId: 'exec-1',
+      });
+      const instructions = io.instructions[0] ?? '';
+      expect(instructions.split('tool: "generate_image"')).toHaveLength(2);
+      expect(instructions).toContain('saves them into /agent/output/task-1/');
+    },
+  );
 
   it('is re-decided for a steer restart, bound to the rotated exec', async () => {
     vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
@@ -271,7 +274,7 @@ describe('image generation on a task run', () => {
     expect(io.instructions[1]).not.toContain('generate_image');
   });
 
-  it.each(['pi', 'hermes'])(
+  it.each(['hermes'])(
     'is never offered on %s, a harness that mounts no bridge to call it through',
     async (harness) => {
       vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
