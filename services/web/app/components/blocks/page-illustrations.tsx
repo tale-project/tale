@@ -2,12 +2,7 @@ import type { ProductScreenshotPage } from '@/app/content/product-screenshots';
 
 import { ProductScreenshot } from './product-screenshot';
 
-type PageIllustrationKind =
-  | 'about'
-  | 'contact'
-  | 'demo'
-  | 'pricing'
-  | 'changelog';
+type PageIllustrationKind = 'about' | 'contact' | 'demo' | 'changelog';
 
 /**
  * Public pages use the same responsive product captures as the homepage.
@@ -21,7 +16,6 @@ const PRODUCT_PAGE_BY_KIND: Record<
   about: 'projects',
   contact: 'chat',
   demo: 'automations',
-  pricing: 'governance',
   changelog: 'projects',
 };
 

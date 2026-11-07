@@ -10,7 +10,7 @@ noindex: true
 
 Diese Nutzungsbedingungen ("Bedingungen") regeln deinen Zugriff auf und deine Nutzung der Website [https://tale.dev](https://tale.dev) ("Website"), die von der Ruler GmbH ("wir", "uns", "unsere") betrieben wird. Mit dem Zugriff auf oder der Nutzung unserer Website erklärst du dich an diese Bedingungen gebunden. Wenn du mit einem Teil dieser Bedingungen nicht einverstanden bist, nutze die Website bitte nicht.
 
-Diese Bedingungen gelten ausschließlich für die Nutzung der Website. Die Nutzung von Tale-Produkten und -Diensten wird separat durch unseren [Service Agreement](/files/Service_Agreement_Template.pdf) geregelt.
+Diese Bedingungen gelten ausschließlich für die Nutzung der Website. Die Nutzung von Tale-Produkten und -Diensten wird separat durch den Vertrag geregelt, den du mit der Ruler GmbH abschließt.
 
 ## 2. Betreiber
 
@@ -63,7 +63,7 @@ Das Absenden eines Formulars begründet kein Vertragsverhältnis zwischen dir un
 
 ### 6.1 Links von der Website
 
-Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen enthalten, die nicht von uns betrieben oder kontrolliert werden, einschließlich unserer Dokumentations-Site und Service-Vereinbarungen. Wir haben keine Kontrolle über und übernehmen keine Verantwortung für Inhalte, Datenschutzpraktiken oder Verfügbarkeit solcher Drittanbieter-Websites oder -Dienste. Die Aufnahme eines Links stellt keine Empfehlung dar. Wir empfehlen dir, die Bedingungen und Datenschutzerklärungen aller besuchten Drittanbieter-Seiten zu lesen.
+Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen enthalten, die nicht von uns betrieben oder kontrolliert werden, einschließlich unserer Dokumentations-Site. Wir haben keine Kontrolle über und übernehmen keine Verantwortung für Inhalte, Datenschutzpraktiken oder Verfügbarkeit solcher Drittanbieter-Websites oder -Dienste. Die Aufnahme eines Links stellt keine Empfehlung dar. Wir empfehlen dir, die Bedingungen und Datenschutzerklärungen aller besuchten Drittanbieter-Seiten zu lesen.
 
 ### 6.2 An den Dienst übermittelte URLs
 

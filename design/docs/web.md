@@ -72,7 +72,7 @@ overridden so chrome matches the paper, not the app's true-neutral black:
 | `bg-surface-site-inset`                                     | image/illustration wells, inner panels           |
 | `bg-surface-site-deep`                                      | small logo/icon tiles                            |
 | `bg-surface-site-active`                                    | active segmented-control state                   |
-| `bg-surface-promo` / `text-fg-promo`                        | the pricing promo chip (muted stone)             |
+| `bg-surface-promo` / `text-fg-promo`                        | a promo chip (muted stone)             |
 | `bg-surface-wash`                                           | the quiet stage product windows sit on           |
 | `--color-atmosphere-warm` / `--color-atmosphere-deep`       | desaturated stone blooms (hero / stage / CTA)    |
 | `bg-gradient-site-hero`                                     | soft top wash behind hero copy                   |
@@ -199,14 +199,15 @@ of hand-rolling motion, CTAs, links, or section chrome. Variants use `class-vari
 
 Also reuse:
 
-- `MarketingSection` (`@tale/marketing-ui/marketing-section`) — pricing lead + subsection
+- `MarketingSection` (`@tale/marketing-ui/marketing-section`) — lead + subsection
   shell (already on `Reveal`).
 - The feature frames (`@tale/marketing-ui/feature-*`, `related-pages`, `docs-links`) — hero,
   capabilities, steps, FAQ, related, docs, CTA. Web's
   [`components/blocks/feature/`](../../services/web/app/components/blocks/feature/) keeps only the
   thin wrappers that feed them `featureShared` copy, the site CTAs and the platform-page registry.
-- `TierCard`, `CompareTable`, `SegmentedRadio`, `LogoCloudSection` — the pricing and
-  logo-band blocks, also from the package; the tiers, rows and copy stay in web.
+- `TierCard`, `CompareTable`, `SegmentedRadio`, `LogoCloudSection` — packaged
+  blocks from `@tale/marketing-ui`; no page on the site uses `TierCard` or
+  `CompareTable`.
 - `DemoStage` / `DemoShell` — product windows on atmospheric wash (no continuous float).
 - `useSkipEntrance` (`@tale/marketing-ui/entrance`) — SSR, reduced-motion, and SPA revisits skip
   entrances.
@@ -217,7 +218,7 @@ Also reuse:
 - `app/content/nav-menus.ts` — direct comparison destination and Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
 - `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.
 - Header navigation: Platform overview + six modules in one compact two-column disclosure,
-  a direct Compare link when its hub is published, Pricing, and Resources (localized docs,
+  a direct Compare link when its hub is published, and Resources (localized docs,
   use cases, changelog, company). Desktop disclosures center under their triggers
   and mark the current module; all triggers have 44px hit areas and visible focus.
   Header menus use click + Esc + fine-pointer hover intent. Mobile navigation is a focus-managed
@@ -255,7 +256,7 @@ Motion rules:
 | Homepage        | `tale.dev/`                                                  | Split hero + actual project task → compact agents → two editorial chapters (projects, agent workspace) → review/knowledge/automation/chat destinations → contrast deployment/control band → compact connectors → use cases → FAQ → CTA |
 | Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ individual product capture) → two topic tours (copy + DemoShell rows) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
 | Platform hub    | `/platform`                                                  | Hero (+ individual product capture) → two topic tours → module grid → FAQ → CTA                                                                                                    |
-| Pricing / forms | `/pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
+| Forms | `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
 | Changelog       | `/changelog`                                                 | Release list from GitHub manifest                                                                                                                                      |
 | Company         | `/about`                                                     | Hero (display heading + CTA pair) → facts panel → story/mission (+ legal-entity address) → product panel → values (`FeatureCapability`) → CTA                          |
 
@@ -282,7 +283,7 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 - One `h1` per page; question-shaped titles (visible H1 and matching `seo.*.title`) where natural,
   with a standalone answer as the first sentence beneath them.
 - JSON-LD only for **visible** content — the homepage FAQ schema is built from the same `FAQ_KEYS`
-  the accordion renders; prices in `SoftwareApplication` come from `lib/pricing/tiers.ts`. Never
+  the accordion renders. Never
   aggregateRating/reviews, never schema for content the page doesn't show.
 - Entity consistency everywhere: **Tale** · **Ruler GmbH** · **MIT** · **Ruler GmbH’s ISO 27001 certification** (Tale Enterprise and professional services) · agents named exactly (Claude Code, Codex, Cursor).
 - New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts`

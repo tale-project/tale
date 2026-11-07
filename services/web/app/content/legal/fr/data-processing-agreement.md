@@ -6,7 +6,7 @@ noindex: true
 
 **Dernière mise à jour :** 03.10.2026
 
-Le présent accord de traitement des données (« DPA ») est un avenant au Service Agreement (« Contrat ») entre Ruler GmbH (« Tale », « nous ») et l’entité ou la personne qui accepte le Contrat (« Client », « tu »). Il s’applique chaque fois que Tale traite des données personnelles pour le compte du Client dans le cadre de la fourniture des services. En exécutant le Contrat, le Client conclut ce DPA en son nom et, dans la mesure requise par le droit applicable, au nom de ses utilisateurs autorisés et sociétés affiliées. Ce DPA prend effet à la date du Contrat.
+Le présent accord de traitement des données (« DPA ») est un avenant au contrat relatif aux produits et services Tale (« Contrat ») entre Ruler GmbH (« Tale », « nous ») et l’entité ou la personne qui accepte le Contrat (« Client », « tu »). Il s’applique chaque fois que Tale traite des données personnelles pour le compte du Client dans le cadre de la fourniture des services. En exécutant le Contrat, le Client conclut ce DPA en son nom et, dans la mesure requise par le droit applicable, au nom de ses utilisateurs autorisés et sociétés affiliées. Ce DPA prend effet à la date du Contrat.
 
 ## 1. Définitions
 

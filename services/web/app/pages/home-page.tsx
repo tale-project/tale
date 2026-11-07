@@ -27,7 +27,7 @@ export function HomePage() {
 
   // The homepage's structured-data payload: who makes Tale (Organization),
   // the site (WebSite — no SearchAction, there is no site search), the
-  // product with its real prices (SoftwareApplication), and the FAQ exactly
+  // product (SoftwareApplication), and the FAQ exactly
   // as rendered (FAQ_KEYS is shared with the accordion, so schema and
   // visible content cannot diverge). Organization stays on the English
   // entity `@id`; WebSite.url matches this locale's canonical.

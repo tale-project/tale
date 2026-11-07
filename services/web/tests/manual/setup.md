@@ -35,8 +35,8 @@ unauthenticated rate limit (60 req/h/IP) bites.
 
 ## 2. Conventions
 
-- **Routes**: English pages live at the root (`/pricing`); German and French
-  are URL-prefixed (`/de/pricing`, `/fr/pricing`). `{lang}` in the guides
+- **Routes**: English pages live at the root (`/platform`); German and French
+  are URL-prefixed (`/de/platform`, `/fr/platform`). `{lang}` in the guides
   means `de` or `fr` — there is **no** `/en` prefix (`/en` redirects to `/`;
   any **other** unknown prefix is a real 404, see
   [locale.md](suites/locale.md) B2).
@@ -71,7 +71,6 @@ screen, and no console error. Deep coverage lives in the per-area guides.
 | `/platform/agents`                         | heading matching `platformAgents.title`           |
 | `/platform/automations`                    | heading matching `platformAutomations.title` |
 | `/platform/governance`                     | heading matching `platformGovernance.title`    |
-| `/pricing`                                 | heading **How much does Tale cost?** (`pricing.title`)                  |
 | `/changelog`                               | heading **What's new in Tale?** (`changelogPage.title`) + timeline      |
 | `/contact`                                 | heading **Contact us** (`contact.title`) + form                         |
 | `/request-demo`                            | heading **See Tale in action** (`requestDemo.title`) + form             |

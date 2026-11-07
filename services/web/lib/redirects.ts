@@ -13,20 +13,18 @@ export const UI_DOCS_ENTRY_PATHS = [
   '/fr/ui',
 ] as const;
 
-/** Retire the former hardware pricing page without leaving published links as 404s. */
-const HARDWARE_PRICING_REDIRECTS = {
-  '/hardware-pricing': '/pricing',
-  '/de/hardware-pricing': '/de/pricing',
-  '/fr/hardware-pricing': '/fr/pricing',
+/** Retire the pricing page without leaving published links as 404s. */
+const PRICING_REDIRECTS = {
+  '/pricing': '/',
+  '/de/pricing': '/de',
+  '/fr/pricing': '/fr',
 } as const;
 
 export function resolveWebRedirect(pathname: string): string | null {
   const normalizedPath = normalizeRequestPath(pathname);
-  const hardwareTarget =
-    HARDWARE_PRICING_REDIRECTS[
-      normalizedPath as keyof typeof HARDWARE_PRICING_REDIRECTS
-    ];
-  if (hardwareTarget) return hardwareTarget;
+  const pricingTarget =
+    PRICING_REDIRECTS[normalizedPath as keyof typeof PRICING_REDIRECTS];
+  if (pricingTarget) return pricingTarget;
 
   return UI_DOCS_ENTRY_PATHS.some((path) => path === normalizedPath)
     ? EXTERNAL_LINKS.uiDocs

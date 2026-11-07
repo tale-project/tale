@@ -18,7 +18,7 @@ interface DocumentMeta {
   title: string;
   description: string;
   /**
-   * Unlocalized route path (`'/'`, `'/pricing'`). Canonical, the full
+   * Unlocalized route path (`'/'`, `'/platform'`). Canonical, the full
    * hreflang cluster (en/de/fr + x-default), and og:locale all derive from
    * it for the current locale.
    */

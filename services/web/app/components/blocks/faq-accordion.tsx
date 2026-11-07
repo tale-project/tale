@@ -21,7 +21,6 @@ export const FAQ_KEYS = [
   'agentSubscriptions',
   'openSource',
   'onPrem',
-  'enterprisePricing',
   'byoModels',
 ] as const;
 

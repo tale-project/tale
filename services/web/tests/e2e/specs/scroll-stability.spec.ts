@@ -185,19 +185,19 @@ for (const width of [390, 1440]) {
     await page.mouse.wheel(0, 900);
     const positions = await framePositions(page);
     const position = positions.at(-1)!;
-    const pricing = page
+    const home = page
       .locator('header')
-      .getByRole('link', { name: t('nav.pricing') })
+      .getByRole('link', { name: t('nav.homeAriaLabel') })
       .first();
-    if (await pricing.isVisible()) await pricing.hover();
+    if (await home.isVisible()) await home.hover();
     else await page.locator('header a').first().hover();
     const afterHover = await framePositions(page);
     expect(
       Math.max(...afterHover.map((value) => Math.abs(value - position))),
     ).toBeLessThanOrEqual(1);
-    if (await pricing.isVisible()) {
-      await pricing.click();
-      await expect(page).toHaveURL(/\/pricing$/);
+    if (await home.isVisible()) {
+      await home.click();
+      await expect(page).toHaveURL(/\/$/);
       await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
     }
   });

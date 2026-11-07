@@ -7,8 +7,7 @@ home:
     byoModels:
       a: Nein. Du kannst eigene Modelle mitbringen, musst es aber nicht. Tale
         unterstützt die meisten grossen KI-Anbieter ohne Aufschlag —
-        Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
-        ist nicht in den Plänen enthalten.
+        Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet.
     onPrem:
       a: Tale kann auf deiner Infrastruktur mit lokalen Modellen laufen. Für einen
         Offline-Betrieb brauchst du auch lokale Abhängigkeiten und begrenzte
@@ -24,12 +23,6 @@ home:
       selfHosted:
         title: Standardmässig selbst gehostet
 
-pricing:
-  extras:
-    cloudProviders:
-      description: Wir unterstützen OpenAI, Anthropic, Gemini und weitere grosse
-        Cloud-KI-Anbieter in CH & EU — ohne Aufschlag; die Nutzung wird zu
-        Anbieterpreisen abgerechnet.
 platformAgents:
   tour:
     stages:

@@ -12,9 +12,9 @@ Prerendered per-locale head tags live in [seo.md](seo.md).
 
 | Surface      | Route                                                                                                       |
 | ------------ | ----------------------------------------------------------------------------------------------------------- |
-| English tree | `/`, `/pricing`, `/contact`, … (no prefix)                                                                  |
-| German tree  | `/de`, `/de/pricing`, `/de/platform`, `/de/legal/{slug}`, …                                                 |
-| French tree  | `/fr`, `/fr/pricing`, `/fr/changelog`, `/fr/legal/{slug}`, …                                                |
+| English tree | `/`, `/platform`, `/contact`, … (no prefix)                                                                  |
+| German tree  | `/de`, `/de/platform`, `/de/legal/{slug}`, …                                                 |
+| French tree  | `/fr`, `/fr/changelog`, `/fr/legal/{slug}`, …                                                |
 | Redirect     | `/en` → `/` only; any non-`de`/`fr` prefix → **localized 404** (`app/routes/$lang.tsx` throws `notFound()`) |
 | Switcher     | footer, every page (`packages/ui/src/components/site/language-switcher.tsx`)                                |
 
@@ -34,11 +34,11 @@ Bring the site up per [SETUP.md](../setup.md) — any mode. Messages live in
 
 ## Functional tests
 
-- [ ] `LOC-F1` · **Switch preserves path** — On `/pricing?billing=monthly`,
+- [ ] `LOC-F1` · **Switch preserves path** — On `/contact?source=footer`,
   open the footer **Switch language** menu (`languageSwitcher.ariaLabel`) and
-  pick **Deutsch** → URL commits `/de/pricing?billing=monthly` — same page,
+  pick **Deutsch** → URL commits `/de/contact?source=footer` — same page,
   same search params; picking **English** from there returns to
-  `/pricing?billing=monthly` (prefix dropped, not remapped elsewhere)
+  `/contact?source=footer` (prefix dropped, not remapped elsewhere)
 - [ ] `LOC-F2` · **German content** — Open `/de` → Hero renders the German
   title (`home.hero.title` from `messages/de.yml`); header nav labels are German; no untranslated
   English leaks in the shell.
@@ -58,7 +58,7 @@ Bring the site up per [SETUP.md](../setup.md) — any mode. Messages live in
   present in `messages/de-CH.yml` render the Swiss variant over the `de` base
   (`resolveRegionalLocale`); `<html lang>` reflects the base `de` route.
 - [ ] `LOC-F7` · **Switcher current mark** — Open the switcher on
-  `/de/pricing` → The trigger shows **Deutsch**; in the menu the **Deutsch**
+  `/de/platform` → The trigger shows **Deutsch**; in the menu the **Deutsch**
   item is marked current (`aria-current="true"` + check icon); choosing the
   current locale is a no-op (menu closes, URL unchanged)
 - [ ] `LOC-F8` · **Locale cookie** — Visit `/de`; then request `/` again
@@ -70,10 +70,10 @@ Bring the site up per [SETUP.md](../setup.md) — any mode. Messages live in
 
 ## Boundary & error tests
 
-- [ ] `LOC-B1` · **`/en` prefix** — Open `/en`, then `/en/pricing` → Redirects
+- [ ] `LOC-B1` · **`/en` prefix** — Open `/en`, then `/en/platform` → Redirects
   to `/` — English never carries a prefix; note the dropped sub-path (see
   [navigation.md](navigation.md) NAV-B3)
-- [ ] `LOC-B2` · **Unknown prefix** — Open `/es`, `/it/pricing` → **Localized
+- [ ] `LOC-B2` · **Unknown prefix** — Open `/es`, `/it/platform` → **Localized
   404** — the `$lang` route throws `notFound()` for anything but `de`/`fr` (no
   silent redirect to `/` anymore); the styled not-found page renders with a
   recovery CTA (`notFound.title`, `notFound.backHome`); no crash, no 500.

@@ -1,11 +1,10 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 13 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 12 boxes
 
 Verify the marketing site adapts across viewports — the mobile hamburger
 drawer (the desktop nav is `hidden lg:flex`, so the split is the Tailwind
-**`lg` breakpoint, 1024 px**), single-column reflow, the wide pricing compare
-table, and that no page overflows horizontally at phone width.
+**`lg` breakpoint, 1024 px**), single-column reflow, and that no page overflows horizontally at phone width.
 Cross-cutting: it re-walks pages other guides own at narrow widths.
 
 ## Scope & routes
@@ -19,7 +18,6 @@ with `browser_resize` (or a context `viewport`).
 | Home (hero demo, tour rows, FAQ)              | `/`                                                                                        |
 | Platform hub (demo stages + module grid)      | `/platform`                                                                                |
 | One module page (tour rows + capability grid) | `/platform/chat` (widest content: compare-style grids, alternating tour rows, demo stages) |
-| Pricing (cards + compare table)               | `/pricing`                                                                                 |
 | Changelog (sticky timeline + release stream)  | `/changelog`                                                                               |
 | Contact form                                  | `/contact`                                                                                 |
 | Request demo form                             | `/request-demo`                                                                            |
@@ -42,20 +40,15 @@ read-only (no form submits needed).
 - [ ] `RESP-F1` · **Hamburger drawer** — At 390 px on `/`, click **Open menu**
   (`nav.openMenu`) → A modal sheet opens with its **Close menu** button
   focused; the drawer (`#mobile-nav`) shows Platform +
-  Resources as flat lists (not collapsed disclosures), Pricing, and **Get
+  Resources as flat lists (not collapsed disclosures), and **Get
   started**; body scroll locks; the desktop inline nav is hidden (`lg:` only)
-- [ ] `RESP-F2` · **Drawer navigation** — In the open drawer, tap **Pricing**
-  → URL commits `/pricing`, the drawer **closes itself**, scroll unlocks
+- [ ] `RESP-F2` · **Drawer navigation** — In the open drawer, tap **Platform overview**
+  (`nav.product.hub.label`) → URL commits `/platform`, the drawer **closes itself**, scroll unlocks
   (computed body overflow restored); **Esc** also closes it and returns
   keyboard focus to **Open menu**.
 - [ ] `RESP-F3` · **No overflow** — At 390 px, on each scoped route, read
   `document.documentElement.scrollWidth` → `scrollWidth === clientWidth (390)`
   on every page — no horizontal scrollbar, nothing off-canvas.
-- [ ] `RESP-F4` · **Compare table** — At 390 px on `/pricing`, scroll to the
-  **Compare** section → The wide comparison
-  table is horizontally scrollable **inside its own container** (the page
-  itself doesn't overflow — RESP-F3 still holds); segmented controls wrap or
-  shrink without clipping.
 - [ ] `RESP-F5` · **Forms at 390 px** — `/contact` and `/request-demo`: focus each field, open the
   keyboard-sized viewport → Fields stack one column, labels visible, the
   submit button full-width and reachable; inputs, checkbox label rows and
@@ -76,9 +69,7 @@ read-only (no form submits needed).
 
 - [ ] `RESP-A1` · **Touch targets** → The hamburger is ≥ 44×44 CSS px
   (rendered `size-11`); drawer links and footer controls are comfortably
-  tappable (≥ 44 px height). On `/pricing`, tap a
-  comparison help icon → Its 44×44 px target opens readable information
-  without hover, and tapping outside dismisses it.
+  tappable (≥ 44 px height).
 - [ ] `RESP-A2` · **Reflow** → At **320 px** width content reflows to one
   column with no loss of information or function (WCAG 1.4.10); `scrollWidth
   === clientWidth`

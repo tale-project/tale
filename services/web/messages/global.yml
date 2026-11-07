@@ -1,7 +1,3 @@
-pricing:
-  tierNames:
-    community: Community
-    enterprise: Enterprise
 companies:
   microsoft: Microsoft Corporation
   google: Google LLC

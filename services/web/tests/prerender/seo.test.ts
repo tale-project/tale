@@ -445,9 +445,9 @@ describe('prerender SEO suite', () => {
       expect((await response?.text())?.length, url).toBeGreaterThan(100);
     }
     for (const path of [
-      '/pricing.md',
-      '/de/pricing.md',
-      '/fr/pricing.md',
+      '/about.md',
+      '/de/about.md',
+      '/fr/about.md',
       '/llms.txt',
       '/sitemap.xml',
     ]) {
@@ -494,14 +494,6 @@ describe('prerender SEO suite', () => {
       expect(html ?? '').toMatch(/"@type":"FAQPage"/);
     });
 
-    it('pricing declares BreadcrumbList + FAQPage + SoftwareApplication', () => {
-      const html = readHtml('/pricing');
-      expect(html).not.toBeNull();
-      expect(html ?? '').toMatch(/"@type":"BreadcrumbList"/);
-      expect(html ?? '').toMatch(/"@type":"FAQPage"/);
-      expect(html ?? '').toMatch(/"@type":"SoftwareApplication"/);
-    });
-
     it('platform agents declares FAQPage + BreadcrumbList', () => {
       const html = readHtml('/platform/agents');
       expect(html).not.toBeNull();
@@ -523,15 +515,15 @@ describe('prerender SEO suite', () => {
       expect(html ?? '').toMatch(/"@type":"BreadcrumbList"/);
     });
 
-    it('localized pricing keeps locale-prefixed canonical + breadcrumb', () => {
-      const html = readHtml('/de/pricing');
+    it('localized platform keeps locale-prefixed canonical + breadcrumb', () => {
+      const html = readHtml('/de/platform');
       expect(html).not.toBeNull();
       expect(html).toMatch(/lang="de"/i);
       expect(html).toMatch(
-        /rel="canonical"[^>]+href="https:\/\/tale\.dev\/de\/pricing"/i,
+        /rel="canonical"[^>]+href="https:\/\/tale\.dev\/de\/platform"/i,
       );
       expect(html).toMatch(/"@type":"BreadcrumbList"/);
-      expect(html).toMatch(/https:\/\/tale\.dev\/de\/pricing/);
+      expect(html).toMatch(/https:\/\/tale\.dev\/de\/platform/);
     });
   });
 

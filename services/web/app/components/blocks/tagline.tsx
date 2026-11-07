@@ -2,7 +2,8 @@ import { Scale, Server, ShieldCheck } from 'lucide-react';
 
 import { TrustCertifications } from '@/app/components/blocks/trust-certifications';
 import {
-  CtaPair,
+  MarketingButton,
+  MarketingExternalLink,
   PageSection,
   Reveal,
   SectionHeading,
@@ -19,7 +20,6 @@ const PILLARS = [
 
 export function Tagline() {
   const { t } = useT('home');
-  const { t: tNav } = useT('nav');
   const locale = useCurrentLocale();
 
   return (
@@ -33,14 +33,15 @@ export function Tagline() {
             title={t('tagline.title')}
             description={t('tagline.subtitle')}
           />
-          <CtaPair
-            align="start"
-            primary={{
-              label: t('hero.ctaSecondary'),
-              href: getSelfHostedQuickstartUrl(locale),
-            }}
-            secondary={{ label: tNav('pricing'), to: '/pricing' }}
-          />
+          <MarketingButton asChild size="lg" className="self-start">
+            <MarketingExternalLink
+              href={getSelfHostedQuickstartUrl(locale)}
+              tone="plain"
+              showIcon={false}
+            >
+              {t('hero.ctaSecondary')}
+            </MarketingExternalLink>
+          </MarketingButton>
           <TrustCertifications
             variant="line"
             className="text-fg-muted text-xs leading-relaxed"

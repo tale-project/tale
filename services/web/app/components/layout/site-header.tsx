@@ -84,9 +84,6 @@ export function SiteHeader() {
         overview={platformOverview}
         items={platformItems}
       />
-      <MarketingLink to="/pricing" tone="nav" active className="min-h-11">
-        {t('pricing')}
-      </MarketingLink>
       <NavMenu
         label={t('resources')}
         open={openMenu === 'resources'}
@@ -127,16 +124,6 @@ export function SiteHeader() {
       }
       mobileNav={
         <div className="[&_a[aria-current=page]]:bg-surface-site-inset [&_a]:hover:bg-surface-site-inset/70 flex flex-col gap-5">
-          <div className="border-border-base flex gap-1 border-b pb-3">
-            <MarketingLink
-              to="/pricing"
-              tone="navMobile"
-              active
-              className="rounded-lg px-2 text-base"
-            >
-              {t('pricing')}
-            </MarketingLink>
-          </div>
           <MobileNavGroup label={t('platform')}>
             <li className="col-span-full">
               <MarketingLink

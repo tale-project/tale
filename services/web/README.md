@@ -1,6 +1,6 @@
 # @tale/web
 
-The public marketing site, including product pages, comparisons, use cases, pricing, contact forms, and the changelog.
+The public marketing site, including product pages, comparisons, use cases, contact forms, and the changelog.
 Run these commands from the repository root after installing dependencies:
 
 ```bash
@@ -50,7 +50,7 @@ sizes. The interface, captions, and alternative text follow the page locale; Swi
 the German capture. Full-screen links open the complete high-resolution capture. The shared
 capture runner records locale, viewport, route, and dimensions; never recreate or retouch product
 state. Supporting animated tours retain the shared demo timeline and complete reduced-motion state.
-Company, pricing, contact, demo, changelog, and guide pages have their own supporting art.
+Company, contact, demo, changelog, and guide pages have their own supporting art.
 The optimizer preserves dimensions and adjusts encoding quality only when needed for the 200 KiB
 asset budget. If a capture cannot fit at the quality floor, it names the asset and stops so its
 source or framing can be reviewed.

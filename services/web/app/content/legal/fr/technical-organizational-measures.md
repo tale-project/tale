@@ -88,7 +88,7 @@ a) Tale prend un snapshot quotidien des bases applicatives et un snapshot horair
 
 b) Une réplique pour reprise d'activité après sinistre est maintenue dans la région choisie par le client (Genève pour la Suisse, Dublin pour l'Union européenne).
 
-c) Les restaurations depuis snapshot sont initiées par le Client via le support et respectent l'objectif de temps de reprise indiqué dans le Service Agreement.
+c) Les restaurations depuis snapshot sont initiées par le Client via le support et respectent l'objectif de temps de reprise indiqué dans le contrat conclu avec le Client.
 
 d) L'intégrité des sauvegardes est vérifiée au moins trimestriellement par restauration d'un snapshot représentatif dans un environnement isolé.
 

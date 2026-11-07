@@ -1,6 +1,6 @@
 # Navigation & pages
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 20 boxes
 
 Exercise the page inventory and every way to move between pages — the header
 nav, the footer columns, the legal-document pages (tabs, print), in-page hash
@@ -18,7 +18,6 @@ in [locale.md](locale.md) / [theme.md](theme.md).
 | Platform modules | `/platform/{chat\|projects\|knowledge\|agents\|automations\|governance}`                                                    |
 | Comparisons      | `/compare` + `/compare/{slug}`                                                                                              |
 | Use cases        | `/use-cases` + `/use-cases/{slug}`                                                                                           |
-| Pricing          | `/pricing`                                                                                                                  |
 | Changelog        | `/changelog`                                                                                                                |
 | About            | `/about`                                                                                                                    |
 | Contact          | `/contact`                                                                                                                  |
@@ -41,13 +40,13 @@ routes render without a backend.
 
 - [ ] `NAV-F1` · **Header nav** — On `/`, open **Platform** (`nav.platform`)
   and **Resources** (`nav.resources`); inspect **Compare**
-  (`nav.resource.compare.label`) and **Pricing** (`nav.pricing`) →
-  Platform places **Platform overview** above six modules **Chats → Projects
-  → Knowledge → Agents → Automations → Governance** (labels under
-  `nav.product.*`); Resources lists **Documentation** (external) → **Compare**
-  → **Use cases** → **Changelog** → **About us** (labels under
-  `nav.resource.*`); Pricing remains a direct header link; each panel stays
-  within the screen at 1024px, with readable descriptions in both themes.
+  (`nav.resource.compare.label`) → Platform places **Platform overview** above
+  six modules **Chats → Projects → Knowledge → Agents → Automations →
+  Governance** (labels under `nav.product.*`); Resources lists
+  **Documentation** (external) → **Compare** → **Use cases** → **Changelog** →
+  **About us** (labels under `nav.resource.*`); the header has no Pricing
+  link; each panel stays within the screen at 1024px, with readable
+  descriptions in both themes.
 - [ ] `NAV-F2` · **Get started** — Header → **Get started** (`nav.getStarted`)
   → Get started opens the docs quickstart
   (`https://docs.tale.dev/get-started/quickstart`, `getStartedUrl(locale)`) — the
@@ -56,7 +55,7 @@ routes render without a backend.
   (`footer.githubAriaLabel`) → External link to
   `https://github.com/tale-project/tale` with `target="_blank"` and
   `rel="noopener noreferrer"`
-- [ ] `NAV-F4` · **Logo home link** — On `/pricing`, click the Tale logo
+- [ ] `NAV-F4` · **Logo home link** — On `/platform`, click the Tale logo
   (aria-label **Tale home**, `nav.homeAriaLabel`) → URL commits `/` (or
   `/{lang}`); hero renders.
 - [ ] `NAV-F5` · **Footer Platform + Company** — Footer **Platform**
@@ -66,27 +65,22 @@ routes render without a backend.
   `/platform/{module}` pages; company links commit `/about`, `/contact`, and
   `/request-demo`; address shows Ruler GmbH + VAT link.
 - [ ] `NAV-F6` · **Footer Legal column** — Footer **Legal** (`footer.legal`),
-  top to bottom → **Service Agreement** (`footer.serviceAgreement`) is the
-  external PDF link, followed by the four legal-document links: **Privacy
-  Policy**, **Terms of Service**, DPA, TOM (`footer.privacyPolicy`,
-  `footer.termsOfService`, `footer.processingAgreement`,
-  `footer.technicalOrganizationalMeasures`), which commit `/legal/{slug}`
+  top to bottom → the four legal-document links: **Privacy Policy**, **Terms
+  of Service**, DPA, TOM (`footer.privacyPolicy`, `footer.termsOfService`,
+  `footer.processingAgreement`,
+  `footer.technicalOrganizationalMeasures`), which commit `/legal/{slug}`; no
+  external PDF link.
 - [ ] `NAV-F7` · **Footer Resources + bottom bar** — Footer **Resources**:
-  Documentation / Tale UI / Compare / Use cases / Changelog / Pricing;
+  Documentation / Tale UI / Compare / Use cases / Changelog;
   bottom bar: company address and **llms.txt** +
   **llms-full.txt** links (`footer.llmsTxtLabel`, `footer.llmsFullTxtLabel`),
   then the language/theme switchers and the GitHub icon → Docs is external;
-  Changelog / Pricing commit internal routes; `llms.txt` /
+  Changelog commits an internal route; `llms.txt` /
   `llms-full.txt` fetch plaintext (HTTP 200 — see [seo.md](seo.md) SEO-F6);
   GitHub links to the repo.
 - [ ] `NAV-F8` · **Legal tabs + print** — Open
   `/legal/data-processing-agreement`; use the DPA/TOM tabs; click **Print or
   save as PDF** → Tabs switch sibling documents; print opens `window.print`
-- [ ] `NAV-F9` · **Pricing controls** — On `/pricing`, toggle billing /
-  currency / users → Prices update; state in URL search params survives
-  reload.
-- [ ] `NAV-F10` · **Retired product URL** — Open `/hardware-pricing` → The
-  request redirects to `/pricing` and preserves query parameters.
 - [ ] `NAV-F11` · **FAQ + history** — On `/`, expand two FAQ items; click
   **Contact our team**; then browser Back → Both items stay open; link commits
   `/contact`; Back returns to `/`
@@ -97,6 +91,10 @@ routes render without a backend.
   URL gains its `#v…` hash; the clicked link carries `aria-current="true"` and
   the sticky nav keeps the active row visible; each release offers **View on
   GitHub** (`changelogPage.viewOnGithub`)
+- [ ] `NAV-F13` · **Retired pricing URL** — Open `/pricing?source=legacy`,
+  then `/de/pricing` and `/fr/pricing` → Each request answers HTTP **301** to
+  `/` (`/de`, `/fr` for the prefixed pages) and keeps the query string; the
+  retired `/hardware-pricing` answers the not-found page.
 
 ## Boundary & error tests
 
@@ -108,13 +106,10 @@ routes render without a backend.
   Throws `notFound()` → same not-found page as NAV-B1 (styled, with recovery
   CTA)
 - [ ] `NAV-B3` · **`/en` prefix vs unknown prefix** — Open `/en`, then
-  `/en/pricing`; then `/es` → `/en` and `/en/pricing` both redirect to `/`
-  (the sub-path is **dropped**, not remapped to `/pricing`) — `/en` is the
+  `/en/platform`; then `/es` → `/en` and `/en/platform` both redirect to `/`
+  (the sub-path is **dropped**, not remapped to `/platform`) — `/en` is the
   **only** redirecting prefix; `/es` renders the not-found page instead (see
   [locale.md](locale.md) LOC-B2)
-- [ ] `NAV-B4` · **Bad search params** — Open
-  `/pricing?billing=zzz&region=XX&users=abc` → The page renders with defaults
-  (no crash, no NaN price); the invalid params are ignored or normalized.
 - [ ] `NAV-B5` · **Content that does not arrive** — Mode B; in DevTools →
   Network, block the request pattern `*.md`; on `/`, `/de` and `/fr`, open
   **Resources** → **Use cases**; then unblock and click **Try again**
@@ -124,14 +119,15 @@ routes render without a backend.
   (`notFound.backHome`), both reachable with Tab, in light and dark.
   Unblocked: **Try again** shows the guide without reloading the page.
 - [ ] `NAV-B6` · **A chunk the tab cannot fetch** — Mode B; on `/`, block the
-  request pattern `*pricing*.js` in DevTools → Network, rest the pointer on
-  **Pricing** in the header, then open it; then unblock and click **Try
-  again** → The tab reloads by itself once, then stops and shows the error
-  page instead of reloading again (sessionStorage keeps one
+  request pattern `*platform-hub*.js` in DevTools → Network, open the
+  **Platform** menu (`nav.platform`), rest the pointer on **Platform
+  overview** (`nav.product.hub.label`), then click it; then unblock and click
+  **Try again** → The tab reloads by itself once, then stops and shows the
+  error page instead of reloading again (sessionStorage keeps one
   `tanstack_router_reload:` entry for the chunk); unblocked, **Try again**
-  reloads onto Pricing. A tab left open across a deploy meets the same miss
-  on its next navigation, and its first reload already lands on the new
-  build.
+  reloads onto Platform overview. A tab left open across a deploy meets the
+  same miss on its next navigation, and its first reload already lands on the
+  new build.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -144,9 +140,8 @@ routes render without a backend.
 - [ ] `NAV-A3` · **Legal tabs nav** → The DPA/TOM tab strip is a `<nav
   aria-label>` = **Document sections** (`legal.documentTabsAria`); the active
   tab is programmatically marked.
-- [ ] `NAV-A4` · **Focus visible** → Tabbing through header links, footer
-  links, and the pricing segmented controls shows a visible focus ring on
-  each.
+- [ ] `NAV-A4` · **Focus visible** → Tabbing through header links and footer
+  links shows a visible focus ring on each.
 
 ## Performance
 

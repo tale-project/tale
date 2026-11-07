@@ -88,7 +88,7 @@ a) Tale erstellt täglich Snapshots der Anwendungsdatenbanken und stündlich des
 
 b) Eine Disaster-Recovery-Replik wird innerhalb der vom Kunden gewählten Region vorgehalten (Genf für die Schweiz, Dublin für die Europäische Union).
 
-c) Wiederherstellungen aus Snapshots werden vom Kunden über den Support angestoßen und erfüllen das im Service Agreement genannte Recovery Time Objective.
+c) Wiederherstellungen aus Snapshots werden vom Kunden über den Support angestoßen und erfüllen das im Vertrag mit dem Kunden genannte Recovery Time Objective.
 
 d) Die Backup-Integrität wird mindestens vierteljährlich durch Wiederherstellung eines repräsentativen Snapshots in eine isolierte Umgebung verifiziert.
 

@@ -85,7 +85,7 @@ describe('llms.txt product facts', () => {
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/Ruler GmbH/);
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/open source/i);
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/Claude Code/);
-    expect(WEB_LLMS_PAGES_INTRO).toMatch(/https:\/\/tale\.dev\/pricing/);
+    expect(WEB_LLMS_PAGES_INTRO).not.toMatch(/pricing/i);
   });
 
   it('points readers directly to the canonical documentation index', () => {

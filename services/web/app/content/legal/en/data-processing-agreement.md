@@ -6,7 +6,7 @@ noindex: true
 
 **Last updated:** 03.10.2026
 
-This Data Processing Agreement ("DPA") is an addendum to the Service Agreement ("Agreement") between Ruler GmbH ("Tale", "we", "us", "our") and the entity or person accepting the Agreement ("Customer", "you", "your"). It applies whenever Tale processes Personal Data on behalf of the Customer in providing the services. By executing the Agreement, the Customer enters into this DPA on its own behalf and, where Applicable Data Protection Law requires, on behalf of its authorized users and affiliates. This DPA takes effect on the date of the Agreement.
+This Data Processing Agreement ("DPA") is an addendum to the agreement for the Tale products and services ("Agreement") between Ruler GmbH ("Tale", "we", "us", "our") and the entity or person accepting the Agreement ("Customer", "you", "your"). It applies whenever Tale processes Personal Data on behalf of the Customer in providing the services. By executing the Agreement, the Customer enters into this DPA on its own behalf and, where Applicable Data Protection Law requires, on behalf of its authorized users and affiliates. This DPA takes effect on the date of the Agreement.
 
 ## 1. Definitions
 

@@ -11,7 +11,7 @@ A5.
 
 ## Scope & routes
 
-Theme is global — test on `/` and spot-check `/platform`, `/pricing`,
+Theme is global — test on `/` and spot-check `/platform`,
 `/contact`, and one legal page. The switcher renders in the footer on every
 page (`packages/ui/src/components/site/theme-switcher.tsx`,
 `variant="segmented"`; provider `packages/ui/src/theme/theme-provider.tsx`).
@@ -39,7 +39,7 @@ DevTools / the browser context.
   `document.documentElement.classList.contains('dark')` flips true/false; the
   page palette follows; `localStorage['tale-theme']` reads `dark` / `light`
 - [ ] `THEME-F2` · **Persistence** — Set **Dark**; reload; navigate to
-  `/pricing` → The dark theme survives the reload and the navigation; the
+  `/platform` → The dark theme survives the reload and the navigation; the
   **Dark** radio stays `aria-checked="true"`
 - [ ] `THEME-F3` · **System mode** — Click **System**; flip the OS/emulated
   `prefers-color-scheme` between light and dark → The page follows the OS

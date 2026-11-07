@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as UiRouteImport } from './routes/ui';
 import { Route as RequestDemoRouteImport } from './routes/request-demo';
-import { Route as PricingRouteImport } from './routes/pricing';
 import { Route as ContactRouteImport } from './routes/contact';
 import { Route as ChangelogRouteImport } from './routes/changelog';
 import { Route as AboutRouteImport } from './routes/about';
@@ -32,7 +31,6 @@ import { Route as LegalSlugRouteImport } from './routes/legal/$slug';
 import { Route as CompareSlugRouteImport } from './routes/compare/$slug';
 import { Route as LangUiRouteImport } from './routes/$lang/ui';
 import { Route as LangRequestDemoRouteImport } from './routes/$lang/request-demo';
-import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
 import { Route as LangContactRouteImport } from './routes/$lang/contact';
 import { Route as LangChangelogRouteImport } from './routes/$lang/changelog';
 import { Route as LangAboutRouteImport } from './routes/$lang/about';
@@ -57,11 +55,6 @@ const UiRoute = UiRouteImport.update({
 const RequestDemoRoute = RequestDemoRouteImport.update({
   id: '/request-demo',
   path: '/request-demo',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any);
 const ContactRoute = ContactRouteImport.update({
@@ -164,11 +157,6 @@ const LangRequestDemoRoute = LangRequestDemoRouteImport.update({
   path: '/request-demo',
   getParentRoute: () => LangRoute,
 } as any);
-const LangPricingRoute = LangPricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => LangRoute,
-} as any);
 const LangContactRoute = LangContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -251,13 +239,11 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
-  '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
   '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
-  '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/$lang/ui': typeof LangUiRoute;
   '/compare/$slug': typeof CompareSlugRoute;
@@ -291,13 +277,11 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
-  '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
   '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
-  '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/$lang/ui': typeof LangUiRoute;
   '/compare/$slug': typeof CompareSlugRoute;
@@ -333,13 +317,11 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
-  '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
   '/ui': typeof UiRoute;
   '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
-  '/$lang/pricing': typeof LangPricingRoute;
   '/$lang/request-demo': typeof LangRequestDemoRoute;
   '/$lang/ui': typeof LangUiRoute;
   '/compare/$slug': typeof CompareSlugRoute;
@@ -376,13 +358,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/changelog'
     | '/contact'
-    | '/pricing'
     | '/request-demo'
     | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
-    | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/$lang/ui'
     | '/compare/$slug'
@@ -416,13 +396,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/changelog'
     | '/contact'
-    | '/pricing'
     | '/request-demo'
     | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
-    | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/$lang/ui'
     | '/compare/$slug'
@@ -457,13 +435,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/changelog'
     | '/contact'
-    | '/pricing'
     | '/request-demo'
     | '/ui'
     | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
-    | '/$lang/pricing'
     | '/$lang/request-demo'
     | '/$lang/ui'
     | '/compare/$slug'
@@ -499,7 +475,6 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute;
   ChangelogRoute: typeof ChangelogRoute;
   ContactRoute: typeof ContactRoute;
-  PricingRoute: typeof PricingRoute;
   RequestDemoRoute: typeof RequestDemoRoute;
   UiRoute: typeof UiRoute;
   CompareSlugRoute: typeof CompareSlugRoute;
@@ -530,13 +505,6 @@ declare module '@tanstack/react-router' {
       path: '/request-demo';
       fullPath: '/request-demo';
       preLoaderRoute: typeof RequestDemoRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/pricing': {
-      id: '/pricing';
-      path: '/pricing';
-      fullPath: '/pricing';
-      preLoaderRoute: typeof PricingRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/contact': {
@@ -679,13 +647,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangRequestDemoRouteImport;
       parentRoute: typeof LangRoute;
     };
-    '/$lang/pricing': {
-      id: '/$lang/pricing';
-      path: '/pricing';
-      fullPath: '/$lang/pricing';
-      preLoaderRoute: typeof LangPricingRouteImport;
-      parentRoute: typeof LangRoute;
-    };
     '/$lang/contact': {
       id: '/$lang/contact';
       path: '/contact';
@@ -798,7 +759,6 @@ interface LangRouteChildren {
   LangAboutRoute: typeof LangAboutRoute;
   LangChangelogRoute: typeof LangChangelogRoute;
   LangContactRoute: typeof LangContactRoute;
-  LangPricingRoute: typeof LangPricingRoute;
   LangRequestDemoRoute: typeof LangRequestDemoRoute;
   LangUiRoute: typeof LangUiRoute;
   LangIndexRoute: typeof LangIndexRoute;
@@ -820,7 +780,6 @@ const LangRouteChildren: LangRouteChildren = {
   LangAboutRoute: LangAboutRoute,
   LangChangelogRoute: LangChangelogRoute,
   LangContactRoute: LangContactRoute,
-  LangPricingRoute: LangPricingRoute,
   LangRequestDemoRoute: LangRequestDemoRoute,
   LangUiRoute: LangUiRoute,
   LangIndexRoute: LangIndexRoute,
@@ -846,7 +805,6 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   ChangelogRoute: ChangelogRoute,
   ContactRoute: ContactRoute,
-  PricingRoute: PricingRoute,
   RequestDemoRoute: RequestDemoRoute,
   UiRoute: UiRoute,
   CompareSlugRoute: CompareSlugRoute,

@@ -39,7 +39,7 @@ Legend: ✅ green · ⚠️ finding (see below) · ❌ blocked · — not run.
 
 | Suite | Boxes | Result | Notes |
 |---|---|---|---|
-| [navigation](../suites/navigation.md) | \<NAV-F1–NAV-F9\> | ✅ | \<personas, locales, anything worth naming\> |
+| [navigation](../suites/navigation.md) | \<NAV-F1–NAV-F8\> | ✅ | \<personas, locales, anything worth naming\> |
 | \<suite\> | \<boxes\> | ⚠️ | \<…\> |
 
 ## Findings

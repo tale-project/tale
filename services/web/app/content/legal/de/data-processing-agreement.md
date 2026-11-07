@@ -6,7 +6,7 @@ noindex: true
 
 **Letzte Aktualisierung:** 03.10.2026
 
-Diese Auftragsverarbeitungsvereinbarung ("AVV") ist ein Zusatz zum Service Agreement ("Vereinbarung") zwischen der Ruler GmbH ("Tale", "wir", "uns", "unsere") und der Entität oder Person, die die Vereinbarung akzeptiert ("Kunde", "du", "dein"). Sie gilt, soweit Tale personenbezogene Daten im Auftrag des Kunden im Rahmen der Leistungserbringung verarbeitet. Mit Abschluss der Vereinbarung schließt der Kunde diese AVV im eigenen Namen und, soweit nach anwendbarem Datenschutzrecht erforderlich, im Namen seiner autorisierten Nutzer und verbundenen Unternehmen ab. Diese AVV tritt mit dem Datum der Vereinbarung in Kraft.
+Diese Auftragsverarbeitungsvereinbarung ("AVV") ist ein Zusatz zur Vereinbarung über die Tale-Produkte und -Dienste ("Vereinbarung") zwischen der Ruler GmbH ("Tale", "wir", "uns", "unsere") und der Entität oder Person, die die Vereinbarung akzeptiert ("Kunde", "du", "dein"). Sie gilt, soweit Tale personenbezogene Daten im Auftrag des Kunden im Rahmen der Leistungserbringung verarbeitet. Mit Abschluss der Vereinbarung schließt der Kunde diese AVV im eigenen Namen und, soweit nach anwendbarem Datenschutzrecht erforderlich, im Namen seiner autorisierten Nutzer und verbundenen Unternehmen ab. Diese AVV tritt mit dem Datum der Vereinbarung in Kraft.
 
 ## 1. Definitionen
 
