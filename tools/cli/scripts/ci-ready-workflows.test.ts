@@ -255,12 +255,7 @@ describe('nine complete native merge gates', () => {
       scope.steps?.some((step) => step.uses?.startsWith('dorny/paths-filter')),
     ).toBe(false);
     const decide = scope.steps?.find((step) => step.id === 'decide');
-    expect(E2E_SERVICES).toEqual([
-      'platform',
-      'web',
-      'docs',
-      'session-manager',
-    ]);
+    expect(E2E_SERVICES).toEqual(['platform', 'web', 'docs']);
     expect(decide?.env).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
       ...Object.fromEntries(
@@ -290,7 +285,6 @@ describe('nine complete native merge gates', () => {
       'services/platform/**',
       'services/web/**',
       'services/docs/**',
-      'services/session-manager/**',
       'packages/**',
       'configs/platform/**',
       'services/sandbox-runtime/daemon/**',
@@ -631,7 +625,6 @@ describe('real non-cone scope and readiness checkouts', () => {
           E2E_platform: 'false',
           E2E_web: 'true',
           E2E_docs: 'false',
-          E2E_session_manager: 'false',
         };
         const result = await execute(
           steps[2]!,
@@ -658,7 +651,6 @@ describe('real non-cone scope and readiness checkouts', () => {
             platform: 'false',
             web: 'true',
             docs: 'false',
-            'session-manager': 'false',
           });
       }
     });
@@ -769,7 +761,6 @@ describe('actual scope action boundaries', () => {
       E2E_platform: 'false',
       E2E_web: 'true',
       E2E_docs: 'false',
-      E2E_session_manager: 'false',
     };
     expect(
       (await execute(decide, { pull_request: pr() }, 'pull_request', env, pr()))
@@ -778,7 +769,6 @@ describe('actual scope action boundaries', () => {
       platform: 'false',
       web: 'true',
       docs: 'false',
-      'session-manager': 'false',
       run: 'true',
       full: 'false',
     });
@@ -793,20 +783,18 @@ describe('actual scope action boundaries', () => {
       platform: 'true',
       web: 'true',
       docs: 'true',
-      'session-manager': 'true',
       run: 'true',
       full: 'true',
     });
-    for (const service of ['E2E_docs', 'E2E_session_manager'])
-      await expect(
-        execute(
-          decide,
-          { pull_request: pr() },
-          'pull_request',
-          { ...env, [service]: '' },
-          pr(),
-        ),
-      ).rejects.toThrow();
+    await expect(
+      execute(
+        decide,
+        { pull_request: pr() },
+        'pull_request',
+        { ...env, E2E_docs: '' },
+        pr(),
+      ),
+    ).rejects.toThrow();
     await expect(
       execute(
         decide,
@@ -830,7 +818,6 @@ describe('actual scope action boundaries', () => {
       platform: 'true',
       web: 'true',
       docs: 'true',
-      'session-manager': 'true',
       run: 'true',
       full: 'true',
     });

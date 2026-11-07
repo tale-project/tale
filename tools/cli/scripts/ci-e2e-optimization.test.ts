@@ -84,25 +84,22 @@ describe('E2E service scheduling', () => {
     async () => {
       for (const platform of ['true', 'false'])
         for (const web of ['true', 'false'])
-          for (const docs of ['true', 'false'])
-            for (const manager of ['true', 'false']) {
-              const result = await decide({
-                EVENT_NAME: 'pull_request',
-                PLATFORM: platform,
-                WEB: web,
-                DOCS: docs,
-                SESSION_MANAGER: manager,
-              });
-              expect(result.code, result.stderr).toBe(0);
-              const services = [
-                ...(web === 'true' ? ['web'] : []),
-                ...(docs === 'true' ? ['docs'] : []),
-                ...(manager === 'true' ? ['session-manager'] : []),
-              ];
-              expect(result.output).toBe(
-                `platform=${platform}\nstatic_services=${JSON.stringify(services)}\n`,
-              );
-            }
+          for (const docs of ['true', 'false']) {
+            const result = await decide({
+              EVENT_NAME: 'pull_request',
+              PLATFORM: platform,
+              WEB: web,
+              DOCS: docs,
+            });
+            expect(result.code, result.stderr).toBe(0);
+            const services = [
+              ...(web === 'true' ? ['web'] : []),
+              ...(docs === 'true' ? ['docs'] : []),
+            ];
+            expect(result.output).toBe(
+              `platform=${platform}\nstatic_services=${JSON.stringify(services)}\n`,
+            );
+          }
     },
   );
 
@@ -117,7 +114,7 @@ describe('E2E service scheduling', () => {
         const result = await decide({ EVENT_NAME: event });
         expect(result.code, result.stderr).toBe(0);
         expect(result.output).toBe(
-          'platform=true\nstatic_services=["web","docs","session-manager"]\n',
+          'platform=true\nstatic_services=["web","docs"]\n',
         );
       }
     },
@@ -126,14 +123,13 @@ describe('E2E service scheduling', () => {
   test.skipIf(process.platform === 'win32')(
     'missing or malformed PR scope fails before publishing scheduling outputs',
     async () => {
-      for (const key of ['PLATFORM', 'WEB', 'DOCS', 'SESSION_MANAGER'])
+      for (const key of ['PLATFORM', 'WEB', 'DOCS'])
         for (const value of ['', 'yes', 'true\n', 'false; exit 0']) {
           const result = await decide({
             EVENT_NAME: 'pull_request',
             PLATFORM: 'true',
             WEB: 'false',
             DOCS: 'false',
-            SESSION_MANAGER: 'false',
             [key]: value,
           });
           expect(result.code).not.toBe(0);
@@ -169,8 +165,6 @@ describe('E2E service scheduling', () => {
       ['scripts/ensure-sandbox-runtime-image.ts', ['platform']],
       ['compose.sandbox-llm-gateway.dev.yml', ['platform']],
       ['services/web/playwright.config.ts', ['web']],
-      ['services/session-manager/playwright.config.ts', ['session-manager']],
-      ['services/session-manager/tests/e2e/server.ts', ['session-manager']],
       ['services/docs/scripts/build-search-index.ts', ['docs']],
       ['docs/fr/self-hosted/install/overview.md', ['docs']],
       ...[
@@ -190,10 +184,7 @@ describe('E2E service scheduling', () => {
         'tsconfig.vite.json',
         '.github/actions/setup-turbo/action.yml',
         '.github/workflows/e2e.yml',
-      ].map((path): [string, string[]] => [
-        path,
-        ['docs', 'platform', 'session-manager', 'web'],
-      ]),
+      ].map((path): [string, string[]] => [path, ['docs', 'platform', 'web']]),
     ];
     for (const [path, expected] of cases) {
       expect(matches(policies.e2e!, path), path).toBe(true);
@@ -236,20 +227,10 @@ describe('E2E service scheduling', () => {
     );
     expect(file.jobs['candidate-gate']?.needs).toContain('scope');
     const suite = step(file.jobs['static-sites'], 'Run E2E suite').run!;
+    // The sites isolate every page and take two workers.
     expect(suite).toBe(
-      "bun run --filter @tale/${{ matrix.service }} test:e2e ${{ matrix.service != 'session-manager' && '--workers=2' || '' }}",
+      'bun run --filter @tale/${{ matrix.service }} test:e2e --workers=2',
     );
-    // The sites isolate every page and take two workers. The session manager
-    // starts one fake server per worker and picks the count itself (its
-    // config: four, or the cores if fewer): a count on the command line would
-    // leave workers without a server, so it is given none.
-    const flag = /test:e2e \$\{\{ (.+) \}\}$/.exec(suite)![1]!;
-    for (const [service, expected] of [
-      ['web', '--workers=2'],
-      ['docs', '--workers=2'],
-      ['session-manager', ''],
-    ] as const)
-      expect(runInNewContext(flag, { matrix: { service } })).toBe(expected);
     const upload = step(file.jobs.build, 'Upload platform dist for the shards');
     expect(upload.with).toMatchObject({
       name: 'e2e-platform-dist-attempt-${{ github.run_attempt }}',
@@ -978,7 +959,6 @@ describe('E2E artifact and browser provenance', () => {
     'services/platform/playwright.config.ts',
     'services/web/playwright.config.ts',
     'services/docs/playwright.config.ts',
-    'services/session-manager/playwright.config.ts',
   ])(
     '%s uses headless Chromium without a full-browser channel',
     async (path) => {

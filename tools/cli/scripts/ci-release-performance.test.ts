@@ -336,40 +336,17 @@ test.skipIf(process.platform === 'win32').each(['', 'image', 'smoke'])(
   },
 );
 
-const FULL_COHORT = [
-  'sandbox-runtime',
-  'platform',
-  'db',
-  'web',
-  'docs',
-  'ui-docs',
-  'session-manager',
-  'proxy',
-  'sandbox-llm-gateway',
-  'sandbox',
-  'sandbox-egress',
-  'sandbox-buildkitd',
-];
-const SITES = ['web', 'docs', 'ui-docs'];
-
-test.skipIf(process.platform === 'win32').each([
-  ['full', FULL_COHORT, [...SITES, 'session-manager'], ''],
-  ['full', FULL_COHORT, [...SITES, 'session-manager'], 'docs'],
-  ['full', FULL_COHORT, [...SITES, 'session-manager'], 'session-manager'],
-  ['sites-only', SITES, SITES, ''],
-  ['sites-only', SITES, SITES, 'docs'],
-])(
-  'release standalone checks of a %s release await every child when "%s" fails',
-  async (_cohort, names, expected, failed) => {
+test.skipIf(process.platform === 'win32').each(['', 'docs'])(
+  'release standalone checks await every child when %s fails',
+  async (failed) => {
+    const expected = ['web', 'docs', 'ui-docs'];
     const proof = await probeFixture(expected, failed);
     const result = await execute(
       (await step('container-test', 'Run standalone container tests')).run!,
       proof.directory,
-      { ...proof.env, SERVICE_NAMES: JSON.stringify(names) },
+      proof.env,
     );
     expect(result.code, result.stdout + result.stderr).toBe(failed ? 1 : 0);
-    // The session manager is tested exactly when the release built its image:
-    // a sites-only release pulls none, and no test of it starts there.
     expect(
       (await readdir(proof.directory))
         .filter((name) => name.endsWith('.finish'))
@@ -381,24 +358,6 @@ test.skipIf(process.platform === 'win32').each([
         (await readFile(join(proof.directory, `${name}.argv`), 'utf8')).trim(),
       ).toBe(`services/platform/tests/integration/container-${name}-test.ts`);
     }
-  },
-);
-
-test.skipIf(process.platform === 'win32').each(['', 'not json', '{}'])(
-  'release standalone checks fail closed when the built services read "%s"',
-  async (names) => {
-    const proof = await probeFixture(SITES, '');
-    const result = await execute(
-      (await step('container-test', 'Run standalone container tests')).run!,
-      proof.directory,
-      { ...proof.env, SERVICE_NAMES: names },
-    );
-    expect(result.code, result.stdout + result.stderr).not.toBe(0);
-    expect(
-      (await readdir(proof.directory)).filter((name) =>
-        name.endsWith('.start'),
-      ),
-    ).toEqual([]);
   },
 );
 
@@ -529,7 +488,7 @@ test
 test
   .skipIf(process.platform === 'win32')
   .each(['', 'platform', 'sandbox-runtime'])(
-  'final manifest checks preserve all twelve services and aggregate failure %s',
+  'final manifest checks preserve all eleven services and aggregate failure %s',
   async (failure) => {
     const directory = await fixture();
     const services = [
@@ -539,7 +498,6 @@ test
       'web',
       'docs',
       'ui-docs',
-      'session-manager',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',

@@ -1,11 +1,10 @@
 // =============================================================================
-// Tale — Standalone container test helper (web / docs / ui-docs / session-manager)
+// Tale — Static-site container test helper (web / docs / ui-docs)
 // =============================================================================
-// Shared helper for container-web-test.ts, container-docs-test.ts,
-// container-ui-docs-test.ts and container-session-manager-test.ts. All of them
-// run the same shape: a Bun server fronting a SPA dist with a /api/health
-// endpoint. This module builds, validates, and smoke-tests one of them via its
-// standalone compose files.
+// Shared helper for container-web-test.ts, container-docs-test.ts and
+// container-ui-docs-test.ts. All of them run the same shape: a Bun server
+// fronting a static SPA dist with a /api/health endpoint. This module builds,
+// validates, and smoke-tests one of them via its standalone compose files.
 //
 // Optional env:
 //   SMOKE_TEST_TIMEOUT  max seconds to wait for healthy (default: 120)
@@ -36,13 +35,7 @@ interface StaticSiteProbe {
   contentTypeIncludes?: string;
   /** When true, require a Cache-Control header to be present. */
   expectCacheControl?: boolean;
-  /** Names of headers that must be present, e.g. `content-security-policy`. */
-  requireHeaders?: readonly string[];
-  /**
-   * Optional substring that must appear in the response body. `{imageVersion}`
-   * stands for the image's `org.opencontainers.image.version` label, so a probe
-   * can hold a service to the version it was built as.
-   */
+  /** Optional substring that must appear in the response body. */
   bodyIncludes?: string;
 }
 
@@ -267,23 +260,12 @@ export async function runStaticSiteTest(
         if (cc) r.pass(`${svc}: ${probe.path} has Cache-Control`);
         else r.fail(`${svc}: ${probe.path} missing Cache-Control`);
       }
-      if (res) {
-        for (const name of probe.requireHeaders ?? []) {
-          if (res.headers.get(name))
-            r.pass(`${svc}: ${probe.path} has ${name}`);
-          else r.fail(`${svc}: ${probe.path} missing ${name}`);
-        }
-      }
       if (res && probe.bodyIncludes) {
-        const wanted = probe.bodyIncludes.replaceAll(
-          '{imageVersion}',
-          metadata.labels['org.opencontainers.image.version'] ?? '',
-        );
         const body = await res.text().catch(() => '');
-        if (body.includes(wanted)) {
-          r.pass(`${svc}: ${probe.path} body includes ${wanted}`);
+        if (body.includes(probe.bodyIncludes)) {
+          r.pass(`${svc}: ${probe.path} body includes ${probe.bodyIncludes}`);
         } else {
-          r.fail(`${svc}: ${probe.path} body missing ${wanted}`);
+          r.fail(`${svc}: ${probe.path} body missing ${probe.bodyIncludes}`);
         }
       }
     }

@@ -51,7 +51,7 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
   if (workflow === 'e2e')
     needs.scope!.outputs = {
       platform: 'true',
-      static_services: '["web","docs","session-manager"]',
+      static_services: '["web","docs"]',
     };
   return {
     workflow,
@@ -166,7 +166,7 @@ describe('native CI readiness', () => {
   );
 
   test('E2E requires exactly the applicable platform and static service proofs', () => {
-    const everyStatic = ['web', 'docs', 'session-manager'];
+    const everyStatic = ['web', 'docs'];
     for (const platform of [false, true]) {
       for (const services of subsets(everyStatic)) {
         const input = fixture('e2e');
@@ -244,7 +244,7 @@ describe('native CI readiness', () => {
     expect(evaluateReadiness(input).passed).toBe(false);
   });
 
-  test.each(['web', 'docs', 'ui-docs', 'session-manager'])(
+  test.each(['web', 'docs', 'ui-docs'])(
     'Build requires the %s container proof while allowing the unneeded platform stack to skip',
     (service) => {
       const input = fixture('build');
@@ -262,7 +262,6 @@ describe('native CI readiness', () => {
         'web-test',
         'docs-test',
         'ui-docs-test',
-        'session-manager-test',
         'vulnerability-scan',
         'storybook',
       ])
@@ -290,7 +289,6 @@ describe('native CI readiness', () => {
       'web-test',
       'docs-test',
       'ui-docs-test',
-      'session-manager-test',
       'vulnerability-scan',
       'storybook',
     ])
@@ -552,14 +550,12 @@ describe('complete frozen PR scope', () => {
       platform: 'false',
       web: 'true',
       docs: 'false',
-      'session-manager': 'false',
     };
     expect(e2eScope(filters, false)).toEqual(filters);
     expect(e2eScope(filters, true)).toEqual({
       platform: 'true',
       web: 'true',
       docs: 'true',
-      'session-manager': 'true',
     });
     for (const malformed of [
       { ...filters, web: '' },

@@ -29,7 +29,6 @@
         "web-test",
         "docs-test",
         "ui-docs-test",
-        "session-manager-test",
         "storybook"
       ],
       "names": [
@@ -48,7 +47,6 @@
         "Web container test",
         "Docs container test",
         "UI docs container test",
-        "Session Manager container test",
         "Storybook",
         "Candidate gate"
       ]
@@ -122,7 +120,6 @@
         "Playwright (platform 4/4)",
         "Playwright (web)",
         "Playwright (docs)",
-        "Playwright (session-manager)",
         "Candidate gate / Record receipt"
       ]
     },
@@ -4002,8 +3999,7 @@
             "full": "${{ steps.scope.outputs.full }}",
             "platform": "${{ steps.scope.outputs.platform }}",
             "web": "${{ steps.scope.outputs.web }}",
-            "docs": "${{ steps.scope.outputs.docs }}",
-            "session-manager": "${{ steps.scope.outputs.session-manager }}"
+            "docs": "${{ steps.scope.outputs.docs }}"
           }
         },
         {
@@ -4136,8 +4132,7 @@
             "EVENT_NAME": "${{ github.event_name }}",
             "PLATFORM": "${{ needs.pr-scope.outputs.platform }}",
             "WEB": "${{ needs.pr-scope.outputs.web }}",
-            "DOCS": "${{ needs.pr-scope.outputs.docs }}",
-            "SESSION_MANAGER": "${{ needs.pr-scope.outputs.session-manager }}"
+            "DOCS": "${{ needs.pr-scope.outputs.docs }}"
           }
         },
         {
@@ -4204,7 +4199,7 @@
         {
           "path": ["jobs", "static-sites", "timeout-minutes"],
           "kind": "value",
-          "expected": 25
+          "expected": 15
         },
         {
           "path": ["jobs", "static-sites", "steps", 0],
@@ -4432,8 +4427,7 @@
           "Playwright (platform 3/4)",
           "Playwright (platform 4/4)",
           "Playwright (web)",
-          "Playwright (docs)",
-          "Playwright (session-manager)"
+          "Playwright (docs)"
         ],
         "skipped": [
           "Candidate source",

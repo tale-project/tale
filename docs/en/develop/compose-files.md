@@ -30,11 +30,9 @@ Stop the live log stream with `Ctrl-C`. Use `bun run docker:dev:down` to stop th
 | `compose.dev.yml` | Source mounts and development commands. |
 | `compose.docs.yml` | The documentation site and proxy routing. |
 | `compose.web.yml` | The marketing site and proxy routing. |
-| `compose.session-manager.yml` | The session manager, published on the loopback only. |
 | `compose.test.yml` | Platform container test configuration. |
 | `compose.docs.test.yml` | Documentation container test configuration. |
 | `compose.web.test.yml` | Marketing-site container test configuration. |
-| `compose.session-manager.test.yml` | Session manager container test configuration. |
 | `compose.test.mock.yml` | Mock-backed integration configuration. |
 
 Read the script that invokes a test overlay before running it directly; the test harness may prepare images, ports and fixtures. [Docker contributions](/develop/contributing-docker) covers the relevant checks.

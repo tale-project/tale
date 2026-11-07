@@ -49,7 +49,6 @@ const OUTPUTS = [
   'platform',
   'web',
   'docs',
-  'session-manager',
 ] as const;
 
 type Event = 'pull_request' | 'push';
