@@ -40,6 +40,7 @@ const README = {
     'delete_proxy',
   ],
   browser: [
+    'show_window',
     'list_tabs',
     'open_tab',
     'switch_tab',
@@ -89,6 +90,7 @@ const ARGUMENTS: Record<string, string[]> = {
   check_proxy: ['proxy_id'],
   check_proxies: [],
   delete_proxy: ['proxy_id', 'force'],
+  show_window: ['session'],
   list_tabs: ['session'],
   open_tab: ['session', 'url'],
   switch_tab: ['session', 'tab'],
@@ -191,7 +193,7 @@ describe('the catalog', () => {
     expect(MCP_TOOLS.map((tool) => tool.name)).toEqual(
       Object.values(README).flat(),
     );
-    expect(MCP_TOOLS).toHaveLength(42);
+    expect(MCP_TOOLS).toHaveLength(43);
   });
 
   it('exports the names, in the order of the catalog, each once', () => {
@@ -343,9 +345,7 @@ describe('the routes of the web API that the tools stand for', () => {
   it('are named by every tool, as METHOD /path relative to /api', () => {
     for (const [name, routes] of Object.entries(MCP_TOOL_ROUTES)) {
       for (const route of routes) {
-        expect(route, name).toMatch(
-          /^(GET|POST|PATCH|DELETE|WEBSOCKET) \/[a-z-/:]+$/,
-        );
+        expect(route, name).toMatch(/^(GET|POST|PATCH|DELETE) \/[a-z-/:]+$/);
       }
     }
     expect(Object.keys(MCP_TOOL_ROUTES)).toEqual([...MCP_TOOL_NAMES]);
@@ -359,12 +359,15 @@ describe('the routes of the web API that the tools stand for', () => {
     ]);
   });
 
-  it('give every tool of the browser the live view, and wait none', () => {
+  it('give the tools of the browser what the web page does in a window (showing it, typing into it), and the rest none', () => {
+    const routed: Record<string, readonly string[]> = {
+      show_window: ['POST /sessions/:id/show'],
+      type_text: ['POST /sessions/:id/type'],
+    };
     for (const name of README.browser) {
-      expect(MCP_TOOL_ROUTES[name], name).toEqual(
-        name === 'wait' ? [] : ['WEBSOCKET /sessions/:id/stream'],
-      );
+      expect(MCP_TOOL_ROUTES[name], name).toEqual(routed[name] ?? []);
     }
+    expect(MCP_TOOL_ROUTES.type_secret).toEqual(['POST /sessions/:id/type']);
   });
 
   it('are seen as the same whatever the number in the path is called', () => {
@@ -413,20 +416,17 @@ describe('compareRoutes', () => {
 });
 
 describe('whatever the web page can do, an assistant can do', () => {
-  /** The routes of the app as `compareRoutes` reads them: relative to /api, and the live view. */
+  /** The routes of the app as `compareRoutes` reads them: relative to /api. */
   function routesOfTheApp(): string[] {
     const app = createApp({
       manager: stubManager(),
       config: { allowedHosts: new Set(['127.0.0.1:3004']) },
     });
-    const routes = app.routes
+    return app.routes
       .filter(
         (route) => route.method !== 'ALL' && route.path.startsWith('/api/'),
       )
       .map((route) => `${route.method} ${route.path.slice('/api'.length)}`);
-    // The live view is a WebSocket the server upgrades before the app sees
-    // the request (`live_view/index.ts`), so the app does not list it.
-    return [...routes, 'WEBSOCKET /sessions/:id/stream'];
   }
 
   it('has a tool for every route of the API', () => {

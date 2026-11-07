@@ -14,6 +14,7 @@ import {
   waitForStatus,
 } from '../../testing/harness.ts';
 import type { TestManager } from '../../testing/harness.ts';
+import { PageNotRespondingError, RemoteError } from '../browser/remote.ts';
 
 const apps: TestManager[] = [];
 
@@ -167,7 +168,158 @@ describe('the tabs', () => {
   });
 });
 
-describe('the live browser', () => {
+describe('the window of a session', () => {
+  it('is brought to the front with its tab while the session runs', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    const [browser] = app.backend.launches;
+    await app.manager.showSession(session.id);
+    expect(browser.shows).toBe(1);
+    expect(browser.remote.events).toEqual([['toFront']]);
+  });
+
+  it('comes to the front once a start the person asked for is up', async () => {
+    const app = setup();
+    addProxy(app.manager, '192.0.2.1:8080');
+    const created = await app.manager.createSession(
+      { name: 'a' },
+      { show: true },
+    );
+    await waitForStatus(app.manager, created.id, 'running');
+    await vi.waitFor(() => {
+      expect(app.backend.launches[0]?.shows).toBe(1);
+    });
+
+    await app.manager.restartSession(created.id, { show: true });
+    await vi.waitFor(() => {
+      expect(app.backend.launches[1]?.shows).toBe(1);
+    });
+    await waitForStatus(app.manager, created.id, 'running');
+    await app.manager.stopSession(created.id);
+    await waitForStatus(app.manager, created.id, 'stopped');
+    await app.manager.startSession(created.id, { show: true });
+    await waitForStatus(app.manager, created.id, 'running');
+    await vi.waitFor(() => {
+      expect(app.backend.launches[2]?.shows).toBe(1);
+    });
+  });
+
+  it('stays where it is when an assistant starts the session', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    await app.manager.restartSession(session.id);
+    await waitForStatus(app.manager, session.id, 'running');
+    expect(app.backend.launches.map((browser) => browser.shows)).toEqual([
+      0, 0,
+    ]);
+  });
+
+  it('is not there to show while the session does not run', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    await app.manager.stopSession(session.id);
+    await waitForStatus(app.manager, session.id, 'stopped');
+    const refusal = await refusalOf(() => app.manager.showSession(session.id));
+    expect([refusal.status, refusal.code]).toEqual([
+      409,
+      'session_not_running',
+    ]);
+  });
+
+  it('says why the browser could not bring it forward', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    const [browser] = app.backend.launches;
+    vi.spyOn(browser, 'show').mockRejectedValue(
+      new RemoteError('No tab is open.'),
+    );
+    const refusal = await refusalOf(() => app.manager.showSession(session.id));
+    expect([refusal.status, refusal.code, refusal.extra]).toEqual([
+      502,
+      'browser_error',
+      { reason: 'No tab is open.' },
+    ]);
+  });
+
+  it('takes text where the focus of its page is', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    await app.manager.typeIntoSession(session.id, 'hunter2');
+    expect(app.backend.launches[0].remote.events).toEqual([
+      ['text', 'hunter2'],
+    ]);
+  });
+
+  it('types nothing while no field has the focus in it', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    const { remote } = app.backend.launches[0];
+    remote.fieldFocused = false;
+    const refusal = await refusalOf(() =>
+      app.manager.typeIntoSession(session.id, 'hunter2'),
+    );
+    expect([refusal.status, refusal.code]).toEqual([409, 'no_field_focused']);
+    expect(remote.events).toEqual([]);
+  });
+
+  it('says why the page could not take the text', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    const { remote } = app.backend.launches[0];
+    vi.spyOn(remote, 'insertText').mockRejectedValue(
+      new RemoteError('No tab is open.'),
+    );
+    const refusal = await refusalOf(() =>
+      app.manager.typeIntoSession(session.id, 'hunter2'),
+    );
+    expect([refusal.status, refusal.code]).toEqual([502, 'browser_error']);
+  });
+
+  it('says a dialog may wait when the page does not tell what has the focus', async () => {
+    const app = setup();
+    const session = await runningSession(app);
+    const { remote } = app.backend.launches[0];
+    vi.spyOn(remote, 'takesText').mockRejectedValue(
+      new PageNotRespondingError('The page does not respond.'),
+    );
+    const refusal = await refusalOf(() =>
+      app.manager.typeIntoSession(session.id, 'hunter2'),
+    );
+    expect([refusal.status, refusal.code]).toEqual([
+      504,
+      'browser_not_responding',
+    ]);
+    expect(remote.events).toEqual([]);
+  });
+
+  it('gives up on a page that does not take the text, and says a dialog may wait', async () => {
+    const app = createTestManager({ typeTimeoutMs: 20 });
+    apps.push(app);
+    const session = await runningSession(app);
+    const { remote } = app.backend.launches[0];
+    vi.spyOn(remote, 'insertText').mockReturnValue(new Promise(() => {}));
+    const refusal = await refusalOf(() =>
+      app.manager.typeIntoSession(session.id, 'hunter2'),
+    );
+    expect([refusal.status, refusal.code]).toEqual([
+      504,
+      'browser_not_responding',
+    ]);
+  });
+
+  it('is not typed into while the session does not run', async () => {
+    const app = setup();
+    addProxy(app.manager, '192.0.2.1:8080');
+    const created = await createSession(app.manager, 'a');
+    const refusal = await refusalOf(() =>
+      app.manager.typeIntoSession(created.id, 'hunter2'),
+    );
+    expect(refusal.code).toBe('session_not_running');
+    await waitForStatus(app.manager, created.id, 'running');
+  });
+});
+
+describe('the browser of a session', () => {
   it('is only available while the session runs', async () => {
     const app = setup();
     const session = await runningSession(app);

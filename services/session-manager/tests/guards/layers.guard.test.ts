@@ -1,10 +1,8 @@
-// The page, the server and the code they share stay apart. The image is built
-// from slices of the tree: the page is built from `app/` and `lib/` (the
-// `Dockerfile`'s builder stage copies nothing else), the server runs from
-// `backend/` and `lib/`. An `import` across that line works in a test and in
-// the dev server, and breaks the build of the one side that lacks the file, or
-// ships server code in the page. Tests may cross it on purpose: a contract
-// test drives the page's client against the real backend.
+// The page, the server and the code they share stay apart: the page is built
+// from `app/` and `lib/`, the server runs from `backend/` and `lib/`. An
+// `import` across that line works in a test and in the dev server, and ships
+// server code in the page (or page code in the server). Tests may cross it on
+// purpose: a contract test drives the page's client against the real backend.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';

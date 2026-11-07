@@ -46,6 +46,7 @@ export const MCP_TOOL_NAMES = [
   'check_proxies',
   'delete_proxy',
   // a running session's browser
+  'show_window',
   'list_tabs',
   'open_tab',
   'switch_tab',
@@ -87,9 +88,6 @@ export interface ToolAnnotations {
   readOnlyHint?: boolean;
   destructiveHint?: boolean;
 }
-
-/** The route of the web page's live view: what it does in a browser, the tools of the browser do. */
-export const LIVE_VIEW = 'WEBSOCKET /sessions/:id/stream';
 
 export const READ_ONLY: ToolAnnotations = { readOnlyHint: true };
 export const DESTRUCTIVE: ToolAnnotations = { destructiveHint: true };

@@ -1,8 +1,9 @@
-// The browser of a running session: tabs, reading a page, mouse and keyboard.
-// Every tool that works in the browser says it is at work there, so that the
-// page's dialogs wait for an answer (`remoteOf`). A page that opens a dialog
-// (alert, confirm, prompt) does not respond until it is answered: the tool that
-// caused one returns at once and says so, and `handle_dialog` answers it.
+// The browser of a running session: its window, tabs, reading a page, mouse
+// and keyboard. Every tool that works in the browser says it is at work there,
+// so that the page's dialogs wait for an answer (`remoteOf`). A page that opens
+// a dialog (alert, confirm, prompt) does not respond until it is answered: the
+// tool that caused one returns at once and says so, and `handle_dialog` (or
+// the person, in the window) answers it.
 
 import { z } from 'zod';
 
@@ -16,14 +17,8 @@ import {
   tabText,
   tabsText,
 } from './format.ts';
-import { remoteOf, webAddress } from './lookup.ts';
-import {
-  LIVE_VIEW,
-  READ_ONLY,
-  ToolError,
-  defineTool,
-  jpegImage,
-} from './tool.ts';
+import { remoteOf, sessionIdOf, webAddress } from './lookup.ts';
+import { READ_ONLY, ToolError, defineTool, jpegImage } from './tool.ts';
 import { UNTRUSTED_SENTENCE, untrusted } from './untrusted.ts';
 import { paced, sleep, sleepWhileOn } from './waiting.ts';
 
@@ -41,6 +36,22 @@ const DIRECTIONS: Record<
   left: (pixels) => [-pixels, 0],
 };
 
+// -- the window -------------------------------------------------------------------------
+
+const showWindow = defineTool({
+  name: 'show_window',
+  group: 'browser',
+  title: 'Show the window',
+  description:
+    'Bring the window of a running session to the front of the screen, with its active tab, so that the person sees it: to log in, to get past a check that needs a person, or to look at something with you.',
+  input: z.strictObject({ session: sessionRef }),
+  routes: ['POST /sessions/:id/show'],
+  async run({ session }, { manager }) {
+    await manager.showSession(sessionIdOf(manager, session));
+    return 'The window of the session is in front.';
+  },
+});
+
 // -- tabs ---------------------------------------------------------------------------
 
 const listTabs = defineTool({
@@ -50,7 +61,7 @@ const listTabs = defineTool({
   description: `The open tabs of a running session (id, address, title, which one is active). ${UNTRUSTED_SENTENCE}`,
   input: z.strictObject({ session: sessionRef }),
   annotations: READ_ONLY,
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session }, { manager }) {
     return tabsText(await remoteOf(manager, session).listTabs());
   },
@@ -65,7 +76,7 @@ const openTab = defineTool({
     session: sessionRef,
     url: z.string().nullish().describe('The address (https://...).'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, url }, { manager }) {
     const browser = remoteOf(manager, session);
     const address = url == null ? null : webAddress(url);
@@ -82,7 +93,7 @@ const switchTab = defineTool({
     session: sessionRef,
     tab: z.int().describe('The id of the tab (see list_tabs).'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, tab }, { manager }) {
     const browser = remoteOf(manager, session);
     await browser.activateTab(tab);
@@ -99,7 +110,7 @@ const closeTab = defineTool({
     session: sessionRef,
     tab: z.int().describe('The id of the tab (see list_tabs).'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, tab }, { manager }) {
     const browser = remoteOf(manager, session);
     await browser.closeTab(tab);
@@ -119,7 +130,7 @@ const navigate = defineTool({
     url: z.string().describe('The address (https://...).'),
     tab: tabId,
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, url, tab }, { manager }) {
     const browser = remoteOf(manager, session);
     const notice = await act(
@@ -143,7 +154,7 @@ const history = defineTool({
     action: z.enum(['back', 'forward', 'reload']),
     tab: tabId,
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, action, tab }, context) {
     const browser = remoteOf(context.manager, session);
     const notice = await act(
@@ -164,7 +175,7 @@ const readPage = defineTool({
   description: `What a tab shows: its address, title, visible text, and the buttons, links and fields in view, each with a number to use in click and type_text and its position. Read the page again after it changed. To see more of a long page, scroll and read again. ${UNTRUSTED_SENTENCE}`,
   input: z.strictObject({ session: sessionRef, tab: tabId }),
   annotations: READ_ONLY,
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, tab }, { manager }) {
     const browser = remoteOf(manager, session);
     if (browser.dialogs().length > 0) {
@@ -181,7 +192,7 @@ const screenshot = defineTool({
   description: `A picture of what the tab shows (x and y of click are positions in it). ${UNTRUSTED_SENTENCE}`,
   input: z.strictObject({ session: sessionRef, tab: tabId }),
   annotations: READ_ONLY,
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, tab }, { manager }) {
     const browser = remoteOf(manager, session);
     if (browser.dialogs().length > 0) {
@@ -209,7 +220,7 @@ const click = defineTool({
     button: z.enum(['left', 'right', 'middle']).default('left'),
     double: z.boolean().default(false).describe('A double click.'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run(args, context) {
     const browser = remoteOf(context.manager, args.session);
     let work: Promise<void>;
@@ -239,7 +250,7 @@ const hover = defineTool({
   description:
     'Move the mouse to a position in the viewport (to open a menu that shows on hover, for example).',
   input: z.strictObject({ session: sessionRef, x: pixel, y: pixel }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, x, y }, context) {
     const browser = remoteOf(context.manager, session);
     const notice = await act(browser, browser.hover(x, y), paced(context, 500));
@@ -260,7 +271,7 @@ const drag = defineTool({
     to_x: pixel,
     to_y: pixel,
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, from_x, from_y, to_x, to_y }, context) {
     const browser = remoteOf(context.manager, session);
     const notice = await act(
@@ -284,7 +295,7 @@ const typeText = defineTool({
     element: elementNumber,
     submit: pressEnter,
   }),
-  routes: [LIVE_VIEW],
+  routes: ['POST /sessions/:id/type'],
   async run({ session, text, element, submit }, context) {
     const browser = remoteOf(context.manager, session);
     const notice = await act(
@@ -307,7 +318,7 @@ const pressKey = defineTool({
     key: z.string().describe('The key or combination.'),
     action: z.enum(['press', 'down', 'up']).default('press'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, key, action }, context) {
     const browser = remoteOf(context.manager, session);
     const notice = await act(
@@ -331,7 +342,7 @@ const scroll = defineTool({
     x: pixel.nullish().describe('Pixels from the left of the viewport.'),
     y: pixel.nullish().describe('Pixels from the top of the viewport.'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, direction, pixels, x, y }, context) {
     const browser = remoteOf(context.manager, session);
     const [dx, dy] = DIRECTIONS[direction](pixels);
@@ -353,7 +364,7 @@ const getSelectedText = defineTool({
   description: `The text that is selected on the page (or in the field that has the focus). ${UNTRUSTED_SENTENCE}`,
   input: z.strictObject({ session: sessionRef }),
   annotations: READ_ONLY,
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session }, { manager }) {
     const selected = await remoteOf(manager, session).selectedText();
     return selected === '' ? '(nothing is selected)' : untrusted(selected);
@@ -372,7 +383,7 @@ const handleDialog = defineTool({
     accept: z.boolean().default(true).describe('OK (true) or Cancel (false).'),
     text: z.string().nullish().describe('What a prompt gets.'),
   }),
-  routes: [LIVE_VIEW],
+  routes: [],
   async run({ session, accept, text }, context) {
     const browser = remoteOf(context.manager, session);
     const [dialog] = browser.dialogs();
@@ -403,6 +414,7 @@ const wait = defineTool({
 });
 
 export const browserTools = [
+  showWindow,
   listTabs,
   openTab,
   switchTab,

@@ -2,7 +2,7 @@ import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
 import { TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
-import { waitForPictures, watchLiveView } from '../helpers/live-view';
+import { t } from '../helpers/i18n';
 import { watchPolicyViolations } from '../helpers/nav-csp';
 
 // Every address of the app, opened as a person (or a bookmark) opens it: the
@@ -29,18 +29,28 @@ for (const address of ADDRESSES) {
   });
 }
 
-// The page of a session is the one that opens a socket to the server: the
-// policy of the page must let it connect, and nothing may be logged for it.
-test('the page of a session that runs shows its picture without console errors', async ({
+// The page of a running session is a card that brings the session's window to
+// the front: it shows, its button works, and nothing is logged for it.
+test('the page of a session that runs shows its window card, and Show window works, without console errors', async ({
   page,
   api,
 }) => {
   const running = await api.startSession('smoke-running');
-  const live = watchLiveView(page);
   const errors = collectConsoleErrors(page);
   await page.goto(`/sessions/${running.id}`);
   await expectPageRenders(page);
-  await waitForPictures(live);
+  await expect(
+    page.getByRole('heading', { level: 2, name: t('viewer.window.title') }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+  const shown = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/sessions/${running.id}/show`,
+  );
+  await page
+    .getByRole('button', { name: t('viewer.window.show'), exact: true })
+    .click();
+  expect((await shown).status()).toBe(204);
   expect(errors).toEqual([]);
 });
 

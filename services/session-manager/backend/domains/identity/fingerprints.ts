@@ -16,6 +16,7 @@ import { FingerprintGenerator } from 'fingerprint-generator';
 import type { Fingerprint } from 'fingerprint-generator';
 
 import { isRecord } from '../../../lib/is-record.ts';
+import { largestDisplay } from '../browser/window.ts';
 import { identityLaunchOptions } from './launch-options.ts';
 import {
   IDENTITY_SCHEMA,
@@ -137,16 +138,19 @@ export function pickOs(
 }
 
 /**
- * The largest screen an identity may have. JavaScript cannot ask for the
- * attached displays, so it is `SESSION_MANAGER_MAX_SCREEN` ("1920x1080"), else
- * 1920x1080. Without a bound a fingerprint can have a screen larger than the
- * host's.
+ * The largest screen an identity may have: `SESSION_MANAGER_MAX_SCREEN`
+ * ("1920x1080"), else the room for windows on the largest display of this
+ * computer (the window of a session is as large as its fingerprint says, and
+ * has to fit there), else 1920x1080 where the displays cannot be asked.
+ * Without a bound a fingerprint can have a screen larger than the host's.
  */
 export function largestScreen(
   env: Readonly<Record<string, string | undefined>> = process.env,
+  display: () => Screen | null = largestDisplay,
 ): Screen {
+  const fallback = (): Screen => display() ?? [...FALLBACK_SCREEN];
   const raw = env.SESSION_MANAGER_MAX_SCREEN?.trim();
-  if (!raw) return [...FALLBACK_SCREEN];
+  if (!raw) return fallback();
   const match = /^(\d{1,5})\s*[x×]\s*(\d{1,5})$/iu.exec(raw);
   const width = Number(match?.[1]);
   const height = Number(match?.[2]);
@@ -154,7 +158,7 @@ export function largestScreen(
     console.warn(
       `ignoring SESSION_MANAGER_MAX_SCREEN=${JSON.stringify(raw)}: expected WIDTHxHEIGHT, for example 1920x1080`,
     );
-    return [...FALLBACK_SCREEN];
+    return fallback();
   }
   return [width, height];
 }

@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProxyFlowProvider } from '@/app/features/sessions/components/proxy-flow-provider';
 import { queryKeys } from '@/app/lib/api/keys';
@@ -12,8 +12,14 @@ import {
   list,
   type FakeRoute,
 } from '@/tests/utils/fake-api';
-import { FakeWebSocket } from '@/tests/utils/fake-websocket';
-import { meta, runningSession, session } from '@/tests/utils/fixtures';
+import {
+  meta,
+  runningSession,
+  secret,
+  secretSummary,
+  session,
+} from '@/tests/utils/fixtures';
+import { Notices } from '@/tests/utils/notices';
 import { renderApp } from '@/tests/utils/render';
 
 vi.mock('@tanstack/react-router', async () => {
@@ -21,26 +27,9 @@ vi.mock('@tanstack/react-router', async () => {
   return createRouterStub('/sessions/5');
 });
 
-import {
-  jpegBytes,
-  stubDrawing,
-  stubRoom,
-  type Drawing,
-} from '@/tests/utils/live-view';
-
 import { SessionPage } from './session-page';
 
-let drawing: Drawing;
-
-beforeEach(() => {
-  FakeWebSocket.install();
-  drawing = stubDrawing();
-  stubRoom(1000, 700);
-});
-
 afterEach(() => {
-  drawing.restore();
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -51,6 +40,8 @@ function routes(
     'GET /meta': meta(),
     'GET /sessions/:id': shown,
     'GET /secrets': list([]),
+    'POST /sessions/:id/show': undefined,
+    'POST /sessions/:id/type': undefined,
   });
 }
 
@@ -60,28 +51,10 @@ function show(id: number | null = 5) {
       <main>
         <SessionPage sessionId={id} />
       </main>
+      <Notices />
     </ProxyFlowProvider>,
   );
 }
-
-const serve = (socket = FakeWebSocket.last) =>
-  act(() => {
-    socket.emitOpen();
-    socket.emitMessage({
-      t: 'tabs',
-      tabs: [
-        {
-          id: 1,
-          url: 'https://shop.example.com/',
-          title: 'Shop',
-          loading: false,
-          active: true,
-        },
-      ],
-    });
-    socket.emitMessage({ t: 'view', tab: 1, w: 1280, h: 800 });
-    socket.emitMessage(jpegBytes(1));
-  });
 
 describe('SessionPage', () => {
   it('holds the place of the session while it is read', async () => {
@@ -93,11 +66,10 @@ describe('SessionPage', () => {
       0,
     );
     expect(screen.queryByRole('button', { name: 'Start session' })).toBeNull();
-    expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
   describe('a running session', () => {
-    it('shows its browser: the header, the tabs, the address bar', async () => {
+    it('says that it runs in its own window, with the way to it, its secrets and its details', async () => {
       routes();
       show();
       expect(
@@ -105,63 +77,167 @@ describe('SessionPage', () => {
       ).toBeVisible();
       expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
       expect(
+        screen.getByRole('heading', {
+          level: 2,
+          name: 'Running in its own window',
+        }),
+      ).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Show window' })).toBeVisible();
+      expect(
+        screen.getByRole('button', { name: 'Secrets for this session' }),
+      ).toBeVisible();
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'Session details' }),
+      ).toBeVisible();
+      expect(
         screen.getByRole('button', { name: 'Stop session' }),
       ).toBeVisible();
       expect(
         screen.getByRole('button', { name: 'Actions for Shop' }),
       ).toBeVisible();
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      expect(FakeWebSocket.last.url).toMatch(/\/api\/sessions\/5\/stream$/);
-      serve();
-      expect(
-        await screen.findByRole('tablist', { name: 'Open tabs' }),
-      ).toBeVisible();
-      expect(screen.getByRole('textbox', { name: 'Address' })).toHaveValue(
-        'https://shop.example.com/',
-      );
-      expect(screen.getByRole('application')).toBeVisible();
     });
 
-    it('leaves the live view to a session that is stopped, and opens it for one that runs', async () => {
+    it('brings its window to the front', async () => {
       const api = routes();
-      const { queryClient } = show();
-      await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      const socket = FakeWebSocket.last;
-      serve(socket);
-
-      act(() => {
-        queryClient.setQueryData(
-          queryKeys.session(5),
-          session({ id: 5, name: 'Shop', status: 'stopping' }),
-        );
-      });
-      await screen.findByRole('heading', { level: 2, name: 'Session details' });
-      expect(socket.closeCalls).toHaveLength(1);
-      expect(screen.queryByRole('tablist')).toBeNull();
-
-      act(() => {
-        queryClient.setQueryData(
-          queryKeys.session(5),
-          runningSession({ id: 5, name: 'Shop' }),
-        );
-      });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
-      expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
-      expect(api.callsTo('GET /sessions/:id').length).toBeGreaterThan(0);
+      const { user } = show();
+      await user.click(
+        await screen.findByRole('button', { name: 'Show window' }),
+      );
+      await waitFor(() =>
+        expect(api.callsTo('POST /sessions/:id/show')).toHaveLength(1),
+      );
+      expect(api.callsTo('POST /sessions/:id/show')[0]?.path).toBe(
+        '/sessions/5/show',
+      );
     });
 
-    it('hands the keyboard to the title of the page when the session stops while the page has it', async () => {
+    it('says why its window could not come to the front', async () => {
+      const api = routes();
+      api.on('POST /sessions/:id/show', () =>
+        failure(409, 'session_not_running'),
+      );
+      const { user } = show();
+      await user.click(
+        await screen.findByRole('button', { name: 'Show window' }),
+      );
+      expect(
+        await screen.findByText(/^Couldn't show the window: /),
+      ).toBeVisible();
+    });
+
+    it('types a value of a secret into the field clicked in the window, then brings the window to the front', async () => {
+      const api = routes();
+      api.on(
+        'GET /secrets',
+        list([
+          secretSummary({ id: 1, kind: 'credentials', title: 'Shop login' }),
+        ]),
+      );
+      api.on(
+        'GET /secrets/:id',
+        secret({
+          id: 1,
+          kind: 'credentials',
+          title: 'Shop login',
+          fields: [{ label: 'Password', value: 'hunter2', hidden: true }],
+        }),
+      );
+      const { user } = show();
+      await user.click(
+        await screen.findByRole('button', { name: 'Secrets for this session' }),
+      );
+      await user.click(
+        await screen.findByRole('button', { name: /Shop login/ }),
+      );
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'Type Password into the window',
+        }),
+      );
+      await waitFor(() =>
+        expect(api.callsTo('POST /sessions/:id/show')).toHaveLength(1),
+      );
+      expect(api.callsTo('POST /sessions/:id/type')).toEqual([
+        expect.objectContaining({
+          path: '/sessions/5/type',
+          body: { text: 'hunter2' },
+        }),
+      ]);
+    });
+
+    it('says why a value could not be typed, and leaves the window where it is', async () => {
+      const api = routes();
+      api.on(
+        'GET /secrets',
+        list([
+          secretSummary({ id: 1, kind: 'credentials', title: 'Shop login' }),
+        ]),
+      );
+      api.on(
+        'GET /secrets/:id',
+        secret({
+          id: 1,
+          kind: 'credentials',
+          title: 'Shop login',
+          fields: [{ label: 'Password', value: 'hunter2', hidden: true }],
+        }),
+      );
+      api.on('POST /sessions/:id/type', () => failure(409, 'no_field_focused'));
+      const { user } = show();
+      await user.click(
+        await screen.findByRole('button', { name: 'Secrets for this session' }),
+      );
+      await user.click(
+        await screen.findByRole('button', { name: /Shop login/ }),
+      );
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'Type Password into the window',
+        }),
+      );
+      expect(
+        await screen.findByText(
+          "Couldn't type the value: Nothing in the session's window can take text. Click the field in the window first, then try again.",
+        ),
+      ).toBeVisible();
+      expect(api.callsTo('POST /sessions/:id/show')).toHaveLength(0);
+    });
+
+    it('says when the exit IP no longer fits the session, with the restart that fits it again', async () => {
+      routes(
+        runningSession({
+          id: 5,
+          name: 'Shop',
+          proxy: {
+            id: 1,
+            display: 'http://192.0.2.1:8080',
+            exitIp: '198.51.100.9',
+            country: 'DE',
+            checkStatus: 'ok',
+          },
+          location: {
+            ip: '203.0.113.7',
+            country: 'DE',
+            timezone: 'Europe/Berlin',
+            latitude: 52.52,
+            longitude: 13.405,
+            inSync: false,
+          },
+        }),
+      );
+      show();
+      expect(await screen.findByText('The exit IP has changed')).toBeVisible();
+      expect(
+        screen.getByRole('button', { name: 'Restart session' }),
+      ).toBeVisible();
+    });
+
+    it('hands the keyboard to the title of the page when the session stops while a button of the card has it', async () => {
       routes();
       const { queryClient } = show();
-      await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      serve(FakeWebSocket.last);
-      const field = await screen.findByRole('textbox', {
-        name: 'Keyboard input for the page',
-      });
-      act(() => field.focus());
-      expect(field).toHaveFocus();
+      const button = await screen.findByRole('button', { name: 'Show window' });
+      act(() => button.focus());
+      expect(button).toHaveFocus();
 
       act(() => {
         queryClient.setQueryData(
@@ -177,36 +253,10 @@ describe('SessionPage', () => {
       await waitFor(() => expect(title).toHaveFocus());
     });
 
-    it('hands the keyboard to the title of the page when the browser closes while the page has it', async () => {
-      routes();
-      show();
-      await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      const socket = FakeWebSocket.last;
-      serve(socket);
-      const field = await screen.findByRole('textbox', {
-        name: 'Keyboard input for the page',
-      });
-      act(() => field.focus());
-
-      act(() => {
-        socket.emitMessage({ t: 'closed' });
-        socket.emitClose(1000);
-      });
-
-      expect(await screen.findByRole('status')).toHaveTextContent(
-        'The browser has closed',
-      );
-      const title = screen.getByRole('heading', { level: 1, name: 'Shop' });
-      await waitFor(() => expect(title).toHaveFocus());
-    });
-
     it('leaves the keyboard on the button that has it when the session stops', async () => {
       routes();
       const { queryClient } = show();
       const stop = await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      serve(FakeWebSocket.last);
       act(() => stop.focus());
 
       act(() => {
@@ -216,58 +266,19 @@ describe('SessionPage', () => {
         );
       });
 
-      await screen.findByRole('heading', { level: 2, name: 'Session details' });
+      await screen.findByRole('heading', {
+        level: 2,
+        name: 'Session details',
+      });
       // The same button, now to start it again.
       expect(
         screen.getByRole('button', { name: 'Start session' }),
       ).toHaveFocus();
     });
-
-    it('connects to the new browser when the session was restarted, with no gap between', async () => {
-      routes();
-      const { queryClient } = show();
-      await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      const first = FakeWebSocket.last;
-      serve(first);
-      act(() => {
-        queryClient.setQueryData(
-          queryKeys.session(5),
-          runningSession({
-            id: 5,
-            name: 'Shop',
-            lastStartedAt: '2026-11-01T11:00:00+00:00',
-          }),
-        );
-      });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
-      expect(first.closeCalls).toHaveLength(1);
-    });
-
-    it('opens the browser of the other session when the session of the page changes', async () => {
-      routes(({ params }) =>
-        runningSession({ id: Number(params.id), name: `Session ${params.id}` }),
-      );
-      const view = show(5);
-      await screen.findByRole('heading', { level: 1, name: 'Session 5' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      const first = FakeWebSocket.last;
-      view.rerender(
-        <ProxyFlowProvider>
-          <main>
-            <SessionPage sessionId={6} />
-          </main>
-        </ProxyFlowProvider>,
-      );
-      await screen.findByRole('heading', { level: 1, name: 'Session 6' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
-      expect(first.closeCalls).toHaveLength(1);
-      expect(FakeWebSocket.last.url).toMatch(/\/sessions\/6\/stream$/);
-    });
   });
 
   describe('a session that does not run', () => {
-    it('shows its card, and opens no browser', async () => {
+    it('shows its card, and has no window to show', async () => {
       routes(session({ id: 5, name: 'Shop', status: 'stopped' }));
       show();
       expect(
@@ -285,7 +296,7 @@ describe('SessionPage', () => {
       expect(
         screen.getByRole('button', { name: 'Start session' }),
       ).toBeVisible();
-      expect(FakeWebSocket.instances).toHaveLength(0);
+      expect(screen.queryByRole('button', { name: 'Show window' })).toBeNull();
       expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
 
@@ -354,7 +365,6 @@ describe('SessionPage', () => {
       expect(
         screen.getByRole('link', { name: 'Back to sessions' }),
       ).toHaveAttribute('href', '/sessions');
-      expect(FakeWebSocket.instances).toHaveLength(0);
     });
 
     it('says so for an address that is no id, without asking the server', () => {
@@ -372,7 +382,6 @@ describe('SessionPage', () => {
       const api = routes();
       const { queryClient } = show();
       await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
       api.on('GET /sessions/:id', failure(404, 'session_not_found'));
       await act(() =>
         queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
@@ -383,7 +392,7 @@ describe('SessionPage', () => {
           name: 'Session not found',
         }),
       ).toBeVisible();
-      expect(FakeWebSocket.last.closeCalls).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: 'Show window' })).toBeNull();
     });
   });
 
@@ -633,10 +642,7 @@ describe('SessionPage', () => {
     it('has no violations for a running session', async () => {
       routes();
       const view = show();
-      await screen.findByRole('button', { name: 'Stop session' });
-      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
-      serve();
-      await screen.findByRole('application');
+      await screen.findByRole('button', { name: 'Show window' });
       await checkAccessibility(view);
     });
 

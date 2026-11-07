@@ -21,15 +21,15 @@ import { useT } from '@/lib/i18n/client';
 
 import { useLastError } from '../hooks/use-last-error';
 import { busyButton } from '../lib/busy-button';
-import { LiveStage } from './live-stage';
 import { SessionHeader } from './session-header';
 import { StoppedCard } from './stopped-card';
+import { WindowCard } from './window-card';
 
 /**
- * The page of one session: its header, and under it the browser of the session
- * while it runs (the live view), else a card that says where the session
- * stands and how to go on. A session that does not exist, or is gone, says so.
- * `null` is an address that names no session at all.
+ * The page of one session: its header, and under it a card that says where
+ * the session stands and how to go on (while it runs, its window). A session
+ * that does not exist, or is gone, says so. `null` is an address that names no
+ * session at all.
  */
 export function SessionPage({ sessionId }: { sessionId: number | null }) {
   return sessionId === null ? (
@@ -106,14 +106,8 @@ function SessionBody({
   const handoff = useFocusHandoff<HTMLDivElement>(onFocusLost);
 
   if (session !== undefined) {
-    // One live view per browser: another session is another browser, and so is
-    // the same session after a restart (also after its old browser closed).
     return session.status === 'running' ? (
-      <LiveStage
-        key={`${session.id}:${session.lastStartedAt ?? ''}`}
-        session={session}
-        onFocusLost={onFocusLost}
-      />
+      <WindowCard session={session} onFocusLost={onFocusLost} />
     ) : (
       <StoppedCard session={session} onFocusLost={onFocusLost} />
     );

@@ -1,14 +1,15 @@
 // The real-browser lane (`bun run test:camoufox`), whole server: `startServer`
-// as `server.ts` calls it, with the real `CamoufoxBackend` and a real Camoufox,
-// served over the loopback address and driven the way its users do: the HTTP
-// API, the live view's WebSocket, the MCP endpoint, and a stop of the server.
-// The proxies and the pages are local; the exit-IP check is scripted (each proxy
-// exits through an address the offline GeoIP database knows).
+// as `server.ts` calls it, with the real `CamoufoxBackend` and a real Camoufox
+// (headless: the lane runs where there is no screen), served over the loopback
+// address and driven the way its users do: the HTTP API, the MCP endpoint, and
+// a stop of the server. The proxies and the pages are local; the exit-IP check
+// is scripted (each proxy exits through an address the offline GeoIP database
+// knows).
 //
 // The unit tests of each surface use a fake browser (and `service.camoufox.test.ts`
 // the manager with the real one); these show that the surfaces and the browser
-// work together: a real JPEG of a page reaches a viewer, a click made on the
-// socket reaches the page, an assistant does a job in a page.
+// work together: a value the page types reaches the field that has the focus,
+// an assistant does a job in a page.
 //
 // Needs `CAMOUFOX_INSTALL_DIR` to hold the Camoufox build (and the GeoIP
 // database); without it the tests are skipped.
@@ -30,7 +31,7 @@ import {
 import type { Session } from '../lib/api/schemas.ts';
 import { lookup } from './domains/identity/geo.ts';
 import { MCP_TOOL_NAMES } from './domains/mcp/tool.ts';
-import { expectJson } from './testing/api-client.ts';
+import { expectError, expectJson } from './testing/api-client.ts';
 import { HttpProxy } from './testing/local-proxies.ts';
 import { McpClient, textOf, unframed } from './testing/mcp-client.ts';
 import {
@@ -46,16 +47,8 @@ import {
   STOP_TIMEOUT_MS,
 } from './testing/real-manager.ts';
 import type { ExitPoint } from './testing/real-manager.ts';
-import { startSite } from './testing/real-pages.ts';
-import type { Site } from './testing/real-pages.ts';
 import { startRealServer } from './testing/real-server.ts';
 import type { RealServer } from './testing/real-server.ts';
-import {
-  JpegDecoder,
-  RealViewer,
-  looksLikeJpeg,
-  sizeOfJpeg,
-} from './testing/real-viewer.ts';
 import { startTestPages } from './testing/test-pages.ts';
 import type { TestPages } from './testing/test-pages.ts';
 
@@ -69,24 +62,15 @@ describe.skipIf(!REAL_BROWSER_READY)(
   'the whole server with a real browser',
   () => {
     let pages: TestPages;
-    let site: Site;
-    let decoder: JpegDecoder;
 
     /** A page of `test-pages.ts` under the host name that the test proxy routes. */
     const onPages = (path: string): string => pages.url(path, SITE_HOST);
-    const onSite = (path: string): string => site.url(path, SITE_HOST);
 
     beforeAll(async () => {
-      [pages, site, decoder] = await Promise.all([
-        startTestPages(),
-        startSite(),
-        JpegDecoder.launch(),
-      ]);
+      pages = await startTestPages();
     }, SETUP_TIMEOUT_MS);
 
     afterAll(async () => {
-      await decoder?.close();
-      await site?.close();
       await pages?.close();
       // Every describe stopped its server: none of this run's browsers is left.
       // A straggler is killed (it is ours) and reported.
@@ -102,16 +86,6 @@ describe.skipIf(!REAL_BROWSER_READY)(
     }, SETUP_TIMEOUT_MS);
 
     // -- what the tests do to a server --------------------------------------------------------
-
-    /** Until the socket has closed, or `ms` have passed. */
-    async function closedWithin(viewer: RealViewer, ms: number): Promise<void> {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const expired = new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, ms);
-      });
-      await Promise.race([viewer.closed, expired]);
-      clearTimeout(timer);
-    }
 
     async function sessionOf(server: RealServer, id: number): Promise<Session> {
       return await expectJson(
@@ -190,80 +164,13 @@ describe.skipIf(!REAL_BROWSER_READY)(
     }
 
     // =============================================================================================
-    // 9. the HTTP API and the live view
+    // 9. the HTTP API, and the window of a session
     // =============================================================================================
 
-    describe('the HTTP API and the live view', () => {
+    describe('the HTTP API and the window of a session', () => {
       let server: RealServer;
       let proxy: HttpProxy;
       let id = 0;
-
-      /** A viewer on the session for the length of `work`. */
-      async function viewing<T>(
-        work: (viewer: RealViewer, page: Page) => Promise<T>,
-      ): Promise<T> {
-        const viewer = await RealViewer.open(server.streamUrl(id));
-        try {
-          return await work(viewer, pageOf(server, id));
-        } finally {
-          viewer.close();
-          await closedWithin(viewer, 5000);
-        }
-      }
-
-      /** Opens the address in the tab in front the way the address bar does, and waits for the page. */
-      async function show(
-        viewer: RealViewer,
-        page: Page,
-        url: string,
-        selector: string,
-      ): Promise<void> {
-        viewer.send({ t: 'go', a: 'goto', url });
-        await expect.poll(() => page.url(), POLL).toBe(url);
-        await page.waitForSelector(selector, { timeout: POLL.timeout });
-      }
-
-      async function centerOf(
-        page: Page,
-        selector: string,
-      ): Promise<[number, number]> {
-        const box = await page.locator(selector).boundingBox();
-        if (box === null) throw new Error(`${selector} is not on the page`);
-        return [box.x + box.width / 2, box.y + box.height / 2];
-      }
-
-      /** A click made the way the page's viewer makes it: moves and buttons. */
-      function click(
-        viewer: RealViewer,
-        x: number,
-        y: number,
-        times = 1,
-      ): void {
-        viewer.send({ t: 'mouse', a: 'move', x, y });
-        for (let n = 1; n <= times; n++) {
-          viewer.send({ t: 'mouse', a: 'down', x, y, n });
-          viewer.send({ t: 'mouse', a: 'up', x, y, n });
-        }
-      }
-
-      function pressKey(viewer: RealViewer, key: string): void {
-        viewer.send({ t: 'key', a: 'down', k: key });
-        viewer.send({ t: 'key', a: 'up', k: key });
-      }
-
-      /** The colour of a picture at a place: red, green, blue. */
-      async function colourAt(
-        jpeg: Uint8Array,
-        at: readonly [number, number],
-      ): Promise<[number, number, number]> {
-        const decoded = await decoder.decode(jpeg, [at]);
-        const [colour] = decoded.pixels;
-        if (colour === undefined) throw new Error('no colour');
-        return colour;
-      }
-
-      const log = (page: Page): Promise<string | null> =>
-        page.textContent('#log');
 
       beforeAll(async () => {
         proxy = await new HttpProxy({ hosts: SITE_HOSTS }).start();
@@ -290,14 +197,14 @@ describe.skipIf(!REAL_BROWSER_READY)(
 
           const created = await expectJson(
             await server.call('POST', '/api/sessions', {
-              name: 'viewed',
+              name: 'windowed',
               os: 'windows',
             }),
             201,
             sessionSchema,
           );
           expect(created).toMatchObject({
-            name: 'viewed',
+            name: 'windowed',
             os: 'windows',
             status: 'starting',
           });
@@ -333,521 +240,71 @@ describe.skipIf(!REAL_BROWSER_READY)(
       );
 
       it(
-        'streams the tabs and a real JPEG of the page, as big as the tab shows',
+        'brings the tab of the session forward when the window is asked for',
         async () => {
-          await viewing(async (viewer, page) => {
-            const tabs = await viewer.next('tabs');
-            expect(tabs.tabs).toHaveLength(1);
-            await show(viewer, page, onPages('/form.html'), '#go');
-
-            const picture = await viewer.untilPicture(
-              async (candidate) => candidate.view !== null,
-              'a picture with its view',
-            );
-            expect(looksLikeJpeg(picture.jpeg)).toBe(true);
-            const { view } = picture;
-            expect(view).not.toBeNull();
-            const decoded = await decoder.decode(picture.jpeg);
-            // The room the tab's page has, in CSS pixels, is what the picture
-            // is made of: a window pinned to the size of a fingerprint may give
-            // it less than the `innerHeight` it reports (a headless window on
-            // macOS keeps the room of a toolbar it does not draw).
-            const viewport = z
-              .tuple([z.number(), z.number()])
-              .parse(
-                await page.evaluate(() => [
-                  innerWidth,
-                  Math.floor(
-                    Math.min(
-                      innerHeight,
-                      visualViewport?.height ?? innerHeight,
-                    ),
-                  ),
-                ]),
-              );
-            expect([view?.w, view?.h]).toEqual(viewport);
-            expect([decoded.width, decoded.height]).toEqual(viewport);
-            expect(sizeOfJpeg(picture.jpeg)).toEqual({
-              width: decoded.width,
-              height: decoded.height,
-            });
-            expect(view?.tab).toBe(tabs.tabs[0]?.id);
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'shows the next pictures what the page looks like after it changed',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#go');
-            const hasColour =
-              (want: 'red' | 'blue') =>
-              async (picture: { jpeg: Uint8Array }) => {
-                const [r, g, b] = await colourAt(picture.jpeg, [5, 5]);
-                return want === 'red'
-                  ? r > 200 && g < 60 && b < 60
-                  : b > 200 && r < 60 && g < 60;
-              };
-
-            viewer.skipPictures();
-            await page.evaluate(() => {
-              document.body.style.background = 'rgb(255, 0, 0)';
-            });
-            const red = await viewer.untilPicture(
-              hasColour('red'),
-              'a red picture',
-            );
-
-            viewer.skipPictures();
-            await page.evaluate(() => {
-              document.body.style.background = 'rgb(0, 0, 255)';
-            });
-            const blue = await viewer.untilPicture(
-              hasColour('blue'),
-              'a blue picture',
-            );
-            expect(Buffer.from(blue.jpeg).equals(Buffer.from(red.jpeg))).toBe(
-              false,
-            );
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'clicks a button of the page when the viewer clicks it',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#go');
-            const [x, y] = await centerOf(page, '#go');
-
-            click(viewer, x, y);
-            await expect.poll(() => log(page), POLL).toBe('clicked;');
-            click(viewer, x, y);
-            await expect.poll(() => log(page), POLL).toBe('clicked;clicked;');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'types into a field the keys and the text the viewer sends',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#name');
-            const [x, y] = await centerOf(page, '#name');
-            click(viewer, x, y);
-            await expect
-              .poll(() => page.evaluate(() => document.activeElement?.id), POLL)
-              .toBe('name');
-
-            pressKey(viewer, 'h');
-            pressKey(viewer, 'i');
-            viewer.send({ t: 'text', text: ' there — ü€' });
-            pressKey(viewer, 'Backspace');
-            await expect
-              .poll(() => page.inputValue('#name'), POLL)
-              .toBe('hi there — ü');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'selects a word when the viewer double clicks it',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#name');
-            const box = await page.locator('#name').boundingBox();
-            if (box === null) throw new Error('no field');
-            const y = box.y + box.height / 2;
-            click(viewer, box.x + 20, y);
-            viewer.send({ t: 'text', text: 'hello world' });
-            await expect
-              .poll(() => page.inputValue('#name'), POLL)
-              .toBe('hello world');
-
-            click(viewer, box.x + 20, y, 2);
-            await expect
-              .poll(
-                () =>
-                  page.evaluate(() => {
-                    const field = document.activeElement;
-                    return field instanceof HTMLInputElement
-                      ? field.value.slice(
-                          field.selectionStart ?? 0,
-                          field.selectionEnd ?? 0,
-                        )
-                      : null;
-                  }),
-                POLL,
-              )
-              .toBe('hello');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'hands the viewer the selection of the page when it copies, and takes it out when it cuts',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#name');
-            const box = await page.locator('#name').boundingBox();
-            if (box === null) throw new Error('no field');
-            const y = box.y + box.height / 2;
-            click(viewer, box.x + 20, y);
-            viewer.send({ t: 'text', text: 'hello world' });
-            click(viewer, box.x + 20, y, 2);
-
-            viewer.send({ t: 'copy', cut: false });
-            expect(await viewer.next('selection')).toEqual({
-              t: 'selection',
-              text: 'hello',
-              cut: false,
-            });
-            expect(await page.inputValue('#name')).toBe('hello world');
-
-            viewer.send({ t: 'copy', cut: true });
-            expect(await viewer.next('selection')).toEqual({
-              t: 'selection',
-              text: 'hello',
-              cut: true,
-            });
-            // The word is gone (Firefox takes the space after a double-clicked
-            // word with it).
-            await expect
-              .poll(async () => (await page.inputValue('#name')).trim(), POLL)
-              .toBe('world');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it.each(['Control', 'Meta'])(
-        'takes the selection out when it cuts with %s held down, as the shortcut of a viewer does',
-        async (modifier) => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#name');
-            const box = await page.locator('#name').boundingBox();
-            if (box === null) throw new Error('no field');
-            const y = box.y + box.height / 2;
-            click(viewer, box.x + 20, y);
-            viewer.send({ t: 'text', text: 'hello world' });
-            click(viewer, box.x + 20, y, 2);
-
-            // Ctrl or Command is down in the page while it is asked to cut: a
-            // Delete pressed under it is no deletion.
-            viewer.send({ t: 'key', a: 'down', k: modifier });
-            viewer.send({ t: 'copy', cut: true });
-            expect(await viewer.next('selection')).toEqual({
-              t: 'selection',
-              text: 'hello',
-              cut: true,
-            });
-            await expect
-              .poll(async () => (await page.inputValue('#name')).trim(), POLL)
-              .toBe('world');
-            viewer.send({ t: 'key', a: 'up', k: modifier });
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'hands the viewer text selected in the page itself when it copies',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/read.html'), 'p');
-            const box = await page.locator('p').first().boundingBox();
-            if (box === null) throw new Error('no paragraph');
-            const y = box.y + box.height / 2;
-            // A drag over the paragraph, as the mouse makes it.
-            viewer.send({ t: 'mouse', a: 'move', x: box.x + 1, y });
-            viewer.send({ t: 'mouse', a: 'down', x: box.x + 1, y });
-            viewer.send({ t: 'mouse', a: 'move', x: box.x + box.width - 1, y });
-            viewer.send({ t: 'mouse', a: 'up', x: box.x + box.width - 1, y });
-
-            await vi.waitFor(async () => {
-              viewer.send({ t: 'copy', cut: false });
-              const copied = await viewer.next('selection');
-              expect(copied.text).toContain('Some text in a paragraph.');
-            }, POLL);
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'scrolls the page with the wheel, and the pictures show it',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/long.html'), 'div');
-            const first = await viewer.untilPicture(
-              async (picture) => picture.view !== null,
-              'a first picture',
-            );
-            const scrollY = () => page.evaluate(() => window.scrollY);
-
-            viewer.send({ t: 'wheel', x: 400, y: 300, dx: 0, dy: 100 });
-            await expect.poll(scrollY, POLL).toBe(100);
-            viewer.send({ t: 'wheel', x: 400, y: 300, dx: 0, dy: 200 });
-            await expect.poll(scrollY, POLL).toBe(300);
-
-            viewer.skipPictures();
-            viewer.send({ t: 'wheel', x: 400, y: 300, dx: 0, dy: 250 });
-            await expect.poll(scrollY, POLL).toBe(550);
-            const later = await viewer.untilPicture(
-              async (picture) =>
-                !Buffer.from(picture.jpeg).equals(Buffer.from(first.jpeg)),
-              'another picture',
-            );
-            expect(looksLikeJpeg(later.jpeg)).toBe(true);
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'sends a drop-down list the browser would draw itself as a select message, and passes the choice back',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/form.html'), '#country');
-            const [x, y] = await centerOf(page, '#country');
-
-            click(viewer, x, y);
-            const menu = await viewer.next('select');
-            expect(menu.options).toEqual([
-              {
-                label: 'Switzerland',
-                selected: true,
-                disabled: false,
-                group: null,
-              },
-              {
-                label: 'Germany',
-                selected: false,
-                disabled: false,
-                group: null,
-              },
-              {
-                label: 'France',
-                selected: false,
-                disabled: false,
-                group: null,
-              },
-            ]);
-            const box = await page.locator('#country').boundingBox();
-            expect(menu.x).toBeCloseTo(box?.x ?? Number.NaN, 1);
-            expect(menu.y).toBeCloseTo(box?.y ?? Number.NaN, 1);
-
-            viewer.send({ t: 'pick', token: menu.token, index: 2 });
-            await expect
-              .poll(() => page.inputValue('#country'), POLL)
-              .toBe('fr');
-            expect(await log(page)).toContain('country=fr;');
-
-            // A list that is dismissed changes nothing.
-            click(viewer, x, y);
-            const again = await viewer.next('select');
-            viewer.send({ t: 'pick', token: again.token, index: null });
-            click(viewer, ...(await centerOf(page, '#go')));
-            await expect.poll(() => log(page), POLL).toContain('clicked;');
-            expect(await page.inputValue('#country')).toBe('fr');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'sends alert, confirm and prompt as dialog messages, and the page gets the answers',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onPages('/dialogs.html'), '#alert');
-
-            click(viewer, ...(await centerOf(page, '#alert')));
-            const alert = await viewer.next('dialog');
-            expect(alert).toMatchObject({ kind: 'alert', message: 'Heads up' });
-            viewer.send({ t: 'answer', id: alert.id, accept: true });
-            expect((await viewer.next('dialog_closed')).id).toBe(alert.id);
-            await expect.poll(() => log(page), POLL).toBe('alerted;');
-
-            click(viewer, ...(await centerOf(page, '#confirm')));
-            const confirm = await viewer.next('dialog');
-            expect(confirm).toMatchObject({
-              kind: 'confirm',
-              message: 'Sure?',
-            });
-            viewer.send({ t: 'answer', id: confirm.id, accept: true });
-            await expect
-              .poll(() => log(page), POLL)
-              .toBe('alerted;confirm=true;');
-
-            click(viewer, ...(await centerOf(page, '#prompt')));
-            const prompt = await viewer.next('dialog');
-            expect(prompt).toMatchObject({
-              kind: 'prompt',
-              message: 'Name?',
-              default: 'Ann',
-            });
-            viewer.send({
-              t: 'answer',
-              id: prompt.id,
-              accept: true,
-              text: 'Bob',
-            });
-            await expect
-              .poll(() => log(page), POLL)
-              .toBe('alerted;confirm=true;prompt=Bob;');
-
-            // Cancelled, a confirm says false and a prompt null.
-            click(viewer, ...(await centerOf(page, '#confirm')));
-            const refused = await viewer.next('dialog');
-            viewer.send({ t: 'answer', id: refused.id, accept: false });
-            await expect
-              .poll(() => log(page), POLL)
-              .toBe('alerted;confirm=true;prompt=Bob;confirm=false;');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'passes keys with their modifiers to the page',
-        async () => {
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onSite('/keys.html'), '#field');
-            const [x, y] = await centerOf(page, '#field');
-            click(viewer, x, y);
-            await expect
-              .poll(() => page.evaluate(() => document.activeElement?.id), POLL)
-              .toBe('field');
-
-            // A capital: Shift, then the key the viewer's keyboard says.
-            viewer.send({ t: 'key', a: 'down', k: 'Shift' });
-            pressKey(viewer, 'A');
-            viewer.send({ t: 'key', a: 'up', k: 'Shift' });
-            await expect.poll(() => page.inputValue('#field'), POLL).toBe('A');
-            // Control with a letter.
-            viewer.send({ t: 'key', a: 'down', k: 'Control' });
-            pressKey(viewer, 'x');
-            viewer.send({ t: 'key', a: 'up', k: 'Control' });
-            // Both together, and then a key without any.
-            viewer.send({ t: 'key', a: 'down', k: 'Control' });
-            viewer.send({ t: 'key', a: 'down', k: 'Shift' });
-            pressKey(viewer, 'Y');
-            viewer.send({ t: 'key', a: 'up', k: 'Shift' });
-            viewer.send({ t: 'key', a: 'up', k: 'Control' });
-            pressKey(viewer, 'z');
-
-            await expect
-              .poll(
-                async () =>
-                  ((await page.textContent('#log')) ?? '').trim().split('\n'),
-                POLL,
-              )
-              .toEqual([
-                'Shift|S',
-                'A|S',
-                'Control|C',
-                'x|C',
-                'Control|C',
-                'Shift|CS',
-                'Y|CS',
-                'z|',
-              ]);
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'lets go of a key that a viewer held down when its connection ends, so that the next viewer types without it',
-        async () => {
-          // The first viewer presses Shift and goes away without letting it go.
-          await viewing(async (viewer, page) => {
-            await show(viewer, page, onSite('/keys.html'), '#field');
-            const [x, y] = await centerOf(page, '#field');
-            click(viewer, x, y);
-            await expect
-              .poll(() => page.evaluate(() => document.activeElement?.id), POLL)
-              .toBe('field');
-            viewer.send({ t: 'key', a: 'down', k: 'Shift' });
-            await expect
-              .poll(async () => (await log(page))?.trim(), POLL)
-              .toBe('Shift|S');
-          });
-
-          // The next one types a letter: with Shift still down in the browser it would be a capital.
-          await viewing(async (viewer, page) => {
-            pressKey(viewer, 'z');
-            await expect
-              .poll(async () => (await log(page))?.trim().split('\n'), POLL)
-              .toEqual(['Shift|S', 'z|']);
-            expect(await page.inputValue('#field')).toBe('z');
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'opens, switches and closes tabs on the viewer’s request',
-        async () => {
-          await viewing(async (viewer) => {
-            const lastTabs = () => viewer.of('tabs').at(-1)?.tabs ?? [];
-            await expect.poll(() => lastTabs().length, POLL).toBe(1);
-            const [first] = lastTabs();
-
-            viewer.send({ t: 'tab', a: 'open', url: onPages('/long.html') });
-            await expect.poll(() => lastTabs().length, POLL).toBe(2);
-            const second = lastTabs()[1];
-            expect(second?.active).toBe(true);
-            await expect
-              .poll(() => lastTabs()[1]?.url, POLL)
-              .toBe(onPages('/long.html'));
-
-            viewer.send({ t: 'tab', a: 'activate', id: first?.id });
-            await expect
-              .poll(() => lastTabs().map((tab) => tab.active), POLL)
-              .toEqual([true, false]);
-
-            viewer.send({ t: 'tab', a: 'close', id: second?.id });
-            await expect.poll(() => lastTabs().length, POLL).toBe(1);
-          });
-        },
-        TIMEOUT_MS,
-      );
-
-      it(
-        'tells a viewer that the browser is gone when the session is stopped, and tells a later viewer that it is not running',
-        async () => {
-          const viewer = await RealViewer.open(server.streamUrl(id));
-          await viewer.next('tabs');
-
-          const stopping = await server.call(
+          const response = await server.call(
             'POST',
-            `/api/sessions/${id}/stop`,
+            `/api/sessions/${id}/show`,
           );
-          expect(stopping.status).toBe(202);
+          expect(response.status).toBe(204);
+        },
+        TIMEOUT_MS,
+      );
 
-          await viewer.next('closed');
-          expect((await viewer.closed).code).toBe(1000);
-          const stopped = await untilStatus(
-            server,
-            id,
-            'stopped',
-            STOP_TIMEOUT_MS,
-          );
-          expect(stopped.error).toBeNull();
+      it(
+        'types a value into the field that has the focus, and nothing while no field has it',
+        async () => {
+          const page = pageOf(server, id);
+          await page.goto(onPages('/form.html'));
+          await page.waitForSelector('#name', { timeout: POLL.timeout });
+          // The person clicked into the field in the window.
+          await page.click('#name');
 
-          const late = await RealViewer.open(server.streamUrl(id));
-          expect(await late.next('error')).toMatchObject({
-            t: 'error',
-            code: 'session_not_running',
+          const typed = await server.call('POST', `/api/sessions/${id}/type`, {
+            text: 'hunter2 — ü€',
           });
-          expect((await late.closed).code).toBe(1000);
+          expect(typed.status).toBe(204);
+          await expect
+            .poll(() => page.inputValue('#name'), POLL)
+            .toBe('hunter2 — ü€');
+
+          await page.evaluate(() => {
+            const focused = document.activeElement;
+            if (focused instanceof HTMLElement) focused.blur();
+          });
+          await expectError(
+            await server.call('POST', `/api/sessions/${id}/type`, {
+              text: 'nowhere',
+            }),
+            409,
+            'no_field_focused',
+          );
+          expect(await page.inputValue('#name')).toBe('hunter2 — ü€');
+        },
+        TIMEOUT_MS,
+      );
+
+      it(
+        'refuses to show or type into a session that is not running',
+        async () => {
+          await expectJson(
+            await server.call('POST', `/api/sessions/${id}/stop`),
+            202,
+            sessionSchema,
+          );
+          await untilStatus(server, id, 'stopped', STOP_TIMEOUT_MS);
+          await expectError(
+            await server.call('POST', `/api/sessions/${id}/show`),
+            409,
+            'session_not_running',
+          );
+          await expectError(
+            await server.call('POST', `/api/sessions/${id}/type`, {
+              text: 'x',
+            }),
+            409,
+            'session_not_running',
+          );
         },
         TIMEOUT_MS,
       );
@@ -1038,14 +495,11 @@ describe.skipIf(!REAL_BROWSER_READY)(
             image?.type === 'image' ? image.data : '',
             'base64',
           );
-          expect(looksLikeJpeg(bytes)).toBe(true);
-          const decoded = await decoder.decode(bytes);
-          expect(decoded.width).toBeGreaterThan(400);
-          expect(decoded.height).toBeGreaterThan(300);
-          expect(sizeOfJpeg(bytes)).toEqual({
-            width: decoded.width,
-            height: decoded.height,
-          });
+          // A JPEG (it starts and ends as one) of a page, not of nothing.
+          expect([...bytes.subarray(0, 3), ...bytes.subarray(-2)]).toEqual([
+            0xff, 0xd8, 0xff, 0xff, 0xd9,
+          ]);
+          expect(bytes.length).toBeGreaterThan(2000);
 
           // The tabs.
           const tabs = z

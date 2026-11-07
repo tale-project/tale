@@ -146,7 +146,7 @@ describe('startE2eServer', () => {
     expect(a.server.dataDir).not.toBe(b.server.dataDir);
   });
 
-  it('gives each server fakes of its own: a scripted exit IP, a browser, a dialog', async () => {
+  it('gives each server fakes of its own: a scripted exit IP, a browser, a dialog, the focus of a field', async () => {
     const [a, b] = await twoServers();
 
     // The checker: the same proxy fails on A, where the control server says so,
@@ -187,6 +187,15 @@ describe('startE2eServer', () => {
     });
     expect(dialog.status).toBe(200);
     expect((await call(a.control, 'GET', '/browsers/solo')).status).toBe(404);
+
+    // Its window has no field with the focus on B only.
+    const unfocused = { field: false };
+    expect(
+      (await call(b.control, 'POST', '/browsers/solo/focus', unfocused)).status,
+    ).toBe(200);
+    expect(
+      (await call(a.control, 'POST', '/browsers/solo/focus', unfocused)).status,
+    ).toBe(404);
   });
 
   it('stops: its ports close, its data directory goes, and stopping again is harmless; the other keeps serving', async () => {

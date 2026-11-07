@@ -261,21 +261,35 @@ describe('pickOs', () => {
 });
 
 describe('largestScreen', () => {
-  it('is 1920x1080 unless told otherwise', () => {
-    expect(largestScreen({})).toEqual([1920, 1080]);
-    expect(largestScreen({ SESSION_MANAGER_MAX_SCREEN: '' })).toEqual([
-      1920, 1080,
+  /** A computer whose displays cannot be asked (not macOS). */
+  const noDisplay = (): null => null;
+  const laptop = (): [number, number] => [1728, 1117];
+
+  it('is the largest display of this computer unless told otherwise', () => {
+    expect(largestScreen({}, laptop)).toEqual([1728, 1117]);
+    expect(largestScreen({ SESSION_MANAGER_MAX_SCREEN: '' }, laptop)).toEqual([
+      1728, 1117,
     ]);
-    expect(largestScreen({ SESSION_MANAGER_MAX_SCREEN: '  ' })).toEqual([
-      1920, 1080,
-    ]);
+  });
+
+  it('is 1920x1080 where the displays cannot be asked', () => {
+    expect(largestScreen({}, noDisplay)).toEqual([1920, 1080]);
+    expect(
+      largestScreen({ SESSION_MANAGER_MAX_SCREEN: '  ' }, noDisplay),
+    ).toEqual([1920, 1080]);
     expect(FALLBACK_SCREEN).toEqual([1920, 1080]);
   });
 
+  it('takes the setting over the display', () => {
+    expect(
+      largestScreen({ SESSION_MANAGER_MAX_SCREEN: '1280x720' }, laptop),
+    ).toEqual([1280, 720]);
+  });
+
   it('hands out a copy of the fallback', () => {
-    const screen = largestScreen({});
+    const screen = largestScreen({}, noDisplay);
     screen[0] = 1;
-    expect(largestScreen({})).toEqual([1920, 1080]);
+    expect(largestScreen({}, noDisplay)).toEqual([1920, 1080]);
   });
 
   it.each([
@@ -285,9 +299,9 @@ describe('largestScreen', () => {
     ['1920×1080', [1920, 1080]],
     ['800x600', [800, 600]],
   ])('reads %j from SESSION_MANAGER_MAX_SCREEN', (value, expected) => {
-    expect(largestScreen({ SESSION_MANAGER_MAX_SCREEN: value })).toEqual(
-      expected,
-    );
+    expect(
+      largestScreen({ SESSION_MANAGER_MAX_SCREEN: value }, noDisplay),
+    ).toEqual(expected);
   });
 
   it('reads the environment of the process by default', () => {
@@ -301,10 +315,14 @@ describe('largestScreen', () => {
       const warn = vi
         .spyOn(console, 'warn')
         .mockImplementation(() => undefined);
-      expect(largestScreen({ SESSION_MANAGER_MAX_SCREEN: value })).toEqual([
-        1920, 1080,
-      ]);
-      expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect(
+        largestScreen({ SESSION_MANAGER_MAX_SCREEN: value }, noDisplay),
+      ).toEqual([1920, 1080]);
+      expect(
+        largestScreen({ SESSION_MANAGER_MAX_SCREEN: value }, laptop),
+      ).toEqual([1728, 1117]);
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(
         `ignoring SESSION_MANAGER_MAX_SCREEN=${JSON.stringify(value)}: expected WIDTHxHEIGHT, for example 1920x1080`,
       );
     },
@@ -1210,7 +1228,8 @@ describe('createIdentity', () => {
     expect(draw.mock.calls[0][1]).toEqual([1280, 720]);
     vi.stubEnv('SESSION_MANAGER_MAX_SCREEN', '');
     await createIdentity('linux', new Set(), { deps: { ...deps, draw } });
-    expect(draw.mock.calls[1][1]).toEqual([1920, 1080]);
+    // This computer's largest display, where it can be asked (macOS).
+    expect(draw.mock.calls[1][1]).toEqual(largestScreen({}));
   });
 
   it('picks an OS for "random"', async () => {

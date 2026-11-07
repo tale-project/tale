@@ -21,8 +21,6 @@ details:
 card:
   couldNotStart: Start failed
   hint: Starting the session reopens the tabs it had when it was stopped.
-  closed: The browser has closed
-  closedHint: The session will show as stopped in a moment.
   system: Operating system
   screen: Screen
   language: Language
@@ -32,57 +30,20 @@ card:
   ipAddress: Exit IP
   noProxyYet: Assigned when the session starts
   notChecked: Not checked yet
-tabs:
-  label: Open tabs
-  new: New tab
-  untitled: New tab
-  close: Close tab "{title}"
-  closeLast: Close tab "{title}" and stop the session
-  more: More tabs
-address:
-  label: Address
-  placeholder: Search or enter an address
-  back: Go to previous page
-  forward: Go to next page
-  reload: Reload page
+window:
+  title: Running in its own window
+  description: This session's browser is a window on this computer, where you use it like any other browser. AI assistants work in the same window.
+  show: Show window
 place:
   warningTitle: The exit IP has changed
   warning: The proxy now exits through {current}, but this session still reports the time zone and location of {reported}.
   warningUnknown: The proxy now exits through another IP, but this session still reports the time zone and location of {reported}.
   warningHint: If this keeps happening, the proxy probably rotates its IP. Use a proxy with a fixed IP.
   restart: Restart session
-stage:
-  canvas: Session browser
-  canvasHint: Everything you type goes to the page. To go to the address bar, press {shortcut}.
-  keyboard: Keyboard input for the page
-  keyboardHint: Everything you type goes to the page. To go to the address bar, press {shortcut}.
-  connecting: Connecting to the browser…
-  lost: Can't reach the browser. Reconnecting…
-  refusedTitle: Can't show the browser
-notice:
-  title: Couldn't do that in the browser
-  addressRefused: That address can't be opened. Use one that starts with http:// or https://.
-  tabGone: That tab is already closed.
-  tabNotOpened: "Couldn't open a new tab: {detail}."
-  keyFailed: "Couldn't send that key to the page: {detail}."
-  inputStuck: The browser stopped responding to the mouse in every tab. Restart the session to use the mouse again.
-  actionFailed: "The browser said: {detail}."
-  pasteCutTitle: Couldn't paste all of the text
-  pasteCut: You can paste up to {max, number} characters at once. The rest was left out.
-select:
-  label: Options
-dialog:
-  title: The page says
-  leaveTitle: Leave this page?
-  leaveBody: This page asks for confirmation before you leave it.
-  answer: Answer
-  ok: OK
-  stay: Stay on page
-  leave: Leave page
 secrets:
   button: Secrets
   title: Secrets for this session
-  hint: Click a field in the page, then choose a value to type into it.
+  hint: Click a field in the session's window, then choose a value to type into it.
   loading: Loading…
   loadFailed: "Couldn't load the secrets."
   valuesFailed: "Couldn't load the values."
@@ -97,5 +58,5 @@ secrets:
   moreLines: "{count, plural, one {+# line} other {+# lines}}"
   show: Show {label}
   copy: Copy {label}
-  typeLabel: Type {label} into the page
+  typeLabel: Type {label} into the window
   type: Type

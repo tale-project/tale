@@ -1,5 +1,4 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Secret } from '@/lib/api/schemas';
@@ -74,29 +73,20 @@ function setup(
   props: Partial<React.ComponentProps<typeof SecretsPopover>> = {},
 ) {
   const onType = vi.fn();
-  const returnFocus = vi.fn();
-  function Harness() {
-    const [disabled, setDisabled] = useState(props.disabled ?? false);
-    return (
+  return {
+    ...renderApp(
       <>
         <SecretsPopover
           sessionId={own.id}
           sessionName={own.name}
-          disabled={disabled}
           onType={onType}
-          returnFocus={returnFocus}
+          {...props}
         />
-        <button
-          type="button"
-          onClick={() => setDisabled((current) => !current)}
-        >
-          Toggle connection
-        </button>
         <ToastProbe />
-      </>
-    );
-  }
-  return { ...renderApp(<Harness />), onType, returnFocus };
+      </>,
+    ),
+    onType,
+  };
 }
 
 /** What the button at the foot of the popover says, for the session of these tests. */
@@ -252,33 +242,28 @@ describe('SecretsPopover', () => {
     ).toBeNull();
   });
 
-  it('types a value into the page, in full, and gives the page the keyboard back', async () => {
+  it('types a value into the window, in full, and gives the keyboard back to its button', async () => {
     api();
-    const { user, onType, returnFocus } = setup();
+    const { user, onType } = setup();
     const dialog = await open(user);
     await user.click(
       await within(dialog).findByRole('button', { name: /Example login/ }),
     );
     await user.click(
       await within(dialog).findByRole('button', {
-        name: 'Type Password into the page',
+        name: 'Type Password into the window',
       }),
     );
     // The whole value, with its second line, though the list shows the first.
     expect(onType).toHaveBeenCalledExactlyOnceWith('correct horse\nbattery');
-    // At once, not when the popover has faded away: the button of a closing
-    // popover must not keep the keyboard (an Enter would type the value again).
-    expect(returnFocus).toHaveBeenCalledTimes(1);
     await waitFor(() =>
       expect(
         screen.queryByRole('dialog', { name: 'Secrets for this session' }),
       ).toBeNull(),
     );
-    // Closing does not take the keyboard to the button of the popover.
-    expect(returnFocus).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole('button', { name: 'Secrets for this session' }),
-    ).not.toHaveFocus();
+    ).toHaveFocus();
   });
 
   it('types a value that is not masked', async () => {
@@ -290,7 +275,7 @@ describe('SecretsPopover', () => {
     );
     await user.click(
       await within(dialog).findByRole('button', {
-        name: 'Type Username into the page',
+        name: 'Type Username into the window',
       }),
     );
     expect(onType).toHaveBeenCalledExactlyOnceWith('ada');
@@ -320,7 +305,7 @@ describe('SecretsPopover', () => {
     await within(dialog).findByText('Pin');
     expect(within(dialog).getByText('Empty')).toBeVisible();
     expect(
-      within(dialog).getByRole('button', { name: 'Type Pin into the page' }),
+      within(dialog).getByRole('button', { name: 'Type Pin into the window' }),
     ).toBeDisabled();
     expect(
       within(dialog).getByRole('button', { name: 'Copy Pin' }),
@@ -379,6 +364,31 @@ describe('SecretsPopover', () => {
     expect(within(dialog).queryByRole('link')).toBeNull();
   });
 
+  it('lets the keyboard reach an empty list, which scrolls where the room is short', async () => {
+    api({ 'GET /secrets': [] });
+    const { user } = setup();
+    const dialog = await open(user);
+    await within(dialog).findByText('No secrets for this session yet');
+    const list = within(dialog).getByRole('region', {
+      name: 'Secrets for this session',
+    });
+    expect(list).toHaveAttribute('tabindex', '0');
+    await user.tab();
+    expect(list).toHaveFocus();
+  });
+
+  it('leaves the keyboard to the rows of a list that has secrets', async () => {
+    api();
+    const { user } = setup();
+    const dialog = await open(user);
+    await within(dialog).findByRole('button', { name: /Example login/ });
+    expect(
+      within(dialog).queryByRole('region', {
+        name: 'Secrets for this session',
+      }),
+    ).toBeNull();
+  });
+
   it('links to the Secrets page from a list that has secrets, to change or delete one', async () => {
     api();
     const { user } = setup();
@@ -394,7 +404,7 @@ describe('SecretsPopover', () => {
 
   it('closes with Escape and gives the keyboard back to its button', async () => {
     api();
-    const { user, returnFocus } = setup();
+    const { user } = setup();
     await open(user);
     await user.keyboard('{Escape}');
     await waitFor(() =>
@@ -405,28 +415,6 @@ describe('SecretsPopover', () => {
     expect(
       screen.getByRole('button', { name: 'Secrets for this session' }),
     ).toHaveFocus();
-    expect(returnFocus).not.toHaveBeenCalled();
-  });
-
-  it('is off while the connection is not live, and closes if the connection goes', async () => {
-    api();
-    const { user } = setup();
-    await open(user);
-    await user.click(screen.getByRole('button', { name: 'Toggle connection' }));
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('dialog', { name: 'Secrets for this session' }),
-      ).toBeNull(),
-    );
-    expect(
-      screen.getByRole('button', { name: 'Secrets for this session' }),
-    ).toBeDisabled();
-    // It does not open again by itself when the connection comes back.
-    await user.click(screen.getByRole('button', { name: 'Toggle connection' }));
-    expect(
-      screen.getByRole('button', { name: 'Secrets for this session' }),
-    ).toBeEnabled();
-    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('speaks German', async () => {
@@ -519,7 +507,7 @@ describe('SecretsPopover', () => {
     expect(await within(dialog).findByText('Backup phrase')).toBeVisible();
     expect(
       within(dialog).getByRole('button', {
-        name: 'Type Backup phrase into the page',
+        name: 'Type Backup phrase into the window',
       }),
     ).toBeVisible();
   });
@@ -750,7 +738,7 @@ describe('SecretsPopover values', () => {
     );
     await user.click(
       within(dialog).getByRole('button', {
-        name: 'Type Address into the page',
+        name: 'Type Address into the window',
       }),
     );
     expect(onType).toHaveBeenCalledExactlyOnceWith(
@@ -971,7 +959,7 @@ describe('SecretsPopover adding a secret for the session', () => {
 
   it('closes with Escape, saves nothing, and gives the keyboard back to the button of the popover', async () => {
     const { api: secretsApi } = serveSecrets();
-    const { user, returnFocus } = setup();
+    const { user, onType } = setup();
     await openForm(user);
 
     await user.keyboard('{Escape}');
@@ -981,8 +969,8 @@ describe('SecretsPopover adding a secret for the session', () => {
     expect(
       screen.getByRole('button', { name: 'Secrets for this session' }),
     ).toHaveFocus();
-    // Not to the page: the person did not choose anything to type.
-    expect(returnFocus).not.toHaveBeenCalled();
+    // Nothing was chosen to type.
+    expect(onType).not.toHaveBeenCalled();
   });
 
   it('closes with Cancel, saves nothing, and gives the keyboard back to the button of the popover', async () => {
@@ -1055,30 +1043,6 @@ describe('SecretsPopover adding a secret for the session', () => {
     expect(
       screen.getByRole('button', { name: 'Secrets for this session' }),
     ).toHaveFocus();
-  });
-
-  it('stays open when the connection goes, so that what was typed is not lost', async () => {
-    serveSecrets();
-    const { user } = setup();
-    const form = await openForm(user);
-    await user.type(
-      within(form).getByRole('textbox', { name: 'Title' }),
-      'Half done',
-    );
-
-    // The page's connection drops (the harness toggles what the live view tells).
-    act(() => {
-      screen
-        .getByRole('button', { name: 'Toggle connection', hidden: true })
-        .click();
-    });
-
-    expect(
-      await screen.findByRole('dialog', { name: 'Add secret' }),
-    ).toBeVisible();
-    expect(within(form).getByRole('textbox', { name: 'Title' })).toHaveValue(
-      'Half done',
-    );
   });
 
   it('speaks German', async () => {

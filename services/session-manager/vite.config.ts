@@ -4,9 +4,8 @@ import viteReact from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
 // In development the backend (`backend/main.ts`) runs on its own port, as the
-// built server does (the dev port + 200), and the dev server forwards the API,
-// the live view's WebSocket and the MCP endpoint to it. `scripts/dev.ts` starts
-// both.
+// built server does (the dev port + 200), and the dev server forwards the API
+// and the MCP endpoint to it. `scripts/dev.ts` starts both.
 const backend =
   process.env.SESSION_MANAGER_BACKEND_URL ?? 'http://127.0.0.1:3204';
 
@@ -59,7 +58,7 @@ export default defineConfig({
     // refuses its own address. As on the platform and the web site.
     strictPort: true,
     proxy: {
-      '/api': { target: backend, ws: true },
+      '/api': { target: backend },
       '/mcp': { target: backend },
     },
     watch: {

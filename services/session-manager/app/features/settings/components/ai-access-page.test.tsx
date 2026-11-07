@@ -319,7 +319,7 @@ describe('AI access page: while AI access is on', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "An assistant can do everything you can do in Session Manager, except switch AI access on or off. You can watch it work in a session's page and take over at any time.",
+        "An assistant can do everything you can do in Session Manager, except switch AI access on or off. You can watch it work in the session's window and take over at any time.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Overview and settings')).toBeInTheDocument();
@@ -482,7 +482,7 @@ describe('AI access page in German', () => {
     expect(
       await screen.findByRole('heading', { name: 'Assistenten verbinden' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('17 Tools')).toBeInTheDocument();
+    expect(screen.getByText('18 Tools')).toBeInTheDocument();
     expect(screen.getByText('Was Assistenten tun können')).toBeInTheDocument();
   });
 

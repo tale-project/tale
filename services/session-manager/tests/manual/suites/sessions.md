@@ -24,11 +24,12 @@ distinct exit IPs; stack A for the boxes that say so. A 1440×900 viewport, devt
 ## Watching a session
 
 - [ ] `SESS-F3` · **Press Add session (`sessions.panel.add`) on stack B and watch the header, the card and the
-  list's row from the click until the picture is there** → the same words in the three places, in order:
-  **Assigning proxy**, **Starting**, **Running** (at **Running** the card gives way to the picture); the dot
-  is blue and pulses while the state is busy and turns green at **Running**; the row's second line becomes
-  `<exit IP> · <country>` once it runs; **Stop session** is there throughout; nothing repeats or goes back,
-  nothing flickers between two states, and the first picture follows **Running** within a few seconds.
+  list's row from the click until the window is there** → the same words in the three places, in order:
+  **Assigning proxy**, **Starting**, **Running** (at **Running** the card gives way to the one that says
+  "Running in its own window", `viewer.window.title`); the dot is blue and pulses while the state is busy and
+  turns green at **Running**; the row's second line becomes `<exit IP> · <country>` once it runs; **Stop
+  session** is there throughout; nothing repeats or goes back, nothing flickers between two states, and the
+  session's window comes to the front within a few seconds of **Running**.
 - [ ] `SESS-F5` · **Read the list at 1440 and at 390 px wide with sessions in every state (stopped, assigning,
   starting, running, stopping, one in Error with a long reason, one whose proxy now exits elsewhere; on stack
   A the control server makes the last two: `PUT {control}/exit-ips` with an `error` or another `ip`), then
@@ -54,8 +55,8 @@ for i in $(seq 1 120); do curl -s -X POST -H "$J" $P/sessions -d '{}' >/dev/null
 
 - [ ] `SESS-F14` · **Log in to a site in a running session (stack B), choose Rotate IP in its menu and confirm
   with Rotate IP in the dialog (`sessions.rotate.confirm`)** → the session shows **Assigning proxy** and
-  **Starting** and comes back **Running** with another exit IP and the tabs it had; you are still logged in
-  at the site; the exit IP the site sees is the new one.
+  **Starting** and comes back **Running** with another exit IP, its window open again with the tabs it had;
+  you are still logged in at the site; the exit IP the site sees is the new one.
 
 ## Rhythm and the manager
 
@@ -66,6 +67,6 @@ for i in $(seq 1 120); do curl -s -X POST -H "$J" $P/sessions -d '{}' >/dev/null
 - [ ] `SESS-B4` · **Stop the manager with Ctrl+C while two sessions run and the page of one of them is open in a browser
   tab (stack B), then start it again** → the manager exits within about thirty seconds, the time it gives the
   browsers, with no error in its log and no browser of the sessions left (`ps -axo pid=,command= | grep --
-  '-profile .*/profiles/'`); the open page shows the red connection banner meanwhile; after the restart both
-  sessions are **Stopped**, not Error; Start session reopens each one with the tabs it had; proxies, secrets,
-  settings and the start page are as you left them.
+  '-profile .*/profiles/'`), their windows closed; the open page shows the red connection banner meanwhile;
+  after the restart both sessions are **Stopped**, not Error; Start session reopens each one with the tabs it
+  had; proxies, secrets, settings and the start page are as you left them.

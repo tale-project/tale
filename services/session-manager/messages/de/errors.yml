@@ -47,6 +47,10 @@ invalid_scope: Diesen Bereich gibt es nicht.
 invalid_start_page: Die Startseite muss eine Webadresse sein, zum Beispiel https://www.google.com.
 browser_installing: Der Browser wird noch installiert. Versuche es erneut, sobald er bereit ist.
 browser_not_installed: Der Browser ist noch nicht installiert.
+browser_error: Der Browser der Sitzung konnte das nicht ausführen. Versuche es erneut.
+browser_error_reason: "Der Browser der Sitzung konnte das nicht ausführen: {reason}."
+browser_not_responding: Der Browser der Sitzung hat nicht reagiert. Wenn in seinem Fenster ein Dialog offen ist, beantworte ihn und versuche es dann erneut.
+no_field_focused: Im Fenster der Sitzung kann gerade nichts Text aufnehmen. Klicke zuerst im Fenster in das Feld und versuche es dann erneut.
 fingerprint_exhausted: Es konnte kein neuer Fingerabdruck erzeugt werden, der sich von denen aller vorhandenen Sitzungen unterscheidet. Versuche es mit einem anderen Betriebssystem.
 unknown_ip_location: Zeitzone und Standort der Ausgangs-IP des Proxys konnten nicht ermittelt werden.
 unknown_ip_location_reason: "Zeitzone und Standort der Ausgangs-IP des Proxys konnten nicht ermittelt werden: {reason}."

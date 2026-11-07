@@ -13,9 +13,6 @@
 //   the method: a page that may not read an answer can still make the browser
 //   fetch it, and a download of the proxy passwords would be saved to the disk.
 //   A program sends no such header and is not asked.
-// - A WebSocket handshake gets the same checks (the middleware does not see
-//   those): any page may open a socket, and the same-origin policy does not
-//   stop it.
 
 import type { MiddlewareHandler } from 'hono';
 
@@ -53,23 +50,9 @@ function hostOf(headers: HeaderReader): string {
   return (headers.get('host') ?? '').toLowerCase();
 }
 
-/**
- * Whether the client reached the app over TLS: Bun terminates it itself
- * (`secure`: the URL says https), or a proxy in front does and says so in
- * `X-Forwarded-Proto` (Bun then only sees plain HTTP). Trusting that header
- * gives a foreign site nothing: its page cannot send it without a CORS
- * preflight, which the app never grants, and a socket handshake cannot carry
- * it at all.
- */
-function cameOverTls(headers: HeaderReader, secure: boolean): boolean {
-  if (secure) return true;
-  const forwarded = headers.get('x-forwarded-proto');
-  return forwarded?.split(',')[0]?.trim().toLowerCase() === 'https';
-}
-
-/** The page of the app itself: `http://<host>`, `https://<host>` over TLS. */
-function isOwnOrigin(origin: string, host: string, tls: boolean): boolean {
-  return origin === `http://${host}` || (tls && origin === `https://${host}`);
+/** The page of the app itself, which this computer serves over plain HTTP. */
+function isOwnOrigin(origin: string, host: string): boolean {
+  return origin === `http://${host}`;
 }
 
 // Shared by every refusal: frozen, so that no caller changes the sentence of the next one.
@@ -81,25 +64,6 @@ const FOREIGN_ORIGIN: Refusal = Object.freeze({
   code: 'forbidden_origin',
   message: 'Cross-site requests are not allowed.',
 });
-
-/**
- * Why a WebSocket handshake is refused, or null when it comes from the app's
- * own page or from a program (which sends no Origin). The host is judged
- * first, as for every other request. `secure`: the caller knows the socket
- * itself is TLS; a TLS proxy in front is told by `X-Forwarded-Proto`.
- */
-export function websocketRefusal(
-  headers: HeaderReader,
-  hosts: ReadonlySet<string>,
-  secure = false,
-): Refusal | null {
-  const host = hostOf(headers);
-  if (!hosts.has(host)) return FOREIGN_HOST;
-  const origin = headers.get('origin');
-  const ownOrigin =
-    origin === null || isOwnOrigin(origin, host, cameOverTls(headers, secure));
-  return fetchSiteAllowed(headers) && ownOrigin ? null : FOREIGN_ORIGIN;
-}
 
 function hasBody(request: Request): boolean {
   const length = request.headers.get('content-length');
@@ -135,8 +99,7 @@ export function requestRefusal(
   }
   if (!UNSAFE_METHODS.has(request.method)) return null;
   const origin = request.headers.get('origin');
-  const tls = cameOverTls(request.headers, request.url.startsWith('https:'));
-  if (origin !== null && !isOwnOrigin(origin, host, tls)) return FOREIGN_ORIGIN;
+  if (origin !== null && !isOwnOrigin(origin, host)) return FOREIGN_ORIGIN;
   if (hasBody(request) && mediaType(request.headers) !== 'application/json') {
     return {
       code: 'forbidden_origin',

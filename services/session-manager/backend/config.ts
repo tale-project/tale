@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 
-/** The default port, shared with the dev server and the container image. */
+/** The default port, shared with the dev server. */
 export const DEFAULT_PORT = 3004;
 
 export interface Config {
@@ -21,12 +21,6 @@ export interface Config {
   /** The built single-page app. */
   distDir: string;
   version: string;
-  /**
-   * A file whose existence makes `/api/health` answer 503 "shutting_down", so a
-   * supervisor can drain traffic before it stops the process. None: no
-   * handshake.
-   */
-  shutdownMarkerPath: string | undefined;
 }
 
 /** A setting of the environment that cannot be used. */
@@ -83,7 +77,6 @@ export interface ConfigOverrides {
  * | `SESSION_MANAGER_ALLOWED_HOSTS` | | More `Host` values, comma separated. |
  * | `CAMOUFOX_INSTALL_DIR` | `<data dir>/camoufox` | |
  * | `TALE_VERSION` | `dev` | |
- * | `SHUTDOWN_MARKER_PATH` | none | A file that makes `/api/health` answer 503. |
  *
  * Two more are read where they are used, and listed in `.env.example`:
  * `SESSION_MANAGER_MAX_SCREEN` (`largestScreen` in `identity/fingerprints.ts`,
@@ -113,7 +106,6 @@ export function loadConfig(
     ),
     distDir: overrides.distDir ?? resolve(import.meta.dirname, '../dist'),
     version: env.TALE_VERSION || 'dev',
-    shutdownMarkerPath: env.SHUTDOWN_MARKER_PATH?.trim() || undefined,
   };
 }
 

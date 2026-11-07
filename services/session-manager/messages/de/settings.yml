@@ -76,7 +76,7 @@ aiAccess:
     claudeDesktop: Trage das in die Konfiguration von Claude Desktop ein. Dafür muss Node.js installiert sein.
   tools:
     title: Was Assistenten tun können
-    description: Ein Assistent kann alles, was du in Session Manager kannst, außer den KI-Zugriff ein- oder auszuschalten. Du kannst ihm auf der Seite einer Sitzung bei der Arbeit zusehen und jederzeit übernehmen.
+    description: Ein Assistent kann alles, was du in Session Manager kannst, außer den KI-Zugriff ein- oder auszuschalten. Du kannst ihm im Fenster der Sitzung bei der Arbeit zusehen und jederzeit übernehmen.
     count: "{count, plural, one {# Tool} other {# Tools}}"
     overview:
       title: Übersicht und Einstellungen
@@ -89,7 +89,7 @@ aiAccess:
       description: Proxies auflisten, hinzufügen, prüfen und löschen.
     browser:
       title: Der Browser einer laufenden Sitzung
-      description: "In einer laufenden Sitzung arbeiten: Tabs verwalten, navigieren, Seiteninhalt lesen, klicken, tippen, scrollen und auf Dialoge der Seite antworten."
+      description: "In einer laufenden Sitzung arbeiten: ihr Fenster nach vorne holen, Tabs verwalten, navigieren, Seiteninhalt lesen, klicken, tippen, scrollen und auf Dialoge der Seite antworten."
     secrets:
       title: Secrets und Notizen
       description: Secrets auflisten, lesen, hinzufügen, ändern und löschen. Ein Assistent kann außerdem einen Wert in eine Seite eintippen, ohne ihn zu sehen.

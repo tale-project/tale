@@ -1,7 +1,7 @@
-// The application rules as the HTTP routes, the live view and the MCP tools
-// see them: the proxy pool and its health, exclusive proxy assignment, the
-// session lifecycle, the secrets and the settings. `SessionManager`
-// (`service.ts`) implements it.
+// The application rules as the HTTP routes and the MCP tools see them: the
+// proxy pool and its health, exclusive proxy assignment, the session
+// lifecycle, the windows of the sessions, the secrets and the settings.
+// `SessionManager` (`service.ts`) implements it.
 //
 // Methods throw `AppError` (status, code, message) for everything a client can
 // act on. Results are the API types of `lib/api/schemas.ts`.
@@ -35,6 +35,15 @@ export interface Page {
 
 /** Which secrets a list has: any, those for every session, or those of one session. */
 export type SecretScope = 'all' | 'global' | number;
+
+/**
+ * The window of a browser that starts comes to the front once it is up: a
+ * start the person asked for in the page. An AI assistant's start leaves the
+ * screen as it is.
+ */
+export interface ShowOption {
+  show?: boolean;
+}
 
 export interface Manager {
   meta(): Meta;
@@ -110,18 +119,31 @@ export interface Manager {
    */
   exportProxies(): ProxyExport;
 
-  /** The live browser of a running session: its tabs, its picture, mouse and keyboard. */
+  /** The browser of a running session: its tabs, its pages, mouse and keyboard. */
   remote(sessionId: number): Remote;
+  /**
+   * Brings the window of a running session to the front of the screen, with
+   * the tab the person last looked at in it.
+   */
+  showSession(sessionId: number): Promise<void>;
+  /**
+   * Types the text into the page of a running session, where its focus is:
+   * the field the person last clicked in its window.
+   */
+  typeIntoSession(sessionId: number, text: string): Promise<void>;
 
   /**
    * Creates the session and starts it: a proxy is assigned and the browser
    * launched in the background. A blank name means the next free number
    * ("0001", "0002", …).
    */
-  createSession(input?: {
-    name?: string | null;
-    os?: string;
-  }): Promise<Session>;
+  createSession(
+    input?: {
+      name?: string | null;
+      os?: string;
+    },
+    options?: ShowOption,
+  ): Promise<Session>;
   /** Works in any status: the name is only a label. */
   renameSession(sessionId: number, name: string): Session;
   /**
@@ -132,7 +154,7 @@ export interface Manager {
    */
   startSession(
     sessionId: number,
-    options?: { force?: boolean },
+    options?: { force?: boolean } & ShowOption,
   ): Promise<Session>;
   stopSession(sessionId: number): Promise<Session>;
   /**
@@ -140,13 +162,13 @@ export interface Manager {
    * session is restarted with it; if no candidate works, the session keeps its
    * proxy.
    */
-  rotateSession(sessionId: number): Promise<Session>;
+  rotateSession(sessionId: number, options?: ShowOption): Promise<Session>;
   /**
    * Closes the running browser and opens it again, with the same proxy and the
    * same tabs. Its timezone and location are derived again then, for the
    * proxy's exit IP as it is now.
    */
-  restartSession(sessionId: number): Promise<Session>;
+  restartSession(sessionId: number, options?: ShowOption): Promise<Session>;
   /**
    * Looks at the exit IP of the session's proxy now. `location.inSync` of the
    * result tells whether it is still the IP that the session's timezone and

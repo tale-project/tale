@@ -21,7 +21,7 @@ export const PHONE: Viewport = { width: 390, height: 844 };
 /**
  * A phone held sideways (an iPhone 14): wide enough for the rail, the list of
  * sessions and the page side by side, and only 390 px tall, so that a menu, a
- * dialog or the viewer's toolbar has to fit the little height there is.
+ * dialog or a popover has to fit the little height there is.
  */
 const LANDSCAPE: Viewport = { width: 844, height: 390 };
 
@@ -39,7 +39,7 @@ export const LAYOUTS = [
   { name: 'phone', viewport: PHONE },
 ] as const;
 
-/** The phone held sideways, which the session screens and the viewer are audited in as well. */
+/** The phone held sideways, which the session screens are audited in as well. */
 export const SIDEWAYS = { name: 'landscape', viewport: LANDSCAPE } as const;
 
 export type Layout = (typeof LAYOUTS)[number] | typeof SIDEWAYS;

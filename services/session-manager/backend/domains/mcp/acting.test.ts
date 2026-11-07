@@ -93,7 +93,7 @@ describe('act', () => {
   it('passes on the error of an action that failed', async () => {
     const remote = newRemote();
     await expect(act(remote, remote.activateTab(99), 0)).rejects.toThrow(
-      new RemoteError('There is no such tab.', 'tab_gone'),
+      new RemoteError('There is no such tab.'),
     );
   });
 

@@ -205,6 +205,24 @@ export function runningAnimations(page: Page): Promise<RunningAnimation[]> {
   );
 }
 
+/**
+ * Waits until what is fading in or sliding in has stopped moving: a colour
+ * measured on a popover that is half transparent is not the colour it ends up
+ * with, and an audit would blame it. Animations that never end (a spinner)
+ * are left alone.
+ */
+export async function animationsDone(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const finite = document
+      .getAnimations()
+      .filter(
+        (animation) =>
+          animation.effect?.getComputedTiming().iterations !== Infinity,
+      );
+    await Promise.allSettled(finite.map((animation) => animation.finished));
+  });
+}
+
 export interface Landmarks {
   /** `main` landmarks in the accessibility tree. */
   main: number;
@@ -245,9 +263,7 @@ export const LIBRARY_GAPS = {
   /**
    * A scroller that holds nothing the Tab key reaches: a Radix menu moves its
    * focus with the arrow keys (roving tabindex), so a menu taller than a window
-   * that is 390 px high scrolls and fails the rule; so does the viewer's strip
-   * of tabs while the first connection is made (its placeholder is wider than
-   * the strip there, and is no control).
+   * that is 390 px high scrolls and fails the rule.
    */
   scrollableRegion: 'scrollable-region-focusable',
 } as const;

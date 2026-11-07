@@ -3,7 +3,6 @@ import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { Heading } from '@tale/ui/heading';
-import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { useFocusHandoff } from '@tale/ui/use-focus-handoff';
 import { LoaderCircle, RotateCw } from 'lucide-react';
@@ -30,16 +29,13 @@ const NO_PROXY_ERRORS = new Set(['no_working_proxy', 'no_free_proxy']);
  * and the way on, then the details of the session. The page's header says
  * which session this is and what state it is in, so the card does not say
  * either again; it keeps the one thing the header cannot: that work is under
- * way. `closed` is a session that was running a moment ago and whose browser
- * just closed; it waits for the session to say what is next.
+ * way.
  */
 export function StoppedCard({
   session,
-  closed = false,
   onFocusLost,
 }: {
   session: Session;
-  closed?: boolean;
   /**
    * Where the keyboard goes when the card goes (the session started) while one
    * of its buttons had it: the page's heading.
@@ -68,7 +64,7 @@ export function StoppedCard({
         (session.error !== null && session.error !== ''
           ? session.error
           : tErrors('fallback')));
-  const actionable = isIdle(session) && !closed;
+  const actionable = isIdle(session);
   const aboutProxy = code !== null && PROXY_ERRORS.has(code);
   const needsProxies = code !== null && NO_PROXY_ERRORS.has(code);
   // What starting does is news to a session that has not run yet: there is
@@ -77,8 +73,7 @@ export function StoppedCard({
   const wayOn = actionable && (aboutProxy || needsProxies);
   // The details are set off by a rule from what is said above them, and need
   // none when they stand alone.
-  const saysSomething =
-    closed || busy || (errorText !== null && !closed) || wayOn;
+  const saysSomething = busy || errorText !== null || wayOn;
 
   return (
     <ContentArea
@@ -90,32 +85,21 @@ export function StoppedCard({
         {/* What the page says about the session's trouble or work, in a status
             region that is always in the page (empty, and so gone from view,
             while there is nothing to say): a state that comes (starting,
-            stopping, the browser closing, a start that failed) is read out. */}
+            stopping, a start that failed) is read out. */}
         <div role="status" className="flex flex-col gap-2 text-sm empty:hidden">
-          {closed ? (
-            <>
-              <StatusIndicator variant="neutral">
-                {t('card.closed')}
-              </StatusIndicator>
-              <Text variant="muted">{t('card.closedHint')}</Text>
-            </>
-          ) : (
-            <>
-              {busy && (
-                <span className="text-muted-foreground flex items-center gap-2">
-                  <LoaderCircle
-                    className={cn('size-4', SPIN_CLASS)}
-                    aria-hidden="true"
-                  />
-                  {statusLabel(shown)}
-                </span>
-              )}
-              {errorText !== null && (
-                <Text variant="error" className="break-words">
-                  {errorText}
-                </Text>
-              )}
-            </>
+          {busy && (
+            <span className="text-muted-foreground flex items-center gap-2">
+              <LoaderCircle
+                className={cn('size-4', SPIN_CLASS)}
+                aria-hidden="true"
+              />
+              {statusLabel(shown)}
+            </span>
+          )}
+          {errorText !== null && (
+            <Text variant="error" className="break-words">
+              {errorText}
+            </Text>
           )}
         </div>
         {/* The way on, when the trouble has one of its own. Starting the

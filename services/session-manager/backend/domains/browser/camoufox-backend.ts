@@ -1,9 +1,10 @@
 // The real `BrowserBackend`: identities, geo lookups and persistent-context
 // launches of Camoufox through Playwright.
 //
-// Every session is its own Firefox process with its own profile directory. The
-// browsers have no window: the web client watches and controls them through
-// `BrowserHandle.remote`.
+// Every session is its own Firefox process with its own profile directory, in a
+// window of its own on this computer's screen; the AI tools drive it through
+// `BrowserHandle.remote`. Without a window (`headless`: the tests that run a
+// real browser) the browser is the same, and the remote picks the tab in front.
 //
 // camoufox-js reads `CAMOUFOX_INSTALL_DIR` when its modules are first loaded
 // and the app sets it at startup, so camoufox-js and Playwright are imported
@@ -36,9 +37,15 @@ import {
 import type { RemoteLifecycle, SessionContext } from './camoufox-session.ts';
 import { browserEnvironment } from './environment.ts';
 import { browserBuild, fetchBrowser, isInstalled } from './install.ts';
-import { boundInputWaits, clearStaleScripts } from './juggler.ts';
-import type { InputWaits } from './juggler.ts';
+import {
+  PAGES_IN_TABS,
+  boundInputWaits,
+  clearStaleScripts,
+  openPagesInTabs,
+} from './juggler.ts';
+import type { InputWaits, PagesInTabs } from './juggler.ts';
 import type { PwContext } from './playwright-remote.ts';
+import { activateWindow } from './window.ts';
 
 /** What `launchOptions` of camoufox-js is given. */
 export type LaunchArgs = Parameters<typeof camoufoxLaunchOptions>[0];
@@ -71,6 +78,8 @@ const GEOIP_MAX_AGE_MS = 8 * 24 * 60 * 60 * 1000;
 export interface RemoteOptions {
   startPage: string;
   onLayout?: (layout: TabLayout) => void;
+  /** The browser has a window where a person uses it (see `PlaywrightRemote`). */
+  windowed: boolean;
 }
 
 /** Everything the backend uses that is outside this file. */
@@ -108,6 +117,11 @@ export interface CamoufoxDeps {
    */
   boundInputWaits: () => Promise<InputWaits>;
   /**
+   * Makes the installed build open the pages Playwright asks for as tabs of
+   * the window, not as windows of their own (`juggler.ts`).
+   */
+  openPagesInTabs: () => Promise<PagesInTabs>;
+  /**
    * Deletes the compiled copies of the build's scripts that the profile keeps,
    * unless they were made from the build it starts with (`juggler.ts`).
    */
@@ -118,6 +132,8 @@ export interface CamoufoxDeps {
   /** The output of `ps -axo pid=,command=`: how a browser that will not close is found. */
   listProcesses: () => Promise<string>;
   killProcess: (pid: number) => void;
+  /** Brings the windows of the browser with this process id to the front (`window.ts`). */
+  activateWindow: (pid: number) => Promise<boolean>;
 }
 
 // -- what the launch asks Camoufox for ----------------------------------------------
@@ -160,11 +176,15 @@ export function locationConfig(
   return { config, prefs };
 }
 
-/** The `launchOptions` arguments of a launch: the identity, the proxy, the place. */
+/**
+ * The `launchOptions` arguments of a launch: the identity, the proxy, the place,
+ * and a window unless `headless`.
+ */
 export function launchArgs(
   spec: LaunchSpec,
   blockWebrtc: boolean,
   env: Readonly<Record<string, string | undefined>> = process.env,
+  headless = false,
 ): LaunchArgs {
   const identity = identityLaunchOptions(spec.identity);
   // The identity pins what Camoufox would draw at random: keep it.
@@ -172,12 +192,13 @@ export function launchArgs(
   const { config, prefs } = locationConfig(spec.location, blockWebrtc);
   return {
     ...identity,
-    // The page is streamed to the web client: there is no window to show.
-    headless: true,
+    // The person uses the browser in its own window.
+    headless,
     proxy: spec.proxy,
     config: { ...(isRecord(pinned) ? pinned : {}), ...config },
     block_webrtc: blockWebrtc,
-    firefox_user_prefs: prefs,
+    // The tabs it reopens, and the ones the tools open, in its window.
+    firefox_user_prefs: headless ? prefs : { ...prefs, [PAGES_IN_TABS]: true },
     // camoufox-js would hand the browser the whole environment of the app.
     env: browserEnvironment(env),
   };
@@ -289,7 +310,7 @@ const DEFAULT_DEPS: CamoufoxDeps = {
       import('camoufox-js'),
       import('playwright-core'),
     ]);
-    return NewBrowser(firefox, true, options, profileDir);
+    return NewBrowser(firefox, options.headless === true, options, profileDir);
   },
   createRemote: createPlaywrightRemote,
   installBrowser: (signal, onProgress) => fetchBrowser({ signal, onProgress }),
@@ -297,6 +318,10 @@ const DEFAULT_DEPS: CamoufoxDeps = {
   async boundInputWaits() {
     const omniJa = await installedOmniJa();
     return omniJa === null ? 'missing' : boundInputWaits(omniJa);
+  },
+  async openPagesInTabs() {
+    const omniJa = await installedOmniJa();
+    return omniJa === null ? 'missing' : openPagesInTabs(omniJa);
   },
   async clearStaleScripts(profileDir) {
     const omniJa = await installedOmniJa();
@@ -308,7 +333,12 @@ const DEFAULT_DEPS: CamoufoxDeps = {
   },
   listProcesses,
   killProcess,
+  activateWindow,
 };
+
+function noWindow(): Promise<boolean> {
+  return Promise.resolve(false);
+}
 
 function resolveDeps(overrides: Partial<CamoufoxDeps> = {}): CamoufoxDeps {
   return {
@@ -322,17 +352,20 @@ function resolveDeps(overrides: Partial<CamoufoxDeps> = {}): CamoufoxDeps {
     installBrowser: overrides.installBrowser ?? DEFAULT_DEPS.installBrowser,
     isInstalled: overrides.isInstalled ?? DEFAULT_DEPS.isInstalled,
     boundInputWaits: overrides.boundInputWaits ?? DEFAULT_DEPS.boundInputWaits,
+    openPagesInTabs: overrides.openPagesInTabs ?? DEFAULT_DEPS.openPagesInTabs,
     clearStaleScripts:
       overrides.clearStaleScripts ?? DEFAULT_DEPS.clearStaleScripts,
     browserVersion: overrides.browserVersion ?? DEFAULT_DEPS.browserVersion,
     makeDirectory: overrides.makeDirectory ?? DEFAULT_DEPS.makeDirectory,
     listProcesses: overrides.listProcesses ?? DEFAULT_DEPS.listProcesses,
     killProcess: overrides.killProcess ?? DEFAULT_DEPS.killProcess,
+    activateWindow: overrides.activateWindow ?? DEFAULT_DEPS.activateWindow,
   };
 }
 
 export class CamoufoxBackend implements BrowserBackend {
   readonly #blockWebrtc: boolean;
+  readonly #headless: boolean;
   readonly #deps: CamoufoxDeps;
   /** Aborts when the backend closes: an install under way stops. */
   readonly #shutdown = new AbortController();
@@ -342,8 +375,14 @@ export class CamoufoxBackend implements BrowserBackend {
   #inputWaits: Promise<void> | null = null;
   #version: string | null = null;
 
-  constructor(options: { blockWebrtc: boolean; deps?: Partial<CamoufoxDeps> }) {
+  constructor(options: {
+    blockWebrtc: boolean;
+    /** No window: the tests that run a real browser. Default false. */
+    headless?: boolean;
+    deps?: Partial<CamoufoxDeps>;
+  }) {
     this.#blockWebrtc = options.blockWebrtc;
+    this.#headless = options.headless ?? false;
     this.#deps = resolveDeps(options.deps);
   }
 
@@ -406,10 +445,11 @@ export class CamoufoxBackend implements BrowserBackend {
   }
 
   /**
-   * Makes the installed build stop waiting for ever for a mouse event that a
-   * page does not take (see `juggler.ts`): once, before the first browser
-   * starts, and again while there is no build to change or it could not be
-   * changed. Never rejects: a build that is not changed starts as it is.
+   * Changes the installed build (see `juggler.ts`): its waits for a mouse
+   * event that a page does not take end, and the pages Playwright asks for
+   * open as tabs of the window. Once, before the first browser starts, and
+   * again while there is no build to change or it could not be changed. Never
+   * rejects: a build that is not changed starts as it is.
    */
   #boundInputWaits(): Promise<void> {
     this.#inputWaits ??= this.#changeBuild();
@@ -431,6 +471,7 @@ export class CamoufoxBackend implements BrowserBackend {
     }
     if (outcome === 'missing') {
       this.#inputWaits = null;
+      return;
     } else if (outcome === 'changed') {
       console.info(
         'Changed the Camoufox browser so that a mouse event that a page does not take no longer stops its mouse for good',
@@ -438,6 +479,32 @@ export class CamoufoxBackend implements BrowserBackend {
     } else if (outcome === 'unknown') {
       console.warn(
         'Left the Camoufox browser as it is: it is not the build the app knows how to change, and a mouse event that a page does not take can stop its mouse until the session restarts',
+      );
+    }
+    await this.#openPagesInTabs();
+  }
+
+  async #openPagesInTabs(): Promise<void> {
+    let outcome: PagesInTabs;
+    try {
+      outcome = await this.#deps.openPagesInTabs();
+    } catch (error) {
+      this.#inputWaits = null;
+      console.warn(
+        'Could not change the Camoufox browser: the tabs a session reopens, and the ones the AI tools open, come up in windows of their own',
+        error,
+      );
+      return;
+    }
+    if (outcome === 'missing') {
+      this.#inputWaits = null;
+    } else if (outcome === 'changed') {
+      console.info(
+        'Changed the Camoufox browser so that the tabs a session reopens, and the ones the AI tools open, come up in its window',
+      );
+    } else if (outcome === 'unknown') {
+      console.warn(
+        'Left the Camoufox browser as it is: it is not the build the app knows how to change, and the tabs a session reopens, and the ones the AI tools open, come up in windows of their own',
       );
     }
   }
@@ -476,7 +543,7 @@ export class CamoufoxBackend implements BrowserBackend {
     await this.#deps.makeDirectory(profileDir);
     // The result holds a copy of the environment: never store or log it.
     const options = await this.#deps.launchOptions(
-      launchArgs(spec, this.#blockWebrtc),
+      launchArgs(spec, this.#blockWebrtc, process.env, this.#headless),
     );
     // After `launchOptions`, which installs the build camoufox-js pins when
     // another one is there.
@@ -490,8 +557,8 @@ export class CamoufoxBackend implements BrowserBackend {
       proxy: spec.proxy,
       // The app closes the browsers itself when it stops (`close()`). With
       // Playwright's own handlers both would close them at once ("graceful
-      // close failed; killing the browser" on every `docker stop`), and its
-      // SIGINT handler exits the process before the app has finished stopping.
+      // close failed; killing the browser" on every Ctrl+C), and its SIGINT
+      // handler exits the process before the app has finished stopping.
       handleSIGINT: false,
       handleSIGTERM: false,
       handleSIGHUP: false,
@@ -503,11 +570,9 @@ export class CamoufoxBackend implements BrowserBackend {
     let session: CamoufoxSession;
     try {
       this.#assertOpen();
-      // A page that asks where it is would wait for ever: a headless browser
-      // cannot ask anyone, and the `geolocation:*` values of the config are not
-      // delivered by this Camoufox build. The position of the exit IP is given
-      // to the pages, and the browser answers them at once (the permission
-      // state stays "prompt", as in a browser whose person was never asked).
+      // The `geolocation:*` values of the config are not delivered by this
+      // Camoufox build: the pages are given the position of the exit IP, never
+      // this computer's.
       await context.setGeolocation({
         latitude: spec.location.latitude,
         longitude: spec.location.longitude,
@@ -515,11 +580,14 @@ export class CamoufoxBackend implements BrowserBackend {
       const remote = await this.#deps.createRemote(context, {
         startPage: spec.startPage,
         onLayout: spec.onLayout,
+        windowed: !this.#headless,
       });
       session = new CamoufoxSession(context, remote, {
         profileDir,
         listProcesses: this.#deps.listProcesses,
         kill: this.#deps.killProcess,
+        // Without a window there is nothing to bring to the front.
+        activate: this.#headless ? noWindow : this.#deps.activateWindow,
       });
     } catch (error) {
       await this.#closeQuietly(spec.name, context.close());

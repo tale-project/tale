@@ -34,6 +34,7 @@ const OF_THE_PAGE = new Set([
  * clients). The backend names the fields in `refusals.ts`.
  */
 const VARIANTS: Readonly<Record<string, readonly string[]>> = {
+  browser_error: ['browser_error_reason'],
   no_working_proxy: ['no_working_proxy_failed'],
   proxy_unreachable: ['proxy_unreachable_reason'],
   session_busy: [

@@ -8,12 +8,12 @@
 
     GET    /browsers/:name          what the latest browser launched for the
                                     session `:name` has been told (`events`),
-                                    its open dialogs and whether it is closed
+                                    its tabs, its open dialogs and whether it
+                                    is closed
     POST   /browsers/:name/dialog   { kind, message, defaultValue? }: the page
                                     opens a dialog
-    POST   /browsers/:name/select   { options?: string[] }: the page opens a
-                                    drop-down list
-    POST   /browsers/:name/selection { text }: what the page has selected
+    POST   /browsers/:name/focus    { field }: whether a field of the window
+                                    has the focus, which typed text needs
     POST   /browsers/:name/crash    the browser dies
     POST   /browsers/:name/close-tabs the user closes every tab
     PUT    /faults                  { launchError?, launchDelayMs?, checkDelayMs?,
@@ -49,11 +49,7 @@ const dialogSchema = z.object({
   defaultValue: z.string().default(''),
 });
 
-const selectSchema = z.object({
-  options: z.array(z.string()).min(1).default(['First', 'Second', 'Third']),
-});
-
-const selectionSchema = z.object({ text: z.string() });
+const focusSchema = z.object({ field: z.boolean() });
 
 const faultsSchema = z.object({
   launchError: z.string().nullish(),
@@ -84,8 +80,8 @@ function describeBrowser(browser: FakeBrowser) {
     name: browser.spec.name,
     closed: browser.closed,
     events: browser.remote.events,
+    tabs: browser.remote.tabs(),
     dialogs: browser.remote.dialogs(),
-    selection: browser.remote.selection,
   };
 }
 
@@ -123,21 +119,8 @@ export function startControlServer(
               ),
             );
           }
-          case 'select': {
-            const { options } = selectSchema.parse(await request.json());
-            return Response.json(
-              remote.openSelect({
-                options: options.map((label, index) => ({
-                  label,
-                  selected: index === 0,
-                  disabled: false,
-                  group: null,
-                })),
-              }),
-            );
-          }
-          case 'selection': {
-            remote.selection = selectionSchema.parse(await request.json()).text;
+          case 'focus': {
+            remote.fieldFocused = focusSchema.parse(await request.json()).field;
             return Response.json({ ok: true });
           }
           case 'crash':

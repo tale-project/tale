@@ -49,7 +49,7 @@ const CAMOUFOX_OPTIONS: PlaywrightOptions = {
   args: [],
   env: { CAMOU_CONFIG_1: '{}', SECRET_OF_THE_HOST: 'do not log' },
   firefoxUserPrefs: {},
-  headless: true,
+  headless: false,
   // camoufox-js turns the URL of a proxy into its origin: "null" for socks5://.
   proxy: { server: 'null', username: '', password: '' },
 };
@@ -64,9 +64,15 @@ interface Rig {
   remotes: FakeRemoteLifecycle[];
   remoteOptions: { context: SessionContext; options: RemoteOptions }[];
   directories: string[];
+  /** The process ids whose windows were brought to the front. */
+  activated: number[];
 }
 
-function rig(overrides: Partial<CamoufoxDeps> = {}, blockWebrtc = false): Rig {
+function rig(
+  overrides: Partial<CamoufoxDeps> = {},
+  blockWebrtc = false,
+  headless = false,
+): Rig {
   const result: Omit<Rig, 'backend'> = {
     argsSeen: [],
     launched: [],
@@ -74,13 +80,16 @@ function rig(overrides: Partial<CamoufoxDeps> = {}, blockWebrtc = false): Rig {
     remotes: [],
     remoteOptions: [],
     directories: [],
+    activated: [],
   };
   const backend = new CamoufoxBackend({
     blockWebrtc,
+    headless,
     deps: {
       isInstalled: () => true,
       installBrowser: async () => null,
       boundInputWaits: async () => 'bounded',
+      openPagesInTabs: async () => 'done',
       clearStaleScripts: async () => {},
       warmUpGeo: async () => {},
       browserVersion: () => '1.2.3-beta.4',
@@ -105,6 +114,10 @@ function rig(overrides: Partial<CamoufoxDeps> = {}, blockWebrtc = false): Rig {
       },
       listProcesses: async () => '',
       killProcess: () => {},
+      activateWindow: async (pid) => {
+        result.activated.push(pid);
+        return true;
+      },
       ...overrides,
     },
   });
@@ -254,11 +267,15 @@ describe('launchArgs', () => {
       webgl_config: ['Fake Vendor', 'Fake GPU'],
       screen: { maxWidth: 1920, maxHeight: 1080 },
       i_know_what_im_doing: true,
-      headless: true, // the page is streamed: there is no window to show
+      headless: false, // the person uses the browser in its window
       proxy: { server: 'http://127.0.0.1:8080' },
       block_webrtc: false,
     });
     expect(args.fingerprint).toEqual(spec.identity.fingerprint);
+  });
+
+  it('asks for no window when the browser is to run headless', () => {
+    expect(launchArgs(spec, false, {}, true).headless).toBe(true);
   });
 
   it('adds the place to the values the identity pins, not instead of them', () => {
@@ -358,12 +375,21 @@ describe('launching a browser', () => {
     expect(r.remoteOptions[0]?.options).toEqual({
       startPage: spec.startPage,
       onLayout,
+      windowed: true,
     });
     expect(r.remotes[0]?.calls).toEqual([
       'restore https://a.example,https://b.example 1',
     ]);
     expect(session.remote).toBe(r.remotes[0]);
     expect(session.context).toBe(r.contexts[0]);
+  });
+
+  it('starts a headless browser when told to, whose remote has no window to follow', async () => {
+    const r = rig({}, false, true);
+    const spec = fakeLaunchSpec();
+    await r.backend.launch(spec);
+    expect(r.argsSeen).toEqual([launchArgs(spec, false, process.env, true)]);
+    expect(r.remoteOptions[0]?.options).toMatchObject({ windowed: false });
   });
 
   it('keeps what a page downloads out of the temporary folder: downloads are refused', async () => {
@@ -485,6 +511,27 @@ describe('launching a browser', () => {
   });
 });
 
+describe('showing the window of a session', () => {
+  const profileDir = resolve('/data/profiles/1');
+  const listProcesses = async (): Promise<string> =>
+    `  9 /x/camoufox -no-remote -profile ${profileDir} -juggler-pipe`;
+
+  it('brings its tab forward, then its window above the other apps', async () => {
+    const r = rig({ listProcesses });
+    const session = await r.backend.launch(fakeLaunchSpec({ profileDir }));
+    await session.show();
+    expect(r.remotes[0]?.events.at(-1)).toEqual(['toFront']);
+    expect(r.activated).toEqual([9]);
+  });
+
+  it('brings no window forward when the browser runs headless', async () => {
+    const r = rig({ listProcesses }, false, true);
+    const session = await r.backend.launch(fakeLaunchSpec({ profileDir }));
+    await session.show();
+    expect(r.activated).toEqual([]);
+  });
+});
+
 describe('a launch that fails', () => {
   it('fails when camoufox-js cannot make the options', async () => {
     const r = rig({
@@ -538,6 +585,7 @@ describe('a launch that fails', () => {
     const [remote] = r.remotes;
     expect(remote?.calls).toEqual([
       'restore https://www.google.com 0',
+      'followWindow',
       'freeze flush=true',
       'aclose',
     ]);
@@ -982,6 +1030,68 @@ describe('the waits of the mouse in the build', () => {
   });
 });
 
+describe('the pages Playwright asks for, in the build', () => {
+  it('open as tabs of the window once the build is changed, before the first browser starts and after its waits', async () => {
+    const steps: string[] = [];
+    const openPagesInTabs = vi.fn(async () => {
+      steps.push('pages in tabs');
+      return 'changed' as const;
+    });
+    const r = rig({
+      boundInputWaits: async () => {
+        steps.push('bound the waits');
+        return 'bounded';
+      },
+      openPagesInTabs,
+    });
+    await r.backend.launch(fakeLaunchSpec());
+    expect(steps).toEqual(['bound the waits', 'pages in tabs']);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining('come up in its window'),
+    );
+    await r.backend.launch(fakeLaunchSpec({ profileDir: '/data/profiles/2' }));
+    expect(openPagesInTabs).toHaveBeenCalledTimes(1);
+  });
+
+  it('come up in windows of their own in a build the app does not know: the browser starts all the same, with a warning', async () => {
+    const r = rig({ openPagesInTabs: async () => 'unknown' });
+    await r.backend.launch(fakeLaunchSpec());
+    expect(r.launched).toHaveLength(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('windows of their own'),
+    );
+  });
+
+  it('are tried again at the next launch when the build cannot be changed', async () => {
+    const failure = new Error('ENOSPC: no space left on device');
+    let fails = true;
+    const openPagesInTabs = vi.fn(async () => {
+      if (fails) throw failure;
+      return 'changed' as const;
+    });
+    const r = rig({ openPagesInTabs });
+    await r.backend.launch(fakeLaunchSpec());
+    expect(r.launched).toHaveLength(1);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('windows of their own'),
+      failure,
+    );
+    fails = false;
+    await r.backend.launch(fakeLaunchSpec({ profileDir: '/data/profiles/2' }));
+    expect(openPagesInTabs).toHaveBeenCalledTimes(2);
+  });
+
+  it('are asked to open as tabs by a browser with a window, not by one without', async () => {
+    const spec = fakeLaunchSpec();
+    expect(launchArgs(spec, false).firefox_user_prefs).toMatchObject({
+      'sessionmanager.pagesInTabs': true,
+    });
+    expect(
+      launchArgs(spec, false, {}, true).firefox_user_prefs,
+    ).not.toHaveProperty('sessionmanager.pagesInTabs');
+  });
+});
+
 describe('the old compiled scripts of a profile', () => {
   it('are cleared before its browser starts, every time', async () => {
     const steps: string[] = [];
@@ -1146,6 +1256,7 @@ describe('the Playwright remote', () => {
     };
     const remote = await createPlaywrightRemote(context, {
       startPage: 'https://www.google.com',
+      windowed: true,
     });
     expect(remote.closed).toBe(false);
     expect(remote.tabs()).toEqual([]);
@@ -1157,6 +1268,7 @@ describe('the Playwright remote', () => {
     await expect(
       createPlaywrightRemote(new FakeSessionContext(), {
         startPage: 'https://www.google.com',
+        windowed: true,
       }),
     ).rejects.toThrow('cannot be driven');
   });

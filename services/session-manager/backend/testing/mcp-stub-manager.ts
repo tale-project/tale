@@ -1,6 +1,6 @@
-// A `Manager` for the tests of the live view and the MCP tools (the HTTP routes
-// have `http-stub-manager.ts`): every method throws unless the test passes its
-// own, and the builders make API objects that pass the schemas of
+// A `Manager` for the tests of the MCP tools (the HTTP routes have
+// `http-stub-manager.ts`): every method throws unless the test passes its own,
+// and the builders make API objects that pass the schemas of
 // `lib/api/schemas.ts`.
 //
 //   const manager = stubManager({ listSessions: () => [sessionFixture()] });
@@ -59,6 +59,8 @@ export function stubManager(overrides: Partial<Manager> = {}): Manager {
     session: notStubbed('session'),
     exportProxies: notStubbed('exportProxies'),
     remote: notStubbed('remote'),
+    showSession: notStubbed('showSession'),
+    typeIntoSession: notStubbed('typeIntoSession'),
     createSession: notStubbed('createSession'),
     renameSession: notStubbed('renameSession'),
     startSession: notStubbed('startSession'),

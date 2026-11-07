@@ -226,13 +226,13 @@ describe('POST /api/sessions', () => {
     expect(await expectJson(response, 201, sessionSchema)).toEqual(created);
   });
 
-  it('hands over the name as it was typed and the system chosen', async () => {
+  it('hands over the name as it was typed and the system chosen, and has the window shown once it is up', async () => {
     const { client, createSession } = creating();
     await client.post('/api/sessions', { name: '  Shop  ', os: 'linux' });
-    expect(createSession).toHaveBeenCalledExactlyOnceWith({
-      name: '  Shop  ',
-      os: 'linux',
-    });
+    expect(createSession).toHaveBeenCalledExactlyOnceWith(
+      { name: '  Shop  ', os: 'linux' },
+      { show: true },
+    );
   });
 
   it('lets the system be random and the name be the next free number', async () => {
@@ -241,9 +241,9 @@ describe('POST /api/sessions', () => {
     await client.post('/api/sessions', { name: null });
     await client.post('/api/sessions', { name: '   ' });
     expect(createSession.mock.calls).toEqual([
-      [{ name: undefined, os: 'random' }],
-      [{ name: null, os: 'random' }],
-      [{ name: '   ', os: 'random' }],
+      [{ name: undefined, os: 'random' }, { show: true }],
+      [{ name: null, os: 'random' }, { show: true }],
+      [{ name: '   ', os: 'random' }, { show: true }],
     ]);
   });
 
@@ -387,7 +387,11 @@ describe('POST /api/sessions/:id/start', () => {
     const { client, startSession } = starting();
     const response = await client.post('/api/sessions/5/start', body);
     expect(response.status).toBe(202);
-    expect(startSession).toHaveBeenCalledExactlyOnceWith(5, { force });
+    // The person started it here: its window comes to the front once it is up.
+    expect(startSession).toHaveBeenCalledExactlyOnceWith(5, {
+      force,
+      show: true,
+    });
   });
 
   it('reads a body of null or blanks as no body', async () => {
@@ -400,8 +404,8 @@ describe('POST /api/sessions/:id/start', () => {
       expect(response.status).toBe(202);
     }
     expect(startSession.mock.calls).toEqual([
-      [5, { force: false }],
-      [5, { force: false }],
+      [5, { force: false, show: true }],
+      [5, { force: false, show: true }],
     ]);
   });
 
@@ -494,6 +498,8 @@ interface SessionAction {
   method: 'stopSession' | 'restartSession' | 'rotateSession' | 'checkSessionIp';
   status: number;
   refusals: Array<[number, string]>;
+  /** What the manager is told besides the id: a browser that comes up again is shown. */
+  options?: unknown;
 }
 
 const SESSION_ACTIONS: SessionAction[] = [
@@ -507,6 +513,7 @@ const SESSION_ACTIONS: SessionAction[] = [
     action: 'restart',
     method: 'restartSession',
     status: 202,
+    options: { show: true },
     refusals: [
       [409, 'session_not_running'],
       [409, 'no_proxy'],
@@ -517,6 +524,7 @@ const SESSION_ACTIONS: SessionAction[] = [
     action: 'rotate',
     method: 'rotateSession',
     status: 202,
+    options: { show: true },
     refusals: [
       [409, 'no_free_proxy'],
       [409, 'session_busy'],
@@ -533,7 +541,7 @@ const SESSION_ACTIONS: SessionAction[] = [
   },
 ];
 
-for (const { action, method, status, refusals } of SESSION_ACTIONS) {
+for (const { action, method, status, refusals, options } of SESSION_ACTIONS) {
   describe(`POST /api/sessions/:id/${action}`, () => {
     const path = `/api/sessions/6/${action}`;
 
@@ -547,7 +555,9 @@ for (const { action, method, status, refusals } of SESSION_ACTIONS) {
       expect(await expectJson(response, status, sessionSchema)).toEqual(
         current,
       );
-      expect(call).toHaveBeenCalledExactlyOnceWith(6);
+      expect(call.mock.calls).toEqual([
+        options === undefined ? [6] : [6, options],
+      ]);
     });
 
     it.each(refusals)(
@@ -562,6 +572,96 @@ for (const { action, method, status, refusals } of SESSION_ACTIONS) {
     );
   });
 }
+
+describe('POST /api/sessions/:id/show', () => {
+  it('brings the window forward and answers 204 with no body', async () => {
+    const showSession = vi.fn<Manager['showSession']>(() => Promise.resolve());
+    const { client } = stubbedApi({ showSession });
+    const response = await client.post('/api/sessions/4/show');
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe('');
+    expect(showSession).toHaveBeenCalledExactlyOnceWith(4);
+  });
+
+  it('passes on the 409 of a session that is not running', async () => {
+    const { client } = stubbedApi({
+      showSession: () =>
+        Promise.reject(
+          new AppError(409, 'session_not_running', 'Session 4 is not running.'),
+        ),
+    });
+    await expectError(
+      await client.post('/api/sessions/4/show'),
+      409,
+      'session_not_running',
+    );
+  });
+});
+
+describe('POST /api/sessions/:id/type', () => {
+  it('types the text and answers 204 with no body', async () => {
+    const typeIntoSession = vi.fn<Manager['typeIntoSession']>(() =>
+      Promise.resolve(),
+    );
+    const { client } = stubbedApi({ typeIntoSession });
+    const response = await client.post('/api/sessions/4/type', {
+      text: 'hunter2 ',
+    });
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe('');
+    expect(typeIntoSession).toHaveBeenCalledExactlyOnceWith(4, 'hunter2 ');
+  });
+
+  it.each([
+    ['no text', {}],
+    ['an empty text', { text: '' }],
+    ['a text longer than a value of a secret', { text: 'x'.repeat(20_001) }],
+    ['what is no text', { text: 42 }],
+  ])(
+    'refuses %s with a 422 before the manager is asked',
+    async (_what, body) => {
+      const { client } = stubbedApi();
+      await expectError(
+        await client.post('/api/sessions/4/type', body),
+        422,
+        'validation_error',
+      );
+    },
+  );
+
+  it('takes the longest value of a secret, counted in characters', async () => {
+    const typeIntoSession = vi.fn<Manager['typeIntoSession']>(() =>
+      Promise.resolve(),
+    );
+    const { client } = stubbedApi({ typeIntoSession });
+    const longest = '😀'.repeat(20_000);
+    const response = await client.post('/api/sessions/4/type', {
+      text: longest,
+    });
+    expect(response.status).toBe(204);
+    expect(typeIntoSession).toHaveBeenCalledExactlyOnceWith(4, longest);
+  });
+
+  it('passes on the 502 of a browser that could not take it, with the cause', async () => {
+    const { client } = stubbedApi({
+      typeIntoSession: () =>
+        Promise.reject(
+          new AppError(
+            502,
+            'browser_error',
+            'The browser could not do it: No tab is open.',
+            { reason: 'No tab is open.' },
+          ),
+        ),
+    });
+    const error = await expectError(
+      await client.post('/api/sessions/4/type', { text: 'x' }),
+      502,
+      'browser_error',
+    );
+    expect(error).toMatchObject({ reason: 'No tab is open.' });
+  });
+});
 
 describe('DELETE /api/sessions/:id', () => {
   it('answers 204 with no body', async () => {
@@ -591,6 +691,14 @@ describe('DELETE /api/sessions/:id', () => {
 });
 
 describe('the id of a session in the path', () => {
+  /** A body each route takes, so that only the id is wrong. */
+  const bodyOf = (method: string, suffix: string): unknown =>
+    method === 'PATCH'
+      ? { name: 'x' }
+      : suffix === '/type'
+        ? { text: 'x' }
+        : undefined;
+
   const routes: Array<[string, string]> = [
     ['GET', ''],
     ['PATCH', ''],
@@ -600,6 +708,8 @@ describe('the id of a session in the path', () => {
     ['POST', '/restart'],
     ['POST', '/check-ip'],
     ['POST', '/rotate'],
+    ['POST', '/show'],
+    ['POST', '/type'],
   ];
 
   it.each(routes)(
@@ -610,9 +720,7 @@ describe('the id of a session in the path', () => {
         const response = await client.call(
           method,
           `/api/sessions/${id}${suffix}`,
-          {
-            body: method === 'PATCH' ? { name: 'x' } : undefined,
-          },
+          { body: bodyOf(method, suffix) },
         );
         const error = await expectError(response, 422, 'validation_error');
         expect(error.message).toBe(
@@ -635,9 +743,7 @@ describe('the id of a session in the path', () => {
         const response = await client.call(
           method,
           `/api/sessions/${id}${suffix}`,
-          {
-            body: method === 'PATCH' ? { name: 'x' } : undefined,
-          },
+          { body: bodyOf(method, suffix) },
         );
         const error = await expectError(response, 404, 'session_not_found');
         expect(error.message).toBe(`Session ${id} does not exist.`);

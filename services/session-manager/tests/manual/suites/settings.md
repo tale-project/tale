@@ -11,7 +11,7 @@ endpoint obeying it, the snippets and their copy buttons, the five groups of too
 ## Preconditions
 
 Stack A or B after a reset ([`../setup.md`](../setup.md)); AI access starts off. For the assistant
-boxes: stack B (or A, where the picture is a mock-up but every tool answers), one running session
+boxes: stack B on a Mac (or A, where there is no window but every tool answers), one running session
 with a proxy, one more free proxy for the session the assistant creates, a Credentials secret named
 `Test login` for the running session, and an MCP client:
 [Claude Code](https://docs.claude.com/en/docs/claude-code) is what the boxes name; Cursor and Claude
@@ -22,7 +22,7 @@ connected is a second writer in every later round.
 > (`settings.aiAccess.switch.label`). Check `/mcp` from a shell with
 > `curl -s -X POST -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' {origin}/mcp`.
 > A task you give an assistant is judged by what it does in the manager: its sessions in the list, the
-> picture of the session it works in, the log of the manager.
+> window of the session it works in, the log of the manager.
 
 ## The languages
 
@@ -31,25 +31,25 @@ connected is a second writer in every later round.
   (Sitzung, Proxy, Secrets, KI-Zugriff; session, proxy, secrets, accès IA), counts read right for one
   and for several ("1 Sitzung wird angezeigt", "Alle 2 Sitzungen werden angezeigt"; "Affichage de 1 session au
   total", "Affichage de 2 sessions au total"), no button or label is cut off by a longer word, and no
-  sentence is half English (the cause of a failed proxy check and the browser's own words in a notice are
+  sentence is half English (the cause of a failed proxy check and the browser's own words in a failure are
   English by design).
 
 ## AI access
 
 - [ ] `SET-F14` · **Switch AI access on, copy the Claude Code command from the page (Copy command,
   `settings.aiAccess.connect.copyCommand`), run it, start `claude` and open its MCP panel (`/mcp`)** →
-  `session-manager` is connected and lists its tools, the 42 of the README's table; the page needed no
+  `session-manager` is connected and lists its tools, the 43 of the README's table; the page needed no
   restart.
 - [ ] `SET-F15` · **Ask the assistant: "With session-manager, give me an overview, then create a session
   named assistant-test for macOS, open https://example.com, tell me the page's heading and stop the
   session."** → the overview matches the page (sessions, proxies and how many are free, secrets, the
-  start page); `assistant-test` appears in the list and reaches **Running**; with its page open you
-  watch the picture change when the assistant navigates, within a second or two; the heading it reports
-  is what the picture shows; the session ends **Stopped**.
-- [ ] `SET-F16` · **While an assistant's session is open, type in the page yourself, then ask the assistant
-  to read the page** → it reports what you typed, and its transcript shows the page's text between a BEGIN
-  and an END UNTRUSTED PAGE CONTENT line that carry the same code; a click of yours between two of its calls
-  does not break either; nothing crashes when both of you act at once.
+  start page); `assistant-test` appears in the list and reaches **Running**; its window opens behind the
+  app you are in, and once Show window brings it forward you watch it change when the assistant navigates,
+  within a second or two; the heading it reports is what the window shows; the session ends **Stopped**.
+- [ ] `SET-F16` · **While an assistant works in a session, type into its window yourself, then ask the
+  assistant to read the page** → it reports what you typed, and its transcript shows the page's text
+  between a BEGIN and an END UNTRUSTED PAGE CONTENT line that carry the same code; a click of yours between
+  two of its calls does not break either; nothing crashes when both of you act at once.
 - [ ] `SET-F17` · **Ask the assistant to open a test login page in the session `Test login` belongs to
   and log in with that secret using `type_secret`, without reading its values; then ask it to list the
   secrets** → it fills the form and
@@ -57,9 +57,10 @@ connected is a second writer in every later round.
   `list_secrets` gives titles, kinds and previews and no hidden value; asking it to read the password
   (`get_secret`) works and the transcript then shows it, which is what the page's warning promises.
 - [ ] `SET-F18` · **Ask the assistant to click a button that opens a JavaScript `alert`** → its tool
-  returns at once and says a dialog waits; the dialog appears in the session's page as **The page
-  says**; answering it in the page lets the assistant's next call go on, and so does `handle_dialog`
-  from the assistant; left alone for two minutes it is dismissed.
+  returns at once and says a dialog waits; the dialog appears in the session's window, Camoufox's own;
+  answering it there lets the assistant's next call go on, and so does `handle_dialog` from the
+  assistant; one the assistant leaves for two minutes stays in the window for you, and the assistant is
+  no longer told of it.
 - [ ] `SET-F20` · **Switch AI access off in the middle of a task, wait for the assistant's next call, then
   switch it on again** → its next call fails because the endpoint answers `403` and the assistant tells
   you the server refused it; the sessions it started keep running; after you switch AI access on, the

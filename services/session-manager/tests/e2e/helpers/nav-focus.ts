@@ -1,4 +1,4 @@
-import { expect, type CDPSession, type Page } from '@playwright/test';
+import type { CDPSession, Page } from '@playwright/test';
 
 declare global {
   interface Window {
@@ -52,20 +52,6 @@ export async function focusRestsOnAControl(
     frames,
     { polling: 'raf' },
   );
-}
-
-/**
- * Takes the keyboard off the control that has it. A menu or a popover that
- * closes gives the focus back to its button, and a button with a tooltip opens
- * the tooltip with the focus: left there it stands over the control the next
- * step of a spec clicks. Call it once the focus has arrived on the button.
- */
-export async function releaseFocus(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const { activeElement } = document;
-    if (activeElement instanceof HTMLElement) activeElement.blur();
-  });
-  await expect(page.getByRole('tooltip')).toHaveCount(0);
 }
 
 /**
@@ -135,9 +121,9 @@ export interface TabWalk {
 /**
  * Makes the next Tab start at the top of the document. A browser starts it
  * where the last thing the person did was (a click, a scroll to an element);
- * a page that scrolls something into view while it loads moves that point
- * (see the viewer's tab strip), so a walk that is about the order of the
- * controls, not about where the keyboard starts, begins from here.
+ * a page that scrolls something into view while it loads moves that point,
+ * so a walk that is about the order of the controls, not about where the
+ * keyboard starts, begins from here.
  */
 export function startFromTop(page: Page): Promise<void> {
   return page.evaluate(() => {

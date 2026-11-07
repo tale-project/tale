@@ -3,15 +3,16 @@
 Session Manager runs isolated browser sessions on your own computer. Each session is a
 [Camoufox](https://camoufox.com) browser (an anti-detect Firefox) with its own profile, its own
 stable fingerprint and its own proxy, so no two sessions share cookies, storage or an IP address.
-The browsers have no window of their own: you see and use them in a web page, with your other
-sessions one click away at its side. You can keep the logins, cards and notes you type into pages
-again and again in the Secrets section, and let an AI assistant use everything through
-[MCP](https://modelcontextprotocol.io).
+Each one opens in a window of its own on your screen, where you use it as you use any browser; a
+web page on your computer is where you add, start and stop them. You can keep the logins, cards and
+notes you type into pages again and again in the Secrets section, have them typed into a session's
+window, and let an AI assistant use everything through [MCP](https://modelcontextprotocol.io).
 
 It is for one person on their own machine who needs several browsers that share nothing, for
 testing, research or managing accounts, and for AI assistants that should work in such browsers.
-There are no accounts and no login. Read the [security model](#security-model) before you change
-the address it listens on.
+There are no accounts and no login. It needs a screen: the browsers open their windows on the desktop
+of the computer it runs on (macOS is what it is made and tested on). Read the
+[security model](#security-model) before you change the address it listens on.
 
 ## Quick start
 
@@ -22,20 +23,18 @@ Install the repository's dependencies once, at the repository root (Bun 1.4.2, t
 bun install --frozen-lockfile
 ```
 
-Develop with hot reload. Vite serves the page on port 3004 and forwards `/api`, the live view's
-WebSocket and `/mcp` to the backend, which `scripts/dev.ts` starts on port 3204. Ctrl+C stops both:
+Develop with hot reload. Vite serves the page on port 3004 and forwards `/api` and `/mcp` to the
+backend, which `scripts/dev.ts` starts on port 3204. Ctrl+C stops both:
 
 ```bash
 bun run --filter @tale/session-manager dev        # http://localhost:3004
 ```
 
 If port 3004 is taken, Vite stops with an error instead of moving to the next free port: the backend
-answers only a page opened through 3004. On a Bun older than 1.4.1 `dev` stops at once and says
-so: there Vite's proxy, which runs under Bun, lets no message of the live view's WebSocket through,
-and the page of a session would never connect (`bun upgrade` mends it).
+answers only a page opened through 3004.
 
-Or build the page and run the one process that serves everything (the page, the API, the live view
-and `/mcp`) on one port:
+Or build the page and run the one process that serves everything (the page, the API and `/mcp`) on
+one port:
 
 ```bash
 bun run --filter @tale/session-manager build      # the page, into dist/
@@ -50,8 +49,9 @@ its empty state. The frame of the app shows only once a load takes longer than 0
 served from this computer paints once, finished, and a slow one shows the frame meanwhile. The dev
 server does the same, without the preloads.
 
-`start` serves `dist/`, so build first. Stop it with Ctrl+C: every browser closes gracefully (the
-app waits up to 30 seconds), and each session reopens its tabs at its next start. A second Ctrl+C
+`start` serves `dist/`, so build first. Stop it with Ctrl+C: every browser closes gracefully, its
+window with it (the app waits up to 30 seconds), and each session reopens its tabs at its next
+start. A second Ctrl+C
 does not wait any longer and exits with code 130, and a stop that has not finished after 40 seconds
 exits with code 1.
 
@@ -66,9 +66,9 @@ cd services/session-manager
 CAMOUFOX_INSTALL_DIR="$PWD/data/camoufox" bunx camoufox-js fetch
 ```
 
-Then add proxies (**Proxies**, **Add proxy**), add a session (**Sessions**, **Add session**) and click in
-the picture. Every session needs a proxy of its own, so the first session asks for one. To run it in
-a container instead, see [Run it in Docker](#run-it-in-docker).
+Then add proxies (**Proxies**, **Add proxy**) and add a session (**Sessions**, **Add session**): its
+browser opens in a window of its own once it is up. Every session needs a proxy of its own, so the
+first session asks for one.
 
 ## Configuration
 
@@ -79,95 +79,18 @@ browser that shows the page. A setting it cannot use, a port that is taken, a da
 cannot be written and a database another program made each stop the start with one line that says
 what to change (exit code 1).
 
-| Variable                        | Default                 | What it does                                                                                                                                                                                                                                           |
-| ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`                          | `3004`                  | Port of the server. Anything outside 0-65535 stops the start with a message. `bun run dev` ignores it: Vite is on 3004 and the backend on 3204.                                                                                                        |
-| `SESSION_MANAGER_HOST`          | `127.0.0.1`             | Interface to bind. There is no login: keep it local.                                                                                                                                                                                                   |
-| `SESSION_MANAGER_ALLOWED_HOSTS` | empty                   | More `Host` header values the app answers to, comma separated, each with its port. `127.0.0.1`, `localhost` and `SESSION_MANAGER_HOST`, each on `PORT`, are always allowed; any other `Host` gets `403 forbidden_host`.                                |
-| `SESSION_MANAGER_DATA_DIR`      | `./data`                | Holds `manager.db`, `profiles/<session id>/` and, by default, the browser. Relative paths resolve against the working directory (the service folder for the `bun run` scripts). Run one manager per data directory: a second one on it is not refused. |
-| `CAMOUFOX_INSTALL_DIR`          | `<data dir>/camoufox`   | Where the browser build and the GeoIP database are installed. Point it at an existing install of the same build to skip the download. Use a directory of its own: a `config.json` there records the build in use.                                      |
-| `SESSION_MANAGER_BLOCK_WEBRTC`  | off                     | `1`, `true`, `yes` or `on` removes `RTCPeerConnection` from every browser. See [WebRTC](#webrtc).                                                                                                                                                      |
-| `SESSION_MANAGER_MAX_SCREEN`    | `1920x1080`             | The largest screen the fingerprint of a new session may have, as `WIDTHxHEIGHT`. JavaScript cannot ask for the attached displays, so this stands in for them. A value it cannot read is ignored with a warning.                                        |
-| `TALE_VERSION`                  | `dev`                   | The version that Settings, `/api/meta`, `/api/health` and the MCP server report.                                                                                                                                                                       |
-| `SHUTDOWN_MARKER_PATH`          | unset                   | A file whose existence makes `/api/health` answer `503 shutting_down`, so a supervisor can drain traffic before it stops the process.                                                                                                                  |
-| `DEBUG`                         | unset                   | `session-manager` or `*` prints what the live view, the browser layer, the proxy checks and bridge and the AI tools ignored on purpose.                                                                                                                |
-| `SESSION_MANAGER_BACKEND_URL`   | `http://127.0.0.1:3204` | Development only: where Vite forwards `/api` and `/mcp`. `scripts/dev.ts` sets it.                                                                                                                                                                     |
-
-## Run it in Docker
-
-Build the image from the repository root (the build context is the whole repository), then run it
-on your own machine with the port published on the loopback only:
-
-```bash
-docker build -f services/session-manager/Dockerfile -t tale-session-manager .
-docker run -d --name session-manager \
-  -p 127.0.0.1:3004:3004 \
-  -v session-manager-data:/data \
-  tale-session-manager
-```
-
-Then open <http://localhost:3004>. The image is about 369 MB unpacked (about 117 MB compressed), and
-the container runs the same single process as `bun run start`, bound to `0.0.0.0` inside, with the
-data in `/data`.
-
-The repository also ships the same thing as a compose stack, `compose.session-manager.yml` at its
-root. `docker compose -f compose.session-manager.yml up --build` builds the image from your checkout;
-`PULL_POLICY=always docker compose -f compose.session-manager.yml up -d` pulls the released one,
-`ghcr.io/tale-project/tale/tale-session-manager:${VERSION:-latest}` (the default policy builds, so a
-plain `up -d` builds from the checkout). It publishes the port on `127.0.0.1` only, keeps `/data` in
-the volume `session-manager-data`, restarts unless stopped, checks `/api/health` and gives the
-browsers 40 seconds to close (`stop_grace_period`). Set these in your shell or in a `.env` file next
-to the compose file:
-
-- `SESSION_MANAGER_PORT`: the port on `127.0.0.1` (default 3004).
-- `SESSION_MANAGER_ALLOWED_HOSTS`: the `Host` values the server answers, `host:port` exactly as the
-  address bar shows it. The default is `localhost` and `127.0.0.1` on `SESSION_MANAGER_PORT`; a value
-  replaces it, so list those two as well.
-- `SESSION_MANAGER_BLOCK_WEBRTC`: `1` removes `RTCPeerConnection` from every browser.
-- `VERSION`: the image tag to pull (default `latest`) and the version a local build reports
-  (default `dev`).
-- `PULL_POLICY`: `build` (the default) or `always`, as above.
-
-What to know about running it in a container, with either command:
-
-- **Publish the port on `127.0.0.1` only.** There is no login: whoever reaches the port can open
-  every session, read the secrets and drive the browsers, and `-p 3004:3004` would offer all of it
-  to the whole network. To reach the app from other machines, put a reverse proxy that
-  authenticates in front of it.
-- **Another published port or a name needs the Host allow-list.** The server answers only to
-  `127.0.0.1`, `localhost` and its bind address on its own port, which blocks DNS rebinding. For
-  `-p 127.0.0.1:8080:3004` add `-e SESSION_MANAGER_ALLOWED_HOSTS=localhost:8080,127.0.0.1:8080`,
-  each `host:port` exactly as the address bar shows it.
-- **`/data` is the volume.** It holds the database (proxy passwords and secrets), every session's
-  profile and, in `/data/camoufox`, the browser and the GeoIP database. Without the volume each new
-  container downloads the browser again, and the container warns at start. A bind mount must be
-  writable by uid 1001, the `app` user: `chown 1001:1001 <host directory>`. To keep the browser out
-  of the backups of `/data`, mount a second volume and point `CAMOUFOX_INSTALL_DIR` at it:
-  `-v session-manager-browser:/camoufox -e CAMOUFOX_INSTALL_DIR=/camoufox`.
-- **The first start downloads the browser,** in the background: the Camoufox archive (about 624 MB),
-  the GeoIP database (about 51 MB) and the uBlock Origin add-on, unpacked to about 1.26 GB under
-  `/data/camoufox`. That takes about a minute on a fast connection. The page shows how far the download
-  has come, and the container reports healthy meanwhile.
-- **Give the container 2 GB of memory, and 3 GB when `/tmp` is a tmpfs.** The first start saves the
-  archive in `/tmp` and reads it into memory to unpack it (the peak is about 1.3 GB); `/tmp` needs
-  1 GB. After that each running session is a Firefox of its own, about 1 GB on a heavy page.
-- **A stricter run works too,** because the server writes only to `/data`, `/tmp` and its home
-  directory: add `--read-only --cap-drop=ALL --security-opt no-new-privileges
-  --tmpfs /tmp:size=1g,mode=1777 --tmpfs /home/app:uid=1001,gid=1001,mode=700`.
-- **`docker stop` closes the browsers,** and each session reopens its tabs when it is started
-  again. The app gives the browsers up to 30 seconds (and gives up after 40) and Docker's default wait
-  is 10: stop with `docker stop -t 40` (or start with `--stop-timeout 40`) so that no browser is
-  killed halfway through saving its tabs. The compose stack allows the 40 seconds already.
-- **A proxy on the Docker host** is `host.docker.internal`; on Linux add
-  `--add-host=host.docker.internal:host-gateway`.
-
-Two limits to know. **WebGL is not available in the container:** Firefox's own headless mode has no
-GL, so a page that asks for a WebGL context (`getContext('webgl')`) gets `null` whatever GPU the
-session's fingerprint names, and sites see a browser without WebGL. Run the app natively with Bun
-when the fidelity of the fingerprint matters. And **old browser builds are never removed:** each
-Camoufox update leaves another 1.2 GB under `browsers/official/<build>` in the install directory
-(see [Where data lives](#where-data-lives-and-what-never-leaves-the-machine)); delete the older
-ones when no session needs them.
+| Variable                        | Default                 | What it does                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                          | `3004`                  | Port of the server. Anything outside 0-65535 stops the start with a message. `bun run dev` ignores it: Vite is on 3004 and the backend on 3204.                                                                                                                                                                                                 |
+| `SESSION_MANAGER_HOST`          | `127.0.0.1`             | Interface to bind. There is no login: keep it local.                                                                                                                                                                                                                                                                                            |
+| `SESSION_MANAGER_ALLOWED_HOSTS` | empty                   | More `Host` header values the app answers to, comma separated, each with its port. `127.0.0.1`, `localhost` and `SESSION_MANAGER_HOST`, each on `PORT`, are always allowed; any other `Host` gets `403 forbidden_host`.                                                                                                                         |
+| `SESSION_MANAGER_DATA_DIR`      | `./data`                | Holds `manager.db`, `profiles/<session id>/` and, by default, the browser. Relative paths resolve against the working directory (the service folder for the `bun run` scripts). Run one manager per data directory: a second one on it is not refused.                                                                                          |
+| `CAMOUFOX_INSTALL_DIR`          | `<data dir>/camoufox`   | Where the browser build and the GeoIP database are installed. Point it at an existing install of the same build to skip the download. Use a directory of its own: a `config.json` there records the build in use.                                                                                                                               |
+| `SESSION_MANAGER_BLOCK_WEBRTC`  | off                     | `1`, `true`, `yes` or `on` removes `RTCPeerConnection` from every browser. See [WebRTC](#webrtc).                                                                                                                                                                                                                                               |
+| `SESSION_MANAGER_MAX_SCREEN`    | the room on the display | The largest screen the fingerprint of a new session may have, as `WIDTHxHEIGHT`. A session's window is as large as its fingerprint says, so by default it is the room for windows on the largest display of this computer (on macOS: without the menu bar and the Dock; elsewhere 1920x1080). A value it cannot read is ignored with a warning. |
+| `TALE_VERSION`                  | `dev`                   | The version that Settings, `/api/meta`, `/api/health` and the MCP server report.                                                                                                                                                                                                                                                                |
+| `DEBUG`                         | unset                   | `session-manager` or `*` prints what the browser layer, the proxy checks and bridge and the AI tools ignored on purpose.                                                                                                                                                                                                                        |
+| `SESSION_MANAGER_BACKEND_URL`   | `http://127.0.0.1:3204` | Development only: where Vite forwards `/api` and `/mcp`. `scripts/dev.ts` sets it.                                                                                                                                                                                                                                                              |
 
 ## How it works
 
@@ -280,55 +203,58 @@ the one place in the page where the app hands out proxy passwords.
 
 ### Using a session
 
-An open session fills the right of the Sessions page; the other sessions are one click away in the
-list on the left (on a phone the list and the session are one screen each, with a back arrow). Its
-tabs, address bar and page work as in a browser: click, type, scroll, select text, use several tabs
-(the **More tabs** menu lists them when they outgrow the strip), back and forward (also with the side
-buttons of a mouse). In the address bar, an address opens that page and anything else is searched on
-Google. The exit IP at the top of the session opens its details: system, screen, language, time zone,
-location and the IP they were taken from. The **Secrets** button opens the session's secrets and
-types the one you choose into the page.
+A session's browser is a window of its own on your screen, as any browser's is: its tabs, address
+bar, menus, dialogs and keyboard shortcuts are Camoufox's own (downloads apart, see below), and you
+use it there. A session you add, start, restart or give another IP from the page (or through the
+HTTP API, which the page uses) comes to the front once its browser is up; one an AI assistant starts
+over MCP stays behind the window you are in.
 
-Each browser runs without a window. The server takes pictures (JPEG) of the active tab as often as
-the page changes: back to back while you use it or it moves (scrolling, video), less and less often
-while it stays as it is, and not at all while nothing watches. It sends only pictures that differ
-from the one before, over a WebSocket, and replays your mouse and keyboard in the page; scrolling
-that arrives faster than the browser can follow is added up instead of queued. The tabs and the
-address bar belong to the web page, not to the picture. The picture is scaled to fit, never
-enlarged; the browser's window size stays what its fingerprint says, so the page cannot tell.
+The page of a running session (the Sessions page, the session open on its right; on a phone the list
+and the session are one screen each, with a back arrow) says that it runs in its own window and has
+three things for it:
 
-- **Copy and paste** work between your computer and the page (⌘C, ⌘X and ⌘V, or Ctrl). A paste
-  longer than 100,000 characters is cut there, and the page says so.
-- **Keyboard.** A page that has the keyboard gets every key, except a few shortcuts of the browser
-  that shows the manager (⌘/Ctrl+R, ⌘/Ctrl+Q, ⌘/Ctrl+Tab, F5, F11, F12). ⌘L or Ctrl+L goes to the
-  address bar, the way out of the page. A key or a mouse button that is held when the connection
-  ends is let go in the page, so that it does not stay down.
-- **Lists and dialogs** (`<select>`, `alert()`, `confirm()`, `prompt()`, a "leave this page?"
-  question) are drawn by the web page, because the browser draws them outside its page. A dialog
-  nobody answers within two minutes is dismissed; with no viewer and no assistant at work, dialogs
-  are dismissed at once.
-- **Not supported** (they need the browser's own windows): file uploads, downloads (a download is
-  refused, and nothing is written to the disk), printing, permission prompts, `<input type="date">`
-  pickers and the right-click menu.
-- **Touch.** A tap is a click and a double tap a double click. A finger that moves drags the page,
-  which scrolls by the distance so that its content follows the finger; a finger that rests for half
-  a second clicks the right button of the mouse where it rests (the page's own menu, if it has one).
-- **A mouse event the page does not take.** The browser can lose a mouse event: one on the first or
-  the last row of the page (an event aimed there goes one row further in), and one that arrives
-  while a tab moves to another process, which Firefox does when a tab opens or leaves a site it
-  keeps apart (a new tab whose start page is Google, a link from Google to another site). The
-  Camoufox build that camoufox-js installs then takes no other mouse event, in any tab, until that
-  tab closes. Before the first browser starts, the app changes the installed build so that it gives
-  up on such an event after a second (`backend/domains/browser/juggler.ts`): the mouse pauses and
-  goes on. Should the browser still stop taking the mouse (an event it has not done five seconds
-  after its page was free: no dialog waiting for an answer, no script keeping it busy), the page
-  says so. Typing, addresses, back and forward and the tabs go on working; a reload waits for the
-  mouse, and restarting the session brings the mouse back.
+- **Show window** brings the session's window to the front, with the tab you last clicked or typed
+  in (the session's menu has it too, in the list as in the session's header). On macOS the window
+  comes above the app you are in; elsewhere the tab comes forward in its window and the system
+  decides about the window.
+- **Secrets** opens the secrets the session can use. Click the field in the window first, then
+  choose **Type** beside a value: the value is typed into that field, without the clipboard, and the
+  window comes to the front for you to go on. Nothing is typed when no field has the focus there (the
+  page says so), so a password never ends up in a page as keys.
+- **Session details**: system, screen, language, time zone, location and the IP they were taken
+  from. The exit IP at the top of the session opens the same details, with **Check IP**.
+
+- **Which tab is yours.** Camoufox shows every tab of a window to Playwright as visible and focused,
+  so the app takes the tab where you last pressed a mouse button or a key as the one you work in,
+  unless an AI tool chose another tab since. A typed value goes there, and so does an AI tool that
+  names no tab.
+- **Dialogs** (`alert()`, `confirm()`, `prompt()`, a "leave this page?" question) are the window's,
+  for you to answer, except while an AI assistant is at work in the session: then its tools see the
+  dialog and answer it with `handle_dialog`, and one it leaves unanswered for two minutes is left to
+  you.
+- **Downloads** are refused, and nothing is written to the disk: Playwright would keep a download
+  in a temporary folder until the session ends, where a page could fill the disk. Uploads, printing,
+  the browser's pickers and its right-click menu are the window's own, as in any Firefox.
+- **The tabs the session reopens** (and the ones an AI tool opens) are tabs of its window. Playwright
+  opens each page it asks for in a window of its own; before the first browser starts the app changes
+  the installed build so that a browser with a window adds a tab to it instead (`openPagesInTabs` in
+  `backend/domains/browser/juggler.ts`).
+- **A mouse event the page does not take.** The browser can lose a mouse event that Playwright sends:
+  one on the first or the last row of the page (an event aimed there goes one row further in), and
+  one that arrives while a tab moves to another process, which Firefox does when a tab opens or
+  leaves a site it keeps apart (a new tab whose start page is Google, a link from Google to another
+  site). The Camoufox build that camoufox-js installs then takes no other such event, in any tab,
+  until that tab closes. Before the first browser starts, the app changes the installed build so that
+  it gives up on such an event after a second (`boundInputWaits` in the same file): the mouse of the
+  AI tools pauses and goes on. Should the browser still stop taking it (an event it has not done five
+  seconds after its page was free: no dialog waiting for an answer, no script keeping it busy), the
+  tools say so, and restarting the session brings it back. Your own mouse, in the window, does not go
+  through Playwright.
 
 **Tabs are remembered.** A session that you stop (or whose browser dies, or that is stopped by
-Rotate IP or by quitting the app) opens the same tabs again when it starts; the one you were looking
-at is active. If you close the session's last tab, the session ends and opens the start page next
-time.
+Rotate IP or by quitting the app) opens the same tabs again when it starts, in its window; the one
+you last used is active. When its last page closes (its last tab in its last window: a popup counts),
+the session ends and opens the start page next time.
 
 ### Secrets
 
@@ -359,7 +285,9 @@ every launch (font spacing, audio and canvas seeds, the WebGL pair, the history 
 relaunch looks the same. The fingerprint holds the user agent and platform, the screen and window
 geometry, the fonts, the WebGL vendor, renderer and parameters, the number of CPU cores and the
 canvas and audio seeds. A new fingerprint is drawn again if its visible attributes match an
-existing session. The screen is at most `SESSION_MANAGER_MAX_SCREEN`.
+existing session. The screen is at most the room for windows on the largest display of this
+computer (or `SESSION_MANAGER_MAX_SCREEN`), so that the session's window, which is as large as the
+fingerprint says, fits there.
 
 **Where a session says it is.** Its time zone, geolocation (coordinates), WebRTC address and
 language are those of the IP its proxy exits through. The app looks that IP up when the session
@@ -380,6 +308,10 @@ starts (the exit IP is checked right before, through the proxy) and keeps what i
   restart recommended**. **Restart session** in the bar asks first, then closes the browser and opens
   it again with the same proxy and tabs, with the place of the new IP. A proxy that changes its IP
   all the time can never match: use one with a fixed IP.
+
+A page that asks for the position (on an `https` or a `localhost` address: Firefox refuses the
+others) gets the coordinates of the exit IP at once, without a question in the window; the
+permission stays "prompt", as in a browser whose person was never asked.
 
 ### WebRTC
 
@@ -418,8 +350,8 @@ Each Camoufox build the app launches stays in `browsers/official/<build>` inside
 directory. A new build (after a `camoufox-js` update) adds about 1.2 GB and nothing removes the old
 one: delete the older ones while no session is running, and keep the one that the `config.json` in
 that directory names. The app changes one file of the build it launches, `omni.ja` (see [Using a
-session](#using-a-session): a mouse event the page does not take), and keeps the file as it came
-next to it as `omni.ja.orig`. Before a browser starts, the app deletes the compiled copies of the
+session](#using-a-session): the tabs a session reopens, and a mouse event the page does not take),
+and keeps the file as it came next to it as `omni.ja.orig`. Before a browser starts, the app deletes the compiled copies of the
 browser's scripts that its profile keeps (`startupCache/`, which Firefox makes again) unless they
 were made from the `omni.ja` it starts with, which it notes in the profile
 (`session-manager-scripts.json`).
@@ -448,21 +380,19 @@ There is no login, so the defences are about who can reach the address:
 - **Loopback by default.** The server binds `127.0.0.1`. Binding any other interface puts an app
   without a login on a network. Every user account on the computer can reach a loopback address,
   and so can every program that runs as it.
-- **Host check.** Every request, to the page, the API, `/mcp` and the socket handshake, must
-  address the app as `127.0.0.1`, `localhost` or `SESSION_MANAGER_HOST` on `PORT` (or a value of
+- **Host check.** Every request, to the page, the API and `/mcp`, must address the app as `127.0.0.1`, `localhost` or `SESSION_MANAGER_HOST` on `PORT` (or a value of
   `SESSION_MANAGER_ALLOWED_HOSTS`). Anything else is `403 forbidden_host`, which blocks DNS
   rebinding.
 - **Origin check.** A request that changes something (`POST`, `PUT`, `PATCH`, `DELETE`) must not
   carry a foreign `Origin`, and a body must be `application/json`; a cross-site form can only send
-  form encodings or `text/plain` without a preflight. Both refusals are `403 forbidden_origin`. Over
-  TLS, or behind a proxy that terminates it and sends `X-Forwarded-Proto: https`, the page's own
-  `https://<host>` is an own origin too. A browser also says who started a request
-  (`Sec-Fetch-Site`): the API, `/mcp` and the live view answer only the page itself and the person
-  (`same-origin`, `none`), and another site or another origin of this computer (`cross-site`,
-  `same-site`) gets the same `403` for any method, so that a page which may not read an answer cannot
-  make the browser fetch the proxy export either. A program sends neither header and is not asked; the
-  page's own files answer to a link from any site, after the Host check. A live view handshake gets
-  the same checks, a web page on another site does not pass them.
+  form encodings or `text/plain` without a preflight. Both refusals are `403 forbidden_origin`. The
+  page's own origin is `http://<host>`: the app is served over plain HTTP on this computer, so an
+  `https://` origin is foreign too. A browser also says who started a request (`Sec-Fetch-Site`):
+  the API and `/mcp` answer only the page itself and the person (`same-origin`, `none`), and another
+  site or another origin of this computer (`cross-site`, `same-site`) gets the same `403` for any
+  method, so that a page which may not read an answer cannot make the browser fetch the proxy export
+  either. A program sends neither header and is not asked; the page's own files answer to a link
+  from any site, after the Host check.
 - **AI access is off by default**, and only the person at the page can switch it on: the switch is
   not an MCP tool. A connected assistant can use every session and read every secret, including
   passwords and card numbers, so the switch asks for a decision. While it is off, `/mcp` answers
@@ -477,12 +407,10 @@ There is no login, so the defences are about who can reach the address:
   one secret at a time (`GET /api/secrets/{id}`, which the page calls when you open it, and the
   `get_secret` tool); the lists carry previews only.
 - **Headers.** Every response carries the shared Tale security headers: a Content-Security-Policy
-  with `default-src 'self'` (the live view's WebSocket is same-origin, so `connect-src 'self'`
-  covers it), `frame-ancestors 'none'` and `object-src 'none'`, `X-Frame-Options: DENY`,
+  with `default-src 'self'`, `frame-ancestors 'none'` and `object-src 'none'`, `X-Frame-Options: DENY`,
   `X-Content-Type-Options: nosniff`, a strict referrer policy, `Cross-Origin-Opener-Policy` and
   `Cross-Origin-Resource-Policy` `same-origin`, a `Permissions-Policy` that denies camera,
-  microphone and geolocation to the page, and `Strict-Transport-Security` over TLS. `/api/*`
-  answers are never cached.
+  microphone and geolocation to the page. `/api/*` answers are never cached.
 
 `/api/health` answers `{ "status": "ok", "version": … }` without the Host check, for a supervisor.
 
@@ -500,9 +428,10 @@ its schema is `422 validation_error` with `issues` (where and why, never the val
 the next page) and `minId`, and carry `X-Total-Count`; the secrets list has no paging and no count.
 
 The extra fields are for the client to act on (the session that holds a proxy, the exit IP two
-sessions share) and, for four codes, for the page to word its own sentence with. They are plain
+sessions share) and, for five codes, for the page to word its own sentence with. They are plain
 strings and numbers: `reason` and `proxyId` for `proxy_unreachable` (the proxy check's own words,
-in English and without a password, and the proxy), `reason` for `unknown_ip_location`, `failed` for
+in English and without a password, and the proxy), `reason` for `unknown_ip_location` and for
+`browser_error` (what the session's browser could not do, in its own words), `failed` for
 `no_working_proxy` (how many proxies failed their check, only when above none) and `doing` for
 `session_busy` (`assigning_proxy`, `starting` or `stopping`; missing for any other kind of busy).
 `no_working_proxy` and `unknown_ip_location` are never an HTTP answer: they are what a session fails
@@ -511,29 +440,21 @@ with in the background, and reach the page as the session's `errorCode` with the
 refused. The page words the sentence from the code and those fields (`messages/*/errors.yml`);
 `message` stays the English sentence for API and MCP clients.
 
-| Route                                                                         | Does                                                                                                   |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `GET /api/meta`                                                               | version, browser state, counts, the next session name, the kinds of secret                             |
-| `GET`, `PATCH /api/settings`                                                  | `startPage` (blank: the default), `mcpEnabled`; the answer adds `defaultStartPage`                     |
-| `GET`, `POST /api/secrets`; `GET`, `PATCH`, `DELETE /api/secrets/{id}`        | list (`kind`, `scope`: `all`, `global` or a session id, `includeGlobal`), create, read, change, delete |
-| `GET`, `POST /api/proxies`; `POST /api/proxies/import`                        | list, add one (`201`), import a list                                                                   |
-| `POST /api/proxies/check-all`; `POST /api/proxies/{id}/check`                 | start checks (`202`); the result is on the proxy                                                       |
-| `DELETE /api/proxies/{id}?force=`                                             | `409 proxy_busy` for a running session's proxy, `409 proxy_in_use` without `force`                     |
-| `GET`, `POST /api/sessions`; `GET`, `PATCH`, `DELETE /api/sessions/{id}`      | list, create and start (`201`), read, rename, delete                                                   |
-| `POST /api/sessions/{id}/start` (`{ force }`), `/stop`, `/restart`, `/rotate` | `202` with the session as it is; the work goes on, so poll `status` and `activity`                     |
-| `POST /api/sessions/{id}/check-ip`                                            | looks at the proxy's exit IP now (`location.inSync`)                                                   |
-| `GET /api/sessions/export-proxies`                                            | the proxy file, with passwords, as a download                                                          |
-| `WebSocket /api/sessions/{id}/stream`                                         | the live view of a running session                                                                     |
-| `POST /mcp`                                                                   | the [MCP endpoint](#ai-access-mcp)                                                                     |
-
-The live view sends JSON text messages (the tabs, the size of the page, lists and dialogs the page
-opens, the answer to a copy) and one binary message per picture, a JPEG of the active tab; it takes
-the mouse, the wheel, keys, text, tab and address-bar commands and the answers to lists and
-dialogs. The keys are short on purpose; the protocol is
-[`lib/live-view.ts`](lib/live-view.ts), and mouse positions are in the pixels of the page, not of
-the picture. A slow viewer gets the newest picture and the newest list of tabs only, with the address
-of a tab cut at 2,048 characters and its title at 512; one that has not read 8 MiB of what was sent
-is disconnected (close code 1013) and reconnects by itself.
+| Route                                                                         | Does                                                                                                                           |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/meta`                                                               | version, browser state, counts, the next session name, the kinds of secret                                                     |
+| `GET`, `PATCH /api/settings`                                                  | `startPage` (blank: the default), `mcpEnabled`; the answer adds `defaultStartPage`                                             |
+| `GET`, `POST /api/secrets`; `GET`, `PATCH`, `DELETE /api/secrets/{id}`        | list (`kind`, `scope`: `all`, `global` or a session id, `includeGlobal`), create, read, change, delete                         |
+| `GET`, `POST /api/proxies`; `POST /api/proxies/import`                        | list, add one (`201`), import a list                                                                                           |
+| `POST /api/proxies/check-all`; `POST /api/proxies/{id}/check`                 | start checks (`202`); the result is on the proxy                                                                               |
+| `DELETE /api/proxies/{id}?force=`                                             | `409 proxy_busy` for a running session's proxy, `409 proxy_in_use` without `force`                                             |
+| `GET`, `POST /api/sessions`; `GET`, `PATCH`, `DELETE /api/sessions/{id}`      | list, create and start (`201`), read, rename, delete                                                                           |
+| `POST /api/sessions/{id}/start` (`{ force }`), `/stop`, `/restart`, `/rotate` | `202` with the session as it is; the work goes on, so poll `status` and `activity`                                             |
+| `POST /api/sessions/{id}/check-ip`                                            | looks at the proxy's exit IP now (`location.inSync`)                                                                           |
+| `POST /api/sessions/{id}/show`                                                | brings the window of a running session to the front (`204`)                                                                    |
+| `POST /api/sessions/{id}/type` (`{ text }`)                                   | types a value of up to 20,000 characters where the focus of its window is (`204`; `409 no_field_focused` when no field has it) |
+| `GET /api/sessions/export-proxies`                                            | the proxy file, with passwords, as a download                                                                                  |
+| `POST /mcp`                                                                   | the [MCP endpoint](#ai-access-mcp)                                                                                             |
 
 ## AI access (MCP)
 
@@ -553,16 +474,16 @@ starts servers as programs, so it goes through `npx -y mcp-remote http://127.0.0
 
 The server speaks JSON-RPC 2.0 over Streamable HTTP in its stateless form: `POST` only, JSON answers
 (no event stream, so with AI access on a `GET` is `405`), batches of up to 20 messages, protocol
-revisions `2025-11-25`, `2025-06-18` and `2025-03-26`. There are 42 tools; an assistant can do
+revisions `2025-11-25`, `2025-06-18` and `2025-03-26`. There are 43 tools; an assistant can do
 everything the page does, except switch AI access. A test fails when a route of the API has no tool.
 
-| Group                            | Tools                                                                                                                                                                                                                                          |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overview and settings (3)        | `overview`, `get_settings`, `set_start_page`                                                                                                                                                                                                   |
-| Sessions (11)                    | `list_sessions`, `get_session`, `create_session`, `start_session`, `stop_session`, `restart_session`, `rotate_session_ip`, `check_session_ip`, `rename_session`, `delete_session`, `export_proxies`                                            |
-| Proxies (5)                      | `list_proxies`, `add_proxies`, `check_proxy`, `check_proxies`, `delete_proxy`                                                                                                                                                                  |
-| A running session's browser (17) | `list_tabs`, `open_tab`, `switch_tab`, `close_tab`, `navigate`, `history`, `read_page`, `screenshot`, `click` (also right and double click), `hover`, `drag`, `type_text`, `press_key`, `scroll`, `get_selected_text`, `handle_dialog`, `wait` |
-| Secrets and notes (6)            | `list_secrets`, `get_secret`, `type_secret`, `create_secret`, `update_secret`, `delete_secret`                                                                                                                                                 |
+| Group                            | Tools                                                                                                                                                                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview and settings (3)        | `overview`, `get_settings`, `set_start_page`                                                                                                                                                                                                                  |
+| Sessions (11)                    | `list_sessions`, `get_session`, `create_session`, `start_session`, `stop_session`, `restart_session`, `rotate_session_ip`, `check_session_ip`, `rename_session`, `delete_session`, `export_proxies`                                                           |
+| Proxies (5)                      | `list_proxies`, `add_proxies`, `check_proxy`, `check_proxies`, `delete_proxy`                                                                                                                                                                                 |
+| A running session's browser (18) | `show_window`, `list_tabs`, `open_tab`, `switch_tab`, `close_tab`, `navigate`, `history`, `read_page`, `screenshot`, `click` (also right and double click), `hover`, `drag`, `type_text`, `press_key`, `scroll`, `get_selected_text`, `handle_dialog`, `wait` |
+| Secrets and notes (6)            | `list_secrets`, `get_secret`, `type_secret`, `create_secret`, `update_secret`, `delete_secret`                                                                                                                                                                |
 
 `get_secret` and `export_proxies` return passwords and card numbers, so they carry no read-only
 hint: a client that runs read-only tools without asking still asks for these two.
@@ -582,14 +503,15 @@ selection) is untrusted data from a website: the tools return it between a BEGIN
 CONTENT line and an END UNTRUSTED PAGE CONTENT line that carry the same random code, which a page
 cannot know, and the server's instructions tell the assistant to follow no instruction in it and
 never to type or reveal a secret because a page asks for one. You can watch the assistant work in
-the session's page and take over at any time. Connect only assistants you trust.
+the session's window and take over at any time (`show_window` brings it to the front, for a login
+or a check that needs a person). Connect only assistants you trust.
 
 ## Architecture
 
 ```text
 server.ts                   the entry: starts everything, closes it on SIGINT, SIGTERM and SIGHUP
 backend/
-  main.ts                   the composition root: store, browser backend, manager, the three surfaces
+  main.ts                   the composition root: store, browser backend, manager, the two surfaces
   app.ts                    the Hono app: security checks, /api routes, the door to /mcp, error answers
   config.ts, security.ts    the environment; the Host and Origin checks
   startup-failure.ts        the one line a start gets that fails for a reason of the person's: a port,
@@ -604,13 +526,13 @@ backend/
     proxies/                parsing, exit-IP checks, the credential bridge, routes
     secrets/, settings/, meta/    the vault and its limits; the preferences; /api/meta
     identity/, browser/     fingerprints and the GeoIP place; Camoufox, its install, the environment
-                            its browsers get and the remote that takes pictures and replays input
-    live_view/              the WebSocket of a running session
-    mcp/                    the JSON-RPC endpoint and its 42 tools (untrusted.ts frames what a page says)
+                            its browsers get, the changes to its build (juggler.ts), the window of a
+                            session (window.ts) and the remote the AI tools drive it with
+    mcp/                    the JSON-RPC endpoint and its 43 tools (untrusted.ts frames what a page says)
   lib/                      the backend's small tools: http-input, web-url, abort, mutex, debug, error-text, casefold
   testing/                  fakes and the harness the tests share (not shipped)
-lib/                        what the backend and the page share: api/schemas.ts, live-view.ts, the limits of
-                            secrets, proxies and session names, is-record.ts, i18n
+lib/                        what the backend and the page share: api/schemas.ts, the limits of secrets,
+                            proxies and session names, is-record.ts, private-label.ts, i18n
 app/
   routes/                   TanStack Router file routes (routeTree.gen.ts is generated)
   features/<feature>/       sessions, session-viewer, proxies, secrets, settings: components/, hooks/, lib/
@@ -634,9 +556,8 @@ type; the route reads its input through `parseBody`, `parseQuery` and `pathId` (
 store, to `SessionRuntime` (one background task per start: assign a proxy, derive the place,
 launch) and to the browser backend; the route answers with the session as it is, and the work goes
 on. An `AppError` becomes `{ error, message, …extra }` with its status; anything else is logged and
-answered as `500 internal_error`. The live view's handshake is judged by `websocketRefusal`, then
-`SessionSocket` connects the WebSocket to the session's `Remote`: pictures out, input in. `/mcp`
-checks the AI-access switch, then calls the same `Manager` and `Remote`.
+answered as `500 internal_error`. `/mcp` checks the AI-access switch, then calls the same
+`Manager` and the session's `Remote`.
 
 **Add an API route.** Put the request and response in `lib/api/schemas.ts`; add the method to
 `Manager` (`domains/sessions/manager.ts`) and its rule to `service.ts`; add the route to the
@@ -681,16 +602,15 @@ real backend code (shown as a code of its own it would print its placeholders).
 
 Four lanes, each with its own command, run from the repository root:
 
-| Lane                          | Command                                                                           | What it proves                                                                                                                                                                                                                                                   |
-| ----------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server (`*.test.ts`)          | `bun run --filter @tale/session-manager test`                                     | The backend and `lib/` under Bun (vitest): rules, routes, the live view and MCP over real sockets with fake browsers, the page's API client against the real backend, the guards. No browser, no network.                                                        |
-| UI (`app/**/*.test.{ts,tsx}`) | `bun run --filter @tale/session-manager test:ui`                                  | Components and hooks in jsdom against a fake API: states, flows, keyboard, copy, axe checks.                                                                                                                                                                     |
-| Real browser                  | `CAMOUFOX_INSTALL_DIR=<dir> bun run --filter @tale/session-manager test:camoufox` | Opt-in. Headless Camoufox through local test proxies: identities resolve to the same config at every launch, a place and language fit the IP, pictures, keys, mouse, lists, dialogs, tabs restored. Skips without an installed browser; nothing leaves the host. |
-| Playwright (`tests/e2e`)      | `bun run --filter @tale/session-manager test:e2e`                                 | The built page under the server's own headers, in Chromium, in parallel: the real HTTP stack, live view and MCP over a fake browser and a fake exit-IP checker. Not the real browser.                                                                            |
+| Lane                          | Command                                                                           | What it proves                                                                                                                                                                                                                                                                 |
+| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Server (`*.test.ts`)          | `bun run --filter @tale/session-manager test`                                     | The backend and `lib/` under Bun (vitest): rules, routes and MCP over real sockets with fake browsers, the page's API client against the real backend, the guards. No browser, no network.                                                                                     |
+| UI (`app/**/*.test.{ts,tsx}`) | `bun run --filter @tale/session-manager test:ui`                                  | Components and hooks in jsdom against a fake API: states, flows, keyboard, copy, axe checks.                                                                                                                                                                                   |
+| Real browser                  | `CAMOUFOX_INSTALL_DIR=<dir> bun run --filter @tale/session-manager test:camoufox` | Opt-in. Headless Camoufox through local test proxies: identities resolve to the same config at every launch, a place and language fit the IP, keys, mouse, typing into the focused field, dialogs, tabs restored. Skips without an installed browser; nothing leaves the host. |
+| Playwright (`tests/e2e`)      | `bun run --filter @tale/session-manager test:e2e`                                 | The built page under the server's own headers, in Chromium, in parallel: the real HTTP stack and MCP over a fake browser and a fake exit-IP checker. Not the real browser, and no window.                                                                                      |
 
-A fifth check, `bun run docker:test:session-manager` from the repository root, builds the container
-image and checks it (labels, a non-root user, the health check, the address answers); it needs
-Docker, see [Run it in Docker](#run-it-in-docker).
+The windows themselves, a window coming to the front and a value typed into the field clicked in it,
+are for a person to judge: [`tests/manual/suites/windows.md`](tests/manual/suites/windows.md).
 
 Install the browser for the third lane once into a directory of your own, for example
 `CAMOUFOX_INSTALL_DIR=$PWD/.camoufox-tests bunx camoufox-js fetch` from the service folder (the
@@ -704,9 +624,9 @@ servers already listening. Worker `i` talks to the backend on `E2E_BACKEND_PORT 
 with the default four workers) and to its control server on `E2E_CONTROL_PORT + i` (default the
 backend's port + 1000, so 4204 to 4207), and never to another's. Each server runs the whole backend on
 a throw-away data directory with fakes of its own: a session starts after 400 ms, a proxy check takes
-150 ms, a proxy exits through `203.0.113.<last octet of its host>` in Germany, and the fake page is a
-coloured mock-up per tab. Its control server lets a spec, or a person, open a dialog or a list in a
-page, crash a browser, make a proxy check fail or slow, and read the input the fake browser received
+150 ms, and a proxy exits through `203.0.113.<last octet of its host>` in Germany. Its control
+server lets a spec, or a person, open a dialog in a page, crash a browser, make a proxy check fail
+or slow, and read what the fake browser was told (a window brought forward, a value typed)
 (see [`tests/manual/setup.md`](tests/manual/setup.md)). Specs import `test` and `expect` from
 `tests/e2e/helpers/fixtures.ts`, which empties the worker's server before each one (the tests are
 spread over the workers one by one, so none may depend on the one before it) and hands the spec the
@@ -754,11 +674,6 @@ bun run lint:conflicts
 ```
 
 `bun run check` runs the repository's whole gate.
-
-One thing about `bun run dev`. React's StrictMode mounts the live view twice, so the console shows
-a warning for each session you open (`WebSocket connection to
-'ws://localhost:3004/api/sessions/<id>/stream' failed: WebSocket is closed before the connection is
-established`); the built page does not.
 
 ### Languages
 

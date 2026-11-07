@@ -21,8 +21,6 @@ details:
 card:
   couldNotStart: Start fehlgeschlagen
   hint: Beim Starten öffnet die Sitzung wieder die Tabs, die beim Stoppen offen waren.
-  closed: Der Browser wurde geschlossen
-  closedHint: Die Sitzung wird gleich als gestoppt angezeigt.
   # Kurz gehalten: Die Beschriftungsspalte der Eigenschaftsliste ist 5 rem schmal, und "Betriebssystem" bräche dort mitten im Wort um.
   system: System
   screen: Bildschirm
@@ -33,57 +31,20 @@ card:
   ipAddress: Ausgangs-IP
   noProxyYet: Wird beim Start der Sitzung zugewiesen
   notChecked: Noch nicht geprüft
-tabs:
-  label: Offene Tabs
-  new: Neuer Tab
-  untitled: Neuer Tab
-  close: Tab „{title}“ schließen
-  closeLast: Tab „{title}“ schließen und Sitzung stoppen
-  more: Weitere Tabs
-address:
-  label: Adresse
-  placeholder: Suchbegriff oder Adresse eingeben
-  back: Eine Seite zurück
-  forward: Eine Seite vor
-  reload: Seite neu laden
+window:
+  title: Läuft in einem eigenen Fenster
+  description: Der Browser dieser Sitzung ist ein Fenster auf diesem Computer, in dem du ihn wie jeden anderen Browser nutzt. KI-Assistenten arbeiten im selben Fenster.
+  show: Fenster zeigen
 place:
   warningTitle: Die Ausgangs-IP hat sich geändert
   warning: Die Ausgangs-IP des Proxys ist jetzt {current}, diese Sitzung meldet aber weiterhin Zeitzone und Standort von {reported}.
   warningUnknown: Der Proxy hat jetzt eine andere Ausgangs-IP, diese Sitzung meldet aber weiterhin Zeitzone und Standort von {reported}.
   warningHint: Passiert das immer wieder, wechselt der Proxy wahrscheinlich seine IP. Verwende einen Proxy mit fester IP.
   restart: Sitzung neu starten
-stage:
-  canvas: Browser der Sitzung
-  canvasHint: Alles, was du tippst, wird an die Seite gesendet. Um zur Adressleiste zu wechseln, drücke {shortcut}.
-  keyboard: Tastatureingabe für die Seite
-  keyboardHint: Alles, was du tippst, wird an die Seite gesendet. Um zur Adressleiste zu wechseln, drücke {shortcut}.
-  connecting: Verbindung zum Browser wird hergestellt…
-  lost: Der Browser ist nicht erreichbar. Verbindung wird wiederhergestellt…
-  refusedTitle: Der Browser kann nicht angezeigt werden
-notice:
-  title: Aktion im Browser nicht möglich
-  addressRefused: Diese Adresse lässt sich nicht öffnen. Verwende eine, die mit http:// oder https:// beginnt.
-  tabGone: Dieser Tab ist bereits geschlossen.
-  tabNotOpened: "Es konnte kein neuer Tab geöffnet werden: {detail}."
-  keyFailed: "Die Taste konnte nicht an die Seite gesendet werden: {detail}."
-  inputStuck: Der Browser reagiert in keinem Tab mehr auf die Maus. Starte die Sitzung neu, um die Maus wieder zu verwenden.
-  actionFailed: "Der Browser meldet: {detail}."
-  pasteCutTitle: Text konnte nicht vollständig eingefügt werden
-  pasteCut: Du kannst bis zu {max, number} Zeichen auf einmal einfügen. Der Rest wurde abgeschnitten.
-select:
-  label: Optionen
-dialog:
-  title: Die Seite meldet
-  leaveTitle: Seite verlassen?
-  leaveBody: Diese Seite verlangt eine Bestätigung, bevor du sie verlässt.
-  answer: Antwort
-  ok: OK
-  stay: Auf der Seite bleiben
-  leave: Seite verlassen
 secrets:
   button: Secrets
   title: Secrets für diese Sitzung
-  hint: Klicke auf der Seite in ein Feld und wähle dann einen Wert, um ihn dort einzutippen.
+  hint: Klicke im Fenster der Sitzung in ein Feld und wähle dann einen Wert, um ihn dort einzutippen.
   loading: Wird geladen…
   loadFailed: "Die Secrets konnten nicht geladen werden."
   valuesFailed: "Die Werte konnten nicht geladen werden."
@@ -98,5 +59,5 @@ secrets:
   moreLines: "{count, plural, one {+# Zeile} other {+# Zeilen}}"
   show: "{label} anzeigen"
   copy: "{label} kopieren"
-  typeLabel: "{label} in die Seite eintippen"
+  typeLabel: "{label} ins Fenster eintippen"
   type: Eintippen

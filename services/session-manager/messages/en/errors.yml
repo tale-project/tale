@@ -47,6 +47,10 @@ invalid_scope: This scope doesn't exist.
 invalid_start_page: The start page must be a web address, for example https://www.google.com.
 browser_installing: The browser is still being installed. Try again once it is ready.
 browser_not_installed: The browser isn't installed yet.
+browser_error: The session's browser couldn't do this. Try again.
+browser_error_reason: "The session's browser couldn't do this: {reason}."
+browser_not_responding: The session's browser didn't respond. If a dialog is open in its window, answer it, then try again.
+no_field_focused: Nothing in the session's window can take text. Click the field in the window first, then try again.
 fingerprint_exhausted: Couldn't generate a new fingerprint that differs from every existing session. Try another operating system.
 unknown_ip_location: Couldn't find the time zone and location of the proxy's exit IP.
 unknown_ip_location_reason: "Couldn't find the time zone and location of the proxy's exit IP: {reason}."

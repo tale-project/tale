@@ -730,7 +730,7 @@ describe.skipIf(!REAL_BROWSER_READY)('the manager with a real browser', () => {
      * list up, and that takes a few hundred milliseconds. A page that looks in
      * that moment reads other base metrics and a differently drawn text canvas
      * than one that looks later, whatever the identity says. They are compared
-     * between starts on other hosts only (the container image is Linux).
+     * between starts on other hosts only (Linux, as the CI runners are).
      */
     function withoutHostNoise<T extends Awaited<ReturnType<typeof probeOf>>>(
       probe: T,
@@ -954,12 +954,12 @@ describe.skipIf(!REAL_BROWSER_READY)('the manager with a real browser', () => {
 
     // The launch gives Camoufox the coordinates of the exit IP
     // (`geolocation:latitude` and `longitude`), but this build (152.0.4-beta.30
-    // with camoufox-js 0.13) does not deliver them: `permissions.query` would
-    // say "prompt" and `getCurrentPosition` never answer, since a headless
-    // browser cannot ask (and the timers of the page stop while it waits).
-    // `launch` therefore gives the context the position and the permission
-    // (`setGeolocation`, `grantPermissions`). The README promises that a page
-    // sees the coordinates that the GeoIP database gives for that IP.
+    // with camoufox-js 0.13) does not deliver them: `getCurrentPosition` would
+    // never answer a page (and the timers of the page stop while it waits).
+    // `launch` therefore gives the context the position (`setGeolocation`),
+    // which answers the page at once while `permissions.query` still says
+    // "prompt". The README promises that a page sees the coordinates that the
+    // GeoIP database gives for that IP.
     it(
       'gives a page that asks for the position the coordinates of the exit IP',
       async () => {

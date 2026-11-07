@@ -43,7 +43,7 @@ Pages to use; any equivalent will do, these are public examples whose behaviour 
 > **Agent note**: an assistant can read these pages for you. With AI access on
 > ([`settings.md`](settings.md)), `navigate` to a page and `read_page` returns its text, which holds
 > the values a details page prints; `get_session` returns the session's `fingerprint` and
-> `location`, the same as `GET /api/sessions/{sessionId}`. A script cannot read the picture. The
+> `location`, the same as `GET /api/sessions/{sessionId}`. A script cannot see the windows. The
 > manager's PID for `lsof` is the one you started it with (`$!`). **Switch AI access off again**
 > when the box is done.
 
@@ -52,14 +52,13 @@ Pages to use; any equivalent will do, these are public examples whose behaviour 
 - [ ] `REAL-F1` · **Add three sessions named `win`, `mac` and `lin` with Operating system set to
   Windows, macOS and Linux (`sessions.add.system`, `sessions.add.os.*`), each on a proxy of its own,
   start them and open the details page in each** → the user agent names the system chosen (Windows NT, Macintosh, X11 with
-  Linux) and the platform agrees (Win32, MacIntel, Linux x86_64); the screen is no larger than
-  `SESSION_MANAGER_MAX_SCREEN` (1920×1080 unless you set it); every value the page prints for user
-  agent, platform, screen and language is the one in the `fingerprint` of the session's record.
-- [ ] `REAL-F2` · **In each of the three read the window size and the pixel ratio the page reports,
-  then make the manager's window smaller and larger, zoom the manager with ⌘+ and ⌘−, and reload the
-  details page** → the page reports the same screen, window size and pixel ratio before and after
-  (the size is what the fingerprint says, never the size of your window); only the picture is scaled
-  to fit.
+  Linux) and the platform agrees (Win32, MacIntel, Linux x86_64); the screen is no larger than this
+  Mac's largest display (or `SESSION_MANAGER_MAX_SCREEN` when you set it); every value the page prints for
+  user agent, platform, screen and language is the one in the `fingerprint` of the session's record.
+- [ ] `REAL-F2` · **In each of the three read the screen, the window size and the pixel ratio the page
+  reports; drag the session's window to another size, Stop and Start the session and read them again** →
+  both times the page reports the screen, window size and pixel ratio of the fingerprint, and the window
+  opens at that size again, whatever size you gave it before.
 - [ ] `REAL-F3` · **Open the canvas, WebGL and audio pages in `win`, `mac` and `lin` and write down the
   hashes; then Stop and Start `win` and read them again** → the canvas hashes and the audio hashes
   of the three sessions all differ; after the restart `win` gives exactly the hashes it gave before; the WebGL
@@ -171,9 +170,9 @@ Pages to use; any equivalent will do, these are public examples whose behaviour 
   (more than thirty is a bug); the very first launch of an install also downloads the uBlock Origin add-on
   and takes longer once.
 - [ ] `REAL-P3` · **Leave one session on a page that keeps itself busy (a video, a live feed) and one on a quiet
-  page for two hours, with no page of them open in the manager** → both are **Running** at the end; opening
-  each shows a fresh picture and answers a click at once; each one's memory (`ps` as in `REAL-P1`) has
-  not doubled since the first ten minutes.
+  page for two hours, their windows behind other windows and no page of them open in the manager** → both are
+  **Running** at the end; Show window brings each forward with its page as it is now, and it answers a click
+  at once; each one's memory (`ps` as in `REAL-P1`) has not doubled since the first ten minutes.
 - [ ] `REAL-P4` · **Stop the manager with Ctrl+C while five sessions run and the page of one of them is open in
   a browser tab, count their processes every few seconds (`ps -axo pid=,command= | grep -c -- '-profile
   .*/profiles/'`) until the manager has exited, then start it again** → the manager exits within about

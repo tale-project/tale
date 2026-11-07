@@ -1,9 +1,8 @@
 import type { BrowserContext } from 'playwright-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { NoticeCode } from '../../../lib/live-view.ts';
 import type { TabLayout } from '../../lib/web-url.ts';
-import { FakeContext, fakeJpeg } from '../../testing/fake-playwright.ts';
+import { FakeContext } from '../../testing/fake-playwright.ts';
 import type {
   FakeContextOptions,
   FakePage,
@@ -14,13 +13,11 @@ import {
 } from '../../testing/fake-playwright.ts';
 import {
   isPlaywrightError,
-  jpegSize,
-  pictureDelay,
   PlaywrightRemote,
   pointerPlace,
 } from './playwright-remote.ts';
-import { RemoteError } from './remote.ts';
-import type { Remote, RemoteEvent, Tab } from './remote.ts';
+import { PageNotRespondingError, RemoteError } from './remote.ts';
+import type { Remote } from './remote.ts';
 
 const START = 'https://start.example/';
 const NOT_RESPONDING =
@@ -45,6 +42,7 @@ function launch(
     saveDelayMs?: number;
     removalDelayMs?: number;
     onLayout?: (layout: TabLayout) => void;
+    windowed?: boolean;
   } = {},
 ): Launched {
   const context = new FakeContext(options.context);
@@ -58,6 +56,7 @@ function launch(
       }),
     saveDelayMs: options.saveDelayMs,
     removalDelayMs: options.removalDelayMs,
+    windowed: options.windowed,
   });
   remotes.push(remote);
   return { context, page: context.pages()[0], remote, layouts };
@@ -107,7 +106,6 @@ function outcomeOf<T>(tracked: Tracked<T>): Outcome<T> {
 async function expectRemoteError(
   work: Promise<unknown>,
   message: string | RegExp,
-  notice?: NoticeCode,
 ): Promise<void> {
   const outcome = await capture(work);
   if (outcome.ok) throw new Error('expected a RemoteError, but it succeeded');
@@ -115,8 +113,6 @@ async function expectRemoteError(
   if (!(outcome.error instanceof RemoteError)) return;
   if (typeof message === 'string') expect(outcome.error.message).toBe(message);
   else expect(outcome.error.message).toMatch(message);
-  // The notice is what the web client words for the person.
-  if (notice !== undefined) expect(outcome.error.notice).toBe(notice);
 }
 
 /** `[method, ...arguments]` of a call, without the arguments that were not given. */
@@ -124,21 +120,6 @@ function entry(method: string, args: readonly unknown[]): unknown[] {
   const result: unknown[] = [method];
   result.push(...args.filter((arg) => arg !== undefined));
   return result;
-}
-
-function listen(remote: Remote): {
-  events: RemoteEvent[];
-  stop: () => void;
-} {
-  const events: RemoteEvent[] = [];
-  const stop = remote.subscribe((event) => {
-    events.push(event);
-  });
-  return { events, stop };
-}
-
-function tabsOf(events: readonly RemoteEvent[]): (readonly Tab[])[] {
-  return events.flatMap((event) => (event.type === 'tabs' ? [event.tabs] : []));
 }
 
 function urlsOf(remote: Remote): string[] {
@@ -156,181 +137,6 @@ afterEach(async () => {
 });
 
 // -- pure helpers ---------------------------------------------------------------
-
-describe('jpegSize', () => {
-  const frame = (marker: number, width: number, height: number): number[] => [
-    0xff,
-    marker,
-    0x00,
-    0x11,
-    0x08,
-    height >> 8,
-    height & 0xff,
-    width >> 8,
-    width & 0xff,
-    0x03,
-    0x01,
-    0x11,
-    0x00,
-    0x02,
-    0x11,
-    0x01,
-    0x03,
-    0x11,
-    0x01,
-  ];
-  const jpeg = (...parts: number[][]): Uint8Array =>
-    Uint8Array.from([0xff, 0xd8, ...parts.flat(), 0xff, 0xd9]);
-
-  it('reads the size from a baseline frame header', () => {
-    expect(jpegSize(jpeg(frame(0xc0, 1280, 720)))).toEqual({
-      width: 1280,
-      height: 720,
-    });
-  });
-
-  it('reads sizes above 255 and different width and height', () => {
-    expect(jpegSize(jpeg(frame(0xc0, 2176, 1190)))).toEqual({
-      width: 2176,
-      height: 1190,
-    });
-    expect(jpegSize(jpeg(frame(0xc0, 3, 65535)))).toEqual({
-      width: 3,
-      height: 65535,
-    });
-  });
-
-  it('reads progressive and other frame types too', () => {
-    expect(jpegSize(jpeg(frame(0xc2, 800, 600)))).toEqual({
-      width: 800,
-      height: 600,
-    });
-    expect(jpegSize(jpeg(frame(0xcf, 10, 20)))).toEqual({
-      width: 10,
-      height: 20,
-    });
-  });
-
-  it('skips the segments in front of the frame header', () => {
-    const app0 = [0xff, 0xe0, 0x00, 0x10, ...new Array<number>(14).fill(0x4a)];
-    const comment = [0xff, 0xfe, 0x00, 0x05, 0x61, 0x62, 0x63];
-    expect(jpegSize(jpeg(app0, comment, frame(0xc0, 640, 480)))).toEqual({
-      width: 640,
-      height: 480,
-    });
-  });
-
-  it('does not take the Huffman, JPEG extension and arithmetic markers for a frame', () => {
-    for (const marker of [0xc4, 0xc8, 0xcc]) {
-      const length = 0x0010;
-      const segment = [
-        0xff,
-        marker,
-        length >> 8,
-        length & 0xff,
-        ...new Array<number>(length - 2).fill(0x01),
-      ];
-      expect(jpegSize(jpeg(segment, frame(0xc0, 33, 44)))).toEqual({
-        width: 33,
-        height: 44,
-      });
-    }
-  });
-
-  it('steps over markers that have no length', () => {
-    expect(
-      jpegSize(
-        jpeg([0xff, 0x01], [0xff, 0xd0], [0xff, 0xd7], frame(0xc0, 5, 6)),
-      ),
-    ).toEqual({ width: 5, height: 6 });
-  });
-
-  it('finds its way again after bytes that are not a marker', () => {
-    expect(jpegSize(jpeg([0x12, 0x34, 0x56], frame(0xc0, 100, 200)))).toEqual({
-      width: 100,
-      height: 200,
-    });
-  });
-
-  it('has no size for data without a frame header', () => {
-    expect(jpegSize(jpeg())).toBeNull();
-    expect(jpegSize(new Uint8Array())).toBeNull();
-    expect(jpegSize(Uint8Array.from([0xff, 0xd8]))).toBeNull();
-    expect(
-      jpegSize(Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])),
-    ).toBeNull();
-  });
-
-  it('has no size for a frame header that is cut off', () => {
-    expect(
-      jpegSize(
-        Uint8Array.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x02]),
-      ),
-    ).toBeNull();
-  });
-
-  it('terminates on a segment whose length is zero', () => {
-    expect(
-      jpegSize(
-        Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-      ),
-    ).toBeNull();
-  });
-
-  it('reads the size of the pictures the fake browser makes', () => {
-    expect(jpegSize(fakeJpeg({ width: 321, height: 123, tag: 'x' }))).toEqual({
-      width: 321,
-      height: 123,
-    });
-  });
-});
-
-describe('pictureDelay', () => {
-  const idle = { usedLately: false, changedInARow: 0, tookMs: 0 };
-
-  it('is as short as it goes while the page is used', () => {
-    expect(
-      pictureDelay({ ...idle, usedLately: true, stillInARow: 30, tookMs: 500 }),
-    ).toBe(20);
-  });
-
-  it('is as short as it goes while the page keeps changing', () => {
-    expect(pictureDelay({ ...idle, changedInARow: 2, stillInARow: 0 })).toBe(
-      20,
-    );
-    expect(pictureDelay({ ...idle, changedInARow: 9, stillInARow: 0 })).toBe(
-      20,
-    );
-  });
-
-  it('is not short after a single change', () => {
-    expect(pictureDelay({ ...idle, changedInARow: 1, stillInARow: 0 })).toBe(
-      150,
-    );
-  });
-
-  it('grows by a quarter from 150 ms while nothing changes, up to 800 ms', () => {
-    const delays = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 50].map((stillInARow) =>
-      pictureDelay({ ...idle, stillInARow }),
-    );
-    expect(delays.slice(0, 4)).toEqual([150, 187.5, 234.375, 292.96875]);
-    expect(
-      delays
-        .slice(4, 8)
-        .every((delay, index, all) => delay > (all[index - 1] ?? 0)),
-    ).toBe(true);
-    expect(delays.slice(8)).toEqual([800, 800, 800]);
-  });
-
-  it('is never less than six times the time a picture takes', () => {
-    expect(pictureDelay({ ...idle, stillInARow: 0, tookMs: 100 })).toBe(600);
-    expect(pictureDelay({ ...idle, stillInARow: 0, tookMs: 40 })).toBe(240);
-  });
-
-  it('is never more than 800 ms, however slow the pictures are', () => {
-    expect(pictureDelay({ ...idle, stillInARow: 0, tookMs: 5000 })).toBe(800);
-  });
-});
 
 describe('pointerPlace', () => {
   const page = { width: 800, height: 600 };
@@ -448,9 +254,7 @@ describe('tabs', () => {
 
   it('ignores the navigations of frames inside the page', () => {
     const { remote, page } = launch();
-    const { events } = listen(remote);
     page.navigateSubframe();
-    expect(events).toEqual([]);
     expect(remote.tabs()[0]?.loading).toBe(false);
   });
 
@@ -475,49 +279,6 @@ describe('tabs', () => {
     }
   });
 
-  it('tells its listeners about every change, with a copy of the tabs', async () => {
-    const { remote, page, context } = launch();
-    const { events, stop } = listen(remote);
-    page.navigate('https://example.com/');
-    context.open('https://popup.example/');
-    await settle();
-    const lists = tabsOf(events);
-    expect(lists.length).toBeGreaterThanOrEqual(2);
-    expect(lists[0]?.map((tab) => tab.url)).toEqual(['https://example.com/']);
-    expect(lists.at(-1)?.map((tab) => tab.id)).toEqual([1, 2]);
-    stop();
-    events.length = 0;
-    page.navigate('https://example.com/again');
-    expect(events).toEqual([]);
-  });
-
-  it('says nothing to a listener that left', () => {
-    const { remote, page } = launch();
-    const first = listen(remote);
-    const second = listen(remote);
-    first.stop();
-    page.navigate('https://example.com/');
-    expect(first.events).toEqual([]);
-    expect(second.events).toHaveLength(1);
-  });
-
-  it('does not let a failing listener keep the others from hearing', () => {
-    const error = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
-    const { remote, page } = launch();
-    remote.subscribe(() => {
-      throw new Error('boom');
-    });
-    const { events } = listen(remote);
-    page.navigate('https://example.com/');
-    expect(events).toHaveLength(1);
-    expect(error).toHaveBeenCalledWith(
-      'a listener of the remote failed',
-      expect.any(Error),
-    );
-  });
-
   it('stops listening to a page that closed', async () => {
     const { page, context } = launch();
     const popup = context.open('https://two.example/');
@@ -534,20 +295,16 @@ describe('tabs', () => {
     const { remote, page, context } = launch();
     await context.open('https://two.example/').close();
     await settle();
-    const { events } = listen(remote);
     page.emit('close', page);
     page.emit('close', page);
     await settle();
-    expect(tabsOf(events)).toHaveLength(1);
     expect(remote.tabs()).toEqual([]);
   });
 
   it('forgets a page that closed', async () => {
     const { remote, page } = launch();
-    const { events } = listen(remote);
     await page.close();
     await settle();
-    expect(events.at(-1)).toEqual({ type: 'tabs', tabs: [] });
     expect(remote.tabs()).toEqual([]);
   });
 });
@@ -609,7 +366,6 @@ describe('opening, closing and switching tabs', () => {
     await expectRemoteError(
       remote.openTab(),
       'Could not open a tab: browserContext.newPage: Target closed',
-      'tab_not_opened',
     );
   });
 
@@ -638,36 +394,18 @@ describe('opening, closing and switching tabs', () => {
 
   it('says that there is no such tab', async () => {
     const { remote } = launch();
-    await expectRemoteError(
-      remote.closeTab(42),
-      'There is no such tab.',
-      'tab_gone',
-    );
-    await expectRemoteError(
-      remote.activateTab(42),
-      'There is no such tab.',
-      'tab_gone',
-    );
+    await expectRemoteError(remote.closeTab(42), 'There is no such tab.');
+    await expectRemoteError(remote.activateTab(42), 'There is no such tab.');
     await expectRemoteError(
       remote.goto('https://x.example/', 42),
       'There is no such tab.',
-      'tab_gone',
     );
     await expectRemoteError(
       remote.history('back', 42),
       'There is no such tab.',
-      'tab_gone',
     );
-    await expectRemoteError(
-      remote.readPage(42),
-      'There is no such tab.',
-      'tab_gone',
-    );
-    await expectRemoteError(
-      remote.screenshot(42),
-      'There is no such tab.',
-      'tab_gone',
-    );
+    await expectRemoteError(remote.readPage(42), 'There is no such tab.');
+    await expectRemoteError(remote.screenshot(42), 'There is no such tab.');
   });
 
   it('leaves it at a closed tab if the page was already gone', async () => {
@@ -678,22 +416,16 @@ describe('opening, closing and switching tabs', () => {
     await expect(remote.closeTab(1)).resolves.toBeUndefined();
   });
 
-  it('activates a tab: front, event, and a new picture of it', async () => {
+  it('activates a tab and brings it to the front', async () => {
     const { remote, context } = launch();
     const { id } = await remote.openTab('https://two.example/');
     await settle();
-    const { events } = listen(remote);
     context.log.clear();
     await remote.activateTab(1);
     expect(remote.tabs().map((tab) => tab.active)).toEqual([true, false]);
     expect(
       context.log.count(context.pages()[0]?.who ?? '', 'bringToFront'),
     ).toBe(1);
-    expect(
-      tabsOf(events)
-        .at(-1)
-        ?.map((tab) => tab.active),
-    ).toEqual([true, false]);
     await remote.activateTab(id);
     expect(remote.tabs().map((tab) => tab.active)).toEqual([false, true]);
   });
@@ -714,7 +446,7 @@ describe('opening, closing and switching tabs', () => {
     await remote.closeTab(1);
     await settle();
     expect(remote.tabs()).toEqual([]);
-    await expectRemoteError(remote.readPage(), 'No tab is open.', 'tab_gone');
+    await expectRemoteError(remote.readPage(), 'No tab is open.');
     await expectRemoteError(
       remote.goto('https://x.example/'),
       'No tab is open.',
@@ -901,78 +633,15 @@ describe('titles', () => {
     expect(remote.tabs().map((tab) => tab.title)).toEqual(['First', 'Second']);
   });
 
-  it('are only fetched on request while nobody listens', async () => {
-    const { context, page } = launch();
-    await settle();
-    await wait(10_000);
-    expect(context.log.count(page.who, 'evaluate')).toBe(0);
-  });
-
-  it('are polled every 1.5 seconds while somebody listens, and tell about a change', async () => {
-    const { remote, page, context } = launch();
-    const { events, stop } = listen(remote);
-    await settle();
-    expect(context.log.count(page.who, 'evaluate')).toBe(1);
-    page.titleText = 'Changed';
-    await wait(1499);
-    expect(context.log.count(page.who, 'evaluate')).toBe(1);
-    await wait(1);
-    expect(context.log.count(page.who, 'evaluate')).toBe(2);
-    expect(tabsOf(events).at(-1)?.[0]?.title).toBe('Changed');
-    const told = events.length;
-    await wait(1500);
-    expect(events).toHaveLength(told); // nothing changed: nothing to say
-    stop();
-  });
-
-  it('stop being polled when the last listener leaves', async () => {
-    const { remote, page, context } = launch();
-    const first = listen(remote);
-    const second = listen(remote);
-    await settle();
-    first.stop();
-    await wait(1500);
-    expect(context.log.count(page.who, 'evaluate')).toBe(2);
-    second.stop();
-    await wait(1500);
-    const polls = context.log.count(page.who, 'evaluate');
-    await wait(10_000);
-    expect(context.log.count(page.who, 'evaluate')).toBe(polls);
-  });
-
-  it('start again for a listener that comes later', async () => {
-    const { remote, page, context } = launch();
-    listen(remote).stop();
-    await wait(3000);
-    const before = context.log.count(page.who, 'evaluate');
-    const { stop } = listen(remote);
-    await settle();
-    expect(context.log.count(page.who, 'evaluate')).toBe(before + 1);
-    stop();
-  });
-
-  it('are fetched right after a page loaded, for a listener', async () => {
-    const { remote, page, context } = launch();
-    const { stop } = listen(remote);
-    await settle();
-    page.titleText = 'Loaded';
-    page.navigate('https://example.com/');
-    page.finishLoad();
-    await settle();
-    expect(remote.tabs()[0]?.title).toBe('Loaded');
-    expect(context.log.count(page.who, 'evaluate')).toBe(2);
-    stop();
-  });
-
   it('are not asked of a page that waits for an answer to a dialog', async () => {
     const { remote, page, context } = launch();
     remote.attend(60_000);
     page.openDialog('alert', 'Hello');
     await settle();
-    const { stop } = listen(remote);
-    await settle();
+    page.titleText = 'Never asked';
+    const tabs = await remote.listTabs();
+    expect(tabs[0]?.title).toBe('');
     expect(context.log.count(page.who, 'evaluate')).toBe(0);
-    stop();
   });
 
   it('do not wait for a page that does not answer more than two seconds', async () => {
@@ -1394,13 +1063,14 @@ describe('restore', () => {
 
   it('changes the active tab only at the end', async () => {
     const { remote } = launch();
-    const { events } = listen(remote);
-    await remote.restore([A, B, C], 2);
-    const actives = tabsOf(events).map(
-      (tabs) => tabs.find((tab) => tab.active)?.id,
-    );
-    expect(new Set(actives.slice(0, -1))).toEqual(new Set([1]));
-    expect(actives.at(-1)).toBe(3);
+    const restoring = track(remote.restore([A, B, C], 2));
+    await settle();
+    if (!restoring.done) {
+      expect(remote.tabs().find((tab) => tab.active)?.id).toBe(1);
+    }
+    await wait(5000);
+    expect(restoring.done).toBe(true);
+    expect(remote.tabs().find((tab) => tab.active)?.id).toBe(3);
   });
 
   it('tells about the tabs it restored', async () => {
@@ -1512,748 +1182,7 @@ describe('restore', () => {
 
 // -- the picture ----------------------------------------------------------------
 
-describe('pictures', () => {
-  const bytes = (data: Uint8Array): number[] => Array.from(data);
-
-  interface Received {
-    at: number;
-    tab: number;
-    width: number;
-    height: number;
-    jpeg: number[];
-  }
-
-  /** Every picture a watcher gets, with the time it came; why it stopped getting them. */
-  function collect(watcher: ReturnType<Remote['watch']>): {
-    frames: Received[];
-    ended: { reason: unknown };
-  } {
-    const frames: Received[] = [];
-    const ended: { reason: unknown } = { reason: null };
-    const pump = async (): Promise<void> => {
-      try {
-        for (;;) {
-          const frame = await watcher.get();
-          frames.push({
-            at: performance.now(),
-            tab: frame.tab,
-            width: frame.width,
-            height: frame.height,
-            jpeg: bytes(frame.jpeg),
-          });
-        }
-      } catch (error) {
-        ended.reason = error; // the browser is gone, or the viewer left
-      }
-    };
-    void pump();
-    return { frames, ended };
-  }
-
-  const shotTimes = (launched: Launched, page = launched.page): number[] =>
-    launched.context.log.of(page.who, 'screenshot').map((call) => call.at);
-
-  const gapsOf = (times: readonly number[]): number[] =>
-    times.slice(1).map((time, index) => time - (times[index] ?? 0));
-
-  it('gives a picture of the active tab at once', async () => {
-    const { remote, page, context } = launch();
-    page.jpeg = fakeJpeg({ width: 800, height: 600, tag: 1 });
-    const watcher = remote.watch();
-    const first = capture(watcher.get());
-    await settle();
-    const outcome = await first;
-    expect(outcome.ok).toBe(true);
-    if (!outcome.ok) return;
-    expect(outcome.value).toMatchObject({ tab: 1, width: 800, height: 600 });
-    expect(bytes(outcome.value.jpeg)).toEqual(bytes(page.jpeg));
-    expect(context.log.of(page.who, 'screenshot')[0]?.args[0]).toEqual({
-      type: 'jpeg',
-      quality: 70,
-      scale: 'css',
-      caret: 'initial',
-      animations: 'allow',
-      timeout: 5000,
-    });
-    watcher.close();
-  });
-
-  describe('when the window has less room for the page than the viewport it reports', () => {
-    // A browser pinned to the size of a fingerprint reports that size as its
-    // viewport; a headless window on macOS keeps the room of a toolbar it does
-    // not draw, so the page has less. A picture of the reported size has a
-    // black bar where the window has nothing to show.
-    const shots = (launched: Launched, page = launched.page) =>
-      launched.context.log
-        .of(page.who, 'screenshot')
-        .map((call) => call.args[0]);
-    const roomMeasures = (launched: Launched, page = launched.page) =>
-      launched.context.log
-        .of(page.who, 'evaluate')
-        .filter((call) => call.args[0] === 'roomOfPage');
-
-    it('takes the picture of the room the page has, from the top left', async () => {
-      const launched = launch();
-      const { remote, page } = launched;
-      page.answers.set('roomOfPage', () => [1000, 600, 549]);
-      page.jpeg = fakeJpeg({ width: 1000, height: 549 });
-      const watcher = remote.watch();
-      const first = capture(watcher.get());
-      await settle();
-      expect((await first).ok).toBe(true);
-      expect(shots(launched)[0]).toMatchObject({
-        clip: { x: 0, y: 0, width: 1000, height: 549 },
-      });
-      watcher.close();
-    });
-
-    it('takes the picture of the whole viewport when the page has all the room it reports', async () => {
-      const launched = launch();
-      const { remote, page } = launched;
-      page.answers.set('roomOfPage', () => [1000, 600, 600]);
-      const watcher = remote.watch();
-      const first = capture(watcher.get());
-      await settle();
-      expect((await first).ok).toBe(true);
-      expect(shots(launched)[0]).not.toHaveProperty('clip');
-      watcher.close();
-    });
-
-    it('measures the room of a page once, not for every picture', async () => {
-      const launched = launch();
-      const { remote, page } = launched;
-      page.answers.set('roomOfPage', () => [1000, 600, 549]);
-      let picture = 0;
-      page.pictures = () => fakeJpeg({ tag: (picture += 1) });
-      const watcher = remote.watch();
-      const frames = capture(
-        (async () => {
-          await watcher.get();
-          await watcher.get();
-          return watcher.get();
-        })(),
-      );
-      await wait(2000);
-      expect((await frames).ok).toBe(true);
-      expect(shots(launched).length).toBeGreaterThanOrEqual(3);
-      expect(roomMeasures(launched)).toHaveLength(1);
-      watcher.close();
-    });
-
-    it('measures the room of every page: a window of its own may have another', async () => {
-      const launched = launch();
-      const second = launched.context.open('https://two.example/');
-      second.answers.set('roomOfPage', () => [1000, 600, 560]);
-      launched.page.answers.set('roomOfPage', () => [1000, 600, 549]);
-      await launched.remote.screenshot(1);
-      await launched.remote.screenshot(2);
-      expect(shots(launched)[0]).toMatchObject({
-        clip: { x: 0, y: 0, width: 1000, height: 549 },
-      });
-      expect(shots(launched, second)[0]).toMatchObject({
-        clip: { x: 0, y: 0, width: 1000, height: 560 },
-      });
-    });
-
-    it('takes the whole viewport, and tries again, when the room cannot be measured', async () => {
-      const launched = launch();
-      const { remote, page } = launched;
-      let measures = 0;
-      page.answers.set('roomOfPage', () => {
-        measures += 1;
-        if (measures === 1) {
-          throw playwrightError(
-            'page.evaluate: Execution context was destroyed',
-          );
-        }
-        return [1000, 600, 549];
-      });
-      await remote.screenshot();
-      expect(shots(launched)[0]).not.toHaveProperty('clip');
-      // Not at once: a page that does not answer is left alone for a while.
-      await remote.screenshot();
-      expect(shots(launched)[1]).not.toHaveProperty('clip');
-      expect(measures).toBe(1);
-      await wait(1100);
-      await remote.screenshot();
-      expect(shots(launched)[2]).toMatchObject({
-        clip: { x: 0, y: 0, width: 1000, height: 549 },
-      });
-    });
-  });
-
-  it('takes the size of the page from the picture, not from the page', async () => {
-    const { remote, page } = launch();
-    page.viewport = { width: 1000, height: 500 };
-    page.jpeg = fakeJpeg({ width: 640, height: 480 });
-    const watcher = remote.watch();
-    const first = capture(watcher.get());
-    await settle();
-    const outcome = await first;
-    expect(outcome.ok && outcome.value).toMatchObject({
-      width: 640,
-      height: 480,
-    });
-    watcher.close();
-  });
-
-  it('asks the page for its size when the picture does not say', async () => {
-    const { remote, page } = launch();
-    page.viewport = { width: 1000.9, height: 700.2 };
-    page.jpeg = Uint8Array.from([
-      0xff, 0xd8, 0xff, 0xd9, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-    ]);
-    const watcher = remote.watch();
-    const first = capture(watcher.get());
-    await settle();
-    const outcome = await first;
-    expect(outcome.ok && outcome.value).toMatchObject({
-      width: 1000,
-      height: 700,
-    });
-    watcher.close();
-  });
-
-  it('falls back to 1280 by 720 when neither the picture nor the page says how big it is', async () => {
-    const { remote, page } = launch();
-    page.jpeg = Uint8Array.from([
-      0xff, 0xd8, 0xff, 0xd9, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-    ]);
-    page.behave('evaluate', {
-      error: playwrightError('page.evaluate: closed'),
-    });
-    const watcher = remote.watch();
-    const { frames } = collect(watcher);
-    await settle();
-    expect(frames.map((frame) => [frame.width, frame.height])).toEqual([
-      [1280, 720],
-    ]);
-    watcher.close();
-  });
-
-  it('keeps the size of the last picture when the page cannot be asked', async () => {
-    const { remote, page } = launch();
-    page.jpeg = fakeJpeg({ width: 640, height: 480 });
-    const watcher = remote.watch();
-    const { frames } = collect(watcher);
-    await wait(100);
-    page.jpeg = Uint8Array.from([
-      0xff, 0xd8, 0xff, 0xd9, 9, 8, 7, 6, 5, 4, 3, 2, 1,
-    ]);
-    page.behave('evaluate', { hang: true });
-    await wait(100 + 15_000);
-    expect(frames.map((frame) => [frame.width, frame.height])).toEqual([
-      [640, 480],
-      [640, 480],
-    ]);
-    watcher.close();
-  });
-
-  it('sends a page that does not change once, and takes few pictures of it', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(10_000);
-    expect(frames).toHaveLength(1);
-    expect(shotTimes(launched).length).toBeLessThan(70);
-    watcher.close();
-  });
-
-  it('takes a picture every 20 ms while the page is used, then every 0.8 s while it stays as it is', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    collect(watcher);
-    await wait(6000);
-    const times = shotTimes(launched);
-    const gaps = gapsOf(times);
-    const active = gaps.filter((_, index) => (times[index + 1] ?? 0) <= 1000);
-    expect(active.length).toBeGreaterThan(45);
-    expect(Math.max(...active)).toBeLessThanOrEqual(20);
-    expect(gaps.slice(-3)).toEqual([800, 800, 800]);
-    expect(Math.min(...gaps.slice(active.length + 1))).toBeGreaterThanOrEqual(
-      150,
-    );
-    watcher.close();
-  });
-
-  it('takes pictures back to back for as long as the page keeps changing', async () => {
-    const launched = launch();
-    let count = 0;
-    launched.page.pictures = () => fakeJpeg({ tag: count++ });
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(5000);
-    const gaps = gapsOf(shotTimes(launched));
-    expect(Math.max(...gaps)).toBeLessThanOrEqual(20);
-    expect(shotTimes(launched).length).toBeGreaterThan(240);
-    expect(frames.length).toBeGreaterThan(240);
-    watcher.close();
-  });
-
-  it('sends a picture that differs, and none that is the same', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(3000);
-    expect(frames).toHaveLength(1);
-    launched.page.jpeg = fakeJpeg({ tag: 'changed' });
-    await wait(1000);
-    expect(frames).toHaveLength(2);
-    await wait(3000);
-    expect(frames).toHaveLength(2);
-    watcher.close();
-  });
-
-  it('takes a picture at once when the page is used, however long it rested', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    collect(watcher);
-    await wait(5000);
-    const before = shotTimes(launched).length;
-    await launched.remote.hover(10, 10);
-    await settle();
-    expect(shotTimes(launched).length).toBeGreaterThan(before);
-    expect(shotTimes(launched).length).toBeLessThanOrEqual(before + 2);
-    await wait(500); // and it is back to every 20 ms for a while
-    expect(shotTimes(launched).length).toBeGreaterThan(before + 20);
-    watcher.close();
-  });
-
-  it('shows the last picture to a viewer who comes later, without waiting for one', async () => {
-    const launched = launch();
-    launched.page.jpeg = fakeJpeg({ tag: 'last' });
-    const first = launched.remote.watch();
-    collect(first);
-    await wait(3000);
-    const second = launched.remote.watch();
-    const late = capture(second.get());
-    await settle();
-    const outcome = await late;
-    expect(outcome.ok && bytes(outcome.value.jpeg)).toEqual(
-      bytes(launched.page.jpeg),
-    );
-    first.close();
-    second.close();
-  });
-
-  it('gives every viewer the pictures', async () => {
-    const launched = launch();
-    const first = collect(launched.remote.watch());
-    const second = collect(launched.remote.watch());
-    await wait(100);
-    launched.page.jpeg = fakeJpeg({ tag: 2 });
-    await wait(1100);
-    expect(first.frames).toHaveLength(2);
-    expect(second.frames).toHaveLength(2);
-  });
-
-  it('gives a slow viewer the newest picture only', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    await wait(100);
-    for (const tag of [1, 2, 3]) {
-      launched.page.jpeg = fakeJpeg({ tag });
-      await wait(900);
-    }
-    const newest = await watcher.get();
-    expect(bytes(newest.jpeg)).toEqual(bytes(fakeJpeg({ tag: 3 })));
-    const next = track(watcher.get());
-    await wait(2000);
-    expect(next.done).toBe(false);
-    watcher.close();
-  });
-
-  it('stops taking pictures when the last viewer is gone, and starts again for the next', async () => {
-    const launched = launch();
-    const first = launched.remote.watch();
-    const second = launched.remote.watch();
-    await wait(2000);
-    first.close();
-    first.close();
-    const afterFirst = shotTimes(launched).length;
-    await wait(2000);
-    expect(shotTimes(launched).length).toBeGreaterThan(afterFirst);
-    second.close();
-    await settle();
-    const stopped = shotTimes(launched).length;
-    await wait(10_000);
-    expect(shotTimes(launched).length).toBe(stopped);
-    expect(vi.getTimerCount()).toBe(0);
-    const third = launched.remote.watch();
-    await wait(100);
-    expect(shotTimes(launched).length).toBeGreaterThan(stopped);
-    third.close();
-  });
-
-  it('does not stop for a viewer that left when another came since', async () => {
-    const launched = launch();
-    const first = launched.remote.watch();
-    await wait(1000);
-    first.close();
-    const second = launched.remote.watch();
-    first.close();
-    const before = shotTimes(launched).length;
-    await wait(3000);
-    expect(shotTimes(launched).length).toBeGreaterThan(before);
-    second.close();
-  });
-
-  it('rests 0.8 seconds between looks while there is no tab to take a picture of', async () => {
-    const launched = launch();
-    await launched.remote.closeTab(1);
-    await settle();
-    const timeouts = vi.spyOn(globalThis, 'setTimeout');
-    const watcher = launched.remote.watch();
-    await wait(1100); // the first second the page counts as used
-    timeouts.mockClear();
-    await wait(5000);
-    const rests = timeouts.mock.calls.map(([, delay]) => delay);
-    expect(rests.length).toBeGreaterThan(4);
-    expect(new Set(rests)).toEqual(new Set([800]));
-    watcher.close();
-  });
-
-  it('starts again at 150 ms after a change and rests a quarter longer each time nothing changes', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    collect(watcher);
-    await wait(1100); // the first second the page counts as used
-    const timeouts = vi.spyOn(globalThis, 'setTimeout');
-    launched.page.jpeg = fakeJpeg({ tag: 'changed' });
-    await wait(10_000);
-    const rests = timeouts.mock.calls.map(([, delay]) => delay);
-    const start = rests.indexOf(150);
-    expect(start).toBeGreaterThanOrEqual(0);
-    const grown = rests.slice(start, start + 10);
-    expect(grown.slice(0, 5)).toEqual([
-      150,
-      150 * 1.25,
-      150 * 1.25 ** 2,
-      150 * 1.25 ** 3,
-      150 * 1.25 ** 4,
-    ]);
-    expect(grown[7]).toBeCloseTo(150 * 1.25 ** 7, 6);
-    expect(grown.slice(-2)).toEqual([800, 800]);
-    watcher.close();
-  });
-
-  it('rests six times as long as a picture took, however little has changed', async () => {
-    const launched = launch();
-    launched.page.behave('screenshot', { delayMs: 100 });
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(4000); // it has not changed for a long time ...
-    launched.page.jpeg = fakeJpeg({ tag: 'changed' });
-    await wait(2000); // ... and now it did
-    expect(frames).toHaveLength(2);
-    const shownAt = frames[1]?.at ?? 0;
-    const nextShot = shotTimes(launched).find((at) => at > shownAt) ?? 0;
-    // (the pause after a picture that was new is 150 ms and no more, but not
-    // less than six times the 100 ms that a picture took)
-    expect(nextShot - shownAt).toBeGreaterThanOrEqual(600);
-    watcher.close();
-  });
-
-  it.each([
-    [
-      'a page that loaded',
-      (launched: Launched): Promise<unknown> => {
-        launched.page.finishLoad();
-        return Promise.resolve();
-      },
-    ],
-    [
-      'a page that navigated',
-      (launched: Launched): Promise<unknown> => {
-        launched.page.navigate('https://example.com/');
-        return Promise.resolve();
-      },
-    ],
-    [
-      'another viewer',
-      (launched: Launched): Promise<unknown> => {
-        launched.remote.watch();
-        return Promise.resolve();
-      },
-    ],
-    [
-      'a tab that is brought to the front',
-      (launched: Launched): Promise<unknown> => launched.remote.activateTab(1),
-    ],
-  ])('come at once for %s', async (_what, act) => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    collect(watcher);
-    await wait(5000);
-    const before = shotTimes(launched).length;
-    await act(launched);
-    await settle();
-    expect(shotTimes(launched).length).toBeGreaterThan(before);
-    watcher.close();
-  });
-
-  it.each([
-    [
-      'the mouse moving',
-      (launched: Launched) =>
-        launched.page.mouse.behave('move', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.hover(5, 5),
-    ],
-    [
-      'the mouse button going down',
-      (launched: Launched) =>
-        launched.page.mouse.behave('move', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.mouse('down', 5, 5),
-    ],
-    [
-      'the wheel turning',
-      (launched: Launched) =>
-        launched.page.mouse.behave('move', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.wheel(5, 5, 0, 10),
-    ],
-    [
-      'a click',
-      (launched: Launched) =>
-        launched.page.mouse.behave('click', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.clickAt(5, 5),
-    ],
-    [
-      'a drag',
-      (launched: Launched) =>
-        launched.page.mouse.behave('move', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.drag(5, 5, 9, 9),
-    ],
-    [
-      'a key',
-      (launched: Launched) =>
-        launched.page.keyboard.behave('press', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.key('press', 'a'),
-    ],
-    [
-      'text',
-      (launched: Launched) =>
-        launched.page.keyboard.behave('insertText', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.insertText('hello'),
-    ],
-    [
-      'a navigation',
-      (launched: Launched) => launched.page.behave('goto', { delayMs: 500 }),
-      (launched: Launched) => launched.remote.goto('https://example.com/'),
-    ],
-  ])(
-    'come as soon as the page is used, not when that is done: %s',
-    async (_what, slow, act) => {
-      const launched = launch();
-      const watcher = launched.remote.watch();
-      collect(watcher);
-      await wait(5000);
-      slow(launched);
-      const before = shotTimes(launched).length;
-      const acting = track(act(launched));
-      await settle();
-      expect(acting.done).toBe(false);
-      expect(shotTimes(launched).length).toBeGreaterThan(before);
-      await wait(1000); // (a drag moves the mouse twice)
-      expect(acting.done).toBe(true);
-      watcher.close();
-    },
-  );
-
-  it('has no pictures without a tab, and takes up again when one opens', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(1000);
-    await launched.remote.closeTab(1);
-    await settle();
-    const shots = shotTimes(launched).length;
-    await wait(5000);
-    expect(shotTimes(launched).length).toBe(shots);
-    const popup = launched.context.open('https://popup.example/');
-    popup.jpeg = fakeJpeg({ tag: 'popup' });
-    await wait(1000);
-    expect(frames.at(-1)?.tab).toBe(2);
-    watcher.close();
-  });
-
-  it('takes no pictures of a page that waits for an answer to a dialog', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    collect(watcher);
-    launched.remote.attend(600_000);
-    await wait(100);
-    launched.page.openDialog('alert', 'Hello');
-    await settle();
-    const shots = shotTimes(launched).length;
-    await wait(5000);
-    expect(shotTimes(launched).length).toBe(shots);
-    await launched.remote.answerDialog(1, { accept: true });
-    await wait(100);
-    expect(shotTimes(launched).length).toBeGreaterThan(shots);
-    watcher.close();
-  });
-
-  it('tries again when a picture cannot be taken: the page is closing or navigating', async () => {
-    const error = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
-    const launched = launch();
-    launched.page.behave('screenshot', {
-      error: playwrightError('page.screenshot: Target closed'),
-      times: 3,
-    });
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(500);
-    expect(frames).toHaveLength(1);
-    expect(error).not.toHaveBeenCalled();
-    watcher.close();
-  });
-
-  it('logs a bug, waits a second and tries again', async () => {
-    const error = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
-    const launched = launch();
-    launched.page.behave('screenshot', {
-      error: new TypeError('boom'),
-      times: 1,
-    });
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(999);
-    expect(frames).toHaveLength(0);
-    expect(error).toHaveBeenCalledTimes(1);
-    expect(error).toHaveBeenCalledWith(
-      'could not take a picture',
-      expect.any(TypeError),
-    );
-    await wait(1);
-    expect(frames).toHaveLength(1);
-    watcher.close();
-  });
-
-  it('drops a picture of a tab that is not in front any more', async () => {
-    const launched = launch();
-    launched.page.behave('screenshot', { delayMs: 100, times: 1 });
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(50);
-    launched.context.open('https://popup.example/');
-    await wait(1000);
-    expect(frames.map((frame) => frame.tab)).toEqual([2]);
-    watcher.close();
-  });
-
-  it('sends the picture of a tab again when it is activated again', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(1000);
-    expect(frames).toHaveLength(1);
-    await launched.remote.activateTab(1);
-    await wait(1000);
-    expect(frames).toHaveLength(2);
-    watcher.close();
-  });
-
-  it('sends the pictures of other tabs even if they look the same', async () => {
-    const launched = launch();
-    launched.context.open('https://two.example/');
-    const watcher = launched.remote.watch();
-    const { frames } = collect(watcher);
-    await wait(1000);
-    await launched.remote.activateTab(1);
-    await wait(1000);
-    expect(frames.map((frame) => frame.tab)).toEqual([2, 1]);
-    watcher.close();
-  });
-
-  it('takes a picture of the tab it is asked for, at the quality of a screenshot', async () => {
-    const launched = launch();
-    const second = launched.context.open('https://two.example/');
-    second.jpeg = fakeJpeg({ tag: 'second' });
-    const shot = await launched.remote.screenshot(2);
-    expect(bytes(shot)).toEqual(bytes(second.jpeg));
-    expect(
-      launched.context.log.of(second.who, 'screenshot')[0]?.args[0],
-    ).toMatchObject({
-      type: 'jpeg',
-      quality: 80,
-      scale: 'css',
-      caret: 'initial',
-    });
-    expect(bytes(await launched.remote.screenshot())).toEqual(
-      bytes(second.jpeg),
-    );
-  });
-
-  it('says so when a screenshot cannot be taken', async () => {
-    const launched = launch();
-    launched.page.behave('screenshot', {
-      error: playwrightTimeout('page.screenshot: Timeout 5000ms exceeded.'),
-    });
-    await expectRemoteError(
-      launched.remote.screenshot(),
-      'Could not take a screenshot: the page is not ready.',
-    );
-  });
-});
-
-describe('watchers', () => {
-  it('fail with a RemoteError when the browser is gone, also while they wait', async () => {
-    const { remote } = launch();
-    const watcher = remote.watch();
-    await watcher.get();
-    const waiting = capture(watcher.get());
-    await wait(100);
-    await remote.aclose();
-    const outcome = await waiting;
-    expect(outcome.ok).toBe(false);
-    await expectRemoteError(watcher.get(), 'The browser has closed.');
-  });
-
-  it('get the picture that was waiting before they hear that the browser is gone', async () => {
-    const { remote } = launch();
-    const watcher = remote.watch();
-    await wait(100);
-    await remote.aclose();
-    await expect(watcher.get()).resolves.toMatchObject({ tab: 1 });
-    await expectRemoteError(watcher.get(), 'The browser has closed.');
-  });
-
-  it('fail at once for a viewer who comes after the browser is gone, and cost nothing', async () => {
-    const launched = launch();
-    await launched.remote.aclose();
-    const watcher = launched.remote.watch();
-    await expectRemoteError(watcher.get(), 'The browser has closed.');
-    await wait(1000);
-    expect(launched.context.log.count(launched.page.who, 'screenshot')).toBe(0);
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
-  it('end a wait when their viewer leaves', async () => {
-    const { remote } = launch();
-    const watcher = remote.watch();
-    await watcher.get();
-    const waiting = capture(watcher.get());
-    await wait(50);
-    watcher.close();
-    await settle();
-    const outcome = await waiting;
-    expect(!outcome.ok && outcome.error).toBeInstanceOf(RemoteError);
-    await expectRemoteError(watcher.get(), 'The picture feed is closed.');
-  });
-});
-
-// -- dialogs --------------------------------------------------------------------
-
 describe('dialogs', () => {
-  const dialogEvents = (events: readonly RemoteEvent[]): RemoteEvent[] =>
-    events.filter(
-      (event) => event.type === 'dialog' || event.type === 'dialog_closed',
-    );
-
   it('are dismissed when nobody is there to answer', async () => {
     const { remote, page } = launch();
     const dialog = page.openDialog('confirm', 'Sure?');
@@ -2262,9 +1191,9 @@ describe('dialogs', () => {
     expect(remote.dialogs()).toEqual([]);
   });
 
-  it('wait for the viewer, who is told', async () => {
+  it('wait for the assistant at work, who sees them', async () => {
     const { remote, page } = launch();
-    const { events } = listen(remote);
+    remote.attend(60_000);
     const dialog = page.openDialog('confirm', 'Sure?');
     await settle();
     expect(dialog.result).toBeNull();
@@ -2276,19 +1205,14 @@ describe('dialogs', () => {
       default: '',
     };
     expect(remote.dialogs()).toEqual([shown]);
-    expect(dialogEvents(events)).toEqual([{ type: 'dialog', dialog: shown }]);
     await remote.answerDialog(1, { accept: true });
     expect(dialog.result).toEqual({ accepted: true, text: undefined });
     expect(remote.dialogs()).toEqual([]);
-    expect(dialogEvents(events).at(-1)).toEqual({
-      type: 'dialog_closed',
-      id: 1,
-    });
   });
 
-  it('can be dismissed by the viewer', async () => {
+  it('can be dismissed by the assistant', async () => {
     const { remote, page } = launch();
-    listen(remote);
+    remote.attend(60_000);
     const dialog = page.openDialog('confirm', 'Sure?');
     await settle();
     await remote.answerDialog(1, { accept: false });
@@ -2297,7 +1221,7 @@ describe('dialogs', () => {
 
   it('tell a prompt’s default and take the text of the answer', async () => {
     const { remote, page } = launch();
-    listen(remote);
+    remote.attend(60_000);
     const dialog = page.openDialog('prompt', 'Name?', 'Ann');
     await settle();
     expect(remote.dialogs()).toEqual([
@@ -2309,7 +1233,7 @@ describe('dialogs', () => {
 
   it('do not take the text of an answer that is a no', async () => {
     const { remote, page } = launch();
-    listen(remote);
+    remote.attend(60_000);
     const dialog = page.openDialog('prompt', 'Name?', 'Ann');
     await settle();
     await remote.answerDialog(1, { accept: false, text: 'ignored' });
@@ -2318,13 +1242,13 @@ describe('dialogs', () => {
 
   it('also come from a page that is about to be left', async () => {
     const { remote, page } = launch();
-    listen(remote);
+    remote.attend(60_000);
     page.openDialog('beforeunload', 'Leave?');
     await settle();
     expect(remote.dialogs()[0]?.kind).toBe('beforeunload');
   });
 
-  it('wait for an assistant that is at work, not only for a viewer', async () => {
+  it('wait for an assistant that is at work', async () => {
     const { remote, page } = launch();
     remote.attend(60_000);
     const dialog = page.openDialog('alert', 'Hello');
@@ -2360,7 +1284,7 @@ describe('dialogs', () => {
 
   it('are numbered, and listed oldest first', async () => {
     const { remote, page, context } = launch();
-    listen(remote);
+    remote.attend(60_000);
     const other = context.open('https://two.example/');
     page.openDialog('alert', 'First');
     other.openDialog('confirm', 'Second');
@@ -2377,7 +1301,7 @@ describe('dialogs', () => {
 
   it('are given up after two minutes without an answer', async () => {
     const { remote, page } = launch();
-    const { events } = listen(remote);
+    remote.attend(600_000);
     const dialog = page.openDialog('confirm', 'Sure?');
     await wait(119_999);
     expect(dialog.result).toBeNull();
@@ -2385,20 +1309,15 @@ describe('dialogs', () => {
     await wait(1);
     expect(dialog.result).toEqual({ accepted: false, text: undefined });
     expect(remote.dialogs()).toEqual([]);
-    expect(dialogEvents(events).at(-1)).toEqual({
-      type: 'dialog_closed',
-      id: 1,
-    });
   });
 
   it('leave no timer behind when they are answered in time', async () => {
     const { remote, page, context } = launch();
-    const { stop } = listen(remote);
+    remote.attend(10);
     const dialog = page.openDialog('confirm', 'Sure?');
     await settle();
     await remote.answerDialog(1, { accept: true });
-    stop();
-    await wait(1500); // (the titles are polled once more after the last viewer left)
+    await wait(1500); // (the tabs are saved half a second after a change)
     expect(vi.getTimerCount()).toBe(0);
     await wait(300_000);
     expect(context.log.count(dialog.who, 'dismiss')).toBe(0);
@@ -2406,20 +1325,20 @@ describe('dialogs', () => {
   });
 
   it('ignore an answer to a dialog that is not there (any more)', async () => {
-    const { remote, page } = launch();
-    const { events } = listen(remote);
-    page.openDialog('confirm', 'Sure?');
+    const { remote, page, context } = launch();
+    remote.attend(60_000);
+    const dialog = page.openDialog('confirm', 'Sure?');
     await settle();
     await remote.answerDialog(1, { accept: true });
-    const told = events.length;
     await remote.answerDialog(1, { accept: true });
     await remote.answerDialog(99, { accept: false });
-    expect(events).toHaveLength(told);
+    expect(context.log.count(dialog.who, 'accept')).toBe(1);
+    expect(context.log.count(dialog.who, 'dismiss')).toBe(0);
   });
 
   it('do not fail the answer when the page has dealt with them already', async () => {
     const { remote, page } = launch();
-    listen(remote);
+    remote.attend(60_000);
     const dialog = page.openDialog('confirm', 'Sure?');
     dialog.behave('accept', {
       error: playwrightError(
@@ -2433,9 +1352,9 @@ describe('dialogs', () => {
     expect(remote.dialogs()).toEqual([]);
   });
 
-  it('are dropped with their tab, and the viewer is told', async () => {
+  it('are dropped with their tab', async () => {
     const { remote, page, context } = launch();
-    const { events } = listen(remote);
+    remote.attend(60_000);
     const other = context.open('https://two.example/');
     const dialog = other.openDialog('alert', 'Hello');
     page.openDialog('alert', 'Stays');
@@ -2443,52 +1362,17 @@ describe('dialogs', () => {
     await other.close();
     await settle();
     expect(remote.dialogs().map((shown) => shown.message)).toEqual(['Stays']);
-    expect(dialogEvents(events).at(-1)).toEqual({
-      type: 'dialog_closed',
-      id: 1,
-    });
     expect(dialog.result).toBeNull();
     await wait(300_000);
     expect(dialog.result).toBeNull(); // nobody answers a dialog that is gone
   });
 
-  it('are dismissed when the last viewer leaves, unless somebody still attends', async () => {
-    const first = launch();
-    const viewer = listen(first.remote);
-    const dialog = first.page.openDialog('confirm', 'Sure?');
-    await settle();
-    viewer.stop();
-    await settle();
-    expect(dialog.result).toEqual({ accepted: false, text: undefined });
-    expect(first.remote.dialogs()).toEqual([]);
-
-    const second = launch();
-    second.remote.attend(60_000);
-    const viewer2 = listen(second.remote);
-    const kept = second.page.openDialog('confirm', 'Sure?');
-    await settle();
-    viewer2.stop();
-    await settle();
-    expect(kept.result).toBeNull();
-    expect(second.remote.dialogs()).toHaveLength(1);
-
-    const third = launch();
-    const one = listen(third.remote);
-    listen(third.remote);
-    const stays = third.page.openDialog('confirm', 'Sure?');
-    await settle();
-    one.stop();
-    await settle();
-    expect(stays.result).toBeNull();
-  });
-
-  it('are not touched once the browser is gone, also when a viewer leaves afterwards', async () => {
+  it('are not touched once the browser is gone', async () => {
     const { remote, page, context } = launch();
-    const { stop } = listen(remote);
+    remote.attend(60_000);
     const dialog = page.openDialog('confirm', 'Sure?');
     await settle();
     await remote.aclose();
-    stop();
     await wait(300_000);
     expect(dialog.result).toBeNull();
     expect(context.log.count(dialog.who, 'dismiss')).toBe(0);
@@ -2600,10 +1484,10 @@ describe('waiting for a dialog', () => {
 
 describe('drop-down lists', () => {
   const OPTIONS = [
-    { label: 'Switzerland', selected: true },
+    { label: 'Switzerland' },
     { label: 'Germany' },
-    { label: 'France', disabled: true },
-    { label: 'Mars', group: 'Far away' },
+    { label: 'France' },
+    { label: 'Mars' },
   ];
 
   function withSelect(): Launched & {
@@ -2612,202 +1496,11 @@ describe('drop-down lists', () => {
     const launched = launch();
     const select = launched.page.element({
       tag: 'SELECT',
-      rect: { x: 10.5, y: 20, width: 200, height: 24 },
       options: OPTIONS,
     });
     launched.page.answers.set('selectAt', () => select);
     return { ...launched, select };
   }
-
-  const selects = (events: readonly RemoteEvent[]): RemoteEvent[] =>
-    events.filter((event) => event.type === 'select');
-
-  it('are reported to the viewer instead of clicked', async () => {
-    const { remote, page, context, select } = withSelect();
-    const { events } = listen(remote);
-    await remote.mouse('down', 50, 30);
-    expect(selects(events)).toEqual([
-      {
-        type: 'select',
-        menu: {
-          token: 1,
-          x: 10.5,
-          y: 20,
-          width: 200,
-          height: 24,
-          options: [
-            {
-              label: 'Switzerland',
-              selected: true,
-              disabled: false,
-              group: null,
-            },
-            { label: 'Germany', selected: false, disabled: false, group: null },
-            { label: 'France', selected: false, disabled: true, group: null },
-            {
-              label: 'Mars',
-              selected: false,
-              disabled: false,
-              group: 'Far away',
-            },
-          ],
-        },
-      },
-    ]);
-    expect(context.log.of(`${page.who}.mouse`)).toEqual([]);
-    expect(select.disposed).toBe(false);
-  });
-
-  it('swallow the release of the press that opened them', async () => {
-    const { remote, page, context } = withSelect();
-    listen(remote);
-    await remote.mouse('down', 50, 30);
-    await remote.mouse('up', 50, 30);
-    expect(context.log.of(`${page.who}.mouse`)).toEqual([]);
-    page.answers.set('selectAt', () => null);
-    await remote.mouse('down', 400, 300);
-    await remote.mouse('up', 400, 300);
-    expect(context.log.names(`${page.who}.mouse`)).toEqual([
-      `${page.who}.mouse.move`,
-      `${page.who}.mouse.down`,
-      `${page.who}.mouse.up`,
-    ]);
-  });
-
-  it('do not swallow the release of a press that came after one that opened a list', async () => {
-    const { remote, page, context } = withSelect();
-    listen(remote);
-    await remote.mouse('down', 50, 30); // opens a list; its release never came
-    page.answers.set('selectAt', () => null);
-    await remote.mouse('down', 400, 300);
-    await remote.mouse('up', 400, 300);
-    expect(context.log.count(`${page.who}.mouse`, 'up')).toBe(1);
-  });
-
-  it('are chosen by the number of the option', async () => {
-    const { remote, select, context } = withSelect();
-    const { events } = listen(remote);
-    await remote.mouse('down', 50, 30);
-    const menu = events.find((event) => event.type === 'select');
-    expect(menu?.type === 'select' && menu.menu.token).toBe(1);
-    await remote.pickOption(1, 2);
-    expect(select.chosen).toEqual([{ index: 2 }]);
-    expect(context.log.of(select.who, 'selectOption')[0]?.args[1]).toEqual({
-      timeout: 3000,
-    });
-    expect(select.disposed).toBe(true);
-  });
-
-  it('can be dismissed without a choice', async () => {
-    const { remote, select } = withSelect();
-    listen(remote);
-    await remote.mouse('down', 50, 30);
-    await remote.pickOption(1, null);
-    expect(select.chosen).toEqual([]);
-    expect(select.disposed).toBe(true);
-  });
-
-  it('are only chosen from once, by their own token', async () => {
-    const { remote, select } = withSelect();
-    listen(remote);
-    await remote.mouse('down', 50, 30);
-    await remote.pickOption(7, 1);
-    expect(select.chosen).toEqual([]);
-    expect(select.disposed).toBe(false);
-    await remote.pickOption(1, 1);
-    await remote.pickOption(1, 2);
-    expect(select.chosen).toEqual([{ index: 1 }]);
-  });
-
-  it('still close when the choice cannot be made', async () => {
-    const { remote, select } = withSelect();
-    listen(remote);
-    await remote.mouse('down', 50, 30);
-    select.behave('selectOption', {
-      error: playwrightTimeout(
-        'elementHandle.selectOption: Timeout 3000ms exceeded.',
-      ),
-    });
-    await expect(remote.pickOption(1, 1)).resolves.toBeUndefined();
-    expect(select.disposed).toBe(true);
-  });
-
-  it('replace the list that was open before', async () => {
-    const { remote, page, select } = withSelect();
-    const { events } = listen(remote);
-    await remote.mouse('down', 50, 30);
-    const second = page.element({ tag: 'SELECT', options: [{ label: 'A' }] });
-    page.answers.set('selectAt', () => second);
-    await remote.mouse('down', 50, 90);
-    expect(select.disposed).toBe(true);
-    expect(selects(events)).toHaveLength(2);
-    await remote.pickOption(1, 0);
-    expect(second.chosen).toEqual([]);
-    await remote.pickOption(2, 0);
-    expect(second.chosen).toEqual([{ index: 0 }]);
-  });
-
-  it('are not looked for under any other button than the left one', async () => {
-    const { remote, page, context } = withSelect();
-    const { events } = listen(remote);
-    await remote.mouse('down', 50, 30, { button: 'right' });
-    expect(selects(events)).toEqual([]);
-    expect(context.log.count(page.who, 'evaluateHandle')).toBe(0);
-    expect(context.log.of(`${page.who}.mouse`, 'down')[0]?.args).toEqual([
-      { button: 'right', clickCount: 1 },
-    ]);
-  });
-
-  it('are not found where there is none, and the handle of the answer is let go', async () => {
-    const { remote, page } = launch();
-    const { events } = listen(remote);
-    await remote.mouse('down', 50, 30);
-    expect(selects(events)).toEqual([]);
-    expect(page.handles.filter((handle) => !handle.disposed)).toEqual([]);
-    expect(page.handles).toHaveLength(1);
-  });
-
-  it('let the click through when looking for them fails: the page is navigating', async () => {
-    const { remote, page, context } = launch();
-    page.behave('evaluateHandle', {
-      error: playwrightError(
-        'page.evaluateHandle: Execution context was destroyed',
-      ),
-    });
-    await remote.mouse('down', 50, 30);
-    expect(context.log.count(`${page.who}.mouse`, 'down')).toBe(1);
-  });
-
-  it('are closed with the tab they were open in', async () => {
-    const { remote, select, page } = withSelect();
-    listen(remote);
-    await remote.mouse('down', 50, 30);
-    await page.close();
-    await settle();
-    expect(select.disposed).toBe(true);
-    await remote.pickOption(1, 1);
-    expect(select.chosen).toEqual([]);
-  });
-
-  it('stay open when another tab closes', async () => {
-    const { remote, select, context } = withSelect();
-    listen(remote);
-    const other = context.open('https://two.example/');
-    await remote.activateTab(1);
-    await remote.mouse('down', 50, 30);
-    await other.close();
-    await settle();
-    expect(select.disposed).toBe(false);
-  });
-
-  it('are closed when the last viewer leaves', async () => {
-    const { remote, select } = withSelect();
-    const viewer = listen(remote);
-    await remote.mouse('down', 50, 30);
-    viewer.stop();
-    await settle();
-    expect(select.disposed).toBe(true);
-  });
 
   it('cannot be clicked open by an assistant, which is told what to do instead', async () => {
     const { remote, select, page, context } = withSelect();
@@ -2875,10 +1568,10 @@ describe('mouse', () => {
 
   it('moves to a place once, not again while it is there', async () => {
     const launched = launch();
-    await launched.remote.mouse('move', 5, 6);
-    await launched.remote.mouse('move', 5, 6);
-    await launched.remote.mouse('move', 7, 6);
-    await launched.remote.mouse('move', 7, 8);
+    await launched.remote.hover(5, 6);
+    await launched.remote.hover(5, 6);
+    await launched.remote.hover(7, 6);
+    await launched.remote.hover(7, 8);
     expect(mouseCalls(launched)).toEqual([
       ['move', 5, 6],
       ['move', 7, 6],
@@ -2886,70 +1579,21 @@ describe('mouse', () => {
     ]);
   });
 
-  it('presses and releases at the place the viewer names', async () => {
-    const launched = launch();
-    await launched.remote.mouse('down', 10, 20);
-    await launched.remote.mouse('up', 10, 20);
-    expect(mouseCalls(launched)).toEqual([
-      ['move', 10, 20],
-      ['down', { button: 'left', clickCount: 1 }],
-      ['up', { button: 'left', clickCount: 1 }],
-    ]);
-  });
-
-  it('passes on the button and the number of clicks', async () => {
-    const launched = launch();
-    await launched.remote.mouse('down', 10, 20, { button: 'right', clicks: 2 });
-    await launched.remote.mouse('up', 10, 20, { button: 'right', clicks: 2 });
-    await launched.remote.mouse('down', 10, 20, { button: 'middle' });
-    expect(mouseCalls(launched)).toEqual([
-      ['move', 10, 20],
-      ['down', { button: 'right', clickCount: 2 }],
-      ['up', { button: 'right', clickCount: 2 }],
-      ['down', { button: 'middle', clickCount: 1 }],
-    ]);
-  });
-
   it('follows the mouse to a new page: it does not know where it is any more', async () => {
     const launched = launch();
-    await launched.remote.mouse('move', 5, 6);
+    await launched.remote.hover(5, 6);
     launched.page.navigate('https://example.com/');
-    await launched.remote.mouse('move', 5, 6);
+    await launched.remote.hover(5, 6);
     expect(mouseCalls(launched)).toEqual([
       ['move', 5, 6],
       ['move', 5, 6],
     ]);
-  });
-
-  it('does not mind what the page refuses: it is navigating or closing', async () => {
-    const launched = launch();
-    launched.page.mouse.behave('move', {
-      error: playwrightError('mouse.move: Target closed'),
-    });
-    launched.page.mouse.behave('down', {
-      error: playwrightError('mouse.down: Target closed'),
-    });
-    launched.page.mouse.behave('up', {
-      error: playwrightError('mouse.up: Target closed'),
-    });
-    await expect(launched.remote.mouse('move', 1, 1)).resolves.toBeUndefined();
-    await expect(launched.remote.mouse('down', 2, 2)).resolves.toBeUndefined();
-    await expect(launched.remote.mouse('up', 2, 2)).resolves.toBeUndefined();
-  });
-
-  it('does not hide a bug', async () => {
-    const launched = launch();
-    launched.page.mouse.behave('down', {
-      error: new TypeError('x is not a function'),
-    });
-    const outcome = await capture(launched.remote.mouse('down', 1, 1));
-    expect(!outcome.ok && outcome.error).toBeInstanceOf(TypeError);
   });
 
   it('turns the wheel at a place', async () => {
     const launched = launch();
-    await launched.remote.wheel(100, 200, 0, 40);
-    await launched.remote.wheel(100, 200, 5, -40);
+    await launched.remote.scroll(0, 40, 100, 200);
+    await launched.remote.scroll(5, -40, 100, 200);
     expect(mouseCalls(launched)).toEqual([
       ['move', 100, 200],
       ['wheel', 0, 40],
@@ -2962,7 +1606,7 @@ describe('mouse', () => {
     launched.page.mouse.behave('wheel', {
       error: playwrightError('mouse.wheel: closed'),
     });
-    await expect(launched.remote.wheel(1, 1, 0, 1)).resolves.toBeUndefined();
+    await expect(launched.remote.scroll(0, 1, 1, 1)).resolves.toBeUndefined();
   });
 
   it('scrolls in the middle of the page without a place', async () => {
@@ -3161,8 +1805,7 @@ describe('mouse', () => {
     await remote.closeTab(1);
     await settle();
     const message = 'No tab is open.';
-    await expectRemoteError(remote.mouse('move', 1, 1), message);
-    await expectRemoteError(remote.wheel(1, 1, 0, 1), message);
+    await expectRemoteError(remote.scroll(0, 1, 1, 1), message);
     await expectRemoteError(remote.scroll(0, 1), message);
     await expectRemoteError(remote.clickAt(1, 1), message);
     await expectRemoteError(remote.hover(1, 1), message);
@@ -3180,21 +1823,13 @@ describe('mouse', () => {
     // The browser can lose a mouse event there, and then takes no other one
     // (see `pointerPlace`): every event goes one row further in.
 
-    it('moves, presses, releases, turns the wheel, clicks, hovers and drags one row further in', async () => {
+    it('turns the wheel, clicks, hovers and drags one row further in', async () => {
       const launched = launch(); // a page of 1280 x 720
-      await launched.remote.mouse('move', 31, 0);
-      await launched.remote.mouse('down', 32, 0);
-      await launched.remote.mouse('up', 40, 719);
-      await launched.remote.wheel(50, 0, 0, 40);
+      await launched.remote.scroll(0, 40, 50, 0);
       await launched.remote.clickAt(60, 0);
       await launched.remote.hover(70, 719.6);
       await launched.remote.drag(80, 0, 90, 719);
       expect(mouseCalls(launched)).toEqual([
-        ['move', 31, 1],
-        ['move', 32, 1],
-        ['down', { button: 'left', clickCount: 1 }],
-        ['move', 40, 718],
-        ['up', { button: 'left', clickCount: 1 }],
         ['move', 50, 1],
         ['wheel', 0, 40],
         ['move', 60, 1],
@@ -3209,10 +1844,10 @@ describe('mouse', () => {
 
     it('keeps the mouse on the page: a place beside it goes to its edge', async () => {
       const launched = launch();
-      await launched.remote.mouse('move', -40, 300);
-      await launched.remote.mouse('move', 1500, 300);
-      await launched.remote.mouse('move', 1279, 300); // there already
-      await launched.remote.mouse('move', 0, 300.5);
+      await launched.remote.hover(-40, 300);
+      await launched.remote.hover(1500, 300);
+      await launched.remote.hover(1279, 300); // there already
+      await launched.remote.hover(0, 300.5);
       expect(mouseCalls(launched)).toEqual([
         ['move', 0, 300],
         ['move', 1279, 300],
@@ -3223,15 +1858,15 @@ describe('mouse', () => {
     it('goes by the room the page has where its window has less than the viewport it reports', async () => {
       const launched = launch();
       launched.page.answers.set('roomOfPage', () => [1280, 720, 669]);
-      await launched.remote.mouse('move', 10, 668);
+      await launched.remote.hover(10, 668);
       expect(mouseCalls(launched)).toEqual([['move', 10, 667]]);
     });
 
     it('measures the page once for all its mouse events', async () => {
       const launched = launch();
-      await launched.remote.mouse('move', 1, 1);
-      await launched.remote.mouse('move', 2, 2);
-      await launched.remote.wheel(3, 3, 0, 1);
+      await launched.remote.hover(1, 1);
+      await launched.remote.hover(2, 2);
+      await launched.remote.scroll(0, 1, 3, 3);
       await launched.remote.clickAt(4, 4);
       expect(asked(launched, 'roomOfPage')).toBe(1);
     });
@@ -3241,31 +1876,12 @@ describe('mouse', () => {
       launched.page.answers.set('roomOfPage', () => {
         throw playwrightError('page.evaluate: busy');
       });
-      await launched.remote.mouse('move', 31, 0);
-      await launched.remote.mouse('move', 5000, 5000);
+      await launched.remote.hover(31, 0);
+      await launched.remote.hover(5000, 5000);
       expect(mouseCalls(launched)).toEqual([
         ['move', 31, 1],
         ['move', 5000, 5000],
       ]);
-    });
-
-    it('goes by the last picture of the tab, the one the viewer aims in, also while the page cannot be measured', async () => {
-      const launched = launch();
-      launched.page.answers.set('roomOfPage', () => {
-        throw playwrightError('page.evaluate: busy');
-      });
-      launched.page.jpeg = fakeJpeg({ width: 640, height: 480 });
-      const watcher = launched.remote.watch();
-      const first = capture(watcher.get());
-      await settle();
-      await first;
-      await launched.remote.mouse('move', 10, 479);
-      await launched.remote.mouse('move', 700, 300);
-      expect(mouseCalls(launched)).toEqual([
-        ['move', 10, 478],
-        ['move', 639, 300],
-      ]);
-      watcher.close();
     });
   });
 
@@ -3281,7 +1897,7 @@ describe('mouse', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const launched = launch();
       launched.page.mouse.behave('move', { ...behaviour, times: 1 });
-      const moving = track(launched.remote.mouse('move', 10, 10));
+      const moving = track(launched.remote.hover(10, 10));
       await wait(4999);
       expect(moving.done).toBe(false);
       await wait(1);
@@ -3290,7 +1906,6 @@ describe('mouse', () => {
       expect(outcome.error).toBeInstanceOf(RemoteError);
       if (outcome.error instanceof RemoteError) {
         expect(outcome.error.message).toMatch(STUCK);
-        expect(outcome.error.notice).toBe('input_stuck');
       }
       return launched;
     }
@@ -3303,14 +1918,12 @@ describe('mouse', () => {
       const launched = await stuck();
       await launched.remote.openTab('https://two.example/');
       for (const work of [
-        () => launched.remote.mouse('move', 20, 20),
-        () => launched.remote.mouse('down', 20, 20),
-        () => launched.remote.wheel(20, 20, 0, 10),
+        () => launched.remote.hover(20, 20),
+        () => launched.remote.scroll(0, 10, 20, 20),
         () => launched.remote.clickAt(20, 20),
-        () => launched.remote.hover(30, 30),
         () => launched.remote.drag(1, 1, 2, 2),
       ]) {
-        await expectRemoteError(work(), STUCK, 'input_stuck');
+        await expectRemoteError(work(), STUCK);
       }
       // Nothing of it reached a page: only the stuck move did.
       expect(
@@ -3347,13 +1960,9 @@ describe('mouse', () => {
 
     it('takes input again once the stuck event is done after all', async () => {
       const launched = await stuck({ delayMs: 8000 });
-      await expectRemoteError(
-        launched.remote.mouse('move', 20, 20),
-        STUCK,
-        'input_stuck',
-      );
+      await expectRemoteError(launched.remote.hover(20, 20), STUCK);
       await wait(3000); // the stuck move is done
-      await launched.remote.mouse('move', 30, 30);
+      await launched.remote.hover(30, 30);
       expect(mouseCalls(launched)).toEqual([
         ['move', 10, 10],
         ['move', 30, 30],
@@ -3362,8 +1971,8 @@ describe('mouse', () => {
 
     it('says so once in the log, however much input is refused', async () => {
       const launched = await stuck();
-      await capture(launched.remote.mouse('move', 20, 20));
-      await capture(launched.remote.wheel(20, 20, 0, 1));
+      await capture(launched.remote.hover(20, 20));
+      await capture(launched.remote.scroll(0, 1, 20, 20));
       await capture(launched.remote.activateTab(1));
       expect(console.warn).toHaveBeenCalledTimes(1);
       expect(console.warn).toHaveBeenCalledWith(
@@ -3382,38 +1991,35 @@ describe('mouse', () => {
       expect(activating.done).toBe(true);
       expect(outcomeOf(activating).ok).toBe(true);
       expect(launched.remote.tabs().find((tab) => tab.active)?.id).toBe(1);
-      await expectRemoteError(
-        launched.remote.mouse('move', 5, 5),
-        STUCK,
-        'input_stuck',
-      );
+      await expectRemoteError(launched.remote.hover(5, 5), STUCK);
     });
 
     it('is waited for while a dialog of its page waits for an answer, however long that takes', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const launched = launch();
-      listen(launched.remote); // somebody to answer the dialog
-      await launched.remote.mouse('move', 1, 1);
-      // The release of a click that opened confirm() returns once it is answered.
-      launched.page.mouse.behave('up', { delayMs: 30_000, times: 1 });
-      const clicking = track(launched.remote.mouse('up', 1, 1));
+      launched.remote.attend(60_000); // somebody to answer the dialog
+      await launched.remote.hover(1, 1);
+      // A click that opened confirm() returns once it is answered.
+      launched.page.mouse.behave('click', { delayMs: 30_000, times: 1 });
+      const clicking = track(launched.remote.clickAt(1, 1));
+      await settle(); // the click has reached the page, which opens the dialog
       launched.page.openDialog('confirm', 'Sure?');
       await wait(29_999);
       expect(clicking.done).toBe(false);
       await wait(1);
       expect(outcomeOf(clicking).ok).toBe(true);
       expect(console.warn).not.toHaveBeenCalled();
-      await launched.remote.mouse('move', 2, 2); // and the mouse is taken
+      await launched.remote.hover(2, 2); // and the mouse is taken
       expect(mouseCalls(launched).at(-1)).toEqual(['move', 2, 2]);
     });
 
     it('is waited for while a script keeps its page busy, and taken once the page is free', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const launched = launch();
-      await launched.remote.mouse('move', 1, 1);
+      await launched.remote.hover(1, 1);
       launched.page.behave('evaluate', { hang: true, times: 2 }); // it answers nothing for a while
       launched.page.mouse.behave('move', { delayMs: 12_000, times: 1 });
-      const moving = track(launched.remote.mouse('move', 10, 10));
+      const moving = track(launched.remote.hover(10, 10));
       await wait(13_000);
       expect(outcomeOf(moving).ok).toBe(true);
       expect(console.warn).not.toHaveBeenCalled();
@@ -3422,10 +2028,10 @@ describe('mouse', () => {
     it('is given up when its page has not answered for a minute', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const launched = launch();
-      await launched.remote.mouse('move', 1, 1);
+      await launched.remote.hover(1, 1);
       launched.page.behave('evaluate', { hang: true });
       launched.page.mouse.behave('move', { hang: true, times: 1 });
-      const moving = track(launched.remote.mouse('move', 10, 10));
+      const moving = track(launched.remote.hover(10, 10));
       await wait(60_000);
       expect(moving.done).toBe(false);
       await wait(15_000);
@@ -3433,17 +2039,13 @@ describe('mouse', () => {
       expect(
         !outcome.ok &&
           outcome.error instanceof RemoteError &&
-          outcome.error.notice,
-      ).toBe('input_stuck');
+          STUCK.test(outcome.error.message),
+      ).toBe(true);
     });
 
     it('makes a reload fail at once, instead of letting it wait behind and come as a surprise', async () => {
       const launched = await stuck();
-      await expectRemoteError(
-        launched.remote.history('reload'),
-        STUCK,
-        'input_stuck',
-      );
+      await expectRemoteError(launched.remote.history('reload'), STUCK);
       expect(launched.context.log.count(launched.page.who, 'reload')).toBe(0);
       // Back and forward do not wait for the mouse.
       await launched.remote.history('back');
@@ -3452,11 +2054,7 @@ describe('mouse', () => {
 
     it('makes a click on an element of a page that was read fail at once', async () => {
       const launched = await stuck();
-      await expectRemoteError(
-        launched.remote.clickElement(1),
-        STUCK,
-        'input_stuck',
-      );
+      await expectRemoteError(launched.remote.clickElement(1), STUCK);
     });
   });
 });
@@ -3540,17 +2138,14 @@ describe('keyboard', () => {
     await expectRemoteError(
       launched.remote.key('press', 'Enter'),
       'Could not press Enter: keyboard.press: Target closed',
-      'key_failed',
     );
     await expectRemoteError(
       launched.remote.key('down', 'Enter'),
       'Could not press Enter: keyboard.down: Target closed',
-      'key_failed',
     );
     await expectRemoteError(
       launched.remote.key('up', 'Enter'),
       'Could not press Enter: keyboard.up: Target closed',
-      'key_failed',
     );
   });
 
@@ -3585,19 +2180,6 @@ describe('keyboard', () => {
       error: playwrightError('keyboard.insertText: closed'),
     });
     await expect(launched.remote.key('press', 'ü')).resolves.toBeUndefined();
-  });
-
-  it('wakes the pictures: the page is being used', async () => {
-    const launched = launch();
-    const watcher = launched.remote.watch();
-    await wait(5000);
-    const before = launched.context.log.count(launched.page.who, 'screenshot');
-    await launched.remote.key('press', 'a');
-    await settle();
-    expect(
-      launched.context.log.count(launched.page.who, 'screenshot'),
-    ).toBeGreaterThan(before);
-    watcher.close();
   });
 });
 
@@ -3994,9 +2576,9 @@ describe('using an element of a page that was read', () => {
 
   it('forgets where the mouse is: the click moved it', async () => {
     const { launched } = await read('BUTTON');
-    await launched.remote.mouse('move', 5, 6);
+    await launched.remote.hover(5, 6);
     await launched.remote.clickElement(1);
-    await launched.remote.mouse('move', 5, 6);
+    await launched.remote.hover(5, 6);
     expect(
       launched.context.log.count(`${launched.page.who}.mouse`, 'move'),
     ).toBe(2);
@@ -4093,41 +2675,218 @@ describe('using an element of a page that was read', () => {
   });
 });
 
+// -- in a window -------------------------------------------------------------------
+
+describe('a browser in a window', () => {
+  it('has the pages keep when they were last used, where the page cannot see it', async () => {
+    const windowed = launch({ windowed: true });
+    await windowed.remote.restore(['https://a.example/']);
+    expect(windowed.context.initScripts).toEqual(['watchInput']);
+    const headless = launch();
+    await headless.remote.restore(['https://a.example/']);
+    expect(headless.context.initScripts).toEqual([]);
+  });
+
+  it('opens the pages of a start only once they keep when they were used', async () => {
+    const { remote, context } = launch({ windowed: true });
+    context.behave('addInitScript', { delayMs: 1000 });
+    const restoring = remote.restore([
+      'https://a.example/',
+      'https://b.example/',
+    ]);
+    await wait(500);
+    expect(context.log.count('context', 'newPage')).toBe(0);
+    await wait(600);
+    await restoring;
+    expect(context.log.count('context', 'newPage')).toBe(1);
+  });
+
+  it('opens the pages of a start all the same when the watch is not taken in time, and says so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { remote, context } = launch({ windowed: true });
+    context.behave('addInitScript', { hang: true });
+    const restoring = remote.restore([
+      'https://a.example/',
+      'https://b.example/',
+    ]);
+    await wait(16_000);
+    await restoring;
+    expect(context.log.count('context', 'newPage')).toBe(1);
+    expect(warn).toHaveBeenCalledWith(
+      'could not watch the input of the pages',
+      expect.any(Error),
+    );
+  });
+
+  it('makes a tab the browser opened the active one, and leaves it where the browser put it', async () => {
+    const { remote, context } = launch({ windowed: true });
+    await settle();
+    const popup = context.open('https://popup.example/');
+    await settle();
+    expect(context.log.count(popup.who, 'bringToFront')).toBe(0);
+    expect(remote.tabs().map((tab) => [tab.id, tab.active])).toEqual([
+      [1, false],
+      [2, true],
+    ]);
+  });
+
+  it('brings a tab it opened itself to the front: that is the tab to work in', async () => {
+    const { remote, context } = launch({ windowed: true });
+    const tab = await remote.openTab('https://two.example/');
+    await settle();
+    expect(tab.active).toBe(true);
+    expect(
+      context.log.count(context.pages()[1]?.who ?? '', 'bringToFront'),
+    ).toBe(1);
+  });
+
+  it('does not choose a tab for the window when the active one closes', async () => {
+    const { remote, context } = launch({ windowed: true });
+    const second = await remote.openTab('https://two.example/');
+    await settle();
+    context.log.clear();
+    await remote.closeTab(second.id);
+    await settle();
+    expect(
+      context.log.entries.filter((call) => call.method === 'bringToFront'),
+    ).toEqual([]);
+  });
+
+  it('works in the tab the person last clicked or typed in', async () => {
+    const { remote, page, context } = launch({ windowed: true });
+    await remote.openTab('https://two.example/');
+    await settle();
+    // The person went back to the first tab in the window, and clicked in it.
+    page.inputAt = Date.now() + 1000;
+    await wait(2000);
+    await remote.goto('https://example.com/');
+    expect(context.log.count(page.who, 'goto')).toBe(1);
+    expect(remote.tabs().map((tab) => tab.active)).toEqual([true, false]);
+  });
+
+  it('lists the tab the person last used as the active one', async () => {
+    const { remote, page } = launch({ windowed: true });
+    await remote.openTab('https://two.example/');
+    await settle();
+    page.inputAt = Date.now() + 1000;
+    await wait(2000);
+    const tabs = await remote.listTabs();
+    expect(tabs.map((tab) => tab.active)).toEqual([true, false]);
+  });
+
+  it('saves the tab the person last used as the active one', async () => {
+    const { remote, page, layouts } = launch({ windowed: true });
+    await remote.restore(['https://one.example/', 'https://two.example/'], 1);
+    await settle();
+    page.inputAt = Date.now() + 1000;
+    await wait(2000);
+    await remote.followWindow();
+    remote.freeze({ flush: true });
+    expect(layouts.at(-1)).toEqual({
+      urls: ['https://one.example/', 'https://two.example/'],
+      active: 0,
+    });
+  });
+
+  it('keeps the tab a tool chose over a click from before', async () => {
+    const { remote, page } = launch({ windowed: true });
+    await wait(1000);
+    page.inputAt = Date.now();
+    await wait(1000);
+    await remote.openTab('https://two.example/');
+    await settle();
+    await remote.toFront();
+    expect(remote.tabs().map((tab) => tab.active)).toEqual([false, true]);
+  });
+
+  it('skips a page that does not say when it was used', async () => {
+    const { remote, page, context } = launch({ windowed: true });
+    await remote.openTab('https://two.example/');
+    await settle();
+    page.answers.set('inputAt', () => {
+      throw playwrightError('Execution context was destroyed');
+    });
+    context.pages()[1]?.answers.set('inputAt', () => 'soon');
+    await remote.toFront();
+    expect(remote.tabs().map((tab) => tab.active)).toEqual([false, true]);
+  });
+
+  it('brings the tab the person last used forward in its window', async () => {
+    const { remote, page, context } = launch({ windowed: true });
+    await remote.openTab('https://two.example/');
+    await settle();
+    page.inputAt = Date.now() + 1000;
+    await wait(2000);
+    context.log.clear();
+    await remote.toFront();
+    expect(context.log.count(page.who, 'bringToFront')).toBe(1);
+  });
+
+  it('types into the tab the person last used', async () => {
+    const { remote, page, context } = launch({ windowed: true });
+    await remote.openTab('https://two.example/');
+    await settle();
+    page.inputAt = Date.now() + 1000;
+    await wait(2000);
+    await remote.insertText('hunter2');
+    expect(page.keyboard.inserted).toEqual(['hunter2']);
+    expect(context.pages()[1]?.keyboard.inserted).toEqual([]);
+  });
+
+  it('tells whether what has the focus takes text', async () => {
+    const { remote, page } = launch({ windowed: true });
+    expect(await remote.takesText()).toBe(true);
+    page.focusTakesText = false;
+    expect(await remote.takesText()).toBe(false);
+  });
+
+  it('says that a page that does not tell what has the focus does not respond', async () => {
+    const { remote, page } = launch({ windowed: true });
+    page.answers.set('focusTakesText', () => new Promise(() => {}));
+    const asking = remote.takesText();
+    const failure = expectRemoteError(
+      asking,
+      'The page does not respond. A dialog (alert, confirm) may be waiting for an answer.',
+    );
+    await wait(1500);
+    await failure;
+    await expect(asking).rejects.toBeInstanceOf(PageNotRespondingError);
+  });
+
+  it('leaves a dialog to the person in the window while no assistant is at work', async () => {
+    const { remote, page } = launch({ windowed: true });
+    const dialog = page.openDialog('confirm', 'Sure?');
+    await wait(300_000);
+    expect(dialog.result).toBeNull();
+    expect(remote.dialogs()).toEqual([]);
+  });
+
+  it('lets an assistant answer a dialog, and leaves it to the person when the assistant does not', async () => {
+    const { remote, page } = launch({ windowed: true });
+    remote.attend(600_000);
+    const answered = page.openDialog('confirm', 'First?');
+    await settle();
+    await remote.answerDialog(1, { accept: true });
+    expect(answered.result).toEqual({ accepted: true, text: undefined });
+    const left = page.openDialog('confirm', 'Second?');
+    await wait(120_000);
+    expect(left.result).toBeNull();
+    expect(remote.dialogs()).toEqual([]);
+  });
+});
+
 // -- the end ---------------------------------------------------------------------
 
 describe('closing', () => {
-  it('tells the listeners that the browser is gone, once, and then lets them go', async () => {
+  it('is closed once, and leaves nothing running', async () => {
     const { remote, page } = launch();
-    const { events } = listen(remote);
     expect(remote.closed).toBe(false);
     await remote.aclose();
     expect(remote.closed).toBe(true);
-    expect(events.filter((event) => event.type === 'closed')).toEqual([
-      { type: 'closed' },
-    ]);
-    const told = events.length;
     await remote.aclose();
     page.navigate('https://example.com/');
-    expect(events).toHaveLength(told);
-  });
-
-  it('stops polling the titles', async () => {
-    const { remote, page, context } = launch();
-    listen(remote);
-    await wait(3000);
-    await remote.aclose();
-    const polls = context.log.count(page.who, 'evaluate');
-    await wait(30_000);
-    expect(context.log.count(page.who, 'evaluate')).toBe(polls);
+    expect(remote.tabs()[0]?.loading).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
-  });
-
-  it('does not start polling the titles for a listener who comes after it closed', async () => {
-    const { remote, page, context } = launch();
-    await remote.aclose();
-    listen(remote);
-    await wait(10_000);
-    expect(context.log.count(page.who, 'evaluate')).toBe(0);
   });
 
   it('does not wait for what is under way in the browser', async () => {

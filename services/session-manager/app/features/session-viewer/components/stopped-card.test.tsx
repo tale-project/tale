@@ -21,12 +21,11 @@ import { StoppedCard } from './stopped-card';
 function setup(
   overrides: Partial<Session> = {},
   routes: Parameters<typeof installFakeApi>[0] = {},
-  closed = false,
 ) {
   const api = installFakeApi({ 'GET /meta': meta(), ...routes });
   const view = renderApp(
     <ProxyFlowProvider>
-      <StoppedCard session={session(overrides)} closed={closed} />
+      <StoppedCard session={session(overrides)} />
       <Notices />
     </ProxyFlowProvider>,
   );
@@ -345,29 +344,6 @@ describe('StoppedCard', () => {
     });
   });
 
-  describe('a browser that just closed', () => {
-    it('says so, and waits for the session to say what is next', () => {
-      setup({ status: 'running' }, {}, true);
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'The browser has closed',
-      );
-      expect(
-        screen.getByText('The session will show as stopped in a moment.'),
-      ).toBeVisible();
-      expect(screen.queryByRole('button')).toBeNull();
-      expect(screen.queryByRole('link')).toBeNull();
-    });
-
-    it('does not show an error of the past', () => {
-      setup(
-        { status: 'running', error: 'Old trouble', errorCode: null },
-        {},
-        true,
-      );
-      expect(screen.queryByText('Old trouble')).toBeNull();
-    });
-  });
-
   it('speaks German', async () => {
     const { LOCALE_STORAGE_KEY } = await import('@tale/ui/i18n/detect-locale');
     localStorage.setItem(LOCALE_STORAGE_KEY, 'de');
@@ -406,9 +382,4 @@ describe('StoppedCard', () => {
       await checkAccessibility(view);
     },
   );
-
-  it('has no accessibility violations once the browser closed', async () => {
-    const view = setup({ status: 'running' }, {}, true);
-    await checkAccessibility(view);
-  });
 });

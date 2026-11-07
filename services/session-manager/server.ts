@@ -1,7 +1,7 @@
 // Bun server: the session manager. Serves the built single-page app from
 // `./dist` through the shared React-server pipeline from `@tale/ui/server`
 // (static files, `/api/health`, security headers) and adds the backend: the
-// HTTP API, the live view's WebSocket and the MCP endpoint (`backend/main.ts`).
+// HTTP API and the MCP endpoint (`backend/main.ts`).
 
 import { loadConfig, type Config } from './backend/config.ts';
 import { SHUTDOWN_TIMEOUT_MS } from './backend/domains/sessions/runtime.ts';

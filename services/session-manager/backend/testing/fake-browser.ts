@@ -37,7 +37,8 @@
 //
 // ## FakeBrowser (implements `BrowserHandle`)
 //
-//   spec, remote, closeCalls, closed
+//   spec, remote, closeCalls, closed, shows
+//   show()                  counts in `shows`, and brings the remote's tab forward
 //   close()                 closes the remote and ends the session
 //   crash()                 the browser dies: the same, without a `close()` call
 //   closeAllTabs()          the user closes every tab (the last one ends the
@@ -45,7 +46,7 @@
 //
 // ## FakeRemote (implements `Remote`)
 //
-// Tabs, pictures and input in memory (`new FakeRemote(spec, onEmpty?)`; a
+// Tabs and input in memory (`new FakeRemote(spec, onEmpty?)`; a
 // `FakeBrowser` makes one). Tab ids count from 1, a tab's title is
 // "Title of <url>", a new tab opens `spec.startPage`, and `spec.onLayout` hears
 // about the restorable tabs (as the real browser reports them: once at the
@@ -54,11 +55,10 @@
 //
 //   events                  the input it got, in order, as tuples (`FakeInput`):
 //     ['goto', url, tab | null, wait]        ['history', action, tab | null]
-//     ['mouse', action, x, y, button, clicks] ['wheel', x, y, dx, dy]
 //     ['scroll', dx, dy] or ['scroll', dx, dy, x, y]
 //     ['clickAt', x, y, button, count]       ['hover', x, y]
 //     ['drag', x1, y1, x2, y2]               ['key', action, key]
-//     ['text', text]                          ['pick', token, index | null]
+//     ['text', text]                          ['toFront']
 //     ['answer', dialogId, accept, text | null]
 //     ['clickElement', ref]                   ['fillElement', ref, text, submit]
 //   selection               what `selectedText()` answers
@@ -69,24 +69,12 @@
 //                           before it is answered (the real browser's click
 //                           waits for `alert()` and `confirm()` too)
 //   problem                 `readPage().problem`
-//   listeners, watchers     who subscribed, who watches
 //   closed                  true once `close()` was called
-//   emit(event)             deliver any `RemoteEvent` to the listeners
 //   openDialog(...)         a page opens a dialog (it waits in `pending`)
-//   openSelect(...)         a page opens a drop-down list
-//   showNewPicture()        the page changed: every watcher gets a new picture
-//                           (a change of the tabs does it: open, close, choose,
-//                           navigate; a real screencast sends one as well)
 //   closeAllTabs()          see above
-//   close()                 the browser is gone: `closed` event, watchers fail
+//   close()                 the browser is gone: a waiting dialog lets go
 //
-// Pictures are `Frame`s of tab <active> at 800x600 whose bytes read
-// "jpeg-<n>" (n counts from 1; `watch()` pushes the first one at once);
 // `screenshot()` is `fakeJpeg('screenshot')`.
-//
-// A `FakeWatcher` queues every picture (the real one keeps only the newest).
-// Its `get()` hands out the queued pictures first, then rejects with a
-// `RemoteError` once the browser is closed or the watcher itself is.
 //
 // ## Doubles for CamoufoxSession and CamoufoxBackend
 //
@@ -128,20 +116,14 @@ import type {
 } from '../domains/browser/camoufox-session.ts';
 import { RemoteError } from '../domains/browser/remote.ts';
 import type {
-  Frame,
   HistoryAction,
   KeyAction,
-  MouseAction,
   MouseButton,
   Navigation,
   PageDialog,
   PageReading,
   Remote,
-  RemoteEvent,
-  SelectMenu,
-  SelectOption,
   Tab,
-  Watcher,
 } from '../domains/browser/remote.ts';
 import { IdentityError, identitySchema } from '../domains/identity/types.ts';
 import type {
@@ -304,15 +286,6 @@ export function fakeLaunchSpec(
 export type FakeInput =
   | readonly ['goto', url: string, tab: number | null, wait: Navigation]
   | readonly ['history', action: HistoryAction, tab: number | null]
-  | readonly [
-      'mouse',
-      action: MouseAction,
-      x: number,
-      y: number,
-      button: MouseButton,
-      clicks: number,
-    ]
-  | readonly ['wheel', x: number, y: number, dx: number, dy: number]
   | readonly ['scroll', dx: number, dy: number]
   | readonly ['scroll', dx: number, dy: number, x: number, y: number]
   | readonly [
@@ -326,65 +299,10 @@ export type FakeInput =
   | readonly ['drag', x1: number, y1: number, x2: number, y2: number]
   | readonly ['key', action: KeyAction, key: string]
   | readonly ['text', text: string]
-  | readonly ['pick', token: number, index: number | null]
+  | readonly ['toFront']
   | readonly ['answer', dialogId: number, accept: boolean, text: string | null]
   | readonly ['clickElement', ref: number]
   | readonly ['fillElement', ref: number, text: string, submit: boolean];
-
-class FakeWatcher implements Watcher {
-  readonly #remote: FakeRemote;
-  readonly #onClose: () => void;
-  readonly #frames: Frame[] = [];
-  #getters: {
-    resolve: (frame: Frame) => void;
-    reject: (error: RemoteError) => void;
-  }[] = [];
-  #closed = false;
-
-  constructor(remote: FakeRemote, onClose: () => void) {
-    this.#remote = remote;
-    this.#onClose = onClose;
-  }
-
-  push(frame: Frame): void {
-    if (this.#closed) return;
-    const getter = this.#getters.shift();
-    if (getter === undefined) this.#frames.push(frame);
-    else getter.resolve(frame);
-  }
-
-  get(): Promise<Frame> {
-    if (this.#closed) {
-      return Promise.reject(new RemoteError('The watcher is closed.'));
-    }
-    const frame = this.#frames.shift();
-    if (frame !== undefined) return Promise.resolve(frame);
-    if (this.#remote.closed) {
-      return Promise.reject(new RemoteError('The browser has closed.'));
-    }
-    return new Promise<Frame>((resolve, reject) => {
-      this.#getters.push({ resolve, reject });
-    });
-  }
-
-  close(): void {
-    if (this.#closed) return;
-    this.#closed = true;
-    this.#onClose();
-    this.#failGetters('The watcher is closed.');
-  }
-
-  /** The remote calls this once the browser is gone. */
-  browserClosed(): void {
-    this.#failGetters('The browser has closed.');
-  }
-
-  #failGetters(message: string): void {
-    const getters = this.#getters;
-    this.#getters = [];
-    for (const getter of getters) getter.reject(new RemoteError(message));
-  }
-}
 
 export class FakeRemote implements Remote {
   readonly startPage: string;
@@ -392,8 +310,8 @@ export class FakeRemote implements Remote {
   readonly onEmpty: () => void;
   readonly events: FakeInput[] = [];
   selection = '';
-  readonly watchers: FakeWatcher[] = [];
-  readonly listeners: ((event: RemoteEvent) => void)[] = [];
+  /** What `takesText()` answers: a field has the focus. */
+  fieldFocused = true;
   /** The milliseconds of every `attend()`. */
   readonly attended: number[] = [];
   /** The dialogs that wait for an answer. */
@@ -402,16 +320,12 @@ export class FakeRemote implements Remote {
   dialogOnClick: readonly [kind: string, message: string] | null = null;
   /** Why the page shows as not loaded. */
   problem: string | null = null;
-  /** The bytes of a picture: `jpeg-<n>` unless a test wants a picture a real browser can draw. */
-  pictureOf: (n: number, tab: number) => Uint8Array = (n) => fakeJpeg(n);
 
   readonly #urls = new Map<number, string>();
   readonly #dialogChanged = new Changes();
   #active: number | null = null;
   #lastId = 0;
   #lastDialogId = 0;
-  #lastMenuToken = 0;
-  #lastPicture = 0;
   #closed = false;
 
   constructor(spec: LaunchSpec, onEmpty: () => void = () => {}) {
@@ -454,15 +368,12 @@ export class FakeRemote implements Remote {
 
   #changed(): void {
     this.#save();
-    this.emit({ type: 'tabs', tabs: this.tabs() });
-    // What the watchers look at changed (another tab, another page): they get a picture of it, as a real screencast sends one. Nobody watching: no picture is drawn, so that the numbering of the next one stays.
-    if (this.watchers.length > 0) this.showNewPicture();
   }
 
   #require(tab: number | null | undefined): number {
     const target = tab ?? this.#active;
     if (target === null || !this.#urls.has(target)) {
-      throw new RemoteError('There is no such tab.', 'tab_gone');
+      throw new RemoteError('There is no such tab.');
     }
     return target;
   }
@@ -520,6 +431,10 @@ export class FakeRemote implements Remote {
     this.#changed();
   }
 
+  async toFront(): Promise<void> {
+    this.events.push(['toFront']);
+  }
+
   async goto(
     url: string,
     tab?: number | null,
@@ -535,26 +450,11 @@ export class FakeRemote implements Remote {
     this.events.push(['history', action, tab ?? null]);
   }
 
-  // -- events -----------------------------------------------------------------
-
-  subscribe(listener: (event: RemoteEvent) => void): () => void {
-    this.listeners.push(listener);
-    return () => {
-      const index = this.listeners.indexOf(listener);
-      if (index >= 0) this.listeners.splice(index, 1);
-    };
-  }
-
-  emit(event: RemoteEvent): void {
-    // A listener may unsubscribe while it is called.
-    for (const listener of this.listeners.slice()) listener(event);
-  }
-
   attend(ms: number): void {
     this.attended.push(ms);
   }
 
-  // -- dialogs and drop-down lists --------------------------------------------
+  // -- dialogs ------------------------------------------------------------------
 
   dialogs(): readonly PageDialog[] {
     return [...this.pending];
@@ -576,28 +476,7 @@ export class FakeRemote implements Remote {
     };
     this.pending.push(dialog);
     this.#dialogChanged.notify();
-    this.emit({ type: 'dialog', dialog });
     return dialog;
-  }
-
-  /** A page opens a drop-down list (a `select` event). */
-  openSelect(overrides: Partial<SelectMenu> = {}): SelectMenu {
-    this.#lastMenuToken += 1;
-    const options: readonly SelectOption[] = [
-      { label: 'First', selected: true, disabled: false, group: null },
-      { label: 'Second', selected: false, disabled: false, group: null },
-    ];
-    const menu: SelectMenu = {
-      token: this.#lastMenuToken,
-      x: 10,
-      y: 20,
-      width: 120,
-      height: 24,
-      options,
-      ...overrides,
-    };
-    this.emit({ type: 'select', menu });
-    return menu;
   }
 
   async waitForDialog(timeoutMs: number): Promise<PageDialog | null> {
@@ -644,71 +523,17 @@ export class FakeRemote implements Remote {
       options.text ?? null,
     ]);
     const index = this.pending.findIndex((dialog) => dialog.id === dialogId);
-    if (index >= 0) {
-      this.pending.splice(index, 1);
-      this.emit({ type: 'dialog_closed', id: dialogId });
-    }
+    if (index >= 0) this.pending.splice(index, 1);
     this.#dialogChanged.notify();
   }
 
-  async pickOption(token: number, index: number | null): Promise<void> {
-    this.events.push(['pick', token, index]);
-  }
-
-  // -- pictures -----------------------------------------------------------------
-
-  /** The next picture of the active tab. */
-  picture(): Frame {
-    this.#lastPicture += 1;
-    return {
-      tab: this.#active ?? 0,
-      width: 800,
-      height: 600,
-      jpeg: this.pictureOf(this.#lastPicture, this.#active ?? 0),
-    };
-  }
-
-  /** The page changed: every watcher gets a new picture. */
-  showNewPicture(): void {
-    const frame = this.picture();
-    for (const watcher of this.watchers) watcher.push(frame);
-  }
-
-  watch(): FakeWatcher {
-    const watcher = new FakeWatcher(this, () => {
-      const index = this.watchers.indexOf(watcher);
-      if (index >= 0) this.watchers.splice(index, 1);
-    });
-    this.watchers.push(watcher);
-    watcher.push(this.picture());
-    return watcher;
-  }
+  // -- the screenshot ---------------------------------------------------------------
 
   async screenshot(_tab?: number | null): Promise<Uint8Array> {
     return fakeJpeg('screenshot');
   }
 
   // -- input ----------------------------------------------------------------------
-
-  async mouse(
-    action: MouseAction,
-    x: number,
-    y: number,
-    options: { button?: MouseButton; clicks?: number } = {},
-  ): Promise<void> {
-    this.events.push([
-      'mouse',
-      action,
-      x,
-      y,
-      options.button ?? 'left',
-      options.clicks ?? 1,
-    ]);
-  }
-
-  async wheel(x: number, y: number, dx: number, dy: number): Promise<void> {
-    this.events.push(['wheel', x, y, dx, dy]);
-  }
 
   async scroll(
     dx: number,
@@ -750,6 +575,10 @@ export class FakeRemote implements Remote {
 
   async insertText(text: string): Promise<void> {
     this.events.push(['text', text]);
+  }
+
+  async takesText(): Promise<boolean> {
+    return this.fieldFocused;
   }
 
   async selectedText(): Promise<string> {
@@ -807,13 +636,10 @@ export class FakeRemote implements Remote {
 
   // -- the end ----------------------------------------------------------------------
 
-  /** The browser is gone: listeners hear `closed` (once), watchers fail. */
+  /** The browser is gone: whoever waits for a dialog lets go. */
   close(): void {
     if (this.#closed) return;
     this.#closed = true;
-    this.emit({ type: 'closed' });
-    this.listeners.length = 0;
-    for (const watcher of this.watchers.slice()) watcher.browserClosed();
     this.#dialogChanged.notify();
   }
 }
@@ -824,6 +650,8 @@ export class FakeBrowser implements BrowserHandle {
   readonly spec: LaunchSpec;
   readonly remote: FakeRemote;
   closeCalls = 0;
+  /** How often its window was brought to the front. */
+  shows = 0;
 
   readonly #ended = new Gate();
 
@@ -840,6 +668,11 @@ export class FakeBrowser implements BrowserHandle {
 
   async waitClosed(): Promise<void> {
     await this.#ended.wait();
+  }
+
+  async show(): Promise<void> {
+    this.shows += 1;
+    await this.remote.toFront();
   }
 
   async close(): Promise<void> {
@@ -875,8 +708,6 @@ export class FakeBackend implements BrowserBackend {
   /** Launches wait for it to open when set. */
   launchGate: Gate | null = null;
   launchDelayMs = 0;
-  /** What every browser it launches draws as a picture; `null`: `jpeg-<n>` bytes. */
-  pictureOf: ((n: number, tab: number) => Uint8Array) | null = null;
 
   readonly launches: FakeBrowser[] = [];
   /** Every launch, failed ones too. */
@@ -950,7 +781,6 @@ export class FakeBackend implements BrowserBackend {
     if (this.launchDelayMs > 0) await delay(this.launchDelayMs);
     if (this.launchError !== null) throw this.launchError;
     const browser = new FakeBrowser(spec);
-    if (this.pictureOf !== null) browser.remote.pictureOf = this.pictureOf;
     this.launches.push(browser);
     return browser;
   }
@@ -1071,6 +901,10 @@ export class FakeRemoteLifecycle extends FakeRemote implements RemoteLifecycle {
 
   forgetLayout(): void {
     this.calls.push('forgetLayout');
+  }
+
+  async followWindow(): Promise<void> {
+    this.calls.push('followWindow');
   }
 
   freeze(options: { flush: boolean }): void {

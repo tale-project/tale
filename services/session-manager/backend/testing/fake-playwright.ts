@@ -178,14 +178,10 @@ export function fakeJpeg(
 
 export interface FakeOption {
   label: string;
-  selected?: boolean;
-  disabled?: boolean;
-  group?: string | null;
 }
 
 export interface FakeElementModel {
   tag?: string;
-  rect?: { x: number; y: number; width: number; height: number };
   options?: readonly FakeOption[];
 }
 
@@ -274,7 +270,6 @@ export class FakeElementHandle extends FakeJSHandle implements PwElement {
     super(owner);
     this.model = {
       tag: model.tag ?? 'DIV',
-      rect: model.rect ?? { x: 0, y: 0, width: 100, height: 20 },
       options: model.options ?? [],
     };
   }
@@ -288,22 +283,12 @@ export class FakeElementHandle extends FakeJSHandle implements PwElement {
     return this.run('evaluate', [name, arg], () => {
       const answer = this.answers.get(name);
       if (answer !== undefined) return answer(arg);
-      const { tag, rect, options } = this.model;
+      const { tag, options } = this.model;
       switch (name) {
         case 'tagName':
           return tag;
         case 'optionLabels':
           return options.map((option) => option.label);
-        case 'selectMenu':
-          return {
-            ...rect,
-            options: options.map((option) => ({
-              label: option.label,
-              selected: option.selected ?? false,
-              disabled: option.disabled ?? false,
-              group: option.group ?? null,
-            })),
-          };
         default:
           throw new TypeError(`${this.who} has no answer for "${name}"`);
       }
@@ -533,19 +518,22 @@ export class FakePage extends EventEmitter implements PwPage, HandleOwner {
   readonly openDialogs = new Set<FakeDialog>();
   /**
    * What page scripts find out, by the name of the script. The defaults:
-   * `viewportSize`, `roomOfPage`, `titleAndState` and `selectedText` from the fields below,
-   * `pageIsFree` is true, `selectAt` finds no list, `readPage` reads `reading`.
+   * `viewportSize`, `roomOfPage`, `titleAndState`, `selectedText`, `inputAt`
+   * and `focusTakesText` from the fields below, `pageIsFree` is true,
+   * `selectAt` finds no list, `readPage` reads `reading`.
    */
   readonly answers = new Map<string, (arg: unknown) => unknown>();
   currentUrl = 'about:blank';
   titleText = '';
   readyState = 'complete';
   selection = '';
+  /** When a mouse button or a key was last pressed in it (`Date.now()`); 0: never. */
+  inputAt = 0;
+  /** Whether what has the focus takes text. */
+  focusTakesText = true;
   viewport = { width: 1280, height: 720 };
   /** What the next screenshot shows. */
   jpeg: Uint8Array = fakeJpeg();
-  /** If set, makes the picture of each screenshot (a page that keeps changing). */
-  pictures: (() => Uint8Array) | null = null;
   reading: FakeReading = {
     items: [],
     elements: [],
@@ -677,7 +665,7 @@ export class FakePage extends EventEmitter implements PwPage, HandleOwner {
 
   screenshot(options: Record<string, unknown>): Promise<Uint8Array> {
     return this.#answering('screenshot', [options], () =>
-      Buffer.from(this.pictures?.() ?? this.jpeg),
+      Buffer.from(this.jpeg),
     );
   }
 
@@ -722,6 +710,10 @@ export class FakePage extends EventEmitter implements PwPage, HandleOwner {
         return this.selection;
       case 'selectAt':
         return null;
+      case 'inputAt':
+        return this.inputAt;
+      case 'focusTakesText':
+        return this.focusTakesText;
       default:
         throw new TypeError(`${this.who} has no answer for "${name}"`);
     }
@@ -797,6 +789,15 @@ export class FakeContext extends EventEmitter implements PwContext {
 
   pages(): FakePage[] {
     return [...this.#open];
+  }
+
+  /** The names of the init scripts, in order (`watchInput`). */
+  readonly initScripts: string[] = [];
+
+  addInitScript(script: PageScript): Promise<void> {
+    return this.#scripted.run('addInitScript', [scriptName(script)], () => {
+      this.initScripts.push(scriptName(script));
+    });
   }
 
   newPage(): Promise<FakePage> {

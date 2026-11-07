@@ -8,7 +8,8 @@ import { exitLine } from './sessions-page';
  * The value beside a label in a session's details. The list is the library's
  * `PropertyList`, which has no roles: a row is its label followed by its
  * value, so the value is the label's next sibling. `scope` is what holds the
- * list: the body of the page of a stopped session, or the popover of the chip.
+ * list: the card in the body of the page of a session, or the popover of the
+ * chip.
  */
 export function detail(scope: Locator, label: string): Locator {
   return scope
@@ -39,8 +40,8 @@ function coordinatesOf(session: Session): string | null {
  * What the details say about a session: its system, screen, language, time
  * zone and location (each one only when it is known), where its proxy exits or
  * that it has none yet, and the IP the place was taken from. The same list is
- * in the popover of the chip, for a session in any state, and in the body of
- * the page of one that is not running.
+ * in the popover of the chip and in the card in the body of the page, for a
+ * session in any state.
  */
 export async function expectDetails(
   scope: Locator,

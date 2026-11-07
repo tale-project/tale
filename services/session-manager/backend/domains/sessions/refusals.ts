@@ -229,6 +229,30 @@ export const sessionNotRunning = (
 export const noProxy = (name: string): AppError =>
   new AppError(409, 'no_proxy', `Session ${name} has no proxy.`);
 
+/**
+ * What the browser of a session could not do (no tab open, a page that did
+ * not take it). The extra `reason` is the browser's own sentence.
+ */
+export const browserFailed = (reason: string): AppError =>
+  new AppError(502, 'browser_error', `The browser could not do it: ${reason}`, {
+    reason,
+  });
+
+export const noFieldFocused = (): AppError =>
+  new AppError(
+    409,
+    'no_field_focused',
+    'Nothing in the window of the session takes text. Click the field there first, then try again.',
+  );
+
+/** The page did not take what was asked of it in time: most often a dialog waits. */
+export const browserNotResponding = (): AppError =>
+  new AppError(
+    504,
+    'browser_not_responding',
+    'The browser did not respond. If a dialog is open in its window, answer it, then try again.',
+  );
+
 /** What a busy session can be doing that the app knows of, and how the English sentence says it. */
 const DOING = {
   assigning_proxy: 'getting a proxy',

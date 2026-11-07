@@ -20,12 +20,16 @@ import {
   ANSWER_WAIT_MS,
   EDITS,
   MARKER,
+  PAGES_IN_TABS,
   SCRIPTS_NOTE,
+  TABS_EDIT,
+  TABS_MARKER,
   TURN_WAIT_MS,
   WITHIN,
   applyEdits,
   boundInputWaits,
   clearStaleScripts,
+  openPagesInTabs,
 } from './juggler.ts';
 import type { Edit } from './juggler.ts';
 
@@ -63,7 +67,10 @@ function files(
 ): Record<string, string | null> {
   return {
     [PAGE_HANDLER]: knownFile(EDITS[PAGE_HANDLER] ?? []),
-    [TARGET_REGISTRY]: knownFile(EDITS[TARGET_REGISTRY] ?? []),
+    [TARGET_REGISTRY]: knownFile([
+      ...(EDITS[TARGET_REGISTRY] ?? []),
+      TABS_EDIT,
+    ]),
     [OTHER]: 'export class Helper {}\n',
     ...overrides,
   };
@@ -196,6 +203,64 @@ describe('boundInputWaits', () => {
   });
 });
 
+describe('openPagesInTabs', () => {
+  it('makes newPage open a tab of the window used last while the preference is on', async () => {
+    const file = omniJa();
+    expect(await openPagesInTabs(file)).toBe('changed');
+    const registry = read(file, TARGET_REGISTRY);
+    expect(registry).toContain(TABS_MARKER);
+    expect(registry).toContain(
+      `Services.prefs.getBoolPref('${PAGES_IN_TABS}', false)`,
+    );
+    expect(registry).toContain("smWindow.gBrowser.addTab('about:blank'");
+    // The window of the original still comes when there is no window to use.
+    expect(registry).toContain('    const features = "chrome,dialog=no,all";');
+    expect(read(file, PAGE_HANDLER)).toBe(knownFile(EDITS[PAGE_HANDLER] ?? []));
+  });
+
+  it('changes a build whose waits were bounded before, and keeps the copy as it came', async () => {
+    const file = omniJa();
+    const original = readFileSync(file);
+    await boundInputWaits(file);
+    expect(await openPagesInTabs(file)).toBe('changed');
+    const registry = read(file, TARGET_REGISTRY);
+    expect(registry).toContain(MARKER);
+    expect(registry).toContain(TABS_MARKER);
+    expect(readFileSync(`${file}.orig`)).toEqual(original);
+    // And the other way round: the waits of a build with pages in tabs.
+    const other = omniJa();
+    await openPagesInTabs(other);
+    expect(await boundInputWaits(other)).toBe('changed');
+    expect(read(other, TARGET_REGISTRY)).toContain(TABS_MARKER);
+  });
+
+  it('leaves a build it changed before alone', async () => {
+    const file = omniJa();
+    await openPagesInTabs(file);
+    const changed = readFileSync(file);
+    expect(await openPagesInTabs(file)).toBe('done');
+    expect(readFileSync(file)).toEqual(changed);
+  });
+
+  it.each([
+    ['the file is not there', files({ [TARGET_REGISTRY]: null })],
+    [
+      'newPage is not the one the change knows',
+      files({ [TARGET_REGISTRY]: knownFile(EDITS[TARGET_REGISTRY] ?? []) }),
+    ],
+  ])('leaves a build it does not know alone: %s', async (_case, contents) => {
+    const file = omniJa(contents);
+    const original = readFileSync(file);
+    expect(await openPagesInTabs(file)).toBe('unknown');
+    expect(readFileSync(file)).toEqual(original);
+    expect(existsSync(`${file}.orig`)).toBe(false);
+  });
+
+  it('says when there is no build', async () => {
+    expect(await openPagesInTabs(join(tempDir(), 'omni.ja'))).toBe('missing');
+  });
+});
+
 describe('clearStaleScripts', () => {
   /** A profile whose browser left compiled copies of the scripts. */
   function profile(): { dir: string; cache: string } {
@@ -323,12 +388,10 @@ describe('the JavaScript the build is given', () => {
   it('is JavaScript where each change puts it', () => {
     // Each changed line in the body of an async function, as in the build:
     // compiled, not run.
-    for (const edits of Object.values(EDITS)) {
-      for (const edit of edits) {
-        expect(
-          () => new Script(`(async () => {\n${edit.replace}\n});`),
-        ).not.toThrow();
-      }
+    for (const edit of [...Object.values(EDITS).flat(), TABS_EDIT]) {
+      expect(
+        () => new Script(`(async () => {\n${edit.replace}\n});`),
+      ).not.toThrow();
     }
   });
 });

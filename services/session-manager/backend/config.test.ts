@@ -103,20 +103,6 @@ describe('loadConfig', () => {
     },
   );
 
-  it('has no shutdown handshake unless a marker file is named', () => {
-    expect(loadConfig({}).shutdownMarkerPath).toBeUndefined();
-    expect(
-      loadConfig({ SHUTDOWN_MARKER_PATH: '  ' }).shutdownMarkerPath,
-    ).toBeUndefined();
-  });
-
-  it('names the marker file a supervisor drains traffic with', () => {
-    expect(
-      loadConfig({ SHUTDOWN_MARKER_PATH: ' /run/draining ' })
-        .shutdownMarkerPath,
-    ).toBe('/run/draining');
-  });
-
   it.each(['abc', '-1', '65536', '3000.5'])('refuses %j as a port', (port) => {
     expect(() => loadConfig({ PORT: port })).toThrow(
       `PORT must be a port number, got "${port}"`,

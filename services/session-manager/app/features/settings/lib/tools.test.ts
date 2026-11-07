@@ -12,7 +12,7 @@ describe('TOOL_GROUPS', () => {
       'secrets',
     ]);
     expect(TOOL_GROUPS.map((group) => group.tools.length)).toEqual([
-      3, 11, 5, 17, 6,
+      3, 11, 5, 18, 6,
     ]);
   });
 

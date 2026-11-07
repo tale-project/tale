@@ -51,6 +51,7 @@ export const TOOL_GROUPS = [
   {
     key: 'browser',
     tools: [
+      'show_window',
       'list_tabs',
       'open_tab',
       'switch_tab',

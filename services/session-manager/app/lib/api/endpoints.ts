@@ -121,6 +121,12 @@ export const sessionsApi = {
     apiJson(sessionSchema, 'POST', `${idPath('/sessions', id)}/rotate`),
   checkIp: (id: number): Promise<Session> =>
     apiJson(sessionSchema, 'POST', `${idPath('/sessions', id)}/check-ip`),
+  /** Brings the window of the running session to the front of the screen. */
+  show: (id: number): Promise<void> =>
+    apiVoid('POST', `${idPath('/sessions', id)}/show`),
+  /** Types the text where the focus of the session's window is. */
+  type: (id: number, text: string): Promise<void> =>
+    apiVoid('POST', `${idPath('/sessions', id)}/type`, { body: { text } }),
   remove: (id: number): Promise<void> =>
     apiVoid('DELETE', idPath('/sessions', id)),
   /** The proxy file of the sessions (with passwords). */

@@ -67,6 +67,9 @@ export class RecordingBackend extends CamoufoxBackend {
   constructor(options: RecordingBackendOptions = {}) {
     super({
       blockWebrtc: options.blockWebrtc ?? false,
+      // No windows: a CI runner has no screen, and on a desk they would cover
+      // the work.
+      headless: true,
       deps: { launchOptions: launchOptionsWithoutAddons(options.prefs) },
     });
   }
