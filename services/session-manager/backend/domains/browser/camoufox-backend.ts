@@ -35,6 +35,8 @@ import {
 import type { RemoteLifecycle, SessionContext } from './camoufox-session.ts';
 import { browserEnvironment } from './environment.ts';
 import { browserBuild, fetchBrowser, isInstalled } from './install.ts';
+import { boundInputWaits, clearStaleScripts } from './juggler.ts';
+import type { InputWaits } from './juggler.ts';
 import type { PwContext } from './playwright-remote.ts';
 
 /** What `launchOptions` of camoufox-js is given. */
@@ -93,6 +95,16 @@ export interface CamoufoxDeps {
   /** `camoufox-js fetch`: null once installed, else the issue. Rejects when aborted. */
   installBrowser: (signal: AbortSignal) => Promise<string | null>;
   isInstalled: () => boolean;
+  /**
+   * Makes the installed build stop waiting for ever for a mouse event that a
+   * page does not take (`juggler.ts`).
+   */
+  boundInputWaits: () => Promise<InputWaits>;
+  /**
+   * Deletes the compiled copies of the build's scripts that the profile keeps,
+   * unless they were made from the build it starts with (`juggler.ts`).
+   */
+  clearStaleScripts: (profileDir: string) => Promise<void>;
   /** The Camoufox build this release works with. */
   browserVersion: () => string;
   makeDirectory: (path: string) => Promise<void>;
@@ -225,6 +237,27 @@ export async function createPlaywrightRemote(
   return new PlaywrightRemote(context, options);
 }
 
+/**
+ * The installed build's `omni.ja`, or null when there is no build that
+ * camoufox-js launches: none, or an older one (a launch installs the pinned
+ * build first).
+ */
+async function installedOmniJa(): Promise<string | null> {
+  const { getPath } = await import('camoufox-js/dist/pkgman.js');
+  try {
+    return getPath('omni.ja');
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === 'CamoufoxNotInstalled' ||
+        error.name === 'UnsupportedVersion')
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 /** The deps the app runs with, each loaded when it is first used. */
 const DEFAULT_DEPS: CamoufoxDeps = {
   async createIdentity(os, taken) {
@@ -254,6 +287,14 @@ const DEFAULT_DEPS: CamoufoxDeps = {
   createRemote: createPlaywrightRemote,
   installBrowser: (signal) => fetchBrowser({ signal }),
   isInstalled: () => isInstalled(),
+  async boundInputWaits() {
+    const omniJa = await installedOmniJa();
+    return omniJa === null ? 'missing' : boundInputWaits(omniJa);
+  },
+  async clearStaleScripts(profileDir) {
+    const omniJa = await installedOmniJa();
+    if (omniJa !== null) await clearStaleScripts({ omniJa, profileDir });
+  },
   browserVersion: browserBuild,
   async makeDirectory(path) {
     await mkdir(path, { recursive: true });
@@ -273,6 +314,9 @@ function resolveDeps(overrides: Partial<CamoufoxDeps> = {}): CamoufoxDeps {
     createRemote: overrides.createRemote ?? DEFAULT_DEPS.createRemote,
     installBrowser: overrides.installBrowser ?? DEFAULT_DEPS.installBrowser,
     isInstalled: overrides.isInstalled ?? DEFAULT_DEPS.isInstalled,
+    boundInputWaits: overrides.boundInputWaits ?? DEFAULT_DEPS.boundInputWaits,
+    clearStaleScripts:
+      overrides.clearStaleScripts ?? DEFAULT_DEPS.clearStaleScripts,
     browserVersion: overrides.browserVersion ?? DEFAULT_DEPS.browserVersion,
     makeDirectory: overrides.makeDirectory ?? DEFAULT_DEPS.makeDirectory,
     listProcesses: overrides.listProcesses ?? DEFAULT_DEPS.listProcesses,
@@ -288,6 +332,7 @@ export class CamoufoxBackend implements BrowserBackend {
   readonly #sessions = new Set<CamoufoxSession>();
   #install: BrowserInstall = { installing: false, error: null };
   #warmingUp: Promise<void> | null = null;
+  #inputWaits: Promise<void> | null = null;
   #version: string | null = null;
 
   constructor(options: { blockWebrtc: boolean; deps?: Partial<CamoufoxDeps> }) {
@@ -341,10 +386,60 @@ export class CamoufoxBackend implements BrowserBackend {
       }
     }
     if (signal.aborted) return;
+    await this.#boundInputWaits();
     try {
       await this.#deps.warmUpGeo();
     } catch (error) {
       console.warn('Camoufox warm-up failed', error);
+    }
+  }
+
+  /**
+   * Makes the installed build stop waiting for ever for a mouse event that a
+   * page does not take (see `juggler.ts`): once, before the first browser
+   * starts, and again while there is no build to change or it could not be
+   * changed. Never rejects: a build that is not changed starts as it is.
+   */
+  #boundInputWaits(): Promise<void> {
+    this.#inputWaits ??= this.#changeBuild();
+    return this.#inputWaits;
+  }
+
+  async #changeBuild(): Promise<void> {
+    let outcome: InputWaits;
+    try {
+      outcome = await this.#deps.boundInputWaits();
+    } catch (error) {
+      // Tried again at the next launch: a full disk, say, may have room then.
+      this.#inputWaits = null;
+      console.warn(
+        'Could not change the Camoufox browser: a mouse event that a page does not take can stop its mouse until the session restarts',
+        error,
+      );
+      return;
+    }
+    if (outcome === 'missing') {
+      this.#inputWaits = null;
+    } else if (outcome === 'changed') {
+      console.info(
+        'Changed the Camoufox browser so that a mouse event that a page does not take no longer stops its mouse for good',
+      );
+    } else if (outcome === 'unknown') {
+      console.warn(
+        'Left the Camoufox browser as it is: it is not the build the app knows how to change, and a mouse event that a page does not take can stop its mouse until the session restarts',
+      );
+    }
+  }
+
+  /** Before a browser starts (see `juggler.ts`); never rejects. */
+  async #clearStaleScripts(profileDir: string): Promise<void> {
+    try {
+      await this.#deps.clearStaleScripts(profileDir);
+    } catch (error) {
+      console.warn(
+        'Could not delete the old compiled scripts of a profile: its browser may run them, and a mouse event that a page does not take can stop its mouse until the session restarts',
+        error,
+      );
     }
   }
 
@@ -372,6 +467,11 @@ export class CamoufoxBackend implements BrowserBackend {
     const options = await this.#deps.launchOptions(
       launchArgs(spec, this.#blockWebrtc),
     );
+    // After `launchOptions`, which installs the build camoufox-js pins when
+    // another one is there.
+    await this.#boundInputWaits();
+    await this.#clearStaleScripts(profileDir);
+    this.#assertOpen();
     const context = await this.#deps.launchPersistentContext(profileDir, {
       ...options,
       // Camoufox turns a proxy URL into its origin, which is "null" for
