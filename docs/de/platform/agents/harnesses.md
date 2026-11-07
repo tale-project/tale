@@ -24,7 +24,7 @@ Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform
 | Hermes | Verwaltet oder direkt | Nein | Nein |
 | OpenClaw | Verwaltet oder direkt | Nein | Ja |
 | OpenCode | Nur verwaltet | Nein | Ja |
-| Pi | Verwaltet oder direkt | Nein | Nein |
+| Pi | Verwaltet oder direkt | Nein | Ja |
 | Qwen Code | Verwaltet oder direkt | Nein | Ja |
 
 **Claude Code (compact prompt)** ist eine zusätzliche Wahl für klar abgegrenzte Workflows mit vollständigen Aufgabenanweisungen. Die Variante kürzt die eingebauten Anweisungen und einige Werkzeugbeschreibungen. Werkzeuge, Hooks, MCP und die von Tale ergänzten Hinweise bleiben erhalten. Prüfe Ergebnisse und Laufzeit mit deinem Modell, bevor du die Variante einsetzt; ein kürzerer Prompt garantiert keinen schnelleren Durchlauf. Mit **Claude Code** verwendest du beim nächsten neuen Durchlauf wieder den vollständigen Prompt. Ein auf Claude Code beschränktes Provider-Abonnement unterstützt die kompakte Variante nicht automatisch.

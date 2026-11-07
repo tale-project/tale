@@ -257,7 +257,7 @@ export async function removeStagedInstructions(
 
 /** Whether a harness mounts MCP servers — and so the platform bridge every
  * workspace tool rides. A harness whose YAML declares `capabilities.mcp:
- * false` (Pi, Hermes, Cursor) can call none of them, so a tool that exists
+ * false` (Hermes, Cursor) can call none of them, so a tool that exists
  * only on the bridge is neither granted to nor mentioned on its turns. */
 export function harnessMountsMcp(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;

@@ -24,7 +24,7 @@ A runtime needs both compatible credentials and [sandbox capacity](/platform/adm
 | Hermes | Managed or direct | No | No |
 | OpenClaw | Managed or direct | No | Yes |
 | OpenCode | Managed only | No | Yes |
-| Pi | Managed or direct | No | No |
+| Pi | Managed or direct | No | Yes |
 | Qwen Code | Managed or direct | No | Yes |
 
 **Claude Code (compact prompt)** is an optional choice for focused workflows that already supply complete task instructions. It shortens the runtime’s built-in instructions and some tool descriptions while retaining tools, hooks, MCP and Tale’s added guidance. Check task results and elapsed time with your model before adopting it; a smaller prompt does not guarantee a faster run. Choose ordinary **Claude Code** to restore its full prompt on the next fresh run. A provider subscription restricted to Claude Code does not automatically support the compact choice.

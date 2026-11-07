@@ -24,7 +24,7 @@ Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platfor
 | Hermes | Gérée ou directe | Non | Non |
 | OpenClaw | Gérée ou directe | Non | Oui |
 | OpenCode | Gérée uniquement | Non | Oui |
-| Pi | Gérée ou directe | Non | Non |
+| Pi | Gérée ou directe | Non | Oui |
 | Qwen Code | Gérée ou directe | Non | Oui |
 
 **Claude Code (compact prompt)** est une option pour les workflows ciblés qui fournissent déjà des consignes complètes. Elle raccourcit les instructions intégrées et certaines descriptions d’outils, tout en conservant les outils, les hooks, MCP et les consignes ajoutées par Tale. Vérifie les résultats et la durée avec ton modèle avant de l’adopter : un prompt plus court ne garantit pas une exécution plus rapide. Choisis **Claude Code** pour retrouver le prompt complet à la prochaine nouvelle exécution. Un abonnement fournisseur réservé à Claude Code ne prend pas automatiquement en charge cette variante.

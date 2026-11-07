@@ -195,19 +195,22 @@ const STEER = {
 };
 
 describe('heavy-phase leases on a task run', () => {
-  it('are granted and named once where the harness mounts the bridge [SBX-R28]', async () => {
-    await startTaskAgentTurnImpl(
-      makeCtx({ status: 'queued', execId: 'exec-1' }),
-      { ...KEYS, sweep: true } as never,
-    );
-    expect(scopeOf(0).toolGrants).toEqual(
-      expect.arrayContaining(['host_lease_acquire', 'host_lease_release']),
-    );
-    const instructions = io.instructions[0] ?? '';
-    expect(instructions.split('tool: "host_lease_acquire"')).toHaveLength(2);
-    expect(instructions).toContain('wait retryAfterSeconds and ask again');
-    expect(instructions).toContain('"unavailable"');
-  });
+  it.each(['claude-code', 'pi'])(
+    'are granted and named once on %s, a harness that mounts the bridge [SBX-R28]',
+    async (harness) => {
+      await startTaskAgentTurnImpl(
+        makeCtx({ status: 'queued', execId: 'exec-1' }),
+        { ...KEYS, harness, sweep: true } as never,
+      );
+      expect(scopeOf(0).toolGrants).toEqual(
+        expect.arrayContaining(['host_lease_acquire', 'host_lease_release']),
+      );
+      const instructions = io.instructions[0] ?? '';
+      expect(instructions.split('tool: "host_lease_acquire"')).toHaveLength(2);
+      expect(instructions).toContain('wait retryAfterSeconds and ask again');
+      expect(instructions).toContain('"unavailable"');
+    },
+  );
 
   it('stay with a steer restart, bound to the rotated exec [SBX-R28]', async () => {
     await steerTaskAgentTurnImpl(
@@ -221,7 +224,7 @@ describe('heavy-phase leases on a task run', () => {
     expect(io.instructions[0]).toContain('tool: "host_lease_acquire"');
   });
 
-  it.each(['pi', 'hermes'])(
+  it.each(['hermes'])(
     'are never offered on %s, a harness that mounts no bridge to call them through [SBX-R28]',
     async (harness) => {
       await startTaskAgentTurnImpl(

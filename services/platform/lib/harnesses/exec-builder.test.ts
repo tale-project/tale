@@ -378,6 +378,56 @@ describe("a CLI waits for the bridge's longest tool", () => {
   });
 });
 
+describe('Pi offers the mounted servers to the model', () => {
+  const BRIDGE = 'http://platform.internal/api/connectors';
+  /** The `mcpServers` of the mcp.json tale-pi-run stages, if any. */
+  const servers = (exec: HarnessExec): unknown =>
+    (JSON.parse(exec.stdin ?? '{}') as { mcp?: { mcpServers?: unknown } }).mcp
+      ?.mcpServers;
+
+  it('stages the browser and the bridge, each exposed directly', () => {
+    const exec = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ mcp: { browser: 'headless', bridgeUrl: BRIDGE } }),
+    );
+    // Pi's default exposure keeps a server's tools inside its code-mode
+    // scripts, where an agent told to call the workspace tools by name never
+    // finds them.
+    expect(servers(exec)).toEqual({
+      playwright: {
+        command: 'tale-playwright-mcp',
+        args: [...(PLAYWRIGHT_MCP_ARG_SETS[0] ?? [])],
+        exposure: 'direct',
+      },
+      connectors: {
+        command: 'tale-connectors-mcp',
+        env: {
+          TALE_CONNECTORS_URL: BRIDGE,
+          TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}',
+        },
+        exposure: 'direct',
+      },
+    });
+    // The session key reaches the bridge through Pi's environment, never the
+    // staged file.
+    expect(exec.stdin).not.toContain(GOLDEN_GATEWAY.token);
+    expect(exec.env.TALE_GATEWAY_TOKEN).toBe(GOLDEN_GATEWAY.token);
+  });
+
+  it('stages no bridge on a bring-your-own run, and no server unasked', () => {
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      mcp: { browser: 'headless', bridgeUrl: BRIDGE },
+    });
+    expect(Object.keys(servers(byo) ?? {})).toEqual(['playwright']);
+    expect(
+      servers(buildHarnessExec(fact('pi'), managedSpec())),
+    ).toBeUndefined();
+  });
+});
+
 describe('subscription delivery', () => {
   const subscription = {
     secret: 'subscription-plan-secret',

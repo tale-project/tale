@@ -3,9 +3,10 @@
 `pi --mode json` (NDJSON on stdout, passed through).
 
 The platform adapter (pi/adapter.ts) sends ONE JSON object on stdin:
-  {"prompt": ..., "system_prompt"?: ..., "models"?: {...}, "settings"?: {...}}
+  {"prompt": ..., "system_prompt"?: ..., "models"?: {...}, "settings"?: {...},
+   "mcp"?: {"mcpServers": {...}}}
 and pi/parse.ts normalizes the CLI's JSON event stream into AgentEvent[]. The
-wrapper exists because three inputs have no safe CLI flag and must be ON DISK
+wrapper exists because four inputs have no safe CLI flag and must be ON DISK
 before the CLI starts (verified @earendil-works/pi-coding-agent 1.0.1):
 
   - models.json (managed gateway provider: baseUrl <gateway>/openai/v1 +
@@ -14,6 +15,11 @@ before the CLI starts (verified @earendil-works/pi-coding-agent 1.0.1):
     PI_CODING_AGENT_DIR, so concurrent execs sharing this HOME never read
     each other's provider config.
   - settings.json (enableInstallTelemetry off) — same per-exec dir.
+  - mcp.json (the browser and the capability bridge, `exposure: direct`;
+    the bridge's key as "${TALE_GATEWAY_TOKEN}", which Pi resolves from its
+    environment when it starts the server) — same per-exec dir, the
+    user-level file Pi reads without asking for project trust. Written only
+    when the turn mounts a server.
   - the system-prompt APPEND — staged as <config dir>/APPEND_SYSTEM.md,
     which Pi auto-discovers and APPENDS to its default system prompt
     (SYSTEM.md would replace it and drop the defaults).
@@ -155,7 +161,7 @@ def main() -> int:
     if payload is None:
         return fail(
             'stdin must carry {"prompt": ..., "system_prompt"?: ..., '
-            '"models"?: ..., "settings"?: ...} as JSON'
+            '"models"?: ..., "settings"?: ..., "mcp"?: ...} as JSON'
         )
     prompt = payload["prompt"]
     system_prompt = payload.get("system_prompt")
@@ -167,6 +173,10 @@ def main() -> int:
     settings = payload.get("settings")
     if not isinstance(settings, dict):
         settings = {}
+    mcp = payload.get("mcp")
+    servers = mcp.get("mcpServers") if isinstance(mcp, dict) else None
+    if not isinstance(servers, dict) or not servers:
+        mcp = None
 
     home = os.environ.get("HOME") or os.path.expanduser("~")
     stage_dir = None
@@ -188,6 +198,9 @@ def main() -> int:
                 os.path.join(agent_dir, "APPEND_SYSTEM.md"), "w", encoding="utf-8"
             ) as f:
                 f.write(system_prompt)
+        if mcp is not None:
+            with open(os.path.join(agent_dir, "mcp.json"), "w", encoding="utf-8") as f:
+                json.dump(mcp, f)
 
         env = dict(os.environ)
         env["PI_CODING_AGENT_DIR"] = agent_dir
