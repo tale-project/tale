@@ -79,7 +79,7 @@ For self-hosted deployments, [Retention configuration](/self-hosted/configuratio
 
 ## Review feature controls
 
-Feature controls include scoped context-window limits and the organization-wide voice-output switch. A context limit controls how much context can reach an AI reply; it is different from a spending budget. A limit below 200,000 tokens also applies to Claude Code agent runs, as set for the person who started the run: the agent compacts its conversation into a summary before it outgrows the limit, and Claude Code treats any limit below 100,000 tokens as 100,000. Turning off voice output prevents members from enabling it through their own defaults or conversation choices.
+Feature controls include scoped context-window limits and the organization-wide voice-output switch. A context limit controls how much context can reach an AI reply; it is different from a spending budget. A limit below 200,000 tokens also applies to Claude Code agent runs, as set for the person who started the run: the agent compacts its conversation into a summary before it outgrows the limit, and Claude Code treats any limit below 100,000 tokens as 100,000. Pi agent runs follow a limit of any size the same way. Turning off voice output prevents members from enabling it through their own defaults or conversation choices.
 
 The custom-instructions default switch stores the organization default for members’ personal instructions: while it is on, every member’s custom instructions apply to their chat replies unless they turned the feature off themselves under **Settings > Preferences**. Organization-wide mandatory instructions are a separate setting under [Guardrails](/platform/admin/governance/guardrails).
 

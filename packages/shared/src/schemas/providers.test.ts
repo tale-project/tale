@@ -864,6 +864,29 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('reads a number template in a doc tree and keeps `$number` out of keys', () => {
+    const withDoc = (set: Record<string, unknown>) =>
+      harnessDefinitionSchema.safeParse({
+        ...VALID_HARNESS,
+        exec: {
+          ...VALID_HARNESS.exec,
+          envDocs: { PROBE_DOC: { fragments: [{ set }] } },
+        },
+      }).success;
+    const window = { $number: '${model.contextWindow}' };
+    expect(withDoc({ model: { contextWindow: window } })).toBe(true);
+    expect(
+      withDoc({ models: [{ id: '${model}', contextWindow: window }] }),
+    ).toBe(true);
+    // Beside another key, or as a fragment's own key, `$number` is neither a
+    // template nor a key; and a template is text.
+    expect(withDoc({ model: { ...window, id: 'probe' } })).toBe(false);
+    expect(withDoc(window)).toBe(false);
+    expect(withDoc({ model: { contextWindow: { $number: 4096 } } })).toBe(
+      false,
+    );
+  });
+
   it('rejects the retired argv-positional transport spelling', () => {
     expect(
       harnessDefinitionSchema.safeParse({

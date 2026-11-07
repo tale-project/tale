@@ -948,13 +948,35 @@ const docPathSchema = z
     'must be a dotted key path',
   );
 
+/** A number a CLI's config takes from the build, as a placeholder template:
+ * `{ $number: '${model.contextWindow}' }` is the model's context window. It
+ * becomes the whole number its template resolves to, and nothing when that
+ * is empty (an unknown window): its key, or its array slot, is left out, so
+ * the CLI keeps its own default. Any other text is a config defect. */
+type DocNumberTemplate = { $number: string };
+const docNumberTemplateSchema = z
+  .object({ $number: z.string().min(1).max(4096) })
+  .strict();
+
+/** A key of a `set` tree. `$number` is the number template's alone. */
+const docKeySchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((key) => key !== '$number', {
+    message: '`$number` is a number template, not a key',
+  });
+
 /** JSON-shaped literal tree for `set` fragments. Strings — keys included —
- * go through placeholder substitution; everything else is verbatim. */
+ * go through placeholder substitution; a number template
+ * ({@link DocNumberTemplate}) becomes the number it resolves to; everything
+ * else is verbatim. */
 type DocValue =
   | string
   | number
   | boolean
   | null
+  | DocNumberTemplate
   | DocValue[]
   | { [key: string]: DocValue };
 const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
@@ -963,8 +985,9 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
     z.number(),
     z.boolean(),
     z.null(),
+    docNumberTemplateSchema,
     z.array(docValueSchema),
-    z.record(z.string().min(1).max(200), docValueSchema),
+    z.record(docKeySchema, docValueSchema),
   ]),
 );
 
@@ -975,7 +998,8 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  * — objects merge recursively, arrays and scalars replace — and JSON key
  * order is first-insertion order, which the byte-exact golden fixtures pin.
  *
- *  - `set`: merge a literal tree (optionally gated by `when`).
+ *  - `set`: merge a literal tree (optionally gated by `when`), its number
+ *    templates resolved first.
  *  - `maxTurns`: set the fixed runaway backstop (`DEFAULT_MAX_TURNS`) as a
  *    number at `path`.
  *  - `mcpServers`: mount the requested MCP servers at `path` — the
@@ -1002,7 +1026,7 @@ const docFragmentSchema = z.union([
   z
     .object({
       when: whenSchema.optional(),
-      set: z.record(z.string().min(1).max(200), docValueSchema),
+      set: z.record(docKeySchema, docValueSchema),
     })
     .strict(),
   z.object({ maxTurns: z.object({ path: docPathSchema }).strict() }).strict(),

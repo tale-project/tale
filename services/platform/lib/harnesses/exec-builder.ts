@@ -315,11 +315,50 @@ function isTree(v: unknown): v is DocTree {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
+/** A number template of a `set` tree (`{ $number: '${model.contextWindow}' }`):
+ * an object whose one key is `$number`, holding the template. */
+function isNumberTemplate(value: unknown): value is { $number: string } {
+  return (
+    isTree(value) &&
+    Object.keys(value).length === 1 &&
+    typeof value.$number === 'string'
+  );
+}
+
+/** What a number template that resolves to nothing becomes: its key, or its
+ * array slot, is left out of the document. */
+const LEFT_OUT = Symbol('left out');
+
+/** The whole number a number template resolves to, or {@link LEFT_OUT} when
+ * it resolves to nothing (`${model.contextWindow}` for an unknown window).
+ * Any other text is a config defect, refused without repeating it: the
+ * template may have pulled it from a secret. */
+function substituteNumber(
+  template: string,
+  subs: Substitutions,
+): number | typeof LEFT_OUT {
+  const text = substitute(template, subs);
+  if (text === '') return LEFT_OUT;
+  const value = Number(text);
+  if (!/^(?:0|[1-9][0-9]*)$/.test(text) || !Number.isSafeInteger(value)) {
+    throw new Error(
+      '[harness exec] a $number template resolved to something other than a whole number',
+    );
+  }
+  return value;
+}
+
 /** Clone a literal fragment tree, substituting placeholders in every string
- * — map KEYS included (opencode keys its per-model entry by `${model}`). */
+ * — map KEYS included (opencode keys its per-model entry by `${model}`) —
+ * and resolving its number templates. */
 function substituteTree(value: unknown, subs: Substitutions): unknown {
   if (typeof value === 'string') return substitute(value, subs);
-  if (Array.isArray(value)) return value.map((v) => substituteTree(v, subs));
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => substituteTree(v, subs))
+      .filter((v) => v !== LEFT_OUT);
+  }
+  if (isNumberTemplate(value)) return substituteNumber(value.$number, subs);
   if (isTree(value)) return substituteRecord(value, subs);
   return value;
 }
@@ -332,7 +371,9 @@ function substituteRecord(
 ): DocTree {
   const out: DocTree = {};
   for (const [key, v] of Object.entries(value)) {
-    out[substitute(key, subs)] = substituteTree(v, subs);
+    const resolved = substituteTree(v, subs);
+    if (resolved === LEFT_OUT) continue;
+    out[substitute(key, subs)] = resolved;
   }
   return out;
 }
