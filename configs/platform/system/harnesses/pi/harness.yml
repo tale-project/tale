@@ -87,12 +87,19 @@ exec:
                     baseUrl: '${gateway.baseUrl}/openai/v1'
                     api: openai-completions
                     apiKey: $TALE_GATEWAY_TOKEN
+            # The model's context window as the catalog knows it. Pi takes
+            # 128,000 tokens for a model it does not know, caps each request's
+            # output at that window minus its estimate of the conversation
+            # (one token at least) and compacts only near it: a conversation
+            # past ~124,000 tokens of a larger model got one-token answers and
+            # ended without a report. An unknown window leaves the key out.
             - when: [model]
               set:
                 providers:
                   tale-gateway:
                     models:
                       - id: '${model}'
+                        contextWindow: { $number: '${model.contextWindow}' }
       # Staged as <agentDir>/mcp.json (stdio: command/args/env — Pi's MCP
       # server config). Pi offers a server's tools to the model only with
       # `exposure: direct`: its default keeps them inside its code-mode

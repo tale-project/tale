@@ -67,7 +67,7 @@ managed-model-context-window:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model"}]}}},"mcp":{}}'
+    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768}]}}},"mcp":{}}'
   stdinMode: close
 managed-plan:
   argv:

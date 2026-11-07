@@ -283,6 +283,62 @@ describe('placeholder substitution safety', () => {
     }
   });
 
+  type DocFragment = NonNullable<
+    HarnessDefinition['exec']['envDocs']
+  >[string]['fragments'][number];
+
+  /** Pi with one more `set` fragment in its staged models, probing number
+   * templates. */
+  function numberProbe(
+    set: Extract<DocFragment, { set: unknown }>['set'],
+  ): HarnessDefinition {
+    const doctored = structuredClone(fact('pi'));
+    const stdin = doctored.exec.stdin;
+    const models =
+      stdin.mode === 'json-envelope'
+        ? stdin.envelope.find(
+            (entry) => 'doc' in entry && entry.doc.key === 'models',
+          )
+        : undefined;
+    if (models === undefined || !('doc' in models)) {
+      throw new Error('pi stages no models document');
+    }
+    models.doc.fragments.push({ set });
+    return doctored;
+  }
+  const probeOf = (exec: HarnessExec): unknown =>
+    (JSON.parse(exec.stdin ?? '{}') as { models?: { probe?: unknown } }).models
+      ?.probe;
+
+  it('resolves a number template to its number, and leaves an empty one out', () => {
+    const probe = numberProbe({
+      probe: {
+        window: { $number: '${model.contextWindow}' },
+        slots: [1, { $number: '${model.contextWindow}' }],
+      },
+    });
+    expect(
+      probeOf(buildHarnessExec(probe, managedSpec({ contextWindow: 196_608 }))),
+    ).toEqual({ window: 196_608, slots: [1, 196_608] });
+    // An unknown window resolves to nothing: its key and its array slot go,
+    // so the CLI keeps its own default.
+    expect(probeOf(buildHarnessExec(probe, managedSpec()))).toEqual({
+      slots: [1],
+    });
+  });
+
+  it('refuses a number template that resolves to other text, without repeating it', () => {
+    const probe = numberProbe({
+      probe: { window: { $number: '${gateway.token}' } },
+    });
+    expect(() => buildHarnessExec(probe, managedSpec())).toThrow(
+      /whole number/,
+    );
+    expect(() => buildHarnessExec(probe, managedSpec())).not.toThrow(
+      GOLDEN_GATEWAY.token,
+    );
+  });
+
   it('throws on a template referencing a value absent from the build', () => {
     const doctored = structuredClone(fact('hermes'));
     doctored.exec.env = {
@@ -425,6 +481,37 @@ describe('Pi offers the mounted servers to the model', () => {
     expect(
       servers(buildHarnessExec(fact('pi'), managedSpec())),
     ).toBeUndefined();
+  });
+});
+
+describe("Pi sizes the conversation to the model's window", () => {
+  /** The model entries of the models.json tale-pi-run stages. */
+  const models = (exec: HarnessExec): unknown =>
+    (
+      JSON.parse(exec.stdin ?? '{}') as {
+        models?: { providers?: Record<string, { models?: unknown }> };
+      }
+    ).models?.providers?.['tale-gateway']?.models;
+
+  it('hands its model the catalog window', () => {
+    // Pi takes 128,000 tokens for a model it does not know, caps each answer
+    // at that window minus its estimate of the conversation and compacts only
+    // near it: past it, a larger model got one-token answers.
+    const exec = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', contextWindow: 196_608 }),
+    );
+    expect(models(exec)).toEqual([
+      { id: 'claude-opus-4-6', contextWindow: 196_608 },
+    ]);
+  });
+
+  it('leaves an unknown window to Pi', () => {
+    const exec = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6' }),
+    );
+    expect(models(exec)).toEqual([{ id: 'claude-opus-4-6' }]);
   });
 });
 
@@ -938,7 +1025,11 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
     expect(exec.env).not.toHaveProperty('CLAUDE_CODE_AUTO_COMPACT_WINDOW');
   });
 
-  const others = loadHarnesses().filter((h) => h.exec.bin !== 'claude');
+  // Claude Code reads the window from its environment, Pi from its staged
+  // models (each tested on its own); no other harness reads it.
+  const others = loadHarnesses().filter(
+    (h) => h.exec.bin !== 'claude' && h.slug !== 'pi',
+  );
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the window',
     (_slug, harness) => {
