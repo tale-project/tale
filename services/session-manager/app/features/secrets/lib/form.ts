@@ -12,6 +12,7 @@ import type {
   SecretKindInfo,
   SecretUpdate,
 } from '@/lib/api/schemas';
+import { isPrivateLabel } from '@/lib/private-label';
 import {
   longerThan,
   MAX_FIELDS,
@@ -37,13 +38,16 @@ export interface RowValues {
    */
   label: string;
   value: string;
-  /** Kept out of the lists, and masked in this form until shown. */
+  /**
+   * Kept out of the lists, and masked in this form until shown, as the stored
+   * secret has it or the kind has its starting row. A row the person added is
+   * also hidden by a label that names something private (`isHiddenRow`).
+   */
   hidden: boolean;
   /**
-   * `hidden` is a choice (the stored secret has it, or the person set it), so
-   * it goes to the server as it is. Otherwise the server applies its own
-   * default for the label and the value: a password or a card number is
-   * hidden whatever the form said.
+   * The value is the stored secret's, and so is `hidden`: it goes to the
+   * server as it is. A new value the form shows plainly is hidden as the
+   * server decides by the kind, the label and the value.
    */
   decided: boolean;
 }
@@ -188,14 +192,33 @@ export function isPristine(values: FormValues, opened: FormValues): boolean {
   return snapshot(values) === snapshot(opened);
 }
 
+/**
+ * Whether the value is kept hidden: a stored value as it was stored, a
+ * starting row as its kind has it (a password, a card number), and a row the
+ * person added when its label names something private (`isPrivateLabel`), as
+ * the server decides too. A value that merely looks like a card number is
+ * hidden by the server once it is saved, not masked while it is typed.
+ */
+export function isHiddenRow(
+  row: Pick<RowValues, 'template' | 'label' | 'hidden' | 'decided'>,
+): boolean {
+  if (row.decided || row.template !== null) return row.hidden;
+  return row.hidden || isPrivateLabel(row.label);
+}
+
 /** A row whose value is empty is dropped by the server, with its label. */
 function present(rows: readonly RowValues[]): RowValues[] {
   return rows.filter((row) => row.value.trim() !== '');
 }
 
+/**
+ * A stored value keeps its flag; a new one is hidden as the form shows it, and
+ * one the form shows plainly is left to the server, which also hides a value
+ * that looks like a card number.
+ */
 function hiddenToSend(row: RowValues): boolean | undefined {
-  if (row.hidden) return true;
-  return row.decided ? false : undefined;
+  if (row.decided) return row.hidden;
+  return isHiddenRow(row) ? true : undefined;
 }
 
 /** The fields the server is sent: the rows that have a value. */
@@ -299,7 +322,7 @@ export function problemsOf(values: FormValues): Problems {
     if (label === '') found.label = 'labelRequired';
     else if (longerThan(label, MAX_LABEL)) found.label = 'labelTooLong';
     // A hidden value is kept as typed, the others are trimmed.
-    const value = row.hidden ? row.value : row.value.trim();
+    const value = isHiddenRow(row) ? row.value : row.value.trim();
     if (longerThan(value, MAX_VALUE)) found.value = 'valueTooLong';
     return found;
   });

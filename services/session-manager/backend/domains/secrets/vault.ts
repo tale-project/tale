@@ -8,6 +8,7 @@ import type {
   SecretKind,
   SecretKindInfo,
 } from '../../../lib/api/schemas.ts';
+import { isPrivateLabel } from '../../../lib/private-label.ts';
 import {
   longerThan,
   MAX_FIELDS,
@@ -75,42 +76,6 @@ export const KINDS: readonly KindSpec[] = [
 export const KIND_KEYS: readonly SecretKind[] = KINDS.map((kind) => kind.key);
 
 const CARD_NUMBER = 'card number';
-
-// JavaScript's \b only knows ASCII letters; the label of a secret can be in any
-// language ("Épin" is not a PIN), so the word edges are spelled out.
-const WORD_START = String.raw`(?<![\p{L}\p{N}_])`;
-const WORD_END = String.raw`(?![\p{L}\p{N}_])`;
-
-// Labels that name something to keep private, in any kind of secret and any
-// wording ("Passwort", "Card no.", "PIN"). "pass" is deliberately loose: it
-// covers password, passwd, passcode, passphrase and Passwort, and it also masks
-// a "Passport number", which is the safe way to be wrong.
-const PRIVATE_LABEL = new RegExp(
-  [
-    'pass',
-    'pwd',
-    `${WORD_START}pin${WORD_END}`,
-    'secret',
-    'token',
-    String.raw`api[ _-]?key`,
-    'private key',
-    'recovery',
-    'seed phrase',
-    `${WORD_START}cv[cv2]${WORD_END}`,
-    'security code',
-    String.raw`card\s*(?:number|no${WORD_END}|num${WORD_END}|#)`,
-    `${WORD_START}pan${WORD_END}`,
-    'iban',
-  ].join('|'),
-  'iu',
-);
-
-// A Turkish label can say "PİN" (dotted capital) or "pın" (dotless small): both
-// are a PIN, but a case-insensitive match of JavaScript does not read İ and ı
-// as an i.
-function dotless(label: string): string {
-  return label.replace(/[İı]/gu, 'i');
-}
 
 /** Unusable input; the message is for the person using the app. */
 export class SecretError extends Error {
@@ -188,7 +153,7 @@ export function cleanFields(
     const masked =
       hidden ??
       (defaults.get(label.toLowerCase()) === true ||
-        PRIVATE_LABEL.test(dotless(label)) ||
+        isPrivateLabel(label) ||
         isCardNumber(rawValue));
     // A masked value is kept as typed (a password may start or end with a
     // space); the others are trimmed.

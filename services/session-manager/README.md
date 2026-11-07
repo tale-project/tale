@@ -340,9 +340,10 @@ and any kind can have values you add yourself. A secret is available **to every 
 one session**; a session's own secrets are deleted with it, and the delete dialog says so.
 Passwords, card numbers and CVCs are masked in lists and in the form until you show them, and so
 is a value whose label names something private (`PIN`, `token`, `API key`, `recovery`, …) or whose
-text is a payment card number. Lists show a preview without masked values (a card shows the last four
-digits of its number). Every value has a copy
-button. The table searches and narrows by type and by session (**Filter**); what you chose stays in the
+text is a payment card number (that one from when it is saved). The form asks nothing about it, and a
+stored value stays hidden or shown as it was stored when the secret is changed. Lists show a preview
+without masked values (a card shows the last four digits of its number). Every value has a copy
+button in the details of a secret. The table searches and narrows by type and by session (**Filter**); what you chose stays in the
 address (`/secrets?type=&scope=&q=`). Limits: a title of 120 characters, 40 values, a label of 60
 characters, a value of 20,000.
 

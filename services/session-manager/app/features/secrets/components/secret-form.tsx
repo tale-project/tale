@@ -323,7 +323,6 @@ export function SecretForm({
                 const chosen = SECRET_KINDS.find((entry) => entry === next);
                 if (chosen !== undefined) changeKind(chosen);
               }}
-              hint={labels.kindHint(field.value)}
               options={kinds.map((candidate) => {
                 const Icon = KIND_ICONS[candidate.key];
                 return {
@@ -359,12 +358,14 @@ export function SecretForm({
           />
         )}
       />
+      {/* The values are set apart from what describes the secret by a rule:
+          their own labels say what they are, so the group's name is for
+          assistive technology only. */}
       <FormSection
         id={valuesId}
         tabIndex={-1}
-        className="outline-none"
-        label={t('form.values')}
-        description={t('form.hiddenHint')}
+        className="border-border border-t pt-4 outline-none"
+        aria-label={t('form.values')}
       >
         {attempted && problems.noValues ? (
           <Alert variant="destructive" description={t('validation.noValues')} />
@@ -388,7 +389,6 @@ export function SecretForm({
               position={addedPosition(index)}
               control={control}
               register={register}
-              setValue={setValue}
               labelError={errors?.[index]?.label?.message}
               valueError={errors?.[index]?.value?.message}
               onRemove={removeRow}

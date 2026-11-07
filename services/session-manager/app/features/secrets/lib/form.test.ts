@@ -13,6 +13,7 @@ import { field } from '@/tests/utils/secrets-api';
 import {
   customRow,
   fieldsToSend,
+  isHiddenRow,
   isPristine,
   problemsOf,
   rowsFromSecret,
@@ -350,6 +351,40 @@ describe('isPristine', () => {
   });
 });
 
+describe('isHiddenRow', () => {
+  it('hides a starting row as its kind does, whatever its label', () => {
+    const [website, , password] = startingRows(kindOf('credentials'));
+    expect(isHiddenRow(website)).toBe(false);
+    expect(isHiddenRow(password)).toBe(true);
+  });
+
+  it('hides a row the person added by its label, as the server does', () => {
+    expect(isHiddenRow(customRow({ label: 'PIN' }))).toBe(true);
+    expect(isHiddenRow(customRow({ label: 'Recovery codes' }))).toBe(true);
+    expect(isHiddenRow(customRow({ label: 'Nickname' }))).toBe(false);
+    expect(isHiddenRow(customRow())).toBe(false);
+  });
+
+  it('keeps a hidden value that became a row of its own hidden, whatever it is called now', () => {
+    expect(
+      isHiddenRow(customRow({ label: 'Kartennummer', hidden: true })),
+    ).toBe(true);
+  });
+
+  it('keeps a stored value as it was stored, whatever its label sounds like', () => {
+    expect(
+      isHiddenRow(
+        customRow({ label: 'Pass phrase', hidden: false, decided: true }),
+      ),
+    ).toBe(false);
+    expect(
+      isHiddenRow(
+        customRow({ label: 'Nickname', hidden: true, decided: true }),
+      ),
+    ).toBe(true);
+  });
+});
+
 describe('fieldsToSend', () => {
   it('drops the rows without a value, with their labels', () => {
     const rows = [
@@ -361,8 +396,15 @@ describe('fieldsToSend', () => {
   });
 
   it('sends the labels trimmed, and the values as typed (the server trims the visible ones)', () => {
+    const rows = [customRow({ label: '  Door ', value: ' 12 ' })];
+    expect(fieldsToSend(rows)).toEqual([{ label: 'Door', value: ' 12 ' }]);
+  });
+
+  it('sends a new row whose label names something private as hidden', () => {
     const rows = [customRow({ label: '  PIN ', value: ' 12 ' })];
-    expect(fieldsToSend(rows)).toEqual([{ label: 'PIN', value: ' 12 ' }]);
+    expect(fieldsToSend(rows)).toEqual([
+      { label: 'PIN', value: ' 12 ', hidden: true },
+    ]);
   });
 
   it('sends a hidden row as hidden', () => {
@@ -380,7 +422,7 @@ describe('fieldsToSend', () => {
     expect(entry).not.toHaveProperty('hidden');
   });
 
-  it('sends false for a flag the person or the secret decided', () => {
+  it('sends the flag a stored value has, even false under a label that sounds private', () => {
     const [entry] = fieldsToSend([
       customRow({
         label: 'Pass phrase',
