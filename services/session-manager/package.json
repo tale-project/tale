@@ -29,7 +29,7 @@
     "camoufox-js": "0.13.0",
     "fast-xml-parser": "5.8.0",
     "fingerprint-generator": "2.1.89",
-    "hono": "4.13.7",
+    "hono": "4.13.11",
     "playwright-core": "1.62.1",
     "react-hook-form": "7.72.1",
     "react-i18next": "17.0.2",
