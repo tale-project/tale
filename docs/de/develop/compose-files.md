@@ -30,11 +30,9 @@ Mit `Ctrl-C` beendest du die laufende Protokollanzeige. `bun run docker:dev:down
 | `compose.dev.yml` | Quellcodeeinbindungen und Entwicklungsbefehle. |
 | `compose.docs.yml` | Dokumentationsseite und Proxyzuordnung. |
 | `compose.web.yml` | Marketingseite und Proxyzuordnung. |
-| `compose.session-manager.yml` | Session Manager, nur auf dem Loopback-Interface veröffentlicht. |
 | `compose.test.yml` | Containertests der Plattform. |
 | `compose.docs.test.yml` | Containertests der Dokumentation. |
 | `compose.web.test.yml` | Containertests der Marketingseite. |
-| `compose.session-manager.test.yml` | Containertests des Session Managers. |
 | `compose.test.mock.yml` | Integrationskonfiguration mit simulierten Diensten. |
 
 Lies vor dem direkten Aufruf einer Testerweiterung das zugehörige Skript. Es kann Images, Ports und Testdaten vorbereiten. Die passenden Prüfungen beschreibt [An Docker arbeiten](/de/develop/contributing-docker).

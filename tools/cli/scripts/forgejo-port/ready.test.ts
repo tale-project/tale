@@ -58,7 +58,7 @@ function greenNeeds(workflow: Workflow): Record<string, Job> {
       result: 'success',
       outputs: {
         platform: 'true',
-        static_services: '["web","docs","session-manager"]',
+        static_services: '["web","docs"]',
       },
     };
   if (workflow === 'build') {
@@ -156,11 +156,6 @@ describe('judgeReadiness', () => {
       result: 'success',
       outputs: { platform: 'true', static_services: '["web"]' },
     };
-    expect(
-      judgeReadiness(onPullRequest('e2e', { needs: e2e })).reasons,
-    ).toEqual(['Full E2E scope lost service coverage']);
-    // The session manager is one of them.
-    e2e.scope.outputs.static_services = '["web","docs"]';
     expect(
       judgeReadiness(onPullRequest('e2e', { needs: e2e })).reasons,
     ).toEqual(['Full E2E scope lost service coverage']);

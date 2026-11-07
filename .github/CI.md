@@ -93,7 +93,7 @@ GitHub-hosted runners.
 - **E2E** builds the platform preview bundle once using the ordinary Turbo build task,
   then uploads it for four single-worker Playwright shards. Each shard owns its database,
   backend and worker-scoped org fixture. Reports still capture failed tests and retries.
-  The web, docs and session-manager suites restore/build their complete output once through
+  The web and docs suites restore/build their complete output once through
   Turbo and opt into `E2E_USE_BUILD=1` preview. Web SEO runs the workspace script directly
   against those production bytes and still runs after a browser failure when the build
   succeeded. Calling its Turbo prerequisite again would rebuild after release fetching
@@ -101,13 +101,8 @@ GitHub-hosted runners.
   complete builds before browsers and SEO: their older browser configs may rebuild only
   the client and overwrite prerendered HTML. Pull requests first compute affected service
   scope from the PR diff; missing or nonboolean filter results fail the scope job.
-  Nightly, manual and candidate rounds always select platform, web, docs and
-  session-manager. The web and docs suites use two workers. The session manager's runs one
-  isolated fake server per worker, all started by `tests/e2e/launcher.ts` in one process
-  (worker `i` talks to port `E2E_BACKEND_PORT + i`, 3204 to 3207, and to no other), and picks
-  its worker count itself: four, or the runner's cores if fewer, `E2E_WORKERS` to change it.
-  The workflow gives it no count: one on the command line would not start the servers to match,
-  and a worker without a server fails its tests. Ordinary
+  Nightly, manual and candidate rounds always select platform, web and docs. The web and docs
+  suites use two workers. Ordinary
   interactive web and docs journeys await a test-only root snapshot marker being removed
   by the client commit (`@tale/e2e/client-page`), so prerendered nodes cannot satisfy
   their readiness check. The docs suite blocks the
@@ -128,14 +123,11 @@ GitHub-hosted runners.
   Build's layer caches and writes none. Each suite leaves its log as an artifact the
   moment it ends, so a run in progress can be read; the job summary holds the timings.
   `services/sandbox/e2e/incus/README.md` says what each suite proves.
-- **Build** distinguishes the platform stack from standalone services: the web, docs and
-  ui-docs sites and the session manager, which is no site but ships the same way (its own
-  image, compose stack, container test and Playwright job, outside the platform stack).
-  Standalone-only changes run their container tests without building the eight-image
-  platform stack. Shared package, dependency, toolchain and test-harness inputs expand to
-  full coverage. Release candidates always run the complete graph, regardless of changed
-  paths.
-  Edits to the four service-specific container probes select their standalone container
+- **Build** distinguishes the platform stack from standalone sites. Site-only changes run
+  their container tests without building the eight-image platform stack. Shared package,
+  dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
+  always run the complete graph, regardless of changed paths.
+  Edits to the three service-specific container probes select their standalone container
   job without the platform stack; shared probes, helper libraries and platform sources
   retain full stack coverage. Storybook still scans those probe files for CSS classes.
   Forks build on their consuming smoke and image-validation runners rather than additionally
@@ -149,7 +141,7 @@ GitHub-hosted runners.
   one fails, and either failure rejects the job. Full or partial logs are retained for
   seven days, including when a probe times out. Forks retain their sequential local
   build and conformance path.
-- The four standalone container tests load their cached Buildx image into Docker and pass
+- The three standalone container tests load their cached Buildx image into Docker and pass
   `SKIP_BUILD=true` and `PULL_POLICY=never` to the existing probes. Their Compose commands
   test those local bytes. Compose produces the Bake plan, preserving its build arguments,
   overrides, targets and tags. They reclaim disk only below 20 GiB of free space;
@@ -422,7 +414,7 @@ Keep platform tests in build inputs: Tailwind's automatic source scanner read 63
 Narrowing those inputs requires explicit production-only Tailwind sources and an output-
 equivalence check.
 
-Only ordinary main pushes publish the shared platform-stack and four standalone
+Only ordinary main pushes publish the shared platform-stack and three standalone
 service Docker layer caches; pull requests and candidates read them. This removes
 costly PR-local exports and prevents old release
 candidates from replacing main's cache. PR reruns may rebuild layers unique to that PR.
@@ -439,10 +431,8 @@ scan without publishing a report against moving main. A real pinned-engine regre
 runs in the same SAST job and checks findings, suppressions, exclusions and fatal errors.
 Writing a requested SARIF report must also succeed; reporting failures fail the scan.
 
-Release validation overlaps isolated stack probes and standalone services, waits for every
-verdict and preserves separate logs. A standalone service is tested exactly when the release
-built its image: a content-site release builds none for the session manager and runs no test
-of it. Remote manifest inspections have three workers.
+Release validation overlaps isolated stack probes and standalone sites, waits for every
+verdict and preserves separate logs. Remote manifest inspections have three workers.
 Image validation resolves Compose once and reads one validated metadata snapshot per
 image, including the sandbox LLM gateway. Failed inspection, missing image references,
 disabled health checks, root users with group suffixes and concealed secret values fail
@@ -908,7 +898,7 @@ Root image inputs expand that decision to every image consumer and test. A stand
 requires its own container test; compose-service selection or `ci_tests` requires the platform
 stack. Readiness validates the explicit stack output against both causes. Forks skip the
 publishing matrix and require both native local alternatives.
-E2E platform, web, docs and session-manager decisions use the same frozen discovery. The
+E2E platform, web and docs decisions use the same frozen discovery. The
 existing E2E scope job validates the service outputs before scheduling its four platform
 shards or selected static-site matrix; failed scope discovery and incomplete full coverage hold readiness.
 Existing fork PRs use local

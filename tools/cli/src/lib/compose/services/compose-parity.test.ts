@@ -1245,7 +1245,6 @@ fi
     [false, 'web'],
     [false, 'docs'],
     [false, 'ui-docs'],
-    [false, 'session-manager'],
     [true, ''],
     [true, 'web'],
     [true, 'docs'],
@@ -1261,14 +1260,11 @@ fi
         'Run standalone container tests',
       ]);
       expect(steps[0]!.if).toBe("needs.prepare.outputs.sites_only != 'true'");
-      // image, smoke, web, docs, ui-docs, session-manager. Keep all six actual
-      // commands: combining steps must not remove a container check. The
-      // session manager is no site: only a release that builds it tests it.
+      // image, smoke, web, docs, ui-docs. Keep all five actual
+      // commands: combining steps must not remove a container check.
       const groups = [
         ['image', 'smoke'],
-        sitesOnly
-          ? ['web', 'docs', 'ui-docs']
-          : ['web', 'docs', 'ui-docs', 'session-manager'],
+        ['web', 'docs', 'ui-docs'],
       ];
       const directory = mkdtempSync(resolve(tmpdir(), 'tale-release-checks-'));
       const log = resolve(directory, 'calls');
@@ -1315,8 +1311,6 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
           else expect(step.env?.SITES_ONLY).toBeUndefined();
           const result = shell(step.run!, {
             ...environment,
-            // What Prepare computes for this kind of release.
-            SERVICE_NAMES: JSON.stringify(releaseMatrix(sitesOnly)),
             PATH: `${directory}${delimiter}${process.env.PATH ?? ''}`,
             RUNNER_TEMP: directory.replaceAll('\\', '/'),
             TEST_VALIDATION_DIR: directory.replaceAll('\\', '/'),

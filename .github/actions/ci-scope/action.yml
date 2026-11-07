@@ -29,9 +29,6 @@ outputs:
   docs:
     description: Validated E2E docs applicability
     value: ${{ steps.decide.outputs.docs }}
-  session-manager:
-    description: Validated E2E session-manager applicability
-    value: ${{ steps.decide.outputs.session-manager }}
 runs:
   using: composite
   steps:
@@ -74,7 +71,6 @@ runs:
         E2E_platform: ${{ steps.filter.outputs.e2e_platform }}
         E2E_web: ${{ steps.filter.outputs.e2e_web }}
         E2E_docs: ${{ steps.filter.outputs.e2e_docs }}
-        E2E_session_manager: ${{ steps.filter.outputs.e2e_session-manager }}
         BUILD_image_inputs: ${{ steps.filter.outputs.build_image_inputs }}
         BUILD_platform: ${{ steps.filter.outputs.build_platform }}
         BUILD_db: ${{ steps.filter.outputs.build_db }}
@@ -83,7 +79,6 @@ runs:
         BUILD_web: ${{ steps.filter.outputs.build_web }}
         BUILD_docs: ${{ steps.filter.outputs.build_docs }}
         BUILD_ui_docs: ${{ steps.filter.outputs.build_ui-docs }}
-        BUILD_session_manager: ${{ steps.filter.outputs.build_session-manager }}
         BUILD_storybook: ${{ steps.filter.outputs.build_storybook }}
         BUILD_sandbox: ${{ steps.filter.outputs.build_sandbox }}
         BUILD_sandbox_egress: ${{ steps.filter.outputs.build_sandbox-egress }}

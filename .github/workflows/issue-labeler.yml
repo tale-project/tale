@@ -23,7 +23,6 @@ jobs:
               'Platform (web app)': 'service: platform',
               'Web (marketing site)': 'service: web',
               'Docs': 'service: docs',
-              'Session Manager': 'service: session-manager',
               'Sandbox': 'service: sandbox',
               'CLI': 'service: cli',
               'Database': 'service: db',

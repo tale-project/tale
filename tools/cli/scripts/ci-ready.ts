@@ -55,7 +55,6 @@ export const CI_JOBS = {
     'web-test',
     'docs-test',
     'ui-docs-test',
-    'session-manager-test',
     'image-validate',
     'image-validate-fork',
     'vulnerability-scan',
@@ -100,12 +99,7 @@ export const COMPOSE_SERVICES = [
 ] as const;
 /** Each has a standalone compose stack and a container test job of its own,
  * and no part in the platform stack. */
-const STANDALONE_SERVICES = [
-  'web',
-  'docs',
-  'ui-docs',
-  'session-manager',
-] as const;
+const STANDALONE_SERVICES = ['web', 'docs', 'ui-docs'] as const;
 export const BUILD_SERVICES = [
   ...COMPOSE_SERVICES,
   ...STANDALONE_SERVICES,
@@ -134,7 +128,7 @@ export function buildScope(filters: unknown, full: boolean) {
   };
 }
 /** The services the E2E workflow's static-sites matrix runs, one job each. */
-const STATIC_SERVICES = ['web', 'docs', 'session-manager'] as const;
+const STATIC_SERVICES = ['web', 'docs'] as const;
 export const E2E_SERVICES = ['platform', ...STATIC_SERVICES] as const;
 
 /** Preserve the service policy from the same validated frozen PR discovery. */

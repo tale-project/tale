@@ -353,13 +353,10 @@ describe('static-site build reuse', () => {
   );
 
   // What each config serves, and the build it runs first unless supplied one:
-  // the sites preview their bundle; the session manager boots its fake backends
-  // (one per worker, started together by its launcher) over the page, which it
-  // builds through its own package script.
+  // the sites preview their bundle.
   test.each([
     ['web', 'vite preview', '../../packages/ui/bin/build-client.ts'],
     ['docs', 'vite preview', '../../packages/ui/bin/build-client.ts'],
-    ['session-manager', 'bun tests/e2e/launcher.ts', 'bun run build'],
   ])(
     '%s skips only its build when explicitly supplied a bundle',
     async (service, serves, builds) => {
@@ -383,17 +380,6 @@ describe('static-site build reuse', () => {
             fileURLToPath,
             URL,
             createPlaywrightConfig: (config: unknown) => config,
-            // The session manager's config sizes its servers with its own
-            // settings module (`tests/e2e/servers.ts`, held by its unit
-            // tests); this test is about the command, not the ports.
-            availableParallelism: () => 4,
-            planFrom: () => ({
-              backendPort: 3204,
-              controlPort: 4204,
-              servers: 4,
-              workers: 4,
-            }),
-            healthUrl: () => 'http://localhost:3207/api/health',
           },
           { timeout: 1000 },
         ) as {

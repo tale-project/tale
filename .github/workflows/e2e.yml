@@ -3,9 +3,8 @@ name: E2E
 # Playwright suites for the frontend services. The platform job boots the real
 # 0.5 stack (Hono backend + Vite preview + Postgres) with the hermetic fixture
 # config and the mock LLM; the web/docs jobs are smoke suites against each
-# static site's built preview (no backend, no mock LLM). The session manager's
-# job runs its specs against its built page and a fake browser. All share the
-# shared config in `@tale/e2e`.
+# static site's built preview (no backend, no mock LLM). All share the shared
+# config in `@tale/e2e`.
 #
 # Policy (issue #179): the suite is strict on every trigger — PRs, nightly, and
 # manual runs all fail loudly. A red E2E run signals a real regression.
@@ -45,7 +44,6 @@ jobs:
       platform: ${{ steps.scope.outputs.platform }}
       web: ${{ steps.scope.outputs.web }}
       docs: ${{ steps.scope.outputs.docs }}
-      session-manager: ${{ steps.scope.outputs.session-manager }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -104,16 +102,14 @@ jobs:
           PLATFORM: ${{ needs.pr-scope.outputs.platform }}
           WEB: ${{ needs.pr-scope.outputs.web }}
           DOCS: ${{ needs.pr-scope.outputs.docs }}
-          SESSION_MANAGER: ${{ needs.pr-scope.outputs.session-manager }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" != pull_request ]; then
             PLATFORM=true
             WEB=true
             DOCS=true
-            SESSION_MANAGER=true
           fi
-          for value in "$PLATFORM" "$WEB" "$DOCS" "$SESSION_MANAGER"; do
+          for value in "$PLATFORM" "$WEB" "$DOCS"; do
             case "$value" in
               true|false) ;;
               *) echo '::error::E2E scope did not return a boolean for every service'; exit 1 ;;
@@ -123,7 +119,6 @@ jobs:
           services=''
           if [ "$WEB" = true ]; then services="$services web"; fi
           if [ "$DOCS" = true ]; then services="$services docs"; fi
-          if [ "$SESSION_MANAGER" = true ]; then services="$services session-manager"; fi
           static_services="$(jq -cn --arg names "$services" '$names | split(" ") | map(select(. != ""))')"
           echo "platform=$PLATFORM" >> "$GITHUB_OUTPUT"
           echo "static_services=$static_services" >> "$GITHUB_OUTPUT"
@@ -404,13 +399,10 @@ jobs:
       needs.scope.result == 'success' && needs.scope.outputs.static_services != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
-    # Sized for the longest leg, which is the session manager's. Its several
-    # hundred specs run on four workers with a fake server each: 8 minutes on a
-    # 12-core Mac, where one worker needs 33 (that serial run was the reason
-    # for 45). They use 14 CPU-minutes, so a 4-vCPU runner needs 4 at the least;
-    # the checkout, toolchain, browser and build come on top, and 25 leaves
-    # about twice what the job should take. The ceiling only bounds a wedged run.
-    timeout-minutes: 25
+    # The web leg took 5 to 7 minutes on main and the docs leg 2 to 3 minutes
+    # (one docs run took 10.5). The ceiling leaves room for a slow runner and
+    # only bounds a wedged run.
+    timeout-minutes: 15
     permissions:
       contents: read
     strategy:
@@ -498,11 +490,7 @@ jobs:
       - name: Run E2E suite
         # Static sites share no mutable backend: each page/context is isolated.
         # Two browser workers passed all 90 web and 55 docs cases without retries.
-        # The session manager runs one isolated fake server per worker
-        # (tests/e2e/launcher.ts) and picks the worker count itself: four, or the
-        # cores if fewer, E2E_WORKERS to change it. A count on the command line
-        # would not start the servers to match, so it is given none.
-        run: bun run --filter @tale/${{ matrix.service }} test:e2e ${{ matrix.service != 'session-manager' && '--workers=2' || '' }}
+        run: bun run --filter @tale/${{ matrix.service }} test:e2e --workers=2
         env:
           E2E_USE_BUILD: '1'
 

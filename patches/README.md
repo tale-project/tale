@@ -7,8 +7,8 @@ Bun applies each patch here at install time, through the root `package.json`'s
 
 `bun install` refuses to run when a listed patch file is missing, so every Dockerfile that installs
 from the root manifests copies this directory (`COPY patches/ ./patches/`): the platform (its
-`workspace-deps` stage and its pruner), web, docs, ui-docs, the session manager and the service
-template in `tools/plop`.
+`workspace-deps` stage and its pruner), web, docs, ui-docs and the service template in
+`tools/plop`.
 
 ## `postgres@3.4.7.patch`
 
@@ -264,10 +264,10 @@ the provider's `duration`) and clears it on a pause or a restart, but not when t
 toast that a newer one replaced (the store keeps one) or that unmounted with its tree leaves the timer
 running, and when it falls due, `handleClose` reads `document.activeElement`. In a jsdom test file
 the environment can be gone by then: `ReferenceError: document is not defined` at
-`dist/index.mjs:319:45`, an uncaught exception after the file's teardown that failed
-`@tale/session-manager#test:ui` though every test had passed
+`dist/index.mjs:319:45`, an uncaught exception after the file's teardown that failed a
+`test:ui` run though every test had passed
 ([#5390](https://github.com/tale-project/tale/issues/5390); Checks run 42057462986, job
-127349657622). Any session-manager UI test file that mounts the `Toaster` (directly, through
+127349657622). Any UI test file that mounts the `Toaster` (directly, through
 `renderInShell` or the settings router, or with the app's root route) and raises a toast can leave
 such a timer. In the apps, which mount the `Toaster` once at their root, the stale timer only
 dismissed a toast the store had already dropped.
