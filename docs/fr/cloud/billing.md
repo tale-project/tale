@@ -1,5 +1,5 @@
 ---
-title: Offres, factures et utilisation
+title: Factures et utilisation
 description: Comprendre les frais Cloud, l’utilisation des modèles et les contrôles disponibles dans Tale.
 ---
 
@@ -7,13 +7,13 @@ Ton contrat Cloud définit les frais d’hébergement, d’assistance, de places
 
 ## Distinguer les frais
 
-Tale propose Community, gratuit en auto-hébergement, et Enterprise pour le Cloud géré ou les installations auto-hébergées avec assistance. Les deux éditions incluent les mêmes fonctions. Enterprise ajoute des prestations professionnelles et de l’assistance ; les contrôles du produit ne dépendent pas d’un déblocage payant.
+Tale est gratuit en auto-hébergement, en open source. Le Cloud géré et les installations auto-hébergées avec assistance ajoutent des prestations professionnelles et de l’assistance ; les contrôles du produit ne dépendent pas d’un déblocage payant.
 
-La [page des tarifs](https://tale.dev/pricing) indique les prix actuels des places et du stockage, les périodes de facturation et les services inclus. Elle présente l’utilisation IA aux tarifs des fournisseurs, sans majoration. Le devis accepté et le contrat de service définissent les conditions de ton organisation.
+Les prix actuels des places et du stockage, les périodes de facturation et les services inclus sont indiqués sur demande via [nous contacter](https://tale.dev/contact). L’utilisation IA est présentée aux tarifs des fournisseurs, sans majoration. Le devis accepté et le contrat de service définissent les conditions de ton organisation.
 
 ## Obtenir une facture ou modifier tes coordonnées
 
-Contacte l’équipe Tale par ton canal d’assistance Enterprise pour les factures, les coordonnées de facturation, les changements de places ou une question sur un montant. L’interface commune du produit ne comporte pas de page **Paramètres > Facturation**. Les vues d’utilisation servent au suivi opérationnel, pas à consulter les factures.
+Contacte l’équipe Tale par ton canal d’assistance pour les factures, les coordonnées de facturation, les changements de places ou une question sur un montant. L’interface commune du produit ne comporte pas de page **Paramètres > Facturation**. Les vues d’utilisation servent au suivi opérationnel, pas à consulter les factures.
 
 Indique la période, l’organisation et la référence de facture dans ta demande. N’envoie jamais de clé de fournisseur ni de clé API.
 
@@ -33,4 +33,4 @@ Avant de proposer un nouveau modèle à toute l’équipe, teste une tâche repr
 
 Configure les contrôles nécessaires dans [les politiques et les limites](/fr/platform/admin/governance/policies-and-limits). Vérifie la portée de chaque règle et teste-la avec un compte concerné. Les limites de la plateforme s’appliquent à l’activité qu’elles couvrent ; elles ne modifient pas ton contrat d’hébergement.
 
-Avec Community en auto-hébergement, tu exploites l’infrastructure et paies directement tes fournisseurs. Les mêmes pages d’utilisation et de politiques t’aident à suivre cette activité.
+En auto-hébergement, tu exploites l’infrastructure et paies directement tes fournisseurs. Les mêmes pages d’utilisation et de politiques t’aident à suivre cette activité.

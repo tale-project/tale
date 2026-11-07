@@ -32,7 +32,7 @@ const COLOR_DEMO = 0x6366f1; // indigo-500
 const COLOR_CONTACT = 0x10b981; // emerald-500
 
 const INTEREST_LABELS: Record<string, string> = {
-  enterprise: 'Enterprise solutions',
+  organisation_rollout: 'Organisation-wide rollout',
   professional_services: 'Professional services',
   custom_ai_training: 'Custom AI model training',
 };

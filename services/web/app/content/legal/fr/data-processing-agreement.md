@@ -132,7 +132,7 @@ g) sensibilisation à la sécurité pour le personnel.
 
 ### 7.2 Certifications
 
-Ruler GmbH maintient une certification ISO 27001 dont le périmètre couvre Tale Enterprise et les services professionnels, et en fournit la preuve sur demande raisonnable.
+Ruler GmbH maintient une certification ISO 27001 dont le périmètre couvre Tale et les services professionnels, et en fournit la preuve sur demande raisonnable.
 
 ### 7.3 Mises à jour
 

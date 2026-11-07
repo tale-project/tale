@@ -114,7 +114,7 @@ a) Tale beauftragt mindestens jährlich einen externen Penetrationstest. Befunde
 
 ### 4.3 Audits und Zertifizierungen
 
-a) Ruler GmbH unterhält eine Zertifizierung nach ISO/IEC 27001, deren Geltungsbereich Tale Enterprise und professionelle Dienstleistungen umfasst.
+a) Ruler GmbH unterhält eine Zertifizierung nach ISO/IEC 27001, deren Geltungsbereich Tale und professionelle Dienstleistungen umfasst.
 
 b) Kunden können das aktuelle ISO-27001-Zertifikat und dessen Geltungsbereich beim Support anfordern; diese werden unter NDA ausgehändigt.
 

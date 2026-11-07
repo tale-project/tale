@@ -24,7 +24,11 @@ const demo = {
   payload: {
     ...contact.payload,
     phone: '1'.repeat(32),
-    interests: ['enterprise', 'professional_services', 'custom_ai_training'],
+    interests: [
+      'organisation_rollout',
+      'professional_services',
+      'custom_ai_training',
+    ],
   },
 };
 

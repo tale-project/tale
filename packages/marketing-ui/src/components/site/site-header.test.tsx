@@ -51,7 +51,7 @@ function renderNavigation(onOpenChange = vi.fn()) {
           desktopNav={<a href="/desktop">Desktop page</a>}
           mobileNav={
             <>
-              <a href="#pricing">Pricing</a>
+              <a href="#changelog">Changelog</a>
               <a href="#docs">Documentation</a>
             </>
           }
@@ -187,7 +187,7 @@ describe('SiteHeader', () => {
     document.body.style.paddingRight = '7px';
     const { user } = renderNavigation();
     await user.click(screen.getByRole('button', { name: 'Open menu' }));
-    await user.click(screen.getByRole('link', { name: 'Pricing' }));
+    await user.click(screen.getByRole('link', { name: 'Changelog' }));
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );

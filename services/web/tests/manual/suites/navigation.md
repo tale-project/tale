@@ -1,6 +1,6 @@
 # Navigation & pages
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 19 boxes
 
 Exercise the page inventory and every way to move between pages — the header
 nav, the footer columns, the legal-document pages (tabs, print), in-page hash
@@ -91,10 +91,6 @@ routes render without a backend.
   URL gains its `#v…` hash; the clicked link carries `aria-current="true"` and
   the sticky nav keeps the active row visible; each release offers **View on
   GitHub** (`changelogPage.viewOnGithub`)
-- [ ] `NAV-F13` · **Retired pricing URL** — Open `/pricing?source=legacy`,
-  then `/de/pricing` and `/fr/pricing` → Each request answers HTTP **301** to
-  `/` (`/de`, `/fr` for the prefixed pages) and keeps the query string; the
-  retired `/hardware-pricing` answers the not-found page.
 
 ## Boundary & error tests
 

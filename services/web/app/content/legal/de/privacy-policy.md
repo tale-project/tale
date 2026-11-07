@@ -117,7 +117,7 @@ Sollten wir künftig Cookies oder Drittanbieter-Dienste einführen, die eine Ein
 
 ## 10. Datensicherheit
 
-Wir treffen angemessene technische und organisatorische Maßnahmen, um deine personenbezogenen Daten vor unbefugtem Zugriff, Verlust, Missbrauch oder Zerstörung zu schützen. Dazu gehören Verschlüsselung in der Übertragung (TLS/SSL), Zugriffssteuerungen und eine gehärtete, selbst betriebene Hosting-Infrastruktur. Ruler GmbH ist ISO-27001-zertifiziert. Der Geltungsbereich umfasst Tale Enterprise und professionelle Dienstleistungen.
+Wir treffen angemessene technische und organisatorische Maßnahmen, um deine personenbezogenen Daten vor unbefugtem Zugriff, Verlust, Missbrauch oder Zerstörung zu schützen. Dazu gehören Verschlüsselung in der Übertragung (TLS/SSL), Zugriffssteuerungen und eine gehärtete, selbst betriebene Hosting-Infrastruktur. Ruler GmbH ist ISO-27001-zertifiziert. Der Geltungsbereich umfasst Tale und professionelle Dienstleistungen.
 
 ## 11. Datenschutz für Kinder
 

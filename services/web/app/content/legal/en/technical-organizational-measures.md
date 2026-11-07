@@ -114,7 +114,7 @@ a) Tale commissions an external penetration test at least annually. Findings are
 
 ### 4.3 Audits and certifications
 
-a) Ruler GmbH maintains ISO/IEC 27001 certification covering Tale Enterprise and professional services.
+a) Ruler GmbH maintains ISO/IEC 27001 certification covering Tale and professional services.
 
 b) Customers may request the current ISO 27001 certificate and its scope by contacting support; these are provided under NDA.
 

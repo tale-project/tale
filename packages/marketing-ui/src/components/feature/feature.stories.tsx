@@ -76,12 +76,13 @@ export const Faq: Story = {
       heading="FAQ"
       items={[
         {
-          question: 'Is Community free?',
-          answer: 'Yes. Self-host the open-source Community edition.',
+          question: 'Is Tale free?',
+          answer: 'Yes. Self-host the open-source product.',
         },
         {
-          question: 'Does Enterprise add features?',
-          answer: 'Enterprise adds support and services on the same codebase.',
+          question: 'Does support add features?',
+          answer:
+            'Support and services are available on top of the same codebase.',
         },
       ]}
     />
@@ -133,7 +134,7 @@ export const RelatedAndCta: Story = {
       />
       <FeatureCta
         title="See Tale on your stack"
-        description="Book a guided demo or talk to the team about self-hosted deployment and pricing."
+        description="Book a guided demo or talk to the team about self-hosted deployment and rollout."
         primary={{ label: 'Request a demo', to: '/request-demo' }}
         secondary={{ label: 'Contact us', to: '/contact' }}
       />

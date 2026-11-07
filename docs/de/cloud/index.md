@@ -3,7 +3,7 @@ title: Tale Cloud
 description: Eine verwaltete Tale-Instanz nutzen und die Zuständigkeiten im Betrieb verstehen.
 ---
 
-Mit Tale Cloud nutzt du eine verwaltete Tale-Instanz. Dein Team erhält dieselben Produktfunktionen wie in der Open-Source-Ausgabe; Tale betreibt den Dienst gemäß eurem Enterprise-Vertrag.
+Mit Tale Cloud nutzt du eine verwaltete Tale-Instanz. Dein Team erhält dieselben Produktfunktionen wie im Open-Source-Produkt; Tale betreibt den Dienst gemäß eurem Vertrag.
 
 ## Wähle deine nächste Aufgabe
 

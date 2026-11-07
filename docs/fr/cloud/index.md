@@ -3,7 +3,7 @@ title: Tale Cloud
 description: Utiliser une instance Tale gérée et comprendre les responsabilités du service.
 ---
 
-Tale Cloud te permet d’utiliser Tale comme service géré. Ton équipe retrouve les mêmes fonctions que dans l’édition open source, tandis que Tale exploite le service selon ton contrat Enterprise.
+Tale Cloud te permet d’utiliser Tale comme service géré. Ton équipe retrouve les mêmes fonctions que dans le produit open source, tandis que Tale exploite le service selon ton contrat.
 
 ## Choisir ta prochaine tâche
 

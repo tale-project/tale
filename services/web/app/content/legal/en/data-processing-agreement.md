@@ -132,7 +132,7 @@ g) security awareness training for personnel.
 
 ### 7.2 Certifications
 
-Ruler GmbH maintains ISO 27001 certification covering Tale Enterprise and professional services and provides evidence of current certification on reasonable request.
+Ruler GmbH maintains ISO 27001 certification covering Tale and professional services and provides evidence of current certification on reasonable request.
 
 ### 7.3 Updates
 

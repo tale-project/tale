@@ -6,7 +6,7 @@ import { useSkipEntrance } from '../../lib/entrance';
 import { MARKETING_EASE, MARKETING_VIEWPORT } from '../marketing/reveal';
 
 interface TierCardProps {
-  /** Tier display name (e.g. "Community", "Pro", "Quality"). */
+  /** Tier display name (e.g. "Free", "Pro", "Team"). */
   name: ReactNode;
   /** Highlight this tier as the recommended one (popular badge). */
   popular?: boolean;
@@ -44,7 +44,7 @@ interface TierCardProps {
   /** Stagger entrance — useful when several cards animate in sequence. */
   animationDelay?: number;
   /**
-   * Render the card as inactive (e.g. Cloud view's Community card).
+   * Render the card as inactive (e.g. a tier that does not apply to the view).
    * Dims the entire article so the row layout stays stable while the
    * tier reads as not-applicable for the current selection.
    */
@@ -58,10 +58,10 @@ interface TierCardProps {
 }
 
 /**
- * Pricing tier card — flat raised surface, hairline only.
+ * Tier card — flat raised surface, hairline only.
  * The non-recommended tier gets a quiet frosted wash (`backdrop-blur` +
  * translucent inset); the recommended tier stays crisp raised white so
- * Free / Community reads soft and Enterprise / popular reads clear.
+ * a free tier reads soft and a popular tier reads clear.
  */
 export function TierCard({
   name,
@@ -77,7 +77,7 @@ export function TierCard({
   disabledLabel,
 }: TierCardProps) {
   const skipEntrance = useSkipEntrance();
-  // Opacity-only — y-shifts on tier cards fight scroll on pricing pages.
+  // Opacity-only — y-shifts on tier cards fight scroll on long pages.
   const fadeInitial = skipEntrance ? false : { opacity: 0 };
 
   return (

@@ -35,7 +35,7 @@ export const SectionAndCtas: Story = {
         <div className="flex flex-wrap gap-3">
           <MarketingButton>Primary</MarketingButton>
           <MarketingButton tone="secondary">Secondary</MarketingButton>
-          <MarketingLink to="/pricing" tone="inline">
+          <MarketingLink to="/about" tone="inline">
             Inline link
           </MarketingLink>
         </div>

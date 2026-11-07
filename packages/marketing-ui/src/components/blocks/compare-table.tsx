@@ -42,9 +42,9 @@ export interface CompareTier<TK extends string> {
   /** Pre-styled CTA element rendered below the tier name. */
   cta: ReactNode;
   /**
-   * Soft frosted column header (translucent inset + blur). On software
-   * pricing this marks Community; the recommended Enterprise column
-   * stays crisp raised white.
+   * Soft frosted column header (translucent inset + blur). On a comparison
+   * table this marks the baseline column; the recommended column stays crisp
+   * raised white.
    */
   emphasized?: boolean;
 }
@@ -89,7 +89,7 @@ interface CompareTableProps<TK extends string> {
 }
 
 /**
- * Comparison table shared by the marketing pricing surfaces.
+ * Comparison table shared by the marketing surfaces.
  */
 export function CompareTable<TK extends string>({
   caption,

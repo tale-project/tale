@@ -117,7 +117,7 @@ Si nous introduisons à l’avenir des cookies ou services tiers nécessitant un
 
 ## 10. Sécurité des données
 
-Nous prenons des mesures techniques et organisationnelles appropriées pour protéger tes données personnelles contre l’accès non autorisé, la perte, l’usage abusif ou la destruction. Ces mesures incluent le chiffrement en transit (TLS/SSL), des contrôles d’accès et une infrastructure d’hébergement durcie et auto-opérée. Ruler GmbH est certifiée ISO 27001, sur un périmètre couvrant Tale Enterprise et les services professionnels.
+Nous prenons des mesures techniques et organisationnelles appropriées pour protéger tes données personnelles contre l’accès non autorisé, la perte, l’usage abusif ou la destruction. Ces mesures incluent le chiffrement en transit (TLS/SSL), des contrôles d’accès et une infrastructure d’hébergement durcie et auto-opérée. Ruler GmbH est certifiée ISO 27001, sur un périmètre couvrant Tale et les services professionnels.
 
 ## 11. Vie privée des enfants
 

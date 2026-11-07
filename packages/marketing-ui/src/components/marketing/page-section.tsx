@@ -49,7 +49,7 @@ export interface PageSectionProps extends VariantProps<
 /**
  * Page band chrome — surface, padding, border, optional SiteContainer.
  * Compose with `SectionHeading` / `CtaGroup` / cards inside.
- * For pricing lead/subsection shells, keep using `MarketingSection` in blocks
+ * For lead/subsection shells, keep using `MarketingSection` in blocks
  * (lead matches `FeatureHero` heading chrome).
  *
  * Top-of-page atmosphere (`bg-gradient-site-hero`) lives on the root shell so

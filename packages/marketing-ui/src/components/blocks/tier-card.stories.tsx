@@ -14,9 +14,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Community: Story = {
+export const Free: Story = {
   args: {
-    name: 'Community',
+    name: 'Free',
     price: 'Free',
     priceSuffix: ' ',
     tagline: 'For tinkerers — run Tale locally with full features.',
@@ -24,7 +24,7 @@ export const Community: Story = {
       <ul className="flex flex-col gap-2 text-sm">
         <li>Self-host on your own infrastructure</li>
         <li>Unlimited workspaces</li>
-        <li>Community support</li>
+        <li>Support from the community forum</li>
       </ul>
     ),
   },
@@ -41,7 +41,7 @@ export const Pro: Story = {
     tagline: 'For teams — managed cloud + dedicated support.',
     children: (
       <ul className="flex flex-col gap-2 text-sm">
-        <li>Everything in Community</li>
+        <li>Everything in Free</li>
         <li>Managed hosting</li>
         <li>Email + Slack support</li>
         <li>99.9% uptime SLA</li>
@@ -52,10 +52,10 @@ export const Pro: Story = {
 
 export const Disabled: Story = {
   args: {
-    name: 'Community',
+    name: 'Free',
     price: 'Free',
     priceSuffix: ' ',
-    tagline: 'Not available on Cloud — switch to Self-hosted to start free.',
+    tagline: 'Not included in this view.',
     disabled: true,
   },
 };

@@ -3,7 +3,7 @@ title: Tale Cloud
 description: Use a managed Tale instance and understand the service responsibilities.
 ---
 
-Tale Cloud is the managed way to run Tale. Your team uses the same product features as the open-source edition, while Tale operates the service under your Enterprise agreement.
+Tale Cloud is the managed way to run Tale. Your team uses the same product features as the open-source product, while Tale operates the service under your agreement.
 
 ## Start with your next task
 

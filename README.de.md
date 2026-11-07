@@ -23,7 +23,7 @@ Wähle für jeden Agenten Laufzeit, Modell, Skills und Werkzeuge. Statte einen k
 
 Nutze eigene API-Schlüssel der Anbieter oder unterstützte Abonnements mit kompatiblen Agentenlaufzeiten. Die [Übersicht der Laufzeiten und Zugangsdaten](https://docs.tale.dev/de/platform/agents/harnesses) zeigt die verfügbaren Kombinationen.
 
-Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst. Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselben Produktfunktionen; Enterprise ergänzt professionellen Betrieb und Support. Das aktuelle Angebot findest du unter [Tarife und Preise](https://tale.dev/pricing).
+Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst. Der Code steht unter der MIT-Lizenz, und alle Funktionen sind im Open-Source-Produkt enthalten. Professioneller Betrieb und Support sind separat erhältlich; das aktuelle Angebot erfährst du über [Kontakt](https://tale.dev/contact).
 
 <table>
   <tr>
@@ -85,7 +85,7 @@ Wenn ein Projektagent und passende Zugangsdaten für das Modell eingerichtet sin
 
 **Wohin gehen meine Daten?** Anwendungsdaten, durchsuchbares Wissen und Originaldateien haben getrennte Speichereinstellungen. Modellanbieter, Konnektoren und externe Werkzeuge können Daten außerhalb dieser Speicher verarbeiten; Eigenbetrieb allein hält nicht jede Anfrage lokal. Prüfe die [Datenresidenz](https://docs.tale.dev/de/self-hosted/configuration/data-residency) und den [Umgang der Laufzeit mit Zugangsdaten und Netzwerkzugriffen](https://docs.tale.dev/de/platform/agents/harnesses).
 
-**Was unterscheidet Community und Enterprise?** Beide enthalten dieselben Produktfunktionen unter der MIT-Lizenz. Enterprise ergänzt professionelle Betriebsführung und Support. Die aktuellen Leistungsbedingungen findest du unter [Angebote und Preise](https://tale.dev/pricing).
+**Gibt es professionellen Support?** Ja. Professionelle Betriebsführung und Support sind separat erhältlich. Die aktuellen Leistungsbedingungen erfährst du über [Kontakt](https://tale.dev/contact).
 
 ## Finde deinen Einstieg
 
