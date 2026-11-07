@@ -93,6 +93,10 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 
 `FormDialog` puts Cancel and the submit button after the fields, so a form whose length a person decides (a list of rows they add) leaves them far below the fold. Set `stickyFooter` and the fields scroll in a box of their own while the buttons stay at the foot of the dialog. They remain inside the `<form>`, so Enter in a field still submits, and the dialog body no longer scrolls by itself. A short form needs no help. Check it on a phone, where the dialog is a bottom sheet.
 
+## Put a second way to fill the form in the footer
+
+`footerStart` puts what you give it at the start of the footer, before Cancel and the submit button: a second way to fill the form (**Choose file** beside a list typed into the form) and the keyboard shortcut that submits it, the row the platform's task dialog has. The fields keep to what the form needs, and the actions read in one line. On a phone the row sits under the buttons, and a shortcut hint hides there (`max-md:hidden pointer-coarse:hidden`). `customFooter` replaces the whole row and leaves it out.
+
 ## Widgets that use Escape
 
 A widget inside a dialog may use Escape itself: a code editor closes its completion list, then arms leaving the field. The dialog hears Escape first, so every `@tale/ui` overlay (`Dialog`, `ResponsiveDialog`, `Sheet`, `Popover`, `DropdownMenu`) leaves an Escape alone when an element around the focus carries `data-claims-escape`: it cancels the event and stays open.

@@ -904,9 +904,11 @@ test.describe('importing a list', () => {
       .click();
     await expect(proxies.importField).toHaveValue(text);
     await expect(proxies.importField).toBeFocused();
-    await expect(proxies.importDialog).toContainText(
-      t('proxies.import.description'),
-    );
+    await expect(
+      proxies.importDialog.getByRole('button', {
+        name: t('proxies.import.chooseFile'),
+      }),
+    ).toBeVisible();
 
     // Fixing the broken line and importing again adds only that one.
     await proxies.importField.fill(

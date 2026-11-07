@@ -63,7 +63,6 @@ add:
   submit: Proxy hinzufügen
 import:
   title: Proxies importieren
-  description: "Füge einen Proxy pro Zeile ein oder wähle eine .txt-Datei. Leere Zeilen und Zeilen, die mit # beginnen, werden übersprungen."
   label: Proxies, einer pro Zeile
   placeholder: |-
     proxy.example.com:8080

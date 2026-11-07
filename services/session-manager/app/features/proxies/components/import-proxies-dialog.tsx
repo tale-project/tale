@@ -67,11 +67,14 @@ interface FormValues {
 }
 
 /**
- * Imports a list of proxies, pasted or read from a `.txt` file. An import that
- * added every line closes with a notice; one that repeated or refused a line,
- * or added nothing, shows its report in place of the form, so what was refused
- * can be read and corrected; going back to the form keeps the list. The dialog
- * only exists while it is open, so every visit starts with an empty list.
+ * Imports a list of proxies, pasted or read from a `.txt` file. The form is the
+ * list and the type of the lines that name none; choosing a file and the
+ * shortcut that imports sit in the footer, beside Cancel, so nothing stands
+ * between the list and what it needs. An import that added every line closes
+ * with a notice; one that repeated or refused a line, or added nothing, shows
+ * its report in place of the form, so what was refused can be read and
+ * corrected; going back to the form keeps the list. The dialog only exists
+ * while it is open, so every visit starts with an empty list.
  */
 export function ImportProxiesDialog(props: ImportProxiesDialogProps) {
   if (!props.open) return null;
@@ -204,11 +207,9 @@ function ImportProxiesForm({
       onOpenChange={onOpenChange}
       size="xl"
       title={purpose?.title ?? t('import.title')}
-      description={
-        result === null
-          ? (purpose?.intro ?? t('import.description'))
-          : undefined
-      }
+      // The list's label says one per line and the footer offers a file: only
+      // an import opened for an action has something to explain.
+      description={result === null ? purpose?.intro : undefined}
       submitText={purpose?.submitText ?? t('import.submit')}
       isSubmitting={importProxies.isPending}
       onSubmit={(event) => void submit(event)}
@@ -219,6 +220,32 @@ function ImportProxiesForm({
       // A pasted list is work: Escape, a click outside and Cancel ask before
       // they throw it away. The report that follows an import is not.
       confirmDiscardOnDirty={result === null && typed.trim() !== ''}
+      footerStart={
+        result === null ? (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              icon={FileUp}
+              onClick={() => fileInput.current?.click()}
+            >
+              {t('import.chooseFile')}
+            </Button>
+            {/* For a keyboard: a touch screen has no such keys. The hint and its
+                hiding are those of the platform's task dialog (`task-modal.tsx`). */}
+            <Text
+              as="span"
+              variant="caption"
+              id={shortcutId}
+              className="ml-auto max-md:hidden pointer-coarse:hidden"
+            >
+              {t('import.shortcut', {
+                shortcut: isMac ? '⌘ Enter' : 'Ctrl + Enter',
+              })}
+            </Text>
+          </>
+        ) : undefined
+      }
       customFooter={
         result === null ? undefined : (
           <>
@@ -250,48 +277,25 @@ function ImportProxiesForm({
             autoCapitalize="off"
             spellCheck={false}
           />
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              icon={FileUp}
-              onClick={() => fileInput.current?.click()}
-            >
-              {t('import.chooseFile')}
-            </Button>
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".txt,text/plain"
-              hidden
-              aria-label={t('import.fileInput')}
-              onChange={(event) => void chooseFile(event)}
-            />
-            {file !== null && (
-              // The name wraps, never cut: the number of lines is at its end.
-              <Text
-                as="span"
-                variant="muted"
-                role="status"
-                className="min-w-0 wrap-anywhere"
-              >
-                {t('import.fileLoaded', { name: file.name, count: file.lines })}
-              </Text>
-            )}
-            {/* For a keyboard: a touch screen has no such keys. The hint and its
-                hiding are those of the platform's task dialog (`task-modal.tsx`). */}
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".txt,text/plain"
+            hidden
+            aria-label={t('import.fileInput')}
+            onChange={(event) => void chooseFile(event)}
+          />
+          {file !== null && (
+            // The name wraps, never cut: the number of lines is at its end.
             <Text
               as="span"
-              variant="caption"
-              id={shortcutId}
-              className="ml-auto max-md:hidden pointer-coarse:hidden"
+              variant="muted"
+              role="status"
+              className="-mt-2 min-w-0 wrap-anywhere"
             >
-              {t('import.shortcut', {
-                shortcut: isMac ? '⌘ Enter' : 'Ctrl + Enter',
-              })}
+              {t('import.fileLoaded', { name: file.name, count: file.lines })}
             </Text>
-          </div>
+          )}
           <SchemeField value={scheme} onChange={setScheme} />
         </>
       ) : (

@@ -97,17 +97,31 @@ describe('ImportProxiesDialog', () => {
       screen.getByRole('dialog', { name: 'Import proxies' }),
     ).toBeVisible();
     expect(list()).toHaveFocus();
-    // Examples, not formats: the formats are in the description.
+    // Examples, not formats: the label says one per line, the footer offers a
+    // file, and nothing else stands above the list.
     expect(list()).toHaveAttribute(
       'placeholder',
       'proxy.example.com:8080\nproxy.example.com:8080:user:pass\nsocks5://proxy.example.com:1080',
     );
-    expect(
-      screen.getByText(/Paste one proxy per line, or choose a \.txt file/),
-    ).toBeVisible();
+    expect(screen.getByRole('dialog')).not.toHaveAccessibleDescription();
     expect(screen.getByRole('button', { name: 'Choose file' })).toBeVisible();
     expect(screen.getByRole('radio', { name: 'HTTP' })).toBeChecked();
     expect(screen.getByRole('radiogroup')).toHaveAccessibleName('Proxy type');
+  });
+
+  it('keeps Choose file and the shortcut in the footer, before Cancel and Import', () => {
+    renderDialog();
+    const choose = screen.getByRole('button', { name: 'Choose file' });
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const submit = screen.getByRole('button', { name: 'Import proxies' });
+    expect(choose.parentElement?.parentElement).toContainElement(cancel);
+    expect(choose.parentElement?.parentElement).toContainElement(submit);
+    expect(
+      list().compareDocumentPosition(choose) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      choose.compareDocumentPosition(cancel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('keeps the buttons in reach while a long report scrolls, in the form and in the report', async () => {

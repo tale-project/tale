@@ -119,6 +119,53 @@ describe('FormDialog', () => {
     });
   });
 
+  describe('footerStart', () => {
+    it('puts what it is given at the start of the footer, before Cancel and the submit button', () => {
+      render(
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Import proxies"
+          submitText="Import proxies"
+          footerStart={<button type="button">Choose file</button>}
+          onSubmit={vi.fn()}
+        >
+          <input aria-label="Proxies" />
+        </FormDialog>,
+      );
+      const choose = screen.getByRole('button', { name: 'Choose file' });
+      const cancel = screen.getByRole('button', { name: 'Cancel' });
+      const submit = screen.getByRole('button', { name: 'Import proxies' });
+      expect(choose.closest('form')).toContainElement(submit);
+      expect(
+        choose.compareDocumentPosition(cancel) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        cancel.compareDocumentPosition(submit) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it('gives way to a custom footer', () => {
+      render(
+        <FormDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Import proxies"
+          footerStart={<button type="button">Choose file</button>}
+          customFooter={<button type="button">Done</button>}
+        >
+          <input aria-label="Proxies" />
+        </FormDialog>,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Choose file' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    });
+  });
+
   describe('stickyFooter', () => {
     const fields = (
       <>
