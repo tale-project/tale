@@ -1,0 +1,17 @@
+'use client';
+
+import { cn } from '@tale/ui/cn';
+import type { FormHTMLAttributes } from 'react';
+import { forwardRef } from 'react';
+
+/**
+ * Form - Semantic form element with consistent vertical spacing
+ * Use for wrapping form fields with proper layout and accessibility
+ */
+export const Form = forwardRef<
+  HTMLFormElement,
+  FormHTMLAttributes<HTMLFormElement>
+>(({ className, ...props }, ref) => (
+  <form ref={ref} className={cn('space-y-4', className)} {...props} />
+));
+Form.displayName = 'Form';

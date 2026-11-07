@@ -1,0 +1,146 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import {
+  Bot,
+  CalendarClock,
+  FileText,
+  MessageSquare,
+  Settings,
+} from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+
+import { BottomTabBar, BottomTabBarPlaceholder } from './bottom-tab-bar';
+
+const meta: Meta<typeof BottomTabBar> = {
+  title: 'Navigation/BottomTabBar',
+  component: BottomTabBar,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'fullscreen',
+    viewport: { defaultViewport: 'mobile1' },
+    docs: {
+      description: {
+        component:
+          'Floating capsule navigation for a positioned mobile app shell. Reserve end clearance in scroll content. Tap a tab to make it active — the selection glides between labelled destinations. Honors `env(safe-area-inset-bottom)`. Hidden on `md+` viewports.',
+      },
+    },
+  },
+};
+export default meta;
+
+type Story = StoryObj<typeof BottomTabBar>;
+
+const TABS = [
+  { key: 'chat', label: 'Chat', icon: MessageSquare },
+  { key: 'agents', label: 'Agents', icon: Bot },
+  { key: 'automations', label: 'Automations', icon: CalendarClock },
+  { key: 'documents', label: 'Documents', icon: FileText },
+  { key: 'settings', label: 'Settings', icon: Settings },
+];
+
+interface InteractiveShellProps {
+  initialKey: string;
+  slice?: number;
+  badges?: Record<string, ReactNode>;
+  accentColor?: string;
+  compact?: boolean;
+}
+
+function InteractiveShell({
+  initialKey,
+  slice,
+  badges,
+  accentColor,
+  compact,
+}: InteractiveShellProps) {
+  const [activeKey, setActiveKey] = useState(initialKey);
+  const available = slice ? TABS.slice(0, slice) : TABS;
+  const items = available.map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    icon: tab.icon,
+    active: activeKey === tab.key,
+    badge: badges?.[tab.key],
+    accentColor: accentColor && activeKey === tab.key ? accentColor : undefined,
+    onSelect: () => setActiveKey(tab.key),
+  }));
+  return (
+    <div className="mobile-nav-shell bg-background relative flex h-105 w-full flex-col overflow-hidden">
+      <div className="text-muted-foreground min-h-0 flex-1 overflow-y-auto px-4 py-6 text-sm">
+        Active tab:{' '}
+        <span className="text-foreground font-semibold">{activeKey}</span>. Tap
+        any tab below to switch.
+      </div>
+      <BottomTabBar compact={compact} items={items} ariaLabel="Primary" />
+    </div>
+  );
+}
+
+export const FiveTabs: Story = {
+  render: () => <InteractiveShell initialKey="chat" />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Five primary destinations. Click any tab to make it active — the pill background glides under the selected icon and label.',
+      },
+    },
+  },
+};
+
+export const FourTabs: Story = {
+  render: () => <InteractiveShell initialKey="automations" slice={4} />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Four tabs — longer labels receive more room before the remaining width is shared.',
+      },
+    },
+  },
+};
+
+export const WithBadges: Story = {
+  render: () => (
+    <InteractiveShell
+      initialKey="chat"
+      badges={{ agents: 3, documents: '!' }}
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Badges appear in the upper-right corner of the icon — numeric counts or single-character alerts. Hidden from assistive tech (the parent button label already announces the count).',
+      },
+    },
+  },
+};
+
+export const WithAccentColor: Story = {
+  render: () => <InteractiveShell initialKey="chat" accentColor="#7c3aed" />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'When the org sets a brand accent color, the active tab uses that color (text + tinted pill background) instead of the muted token.',
+      },
+    },
+  },
+};
+
+/** The masked stand-in a loading shell renders — the live bar's exact height. */
+export const Placeholder: Story = {
+  render: () => (
+    <div className="mobile-nav-shell bg-background relative flex h-105 w-full flex-col overflow-hidden">
+      <div className="text-muted-foreground min-h-0 flex-1 overflow-y-auto px-4 py-6 text-sm">
+        The shell is still loading; the capsule keeps its final size and
+        position.
+      </div>
+      <BottomTabBarPlaceholder tabs={3} />
+    </div>
+  ),
+};
+
+export const Compact: Story = {
+  render: () => <InteractiveShell initialKey="chat" slice={4} compact />,
+};
