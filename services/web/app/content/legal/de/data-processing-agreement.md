@@ -132,7 +132,7 @@ g) Security-Awareness-Schulungen der Mitarbeitenden.
 
 ### 7.2 Zertifizierungen
 
-Ruler GmbH hält eine ISO-27001-Zertifizierung aufrecht, deren Geltungsbereich Tale Enterprise und professionelle Dienstleistungen umfasst, und weist diese auf zumutbare Anfrage nach.
+Ruler GmbH hält eine ISO-27001-Zertifizierung aufrecht, deren Geltungsbereich Tale und professionelle Dienstleistungen umfasst, und weist diese auf zumutbare Anfrage nach.
 
 ### 7.3 Aktualisierungen
 

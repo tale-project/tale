@@ -441,7 +441,8 @@ home:
     openSource:
       q: Is Tale open source?
       a: Yes. Tale is open source and the full feature set ships in the free
-        Community edition — Enterprise adds support and services, not features.
+        open-source product. Professional support and services are available on
+        top.
     onPrem:
       q: Can Tale run fully on-premises or air-gapped?
       a:
@@ -513,7 +514,7 @@ requestDemo:
   placeholderMessage: Describe your project. All project details shared with us
     are kept confidential.
   interests:
-    enterprise: Enterprise solutions
+    organisationRollout: Organisation-wide rollout
     professionalServices: Professional services
     customAiTraining: Custom AI model training
   submit: Get in touch
@@ -522,7 +523,7 @@ contact:
   title: Contact us
   description:
     Discuss a project your team wants to delegate to AI agents, or ask about
-    deployment, Enterprise, and support. Tell us how your team works today.
+    deployment, rollout, and support. Tell us how your team works today.
   fieldName: Name
   fieldCompany: Company
   fieldMessage: Message
@@ -571,8 +572,8 @@ about:
     title: Who is behind Tale?
     description: Tale is built by Ruler GmbH in Spiez, Switzerland. We build an
       open-source project workspace where people and AI agents solve problems
-      together. Our ISO 27001 certification covers Tale Enterprise and
-      professional services.
+      together. Our ISO 27001 certification covers Tale and professional
+      services.
     ctaContact: Contact us
     ctaGithub: View the code
   facts:
@@ -613,8 +614,8 @@ about:
     openSource:
       title: Open source, no asterisks
       body: The entire codebase is public and open source on GitHub. The
-        free Community edition ships identical features; Enterprise adds
-        support and services.
+        whole feature set ships in the free open-source product; professional
+        support and services are available on top.
     deployment:
       title: Your infrastructure or ours
       body: Self-host on your own infrastructure or choose managed hosting in
@@ -632,8 +633,7 @@ about:
     regulated:
       title: At home in regulated environments
       body: We help teams evaluate deployment, access, and review requirements.
-        Ruler GmbH’s ISO 27001 certification covers Tale Enterprise and
-        professional services; request the scope and evidence relevant to your
+        Ruler GmbH’s ISO 27001 certification covers Tale and professional services; request the scope and evidence relevant to your
         organization.
     edge:
       title: An edge that stays yours
@@ -722,8 +722,8 @@ platformHub:
           Projects scoping work, files, and agents by team.
       - q: Is Tale open source?
         a:
-          Yes. Community is open source and free to self-host. Enterprise adds support
-          and services on the same codebase.
+          Yes. Tale is open source and free to self-host. Professional support and
+          services are available on top of the same codebase.
       - q: Where should I start?
         a:
           Start with a project and one task whose result you can judge. Add

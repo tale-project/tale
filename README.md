@@ -23,7 +23,7 @@ Choose each agent’s runtime, model, skills, and tools. Equip a manager agent t
 
 Use your own provider API keys or supported subscriptions with compatible agent runtimes. See [runtime and credential support](https://docs.tale.dev/platform/agents/harnesses) for the available combinations.
 
-Self-host Tale on your own infrastructure or use the managed Cloud service. The code is MIT-licensed. Community and Enterprise include the same product features; Enterprise adds professional operation and support. See [plans and pricing](https://tale.dev/pricing) for the current offer.
+Self-host Tale on your own infrastructure or use the managed Cloud service. The code is MIT-licensed, and every feature ships in the open-source product. Professional operation and support are available separately; see [contact us](https://tale.dev/contact) for the current offer.
 
 <table>
   <tr>
@@ -85,7 +85,7 @@ Before accepting the result, open the delivered report, verify its citations aga
 
 **Where does my data go?** Application records, searchable knowledge, and original files have separate storage settings. Model providers, connectors, and external tools can process data outside those stores; self-hosting alone does not keep every request local. Review [data residency](https://docs.tale.dev/self-hosted/configuration/data-residency) and the [runtime's credential and network behavior](https://docs.tale.dev/platform/agents/harnesses).
 
-**What differs between Community and Enterprise?** Both include the same product features under the MIT license. Enterprise adds professional operation and support. See [plans and pricing](https://tale.dev/pricing) for the current service terms.
+**Is professional support available?** Yes. Professional operation and support are available separately; see [contact us](https://tale.dev/contact) for the current service terms.
 
 ## Start here
 

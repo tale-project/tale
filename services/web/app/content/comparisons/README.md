@@ -29,7 +29,7 @@ friction. Private AI and self-hosting are additional benefits.
 Do not promise arbitrary agent compatibility, unlimited concurrency, automatic cross-agent
 memory, universal human approval, automatic deployment, or complete gateway metering of vendor
 subscription calls. Supported subscriptions use compatible harnesses and bypass Tale gateway
-spending caps. Scope ISO 27001 to Ruler GmbH's Tale Enterprise and professional services. Tale
+spending caps. Scope ISO 27001 to Ruler GmbH's Tale and professional services. Tale
 and Ruler GmbH make no SOC 2 claim.
 
 ## Content contract

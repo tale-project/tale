@@ -73,7 +73,7 @@ const baseFields = {
 };
 
 export const REQUEST_DEMO_INTERESTS = [
-  'enterprise',
+  'organisation_rollout',
   'professional_services',
   'custom_ai_training',
 ] as const;

@@ -3,7 +3,7 @@ title: Security and compliance
 description: Find certification information, understand responsibilities, and collect evidence for a security review.
 ---
 
-Ruler GmbH, the company behind Tale, is ISO/IEC 27001 certified. The certification covers its Tale Enterprise offering and services. For a security review, ask your Tale contact for the applicable certificate, its scope, and supporting documents for the service your organization has purchased.
+Ruler GmbH, the company behind Tale, is ISO/IEC 27001 certified. The certification covers its Tale offering and services. For a security review, ask your Tale contact for the applicable certificate, its scope, and supporting documents for the service your organization has purchased.
 
 Product controls support your organization’s processes. Whether a particular use meets your obligations also depends on your configuration, connected providers, and operating procedures.
 
@@ -23,7 +23,7 @@ Clarify which organization and deployment the review covers. A certification sta
 | Usage and content policies | Provides policy controls and records | Configures rules and responds to events |
 | Data requests and retention | Provides the supported workflows | Determines requirements and authorizes actions |
 
-For self-hosted deployments, your operator also owns the infrastructure responsibilities. Enterprise support arrangements depend on your agreement.
+For self-hosted deployments, your operator also owns the infrastructure responsibilities. Support arrangements depend on your agreement.
 
 ## Check the controls in the product
 
@@ -34,6 +34,6 @@ For self-hosted deployments, your operator also owns the infrastructure responsi
 
 ## Report an incident
 
-Use your agreed Enterprise support channel for a service incident. Report a suspected vulnerability through [GitHub’s private security reporting](https://github.com/tale-project/tale/security) or `security@tale.dev`. Include the affected version and reproduction details without sending credentials or personal data in a public issue.
+Use your agreed support channel for a service incident. Report a suspected vulnerability through [GitHub’s private security reporting](https://github.com/tale-project/tale/security) or `security@tale.dev`. Include the affected version and reproduction details without sending credentials or personal data in a public issue.
 
 For a review of where data travels, continue with [Cloud data residency](/cloud/data-residency).

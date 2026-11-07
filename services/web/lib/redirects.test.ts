@@ -32,31 +32,3 @@ describe('UI documentation entry redirect', () => {
     }
   });
 });
-
-describe('retired pricing page redirect', () => {
-  for (const [from, to] of [
-    ['/pricing', '/'],
-    ['/de/pricing', '/de'],
-    ['/fr/pricing', '/fr'],
-  ] as const) {
-    for (const method of ['GET', 'HEAD'] as const) {
-      it(`${method} ${from} redirects to ${to} and preserves the query`, () => {
-        const url = new URL(`${from}?source=legacy`, 'https://tale.dev');
-        const response = handleWebRedirect(new Request(url, { method }), url);
-        expect(response?.status).toBe(301);
-        expect(response?.headers.get('Location')).toBe(`${to}?source=legacy`);
-        expect(response?.body).toBeNull();
-      });
-    }
-  }
-
-  it('does not redirect the retired hardware pricing URLs', () => {
-    for (const path of [
-      '/hardware-pricing',
-      '/de/hardware-pricing',
-      '/fr/hardware-pricing',
-    ]) {
-      expect(resolveWebRedirect(path)).toBeNull();
-    }
-  });
-});

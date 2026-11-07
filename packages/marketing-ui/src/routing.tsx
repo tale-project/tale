@@ -9,7 +9,7 @@ import {
 
 /**
  * The props every internal marketing link renders through. `to` is a site
- * path (`/pricing`, `/platform/agents`); how it becomes a URL — locale
+ * path (`/about`, `/platform/agents`); how it becomes a URL — locale
  * prefixes, a typed route table — is the host's business, so the host mounts
  * `MarketingRouterProvider` with its own link component and the package
  * never learns about its routes.

@@ -285,7 +285,7 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 - JSON-LD only for **visible** content — the homepage FAQ schema is built from the same `FAQ_KEYS`
   the accordion renders. Never
   aggregateRating/reviews, never schema for content the page doesn't show.
-- Entity consistency everywhere: **Tale** · **Ruler GmbH** · **MIT** · **Ruler GmbH’s ISO 27001 certification** (Tale Enterprise and professional services) · agents named exactly (Claude Code, Codex, Cursor).
+- Entity consistency everywhere: **Tale** · **Ruler GmbH** · **MIT** · **Ruler GmbH’s ISO 27001 certification** (Tale and professional services) · agents named exactly (Claude Code, Codex, Cursor).
 - New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts`
   (prerender + sitemap + llms.txt; bijection test) — a page is not done until both know it.
 

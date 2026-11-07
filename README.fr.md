@@ -23,7 +23,7 @@ Choisis l’environnement d’exécution, le modèle, les compétences et les ou
 
 Utilise tes propres clés API de fournisseurs ou les abonnements pris en charge avec les environnements d’exécution compatibles. Consulte les [environnements et identifiants pris en charge](https://docs.tale.dev/fr/platform/agents/harnesses) pour connaître les combinaisons disponibles.
 
-Héberge Tale sur ton infrastructure ou utilise le service Cloud géré. Le code est sous licence MIT. Community et Enterprise donnent accès aux mêmes fonctions ; Enterprise ajoute l’exploitation et l’assistance professionnelles. Consulte [les offres et les tarifs](https://tale.dev/pricing) pour connaître les conditions actuelles.
+Héberge Tale sur ton infrastructure ou utilise le service Cloud géré. Le code est sous licence MIT, et toutes les fonctions sont incluses dans le produit open source. L’exploitation et l’assistance professionnelles sont disponibles en complément ; consulte [nous contacter](https://tale.dev/contact) pour les conditions actuelles.
 
 <table>
   <tr>
@@ -85,7 +85,7 @@ Avant d’accepter le résultat, ouvre le rapport livré, vérifie ses citations
 
 **Où vont mes données ?** Les données de l’application, les connaissances consultables et les fichiers originaux ont des réglages de stockage distincts. Les fournisseurs de modèles, les connecteurs et les outils externes peuvent traiter des données ailleurs ; l’auto-hébergement seul ne garde pas toutes les requêtes en local. Examine la [résidence des données](https://docs.tale.dev/fr/self-hosted/configuration/data-residency) et la [gestion des identifiants et des accès réseau par l’environnement d’exécution](https://docs.tale.dev/fr/platform/agents/harnesses).
 
-**Qu’est-ce qui distingue Community d’Enterprise ?** Les deux comprennent les mêmes fonctions sous licence MIT. Enterprise ajoute l’exploitation et l’assistance professionnelles. Consulte [les offres et les tarifs](https://tale.dev/pricing) pour connaître les conditions de service actuelles.
+**Existe-t-il une assistance professionnelle ?** Oui. L’exploitation et l’assistance professionnelles sont disponibles en complément. Consulte [nous contacter](https://tale.dev/contact) pour les conditions de service actuelles.
 
 ## Choisir ton point de départ
 

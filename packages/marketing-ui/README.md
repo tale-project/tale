@@ -14,7 +14,7 @@ Start with the [marketing component guides](https://ui.tale.dev/docs/marketing-u
 | Site layout | `site-header`, `site-footer`, `site-container`, `page-section`, `section-heading` |
 | Calls to action and surfaces | `button`, `link`, `external-link`, `cta-group`, `card`, `panel`, `stack` |
 | Feature pages | `feature-hero`, `feature-capability`, `feature-steps`, `feature-faq`, `feature-cta`, `related-pages`, `docs-links` |
-| Comparison and pricing blocks | `compare-table`, `tier-card`, `segmented-radio`, `logo-cloud-section` |
+| Comparison and tier blocks | `compare-table`, `tier-card`, `segmented-radio`, `logo-cloud-section` |
 | Product illustrations | `demo-shell`, `demo-stage`, `demo-chrome`, `demo-tour-row`, `demo-tour-section` |
 | Motion and host integration | `reveal`, `entrance`, `use-demo-timeline`, `routing`, `i18n/messages` |
 

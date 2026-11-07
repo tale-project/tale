@@ -3,7 +3,7 @@ title: Sécurité et conformité
 description: Trouver les certifications, comprendre les responsabilités et réunir les preuves pour une revue de sécurité.
 ---
 
-Ruler GmbH, l’entreprise qui développe Tale, est certifiée ISO/IEC 27001. Cette certification couvre son offre Tale Enterprise et ses services. Pour une revue de sécurité, demande à ton contact Tale le certificat applicable, son périmètre et les justificatifs correspondant au service souscrit par ton organisation.
+Ruler GmbH, l’entreprise qui développe Tale, est certifiée ISO/IEC 27001. Cette certification couvre son offre Tale et ses services. Pour une revue de sécurité, demande à ton contact Tale le certificat applicable, son périmètre et les justificatifs correspondant au service souscrit par ton organisation.
 
 Les contrôles du produit accompagnent les procédures de ton organisation. Le respect de tes obligations dépend aussi de la configuration, des fournisseurs connectés et des pratiques d’exploitation.
 
@@ -23,7 +23,7 @@ Précise l’organisation et le déploiement concernés. Une déclaration de cer
 | Politiques d’utilisation et de contenu | Fournit les règles et les enregistrements | Configure les règles et traite les événements |
 | Demandes de données et conservation | Fournit les procédures prises en charge | Fixe les exigences et autorise les actions |
 
-En auto-hébergement, ton opérateur assume aussi les responsabilités d’infrastructure. L’assistance Enterprise dépend de ton contrat.
+En auto-hébergement, ton opérateur assume aussi les responsabilités d’infrastructure. L’assistance dépend de ton contrat.
 
 ## Examiner les contrôles du produit
 
@@ -34,6 +34,6 @@ En auto-hébergement, ton opérateur assume aussi les responsabilités d’infra
 
 ## Signaler un incident
 
-Utilise ton canal d’assistance Enterprise pour un incident de service. Signale une vulnérabilité présumée avec [le signalement privé GitHub](https://github.com/tale-project/tale/security) ou à `security@tale.dev`. Indique la version et les étapes de reproduction sans publier d’identifiants ni de données personnelles dans une issue.
+Utilise ton canal d’assistance pour un incident de service. Signale une vulnérabilité présumée avec [le signalement privé GitHub](https://github.com/tale-project/tale/security) ou à `security@tale.dev`. Indique la version et les étapes de reproduction sans publier d’identifiants ni de données personnelles dans une issue.
 
 Pour examiner les flux de données, poursuis avec [la résidence des données Cloud](/fr/cloud/data-residency).

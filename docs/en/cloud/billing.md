@@ -1,5 +1,5 @@
 ---
-title: Plans, invoices, and usage
+title: Invoices and usage
 description: Understand your Cloud service charges, model usage, and the controls available in Tale.
 ---
 
@@ -7,13 +7,13 @@ Your Cloud service agreement determines what you pay for hosting, support, seats
 
 ## Understand the charges
 
-Tale offers the free, self-hosted Community edition and Enterprise for managed Cloud or supported self-hosted deployments. Both include the same product features. Enterprise adds professional services and support; it does not unlock a separate set of product controls.
+Tale is free to self-host as open-source software. Managed Cloud and supported self-hosted deployments add professional services and support, but they do not unlock a separate set of product controls.
 
-The [pricing page](https://tale.dev/pricing) is the source for current seat and storage rates, billing periods, and included services. It lists AI usage at provider rates without a markup. Use your agreed quote and service agreement for the terms that apply to your organization.
+[Contact the Tale team](https://tale.dev/contact) for current seat and storage rates, billing periods, and included services. AI usage is billed at provider rates without a markup. Use your agreed quote and service agreement for the terms that apply to your organization.
 
 ## Find an invoice or change billing details
 
-Contact the Tale team through your Enterprise support channel for invoices, billing details, seat changes, or questions about a charge. There is no **Settings > Billing** page in the shared product interface. Usage dashboards are operational records, not an invoice portal.
+Contact the Tale team through your support channel for invoices, billing details, seat changes, or questions about a charge. There is no **Settings > Billing** page in the shared product interface. Usage dashboards are operational records, not an invoice portal.
 
 When querying a charge, include the billing period, organization, and invoice reference. Never include provider keys or API keys.
 
@@ -33,4 +33,4 @@ Before rolling out a new model, try a representative task and review its quality
 
 Use [Policies and limits](/platform/admin/governance/policies-and-limits) to configure the controls your team needs. Check the scope of each rule and test it with an account in that scope. Platform limits apply to the activity they govern; they do not change the terms of your hosting contract.
 
-For self-hosted Community, you operate the infrastructure and pay your chosen providers directly. The same usage and policy pages help you understand that activity.
+For self-hosted Tale, you operate the infrastructure and pay your chosen providers directly. The same usage and policy pages help you understand that activity.

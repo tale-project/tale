@@ -451,8 +451,8 @@ home:
     openSource:
       q: Tale est-il open source ?
       a: Oui. Tale est open source et toutes les fonctionnalités sont dans
-        l’édition Community gratuite — Enterprise ajoute du support et des
-        services, pas des fonctionnalités.
+        la version gratuite ; le support et les services professionnels sont
+        disponibles en complément.
     onPrem:
       q: Tale peut-il tourner entièrement on-premises ou en environnement isolé ?
       a:
@@ -524,7 +524,7 @@ requestDemo:
   placeholderCompany: Saisis le nom de ton entreprise
   placeholderMessage: Décris ton projet. Tous les détails partagés restent confidentiels.
   interests:
-    enterprise: Solutions Entreprise
+    organisationRollout: Mise en place pour ton organisation
     professionalServices: Services professionnels
     customAiTraining: Entraînement de modèle IA sur mesure
   submit: Prendre contact
@@ -533,7 +533,7 @@ contact:
   title: Nous contacter
   description:
     Présente un projet que ton équipe veut confier à des agents IA, ou pose
-    tes questions sur le déploiement, Enterprise et le support. Explique
+    tes questions sur le déploiement, la mise en place et le support. Explique
     comment ton équipe travaille aujourd’hui.
   fieldName: Nom
   fieldCompany: Entreprise
@@ -585,8 +585,8 @@ about:
     title: Qui est derrière Tale ?
     description: Ruler GmbH, à Spiez en Suisse, développe Tale. Nous construisons un
       espace de projet open source où les personnes et les agents IA résolvent
-      des problèmes ensemble. Notre certification ISO 27001 couvre Tale
-      Enterprise et les services professionnels.
+      des problèmes ensemble. Notre certification ISO 27001 couvre Tale et les services
+      professionnels.
     ctaContact: Nous contacter
     ctaGithub: Voir le code
   facts:
@@ -629,9 +629,9 @@ about:
         suis leurs tâches et examine leurs productions.
     openSource:
       title: Open source, sans astérisque
-      body: Tout le code est public et open source sur GitHub. La version
-        Community gratuite embarque les mêmes fonctionnalités ; Enterprise
-        ajoute support et services.
+      body: Tout le code est public et open source sur GitHub. Toutes les
+        fonctionnalités sont dans la version gratuite ; le support et les services
+        professionnels sont disponibles en complément.
     deployment:
       title: Ton infrastructure ou la nôtre
       body: Auto-héberge Tale sur ton infrastructure ou choisis un hébergement
@@ -651,7 +651,7 @@ about:
       title: À l’aise dans les environnements régulés
       body: Nous aidons les équipes à évaluer leurs besoins de déploiement,
         d’accès et de validation. La certification ISO 27001 de Ruler GmbH
-        couvre Tale Enterprise et les services professionnels ; demande le
+        couvre Tale et les services professionnels ; demande le
         périmètre et les justificatifs adaptés à ton organisation.
     edge:
       title: Une avance qui te reste
@@ -1338,8 +1338,8 @@ platformHub:
           Chat, Projets, Connaissances, Agents, Automatisations et Gouvernance — les Projets
           isolent le travail, les fichiers et les agents par équipe.
       - q: Tale est-il open source ?
-        a: Oui. Community est open source et gratuite en auto-hébergement.
-          Enterprise ajoute support et services sur la même base de code.
+        a: Oui. Tale est open source et gratuit en auto-hébergement.
+          Le support et les services professionnels sont disponibles sur la même base de code.
       - q: Par où commencer ?
         a:
           Commence par un projet et une tâche dont tu peux évaluer le

@@ -37,7 +37,6 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [navigation](../suites/navigation.md) | `NAV-F2` | 🔶 partial | `smoke.spec.ts` (header **Get started** visible; no header **Request a demo** — no click-through) |
 | [navigation](../suites/navigation.md) | `NAV-F12` | 🔶 partial | `changelog.spec.ts` (sticky timeline reachability + `aria-current` on click) |
 | [navigation](../suites/navigation.md) | `NAV-B1` | 🔶 partial | `smoke.spec.ts` (`/nope-not-a-route` shows the not-found heading + **Back to the homepage** — SPA nav, not the HTTP status) |
-| [navigation](../suites/navigation.md) | `NAV-F13` | 🔶 partial | `lib/redirects.test.ts` (Location and query for `/pricing`, `/de/pricing`, `/fr/pricing`, GET and HEAD; `/hardware-pricing` not redirected) + `services/platform/tests/integration/container-web-test.ts` (built-server 301 for `/pricing`, 404 for `/hardware-pricing`) |
 | [navigation](../suites/navigation.md) | `NAV-F3`–`NAV-F8`, `NAV-F11` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-B2`–`NAV-B3` | ⛔ manual-only | — |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F1`–`PAGE-F2` | 🔶 partial | `product-screenshots.spec.ts` (native Inbox hero in EN/DE/FR at phone/desktop widths) + `home-demos.spec.ts` (two hub tours link to Projects and Agents) |
@@ -64,7 +63,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Image budgets | ✅ | `tests/images.test.ts` |
 | [seo](../suites/seo.md) | Build-time release snapshot keeps every fetched release without mutating the fetched list | ✅ | `lib/releases/write-manifest.test.ts` |
 | [seo](../suites/seo.md) | Crawlable live JSON releases, cache fallback, six-hour freshness reporting (counted from the server start at the earliest) and localized alternate links | ✅ | `lib/releases/route.test.ts`, `lib/releases/feed.test.ts`, `tests/prerender/seo.test.ts` |
-| [seo](../suites/seo.md) | Container HTTP probes | ✅ | `services/platform/tests/integration/container-web-test.ts` (`/nope`→404, `/pricing`→301, `/hardware-pricing`→404, `/platform`, `/de/platform`, sitemap, og.png) |
+| [seo](../suites/seo.md) | Container HTTP probes | ✅ | `services/platform/tests/integration/container-web-test.ts` (`/nope`→404, `/pricing`→404, `/platform`, `/de/platform`, sitemap, og.png) |
 | [seo](../suites/seo.md) | A path no file can carry — a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`), or one past the OS path limit (5000 characters) — answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |
 | [seo](../suites/seo.md) | Lighthouse targets (Perf ≥95, SEO 100, a11y ≥95, BP 100, CLS 0) | 🔶 | Local Lighthouse 13.4 on built `start` (2026-07-09): desktop unthrottled `/` **99/100/100/100** CLS≈0; `/pricing` (retired 2026-11-07) **100/100/100/100**; mobile default throttle `/` Perf **58** (FCP/LCP on Slow 4G), A11y/BP/SEO **100**. Re-run PSI on production after deploy. |
 | [theme](../suites/theme.md) | `THEME-F1`, `THEME-A1`–`THEME-A2` | `packages/ui/src/components/site/theme-switcher.test.tsx`, `theme-switcher.browser.test.tsx` | Theme persistence, radio keyboard selection, active surface alignment at 32/44/52px targets; visual focus remains manual. |

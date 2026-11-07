@@ -23,8 +23,8 @@ interface MarketingSectionProps {
 }
 
 /**
- * Pricing page section shell. Lead variant matches `FeatureHero` heading
- * chrome so pricing shares the same page header as platform pages; subsection
+ * Page section shell. Lead variant matches `FeatureHero` heading
+ * chrome so it shares the same page header as platform pages; subsection
  * keeps the quieter follow-up band. Lead stays transparent
  * so the root `bg-gradient-site-hero` wash continues under the sticky nav.
  */

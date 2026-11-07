@@ -3,7 +3,7 @@
     "slug": "cloud/billing",
     "locale": "de",
     "frontmatter": {
-      "title": "Tarife, Rechnungen und Nutzung",
+      "title": "Rechnungen und Nutzung",
       "description": "Cloud-Kosten, Modellnutzung und die Kostenkontrollen in Tale verstehen."
     }
   },
@@ -1246,7 +1246,7 @@
     "slug": "cloud/billing",
     "locale": "en",
     "frontmatter": {
-      "title": "Plans, invoices, and usage",
+      "title": "Invoices and usage",
       "description": "Understand your Cloud service charges, model usage, and the controls available in Tale."
     }
   },
@@ -2486,7 +2486,7 @@
     "slug": "cloud/billing",
     "locale": "fr",
     "frontmatter": {
-      "title": "Offres, factures et utilisation",
+      "title": "Factures et utilisation",
       "description": "Comprendre les frais Cloud, l’utilisation des modèles et les contrôles disponibles dans Tale."
     }
   },
