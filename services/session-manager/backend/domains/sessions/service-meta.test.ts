@@ -100,13 +100,18 @@ describe('meta', () => {
     const app = setup();
     addProxy(app.manager, '192.0.2.1:8080');
     app.backend.installed = false;
-    app.backend.install = { installing: true, error: null };
+    app.backend.install = {
+      installing: true,
+      error: null,
+      progress: { phase: 'downloading', percent: 45 },
+    };
     let meta = app.manager.meta();
     expect([
       meta.browserInstalled,
       meta.browserInstalling,
+      meta.browserInstallProgress,
       meta.browserInstallError,
-    ]).toEqual([false, true, null]);
+    ]).toEqual([false, true, { phase: 'downloading', percent: 45 }, null]);
     const installing = await refusalOf(() => app.manager.createSession());
     expect([installing.status, installing.code]).toEqual([
       503,
@@ -119,12 +124,14 @@ describe('meta', () => {
     app.backend.install = {
       installing: false,
       error: 'no space left on device',
+      progress: null,
     };
     meta = app.manager.meta();
-    expect([meta.browserInstalling, meta.browserInstallError]).toEqual([
-      false,
-      'no space left on device',
-    ]);
+    expect([
+      meta.browserInstalling,
+      meta.browserInstallProgress,
+      meta.browserInstallError,
+    ]).toEqual([false, null, 'no space left on device']);
     const missing = await refusalOf(() => app.manager.createSession());
     expect([missing.status, missing.code]).toEqual([
       503,
@@ -144,7 +151,7 @@ describe('meta', () => {
     await waitForStatus(app.manager, created.id, 'running');
     await app.manager.stopSession(created.id);
     await waitForStatus(app.manager, created.id, 'stopped');
-    app.backend.install = { installing: true, error: null };
+    app.backend.install = { installing: true, error: null, progress: null };
     const refused = await refusalOf(() => app.manager.startSession(created.id));
     expect(refused.code).toBe('browser_installing');
   });

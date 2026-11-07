@@ -50,7 +50,7 @@ describe('the meta', () => {
   it('reports the install of the browser, and refuses sessions meanwhile', async () => {
     await addProxy(flow.client, '192.0.2.1:8080');
     flow.backend.installed = false;
-    flow.backend.install = { installing: true, error: null };
+    flow.backend.install = { installing: true, error: null, progress: null };
     const installing = await meta();
     expect([
       installing.browserInstalled,
@@ -66,6 +66,7 @@ describe('the meta', () => {
     flow.backend.install = {
       installing: false,
       error: 'no space left on device',
+      progress: null,
     };
     const failed = await meta();
     expect(failed.browserInstalling).toBe(false);

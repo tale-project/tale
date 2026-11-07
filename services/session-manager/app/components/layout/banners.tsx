@@ -3,6 +3,7 @@ import { CodeBlock } from '@tale/ui/code-block';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { InlineCode } from '@tale/ui/inline-code';
 import { Stack } from '@tale/ui/layout';
+import { ProgressBar } from '@tale/ui/progress-bar';
 import { Text } from '@tale/ui/text';
 import { Download } from 'lucide-react';
 
@@ -11,12 +12,40 @@ import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useMeta } from '@/app/hooks/use-meta';
 import { documentTitle } from '@/app/lib/page-head';
 import { SUMMARY_FOCUS_CLASS } from '@/app/lib/summary-focus';
+import type { InstallProgress } from '@/lib/api/schemas';
 import { useT } from '@/lib/i18n/client';
 
 import { ShellAlert } from './shell-alert';
 
 /** What a person runs by hand when the installation of the browser failed. Code, not a message. */
 const INSTALL_COMMAND = 'camoufox-js fetch';
+
+/**
+ * The browser on its way: how much of the download is in, and that the
+ * archive is unpacked once all of it is. The first start of the app downloads
+ * about 1.3 GB, which takes a minute or more, and sessions wait for it.
+ */
+function InstallingNotice({ progress }: { progress: InstallProgress | null }) {
+  const { t } = useT('banners');
+  if (progress?.phase === 'unpacking') {
+    return <Text>{t('browser.unpacking')}</Text>;
+  }
+  return (
+    <Stack gap={2}>
+      <Text>{t('browser.installing')}</Text>
+      {progress === null || progress.percent === null ? null : (
+        <ProgressBar
+          value={progress.percent}
+          max={100}
+          label={t('browser.progress')}
+          // The percentage is beside the bar already.
+          tooltipContent={null}
+          className="max-w-xs"
+        />
+      )}
+    </Stack>
+  );
+}
 
 /**
  * What the whole app should know before anything else: the server is out of
@@ -59,7 +88,9 @@ export function Banners() {
         <ShellAlert
           variant="info"
           icon={Download}
-          description={t('browser.installing')}
+          description={
+            <InstallingNotice progress={browser.browserInstallProgress} />
+          }
         />
       )}
       {browserMissing &&

@@ -2487,12 +2487,17 @@ test.describe('Banners and refusals', () => {
     await meta(page, {
       browserInstalled: false,
       browserInstalling: true,
+      browserInstallProgress: { phase: 'downloading', percent: 45 },
       browserInstallError: null,
     });
     await page.goto('/sessions');
     await expect(page.getByText(t('banners.browser.installing'))).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
+    // How much of it is in.
+    await expect(
+      page.getByRole('progressbar', { name: t('banners.browser.progress') }),
+    ).toHaveAttribute('aria-valuenow', '45');
     // Adding a session waits, and the button says why.
     await expect(
       page.getByRole('button', { name: t('sessions.panel.add') }),

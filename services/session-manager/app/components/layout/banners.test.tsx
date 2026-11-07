@@ -64,6 +64,40 @@ describe('Banners: the browser', () => {
     await checkAccessibility(view);
   });
 
+  it('shows how much of the download is in, as a bar named for it', async () => {
+    installFakeApi({
+      'GET /meta': meta({
+        browserInstalled: false,
+        browserInstalling: true,
+        browserInstallProgress: { phase: 'downloading', percent: 45 },
+      }),
+    });
+    const view = renderApp(<Frame />);
+    const bar = await screen.findByRole('progressbar', {
+      name: 'Download of the browser',
+    });
+    expect(bar).toHaveAttribute('aria-valuenow', '45');
+    expect(bar).toHaveAttribute('aria-valuemax', '100');
+    expect(screen.getByRole('alert')).toHaveTextContent('45%');
+    await checkAccessibility(view);
+  });
+
+  it('says the archive is unpacked once all of it is in, without a bar', async () => {
+    installFakeApi({
+      'GET /meta': meta({
+        browserInstalled: false,
+        browserInstalling: true,
+        browserInstallProgress: { phase: 'unpacking', percent: 100 },
+      }),
+    });
+    renderApp(<Frame />);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'The browser is downloaded and being unpacked. Sessions can start in a moment.',
+    );
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
   it('says the browser is not installed yet when nothing is under way, in one sentence', async () => {
     installFakeApi({ 'GET /meta': meta({ browserInstalled: false }) });
     const view = renderApp(<Frame />);

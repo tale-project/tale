@@ -178,6 +178,7 @@ export function metaFixture(overrides: Partial<Meta> = {}): Meta {
     browserVersion: '152.0.4-beta.30',
     browserInstalled: true,
     browserInstalling: false,
+    browserInstallProgress: null,
     browserInstallError: null,
     osOptions: ['random', 'windows', 'macos', 'linux'],
     secretKinds: [],
