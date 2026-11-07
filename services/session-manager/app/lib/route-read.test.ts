@@ -1,6 +1,7 @@
+import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ROUTE_READ_WAIT_MS, waitForRead } from './route-read';
+import { readsSettled, ROUTE_READ_WAIT_MS, waitForRead } from './route-read';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -66,5 +67,46 @@ describe('waitForRead', () => {
 
     fail(new Error('late'));
     await vi.waitFor(() => expect(onFailure).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('readsSettled', () => {
+  it('is over at once when nothing is being read', async () => {
+    const client = new QueryClient();
+    expect(await settled(readsSettled(client))).toBe(true);
+  });
+
+  it('waits for the reads in flight, then is over', async () => {
+    const client = new QueryClient();
+    let answer!: (rows: string[]) => void;
+    void client.prefetchQuery({
+      queryKey: ['proxies'],
+      queryFn: () =>
+        new Promise<string[]>((resolve) => {
+          answer = resolve;
+        }),
+    });
+    const waiting = readsSettled(client);
+    expect(await settled(waiting)).toBe(false);
+
+    answer(['one']);
+    await waiting;
+    expect(client.getQueryData(['proxies'])).toEqual(['one']);
+  });
+
+  it('stops waiting for a read that takes longer, which goes on', async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient();
+    void client.prefetchQuery({
+      queryKey: ['slow'],
+      queryFn: () => new Promise<never>(() => {}),
+    });
+    const waiting = readsSettled(client, 400);
+
+    await vi.advanceTimersByTimeAsync(399);
+    expect(await settled(waiting)).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await settled(waiting)).toBe(true);
+    expect(client.isFetching()).toBe(1);
   });
 });

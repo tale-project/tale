@@ -11,12 +11,17 @@
 
   The directory is `dist`, or the first argument (a page built elsewhere, as
   `bunx --bun vite build --outDir <dir>` makes one).
+
+  It also names the fonts the first frame draws with in the page's head
+  (`withFontPreloads`), so they load with the page and its text never
+  changes face a frame after it is drawn.
 */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { withBootShell } from '../app/components/layout/boot-shell.tsx';
+import { withFontPreloads } from './font-preloads.ts';
 
 const distDir = resolve(
   process.argv[2] ?? join(import.meta.dirname, '..', 'dist'),
@@ -42,7 +47,9 @@ if (shelled === html) {
   );
   process.exit(1);
 }
-writeFileSync(file, shelled);
+const assets = readdirSync(join(distDir, 'assets'));
+const preloaded = withFontPreloads(shelled, assets);
+writeFileSync(file, preloaded);
 console.info(
-  `prerender-boot-shell: wrote the boot shell into ${file} (${shelled.length - html.length} bytes)`,
+  `prerender-boot-shell: wrote the boot shell and ${preloaded === shelled ? 'no font preload' : 'the font preloads'} into ${file} (${preloaded.length - html.length} bytes)`,
 );
