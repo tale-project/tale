@@ -75,7 +75,7 @@ const ENTRIES = [
   'http://p.example/',
   'HTTP://P.Example:3128',
   'http://alice:s3cret@203.0.113.7:8080',
-  "http://us-1.u_~:a!b$c&d'e(f)g*h+i;j=k:l%2Cm%40n%25o@p.webshare.io:80",
+  "http://us-1.u_~:a!b$c&d'e(f)g*h+i;j=k:l%2Cm%40n%25o@p.example.net:80",
   'http://user:pass:with:colons@p.example:1',
   'http://0x7f.example',
   'http://p.0xg',

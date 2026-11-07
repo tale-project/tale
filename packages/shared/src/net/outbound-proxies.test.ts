@@ -51,9 +51,9 @@ describe('parseOutboundProxyUrl', () => {
   });
 
   it('lower-cases the scheme and the host, never the credentials', () => {
-    const proxy = parseOutboundProxyUrl('HTTP://Al:Pw@P.Webshare.IO:80', 1);
-    expect(proxy.url).toBe('http://Al:Pw@p.webshare.io:80');
-    expect(proxy.label).toBe('http://p.webshare.io:80');
+    const proxy = parseOutboundProxyUrl('HTTP://Al:Pw@P.Example.NET:80', 1);
+    expect(proxy.url).toBe('http://Al:Pw@p.example.net:80');
+    expect(proxy.label).toBe('http://p.example.net:80');
   });
 
   it('keeps percent-encoded credentials as written, which every client decodes alike', () => {
