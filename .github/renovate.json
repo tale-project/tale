@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
-  "baseBranches": ["train"],
+  "baseBranchPatterns": ["train"],
   "rangeStrategy": "pin",
   "automerge": false,
   "minimumReleaseAge": "90 days",
