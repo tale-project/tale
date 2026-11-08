@@ -969,7 +969,7 @@ ranges compare a pull request with its own base, so one into `release/0.6` is ju
 `CI ready (…)` contexts pass on its head and its review approves, with
 `gh pr merge <n> --squash --auto`. It runs every suite its paths owe, the heavy ones included,
 so a red shows on the pull request where its author is. Renovate's pull requests target
-`train` (`baseBranches` in `.github/renovate.json`) and land there as one squashed commit each,
+`train` (`baseBranchPatterns` in `.github/renovate.json`) and land there as one squashed commit each,
 never on `main`; they reach `main` with the next train pull request and the feature line with
 its next rebase.
 

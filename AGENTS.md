@@ -109,7 +109,7 @@ Safety and architecture invariants — they hold even where no linter covers the
   request, its reviewer squashes the task into one commit on `train`, and `train` reaches
   `main` in one pull request per train (`train-<YYYYMMDD-HHMM>`); the repo contract says when
   a train departs, how its pull request is checked and who lands it. Renovate's dependency
-  pull requests follow the same path: their `.github/renovate.json` sets `baseBranches` to
+  pull requests follow the same path: their `.github/renovate.json` sets `baseBranchPatterns` to
   `train`, so they land on `train` and never on `main`. **Never add `Co-Authored-By` or
   "Generated with Claude Code" / any attribution line** — `.husky/commit-msg` strips such
   trailers before commitlint runs.
