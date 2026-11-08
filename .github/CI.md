@@ -965,10 +965,13 @@ request), pushes stay on `main` alone, and `.github/release-candidate-contract.j
 ranges compare a pull request with its own base, so one into `release/0.6` is judged against
 `release/0.6`, never against `main`.
 
-**A pull request of its own** (a person's, Renovate's) squash-merges once the eight
+**A pull request of its own** (a person's) squash-merges once the eight
 `CI ready (…)` contexts pass on its head and its review approves, with
 `gh pr merge <n> --squash --auto`. It runs every suite its paths owe, the heavy ones included,
-so a red shows on the pull request where its author is.
+so a red shows on the pull request where its author is. Renovate's pull requests target
+`train` (`baseBranches` in `.github/renovate.json`) and land there as one squashed commit each,
+never on `main`; they reach `main` with the next train pull request and the feature line with
+its next rebase.
 
 The ruleset does not require a branch to be up to date before merging. Two changes that pass on
 their own can still conflict in meaning; the full validation of each push to `main` catches

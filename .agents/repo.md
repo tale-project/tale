@@ -194,8 +194,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
     that a person squash-merges once its `CI ready (…)` checks pass (no ruleset holds the line,
     whose rebase onto `main` rewrites it; rebase an open pull request after the line moved).
     Either way its title must itself be commitlint-shaped, and its own CI runs every suite its
-    paths owe. Renovate's pull requests stay on `main`, which they keep patched, and reach the
-    feature line with its next rebase.
+    paths owe. Renovate's pull requests target `train` (`baseBranches` in `.github/renovate.json`)
+    and land there as one squashed commit each, never on `main`; they reach `main` with the next
+    train pull request and the feature line with its next rebase.
 
   No branch has to be up to date with its base — never rebase, merge `main` in or
   `gh pr update-branch` just because a PR reads *behind*; rebase only for a real conflict

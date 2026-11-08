@@ -108,9 +108,11 @@ Safety and architecture invariants — they hold even where no linter covers the
   autonomous development cycle works each task on a branch off `train` and opens no pull
   request, its reviewer squashes the task into one commit on `train`, and `train` reaches
   `main` in one pull request per train (`train-<YYYYMMDD-HHMM>`); the repo contract says when
-  a train departs, how its pull request is checked and who lands it. **Never add
-  `Co-Authored-By` or "Generated with Claude Code" / any attribution line** —
-  `.husky/commit-msg` strips such trailers before commitlint runs.
+  a train departs, how its pull request is checked and who lands it. Renovate's dependency
+  pull requests follow the same path: their `.github/renovate.json` sets `baseBranches` to
+  `train`, so they land on `train` and never on `main`. **Never add `Co-Authored-By` or
+  "Generated with Claude Code" / any attribution line** — `.husky/commit-msg` strips such
+  trailers before commitlint runs.
 - **Branches** — where the repo contract asks for one, name it for the work, never for the
   tool that did it: `<type>/<kebab-slug>` with a type from `.commitlintrc.json` (`feat/`,
   `fix/`, `refactor/`, `docs/`, `chore/`, `ci/`), or `dist/` for published build output.
