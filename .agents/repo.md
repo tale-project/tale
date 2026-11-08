@@ -188,7 +188,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
     collects the next. One train pull request per line is open at a time. `train`,
     `feature-train` and their departed branches belong to the trains, `release/*` to the lines,
     and a task branch is deleted once it lands on its train.
-  - **A pull request of its own** (a person's, Renovate's): a fix branches off `main` and
+  - **A pull request of its own** (a person's): a fix branches off `main` and
     squash-merges with `gh pr merge --squash --auto` once its checks and review pass; anything
     else goes to the feature line, through the cycle or as a pull request into `release/0.6`
     that a person squash-merges once its `CI ready (…)` checks pass (no ruleset holds the line,
