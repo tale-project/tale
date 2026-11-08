@@ -60,7 +60,7 @@
       "groupName": "minor updates"
     },
     {
-      "description": "Dockerfile images (FROM, COPY --from and the # syntax= frontend) are pinned by digest, image:tag@sha256:…: a tag can be rebuilt under the same name, a digest cannot. Renovate keeps each digest current and opens a pin update for any such reference added without one (tools/cli/scripts/oci-image-metadata.test.ts refuses them too). Scoped to the dockerfile manager so Compose images are not re-pinned.",
+      "description": "Dockerfile images (FROM, COPY --from and the # syntax= frontend) are pinned by digest, image:tag@sha256:…: a tag can be rebuilt under the same name, a digest cannot. Renovate keeps each digest current and opens a pin update for any such reference added without one. Scoped to the dockerfile manager so Compose images are not re-pinned.",
       "matchManagers": ["dockerfile"],
       "pinDigests": true
     },
@@ -71,17 +71,18 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "description": "GitHub-hosted runner labels (runs-on, depType github-runner): a new OS release waits for approval on the dependency dashboard and is never proposed inside the github actions group, which would hold every action pin behind it. A label moves by a reviewed change made by hand, one group of jobs at a time",
+      "matchDepTypes": ["github-runner"],
+      "groupName": "github runners",
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Disable Convex-related packages (manual upgrades only)",
       "matchPackageNames": ["convex", "/^convex-/", "/^@convex-dev\\//"],
       "enabled": false
     },
     {
-      "description": "Disable AI SDK packages (manual upgrades only)",
-      "matchPackageNames": ["ai", "/^@ai-sdk\\//"],
-      "enabled": false
-    },
-    {
-      "description": "WebAuthn/passkey deps (#1508) must move in lockstep with better-auth core, which is upgraded manually. Group them and waive the generic minimumReleaseAge so a security or compatibility bump isn't held back out of sync with better-auth.",
+      "description": "better-auth and its WebAuthn/passkey packages move in lockstep: they share one group, and the generic minimumReleaseAge is waived so a security or compatibility bump is not held back out of step with the others",
       "matchPackageNames": [
         "better-auth",
         "/^@better-auth\\//",
@@ -89,6 +90,11 @@
       ],
       "minimumReleaseAge": null,
       "groupName": "better-auth"
+    },
+    {
+      "description": "Disable AI SDK packages (manual upgrades only)",
+      "matchPackageNames": ["ai", "/^@ai-sdk\\//"],
+      "enabled": false
     },
     {
       "description": "CodeMirror and Lezer move together: @tale/ui's code editor and Milkdown share one copy of each, and two copies of @codemirror/state or @codemirror/view break the editor (packages/ui/src/components/forms/code-editor/deps.test.ts)",
