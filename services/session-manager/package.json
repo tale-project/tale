@@ -27,7 +27,7 @@
     "@tanstack/react-table": "8.21.3",
     "adm-zip": "0.6.1",
     "camoufox-js": "0.13.0",
-    "fast-xml-parser": "5.8.0",
+    "fast-xml-parser": "5.12.0",
     "fingerprint-generator": "2.1.89",
     "hono": "4.13.7",
     "playwright-core": "1.62.1",
