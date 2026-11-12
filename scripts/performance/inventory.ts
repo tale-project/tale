@@ -39,6 +39,11 @@ const coverage: Record<string, Coverage> = {
     remaining:
       'Container admission, image warmup, Kubernetes/Docker provisioning and concurrent session capacity need a disposable runtime host.',
   },
+  '@tale/incus': {
+    workloads: [],
+    remaining:
+      'Incus REST client library: its cost is request latency and operation waits on a real Incus host; measure instance create/start/stop and image import against a disposable Incus project rather than on this host.',
+  },
   '@tale/sandbox-runtime-daemon': {
     workloads: [
       'daemon.exec-replay',

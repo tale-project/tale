@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { incusSizeBytes, toIncusSize } from './incus-units.ts';
+import { incusSizeBytes, toIncusSize } from './units.ts';
 
 describe('toIncusSize', () => {
   test.each([

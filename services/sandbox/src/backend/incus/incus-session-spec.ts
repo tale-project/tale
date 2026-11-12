@@ -27,6 +27,14 @@
 
 import { createHash } from 'node:crypto';
 
+import type {
+  IncusConfigMap,
+  IncusDevices,
+  IncusInstanceCreate,
+  IncusVolumeCreate,
+} from '@tale/incus/api';
+import { incusSizeBytes, toIncusSize } from '@tale/incus/units';
+
 import { isIpv4Address, parseDindInnerPool } from '../../network-address.ts';
 import { transparentEgressSupported } from '../../runtime-tier.ts';
 import { RUNNERD_INCARNATION_ENV } from '../../session/runnerd-protocol.ts';
@@ -44,12 +52,6 @@ import type {
   SpawnerConfig,
 } from '../../types.ts';
 import type { SandboxSessionProfile } from '../../wire.ts';
-import type {
-  IncusConfigMap,
-  IncusDevices,
-  IncusInstanceCreate,
-  IncusVolumeCreate,
-} from './incus-api.ts';
 import {
   incusInstanceName,
   incusWorkspaceVolumeName,
@@ -64,7 +66,6 @@ import {
   STANDBY_COMMAND,
   standbyScriptDigest,
 } from './incus-standby.ts';
-import { incusSizeBytes, toIncusSize } from './incus-units.ts';
 
 /** Where a session's workspace volume is mounted. */
 const WORKSPACE_PATH = '/agent';

@@ -22,6 +22,17 @@
 // layer serializes the operations of one session id, and the removal re-checks
 // the creation time while the instance goes.
 
+import {
+  incusStatus,
+  type IncusInstance,
+  type IncusInstanceState,
+} from '@tale/incus/api';
+import {
+  isIncusImageMissing,
+  isIncusNameConflict,
+  type IncusClient,
+} from '@tale/incus/client';
+
 import { isIpv4Address } from '../../network-address.ts';
 import {
   outsideOperationBudget,
@@ -54,16 +65,6 @@ import {
   type StopSessionOptions,
   type WorkspaceDeletion,
 } from '../types.ts';
-import {
-  incusStatus,
-  type IncusInstance,
-  type IncusInstanceState,
-} from './incus-api.ts';
-import {
-  isIncusImageMissing,
-  isIncusNameConflict,
-  type IncusClient,
-} from './incus-client.ts';
 import {
   hasEnded,
   instanceAddress,

@@ -16,11 +16,11 @@ import {
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { readIncusTlsMaterial } from './incus-tls.ts';
 import {
   makeTestCertificates,
   type TestCertificates,
 } from './test-certificates.ts';
+import { readIncusTlsMaterial } from './tls.ts';
 
 let made: TestCertificates | undefined;
 let warn: ReturnType<typeof spyOn<typeof console, 'warn'>>;

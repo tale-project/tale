@@ -160,10 +160,11 @@ build:
   - "package.json"
   - "bun.lock"
 
-# The Incus lab: the spawner, the image its sessions run and the proxy they go
-# out through.
+# The Incus lab: the spawner (with its Incus client), the image its sessions
+# run and the proxy they go out through.
 sandbox-incus:
   - "services/sandbox/**"
+  - "packages/incus/**"
   - "services/sandbox-runtime/**"
   - "services/sandbox-egress/**"
   - ".github/workflows/sandbox-incus-e2e.yml"
@@ -268,6 +269,7 @@ build_storybook:
 
 build_sandbox:
   - "services/sandbox/**"
+  - "packages/incus/**"
 
 build_sandbox-egress:
   - "services/sandbox-egress/**"

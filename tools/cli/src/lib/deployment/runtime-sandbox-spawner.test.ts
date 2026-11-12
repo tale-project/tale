@@ -185,6 +185,20 @@ describe('the modules the cross-check runs', () => {
       seen.add(file);
       const transpiler = new Bun.Transpiler({ loader: 'ts' });
       for (const entry of transpiler.scanImports(readFileSync(file, 'utf8'))) {
+        // One of the repository's own packages is source the child runs too:
+        // follow it to its file, through the workspace link.
+        if (entry.path.startsWith('@tale/')) {
+          const target = relative(
+            realpathSync(REPOSITORY_ROOT),
+            realpathSync(Bun.resolveSync(entry.path, dirname(file))),
+          );
+          expect(
+            target.startsWith('..'),
+            `${entry.path} imported by ${file} lies outside the repository`,
+          ).toBe(false);
+          visit(join(REPOSITORY_ROOT, target));
+          continue;
+        }
         if (!entry.path.startsWith('.')) continue;
         const target = resolve(dirname(file), entry.path);
         const source = [target, `${target}.ts`, target.replace(/\.js$/, '.ts')]

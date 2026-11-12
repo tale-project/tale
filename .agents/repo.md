@@ -24,9 +24,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   GitHub), `marketing-ui` (the marketing design language — site chrome, marketing primitives,
   feature-page and product-demo frames — layered on `@tale/ui`; the marketing site builds on it
   and it is published from GitHub the same way), `shared` (schemas + pg), `e2e` (Playwright config
-  factory). A component that carries tale business logic (org branding, abilities, backend
-  queries) stays in its service and wraps the `@tale/ui` primitive; only UI-reusable logic lives
-  in the package.
+  factory), `incus` (the typed Incus REST client over mutual TLS and its in-memory fake, which the
+  sandbox spawner's Incus backend drives its node through). A component that carries tale
+  business logic (org branding, abilities, backend queries) stays in its service and wraps the
+  `@tale/ui` primitive; only UI-reusable logic lives in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
   tale-project repo — fix a rule in `example-project` and roll it, never here), `lint-links`

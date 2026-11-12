@@ -5,12 +5,13 @@
 // pool's upkeep, the /health probe, getting the runtime image into the
 // project, and the periodic sweep of debris.
 
+import { incusStatus } from '@tale/incus/api';
+import type { IncusClient } from '@tale/incus/client';
+
 import { belongsToInstance } from '../../session/session-naming.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import type { HealthResult, HostBackend } from '../types.ts';
-import { incusStatus } from './incus-api.ts';
 import { inspectIncus } from './incus-checks.ts';
-import type { IncusClient } from './incus-client.ts';
 import {
   hasEnded,
   STARTUP_SLACK_MS,

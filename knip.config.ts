@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 
+import incusPackage from './packages/incus/package.json';
 import marketingUiPackage from './packages/marketing-ui/package.json';
 import sharedPackage from './packages/shared/package.json';
 import uiPackage from './packages/ui/package.json';
@@ -254,6 +255,9 @@ export default {
     // discovery can miss them in worktrees. Keep internal files in the sweep.
     'packages/shared': {
       entry: Object.values(sharedPackage.exports),
+    },
+    'packages/incus': {
+      entry: Object.values(incusPackage.exports),
     },
     'packages/ui': {
       storybook: {

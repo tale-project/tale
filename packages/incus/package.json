@@ -1,0 +1,25 @@
+{
+  "name": "@tale/incus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed Incus REST client over mutual TLS, with an in-memory Incus for tests",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api.ts",
+    "./client": "./src/client.ts",
+    "./tls": "./src/tls.ts",
+    "./units": "./src/units.ts",
+    "./fake": "./src/fake.ts",
+    "./test-certificates": "./src/test-certificates.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@peculiar/x509": "1.14.3"
+  }
+}

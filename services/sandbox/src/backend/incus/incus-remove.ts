@@ -8,8 +8,8 @@
 // instance's creation time, a different instance under the name — a
 // replacement made while this one went — is left alone.
 
-import { INCUS_STATUS, incusStatus } from './incus-api.ts';
-import type { IncusClient } from './incus-client.ts';
+import { INCUS_STATUS, incusStatus } from '@tale/incus/api';
+import type { IncusClient } from '@tale/incus/client';
 
 /** Polls for the instance to go: the first ones quickly, since a deletion
  * is usually done by the time the next look comes. */

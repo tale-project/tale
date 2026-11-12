@@ -126,4 +126,7 @@ services/web/
 packages/
 # The spawner shares the platform's exact credential scrubber.
 !packages/shared/src/monitoring/privacy.ts
+# ... and its Incus REST client, a workspace package.
+!packages/incus/package.json
+!packages/incus/src/
 tools/
