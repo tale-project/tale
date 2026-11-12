@@ -10,6 +10,7 @@ import { getOutputMode } from '../../utils/output-mode';
 import { confirm as promptConfirm, isInteractive } from '../../utils/prompt';
 import { findProject } from '../project/find-project';
 import { resolveProjectContext } from '../project/project-context';
+import { selectRuntime } from '../runtime/select-runtime';
 import {
   readSandboxDeviceConfig,
   sandboxDeviceConfigPath,
@@ -93,8 +94,14 @@ const defaultDeps: UninstallDeps = {
     // `force: true` — we already consented at the uninstall level, so skip
     // reset's own inner confirmation. `includeStateful` removes the db/proxy
     // containers and deletes the project's data volumes too; the `backups`
-    // volume with its snapshots stays.
-    await reset({ env, force: true, includeStateful: true, dryRun: false });
+    // volume with its snapshots stays. The project's own runtime does it.
+    await reset({
+      env,
+      force: true,
+      includeStateful: true,
+      dryRun: false,
+      runtime: await selectRuntime(projectDir),
+    });
   },
   confirm: (message) => promptConfirm({ message, default: false }),
   isInteractive,

@@ -10,8 +10,9 @@
  * /v1/drain; spawner_client retries land on the restarted spawner) and waits
  * for in-flight one-shots to finish before the recreate.
  *
- * The control channel is `docker exec <sandbox-container> bun
- * /app/src/control-cli.ts drain|drain-status` — the spawner's control routes
+ * The control channel is an exec of `bun /app/src/control-cli.ts
+ * drain|drain-status` in the sandbox container, through the deployment's
+ * runtime (`docker exec` on Docker) — the spawner's control routes
  * are HMAC-gated like every other route (they share the listener that sits on
  * the sandbox network every session container reaches), and the signed client
  * shipped in the spawner image signs with the SANDBOX_TOKEN the container
@@ -27,8 +28,8 @@
 
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import { docker } from '../docker/docker';
-import { isContainerRunning } from '../docker/is-container-running';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 
 /** The signed control client baked into the spawner image (WORKDIR /app). */
 const CONTROL_CLIENT = '/app/src/control-cli.ts';
@@ -60,8 +61,12 @@ export function controlScript(command: ControlCommand): string {
   );
 }
 
-function controlCall(container: string, command: ControlCommand) {
-  return docker('exec', container, 'sh', '-c', controlScript(command));
+function controlCall(
+  runtime: StackRuntime,
+  container: string,
+  command: ControlCommand,
+) {
+  return runtime.exec(container, ['sh', '-c', controlScript(command)]);
 }
 
 // One-shot sandbox executions are short (default 30s, max 5min), so the drain
@@ -80,8 +85,11 @@ interface DrainStatus {
  * endpoint is unreachable or the JSON shape is unexpected — callers must treat
  * `null` as "unknown", NOT as "0 in flight".
  */
-async function readDrainStatus(container: string): Promise<DrainStatus | null> {
-  const res = await controlCall(container, 'drain-status');
+async function readDrainStatus(
+  runtime: StackRuntime,
+  container: string,
+): Promise<DrainStatus | null> {
+  const res = await controlCall(runtime, container, 'drain-status');
   if (!res.success) return null;
   try {
     const parsed: unknown = JSON.parse(res.stdout);
@@ -106,6 +114,8 @@ export async function drainSandbox(opts: {
   dryRun: boolean;
   pollMs?: number;
   timeoutMs?: number;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }): Promise<void> {
   if (opts.dryRun) {
     logger.info(
@@ -117,14 +127,15 @@ export async function drainSandbox(opts: {
   const pollMs = opts.pollMs ?? DRAIN_POLL_MS;
   const timeoutMs = opts.timeoutMs ?? DRAIN_TIMEOUT_MS;
   const container = `${getProjectId()}-sandbox`;
+  const runtime = opts.runtime ?? dockerRuntime;
 
-  if (!(await isContainerRunning(container))) {
+  if (!(await runtime.isRunning(container))) {
     logger.debug('No sandbox container running; skipping sandbox drain.');
     return;
   }
 
   logger.step('Draining in-flight sandbox executions before recreate...');
-  const drain = await controlCall(container, 'drain');
+  const drain = await controlCall(runtime, container, 'drain');
   if (!drain.success) {
     logger.warn(
       `Sandbox drain unavailable — proceeding (the spawner's SIGTERM drain handles in-flight executions): ${drain.stderr.trim().slice(0, 200)}`,
@@ -134,7 +145,7 @@ export async function drainSandbox(opts: {
 
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const status = await readDrainStatus(container);
+    const status = await readDrainStatus(runtime, container);
     if (status && status.inFlight === 0) {
       logger.info('All in-flight sandbox executions finished.');
       return;

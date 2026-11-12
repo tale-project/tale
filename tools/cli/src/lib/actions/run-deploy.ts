@@ -21,6 +21,7 @@ import {
 import { ensureDocker } from '../docker/ensure-docker';
 import { requireProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
+import { selectRuntime } from '../runtime/select-runtime';
 import { isDevBuild } from '../version/self-update';
 import { checkBreakingCutover } from './breaking-cutover-guard';
 import { deploy } from './deploy';
@@ -51,7 +52,8 @@ interface RunDeployOptions {
  * Injectable seams (project lookup, Docker, preflight, the deploy itself,
  * prompting) so what a run reads from and writes to `.env`, and what it asks
  * before, is unit-testable without Docker or a terminal. Production passes
- * the defaults below.
+ * the defaults below. `ensureDocker` is how the Docker runtime makes itself
+ * usable (`StackRuntime.probe`).
  */
 export interface RunDeployDeps {
   requireProject: typeof requireProject;
@@ -113,10 +115,15 @@ export async function runDeploy(
   }
   await resolveOrAssignProjectContext(projectDir, { dryRun });
 
-  // Zero-prerequisite: make sure Docker is usable before anything else.
-  const docker = await deps.ensureDocker({ assumeYes: options.yes });
-  if (docker.status === 'refused' || docker.status === 'failed') {
-    throw preconditionError(docker.detail);
+  // The runtime the workspace declares, chosen once for the whole run.
+  const runtime = await selectRuntime(projectDir, {
+    docker: { ensureDocker: deps.ensureDocker },
+  });
+
+  // Zero-prerequisite: make sure the runtime is usable before anything else.
+  const ready = await runtime.probe({ assumeYes: options.yes });
+  if (ready.status === 'refused' || ready.status === 'failed') {
+    throw preconditionError(ready.detail);
   }
 
   const { success: envSetupSuccess, regeneratedAutoSecrets } = await ensureEnv({
@@ -173,6 +180,7 @@ export async function runDeploy(
     env: origin
       ? { ...process.env, HOST: origin.host, SITE_URL: origin.siteUrl }
       : process.env,
+    runtime,
   });
 
   const version = isDevBuild() ? 'latest' : pkg.version;
@@ -220,5 +228,6 @@ export async function runDeploy(
     quiet: options.quiet,
     forceRecreate,
     skipBackup: options.skipBackup,
+    runtime,
   });
 }

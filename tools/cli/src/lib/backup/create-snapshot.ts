@@ -1,12 +1,8 @@
 import pkg from '../../../package.json';
 import { formatBytes } from '../../utils/format-bytes';
 import * as logger from '../../utils/logger';
-import { ensureVolumes, volumeExists } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
-import {
-  listContainersUsingVolume,
-  withVolumeContainersPaused,
-} from '../docker/with-volume-paused';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
@@ -52,6 +48,8 @@ interface CreateSnapshotOptions {
    * preflight, where "no volumes yet" means there is nothing to protect.
    */
   allowMissingVolumes?: boolean;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }
 
 function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
@@ -68,6 +66,7 @@ function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
  * dir is not restorable.
  */
 async function archiveVolume(
+  runtime: StackRuntime,
   prefix: string,
   backupVolume: string,
   id: string,
@@ -75,24 +74,21 @@ async function archiveVolume(
   pausedCount: number,
 ): Promise<SnapshotVolumeInfo> {
   const volumeName = `${prefix}${volume}`;
-  const tarResult = await exec(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-v',
-      `${volumeName}:/data:ro`,
-      '-v',
-      `${backupVolume}:/backup`,
-      BACKUP_HELPER_IMAGE,
+  const tarResult = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [
+      { volume: volumeName, target: '/data', readOnly: true },
+      { volume: backupVolume, target: '/backup' },
+    ],
+    argv: [
       'sh',
       '-c',
       // tee writes the .sha256 sidecar AND echoes it so sha256 + byte size
       // are parseable from the last two stdout lines below.
       `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
     ],
-    { timeout: archiveTimeoutSeconds(volume) },
-  );
+    timeoutS: archiveTimeoutSeconds(volume),
+  });
   if (!tarResult.success) {
     throw new Error(
       `Snapshot of volume ${volumeName} failed: ${tarResult.stderr || tarResult.stdout}`,
@@ -122,20 +118,22 @@ async function archiveVolume(
 /**
  * Tar a run of volumes inside ONE pause of the containers that use them. The
  * pause typically lasts seconds; unpausing, and waiting until the containers
- * report healthy again, is guaranteed by withVolumeContainersPaused.
+ * report healthy again, is guaranteed by the runtime's `quiesce`.
  */
 async function snapshotVolumes(
+  runtime: StackRuntime,
   prefix: string,
   backupVolume: string,
   id: string,
   volumes: readonly string[],
 ): Promise<Record<string, SnapshotVolumeInfo>> {
-  return withVolumeContainersPaused(
+  return runtime.quiesce(
     volumes.map((volume) => `${prefix}${volume}`),
     async (pausedCount) => {
       const archived: Record<string, SnapshotVolumeInfo> = {};
       for (const volume of volumes) {
         archived[volume] = await archiveVolume(
+          runtime,
           prefix,
           backupVolume,
           id,
@@ -155,12 +153,13 @@ async function snapshotVolumes(
  * interval per volume, and the run's archives capture the same instant.
  */
 async function pauseGroups(
+  runtime: StackRuntime,
   prefix: string,
   volumes: readonly string[],
 ): Promise<string[][]> {
   const groups: { users: string; volumes: string[] }[] = [];
   for (const volume of volumes) {
-    const users = (await listContainersUsingVolume(`${prefix}${volume}`))
+    const users = (await runtime.volumeUsers(`${prefix}${volume}`))
       .sort()
       .join(',');
     const previous = groups.at(-1);
@@ -221,8 +220,9 @@ export async function createSnapshot(
   options: CreateSnapshotOptions,
 ): Promise<SnapshotManifest | null> {
   const { prefix, trigger, platformVersion } = options;
+  const runtime = options.runtime ?? dockerRuntime;
 
-  const blobStore = await inspectBlobStore(prefix);
+  const blobStore = await inspectBlobStore(prefix, runtime);
   const candidates: readonly string[] =
     blobStore.default.kind === 'external'
       ? SNAPSHOT_VOLUMES.filter((volume) => volume !== BLOB_VOLUME)
@@ -234,14 +234,16 @@ export async function createSnapshot(
       // First upgrade: snapshot runs BEFORE the volume rename. Live org
       // config is still in `convex-data`. Snapshotting only `config-data`
       // would omit agents/SSO/governance from the recovery point.
-      if (await volumeExists(`${prefix}${CONFIG_VOLUME}`)) {
+      if (await runtime.volumeExists(`${prefix}${CONFIG_VOLUME}`)) {
         present.push(CONFIG_VOLUME);
-      } else if (await volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`)) {
+      } else if (
+        await runtime.volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`)
+      ) {
         present.push(LEGACY_CONFIG_VOLUME);
       }
       continue;
     }
-    if (await volumeExists(`${prefix}${volume}`)) {
+    if (await runtime.volumeExists(`${prefix}${volume}`)) {
       present.push(volume);
     }
   }
@@ -255,7 +257,7 @@ export async function createSnapshot(
   }
 
   const backupVolume = `${prefix}${BACKUP_VOLUME}`;
-  const volumesReady = await ensureVolumes([BACKUP_VOLUME], prefix);
+  const volumesReady = await runtime.ensureVolumes([BACKUP_VOLUME], prefix);
   if (!volumesReady) {
     throw new Error(`Failed to create backup volume ${backupVolume}`);
   }
@@ -265,10 +267,10 @@ export async function createSnapshot(
   announceExternalBlobs(blobStore);
 
   const volumes: Record<string, SnapshotVolumeInfo> = {};
-  for (const group of await pauseGroups(prefix, present)) {
+  for (const group of await pauseGroups(runtime, prefix, present)) {
     Object.assign(
       volumes,
-      await snapshotVolumes(prefix, backupVolume, id, group),
+      await snapshotVolumes(runtime, prefix, backupVolume, id, group),
     );
   }
 
@@ -280,21 +282,12 @@ export async function createSnapshot(
     trigger,
     volumes,
   };
-  const writeResult = await exec(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-i',
-      '-v',
-      `${backupVolume}:/backup`,
-      BACKUP_HELPER_IMAGE,
-      'sh',
-      '-c',
-      `cat > /backup/${id}/manifest.json`,
-    ],
-    { stdin: JSON.stringify(manifest) },
-  );
+  const writeResult = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: backupVolume, target: '/backup' }],
+    argv: ['sh', '-c', `cat > /backup/${id}/manifest.json`],
+    stdin: JSON.stringify(manifest),
+  });
   if (!writeResult.success) {
     throw new Error(
       `Failed to write snapshot manifest for ${id}: ${writeResult.stderr}`,
