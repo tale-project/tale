@@ -6,12 +6,13 @@ import { z } from 'zod';
 import { externalDepError, preconditionError } from '../../utils/fail';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, sha, slug } from '../config/releases/model';
-import { exec } from '../docker/exec';
+import type { exec } from '../docker/exec';
 import { validateLockPaths } from '../state/lock-guard';
 import { withLock } from '../state/with-lock';
 import {
   acceptanceHealth,
-  localServingArgs,
+  LOCAL_HTTP_ENVIRONMENT,
+  localServingCommand,
   localServingIdentity,
   type ServingService,
 } from './acceptance-health';
@@ -25,8 +26,14 @@ import {
 } from './acceptance-model';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
 import { readProvisionStateProof } from './provision-state';
+import {
+  budgetedDockerRun,
+  budgetedExec,
+  dockerRuntimeAccess,
+  type RuntimeBudget,
+  type RuntimeInstance,
+} from './runtime-access';
 import { observeReadyState, startedAtSchema } from './runtime-apply';
-import { runtimeProcessEnvironment } from './runtime-command';
 import {
   readRuntimeBundle,
   requireRuntime,
@@ -53,23 +60,30 @@ const readySchema = z.object({
   images: z.array(runtimeImageSchema),
 });
 const digest = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+/** What acceptance demands of a captured instance's readback. */
 const containerIdentitySchema = z.object({
-  Id: sha,
-  Image: digest,
-  RestartCount: z.number().int().nonnegative(),
-  State: z.object({ Running: z.literal(true), StartedAt: startedAtSchema }),
+  id: sha,
+  image: digest,
+  restartCount: z.number().int().nonnegative(),
+  running: z.literal(true),
+  startedAt: startedAtSchema,
+});
+const containerIdentity = (instance: RuntimeInstance) => ({
+  id: instance.id,
+  image: instance.image,
+  restartCount: instance.restartCount,
+  running: instance.running,
+  startedAt: instance.startedAt,
 });
 const originContainerSchema = containerIdentitySchema.extend({
-  NetworkSettings: z.object({
-    Networks: z.record(
-      z.string().min(1),
-      z.object({ NetworkID: sha, IPAddress: z.ipv4() }),
-    ),
-  }),
+  networks: z.record(
+    z.string().min(1),
+    z.object({ id: sha, address: z.ipv4() }),
+  ),
 });
 const imageIdentitySchema = z.object({
-  Id: digest,
-  Config: imageInspectSchema.shape.Config,
+  id: digest,
+  labels: imageInspectSchema.shape.Config.shape.Labels.unwrap(),
 });
 function ready(bundle: DeploymentBundle, directory: string) {
   try {
@@ -130,39 +144,33 @@ export async function acceptDeployment(
     );
     return left;
   };
-  const run: typeof exec = async (command, args, execution = {}) => {
-    const left = remaining();
-    let result;
-    try {
-      result = await (dependencies.exec ?? exec)(command, args, {
-        ...execution,
-        silent: true,
-        timeout: Math.min(15, left / 1000),
-        maxOutputBytes: 1_048_576,
-        env: runtimeProcessEnvironment(),
-      });
-    } catch {
-      throw externalDepError(
-        'The bounded deployment acceptance observation failed.',
+  const budget: RuntimeBudget = {
+    bounds: () => ({
+      timeout: Math.min(15, remaining() / 1000),
+      maxOutputBytes: 1_048_576,
+    }),
+    failed: () =>
+      externalDepError('The bounded deployment acceptance observation failed.'),
+    settled: (result) => {
+      total +=
+        Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr);
+      requireRuntime(
+        total <= 16_777_216,
+        'Deployment acceptance exceeded its aggregate byte limit.',
       );
-    }
-    total +=
-      Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr);
-    requireRuntime(
-      total <= 16_777_216,
-      'Deployment acceptance exceeded its aggregate byte limit.',
-    );
-    remaining();
-    return result;
+      remaining();
+    },
+    refused: () =>
+      preconditionError(
+        'Docker refused the deployment acceptance observation.',
+      ),
   };
-  const query = async (args: string[], stdin?: string) => {
-    const result = await run('docker', args, { stdin });
-    requireRuntime(
-      result.success,
-      'Docker refused the deployment acceptance observation.',
-    );
-    return result.stdout;
-  };
+  const commandOptions = { exec: dependencies.exec };
+  // The Ready state reader still takes an executor; it gets the same budget.
+  const run = budgetedExec(budget, commandOptions);
+  const runtime = dockerRuntimeAccess(
+    budgetedDockerRun(budget, commandOptions),
+  );
   return withFrozenDeployment(
     options.bundle,
     options,
@@ -191,10 +199,10 @@ export async function acceptDeployment(
             .array(containerIdentitySchema)
             .min(1)
             .max(64)
-            .parse(JSON.parse(await query(['container', 'inspect', ...ids])))
-            .sort((a, b) => a.Id.localeCompare(b.Id));
+            .parse((await runtime.inspect(ids)).map(containerIdentity))
+            .sort((a, b) => a.id.localeCompare(b.id));
           requireRuntime(
-            stableJson(values.map((c) => c.Id)) === stableJson(ids),
+            stableJson(values.map((c) => c.id)) === stableJson(ids),
             'Acceptance container identities differ.',
           );
           return values;
@@ -205,25 +213,23 @@ export async function acceptDeployment(
           const values = z
             .array(imageIdentitySchema)
             .length(1)
-            .parse(
-              JSON.parse(await query(['image', 'inspect', image.reference])),
-            );
+            .parse(await runtime.inspectImage([image.reference]));
           const actual = values[0];
           if (image.repository.startsWith(`${TALE_REGISTRY}/`)) {
             // A sha-<source> reference is legitimate metadata, never served version.
             requireRuntime(
-              actual.Config.Labels?.['org.opencontainers.image.version'] ===
+              actual.labels?.['org.opencontainers.image.version'] ===
                 options.expectedVersion &&
-                actual.Config.Labels?.['org.opencontainers.image.revision'] ===
+                actual.labels?.['org.opencontainers.image.revision'] ===
                   initial.runtime.revision,
               'A Tale runtime image does not prove the expected release version and source.',
             );
           }
-          observedImages.set(image.reference, actual.Id);
+          observedImages.set(image.reference, actual.id);
         }
         for (const container of before.containers)
           requireRuntime(
-            started.find((c) => c.Id === container.Id)?.Image ===
+            started.find((c) => c.id === container.Id)?.image ===
               observedImages.get(container.Config.Image),
             'A running container differs from its pinned image identity.',
           );
@@ -235,10 +241,11 @@ export async function acceptDeployment(
             matches.length === 1,
             'Acceptance requires one captured database container per service.',
           );
-          return query(
-            ['exec', '-i', matches[0].Id, 'sh', '-s'],
-            acceptanceMigrationScript(service),
-          );
+          return (
+            await runtime.exec(matches[0].Id, ['sh', '-s'], {
+              stdin: acceptanceMigrationScript(service),
+            })
+          ).stdout;
         };
         const app = await ledger('db');
         const knowledge = await ledger('knowledge-db');
@@ -256,7 +263,11 @@ export async function acceptDeployment(
             'Acceptance requires one captured container per serving process.',
           );
           return localServingIdentity(
-            await query(localServingArgs(matches[0].Id, service)),
+            (
+              await runtime.exec(matches[0].Id, localServingCommand(service), {
+                environment: LOCAL_HTTP_ENVIRONMENT,
+              })
+            ).stdout,
             service,
           );
         };
@@ -266,20 +277,22 @@ export async function acceptDeployment(
             .array(originContainerSchema)
             .length(1)
             .parse(
-              JSON.parse(
-                await query(['container', 'inspect', originContainerId]),
+              (await runtime.inspect([originContainerId])).map((instance) =>
+                Object.assign(containerIdentity(instance), {
+                  networks: instance.networks,
+                }),
               ),
             );
           const captured = values[0];
-          const networks = Object.values(captured.NetworkSettings.Networks);
+          const networks = Object.values(captured.networks);
           requireRuntime(
-            captured.Id === originContainerId && networks.length === 1,
+            captured.id === originContainerId && networks.length === 1,
             'The private origin requires one captured running container and network address.',
           );
           return {
             captured,
-            address: networks[0].IPAddress,
-            networkId: networks[0].NetworkID,
+            address: networks[0].address,
+            networkId: networks[0].id,
           };
         };
         const origin = await captureOrigin();
@@ -314,7 +327,7 @@ export async function acceptDeployment(
             ? {
                 originRoute: {
                   kind: 'container' as const,
-                  containerId: origin.captured.Id,
+                  containerId: origin.captured.id,
                   networkId: origin.networkId,
                   address: origin.address,
                 },

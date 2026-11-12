@@ -7,6 +7,7 @@ import {
   type ServingProcess,
 } from './acceptance-model';
 import { acceptanceRequest, HealthStepError } from './acceptance-request';
+import { dockerExecArgs } from './runtime-access';
 
 const HEADER = 'Tale-Serving-Identity';
 export const SERVING_ENDPOINTS = {
@@ -38,39 +39,42 @@ export function servingIdentity(
 }
 
 /** Captured loopback HTTP must not inherit the container's external proxy. */
-export function localHttpEnvironmentArgs(): string[] {
-  return [
-    ...[
+export const LOCAL_HTTP_ENVIRONMENT: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    [
       'HTTP_PROXY',
       'HTTPS_PROXY',
       'ALL_PROXY',
       'http_proxy',
       'https_proxy',
       'all_proxy',
-    ].flatMap((name) => ['--env', `${name}=`]),
-    '--env',
-    'NO_PROXY=*',
-    '--env',
-    'no_proxy=*',
-  ];
-}
+    ].map((name) => [name, '']),
+  ),
+  NO_PROXY: '*',
+  no_proxy: '*',
+};
 
 /** Fixed read-only projection in the captured container. It prints no body,
- * environment or credentials, and needs neither a shell nor writable storage. */
-export function localServingArgs(
-  id: string,
-  service: ServingService,
-): string[] {
+ * environment or credentials, and needs neither a shell nor writable storage.
+ * Run it with `LOCAL_HTTP_ENVIRONMENT`. */
+export function localServingCommand(service: ServingService): string[] {
   const endpoint = SERVING_ENDPOINTS[service];
   const url = `http://127.0.0.1:${endpoint.port}${endpoint.path}`;
   return [
-    'exec',
-    ...localHttpEnvironmentArgs(),
-    id,
     'bun',
     '--eval',
     `const r=await fetch(${JSON.stringify(url)},{redirect:'error',credentials:'omit',signal:AbortSignal.timeout(10000)});try{console.log(JSON.stringify({status:r.status,identity:r.headers.get(${JSON.stringify(HEADER)})}));}finally{await r.body?.cancel();}`,
   ];
+}
+
+/** The same projection as the Docker access runs it in container `id`. */
+export function localServingArgs(
+  id: string,
+  service: ServingService,
+): string[] {
+  return dockerExecArgs(id, localServingCommand(service), {
+    environment: LOCAL_HTTP_ENVIRONMENT,
+  });
 }
 
 export function localServingIdentity(

@@ -23,12 +23,13 @@ import { ledgerFloor } from './automation-floor';
 import { AUTOMATION_PROTOCOL_LABEL } from './automation-model';
 import {
   bundledBackendIdentity,
+  databaseIdentity,
   databaseIdentitySchema,
   installedAutomationLedger,
-  protocolRead,
+  protocolAccess,
 } from './automation-protocol';
 import { automationSession } from './automation-session';
-import { runtimeCommand } from './runtime-command';
+import { managedCommandAccess } from './runtime-access';
 import {
   atomicRuntimeFile,
   readRegular,
@@ -194,18 +195,14 @@ export async function cutoverLegacyAutomation(
   if (ledgerFloor(ledger) === 2) return;
   const readDatabase = async () => {
     try {
-      const values = z
-        .array(databaseIdentitySchema)
-        .length(1)
-        .parse(
-          JSON.parse(
-            await protocolRead(
-              ['container', 'inspect', databaseId],
-              dependencies,
-            ),
-          ),
-        );
-      const value = values[0];
+      const [instance, ...others] = await protocolAccess(dependencies).inspect([
+        databaseId,
+      ]);
+      requireRuntime(
+        instance && others.length === 0,
+        'Cutover database custody changed.',
+      );
+      const value = databaseIdentity(instance);
       const labels = value.Config.Labels;
       requireRuntime(
         value.Id === databaseId &&
@@ -295,35 +292,28 @@ export async function cutoverLegacyAutomation(
       const images = z
         .array(
           z.object({
-            Id: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-            RepoDigests: z.array(z.string()),
-            Config: z.object({ Labels: z.record(z.string(), z.string()) }),
+            id: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+            repoDigests: z.array(z.string()),
+            labels: z.record(z.string(), z.string()),
           }),
         )
         .length(references.length)
-        .parse(
-          JSON.parse(
-            await protocolRead(
-              ['image', 'inspect', ...references],
-              dependencies,
-            ),
-          ),
-        );
+        .parse(await protocolAccess(dependencies).inspectImage(references));
       requireRuntime(
         references.every(
           (reference) =>
-            images.filter((image) => image.RepoDigests.includes(reference))
+            images.filter((image) => image.repoDigests.includes(reference))
               .length === 1,
         ) &&
           images.every(
             (image) =>
-              image.Config.Labels['org.opencontainers.image.revision'] ===
+              image.labels['org.opencontainers.image.revision'] ===
                 options.targetRevision &&
-              image.Config.Labels[AUTOMATION_PROTOCOL_LABEL] === '2',
+              image.labels[AUTOMATION_PROTOCOL_LABEL] === '2',
           ),
         'Target image capability differs.',
       );
-      targetIds = images.map((image) => image.Id);
+      targetIds = images.map((image) => image.id);
     } catch {
       throw preconditionError(
         'Automation cutover recovery cannot verify the prepared target images.',
@@ -481,9 +471,8 @@ export async function cutoverLegacyAutomation(
         'Automation cutover: holding admission while gracefully stopping legacy backend writers (up to 60 seconds).',
       );
       try {
-        await runtimeCommand(['stop', '--time=-1', ...running], dependencies, {
-          timeout: 60,
-          maxOutputBytes: 1_048_576,
+        await managedCommandAccess(dependencies).stop(running, {
+          tag: { timeout: 60, maxOutputBytes: 1_048_576 },
         });
       } catch {
         throw externalDepError(

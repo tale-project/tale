@@ -10,7 +10,7 @@ import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, sha, slug } from '../config/releases/model';
-import { exec } from '../docker/exec';
+import type { exec } from '../docker/exec';
 import { validateLockPaths } from '../state/lock-guard';
 import { withLock } from '../state/with-lock';
 import { backendCliFailure, backendDataOwner } from './backend-cli';
@@ -29,8 +29,8 @@ import {
 import { verifyClientExportTarget } from './client-export-native';
 import { nativeProvisionProofSchema } from './native-proof';
 import { readProvisionStateProof } from './provision-state';
+import { budgetedDockerRun, dockerRuntimeAccess } from './runtime-access';
 import { observeReadyRuntime } from './runtime-apply';
-import { runtimeProcessEnvironment } from './runtime-command';
 import { readRuntimeBundle, runtimeImageSchema } from './runtime-model';
 
 export interface ExportClientOptions {
@@ -160,52 +160,38 @@ async function readBackendExport(
   backend: string,
   target: ClientExportTarget,
   receive: string,
-  run: typeof exec,
+  run: typeof exec | undefined,
 ) {
   const temporary = `/tmp/tale-client-export-${randomUUID()}`;
-  const execute = async (
-    args: string[],
-    stdin?: string,
-    allowFailure = false,
-  ) => {
-    let result;
-    try {
-      result = await run('docker', args, {
-        env: runtimeProcessEnvironment(),
-        silent: true,
-        timeout: 120,
-        stdin,
-      });
-    } catch {
-      throw externalDepError(
-        'The backend-local credential export could not run.',
-      );
-    }
-    if (!result.success && !allowFailure)
-      throw externalDepError(
-        backendCliFailure(
-          'The backend-local credential export did not complete.',
-          result,
-        ),
-      );
-    return result;
-  };
+  const runtime = dockerRuntimeAccess(
+    budgetedDockerRun(
+      {
+        bounds: () => ({ timeout: 120 }),
+        failed: () =>
+          externalDepError(
+            'The backend-local credential export could not run.',
+          ),
+        refused: (result) =>
+          externalDepError(
+            backendCliFailure(
+              'The backend-local credential export did not complete.',
+              result,
+            ),
+          ),
+      },
+      { exec: run },
+    ),
+  );
   // Same account as `deploy provision`: the export reads the private state
   // that phase wrote, owned by the backend's own user.
-  const owner = await backendDataOwner(execute, backend);
-  await execute(['exec', backend, 'mkdir', '-m', '700', temporary]);
+  const owner = await backendDataOwner(runtime, backend);
+  await runtime.exec(backend, ['mkdir', '-m', '700', temporary]);
   try {
-    await execute(['cp', `${directory}/.`, `${backend}:${temporary}/`]);
-    await execute(['exec', backend, 'chown', '-R', owner, temporary]);
-    const result = await execute(
+    await runtime.copyIn(backend, { directory }, temporary);
+    await runtime.exec(backend, ['chown', '-R', owner, temporary]);
+    const result = await runtime.exec(
+      backend,
       [
-        'exec',
-        '-i',
-        '-w',
-        '/',
-        '--user',
-        owner,
-        backend,
         // Interpreted, under the backend container's own bun — like
         // `deploy provision`. The native export imports the backend's own
         // db/auth modules (withBackendAuth), which import node_modules a
@@ -221,7 +207,7 @@ async function readBackendExport(
         `${temporary}/export-output`,
         '--json',
       ],
-      JSON.stringify(target),
+      { stdin: JSON.stringify(target), workdir: '/', user: owner },
     );
     if (Buffer.byteLength(result.stdout, 'utf8') > 65536)
       throw externalDepError(
@@ -248,11 +234,7 @@ async function readBackendExport(
       throw preconditionError(
         'Native credential export returned a different target.',
       );
-    await execute([
-      'cp',
-      `${backend}:${temporary}/export-output/.`,
-      `${receive}/`,
-    ]);
+    await runtime.copyOut(backend, `${temporary}/export-output`, receive);
     const actual = verifyClientExportDirectory(receive, target);
     if (
       stableJson(actual.result.receipt) !== stableJson(parsed.data.receipt) ||
@@ -267,11 +249,9 @@ async function readBackendExport(
     let cleaned = false;
     try {
       cleaned = (
-        await execute(
-          ['exec', backend, 'rm', '-rf', temporary],
-          undefined,
-          true,
-        )
+        await runtime.exec(backend, ['rm', '-rf', temporary], {
+          allowFailure: true,
+        })
       ).success;
     } catch {
       /* Preserve the primary safe error. */
@@ -354,7 +334,7 @@ export async function exportManagedClient(
               runtime.backendContainer,
               target,
               received,
-              dependencies.exec ?? exec,
+              dependencies.exec,
             );
             requireAbsent(
               join(

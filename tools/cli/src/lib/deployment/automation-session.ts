@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { preconditionError } from '../../utils/fail';
 import { migrationSessionCommand } from './acceptance-migrations';
-import { runtimeProcessEnvironment } from './runtime-command';
+import { dockerRuntimeAccess, type RuntimeAccess } from './runtime-access';
 import { requireRuntime, type RuntimeSqlSession } from './runtime-model';
 
 const sessionFailure = (retry: string) =>
@@ -10,33 +10,22 @@ const sessionFailure = (retry: string) =>
     `The automation cutover lock session was lost or timed out. No new runtime may start; ${retry} to reconcile its stopped writers.`,
   );
 
-/** Private bounded psql session. It never exposes Docker/SQL error payloads.
+/** Private bounded psql session. It never exposes runtime/SQL error payloads.
  * PostgreSQL's idle timeout also retires the transaction after a CLI crash. */
 export async function automationSession(
   containerId: string,
   retry = 'retry the same managed deployment',
+  runtime: RuntimeAccess<unknown> = dockerRuntimeAccess(),
 ): Promise<RuntimeSqlSession> {
   requireRuntime(
     /^[a-f0-9]{64}$/.test(containerId),
     'Invalid cutover database identity.',
   );
-  const proc = Bun.spawn(
-    [
-      'docker',
-      'exec',
-      '-i',
-      containerId,
-      'sh',
-      '-c',
-      migrationSessionCommand('db'),
-    ],
-    {
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: runtimeProcessEnvironment(),
-    },
-  );
+  const proc = runtime.execSession(containerId, [
+    'sh',
+    '-c',
+    migrationSessionCommand('db'),
+  ]);
   let alive = true;
   let closing = false;
   let bytes = 0;
