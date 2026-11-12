@@ -1,14 +1,10 @@
 import { getProjectId, type ReplicaCounts } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import type { DeploymentColor, RotatableService } from '../compose/types';
-import { detachColorFromNetworks } from '../docker/detach-color';
-import { dockerCompose } from '../docker/docker-compose';
-import { getContainerVersion } from '../docker/get-container-version';
-import { listComposeContainers } from '../docker/list-service-containers';
-import { removeContainer } from '../docker/remove-container';
-import { stopContainer } from '../docker/stop-container';
-import { waitForHealthy } from '../docker/wait-for-healthy';
-import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
+import type { listComposeContainers } from '../docker/list-service-containers';
+import type { waitForHealthy } from '../docker/wait-for-healthy';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import type { FlipPending } from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { drainBackend, endDrainBackend } from './drain-backend';
@@ -29,9 +25,10 @@ import { drainBackend, endDrainBackend } from './drain-backend';
  *      window a rolling migration already assumes;
  *   4. the old colour is told to stop accepting NEW work and its in-flight
  *      work is waited out;
- *   5. only THEN is it cut out of DNS — `docker network disconnect` severs
- *      live connections, so doing it earlier would drop exactly the requests
- *      the drain exists to protect;
+ *   5. only THEN is it withdrawn from the serving names — on Docker a
+ *      `docker network disconnect`, which severs live connections, so doing
+ *      it earlier would drop exactly the requests the drain exists to
+ *      protect;
  *   6. and only then stopped.
  */
 
@@ -47,19 +44,18 @@ export function colorProject(color: DeploymentColor): string {
  */
 export async function colorPlatformVersion(
   color: DeploymentColor,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<string | null> {
   const project = colorProject(color);
   // Current colour compose uses service `platform`. Pre-replica-set colour
   // compose used `platform-${color}` and `container_name: tale-platform-blue`.
   const platforms =
-    (await listComposeContainers(project, 'platform'))[0] ??
-    (await listComposeContainers(project, `platform-${color}`))[0];
+    (await runtime.list({ stack: project, service: 'platform' }))[0] ??
+    (await runtime.list({ stack: project, service: `platform-${color}` }))[0];
   if (platforms !== undefined) {
-    return getContainerVersion(platforms.name);
+    return runtime.version(platforms.name);
   }
-  const pinned = await getContainerVersion(
-    `${getProjectId()}-platform-${color}`,
-  );
+  const pinned = await runtime.version(`${getProjectId()}-platform-${color}`);
   return pinned;
 }
 
@@ -68,10 +64,11 @@ export async function colorLooksUp(
   color: DeploymentColor,
   services: readonly RotatableService[],
   replicas: ReplicaCounts,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<boolean> {
   const project = colorProject(color);
   for (const service of services) {
-    const running = (await listComposeContainers(project, service)).filter(
+    const running = (await runtime.list({ stack: project, service })).filter(
       (container) => container.running,
     );
     if (running.length < replicas[service]) return false;
@@ -89,12 +86,18 @@ export async function isUnfinishedColorFlip(
   pending: FlipPending,
   services: readonly RotatableService[],
   replicas: ReplicaCounts,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<boolean> {
   const current = await getCurrentColor(deployDir);
-  const promotingUp = await colorLooksUp(pending.promoting, services, replicas);
+  const promotingUp = await colorLooksUp(
+    pending.promoting,
+    services,
+    replicas,
+    runtime,
+  );
   const retiringUp =
     pending.retiring !== null &&
-    (await listComposeContainers(colorProject(pending.retiring))).some(
+    (await runtime.list({ stack: colorProject(pending.retiring) })).some(
       (container) => container.running,
     );
 
@@ -110,23 +113,6 @@ const ALIASED_SERVICES: readonly RotatableService[] = [
   'backend-api',
 ];
 
-/** Networks a colour serves on. The api is dual-homed; the web tier is not,
- *  and a disconnect from a network it never joined is a no-op. */
-function servingNetworks(): string[] {
-  return [`${getProjectId()}_internal`, 'tale-sandbox-net'];
-}
-
-/** `docker compose up` scale flags for the roles being deployed. */
-function scaleArgs(
-  services: readonly RotatableService[],
-  replicas: ReplicaCounts,
-): string[] {
-  return services.flatMap((service) => [
-    '--scale',
-    `${service}=${replicas[service]}`,
-  ]);
-}
-
 /**
  * Stop and remove every container compose created for a project. Used both
  * to clear a half-started colour from a previous failed deploy and to tear
@@ -141,18 +127,19 @@ function scaleArgs(
  */
 export async function removeColorContainers(
   projectName: string,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<number> {
-  const containers = await listComposeContainers(projectName);
+  const containers = await runtime.list({ stack: projectName });
   await Promise.all(
     containers.map(async (container) => {
-      if (!(await stopContainer(container.name))) {
+      if (!(await runtime.stop(container.name))) {
         logger.warn(`Failed to stop ${container.name}, continuing...`);
       }
     }),
   );
   let removed = 0;
   for (const container of containers) {
-    if (await removeContainer(container.name)) {
+    if (await runtime.remove(container.name)) {
       removed += 1;
     } else {
       logger.warn(`Failed to remove ${container.name}, continuing...`);
@@ -170,6 +157,8 @@ export interface StartColorArgs {
   healthTimeout: number;
   forceRecreate?: boolean;
   streamLogs?: boolean;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -179,23 +168,21 @@ export interface StartColorArgs {
  */
 export async function startColor(args: StartColorArgs): Promise<void> {
   const project = colorProject(args.color);
+  const runtime = args.runtime ?? dockerRuntime;
 
   // Clear any containers a previous failed deploy left in this project.
   // Without it `up -d` silently restarts them, possibly on the old image,
   // and reports success.
-  await removeColorContainers(project);
+  await removeColorContainers(project, runtime);
 
   logger.step(`Starting ${args.color} services...`);
-  const result = await dockerCompose(
-    args.compose,
-    [
-      'up',
-      '-d',
-      ...(args.forceRecreate === true ? ['--force-recreate'] : []),
-      ...scaleArgs(args.services, args.replicas),
-      ...args.services,
-    ],
-    { projectName: project, cwd: args.cwd },
+  const result = await runtime.converge(
+    { stack: project, compose: args.compose, cwd: args.cwd },
+    {
+      services: args.services,
+      scale: args.replicas,
+      forceRecreate: args.forceRecreate === true,
+    },
   );
   if (!result.success) {
     logger.error(`Failed to deploy ${args.color} services`);
@@ -203,25 +190,25 @@ export async function startColor(args: StartColorArgs): Promise<void> {
     throw new Error('Color deployment failed');
   }
 
-  await awaitColorHealthy(args);
+  await awaitColorHealthy(args, runtime);
 }
 
 /**
  * Wait until EVERY replica of every role in a colour is healthy, without
  * touching the colour. Throws when one is not, so traffic never moves onto
- * it. `wait` is injectable for tests only.
+ * it.
  */
 async function awaitColorHealthy(
   args: Pick<
     StartColorArgs,
     'color' | 'services' | 'replicas' | 'healthTimeout' | 'streamLogs'
   >,
-  wait: typeof waitForServiceHealthy = waitForServiceHealthy,
+  runtime: StackRuntime,
 ): Promise<void> {
   const project = colorProject(args.color);
   logger.step('Waiting for services to be healthy...');
   for (const service of args.services) {
-    const healthy = await wait(project, service, {
+    const healthy = await runtime.waitServiceHealthy(project, service, {
       timeout: args.healthTimeout,
       expectedReplicas: args.replicas[service],
       ...(args.streamLogs === undefined ? {} : { streamLogs: args.streamLogs }),
@@ -243,15 +230,27 @@ async function awaitColorHealthy(
 export async function awaitRunningColorHealthy(
   args: Pick<
     StartColorArgs,
-    'color' | 'services' | 'replicas' | 'healthTimeout' | 'streamLogs'
+    | 'color'
+    | 'services'
+    | 'replicas'
+    | 'healthTimeout'
+    | 'streamLogs'
+    | 'runtime'
   >,
   deps: {
     list?: typeof listComposeContainers;
     wait?: typeof waitForHealthy;
   } = {},
 ): Promise<void> {
-  const list = deps.list ?? listComposeContainers;
-  const wait = deps.wait ?? waitForHealthy;
+  const runtime = args.runtime ?? dockerRuntime;
+  const list =
+    deps.list ??
+    ((stack: string, service?: string) =>
+      runtime.list(service === undefined ? { stack } : { stack, service }));
+  const wait =
+    deps.wait ??
+    ((name: string, options: { timeout: number; streamLogs?: boolean }) =>
+      runtime.waitHealthy(name, options));
   const project = colorProject(args.color);
   logger.step(`Waiting for the ${args.color} services to be healthy...`);
   for (const service of args.services) {
@@ -283,6 +282,8 @@ export interface RetireColorArgs {
    *  refusing health checks. */
   drainTimeout: number;
   dryRun?: boolean;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -297,6 +298,7 @@ export interface RetireColorArgs {
  */
 export async function retireColor(args: RetireColorArgs): Promise<void> {
   const project = colorProject(args.color);
+  const runtime = args.runtime ?? dockerRuntime;
 
   if (args.dryRun === true) {
     logger.step(
@@ -308,33 +310,29 @@ export async function retireColor(args: RetireColorArgs): Promise<void> {
   // Do NOT fail `/api/health` on the old platform while it still shares the
   // `platform` alias. Caddy health-checks that hostname as ONE upstream — a
   // 503 from the old colour marks the whole site down. Traffic leaves this
-  // colour at `docker network disconnect` below, not via a health probe.
+  // colour when it is withdrawn below, not via a health probe.
 
   // Refuse new chat turns on THIS colour only, and wait for the ones already
   // running. The new colour is serving throughout and is not affected.
-  await drainBackend({ dryRun: false, colour: args.color });
+  await drainBackend({ dryRun: false, colour: args.color, runtime });
 
   logger.step(`Draining ${args.color} services (${args.drainTimeout}s)...`);
   await Bun.sleep(args.drainTimeout * 1000);
 
   // Now — and only now — take the colour out of the aliases. This severs
-  // live connections on those networks, which is why it comes after both
-  // drains rather than before them.
-  const detached = await detachColorFromNetworks(
-    project,
-    ALIASED_SERVICES,
-    servingNetworks(),
-  );
+  // live connections, which is why it comes after both drains rather than
+  // before them.
+  const detached = await runtime.withdraw(project, ALIASED_SERVICES);
   if (detached > 0) {
     logger.info(`Detached ${args.color} from the serving networks.`);
   }
 
   logger.step(`Stopping ${args.color} services...`);
-  await removeColorContainers(project);
+  await removeColorContainers(project, runtime);
 
   // Clear the drain flag. It names the retired colour, so no live replica was
   // ever affected by it — but the NEXT deploy flips back to that colour name,
   // and a flag still naming it would make the freshly started colour refuse
   // chats. Best-effort: the flag's own expiry is the backstop.
-  await endDrainBackend();
+  await endDrainBackend(runtime);
 }

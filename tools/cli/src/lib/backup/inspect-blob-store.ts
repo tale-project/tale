@@ -1,7 +1,7 @@
 import * as logger from '../../utils/logger';
 import { BUNDLED_OBJECT_STORE_ENDPOINT } from '../compose/generators/constants';
-import { volumeExists } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   BACKUP_HELPER_IMAGE,
   CONFIG_VOLUME,
@@ -87,10 +87,11 @@ function normalizeEndpoint(endpoint: string): string {
  */
 export async function inspectBlobStore(
   prefix: string,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<BlobStoreLayout> {
-  const configVolume = (await volumeExists(`${prefix}${CONFIG_VOLUME}`))
+  const configVolume = (await runtime.volumeExists(`${prefix}${CONFIG_VOLUME}`))
     ? `${prefix}${CONFIG_VOLUME}`
-    : (await volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`))
+    : (await runtime.volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`))
       ? `${prefix}${LEGACY_CONFIG_VOLUME}`
       : null;
   if (configVolume === null) {
@@ -103,16 +104,11 @@ export async function inspectBlobStore(
     };
   }
 
-  const result = await exec('docker', [
-    'run',
-    '--rm',
-    '-v',
-    `${configVolume}:/data:ro`,
-    BACKUP_HELPER_IMAGE,
-    'sh',
-    '-c',
-    INSPECT_SCRIPT,
-  ]);
+  const result = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: configVolume, target: '/data', readOnly: true }],
+    argv: ['sh', '-c', INSPECT_SCRIPT],
+  });
   if (!result.success) {
     const detail = result.stderr || result.stdout;
     logger.warn(

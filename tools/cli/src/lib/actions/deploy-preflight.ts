@@ -3,14 +3,17 @@ import {
   isLocalHostname,
   validateAdditionalSiteUrls,
 } from '../config/ensure-env';
-import { checkDaemon, checkSandboxToken } from '../docker/health-checks';
-import { probeDockerEngine } from '../docker/setup-checks';
+import { type checkDaemon, checkSandboxToken } from '../docker/health-checks';
+import type { probeDockerEngine } from '../docker/setup-checks';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 
 /**
  * Gate `tale deploy` on the handful of things that would otherwise fail it
  * partway through for a reason the CLI could have caught up front:
  *
- *  - the Docker daemon must be reachable and run a supported engine,
+ *  - the runtime (the Docker daemon) must be reachable and run a supported
+ *    engine,
  *  - a `letsencrypt` deployment needs a public host + a valid email (ACME
  *    cannot issue for localhost / a bare IP / a missing email),
  *
@@ -109,6 +112,8 @@ interface DeployPreflightOptions {
     daemon?: typeof checkDaemon;
     engine?: typeof probeDockerEngine;
   };
+  /** The runtime the deploy runs on; Docker when not given. */
+  runtime?: StackRuntime;
 }
 
 interface DeployPreflightResult {
@@ -125,12 +130,15 @@ export async function runDeployPreflight(
   options: DeployPreflightOptions = {},
 ): Promise<DeployPreflightResult> {
   const env = options.env ?? process.env;
+  const runtime = options.runtime ?? dockerRuntime;
   const blocking: PreflightIssue[] = [];
 
   logger.step('Running deploy preflight…');
 
   // 1. Docker daemon must answer.
-  const daemon = await (options.docker?.daemon ?? checkDaemon)();
+  const daemon = options.docker?.daemon
+    ? await options.docker.daemon()
+    : await runtime.checkReachable();
   if (daemon.status === 'fail') {
     blocking.push({
       message:
@@ -139,7 +147,9 @@ export async function runDeployPreflight(
   } else {
     // 1b. ...and run an engine that can pull Tale's zstd-compressed images.
     //     One whose version cannot be judged is only reported.
-    const engine = await (options.docker?.engine ?? probeDockerEngine)();
+    const engine = options.docker?.engine
+      ? await options.docker.engine()
+      : await runtime.checkEngine();
     if (engine.status === 'fail') {
       blocking.push({
         message: `${engine.detail} ${engine.fix ?? ''}`.trim(),

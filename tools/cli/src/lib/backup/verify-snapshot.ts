@@ -1,4 +1,5 @@
-import { exec } from '../docker/exec';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
@@ -22,6 +23,7 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 export async function verifySnapshot(
   prefix: string,
   manifest: Pick<SnapshotManifest, 'id' | 'volumes'>,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<void> {
   const { id } = manifest;
   if (!isValidSnapshotId(id)) {
@@ -49,16 +51,11 @@ export async function verifySnapshot(
     throw new Error(`Snapshot ${id} lists no restorable volumes to verify`);
   }
   const backupVolume = `${prefix}${BACKUP_VOLUME}`;
-  const result = await exec('docker', [
-    'run',
-    '--rm',
-    '-v',
-    `${backupVolume}:/backup:ro`,
-    BACKUP_HELPER_IMAGE,
-    'sh',
-    '-c',
-    `cd /backup/${id} && ${checks.join('; ')}`,
-  ]);
+  const result = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: backupVolume, target: '/backup', readOnly: true }],
+    argv: ['sh', '-c', `cd /backup/${id} && ${checks.join('; ')}`],
+  });
   if (!result.success) {
     throw new Error(
       `Snapshot ${id} failed integrity verification: ${result.stderr || result.stdout}`,

@@ -24,11 +24,11 @@ import {
   SIDECAR_SERVICES,
   STATEFUL_SERVICES,
 } from '../compose/types';
-import { ensureVolumes } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
-import { getContainerState } from '../docker/get-container-state';
-import { listComposeContainers } from '../docker/list-service-containers';
-import { stopContainer } from '../docker/stop-container';
+import type { getContainerState } from '../docker/get-container-state';
+import type { listComposeContainers } from '../docker/list-service-containers';
+import type { stopContainer } from '../docker/stop-container';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { withLock } from '../state/with-lock';
 
 interface RestoreOptions {
@@ -39,6 +39,8 @@ interface RestoreOptions {
   stop?: boolean;
   /** Non-interactive: skip the confirmation prompt. */
   assumeYes?: boolean;
+  /** The runtime to restore on; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -57,14 +59,19 @@ export interface RestoreDeps {
   stopContainer: typeof stopContainer;
 }
 
-const DEFAULT_DEPS: RestoreDeps = {
-  listSnapshots,
-  resolveSnapshotPrefix,
-  verifySnapshot,
-  getContainerState,
-  listComposeContainers,
-  stopContainer,
-};
+/** The collaborators as the selected runtime answers them. */
+function runtimeDeps(runtime: StackRuntime): RestoreDeps {
+  return {
+    listSnapshots: (prefix) => listSnapshots(prefix, runtime),
+    resolveSnapshotPrefix: () => resolveSnapshotPrefix(runtime),
+    verifySnapshot: (prefix, manifest) =>
+      verifySnapshot(prefix, manifest, runtime),
+    getContainerState: (name) => runtime.state(name),
+    listComposeContainers: (stack, service) =>
+      runtime.list(service === undefined ? { stack } : { stack, service }),
+    stopContainer: (name) => runtime.stop(name),
+  };
+}
 
 /**
  * The Docker states in which a container has no process and none on the way:
@@ -155,9 +162,11 @@ function printSnapshotList(snapshots: SnapshotManifest[]): void {
 
 export async function restore(
   options: RestoreOptions,
-  deps: RestoreDeps = DEFAULT_DEPS,
+  injected?: RestoreDeps,
 ): Promise<void> {
   const { env, snapshotId } = options;
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
+  const deps = injected ?? runtimeDeps(runtime);
 
   const prefix = await deps.resolveSnapshotPrefix();
   if (!prefix) {
@@ -210,8 +219,8 @@ export async function restore(
             '  Stop them first, or re-run with --stop.',
         );
       }
-      // `docker stop` also ends a restart loop and stops a paused container;
-      // `unless-stopped` then keeps either down, even across a daemon restart.
+      // A stop also ends a restart loop and stops a paused container (Docker:
+      // `unless-stopped` then keeps either down, even across a daemon restart).
       logger.step('Stopping live project containers...');
       for (const { name } of live) {
         const stopped = await deps.stopContainer(name);
@@ -290,7 +299,7 @@ export async function restore(
     await deps.verifySnapshot(prefix, manifest);
 
     // Fresh-host case: re-create any missing target volumes first.
-    const volumesReady = await ensureVolumes(volumes, prefix);
+    const volumesReady = await runtime.ensureVolumes(volumes, prefix);
     if (!volumesReady) {
       throw new Error('Failed to create target volumes');
     }
@@ -299,16 +308,17 @@ export async function restore(
       logger.step(
         `Restoring ${prefix}${volume}${archive === volume ? '' : ` (from ${archive}.tar.gz)`}...`,
       );
-      const result = await exec(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '-v',
-          `${prefix}${volume}:/data`,
-          '-v',
-          `${prefix}${BACKUP_VOLUME}:/backup:ro`,
-          BACKUP_HELPER_IMAGE,
+      const result = await runtime.oneShot({
+        image: BACKUP_HELPER_IMAGE,
+        mounts: [
+          { volume: `${prefix}${volume}`, target: '/data' },
+          {
+            volume: `${prefix}${BACKUP_VOLUME}`,
+            target: '/backup',
+            readOnly: true,
+          },
+        ],
+        argv: [
           'sh',
           '-c',
           // Never wipe the live volume for an archive that is not there:
@@ -316,8 +326,8 @@ export async function restore(
           // helper container that will extract.
           `test -f /backup/${snapshotId}/${archive}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${archive}.tar.gz -C /data`,
         ],
-        { timeout: archiveTimeoutSeconds(volume) },
-      );
+        timeoutS: archiveTimeoutSeconds(volume),
+      });
       if (!result.success) {
         throw new Error(
           `Restore of ${prefix}${volume} failed: ${result.stderr || result.stdout}\n` +

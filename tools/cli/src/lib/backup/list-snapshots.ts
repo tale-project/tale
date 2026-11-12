@@ -1,6 +1,6 @@
 import * as logger from '../../utils/logger';
-import { volumeExists } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
@@ -86,24 +86,24 @@ function parseManifest(raw: string): SnapshotManifest | null {
  */
 export async function listSnapshots(
   prefix: string,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<SnapshotManifest[]> {
   const backupVolume = `${prefix}${BACKUP_VOLUME}`;
-  if (!(await volumeExists(backupVolume))) {
+  if (!(await runtime.volumeExists(backupVolume))) {
     return [];
   }
 
-  const result = await exec('docker', [
-    'run',
-    '--rm',
-    '-v',
-    `${backupVolume}:/backup:ro`,
-    BACKUP_HELPER_IMAGE,
-    'sh',
-    '-c',
-    // One single-line JSON manifest per line; `true` keeps the exit code 0
-    // when the volume is empty (the glob then matches nothing).
-    'for f in /backup/*/manifest.json; do [ -f "$f" ] && cat "$f" && echo; done; true',
-  ]);
+  const result = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: backupVolume, target: '/backup', readOnly: true }],
+    argv: [
+      'sh',
+      '-c',
+      // One single-line JSON manifest per line; `true` keeps the exit code 0
+      // when the volume is empty (the glob then matches nothing).
+      'for f in /backup/*/manifest.json; do [ -f "$f" ] && cat "$f" && echo; done; true',
+    ],
+  });
   if (!result.success) {
     throw new Error(
       `Failed to list snapshots in ${backupVolume}: ${result.stderr}`,
