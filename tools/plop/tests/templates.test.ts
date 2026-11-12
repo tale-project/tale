@@ -12,6 +12,7 @@ import { registerService } from '../generators/service';
 import { registerSkill } from '../generators/skill';
 import { registerTool } from '../generators/tool';
 import { registerHelpers } from '../helpers';
+import registerAll from '../plopfile';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const templatesRoot = path.resolve(here, '../templates');
@@ -332,5 +333,35 @@ describe('the gen script writes where the docs say it does', () => {
 
     expect(scripts['gen']).toContain('--plopfile tools/plop/plopfile.ts');
     expect(scripts['gen']).toContain('--dest .');
+  });
+
+  // The README and the repo contract name the `gen:<x>` shortcuts; each must
+  // reach a generator the plopfile registers, or it fails only when run.
+  test('every `gen:<x>` script runs a registered generator', () => {
+    const manifest = path.resolve(here, '../../../package.json');
+    const scripts = (
+      JSON.parse(readFileSync(manifest, 'utf8')) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+    const registered: string[] = [];
+    registerAll({
+      setHelper: () => undefined,
+      setGenerator: (name: string, config: PlopGeneratorConfig) => {
+        registered.push(name);
+        return config;
+      },
+    } as never);
+
+    const shortcuts = Object.entries(scripts).filter(([name]) =>
+      name.startsWith('gen:'),
+    );
+    expect(shortcuts.map(([name]) => name)).toContain('gen:manual');
+    for (const [name, command] of shortcuts) {
+      // Not of the form `bun run gen <generator>`: the whole command is
+      // looked up, and fails.
+      const generator = /^bun run gen ([a-z-]+)$/.exec(command)?.[1] ?? command;
+      expect(registered, `${name}: ${command}`).toContain(generator);
+    }
   });
 });

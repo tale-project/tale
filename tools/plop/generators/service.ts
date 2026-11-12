@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 import type { ActionType, NodePlopAPI } from 'plop';
 
+import { manualLayerActions } from './manual';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = path.resolve(here, '../templates/service');
 
@@ -15,24 +17,6 @@ interface Answers {
   port: string;
   storybook: boolean;
 }
-
-// The manual-test layer, identical for every kind and every repo: the guide,
-// the environment, the suite shape, the registers a round consults and the
-// round journal. Only the starter suite is kind-specific, so it lives in the
-// kind's own file list. A service is born with the layer because acquiring one
-// later never happens — AGENTS.md "Manual tests".
-const MANUAL_FILES = [
-  'readme.md.hbs',
-  'setup.md.hbs',
-  'template.md.hbs',
-  'reference/automation.md.hbs',
-  'reference/not-a-finding.md.hbs',
-  'reference/error-codes.md.hbs',
-  'reference/pins.md.hbs',
-  'runs/readme.md.hbs',
-  'runs/template.md.hbs',
-  'runs/template-session-log.md.hbs',
-] as const;
 
 // Files scaffolded per kind, relative to templates/service/<kind>/. `react` is a
 // TanStack Start frontend (Vite + Tailwind v4 + Vitest + Playwright, like
@@ -170,6 +154,9 @@ export function registerService(plop: NodePlopAPI): void {
 
       const view = {
         ...answers,
+        // The package scope the manual layer's commands name
+        // (`bun run --filter @tale/<name> …`), as package.json.hbs does.
+        scope: '@tale',
         isReact: answers.kind === 'react',
         isDocker: answers.kind === 'docker',
       };
@@ -184,14 +171,10 @@ export function registerService(plop: NodePlopAPI): void {
         };
       });
 
-      actions.push(
-        ...MANUAL_FILES.map<ActionType>((file) => ({
-          type: 'add',
-          path: `${dest}/tests/manual/${file.replace(/\.hbs$/, '')}`,
-          templateFile: `${templateDir}/manual/${file}`,
-          data: view,
-        })),
-      );
+      // A service is born with the manual layer (AGENTS.md "Manual tests");
+      // only its starter suite is kind-specific, so it lives in the kind's own
+      // file list.
+      actions.push(...manualLayerActions(dest, view));
 
       return actions;
     },

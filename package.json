@@ -64,6 +64,7 @@
     "gen": "bunx --bun plop --plopfile tools/plop/plopfile.ts --dest .",
     "gen:package": "bun run gen package",
     "gen:service": "bun run gen service",
+    "gen:manual": "bun run gen manual",
     "gen:tool": "bun run gen tool",
     "gen:skill": "bun run gen skill",
     "skills:sync": "rm -rf .claude/skills && cp -R .agents/skills .claude/skills",
