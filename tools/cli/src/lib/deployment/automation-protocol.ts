@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { externalDepError, preconditionError } from '../../utils/fail';
 import { stableJson } from '../config/releases/identity';
-import { exec } from '../docker/exec';
 import { migrationReadScript } from './acceptance-migrations';
 import {
   AUTOMATION_FLOOR_SQL,
@@ -14,7 +13,12 @@ import {
   AUTOMATION_PROTOCOL_LABEL,
   type AutomationWriterProtocol,
 } from './automation-model';
-import { runtimeProcessEnvironment } from './runtime-command';
+import {
+  budgetedDockerRun,
+  dockerRuntimeAccess,
+  type RuntimeAccess,
+  type RuntimeInstance,
+} from './runtime-access';
 import { requireRuntime, type RuntimeDependencies } from './runtime-model';
 
 /** Missing metadata is an old image, never evidence of the new writer. */
@@ -39,6 +43,11 @@ export function requireAutomationProtocol(
   );
 }
 
+/**
+ * The database instance's custody record, in the shape the cutover receipt
+ * keeps it (`.tale/automation-cutover.json`): read back as a normalized
+ * `RuntimeInstance`, it is checked and written under these keys.
+ */
 export const databaseIdentitySchema = z.object({
   Id: z.string().regex(/^[a-f0-9]{64}$/),
   Image: z.string().regex(/^sha256:[a-f0-9]{64}$/),
@@ -50,27 +59,36 @@ export const databaseIdentitySchema = z.object({
   State: z.object({ Running: z.literal(true), StartedAt: z.string().min(1) }),
 });
 
-/** Existing bounded executor, fixed labels, and no ambient database credentials. */
-export async function protocolRead(
-  args: string[],
+/** The database custody record of one read-back instance. */
+export function databaseIdentity(instance: RuntimeInstance) {
+  return databaseIdentitySchema.parse({
+    Id: instance.id,
+    Image: instance.image,
+    RestartCount: instance.restartCount,
+    Config: { Image: instance.imageReference, Labels: instance.labels },
+    State: { Running: instance.running, StartedAt: instance.startedAt },
+  });
+}
+
+const PROTOCOL_READ_FAILURE =
+  'The installed automation writer protocol could not be read safely.';
+
+/** Existing bounded executor, fixed labels, and no ambient database
+ * credentials: every protocol read is bounded alike and fails with one
+ * sentence, never the runtime's own output. */
+export function protocolAccess(
   dependencies: RuntimeDependencies,
-  stdin?: string,
-): Promise<string> {
-  try {
-    const result = await (dependencies.exec ?? exec)('docker', args, {
-      silent: true,
-      timeout: 15,
-      maxOutputBytes: 1_048_576,
-      env: runtimeProcessEnvironment(),
-      ...(stdin === undefined ? {} : { stdin }),
-    });
-    if (!result.success) throw new Error('read refused');
-    return result.stdout;
-  } catch {
-    throw externalDepError(
-      'The installed automation writer protocol could not be read safely.',
-    );
-  }
+): RuntimeAccess {
+  return dockerRuntimeAccess(
+    budgetedDockerRun(
+      {
+        bounds: () => ({ timeout: 15, maxOutputBytes: 1_048_576 }),
+        failed: () => externalDepError(PROTOCOL_READ_FAILURE),
+        refused: () => externalDepError(PROTOCOL_READ_FAILURE),
+      },
+      { exec: dependencies.exec },
+    ),
+  );
 }
 
 /** Capture and reread one already running, custody-checked DB incarnation. */
@@ -95,18 +113,14 @@ export async function installedAutomationLedger(
       /^[a-f0-9]{64}$/.test(containerId),
       'Invalid automation protocol database identity.',
     );
+    const runtime = protocolAccess(dependencies);
     const identity = async () => {
-      const [value] = z
-        .array(databaseIdentitySchema)
-        .length(1)
-        .parse(
-          JSON.parse(
-            await protocolRead(
-              ['container', 'inspect', containerId],
-              dependencies,
-            ),
-          ),
-        );
+      const [instance, ...others] = await runtime.inspect([containerId]);
+      requireRuntime(
+        instance && others.length === 0,
+        'Automation protocol database custody differs.',
+      );
+      const value = databaseIdentity(instance);
       const labels = value.Config.Labels;
       requireRuntime(
         value.Id === containerId &&
@@ -119,11 +133,11 @@ export async function installedAutomationLedger(
       return value;
     };
     const before = await identity();
-    const raw = await protocolRead(
-      ['exec', '-i', containerId, 'sh', '-s'],
-      dependencies,
-      migrationReadScript('db', AUTOMATION_FLOOR_SQL),
-    );
+    const raw = (
+      await runtime.exec(containerId, ['sh', '-s'], {
+        stdin: migrationReadScript('db', AUTOMATION_FLOOR_SQL),
+      })
+    ).stdout;
     const ledger = automationLedger(raw);
     requireRuntime(
       stableJson(before) === stableJson(await identity()),
@@ -137,24 +151,20 @@ export async function installedAutomationLedger(
   }
 }
 
+/** What the writer census demands of a backend instance's readback. */
 const backendIdentitySchema = z.object({
-  Id: z.string().regex(/^[a-f0-9]{64}$/),
-  Image: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-  RestartCount: z.number().int().nonnegative(),
-  State: z.object({
-    Running: z.boolean(),
-    StartedAt: z.string(),
-    Pid: z.number().int().nonnegative().optional(),
-    Status: z.string().optional(),
-    Dead: z.boolean().optional(),
-  }),
-  HostConfig: z
-    .object({ RestartPolicy: z.object({ Name: z.string() }) })
-    .optional(),
-  Config: z.object({
-    Labels: z.record(z.string(), z.string()),
-    Env: z.array(z.string()).max(2048),
-  }),
+  id: z.string().regex(/^[a-f0-9]{64}$/),
+  image: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  restartCount: z.number().int().nonnegative(),
+  running: z.boolean(),
+  startedAt: z.string(),
+  pid: z.number().int().nonnegative().optional(),
+  status: z.string().optional(),
+  dead: z.boolean().optional(),
+  restartPolicy: z.string().optional(),
+  labels: z.record(z.string(), z.string()),
+  environmentSize: z.number().int().max(2048),
+  databaseConnections: z.array(z.string()),
 });
 
 /** The installed connection matters even after its old .env override is removed.
@@ -164,6 +174,7 @@ export async function bundledBackendIdentity(
   projects: readonly string[],
   dependencies: RuntimeDependencies,
 ) {
+  const runtime = protocolAccess(dependencies);
   const ids: string[] = [];
   // Compose project names, colour projects included: a project ID may start
   // with a digit (`isValidProjectId`).
@@ -175,33 +186,13 @@ export async function bundledBackendIdentity(
   );
   for (const owner of projects) {
     ids.push(
-      ...(
-        await protocolRead(
-          [
-            'ps',
-            '-a',
-            '--no-trunc',
-            '--filter',
-            `label=com.docker.compose.project=${owner}`,
-            '--format',
-            '{{.ID}}\t{{.Label "com.docker.compose.service"}}',
-          ],
-          dependencies,
-        )
-      )
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .flatMap((line) => {
-          const columns = line.split('\t');
-          requireRuntime(
-            columns.length === 2 && /^[a-f0-9]{64}$/.test(columns[0]),
-            'Installed backend inventory is malformed.',
-          );
-          return ['backend-api', 'backend-worker'].includes(columns[1])
-            ? [columns[0]]
-            : [];
-        }),
+      ...(await runtime.listServices(owner)).flatMap(({ id, service }) => {
+        requireRuntime(
+          service !== null && /^[a-f0-9]{64}$/.test(id),
+          'Installed backend inventory is malformed.',
+        );
+        return ['backend-api', 'backend-worker'].includes(service) ? [id] : [];
+      }),
     );
   }
   requireRuntime(
@@ -216,11 +207,7 @@ export async function bundledBackendIdentity(
     values = z
       .array(backendIdentitySchema)
       .length(ids.length)
-      .parse(
-        JSON.parse(
-          await protocolRead(['container', 'inspect', ...ids], dependencies),
-        ),
-      );
+      .parse(await runtime.inspect(ids));
   } catch {
     // Docker metadata contains credentials. Do not render JSON parser context
     // or validation payloads through the CLI's generic failure boundary.
@@ -229,15 +216,13 @@ export async function bundledBackendIdentity(
     );
   }
   requireRuntime(
-    new Set(values.map((v) => v.Id)).size === ids.length &&
-      values.every((v) => ids.includes(v.Id)),
+    new Set(values.map((v) => v.id)).size === ids.length &&
+      values.every((v) => ids.includes(v.id)),
     'Installed backend identities changed.',
   );
   for (const value of values) {
-    const labels = value.Config.Labels;
-    const connections = value.Config.Env.filter((entry) =>
-      entry.startsWith('DATABASE_URL='),
-    );
+    const labels = value.labels;
+    const connections = value.databaseConnections;
     requireRuntime(
       projects.includes(labels['com.docker.compose.project']) &&
         ['backend-api', 'backend-worker'].includes(
@@ -271,50 +256,39 @@ export async function bundledBackendIdentity(
   }
   for (const role of ['backend-api', 'backend-worker'])
     requireRuntime(
-      values.some(
-        (v) => v.Config.Labels['com.docker.compose.service'] === role,
-      ),
+      values.some((v) => v.labels['com.docker.compose.service'] === role),
       'The installed backend database inventory is incomplete.',
     );
   // A created writer can still finish its first migration or be restarted. Its
   // immutable image therefore raises the floor even before the ledger commits.
-  const imageIds = [...new Set(values.map((value) => value.Image))].sort();
-  let images: Array<{
-    Id: string;
-    Config: { Labels?: Record<string, string> | null };
-  }>;
+  const imageIds = [...new Set(values.map((value) => value.image))].sort();
+  let images: Array<{ id: string; labels: Record<string, string> | null }>;
   try {
     images = z
       .array(
         z.object({
-          Id: z.string().regex(/^sha256:[a-f0-9]{64}$/),
-          Config: z.object({
-            Labels: z.record(z.string(), z.string()).nullish(),
-          }),
+          id: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+          // Present, and null for an image without labels.
+          labels: z.record(z.string(), z.string()).nullable(),
         }),
       )
       .length(imageIds.length)
-      .parse(
-        JSON.parse(
-          await protocolRead(['image', 'inspect', ...imageIds], dependencies),
-        ),
-      );
+      .parse(await runtime.inspectImage(imageIds));
   } catch {
     throw preconditionError(
       'Installed backend image capability is unreadable. Keep the existing runtime.',
     );
   }
   requireRuntime(
-    new Set(images.map((image) => image.Id)).size === imageIds.length &&
-      images.every((image) => imageIds.includes(image.Id)),
+    new Set(images.map((image) => image.id)).size === imageIds.length &&
+      images.every((image) => imageIds.includes(image.id)),
     'Installed backend image identity changed.',
   );
   const capabilities = images
     .map((image) => ({
-      id: image.Id,
-      protocol: imageWriterProtocol(image.Config.Labels),
-      revision:
-        image.Config.Labels?.['org.opencontainers.image.revision'] ?? null,
+      id: image.id,
+      protocol: imageWriterProtocol(image.labels),
+      revision: image.labels?.['org.opencontainers.image.revision'] ?? null,
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   const protocol: AutomationWriterProtocol = capabilities.some(
@@ -327,38 +301,44 @@ export async function bundledBackendIdentity(
     protocol,
     writers: values
       .map((v) => ({
-        id: v.Id,
-        image: v.Image,
+        id: v.id,
+        image: v.image,
         revision:
-          capabilities.find((image) => image.id === v.Image)?.revision ?? null,
+          capabilities.find((image) => image.id === v.image)?.revision ?? null,
         protocol:
-          capabilities.find((image) => image.id === v.Image)?.protocol ?? null,
-        restarts: v.RestartCount,
-        running: v.State.Running,
-        pid: v.State.Pid ?? null,
-        status: v.State.Status ?? null,
-        dead: v.State.Dead ?? null,
-        startedAt: v.State.StartedAt,
-        restartPolicy: v.HostConfig?.RestartPolicy.Name ?? null,
-        project: v.Config.Labels['com.docker.compose.project'],
-        service: v.Config.Labels['com.docker.compose.service'],
+          capabilities.find((image) => image.id === v.image)?.protocol ?? null,
+        restarts: v.restartCount,
+        running: v.running,
+        pid: v.pid ?? null,
+        status: v.status ?? null,
+        dead: v.dead ?? null,
+        startedAt: v.startedAt,
+        restartPolicy: v.restartPolicy ?? null,
+        project: v.labels['com.docker.compose.project'],
+        service: v.labels['com.docker.compose.service'],
       }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     identity: stableJson({
       capabilities,
       containers: values
         .map((v) => ({
-          Id: v.Id,
-          Image: v.Image,
-          RestartCount: v.RestartCount,
-          State: v.State,
-          RestartPolicy: v.HostConfig?.RestartPolicy.Name ?? null,
-          Config: {
-            Labels: v.Config.Labels,
-            Env: v.Config.Env.filter((e) => e.startsWith('DATABASE_URL=')),
-          },
+          id: v.id,
+          image: v.image,
+          restartCount: v.restartCount,
+          state: Object.fromEntries(
+            Object.entries({
+              running: v.running,
+              startedAt: v.startedAt,
+              pid: v.pid,
+              status: v.status,
+              dead: v.dead,
+            }).filter(([, entry]) => entry !== undefined),
+          ),
+          restartPolicy: v.restartPolicy ?? null,
+          labels: v.labels,
+          databaseConnections: v.databaseConnections,
         }))
-        .sort((a, b) => a.Id.localeCompare(b.Id)),
+        .sort((a, b) => a.id.localeCompare(b.id)),
     }),
   };
 }

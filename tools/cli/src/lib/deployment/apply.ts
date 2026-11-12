@@ -21,7 +21,7 @@ import { loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { sha, slug } from '../config/releases/model';
 import { validateNativeRelease } from '../config/releases/native';
-import { exec } from '../docker/exec';
+import type { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
 import { withLock } from '../state/with-lock';
 import { backendCliFailure, backendDataOwner } from './backend-cli';
@@ -43,11 +43,11 @@ import {
   readBootstrapPassword,
   type RuntimeResult,
 } from './runtime';
+import { budgetedDockerRun, dockerRuntimeAccess } from './runtime-access';
 import {
   activateRuntimeConfiguration,
   observeReadyRuntime,
 } from './runtime-apply';
-import { runtimeProcessEnvironment } from './runtime-command';
 import {
   atomicRuntimeFile,
   readRegular,
@@ -333,55 +333,34 @@ async function provisionBackend(
   const input = nativeInput(bundle, password);
   if (!input) throw preconditionError('Native deployment identity is missing.');
   const temporary = `/tmp/tale-deploy-${randomUUID()}`;
-  const run = async (args: string[], stdin?: string, allowFailure = false) => {
-    let result;
-    try {
-      result = await (dependencies.exec ?? exec)('docker', args, {
-        env: runtimeProcessEnvironment(),
-        silent: true,
-        timeout: 600,
-        stdin,
-      });
-    } catch {
-      throw externalDepError('The backend-local Tale CLI could not run.');
-    }
-    if (!result.success && !allowFailure)
-      throw externalDepError(
-        backendCliFailure(
-          'The backend-local Tale CLI did not complete provisioning. Its previous receipts are retained for recovery.',
-          result,
-        ),
-      );
-    return result;
-  };
+  const backend = runtime.backendContainer;
+  const access = dockerRuntimeAccess(
+    budgetedDockerRun(
+      {
+        bounds: () => ({ timeout: 600 }),
+        failed: () =>
+          externalDepError('The backend-local Tale CLI could not run.'),
+        refused: (result) =>
+          externalDepError(
+            backendCliFailure(
+              'The backend-local Tale CLI did not complete provisioning. Its previous receipts are retained for recovery.',
+              result,
+            ),
+          ),
+      },
+      { exec: dependencies.exec },
+    ),
+  );
   // The phase runs as the backend's own account, the owner of its data
   // directory, because that is where it keeps its private state; the
   // container's default user is root, which that state refuses.
-  const owner = await backendDataOwner(run, runtime.backendContainer);
-  await run([
-    'exec',
-    runtime.backendContainer,
-    'mkdir',
-    '-m',
-    '700',
-    temporary,
-  ]);
+  const owner = await backendDataOwner(access, backend);
+  await access.exec(backend, ['mkdir', '-m', '700', temporary]);
   try {
-    await run([
-      'cp',
-      `${directory}/.`,
-      `${runtime.backendContainer}:${temporary}/`,
-    ]);
-    // `docker cp` keeps the host's uid/gid; the private copy must belong to
-    // the account that verifies and runs it.
-    await run([
-      'exec',
-      runtime.backendContainer,
-      'chown',
-      '-R',
-      owner,
-      temporary,
-    ]);
+    await access.copyIn(backend, { directory }, temporary);
+    // A copy keeps the host's uid/gid; the private copy must belong to the
+    // account that verifies and runs it.
+    await access.exec(backend, ['chown', '-R', owner, temporary]);
     // Run the backend-local phase INTERPRETED, under the container's own bun,
     // not the compiled executable. The phase dynamically imports the backend's
     // own db/auth modules, which import node_modules (postgres, better-auth); a
@@ -389,15 +368,9 @@ async function provisionBackend(
     // filesystem, so those are `Cannot find package` there. The interpreted
     // bundle shipped beside the executable resolves them from the backend's
     // node_modules the same way the running backend does.
-    const result = await run(
+    const result = await access.exec(
+      backend,
       [
-        'exec',
-        '-i',
-        '-w',
-        '/',
-        '--user',
-        owner,
-        runtime.backendContainer,
         'bun',
         `${temporary}/cli/tale.mjs`,
         'deploy',
@@ -416,7 +389,7 @@ async function provisionBackend(
         '--json',
         '--yes',
       ],
-      JSON.stringify(input),
+      { stdin: JSON.stringify(input), workdir: '/', user: owner },
     );
     if (Buffer.byteLength(result.stdout, 'utf8') > 1_048_576)
       throw externalDepError(
@@ -552,11 +525,9 @@ async function provisionBackend(
   } finally {
     let cleaned = false;
     try {
-      const result = await run(
-        ['exec', runtime.backendContainer, 'rm', '-rf', temporary],
-        undefined,
-        true,
-      );
+      const result = await access.exec(backend, ['rm', '-rf', temporary], {
+        allowFailure: true,
+      });
       cleaned = result.success;
     } catch {
       // Cleanup failure must not replace the original provisioning error.

@@ -10,7 +10,7 @@ import { configurationTargetSchema } from '../config/platform-model';
 import { valueHash } from '../config/releases/identity';
 import { sha } from '../config/releases/model';
 import { readPrivateJson, writePrivateJson } from '../state/private-files';
-import { runtimeCommand } from './runtime-command';
+import { managedCommandAccess } from './runtime-access';
 import {
   hash,
   requireRuntime,
@@ -120,10 +120,10 @@ async function mountedConfiguration(
   effect: RuntimeConfigurationEffect,
   dependencies: RuntimeDependencies,
 ) {
-  const response = await runtimeCommand(
-    ['exec', containerId, 'timeout', '15', 'bun', '-e', READ_CONFIGURATION],
-    dependencies,
-    { timeout: 20 },
+  const response = await managedCommandAccess(dependencies).exec(
+    containerId,
+    ['timeout', '15', 'bun', '-e', READ_CONFIGURATION],
+    { tag: { timeout: 20 } },
   );
   const parsed = z
     .strictObject({
@@ -255,11 +255,9 @@ export async function activateConfiguration(
         ) === valueHash(mounted),
       'Spawner changed before configuration restart.',
     );
-    await runtimeCommand(
-      ['restart', '--time', '30', boot.containerId],
-      dependencies,
-      { timeout: 90 },
-    );
+    await managedCommandAccess(dependencies).restart(boot.containerId, 30, {
+      tag: { timeout: 90 },
+    });
   }
   await wait();
   const after = spawnerBootSchema.parse(await observe());
