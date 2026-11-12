@@ -179,9 +179,12 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   0.5.95), takes fixes alone — a `fix`, or a `test`, `docs` or `ci` change about what `main`
   already ships; **`release/0.6`, the feature line** (0.6.x, next 0.6.0), takes everything else
   and is `main` plus its own commits, rebased onto `main` whenever `main` moves, so every fix
-  reaches it without a merge. When in doubt, a change belongs to the feature line. Once a person
-  makes the feature line stable with its release, `main` takes its commits, the 0.5.x line ends
-  and `release/0.7` opens. The lanes:
+  reaches it without a merge. When in doubt, a change belongs to the feature line. The Incus
+  runtime program is the one exception to fixes alone: it ships on the stable line, `main`,
+  through pull requests a person merges once their checks pass (never `--auto`), until the
+  program completes or the feature line becomes the stable one.
+  Once a person makes the feature line stable with its release, `main` takes its commits, the
+  0.5.x line ends and `release/0.7` opens. The lanes:
   - **The merge trains** carry the autonomous development cycle's work. A task branch starts
     from its line's open train, `train` (stable) or `feature-train` (feature), and opens no pull
     request: once reviewed, it is squashed into one commit on that train and pushed only if the
