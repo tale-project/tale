@@ -206,6 +206,12 @@ apply_migrations_for_role() {
 # Init + migrations are then retried as a unit, and /tmp/.db_ready is touched ONLY
 # after both genuinely succeed, so dependents (gated on `.db_ready`) never start
 # against a half-initialized cluster.
+#
+# Clear the marker first: /tmp outlives a stop whenever the runtime keeps the
+# container's filesystem, as `docker restart` does. A marker left by the
+# previous start would report ready as soon as the server answers, before this
+# start's init scripts and migrations ran.
+rm -f /tmp/.db_ready
 (
     trap 'exit 0' SIGTERM SIGINT
     until pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" >/dev/null 2>&1; do
