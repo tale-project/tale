@@ -389,9 +389,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
   `release-candidate-*` workflows and the `setup-cli` action, plus the container image harness used to prove fork
   build coverage; the files the compose parity
-  suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
-  `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
-  `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
+  suite reads: `compose.yml`, the proxy's `Caddyfile`, `Caddyfile.switch` and entrypoint, the
+  platform's `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, the
+  sandbox-egress entrypoint, and the `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
   `runtime-test-helper.ts`); the sandbox cross-check suite also runs the spawner's
   configuration modules in a child process (`SPAWNER_CONFIG_SOURCE` there, held to
@@ -399,7 +399,7 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `LICENSE`, both published packages’ manifests and READMEs, `publish-packages.yml` and
   `release.yml`.
   The image metadata suite reads every service `Dockerfile`, both plop service Dockerfile
-  templates and `.github/renovate.json`.
+  templates, `.github/renovate.json` and the dumb-init patch (`patches/dumb-init/`).
   Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its

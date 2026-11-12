@@ -1,0 +1,17 @@
+--- a/dumb-init.c
++++ b/dumb-init.c
+@@ -31,10 +31,11 @@
+     } \
+ } while (0)
+ 
+-// Signals we care about are numbered from 1 to 31, inclusive.
+-// (32 and above are real-time signals.)
++// Signals we care about are numbered from 1 to 64, inclusive: the standard
++// signals and the real-time ones, so that --rewrite also maps a real-time
++// signal (liblxc halts a container whose PID 1 blocks SIGRTMIN+3 with it).
+ // TODO: this is likely not portable outside of Linux, or on strange architectures
+-#define MAXSIG 31
++#define MAXSIG 64
+ 
+ // Indices are one-indexed (signal 1 is at index 1). Index zero is unused.
+ // User-specified signal rewriting.

@@ -21,6 +21,7 @@ a spec failure and belongs in the gate, not in a round.
 | Area | Owning spec | Manual scope |
 |---|---|---|
 | The compiled binary starts, names its version, prints its help and scaffolds a project | `tools/cli/tests/smoke.test.ts` | — |
+| The images' side of the Incus runtime, all inert under Docker: the patched init at `/init` and its label in the six stack images, the proxy's switch role, the platform's `/api/admission` and the backend's `/admission`, the run markers deleted as root at every start, the platform fence's accept for replies, `TALE_SHM_SIZE` in `tale-db`, and the egress's bounding set narrowed only past Compose's seven capabilities | `tools/cli/scripts/oci-image-metadata.test.ts`, `tools/cli/src/lib/compose/services/compose-parity.test.ts`, `services/platform/server.test.ts`, `services/platform/backend/app.admission.test.ts`, `services/platform/tests/guards/privilege-drop.guard.test.ts`, `services/platform/tests/guards/ssrf-firewall.guard.test.ts`, `services/db/docker-entrypoint.test.ts`, `services/sandbox/src/egress-firewall.test.ts` | — |
 | A deployment on Incus on real hosts: bootstrap, certificates from a real issuer, a reboot, a second host | — | **manual-only** — a fresh machine, a public name and a host that reboots are outside every automated lane: [incus-runtime](../suites/incus-runtime.md) |
 
 Legend: a named spec owns the row end to end · a named spec **plus** a manual

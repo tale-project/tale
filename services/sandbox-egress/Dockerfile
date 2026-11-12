@@ -23,6 +23,28 @@
 # defense is the only hostname-independent egress fence, and the hostname
 # allowlist is opt-in.
 
+# =============================================================================
+# tale-init: patched dumb-init 1.2.5 at /init (MAXSIG 31 -> 64), for Incus.
+# Incus runs /init as PID 1 and halts a container with SIGPWR, or SIGRTMIN+3
+# when PID 1 blocks it; the runtime rewrites both to the stop signal. Docker
+# never runs it: the ENTRYPOINT below is unchanged. patches/README.md says why
+# and when it goes. Byte-identical in the six stack images (db, platform,
+# proxy, sandbox, sandbox-egress, sandbox-llm-gateway), held by
+# tools/cli/scripts/oci-image-metadata.test.ts.
+# =============================================================================
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS tale-init
+COPY patches/dumb-init/maxsig-64.patch /tmp/maxsig-64.patch
+RUN set -eux; \
+    apk add --no-cache gcc musl-dev patch; \
+    wget -q -O /tmp/dumb-init.tar.gz https://github.com/Yelp/dumb-init/archive/refs/tags/v1.2.5.tar.gz; \
+    echo '3eda470d8a4a89123f4516d26877a727c0945006c8830b7e3bad717a5f6efc4e  /tmp/dumb-init.tar.gz' | sha256sum -c -; \
+    tar -C /tmp -xzf /tmp/dumb-init.tar.gz; \
+    cd /tmp/dumb-init-1.2.5; \
+    patch -p1 < /tmp/maxsig-64.patch; \
+    grep -qx '#define MAXSIG 64' dumb-init.c; \
+    gcc -std=gnu99 -static -s -Wall -Werror -O2 -o /init dumb-init.c; \
+    /init --version
+
 # trivy:ignore:AVD-DS-0002 -- entrypoint needs root to install iptables and bind :53; tinyproxy drops privs at bind time
 FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
@@ -40,7 +62,10 @@ FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6
 # - squid:          the outbound proxy hop, started only when OUTBOUND_PROXY_URLS
 #                   lists proxies: it sends what tinyproxy hands it on through
 #                   them in turn, which tinyproxy (one upstream at most) cannot.
-RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl dnsmasq squid && \
+# - setpriv:        util-linux's, which narrows the capability bounding set
+#                   where the runtime could not (docker-entrypoint.sh); the
+#                   busybox applet has no --bounding-set.
+RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl dnsmasq squid setpriv && \
     mkdir -p /etc/tinyproxy /etc/sandbox-egress
 
 COPY services/sandbox-egress/tinyproxy.conf.template /etc/tinyproxy/tinyproxy.conf.template
@@ -49,6 +74,9 @@ COPY services/sandbox-egress/outbound-proxies.awk /etc/sandbox-egress/outbound-p
 COPY services/sandbox-egress/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-egress/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh
+
+# /init for Incus, from the tale-init stage (Docker never runs it).
+COPY --from=tale-init /init /init
 
 # Keep version metadata after filesystem work so new releases reuse its layers.
 ARG VERSION=dev
@@ -60,6 +88,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
+LABEL dev.tale.init="dumb-init-1.2.5+maxsig64" \
+      dev.tale.infra-formats="names-hosts/1"
 
 EXPOSE 3128
 EXPOSE 53/udp

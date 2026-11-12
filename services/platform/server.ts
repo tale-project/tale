@@ -48,10 +48,19 @@ import {
 } from './status-probe';
 import { initTelemetry, metricsResponse } from './telemetry';
 
+// The run markers, files in /tmp the entrypoint and the runtime set. The
+// entrypoint deletes all of them, as root, at every start.
+const MARKER_DIRECTORY = '/tmp';
 // Platform graceful shutdown marker (written by docker-entrypoint.sh trap).
 // When present, /api/health returns 503 so Caddy/Docker drain traffic before
 // the process actually terminates.
-const SHUTDOWN_MARKER = '/tmp/platform-shutting-down';
+const SHUTDOWN_MARKER = 'platform-shutting-down';
+// Touched by docker-entrypoint.sh once the server answers (the compose
+// healthcheck's gate).
+const READY_MARKER = 'platform-ready';
+// Set by a blue/green runtime that takes this replica out of its traffic
+// switch (Incus), read by `/api/admission` alone. Docker never sets it.
+const WITHDRAWN_MARKER = 'platform-withdrawn';
 
 // ---------------------------------------------------------------------------
 // Config file events (SSE)
@@ -630,6 +639,11 @@ export interface CreateAppOptions {
    * reload).
    */
   indexHtml?: string;
+  /**
+   * Test seam for the directory of the run markers (shutdown, ready,
+   * withdrawn) the health and admission probes read. Production: `/tmp`.
+   */
+  markerDirectory?: string;
 }
 
 let openapiDocumentPromise: Promise<Record<string, unknown> | null> | null =
@@ -852,16 +866,38 @@ export function createApp(
     app.use(door, headContentLength());
   }
 
+  const markerDirectory = opts.markerDirectory ?? MARKER_DIRECTORY;
+  const marked = (name: string) => existsSync(join(markerDirectory, name));
+
   app.get('/api/health', (c) => {
     c.header('Cache-Control', 'no-store');
     c.header(SERVING_IDENTITY_HEADER, servingIdentity);
-    if (existsSync(SHUTDOWN_MARKER)) {
+    if (marked(SHUTDOWN_MARKER)) {
       return c.json({ status: 'shutting_down' }, 503);
     }
     return c.json({
       status: 'ok',
       version: process.env.TALE_VERSION ?? 'dev',
     });
+  });
+
+  // ADMISSION: whether a traffic switch in front of the replicas (the Incus
+  // runtime's) may send this replica new requests. 503 while it is withdrawn
+  // or shutting down, and while it is not ready yet; it reads only the run
+  // markers. Separate from /api/health, which the edge checks through that
+  // switch: a withdrawn replica must leave the switch without the edge ever
+  // seeing a 503 there, which would cut the whole site. The edge routes every
+  // other /api/* path to the backend, so this is not reachable from outside.
+  app.get('/api/admission', (c) => {
+    c.header('Cache-Control', 'no-store');
+    c.header(SERVING_IDENTITY_HEADER, servingIdentity);
+    if (marked(WITHDRAWN_MARKER) || marked(SHUTDOWN_MARKER)) {
+      return c.json({ status: 'withdrawn' }, 503);
+    }
+    if (!marked(READY_MARKER)) {
+      return c.json({ status: 'starting' }, 503);
+    }
+    return c.json({ status: 'ok' });
   });
 
   // Precompiled SEO + LLM artifacts (`/llms.txt`, `/llms-full.txt`,

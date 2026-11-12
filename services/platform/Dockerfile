@@ -484,10 +484,35 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/app/docker-entrypoint.sh"]
 
 # =============================================================================
+# tale-init: patched dumb-init 1.2.5 at /init (MAXSIG 31 -> 64), for Incus.
+# Incus runs /init as PID 1 and halts a container with SIGPWR, or SIGRTMIN+3
+# when PID 1 blocks it; the runtime rewrites both to the stop signal. Docker
+# never runs it: the ENTRYPOINT below is unchanged. patches/README.md says why
+# and when it goes. Byte-identical in the six stack images (db, platform,
+# proxy, sandbox, sandbox-egress, sandbox-llm-gateway), held by
+# tools/cli/scripts/oci-image-metadata.test.ts.
+# =============================================================================
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS tale-init
+COPY patches/dumb-init/maxsig-64.patch /tmp/maxsig-64.patch
+RUN set -eux; \
+    apk add --no-cache gcc musl-dev patch; \
+    wget -q -O /tmp/dumb-init.tar.gz https://github.com/Yelp/dumb-init/archive/refs/tags/v1.2.5.tar.gz; \
+    echo '3eda470d8a4a89123f4516d26877a727c0945006c8830b7e3bad717a5f6efc4e  /tmp/dumb-init.tar.gz' | sha256sum -c -; \
+    tar -C /tmp -xzf /tmp/dumb-init.tar.gz; \
+    cd /tmp/dumb-init-1.2.5; \
+    patch -p1 < /tmp/maxsig-64.patch; \
+    grep -qx '#define MAXSIG 64' dumb-init.c; \
+    gcc -std=gnu99 -static -s -Wall -Werror -O2 -o /init dumb-init.c; \
+    /init --version
+
+# =============================================================================
 # Stage 5: SQUASH — flatten layers to eliminate Docker layer bloat
 # =============================================================================
 FROM scratch
 COPY --from=runner / /
+
+# /init for Incus, from the tale-init stage (Docker never runs it).
+COPY --from=tale-init /init /init
 
 # A scratch stage drops the runner's labels with the rest of its image config,
 # and this stage is what ships: it carries the whole OCI label set itself
@@ -503,6 +528,7 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
+LABEL dev.tale.init="dumb-init-1.2.5+maxsig64"
 
 WORKDIR /app
 

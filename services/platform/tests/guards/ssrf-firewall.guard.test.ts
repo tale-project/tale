@@ -65,6 +65,8 @@ function resolveAwk(): string {
 interface HarnessResult {
   /** `-A OUTPUT …` invocations in emission order, argv joined by spaces. */
   rules: string[];
+  /** Every iptables invocation, in order. */
+  calls: string[];
   stderr: string;
   status: number | null;
 }
@@ -72,6 +74,8 @@ interface HarnessResult {
 function runFirewall(options: {
   withIp: boolean;
   routes: string;
+  /** Exit status of the stub for the conntrack match (kernel without it). */
+  conntrackExit?: number;
 }): HarnessResult {
   const dir = mkdtempSync(path.join(tmpdir(), 'ssrf-guard-'));
   tempDirs.push(dir);
@@ -79,7 +83,13 @@ function runFirewall(options: {
 
   writeFileSync(
     path.join(dir, 'iptables'),
-    `#!/bin/bash\necho "$*" >> "${log}"\nexit 0\n`,
+    [
+      '#!/bin/bash',
+      `echo "$*" >> "${log}"`,
+      `case "$*" in *conntrack*) exit ${options.conntrackExit ?? 0} ;; esac`,
+      'exit 0',
+      '',
+    ].join('\n'),
     { mode: 0o755 },
   );
   if (options.withIp) {
@@ -126,6 +136,7 @@ function runFirewall(options: {
     : [];
   return {
     rules: calls.filter((line) => line.startsWith('-A OUTPUT')),
+    calls,
     stderr: result.stderr,
     status: result.status,
   };
@@ -194,5 +205,37 @@ describe('install_ssrf_firewall rule program', () => {
       ).toBe(false);
     }
     expect(stderr).toContain('RFC1918 fence NOT installed');
+  });
+
+  // A reply is not SSRF. A peer outside the directly-connected subnets (a
+  // sandbox session routed in from another network, as on Incus) must get
+  // the answer to a connection it opened: the accept for established
+  // connections goes first in OUTPUT, ahead of every REJECT, as the sandbox
+  // egress installs it.
+  it.each([
+    ['connected subnets', { withIp: true, routes: LINK_ROUTES }],
+    ['no derivable subnet', { withIp: true, routes: '' }],
+    ['no iproute2', { withIp: false, routes: '' }],
+  ])('accepts replies on established connections first (%s)', (_, options) => {
+    const { calls, status } = runFirewall(options);
+    expect(status).toBe(0);
+    const established =
+      '-I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT';
+    expect(calls).toContain(established);
+    // Inserted (-I) at the head of the chain, after every appended rule.
+    expect(calls.indexOf(established)).toBe(calls.length - 1);
+  });
+
+  it('falls back to the state match, and never stops the start, without conntrack', () => {
+    const { calls, status, stderr } = runFirewall({
+      withIp: true,
+      routes: LINK_ROUTES,
+      conntrackExit: 1,
+    });
+    expect(status).toBe(0);
+    expect(calls.at(-1)).toBe(
+      '-I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT',
+    );
+    expect(stderr).not.toContain('failed to accept replies');
   });
 });

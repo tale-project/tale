@@ -92,10 +92,34 @@ install_ssrf_firewall() {
   else
     log_warn "no directly-connected IPv4 subnets derivable (iproute2 missing or empty scope-link table) — RFC1918 fence NOT installed; IMDS + link-local guards active"
   fi
+  # A reply is not SSRF: accept packets of connections that already exist
+  # ahead of every REJECT above (inserted, so it is the first rule), as the
+  # sandbox egress does. Without it a peer outside the directly-connected
+  # subnets (a sandbox session routed in from another network, as on Incus)
+  # opens a connection to this container and never sees its answer.
+  iptables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+    iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+    log_warn "iptables: failed to accept replies on established connections"
+}
+
+# The markers a start must not inherit. /tmp outlives a stop whenever the
+# runtime keeps the container's filesystem (`docker restart`, an Incus
+# restart): a shutdown or ready marker of the previous run would answer the
+# health and admission probes for this one before it serves. The withdrawal
+# markers are what a blue/green runtime sets to take a replica out of its
+# traffic switch (`/api/admission`, the backend's `/admission`); a restarted
+# replica comes back admitted. Deleted here, as root and before the drop to
+# `app`, for every role: one an exec created as root in sticky /tmp cannot be
+# deleted by `app`. A failed delete warns and never stops the start.
+clear_run_markers() {
+  rm -f /tmp/platform-withdrawn /tmp/platform-shutting-down \
+    /tmp/platform-ready /tmp/backend-withdrawn ||
+    log_warn "could not delete the run markers in /tmp"
 }
 
 if [ "$(id -u)" = '0' ]; then
   install_ssrf_firewall
+  clear_run_markers
   # The org-config volume mounts root-owned on first attach (and volumes a
   # v0.5.0 image ever booted against stayed that way — it never chowned
   # them), while every role runs as `app` and the backend must WRITE the

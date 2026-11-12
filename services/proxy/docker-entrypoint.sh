@@ -5,11 +5,45 @@ set -e
 # Caddy Entrypoint Script
 # ============================================================================
 # This script:
+# 0. Picks the role (TALE_PROXY_ROLE): the edge below, or the Incus switch
 # 1. Validates required environment variables (HOST, SITE_URL)
 # 2. Generates TLS config in Caddyfile based on TLS_MODE (hardcoded, not env vars)
 # 3. Trusts the TLS-terminating proxy's forwarded headers (TLS_MODE=external)
 # 4. Ensures self-signed CA certificates are readable by other containers
 # ============================================================================
+
+# ============================================================================
+# Role
+# ============================================================================
+# TALE_PROXY_ROLE picks what this Caddy is. `edge` (the default, and the only
+# role Docker Compose runs) is the public entry point configured below.
+# `switch` is the Incus runtime's traffic switch in front of the colour
+# replicas: its configuration is static (Caddyfile.switch), it needs none of
+# the edge's settings, and its upstream lists are files the runtime puts on
+# the volume at /switch before it starts the switch.
+CADDYFILE="/config/Caddyfile"
+SWITCH_CADDYFILE_SRC="/etc/caddy/Caddyfile.switch"
+SWITCH_UPSTREAMS_DIR="/switch"
+# BEGIN proxy-role
+case "${TALE_PROXY_ROLE:-edge}" in
+  edge) ;;
+  switch)
+    echo "Proxy role: switch"
+    for role in platform backend-api; do
+      if [ ! -f "${SWITCH_UPSTREAMS_DIR}/${role}.upstreams" ]; then
+        echo "Error: ${SWITCH_UPSTREAMS_DIR}/${role}.upstreams is missing; the switch has no ${role} replicas to route to." >&2
+        exit 1
+      fi
+    done
+    cp "$SWITCH_CADDYFILE_SRC" "$CADDYFILE"
+    exec "$@"
+    ;;
+  *)
+    echo "Error: TALE_PROXY_ROLE '${TALE_PROXY_ROLE}' must be edge or switch." >&2
+    exit 1
+    ;;
+esac
+# END proxy-role
 
 # ============================================================================
 # Domain Configuration
@@ -83,10 +117,9 @@ if [ -n "$BASE_PATH" ]; then
   echo "  BASE_PATH: ${BASE_PATH}"
 fi
 
-# Source and destination for Caddyfile
+# Source and destination for Caddyfile (CADDYFILE, set above)
 # We copy to /config (writable volume) because /etc/caddy is read-only in the image
 CADDYFILE_SRC="/etc/caddy/Caddyfile"
-CADDYFILE="/config/Caddyfile"
 
 # ============================================================================
 # Generate TLS configuration based on TLS_MODE
