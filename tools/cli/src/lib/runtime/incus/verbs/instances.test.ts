@@ -368,11 +368,9 @@ describe('the Incus runtime as a StackRuntime', () => {
       stateRoot,
     });
     for (const call of [
-      () => runtime.exec(),
       () => runtime.converge(),
-      () => runtime.health(),
       () => runtime.withdraw(),
-      () => runtime.oneShot(),
+      () => runtime.quiesce(),
     ]) {
       const error = await refusal(call());
       expect(error).toBeInstanceOf(CliError);

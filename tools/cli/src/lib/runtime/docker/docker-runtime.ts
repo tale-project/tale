@@ -371,6 +371,8 @@ export function createDockerRuntime(
     },
 
     // Exec, files, logs
+    // `timeoutS` and `maxOutputBytes` are Incus's bounds: Docker keeps the
+    // `docker exec` it always ran, which the command's own `timeout` bounds.
     exec: (name, argv, options = {}) =>
       options.stdin === undefined
         ? docker('exec', name, ...argv)
@@ -378,6 +380,12 @@ export function createDockerRuntime(
           exec('docker', ['exec', '-i', name, ...argv], {
             stdin: options.stdin,
           }),
+    execSession: async (name, argv) =>
+      Bun.spawn(['docker', 'exec', '-i', name, ...argv], {
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      }),
     copyIn: async (name, dir, target, owner) => {
       const source = dir.replaceAll('\\', '/');
       const copied = await exec('docker', [

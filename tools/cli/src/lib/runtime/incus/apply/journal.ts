@@ -194,15 +194,39 @@ async function writeJournal(
   await writePrivateJson(journalFile(stateRoot), journalSchema.parse(journal));
 }
 
+/** The update of each journal file this process runs last: updates queue
+ * behind it, so parallel execs (their stdin files) and the applier never
+ * write over each other's change. */
+const journalUpdates = new Map<string, Promise<unknown>>();
+
 /**
  * Read, change and write the journal of `stack`. A journal of another stack
- * in the same state directory is refused, never overwritten.
+ * in the same state directory is refused, never overwritten. Updates in one
+ * process run one at a time.
  */
-export async function updateJournal(
+export function updateJournal(
   stateRoot: string,
   stack: string,
   change: (journal: IncusJournal) => void,
   now: () => Date = () => new Date(),
+): Promise<IncusJournal> {
+  const file = journalFile(stateRoot);
+  // The previous update's failure is its own caller's; this one runs anyway.
+  const run = () => applyJournalUpdate(stateRoot, stack, change, now);
+  const update = (journalUpdates.get(file) ?? Promise.resolve()).then(run, run);
+  journalUpdates.set(file, update);
+  const settle = () => {
+    if (journalUpdates.get(file) === update) journalUpdates.delete(file);
+  };
+  update.then(settle, settle);
+  return update;
+}
+
+async function applyJournalUpdate(
+  stateRoot: string,
+  stack: string,
+  change: (journal: IncusJournal) => void,
+  now: () => Date,
 ): Promise<IncusJournal> {
   const journal = (await readJournal(stateRoot)) ?? emptyJournal(stack, now());
   if (journal.stack !== stack)

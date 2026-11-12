@@ -3,6 +3,7 @@ import { pipeLines } from '@tale/shared/process';
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { formatHeartbeat } from '../../utils/progress';
+import type { StackRuntime } from '../runtime/types';
 import { getContainerHealth } from './get-container-health';
 import { isContainerRunning } from './is-container-running';
 
@@ -11,6 +12,12 @@ interface HealthCheckOptions {
   interval?: number;
   requestTimeoutMs?: number;
   streamLogs?: boolean;
+  /**
+   * The runtime whose instance this is; Docker's own reads when absent. On
+   * a runtime other than Docker, `streamLogs` follows no log: an Incus
+   * console hands each line out once, so a wait never reads it.
+   */
+  runtime?: Pick<StackRuntime, 'engine' | 'isRunning' | 'health'>;
 }
 
 function extractServiceName(containerName: string): string {
@@ -78,7 +85,18 @@ export async function waitForHealthy(
   containerName: string,
   options: HealthCheckOptions,
 ): Promise<boolean> {
-  const { timeout, interval = 2000, streamLogs = false } = options;
+  const { timeout, interval = 2000, runtime } = options;
+  const streamLogs =
+    options.streamLogs === true &&
+    (runtime === undefined || runtime.engine === 'docker');
+  if (options.streamLogs === true && !streamLogs)
+    logger.debug(
+      `Not following the log of ${containerName} while waiting: reading a running ${runtime?.engine ?? ''} console takes its lines.`,
+    );
+  const running = (name: string) =>
+    runtime === undefined ? isContainerRunning(name) : runtime.isRunning(name);
+  const healthOf = (name: string) =>
+    runtime === undefined ? getContainerHealth(name) : runtime.health(name);
   const startTime = Date.now();
   const timeoutMs = timeout * 1000;
   // Non-TTY heartbeat: when we're not streaming container logs and there's no
@@ -101,14 +119,14 @@ export async function waitForHealthy(
     }
 
     while (Date.now() - startTime < timeoutMs) {
-      const isRunning = await isContainerRunning(containerName);
+      const isRunning = await running(containerName);
       if (!isRunning) {
         logger.warn(`Container ${containerName} is not running`);
         await Bun.sleep(interval);
         continue;
       }
 
-      const health = await getContainerHealth(containerName);
+      const health = await healthOf(containerName);
 
       if (health === 'healthy') {
         logger.success(`${containerName} is healthy`);

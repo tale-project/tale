@@ -99,7 +99,7 @@ async function writeLabels(
 }
 
 /** When the instance last reached Running; null when it never has. */
-async function startedAt(
+export async function instanceStartedAt(
   client: IncusClient,
   name: string,
 ): Promise<string | null> {
@@ -159,7 +159,7 @@ export async function startStackInstance(
   if (read.instance.config[WANT_LABEL] !== 'running')
     await writeLabels(client, name, { [WANT_LABEL]: 'running' });
   if (read.instance.status !== 'Running') await startInstance(client, name);
-  const started = await startedAt(client, name);
+  const started = await instanceStartedAt(client, name);
   if (started !== null)
     await writeLabels(client, name, { [STARTED_LABEL]: started });
 }
@@ -281,7 +281,7 @@ export async function inspectStackInstance(
   const read = observed(await client.getInstance(name), '');
   if (read === undefined) return null;
   const info = instanceInfo(read, key);
-  const started = await startedAt(client, name);
+  const started = await instanceStartedAt(client, name);
   const recorded = read.config[STARTED_LABEL];
   const restarted =
     started !== null &&

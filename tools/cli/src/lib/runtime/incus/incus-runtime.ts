@@ -2,6 +2,7 @@ import { IncusApiError } from '@tale/incus/api';
 import type { IncusClient } from '@tale/incus/client';
 
 import { preconditionError } from '../../../utils/fail';
+import { waitForHealthy } from '../../docker/wait-for-healthy';
 import { readImageFacts } from '../../oci/image-facts';
 import {
   createRegistryClient,
@@ -10,13 +11,23 @@ import {
   type RegistryClient,
 } from '../../oci/registry';
 import type {
+  CopyOutOptions,
+  CopyResult,
   EnsuredImages,
+  ExecResult,
+  FileOwner,
+  HealthState,
   ImageFacts,
   ImageRef,
   InstanceInfo,
+  LogOptions,
+  OneShotJob,
   ProbeResult,
   RuntimeCheck,
+  RuntimeSession,
   StackRuntime,
+  WaitHealthyOptions,
+  WaitServiceHealthyOptions,
 } from '../types';
 import { markInterruptedSync } from './apply/journal';
 import type {
@@ -26,6 +37,15 @@ import type {
 } from './compile/stack-target';
 import { imageAlias, type InstanceSpec } from './compile/translate';
 import { loadPlanKey, type PlanKey } from './plan/digest';
+import {
+  execInInstance,
+  execSessionInInstance,
+  reapPayloads,
+  type IncusExecOptions,
+  type IncusVerbContext,
+} from './verbs/exec';
+import { copyIntoInstance, copyOutOfInstance } from './verbs/files';
+import { IncusHealth, type HealthcheckLookup } from './verbs/health';
 import {
   imageFsFacts,
   reapProbes,
@@ -51,6 +71,13 @@ import {
   type Pid1Proof,
   type StopGrace,
 } from './verbs/instances';
+import {
+  crashReport,
+  crashTail,
+  readInstanceLogs,
+  type LogReadDependencies,
+} from './verbs/logs';
+import { reapHelpers, runOneShot } from './verbs/oneshot';
 import { probeIncus, type IncusProbe } from './verbs/probe';
 import {
   assertPoolUnchanged,
@@ -67,14 +94,16 @@ import {
  * The Incus runtime: the stack's instances, images and volumes in one
  * restricted Incus project, over the REST API (design 3, 4).
  *
- * This is the part of `StackRuntime` that the probe, the images, the volumes
- * and the instances answer. A verb the Incus runtime cannot answer yet —
- * converge, health, exec, copies, logs, one-shot jobs, admission and
- * quiescing — is refused with a sentence that says so, never answered with
- * Docker's meaning. Beyond the interface, the runtime offers the
- * whole-stack steps a managed deployment drives: the image facts, the
+ * This is the part of `StackRuntime` that the probe, the images, the volumes,
+ * the instances, exec, the file copies, the console, one-shot helpers and
+ * health answer. A verb the Incus runtime cannot answer yet — converge,
+ * admission and quiescing — is refused with a sentence that says so, never
+ * answered with Docker's meaning. Beyond the interface, the runtime offers
+ * the whole-stack steps a managed deployment drives: the image facts, the
  * volumes with their owners, instance creation, a stop with a chosen grace,
- * freeze and thaw, image pruning, and the PID 1 proof.
+ * freeze and thaw, image pruning, the PID 1 proof, the reaping of what a
+ * crash left (exec stdin files, helpers) and a stopped instance's crash
+ * tail.
  */
 
 export interface IncusRuntimeOptions {
@@ -87,6 +116,14 @@ export interface IncusRuntimeOptions {
   /** The registry `inspectImage` reads; an anonymous client with the
    * declared mirror and a cache under the state root by default. */
   registry?: RegistryClient;
+  /** The healthcheck of each instance; from the compiled stack the
+   * runtime was given (`useTarget`) by default. */
+  healthchecks?: HealthcheckLookup;
+  /** The `tale-proxy` image one-shot helpers run from (design D-30); the
+   * target's proxy image by default. */
+  helperImage?: { alias: string; digest?: string };
+  /** How `logs --follow` waits between reads (tests). */
+  logReads?: LogReadDependencies;
 }
 
 function notYet(verb: string): Promise<never> {
@@ -109,12 +146,26 @@ export class IncusRuntime implements StackRuntime {
   private platform: string | undefined;
   private target: StackTarget | undefined;
   private owners = new Map<string, VolumeOwner>();
+  private readonly healthReader: IncusHealth;
+  private readonly helperImage: IncusRuntimeOptions['helperImage'];
+  private readonly logReads: LogReadDependencies;
+  /** One-shot helpers running in this process. */
+  private readonly activeHelpers = new Set<string>();
 
   constructor(options: IncusRuntimeOptions) {
     this.client = options.client;
     this.declaration = options.declaration;
     this.stack = options.stack;
     this.stateRoot = options.stateRoot;
+    this.helperImage = options.helperImage;
+    this.logReads = options.logReads ?? {};
+    this.healthReader = new IncusHealth(
+      this.verbContext,
+      options.healthchecks ??
+        ((name) =>
+          this.target?.instances.find((instance) => instance.name === name)
+            ?.healthcheck),
+    );
     this.registry =
       options.registry ??
       createRegistryClient({
@@ -123,6 +174,15 @@ export class IncusRuntime implements StackRuntime {
           : { registryMirror: options.declaration.registryMirror }),
         cacheDirectory: ociCacheDirectory(options.stateRoot),
       });
+  }
+
+  /** What the exec, file, log, health and helper verbs act within. */
+  get verbContext(): IncusVerbContext {
+    return {
+      client: this.client,
+      stack: this.stack,
+      stateRoot: this.stateRoot,
+    };
   }
 
   /** The API the client dials, as the declaration names it. */
@@ -254,8 +314,9 @@ export class IncusRuntime implements StackRuntime {
     );
   }
 
-  health(): Promise<never> {
-    return notYet('read an instance health');
+  /** Docker's health, judged by the CLI from exec probes (design D-24). */
+  health(name: string): Promise<HealthState> {
+    return this.healthReader.health(name);
   }
 
   async inspect(name: string): Promise<InstanceInfo | null> {
@@ -499,12 +560,27 @@ export class IncusRuntime implements StackRuntime {
     return notYet('converge a compose document');
   }
 
-  waitHealthy(): Promise<never> {
-    return notYet('wait for an instance to be healthy');
+  /** Wait as Docker's wait does, every 2 s, on the CLI's own health; the
+   * console of a running instance is never read (`streamLogs` is not). */
+  waitHealthy(name: string, options: WaitHealthyOptions): Promise<boolean> {
+    return waitForHealthy(name, { ...options, runtime: this });
   }
 
-  waitServiceHealthy(): Promise<never> {
-    return notYet('wait for a service to be healthy');
+  async waitServiceHealthy(
+    stack: string,
+    service: string,
+    options: WaitServiceHealthyOptions,
+  ): Promise<boolean> {
+    const replicas = await this.list({ stack, service });
+    if (replicas.length < options.expectedReplicas) {
+      console.error(
+        `Expected ${options.expectedReplicas} ${service} replica(s) in ${stack}, found ${replicas.length}`,
+      );
+      return false;
+    }
+    for (const replica of replicas)
+      if (!(await this.waitHealthy(replica.name, options))) return false;
+    return true;
   }
 
   /** Make an instance of the target, stopped. */
@@ -568,24 +644,99 @@ export class IncusRuntime implements StackRuntime {
 
   // ---- exec, files, logs, helpers ------------------------------------------------
 
-  exec(): Promise<never> {
-    return notYet('run a command in an instance');
+  /** Run one command (design D-03): modes 1-2 under the image's `timeout`,
+   * else over the websocket; bounded in time and output. */
+  exec(
+    name: string,
+    argv: readonly string[],
+    options: IncusExecOptions = {},
+  ): Promise<ExecResult> {
+    return execInInstance(this.verbContext, name, argv, options);
   }
 
-  copyIn(): Promise<never> {
-    return notYet('copy files into an instance');
+  /** A command held open over a websocket exec. */
+  execSession(name: string, argv: readonly string[]): Promise<RuntimeSession> {
+    return execSessionInInstance(this.verbContext, name, argv);
   }
 
-  copyOut(): Promise<never> {
-    return notYet('copy files out of an instance');
+  /** Delete the exec stdin files a crash left, as the journal lists them. */
+  reapExecPayloads(instance?: string): Promise<string[]> {
+    return reapPayloads(this.verbContext, instance);
   }
 
-  logs(): Promise<never> {
-    return notYet('read an instance log');
+  copyIn(
+    name: string,
+    dir: string,
+    target: string,
+    owner?: FileOwner,
+  ): Promise<CopyResult> {
+    return copyIntoInstance(this.verbContext, name, dir, target, owner);
   }
 
-  oneShot(): Promise<never> {
-    return notYet('run a one-shot job');
+  copyOut(
+    name: string,
+    source: string,
+    dir: string,
+    options: CopyOutOptions,
+  ): Promise<ExecResult> {
+    return copyOutOfInstance(this.verbContext, name, source, dir, options);
+  }
+
+  /** The instance's console (design 11): a running one only with
+   * `consume`, after a one-line warning. */
+  logs(
+    name: string,
+    options: LogOptions,
+    onLine?: (line: string) => void,
+  ): Promise<number> {
+    return readInstanceLogs(
+      this.verbContext,
+      name,
+      options,
+      onLine,
+      this.logReads,
+    );
+  }
+
+  /** What a stopped instance's console still holds, labelled as such; null
+   * while it runs. */
+  crashTail(name: string, lines?: number) {
+    return crashTail(this.verbContext, name, lines);
+  }
+
+  /** "stopped after repeated crashes" with the console tail Incus kept,
+   * for an instance `boot.autorestart` gave up on; null for any other. */
+  crashReport(name: string, lines?: number) {
+    return crashReport(this.verbContext, name, lines);
+  }
+
+  /** The `tale-proxy` image helpers run from. */
+  private helper(): { alias: string; digest?: string } {
+    if (this.helperImage !== undefined) return this.helperImage;
+    const proxy = this.target?.images.find((image) =>
+      image.services.includes('proxy'),
+    );
+    if (proxy === undefined)
+      throw preconditionError(
+        "A one-shot job on Incus runs from the release's tale-proxy image, and this runtime knows none yet.",
+      );
+    return { alias: proxy.alias, digest: proxy.digest };
+  }
+
+  /** Run one helper job over volumes (design D-30) and delete the helper. */
+  oneShot(job: OneShotJob): Promise<ExecResult> {
+    const helper = this.helper();
+    return runOneShot(this.verbContext, job, {
+      image: helper.alias,
+      ...(helper.digest === undefined ? {} : { digest: helper.digest }),
+      pool: this.declaration.pool,
+      active: this.activeHelpers,
+    });
+  }
+
+  /** Delete the helpers a crash left in the stack. */
+  reapHelpers(): Promise<string[]> {
+    return reapHelpers(this.verbContext, this.activeHelpers);
   }
 }
 

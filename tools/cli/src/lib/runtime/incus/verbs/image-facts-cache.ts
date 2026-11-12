@@ -116,6 +116,15 @@ async function writeCache(stateRoot: string, cache: FactsFile): Promise<void> {
   await writePrivateJson(factsFile(stateRoot), fileSchema.parse(cache));
 }
 
+/** The facts cached for one image digest; null where none were read yet
+ * (an exec then assumes no `timeout`, design R3-30). */
+export async function cachedImageFacts(
+  stateRoot: string,
+  digest: string,
+): Promise<ImageFsFacts | null> {
+  return (await readCache(stateRoot)).images[digest] ?? null;
+}
+
 /** The uid and gid of `user` in an `/etc/passwd`; null without the user. */
 export function passwdUser(
   passwd: string,

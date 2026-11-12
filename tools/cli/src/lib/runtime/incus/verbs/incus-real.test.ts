@@ -1,8 +1,10 @@
 // The Incus runtime's verbs against a real Incus: the probe, a pull of
 // tale-proxy by digest, the image facts read through a stopped probe
 // instance, a volume made with the owner they name, an instance made,
-// started, proven by its PID 1, stopped and removed, and the empty-volume
-// boot of the platform and sandbox images (design R3-20). Gated: it runs only
+// started, proven by its PID 1, stopped and removed, the empty-volume
+// boot of the platform and sandbox images (design R3-20), and exec (both
+// paths, stdin, deadlines, the byte cap, a held session), the copies, the
+// console and a one-shot helper (TI-12). Gated: it runs only
 // with TALE_INCUS_REAL=1, and then needs TALE_INCUS_DIR (client.crt,
 // client.key, server.crt of a certificate restricted to a throwaway project
 // whose `tale-stack` profile has a root disk) — a run asked for without one
@@ -17,7 +19,13 @@ import {
   setDefaultTimeout,
   test,
 } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,15 +34,24 @@ import { execWithOutput } from '@tale/incus/exec';
 import { statFile } from '@tale/incus/files';
 import { readIncusTlsMaterial } from '@tale/incus/tls';
 
+import { CliError } from '../../../../utils/fail';
 import { readImageFacts, type ImageFacts } from '../../../oci/image-facts';
 import { createRegistryClient } from '../../../oci/registry';
 import { testKey } from '../apply/apply-fixture';
+import { readJournal } from '../apply/journal';
 import type {
   StackImage,
   StackTarget,
   StackVolume,
 } from '../compile/stack-target';
 import { imageAlias, type InstanceSpec } from '../compile/translate';
+import {
+  execInInstance,
+  execSessionInInstance,
+  type IncusVerbContext,
+} from './exec';
+import { copyIntoInstance, copyOutOfInstance } from './files';
+import { IncusHealth } from './health';
 import { imageFsFacts, type ImageFsFacts } from './image-facts-cache';
 import { ensureImages } from './images';
 import {
@@ -45,6 +62,8 @@ import {
   startStackInstance,
   stopStackInstance,
 } from './instances';
+import { CRASH_TAIL_LABEL, crashTail, readInstanceLogs } from './logs';
+import { runOneShot } from './oneshot';
 import { probeIncus } from './probe';
 import { ensureStackVolumes, removeStackVolume, volumeOwners } from './volumes';
 
@@ -313,6 +332,289 @@ describe.skipIf(!REAL)('the Incus runtime verbs against a real Incus', () => {
         },
       );
     rmSync(stateRoot, { recursive: true, force: true });
+  });
+
+  describe('exec, copies, the console, a helper and health (TI-12)', () => {
+    let name = '';
+    let context: IncusVerbContext;
+    let proxy: Service;
+    const volume = `files-${run}`;
+    const sha = async (bytes: Uint8Array) =>
+      new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+
+    beforeAll(async () => {
+      proxy = await release('ti12', 'tale-proxy', {
+        address: `${PREFIX}.25`,
+        entrypoint:
+          "sh -c 'i=0; while [ $i -lt 40 ]; do i=$((i+1)); echo console-$i; done; exec caddy file-server --listen :8080 --root /srv'",
+        environment: {},
+        mounts: [{ volume, path: '/data' }],
+      });
+      const { target, facts } = await boot([proxy]);
+      name = target.instances[0]?.name ?? '';
+      context = { client, stack: STACK, stateRoot };
+      console.info(
+        `[real] tale-proxy timeout fact: ${facts.get(proxy.image.digest)?.timeout ?? 'none'}`,
+      );
+      expect(facts.get(proxy.image.digest)?.timeout).not.toBeNull();
+    });
+
+    test('mode 2 runs under the image timeout; stdin goes as a file or over the websocket', async () => {
+      const who = await execInInstance(context, name, ['id', '-u']);
+      console.info(`[real] exec id -u ${JSON.stringify(who)}`);
+      expect(who).toEqual({
+        success: true,
+        stdout: '0',
+        stderr: '',
+        exitCode: 0,
+      });
+      for (const size of [1024, 2 * 1024 * 1024]) {
+        const payload = crypto.getRandomValues(new Uint8Array(size));
+        const encoded = Buffer.from(payload).toString('base64');
+        const started = Date.now();
+        const result = await execInInstance(context, name, ['sha256sum'], {
+          stdin: encoded,
+        });
+        console.info(
+          `[real] stdin ${encoded.length} bytes: ${JSON.stringify(result)} in ${Date.now() - started} ms`,
+        );
+        expect(result.stdout.split(' ')[0]).toBe(
+          await sha(new TextEncoder().encode(encoded)),
+        );
+      }
+      const shm = await execInInstance(context, name, ['ls', '-a', '/dev/shm']);
+      expect(shm.stdout).not.toContain('tale-exec-');
+      expect((await readJournal(stateRoot))?.payloads ?? []).toEqual([]);
+    });
+
+    test('a command past its time ends: by the image timeout in mode 2, by the control socket over the websocket', async () => {
+      let started = Date.now();
+      let timed = '';
+      try {
+        await execInInstance(context, name, ['sleep', '30'], { timeoutS: 2 });
+      } catch (error) {
+        timed = error instanceof Error ? error.message : String(error);
+      }
+      const recordMs = Date.now() - started;
+      console.info(
+        `[real] mode 2 sleep 30 under timeout 2: ${timed} in ${recordMs} ms`,
+      );
+      expect(timed).toBe('Command exceeded its time limit.');
+      expect(recordMs).toBeLessThan(10_000);
+      // A command's own exit code passes through, 124 included.
+      expect(
+        (await execInInstance(context, name, ['sh', '-c', 'exit 124']))
+          .exitCode,
+      ).toBe(124);
+      // An instance whose image facts are unknown runs over the websocket.
+      await client.patchInstance(name, {
+        config: { 'user.tale.image': `sha256:${'0'.repeat(64)}` },
+      });
+      try {
+        started = Date.now();
+        let failure = '';
+        try {
+          await execInInstance(context, name, ['sleep', '30'], { timeoutS: 2 });
+        } catch (error) {
+          failure = error instanceof Error ? error.message : String(error);
+        }
+        console.info(
+          `[real] websocket sleep 30 under 2 s: ${failure} in ${Date.now() - started} ms`,
+        );
+        expect(failure).toBe('Command exceeded its time limit.');
+        expect(Date.now() - started).toBeLessThan(10_000);
+        const procs = await execInInstance(context, name, ['ps']);
+        expect(procs.stdout).not.toContain('sleep 30');
+      } finally {
+        await client.patchInstance(name, {
+          config: { 'user.tale.image': proxy.image.digest },
+        });
+      }
+      let capped = '';
+      try {
+        await execInInstance(
+          context,
+          name,
+          ['head', '-c', '100000', '/dev/zero'],
+          {
+            maxOutputBytes: 1000,
+          },
+        );
+      } catch (error) {
+        capped = error instanceof Error ? error.message : String(error);
+      }
+      expect(capped).toBe('Command output exceeded its byte limit.');
+    });
+
+    test('a held session streams both ways and ends with its code', async () => {
+      const session = await execSessionInInstance(context, name, [
+        'sh',
+        '-c',
+        'while read line; do echo "got $line"; done; exit 7',
+      ]);
+      session.stdin.write('one\n');
+      const reader = session.stdout.getReader();
+      const first = await reader.read();
+      expect(text(first.value ?? new Uint8Array())).toBe('got one\n');
+      session.stdin.end();
+      expect(await session.exited).toBe(7);
+    });
+
+    test('copies go through the volume API on a stack volume, the instance API elsewhere, with owners; the copy out stops at its cap', async () => {
+      const source = join(stateRoot, 'copy-source');
+      mkdirSync(join(source, 'acme'), { recursive: true, mode: 0o750 });
+      writeFileSync(join(source, 'top.json'), '{"a":1}', { mode: 0o640 });
+      writeFileSync(join(source, 'acme', 'agent.json'), '{"b":2}', {
+        mode: 0o600,
+      });
+      for (const target of ['/data/', '/tmp/import'])
+        expect(
+          await copyIntoInstance(context, name, source, target, {
+            user: 'nobody',
+            group: 'nobody',
+          }),
+        ).toEqual({ success: true });
+      const owners = await execInInstance(context, name, [
+        'stat',
+        '-c',
+        '%n %u:%g %a',
+        '/data/top.json',
+        '/data/acme',
+        '/data/acme/agent.json',
+        '/tmp/import/top.json',
+      ]);
+      console.info(`[real] copied owners ${JSON.stringify(owners)}`);
+      expect(owners.stdout.split('\n')).toEqual([
+        '/data/top.json 65534:65534 640',
+        '/data/acme 65534:65534 750',
+        '/data/acme/agent.json 65534:65534 600',
+        '/tmp/import/top.json 65534:65534 640',
+      ]);
+      const out = join(stateRoot, 'copy-out');
+      expect(
+        (
+          await copyOutOfInstance(context, name, '/data', out, {
+            maxBytes: 1000,
+            timeoutS: 60,
+          })
+        ).success,
+      ).toBe(true);
+      expect(readFileSync(join(out, 'acme', 'agent.json'), 'utf8')).toBe(
+        '{"b":2}',
+      );
+      const capped = await copyOutOfInstance(
+        context,
+        name,
+        '/data',
+        join(stateRoot, 'copy-capped'),
+        { maxBytes: 10, timeoutS: 60 },
+      );
+      expect(capped.stderr).toContain('more than 10 bytes');
+    });
+
+    test('a one-shot helper runs from tale-proxy over a volume, with no network, and is deleted', async () => {
+      const helpers = () =>
+        client
+          .listInstances()
+          .then((all) =>
+            all.filter((one) => one.config['user.tale.role'] === 'helper'),
+          );
+      const job = await runOneShot(
+        context,
+        {
+          image: 'alpine:3.22',
+          purpose: 'ti12',
+          mounts: [{ volume, target: '/data', readOnly: true }],
+          argv: [
+            'sh',
+            '-c',
+            'cat /data/top.json; cat; ls /sys/class/net; exit 3',
+          ],
+          stdin: '|stdin\n',
+          timeoutS: 60,
+        },
+        {
+          image: proxy.image.alias,
+          digest: proxy.image.digest,
+          pool: POOL,
+          active: new Set(),
+        },
+      );
+      console.info(`[real] one-shot ${JSON.stringify(job)}`);
+      expect(job.exitCode).toBe(3);
+      expect(job.stdout.split('\n')).toEqual(['{"a":1}|stdin', 'lo']);
+      expect(await helpers()).toEqual([]);
+    });
+
+    test('health runs the healthcheck by exec and judges it as Docker does', async () => {
+      const healthy = new IncusHealth(context, () => ({
+        test: ['CMD-SHELL', '[ -d /data ] && pidof caddy >/dev/null'],
+        intervalMs: 1_000,
+        timeoutMs: 5_000,
+        retries: 2,
+        startPeriodMs: 0,
+      }));
+      expect(await healthy.health(name)).toBe('healthy');
+      let now = Date.now();
+      const broken = new IncusHealth(
+        context,
+        () => ({
+          test: ['CMD', 'false'],
+          intervalMs: 1_000,
+          timeoutMs: 5_000,
+          retries: 2,
+          startPeriodMs: 0,
+        }),
+        () => now,
+      );
+      expect(await broken.health(name)).toBe('starting');
+      now += 1_000;
+      expect(await broken.health(name)).toBe('unhealthy');
+    });
+
+    test('the console: refused running without --consume, taken by a read, and the stopped one is what no read took', async () => {
+      const refusal = await readInstanceLogs(
+        context,
+        name,
+        { follow: false },
+        () => undefined,
+      ).catch((error: unknown) => error);
+      expect(refusal).toBeInstanceOf(CliError);
+      const lines: string[] = [];
+      const warnings: string[] = [];
+      await readInstanceLogs(
+        context,
+        name,
+        { follow: false, consume: true },
+        (line) => lines.push(line),
+        { warn: (line) => warnings.push(line) },
+      );
+      console.info(
+        `[real] running console read: ${lines.length} lines, warning ${JSON.stringify(warnings)}`,
+      );
+      expect(warnings).toHaveLength(1);
+      expect(lines.filter((line) => line.startsWith('console-'))).toEqual(
+        Array.from({ length: 40 }, (_, index) => `console-${index + 1}`),
+      );
+      // A second read finds nothing of what the first took.
+      const again: string[] = [];
+      await readInstanceLogs(
+        context,
+        name,
+        { follow: false, consume: true },
+        (line) => again.push(line),
+        { warn: () => undefined },
+      );
+      expect(again.filter((line) => line.startsWith('console-'))).toEqual([]);
+      expect(await crashTail(context, name)).toBeNull();
+      await stopStackInstance(client, name, 10);
+      const tail = await crashTail(context, name);
+      console.info(`[real] stopped console ${JSON.stringify(tail)}`);
+      expect(tail?.label).toBe(CRASH_TAIL_LABEL);
+      expect(tail?.lines.filter((line) => line.startsWith('console-'))).toEqual(
+        [],
+      );
+    });
   });
 
   test('the probe finds the project ready', async () => {

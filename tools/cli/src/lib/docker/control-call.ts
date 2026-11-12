@@ -1,7 +1,8 @@
 /**
  * THE machine channel between the CLI and a running deployment: an exec of
  * `curl localhost:$PORT/api/control/...` in a backend-api replica, through
- * the deployment's runtime (`docker exec` on Docker).
+ * the deployment's runtime (`docker exec` on Docker, an Incus exec on Incus,
+ * which the call's budget bounds too).
  *
  * Deliberately NOT the proxy — a control call often runs precisely while the
  * proxy is pointing at a container that is going away (deploy drain), and the
@@ -151,6 +152,10 @@ export interface ControlCallResult {
  */
 export const DEFAULT_CONTROL_TIMEOUT_S = 15;
 
+/** How long the runtime waits for an exec beyond the call's own budget
+ *  (Incus needs a bound for every exec; Docker keeps today's call). */
+const CONTROL_EXEC_SLACK_S = 30;
+
 /**
  * One control-door call. `body`, when given, is sent as a JSON request body
  * over stdin (never argv). `timeoutS` (default `DEFAULT_CONTROL_TIMEOUT_S`)
@@ -179,14 +184,16 @@ export async function controlCall(
   }
   const auth = '-H "Authorization: Bearer $TALE_CONTROL_TOKEN"';
   const url = `http://localhost:${BACKEND_CONTROL_PORT}${path}`;
-  const prefix = `timeout ${options.timeoutS ?? DEFAULT_CONTROL_TIMEOUT_S} `;
+  const budget = options.timeoutS ?? DEFAULT_CONTROL_TIMEOUT_S;
+  const prefix = `timeout ${budget} `;
+  const timeoutS = budget + CONTROL_EXEC_SLACK_S;
 
   if (options.body === undefined) {
-    return runtime.exec(container, [
-      'sh',
-      '-c',
-      `${prefix}curl -fsS -X ${method} ${auth} ${url}`,
-    ]);
+    return runtime.exec(
+      container,
+      ['sh', '-c', `${prefix}curl -fsS -X ${method} ${auth} ${url}`],
+      { timeoutS },
+    );
   }
 
   // `--data-binary @-` reads the body from the curl process's stdin, which is
@@ -198,6 +205,6 @@ export async function controlCall(
       '-c',
       `${prefix}curl -fsS -X ${method} ${auth} -H "Content-Type: application/json" --data-binary @- ${url}`,
     ],
-    { stdin: JSON.stringify(options.body) },
+    { stdin: JSON.stringify(options.body), timeoutS },
   );
 }

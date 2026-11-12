@@ -20,6 +20,11 @@ export function createLogsCommand(): Command {
     .option('--since <duration>', 'Show logs since duration (e.g., 1h, 30m)')
     .option('-n, --tail <lines>', 'Number of lines to show from end')
     .option(
+      '--consume',
+      'On Incus: read a running service, although the read takes the lines it shows',
+      false,
+    )
+    .option(
       '--raw',
       'Stream raw, unfiltered log output (no classification)',
       false,
@@ -57,6 +62,7 @@ export function createLogsCommand(): Command {
           since: options.since,
           tail,
           raw: options.raw,
+          consume: options.consume,
           deployDir: env.DEPLOY_DIR,
         });
       }),

@@ -790,6 +790,7 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 - `--since <duration>` — Logs seit einer relativen Zeit anzeigen (z. B. `1h`, `30m`).
 - `-c, --color <color>` — eine bestimmte Deployment-Farbe ansprechen (`blue` oder `green`).
 - `--raw` — die rohe, ungefilterte Log-Ausgabe streamen (keine Klassifizierung).
+- `--consume` — auf Incus einen laufenden Dienst lesen. Incus gibt jede Zeile der Konsole nur einmal heraus: Das Lesen nimmt die angezeigten Zeilen weg, sodass ein späteres Lesen und die Konsole, die Incus nach dem Stopp des Dienstes behält, sie nicht mehr enthalten. Ohne die Option liest `tale logs` auf Incus nur einen gestoppten Dienst, und `--follow` braucht sie. `--since` wird auf Incus abgelehnt, weil die Konsole keine Zeiten speichert. Docker ignoriert die Option.
 
 `tale backup` — unterstützte, vorhandene Projekt-Volumes sichern. Keine Argumente. Externe Datenbanken und Buckets brauchen eigene Backups; siehe [Sicherungsumfang](/de/self-hosted/operate/backups-and-restore).
 

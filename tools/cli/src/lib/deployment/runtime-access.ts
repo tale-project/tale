@@ -21,7 +21,7 @@
 import { z } from 'zod';
 
 import { exec, type ExecResult } from '../docker/exec';
-import type { RuntimeEngine } from '../runtime/types';
+import type { RuntimeEngine, RuntimeSession } from '../runtime/types';
 import { runtimeCommand, runtimeProcessEnvironment } from './runtime-command';
 import type { RuntimeDependencies } from './runtime-model';
 
@@ -116,11 +116,9 @@ export interface RuntimeExecCall<Tag = undefined> extends RuntimeCall<Tag> {
 /** A source on this host that `copyIn` copies. */
 export type CopySource = { directory: string } | { file: string };
 
-/** A long-lived process in an instance, its pipes open. */
-export type RuntimeSession = Pick<
-  Bun.Subprocess<'pipe', 'pipe', 'pipe'>,
-  'stdin' | 'stdout' | 'stderr' | 'exited' | 'exitCode' | 'kill'
->;
+/** A long-lived process in an instance, its pipes open: the one session
+ *  shape `StackRuntime` uses too (a `docker exec -i` child satisfies it). */
+export type { RuntimeSession } from '../runtime/types';
 
 export interface RuntimeAccess<Tag = undefined> {
   readonly engine: RuntimeEngine;

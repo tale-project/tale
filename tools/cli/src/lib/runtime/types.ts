@@ -180,6 +180,35 @@ export interface WaitServiceHealthyOptions extends WaitHealthyOptions {
 export interface ExecOptions {
   /** Delivered on the process's stdin, never in its argv. */
   stdin?: string;
+  /** Seconds the command may run; past it the command is ended and the
+   *  exec fails. Incus bounds every exec (600 s when absent); Docker keeps
+   *  the `docker exec` it always ran, which the command's own `timeout`
+   *  bounds, and ignores it. */
+  timeoutS?: number;
+  /** stdout and stderr together may not be larger; past it the exec fails
+   *  (Incus: 16 MiB when absent). Docker ignores it. */
+  maxOutputBytes?: number;
+}
+
+/**
+ * A command held open in an instance, its stdin, stdout and stderr streamed
+ * (the automation's psql session). Docker: a `docker exec -i` child process;
+ * Incus: a websocket exec (design D-03).
+ */
+export interface RuntimeSession {
+  stdin: {
+    write(chunk: string | Uint8Array): unknown;
+    flush(): unknown;
+    end(): unknown;
+  };
+  stdout: ReadableStream<Uint8Array>;
+  stderr: ReadableStream<Uint8Array>;
+  /** Resolves with the exit code once the command ended. */
+  exited: Promise<number>;
+  /** The exit code once known, else null. */
+  readonly exitCode: number | null;
+  /** End the command. */
+  kill(): void;
 }
 
 export interface FileOwner {
@@ -203,6 +232,12 @@ export interface LogOptions {
   follow: boolean;
   since?: string;
   tail?: number;
+  /**
+   * Read a running instance's log although the read takes the lines it
+   * shows (Incus: the console hands each line out once, design 11, S21).
+   * Docker reads without taking and ignores it.
+   */
+  consume?: boolean;
 }
 
 /** A volume a one-shot job mounts. */
@@ -214,7 +249,12 @@ export interface JobMount {
 
 /** A short-lived helper that runs one command over volumes, then goes. */
 export interface OneShotJob {
+  /** Docker runs the job from this image; Incus from the release's
+   *  `tale-proxy` (design D-30). */
   image: string;
+  /** What the job is for, in its Incus name (`job-<purpose>-<8 hex>`);
+   *  lower-case letters and digits, `job` when absent. */
+  purpose?: string;
   mounts: readonly JobMount[];
   argv: readonly string[];
   /** Delivered on the job's stdin, never in its argv. */
@@ -319,6 +359,9 @@ export interface StackRuntime {
     argv: readonly string[],
     options?: ExecOptions,
   ): Promise<ExecResult>;
+  /** Start `argv` in the instance with its stdin, stdout and stderr open,
+   *  for as long as the caller holds it. */
+  execSession(name: string, argv: readonly string[]): Promise<RuntimeSession>;
   /** Copy the contents of the local `dir` into `target` in the instance. */
   copyIn(
     name: string,

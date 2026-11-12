@@ -44,6 +44,7 @@ import {
   type ProbeResult,
   type RuntimeCheck,
   type RuntimeEngine,
+  type RuntimeSession,
   type StackRuntime,
   type StackTarget,
   type WaitHealthyOptions,
@@ -783,6 +784,60 @@ export class FakeRuntime implements StackRuntime {
     if (instance === undefined)
       return failed(`Error response from daemon: No such container: ${name}`);
     return this.answerExec(instance, argv, options.stdin);
+  }
+
+  /** A held exec: its stdin is collected until it ends, then the command
+   *  answers as one exec would. */
+  async execSession(
+    name: string,
+    argv: readonly string[],
+  ): Promise<RuntimeSession> {
+    this.record('execSession', name);
+    const chunks: string[] = [];
+    let exitCode: number | null = null;
+    let finish: (result: ExecResult) => void = () => undefined;
+    const result = new Promise<ExecResult>((resolve) => {
+      finish = resolve;
+    });
+    const stream = (pick: (answer: ExecResult) => string) =>
+      new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const text = pick(await result);
+          if (text !== '') controller.enqueue(new TextEncoder().encode(text));
+          controller.close();
+        },
+      });
+    const end = () => {
+      const instance = this.find(name);
+      finish(
+        instance === undefined
+          ? failed(`Error response from daemon: No such container: ${name}`)
+          : this.answerExec(instance, argv, chunks.join('')),
+      );
+    };
+    const exited = result.then((answer) => {
+      exitCode = answer.exitCode;
+      return answer.exitCode;
+    });
+    return {
+      stdin: {
+        write: (chunk) => {
+          chunks.push(
+            typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk),
+          );
+          return 0;
+        },
+        flush: () => 0,
+        end,
+      },
+      stdout: stream((answer) => answer.stdout),
+      stderr: stream((answer) => answer.stderr),
+      exited,
+      get exitCode() {
+        return exitCode;
+      },
+      kill: () => finish(failed('killed', 137)),
+    };
   }
 
   async copyIn(
