@@ -10,6 +10,7 @@ import * as logger from '../../utils/logger';
 import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
 import { assertDockerEngineSupported } from '../docker/setup-checks';
+import { incusNotAvailableYet } from '../project/runtime-declaration';
 import { cutoverLegacyAutomation } from './automation-cutover';
 import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
 import {
@@ -863,6 +864,9 @@ export async function applyRuntime(
   const { bundle, identity, compose, contents } = readRuntimeBundle(
     options.bundleDirectory,
   );
+  // This applies Docker Compose; a bundle for the Incus runtime never reaches it.
+  if (bundle.runtime === 'incus')
+    throw incusNotAvailableYet('managed deployment');
   const shape: SandboxShape = bundle.sandbox === undefined ? 'docker' : 'incus';
   if (shape === 'incus') {
     // The shape sets these variables itself; a declaration of the same name

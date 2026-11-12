@@ -20,6 +20,7 @@ import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, relativePath, sha } from '../config/releases/model';
 import { verifyPreparedDeploymentConfig } from './config-source';
 import { deploymentSpecSchema } from './model';
+import { INCUS_STACK_FILE } from './runtime-model';
 
 export const deploymentBundleSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -171,6 +172,15 @@ export async function verifyDeploymentBundle(
   )
     throw preconditionError(
       'Deployment bundle is missing its executable or runtime.',
+    );
+  // The compiled Incus stack target belongs to an Incus deployment, and only
+  // to one: a bundle for either runtime without its own files is refused.
+  if (
+    actual.some((file) => file.path === `runtime/${INCUS_STACK_FILE}`) !==
+    (bundle.spec.runtime.engine === 'incus')
+  )
+    throw preconditionError(
+      `Deployment bundle runtime/${INCUS_STACK_FILE} does not match its declared runtime engine.`,
     );
   for (const config of bundle.spec.configs) {
     const prepared = await verifyPreparedDeploymentConfig(

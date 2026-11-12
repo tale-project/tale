@@ -41,6 +41,13 @@ export const RUNTIME_SERVICES = [
 ] as const;
 export const TALE_REGISTRY = 'ghcr.io/tale-project/tale';
 export const RUNTIME_FILES = ['compose.yml', 'Caddyfile.production'] as const;
+/** The compiled Incus stack target, without secret values: recorded, and
+ * hash-pinned like the two files above, only by a bundle for the Incus
+ * runtime. */
+export const INCUS_STACK_FILE = 'incus-stack.json';
+export type RuntimeFile =
+  | (typeof RUNTIME_FILES)[number]
+  | typeof INCUS_STACK_FILE;
 export const hash = (bytes: string | Buffer): string =>
   createHash('sha256').update(bytes).digest('hex');
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
@@ -78,6 +85,10 @@ export const runtimeBundleSchema = z
     revision: revisionSchema,
     platform: platformSchema,
     containerPrefix: containerPrefixSchema.optional(),
+    /** Recorded only for the Incus runtime, which also pins
+     * `incus-stack.json`. A CLI that predates the field refuses the bundle
+     * through this strict schema instead of running it on Docker. */
+    runtime: z.literal('incus').optional(),
     /** Recorded only when the deployment declares organization creators: the
      * policy then hands organization creation to the backend instead of
      * refusing it, and the reader checks the file against this word. */
@@ -93,12 +104,25 @@ export const runtimeBundleSchema = z
     automationWriterProtocol: automationWriterProtocolSchema.optional(),
     source: z.object({ composeSha256: sha256, caddySha256: sha256 }).strict(),
     files: z
-      .object({ 'compose.yml': sha256, 'Caddyfile.production': sha256 })
+      .object({
+        'compose.yml': sha256,
+        'Caddyfile.production': sha256,
+        [INCUS_STACK_FILE]: sha256.optional(),
+      })
       .strict(),
     services: z.array(z.enum(RUNTIME_SERVICES)).length(RUNTIME_SERVICES.length),
     images: z.array(runtimeImageSchema).min(8).max(20),
   })
-  .strict();
+  .strict()
+  .refine(
+    (bundle) =>
+      (bundle.runtime === 'incus') ===
+      (bundle.files[INCUS_STACK_FILE] !== undefined),
+    {
+      message: `A runtime bundle pins ${INCUS_STACK_FILE} exactly when it is for the Incus runtime.`,
+      path: ['files', INCUS_STACK_FILE],
+    },
+  );
 export type RuntimeBundle = z.infer<typeof runtimeBundleSchema>;
 
 export interface RuntimeDependencies {
@@ -417,11 +441,19 @@ export function parseCompose(
   return compose;
 }
 
+/** The files a runtime bundle pins, by its runtime. */
+function runtimeFiles(bundle: Pick<RuntimeBundle, 'runtime'>): RuntimeFile[] {
+  return bundle.runtime === 'incus'
+    ? [...RUNTIME_FILES, INCUS_STACK_FILE]
+    : [...RUNTIME_FILES];
+}
+
 export function readRuntimeBundle(directory: string): {
   bundle: RuntimeBundle;
   identity: string;
   compose: ComposeDocument;
-  contents: Record<(typeof RUNTIME_FILES)[number], Buffer>;
+  contents: Record<(typeof RUNTIME_FILES)[number], Buffer> &
+    Partial<Record<typeof INCUS_STACK_FILE, Buffer>>;
 } {
   const raw = readRegular(join(directory, 'runtime.json'));
   let input: unknown;
@@ -437,15 +469,22 @@ export function readRuntimeBundle(directory: string): {
     new Set(bundle.services).size === RUNTIME_SERVICES.length,
     'Duplicate runtime service.',
   );
-  const contents = {
+  const contents: Record<(typeof RUNTIME_FILES)[number], Buffer> &
+    Partial<Record<typeof INCUS_STACK_FILE, Buffer>> = {
     'compose.yml': readRegular(join(directory, 'compose.yml')),
     'Caddyfile.production': readRegular(
       join(directory, 'Caddyfile.production'),
     ),
+    ...(bundle.runtime === 'incus'
+      ? {
+          [INCUS_STACK_FILE]: readRegular(join(directory, INCUS_STACK_FILE)),
+        }
+      : {}),
   };
-  for (const file of RUNTIME_FILES) {
+  for (const file of runtimeFiles(bundle)) {
+    const bytes = contents[file];
     requireRuntime(
-      hash(contents[file]) === bundle.files[file],
+      bytes !== undefined && hash(bytes) === bundle.files[file],
       'Runtime bundle file digest differs.',
     );
   }

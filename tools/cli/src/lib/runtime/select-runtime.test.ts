@@ -20,6 +20,19 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const incus = {
+  project: 'tale-demo',
+  pool: 'tank',
+  network: {
+    name: 'tale-demo',
+    subnet: '10.30.0.0/24',
+    gateway: '10.30.0.1',
+    block: '10.30.0.0/24',
+  },
+  sessions: { subnet: '10.31.0.0/24' },
+  ingress: { mode: 'proxy-device' },
+};
+
 function writeTaleJson(extra: Record<string, unknown> = {}): void {
   writeFileSync(
     join(dir, 'tale.json'),
@@ -54,24 +67,45 @@ describe('the runtime a workspace declares', () => {
     expect(await declaredEngine(dir)).toBe('docker');
   });
 
-  test('an explicit docker engine is Docker, and keys beside it are kept for later', async () => {
-    writeTaleJson({ runtime: { engine: 'docker', incus: { project: 'x' } } });
+  test('an explicit docker engine is Docker', async () => {
+    writeTaleJson({ runtime: { engine: 'docker' } });
     expect(await declaredEngine(dir)).toBe('docker');
   });
 
-  test('incus is declared, and refused until the Incus runtime exists', async () => {
-    writeTaleJson({ runtime: { engine: 'incus' } });
-    expect(await declaredEngine(dir)).toBe('incus');
+  test('an Incus block beside Docker is refused, never read by nothing', async () => {
+    writeTaleJson({ runtime: { engine: 'docker', incus: { project: 'x' } } });
+    const error = await refusal(declaredEngine(dir));
+    expect(error.info.code).toBe(ExitCode.Precondition);
+    expect(error.message).toContain('runtime.incus');
+  });
+
+  test('incus is declared, and refused for a workspace until it is available', async () => {
+    writeTaleJson({ runtime: { engine: 'incus', incus } });
+    expect(await declaredEngine(dir, {})).toBe('incus');
     const error = await refusal(selectRuntime(dir));
     expect(error.info.code).toBe(ExitCode.Precondition);
-    expect(error.message).toContain('not built yet');
+    expect(error.message).toContain('not available yet');
+    expect(error.message).toContain('workspace');
   });
 
   test('an engine the CLI does not know is refused, never read as Docker', async () => {
     writeTaleJson({ runtime: { engine: 'podman' } });
     const error = await refusal(declaredEngine(dir));
     expect(error.info.code).toBe(ExitCode.Precondition);
-    expect(error.message).toContain('runtime engine');
+    expect(error.message).toContain('runtime.engine');
+  });
+
+  test('TALE_RUNTIME guards the declared engine and never selects one', async () => {
+    writeTaleJson();
+    expect(await declaredEngine(dir, { TALE_RUNTIME: 'docker' })).toBe(
+      'docker',
+    );
+    const error = await refusal(declaredEngine(dir, { TALE_RUNTIME: 'incus' }));
+    expect(error.info.code).toBe(ExitCode.Precondition);
+    expect(error.message).toContain('TALE_RUNTIME');
+    // Without tale.json the workspace is Docker, and the guard still holds.
+    rmSync(join(dir, 'tale.json'));
+    await refusal(declaredEngine(dir, { TALE_RUNTIME: 'incus' }));
   });
 });
 

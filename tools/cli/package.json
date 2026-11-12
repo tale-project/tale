@@ -25,6 +25,7 @@
     "@inquirer/prompts": "8.4.1",
     "@noble/curves": "1.9.7",
     "@scure/base": "2.0.0",
+    "@tale/incus": "workspace:*",
     "@tale/shared": "workspace:*",
     "@tale/ui": "workspace:*",
     "acorn": "8.18.0",

@@ -190,3 +190,58 @@ describePosix('managed preparation native-owner binding', () => {
     30_000,
   );
 });
+
+test('refuses a specification on the Incus runtime before it builds or acquires anything', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tale-prepare-incus-'));
+  roots.push(root);
+  const specPath = join(root, 'spec.json');
+  await writeFile(
+    specPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      name: 'north',
+      composeProject: 'north',
+      stateDirectory: join(root, 'state'),
+      origin: 'https://north.example.invalid',
+      tlsMode: 'external',
+      runtime: {
+        revision: 'a'.repeat(40),
+        engine: 'incus',
+        incus: {
+          project: 'tale-north',
+          pool: 'tank',
+          network: {
+            name: 'tale-north',
+            subnet: '10.30.0.0/24',
+            gateway: '10.30.0.1',
+            block: '10.30.0.0/25',
+          },
+          sessions: { subnet: '10.31.0.0/24' },
+          ingress: { mode: 'routed' },
+        },
+      },
+      sandbox: { backend: 'incus' },
+      configs: [],
+    }),
+  );
+  const reached: string[] = [];
+  await expect(
+    prepareDeployment(
+      { spec: specPath, output: join(root, 'prepared') },
+      {
+        build: () => ({ binary: join(root, 'tale'), revision: 'b'.repeat(40) }),
+        sources: async () => {
+          reached.push('sources');
+          throw new Error('sources reached');
+        },
+        runtime: async () => {
+          reached.push('runtime');
+          throw new Error('runtime reached');
+        },
+      },
+    ),
+  ).rejects.toThrow(
+    'running a managed deployment on Incus is not available yet',
+  );
+  expect(reached).toEqual([]);
+});

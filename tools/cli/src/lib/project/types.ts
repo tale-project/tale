@@ -1,3 +1,5 @@
+import type { RuntimeDeclaration } from './runtime-declaration';
+
 export interface TaleProject {
   version: number;
   cliVersion: string;
@@ -10,6 +12,12 @@ export interface TaleProject {
    * auto-assigns one to legacy projects.
    */
   id?: string;
+  /**
+   * The container runtime the workspace deploys on. Absent, Docker Compose,
+   * as every workspace before the field. `readProject` validates it, so a
+   * runtime this CLI cannot read never reaches a command.
+   */
+  runtime?: RuntimeDeclaration;
 }
 
 export interface Checksums {

@@ -23,6 +23,11 @@ import { sha, slug } from '../config/releases/model';
 import { validateNativeRelease } from '../config/releases/native';
 import type { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
+import {
+  engineOf,
+  guardDeclaredEngine,
+  incusNotAvailableYet,
+} from '../project/runtime-declaration';
 import { withLock } from '../state/with-lock';
 import { backendCliFailure, backendDataOwner } from './backend-cli';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
@@ -556,6 +561,9 @@ async function applyVerifiedDeployment(
   directory: string,
   bundle: DeploymentBundle,
 ) {
+  const engine = engineOf(bundle.spec.runtime);
+  guardDeclaredEngine(engine);
+  if (engine === 'incus') throw incusNotAvailableYet('managed deployment');
   const runtimeBundle = readRuntimeBundle(join(directory, 'runtime')).bundle;
   const declared = bundle.spec.sandbox;
   const prepared = runtimeBundle.sandbox;
@@ -563,12 +571,14 @@ async function applyVerifiedDeployment(
     runtimeBundle.revision !== bundle.spec.runtime.revision ||
     runtimeBundle.platform !== bundle.spec.runtime.platform ||
     runtimeBundle.containerPrefix !== bundle.spec.runtime.containerPrefix ||
+    runtimeBundle.runtime !== undefined ||
     prepared?.backend !== declared?.backend ||
-    prepared?.address !== declared?.address ||
+    prepared?.address !==
+      (declared && 'address' in declared ? declared.address : undefined) ||
     prepared?.egressProxy !== declared?.egressProxy
   )
     throw preconditionError(
-      'Runtime bundle differs from the selected source revision, platform, container prefix or sandbox declaration.',
+      'Runtime bundle differs from the selected source revision, platform, container prefix, runtime engine or sandbox declaration.',
     );
   const configs = await configProofs(bundle, directory);
   const bundleSha256 = sha256(

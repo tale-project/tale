@@ -15,6 +15,10 @@ import {
   slug,
 } from '../config/releases/model';
 import {
+  checkEngineDeclaration,
+  managedRuntimeFields,
+} from '../project/runtime-declaration';
+import {
   oidcIssuer,
   oidcOptionalFields,
   trustsUnmappedEmail,
@@ -125,6 +129,40 @@ export const managedProjectSchema = z.strictObject({
   name: text.max(PROJECT_NAME_MAX).refine((input) => input.trim() === input),
 });
 
+/** The sandbox of a deployment on the Incus runtime: the stack's own
+ * spawner, whose address comes from the plan. `egressProxy` names an operator
+ * egress; absent, sessions use the stack's own egress. */
+const incusStackSandboxSchema = z.strictObject({
+  backend: z.literal('incus'),
+  egressProxy: sandboxDeclarationSchema.shape.egressProxy.optional(),
+});
+
+/**
+ * The two sandbox shapes, told apart by `address`: the Docker runtime's names
+ * the node its spawner is published on, the Incus stack's never does. The
+ * value is held to the one shape it names, so a mistake reports its own
+ * field (`sandbox.address`) rather than one mismatch for the whole block, as
+ * a union that tries both would.
+ */
+function sandboxShapes<Docker extends z.ZodType, Incus extends z.ZodType>(
+  docker: Docker,
+  incus: Incus,
+) {
+  return z
+    .unknown()
+    .transform((input, context): z.output<Docker> | z.output<Incus> => {
+      const schema =
+        typeof input === 'object' && input !== null && 'address' in input
+          ? docker
+          : incus;
+      const parsed = schema.safeParse(input);
+      if (parsed.success) return parsed.data;
+      for (const issue of parsed.error.issues)
+        context.addIssue(issue as z.core.$ZodRawIssue);
+      return z.NEVER;
+    });
+}
+
 const deploymentFields = z.strictObject({
   schemaVersion: z.literal(1),
   name: slug,
@@ -134,6 +172,10 @@ const deploymentFields = z.strictObject({
     revision: ref,
     platform: z.enum(['linux/amd64', 'linux/arm64']).default('linux/amd64'),
     containerPrefix: containerPrefixSchema.optional(),
+    /** The container runtime: Docker Compose (absent or `docker`) or Incus
+     * (`incus`, with the `incus` block). The same fields as `tale.json`'s
+     * `runtime` (`runtime-declaration.ts`). */
+    ...managedRuntimeFields,
   }),
   origin,
   /** Other HTTPS origins the same instance answers on, written to the runtime's
@@ -153,8 +195,13 @@ const deploymentFields = z.strictObject({
    * Docker socket: the prepared runtime mounts the three PEM files of
    * `<stateDirectory>/sandbox-incus`, publishes the backend API and the LLM
    * gateway on `address`, and sets the backend, the image and the egress
-   * proxy itself. Absent, the sandbox drives Docker as before. */
-  sandbox: sandboxDeclarationSchema.optional(),
+   * proxy itself. Absent, the sandbox drives Docker as before. On the Incus
+   * runtime the declaration is required and names no address: the spawner is
+   * one of the stack's instances. */
+  sandbox: sandboxShapes(
+    sandboxDeclarationSchema,
+    incusStackSandboxSchema,
+  ).optional(),
   tlsMode: z.enum(['external', 'letsencrypt']),
   tlsEmail: z.string().email().optional(),
   environment: z.record(environmentName, environmentReference).default({}),
@@ -196,6 +243,37 @@ const deploymentFields = z.strictObject({
 
 export const deploymentSpecSchema = deploymentFields.superRefine(
   (spec, context) => {
+    checkEngineDeclaration(spec.runtime, context, ['runtime']);
+    if (spec.runtime.engine === 'incus') {
+      // Instance names are the project's, so there is no name to prefix.
+      if (spec.runtime.containerPrefix !== undefined)
+        context.addIssue({
+          code: 'custom',
+          message:
+            'runtime.containerPrefix names Docker containers; the Incus runtime names its instances itself',
+          path: ['runtime', 'containerPrefix'],
+        });
+      if (spec.sandbox === undefined)
+        context.addIssue({
+          code: 'custom',
+          message:
+            'The Incus runtime runs the sandbox on Incus: declare sandbox { "backend": "incus" }',
+          path: ['sandbox'],
+        });
+      else if ('address' in spec.sandbox)
+        context.addIssue({
+          code: 'custom',
+          message:
+            'On the Incus runtime the sandbox address comes from the address plan; remove sandbox.address',
+          path: ['sandbox', 'address'],
+        });
+    } else if (spec.sandbox !== undefined && !('address' in spec.sandbox))
+      context.addIssue({
+        code: 'custom',
+        message:
+          'The sandbox of a Docker deployment needs address and egressProxy',
+        path: ['sandbox'],
+      });
     if (
       spec.identity?.migrateOriginFrom &&
       (spec.identity.bootstrap !== 'fresh' ||
@@ -473,8 +551,14 @@ const deploymentInputSchema = deploymentFields.extend({
         .max(64),
     })
     .optional(),
-  sandbox: sandboxDeclarationSchema
-    .extend({
+  runtime: deploymentFields.shape.runtime.extend({
+    /** Every text value of the Incus block may be a literal or an
+     * environment reference (a port stays a number); preparation resolves
+     * them and holds the result to the declaration's schema. */
+    incus: z.record(z.string(), z.unknown()).optional(),
+  }),
+  sandbox: sandboxShapes(
+    sandboxDeclarationSchema.extend({
       address: z.union([
         sandboxDeclarationSchema.shape.address,
         environmentReference,
@@ -483,8 +567,16 @@ const deploymentInputSchema = deploymentFields.extend({
         sandboxDeclarationSchema.shape.egressProxy,
         environmentReference,
       ]),
-    })
-    .optional(),
+    }),
+    incusStackSandboxSchema.extend({
+      egressProxy: z
+        .union([
+          sandboxDeclarationSchema.shape.egressProxy,
+          environmentReference,
+        ])
+        .optional(),
+    }),
+  ).optional(),
   identity: identity
     .extend({
       nativeClients: z
@@ -526,6 +618,32 @@ export function resolveValue(
   return resolved;
 }
 
+/**
+ * Every environment reference in a declared value replaced by its value. A
+ * reference is an object of exactly the reference's shape, which no field of
+ * the Incus block has otherwise; the declaration's schema judges the result.
+ * An optional reference whose variable is unset leaves its field out.
+ */
+function resolveReferences(
+  input: unknown,
+  environment: NodeJS.ProcessEnv,
+): unknown {
+  const reference = environmentReference.safeParse(input);
+  if (reference.success) return resolveValue(reference.data, environment);
+  if (Array.isArray(input))
+    return input.map((item) => resolveReferences(item, environment));
+  if (typeof input === 'object' && input !== null)
+    return Object.fromEntries(
+      Object.entries(input).flatMap(([key, entry]) => {
+        const resolved = resolveReferences(entry, environment);
+        return resolved === '' && environmentReference.safeParse(entry).success
+          ? []
+          : [[key, resolved]];
+      }),
+    );
+  return input;
+}
+
 /** Resolve only public source pins and URLs during preparation. Host credential
  * references survive unchanged until the backend-local provisioning phase. */
 export function resolveDeploymentSpec(
@@ -554,13 +672,18 @@ export function resolveDeploymentSpec(
         }),
     ...(spec.sandbox === undefined
       ? {}
-      : {
-          sandbox: {
-            ...spec.sandbox,
-            address: resolveValue(spec.sandbox.address, environment),
-            egressProxy: resolveValue(spec.sandbox.egressProxy, environment),
-          },
-        }),
+      : 'address' in spec.sandbox
+        ? {
+            sandbox: {
+              ...spec.sandbox,
+              address: resolveValue(spec.sandbox.address, environment),
+              egressProxy: resolveValue(spec.sandbox.egressProxy, environment),
+            },
+          }
+        : {
+            // An unset optional reference leaves the stack's own egress.
+            sandbox: resolveReferences(spec.sandbox, environment),
+          }),
     identity: spec.identity && {
       ...spec.identity,
       nativeClients: spec.identity.nativeClients.map((client) =>
@@ -574,6 +697,9 @@ export function resolveDeploymentSpec(
     runtime: {
       ...spec.runtime,
       revision: gitSha.parse(resolveValue(spec.runtime.revision, environment)),
+      ...(spec.runtime.incus === undefined
+        ? {}
+        : { incus: resolveReferences(spec.runtime.incus, environment) }),
     },
     configs: spec.configs.map((config) =>
       Object.assign({}, config, {

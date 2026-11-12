@@ -319,7 +319,10 @@ function binary(machine = 62): Buffer<ArrayBuffer> {
 const interpretedBundle = Buffer.from(
   '#!/usr/bin/env bun\n// interpreted tale bundle\nprocess.exit(0);\n',
 );
-async function bundleFixture() {
+async function bundleFixture(
+  specification: Record<string, unknown> = { ...spec(), configs: [] },
+  runtimeFiles: string[] = [],
+) {
   const root = temporary();
   const executable = join(temporary(), 'tale');
   writeFileSync(executable, binary());
@@ -328,12 +331,14 @@ async function bundleFixture() {
   await mkdir(join(root, 'runtime'));
   await writeFile(join(root, 'runtime', 'runtime.json'), '{}\n');
   await writeFile(join(root, 'runtime', 'compose.yml'), 'services: {}\n');
+  for (const file of runtimeFiles)
+    await writeFile(join(root, 'runtime', file), '{}\n');
   await writeDeploymentBundle(root, {
     schemaVersion: 1,
     kind: 'tale-deployment',
     cli: { revision, path: 'cli/tale' },
     deploymentRef: revision,
-    spec: resolveDeploymentSpec({ ...spec(), configs: [] }),
+    spec: resolveDeploymentSpec(specification),
   });
   return root;
 }
@@ -808,3 +813,186 @@ test('the finished specification is held to the same sandbox rules', () => {
     }).success,
   ).toBe(false);
 });
+
+// The Incus runtime, declared in the managed specification with the same
+// fields as tale.json's runtime (runtime-declaration.ts).
+const incus = {
+  project: 'tale-north',
+  pool: 'tank',
+  network: {
+    name: 'tale-north',
+    subnet: '10.30.0.0/24',
+    gateway: '10.30.0.1',
+    block: '10.30.0.0/25',
+  },
+  sessions: { subnet: '10.31.0.0/24' },
+  ingress: { mode: 'routed' as const },
+};
+const incusSpec = () => ({
+  ...spec(),
+  runtime: { revision, platform: 'linux/amd64', engine: 'incus', incus },
+  sandbox: { backend: 'incus' },
+});
+
+test('declares the Incus runtime with the stack sandbox, and keeps a declared egress', () => {
+  const resolved = resolveDeploymentSpec(incusSpec());
+  expect(resolved.runtime.engine).toBe('incus');
+  expect(resolved.runtime.incus).toEqual(incus);
+  expect(resolved.sandbox).toEqual({ backend: 'incus' });
+  expect(
+    resolveDeploymentSpec(
+      {
+        ...incusSpec(),
+        sandbox: { backend: 'incus', egressProxy: { env: 'OPERATOR_EGRESS' } },
+      },
+      { OPERATOR_EGRESS: 'http://10.200.40.10:3128' },
+    ).sandbox,
+  ).toEqual({ backend: 'incus', egressProxy: 'http://10.200.40.10:3128' });
+  // Docker stays the default: no engine, no Incus block.
+  expect(resolveDeploymentSpec(spec()).runtime.engine).toBeUndefined();
+});
+
+test('resolves every value of the Incus block from a literal or an environment reference', () => {
+  const resolved = resolveDeploymentSpec(
+    {
+      ...incusSpec(),
+      runtime: {
+        revision,
+        platform: 'linux/amd64',
+        engine: 'incus',
+        incus: {
+          ...incus,
+          endpoint: { env: 'INCUS_ENDPOINT' },
+          project: { env: 'INCUS_PROJECT' },
+          network: { ...incus.network, block: { env: 'INCUS_BLOCK' } },
+          rootSize: { env: 'INCUS_ROOT_SIZE', optional: true },
+          operatorReach: [
+            { destination: { env: 'ROUTER' }, protocol: 'tcp', ports: [443] },
+          ],
+        },
+      },
+    },
+    {
+      INCUS_ENDPOINT: 'https://10.30.0.1:8443',
+      INCUS_PROJECT: 'tale-north',
+      INCUS_BLOCK: '10.30.0.0/25',
+      ROUTER: '10.40.0.0/24',
+    },
+  );
+  expect(resolved.runtime.incus).toEqual({
+    ...incus,
+    endpoint: 'https://10.30.0.1:8443',
+    operatorReach: [
+      { destination: '10.40.0.0/24', protocol: 'tcp', ports: [443] },
+    ],
+  });
+  // A reference resolves to what the schema accepts, or the spec is refused.
+  expect(() =>
+    resolveDeploymentSpec(
+      {
+        ...incusSpec(),
+        runtime: {
+          revision,
+          engine: 'incus',
+          incus: { ...incus, project: { env: 'INCUS_PROJECT' } },
+        },
+      },
+      { INCUS_PROJECT: 'Not A Project' },
+    ),
+  ).toThrow();
+  expect(() =>
+    resolveDeploymentSpec(
+      {
+        ...incusSpec(),
+        runtime: {
+          revision,
+          engine: 'incus',
+          incus: { ...incus, project: { env: 'MISSING' } },
+        },
+      },
+      {},
+    ),
+  ).toThrow('MISSING');
+});
+
+test.each([
+  [
+    'an Incus block without the engine',
+    { runtime: { revision, incus }, sandbox: undefined },
+  ],
+  [
+    'the engine without its Incus block',
+    { runtime: { revision, engine: 'incus' } },
+  ],
+  [
+    'an Incus block beside Docker',
+    { runtime: { revision, engine: 'docker', incus }, sandbox: undefined },
+  ],
+  [
+    'a container prefix on Incus',
+    { runtime: { revision, engine: 'incus', incus, containerPrefix: 'north' } },
+  ],
+  ['no sandbox on Incus', { sandbox: undefined }],
+  [
+    'a sandbox address on Incus',
+    {
+      sandbox: {
+        backend: 'incus',
+        address: '10.200.50.2',
+        egressProxy: 'http://10.200.40.10:3128',
+      },
+    },
+  ],
+  [
+    'an engine this CLI does not know',
+    { runtime: { revision, engine: 'podman' }, sandbox: undefined },
+  ],
+  [
+    'an unknown runtime key',
+    { runtime: { revision, engine: 'incus', incus, next: {} } },
+  ],
+])('refuses %s', (_name, change) => {
+  expect(() => resolveDeploymentSpec({ ...incusSpec(), ...change })).toThrow();
+});
+
+test('a mistake in either sandbox shape names its own field', () => {
+  const paths = (input: unknown) => {
+    const parsed = deploymentSpecSchema.safeParse(input);
+    return parsed.success ? [] : parsed.error.issues.map(({ path }) => path);
+  };
+  const resolved = resolveDeploymentSpec({ ...spec(), sandbox });
+  expect(
+    paths({ ...resolved, sandbox: { ...sandbox, address: '999.1.1.1' } }),
+  ).toEqual([['sandbox', 'address']]);
+  expect(
+    paths({
+      ...resolveDeploymentSpec(incusSpec()),
+      sandbox: { backend: 'incus', egressProxy: 'http://proxy' },
+    }),
+  ).toEqual([['sandbox', 'egressProxy']]);
+});
+
+test('a Docker deployment keeps the sandbox declaration with its address', () => {
+  expect(() =>
+    resolveDeploymentSpec({ ...spec(), sandbox: { backend: 'incus' } }),
+  ).toThrow('address and egressProxy');
+});
+
+testPosix(
+  'an Incus bundle carries runtime/incus-stack.json, and only an Incus bundle does',
+  async () => {
+    const specification = { ...incusSpec(), configs: [] };
+    const root = await bundleFixture(specification, ['incus-stack.json']);
+    expect(
+      (await verifyDeploymentBundle(root)).files.map((file) => file.path),
+    ).toContain('runtime/incus-stack.json');
+    await expect(
+      verifyDeploymentBundle(await bundleFixture(specification)),
+    ).rejects.toThrow('incus-stack.json');
+    await expect(
+      verifyDeploymentBundle(
+        await bundleFixture({ ...spec(), configs: [] }, ['incus-stack.json']),
+      ),
+    ).rejects.toThrow('incus-stack.json');
+  },
+);

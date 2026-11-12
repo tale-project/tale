@@ -114,6 +114,9 @@ Fehler bei Docker, Compose, einer Docker Engine älter als 24.0, einem nicht unt
 
 - `-f, --force` — eine vorhandene `tale.json` überschreiben statt abzubrechen.
 - `--no-env` — das Projekt anlegen, aber die `.env`-Generierung überspringen.
+- `--runtime <engine>` — die [Container-Laufzeit](#container-runtime) in `tale.json` festlegen: `docker` oder `incus`. Ohne die Option legt ein neues Projekt nichts fest (Docker), und ein neu initialisiertes behält seinen `runtime`-Block.
+- `--incus-project <name>`, `--incus-pool <name>`, `--incus-network <name>`, `--incus-subnet <cidr>`, `--incus-sessions-subnet <cidr>` — mit `--runtime incus` erforderlich: Incus-Projekt, Speicherpool und Bridge des Stacks, das IPv4-Subnetz der Bridge und das Subnetz der Sessions.
+- `--incus-endpoint <url>`, `--incus-gateway <address>`, `--incus-block <cidr>`, `--incus-ingress <mode>`, `--incus-listen <address>` — mit `--runtime incus` optional: die Incus-API (Standard: das Gateway der Bridge auf Port 8443), das Gateway der Bridge (Standard: der erste Host des Subnetzes), das /24, aus dem die CLI Adressen vergibt (Standard: das Subnetz, wenn es ein /24 ist), `proxy-device` (Standard) oder `routed` sowie die Host-Adresse, auf der die Proxy-Geräte lauschen (Standard: jede Adresse).
 
 `tale dev` — alle Dienste lokal mit selbstsigniertem Zertifikat starten. Der gewählte Host und Port bestimmen die lokale Anwendungsadresse für diesen Lauf, ohne die Produktionseinstellungen in `.env` umzuschreiben. Die Bereitschaftsprüfung wartet, bis Dienste mit Gesundheitsprüfungen gesund sind und die übrigen Dienste laufen. Läuft sie ab, prüfe vor dem nächsten Versuch die Protokolle der gemeldeten Dienste.
 
@@ -135,6 +138,53 @@ Fehler bei Docker, Compose, einer Docker Engine älter als 24.0, einem nicht unt
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
 - `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tools und Modelle der Agenten, Review-Kontexte, Automatisierungen und die Arbeitsverteilung von Projekten) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
 - `--dry-run` — Vorschau ohne Änderungen: `.env` und `tale.json` bleiben, wie sie sind, und die Vorschau nennt, was ein echter Lauf dort schreiben würde.
+
+#### Die Container-Laufzeit festlegen {#container-runtime}
+
+`tale.json` nennt in `runtime.engine` die Container-Laufzeit, auf der ein Workspace deployt: `docker` (Docker Compose) oder `incus`. Ohne `runtime` oder mit `"engine": "docker"` läuft der Workspace auf Docker Compose, wie jeder Workspace vor diesem Feld. Die Laufzeit ist eine geprüfte Festlegung, nie eine Option pro Befehl: Ein Deployment auf der falschen Laufzeit würde einen zweiten Stack neben dem ersten aufbauen. Einen Wert, den diese CLI nicht kennt, lehnt sie ab, statt ihn als Docker zu lesen; ebenso einen `incus`-Block ohne `"engine": "incus"` und diese Laufzeit ohne ihren Block. `tale update` lässt den Block, wie er ist.
+
+**Einen Workspace auf Incus zu betreiben ist noch nicht verfügbar.** Jeder Befehl, der den Stack steuert (`deploy`, `status`, `logs`, `backup`, `restore` und die übrigen), lehnt einen Workspace mit `"engine": "incus"` mit `running a workspace on Incus is not available yet in this CLI` ab. Entferne `runtime.engine` und `runtime.incus`, um auf Docker zu deployen.
+
+`TALE_RUNTIME` sichert die Festlegung nur ab: Auf `docker` oder `incus` gesetzt, lässt es einen Befehl abbrechen, wenn die Festlegung die andere Laufzeit nennt. Eine Laufzeit wählt es nie.
+
+```json
+{
+  "version": 1,
+  "cliVersion": "0.5.95",
+  "createdAt": "2026-11-12T00:00:00.000Z",
+  "id": "acme-a3f1b2",
+  "runtime": {
+    "engine": "incus",
+    "incus": {
+      "endpoint": "https://10.30.0.1:8443",
+      "project": "tale-acme",
+      "pool": "tank",
+      "network": {
+        "name": "tale-acme",
+        "subnet": "10.30.0.0/24",
+        "gateway": "10.30.0.1",
+        "block": "10.30.0.0/24"
+      },
+      "sessions": { "subnet": "10.31.0.0/24" },
+      "ingress": { "mode": "proxy-device" },
+      "volumes": { "db-data": { "size": "100GiB" } }
+    }
+  }
+}
+```
+
+| Feld | Was es festlegt |
+| --- | --- |
+| `incus.endpoint` | Die Incus-API als `https://<host>:<port>`. Standard: das Gateway der Bridge auf Port 8443. |
+| `incus.project`, `incus.pool` | Das eingeschränkte Incus-Projekt der Instanzen und den Speicherpool ihrer Volumes. |
+| `incus.network` | Die Bridge (`name`, höchstens 15 Zeichen), ihr `subnet` und `gateway` sowie den `block`: das /24 im Subnetz, aus dem die CLI Adressen vergibt. Das Gateway ist der erste Host des Blocks oder liegt außerhalb des Blocks. |
+| `incus.sessions.subnet` | Das Netz der Sandbox-Sessions, getrennt vom Subnetz des Stacks. |
+| `incus.ingress` | `proxy-device` (Incus veröffentlicht die Ports 80 und 443 auf dem Host, auf `listen` oder auf jeder Adresse) oder `routed` (deine eigene Weiterleitung erreicht den Proxy auf Port 80). |
+| `incus.registryMirror`, `incus.rootSize` | Den Registry-Host, der Docker Hub vertritt, geschrieben wie in der Remote-URL (`mirror.gcr.io:443`), und die Größe der Root-Disk jeder Instanz (`10GiB`). |
+| `incus.volumes` | Pro Daten-Volume: seine `size` und seine Einstellungen `snapshots.*` und `zfs.*`. Andere Einstellungen sind nicht erlaubt. |
+| `incus.operatorReach` | Ziele außerhalb des Stacks, die seine Instanzen erreichen müssen (`destination`, `protocol`, `ports`), etwa ein Inferenz-Router. |
+
+Die Zertifikate sind Dateien, nie `tale.json` oder `.env`: `client.crt`, `client.key` und `server.crt` in `.tale/incus/` des Workspace (das `.gitignore` aus Git heraushält) oder in dem absoluten Verzeichnis, das `TALE_INCUS_DIR` nennt. Das Verzeichnis muss für Gruppe und andere geschlossen sein (0700), ebenso jede Datei (0600); die CLI liest es unter Linux und macOS. Das Serverzertifikat muss eines sein, das die Verbindung fest verankern kann: sein eigener Vertrauensanker (`CA:TRUE`).
 
 ### Verwaltete Deployments {#managed-deployments}
 
@@ -219,6 +269,12 @@ Lass die Werte der letzten beiden Zeilen unverändert, wenn du die Container ein
 Wenn du ein Präfix hinzufügst, änderst oder entfernst, werden Container neu erstellt. Dabei kann der Dienst kurz unterbrochen werden. Bereite ein neues Bundle vor, prüfe den Probelauf und wende es über den üblichen Ablauf mit Snapshot und Wiederherstellung an. Wiederhole nach einer Unterbrechung genau dieses Bundle; ein ausstehender Rollout lehnt ein anderes Bundle ab. Sobald der Rollout abgeschlossen ist, kannst du das Präfix mit einem weiteren vorbereiteten Bundle entfernen und so zur Benennung aus dem Quellcode zurückkehren.
 
 Betreibe nur eine vollständige verwaltete Laufzeit pro Docker-Daemon. Ein Namenspräfix vergibt keine separaten Ports, Sandbox-Netzwerke oder Arbeitsverzeichnisse auf dem Host.
+
+#### Die Incus-Laufzeit festlegen {#managed-incus-runtime}
+
+Eine Deployment-Spezifikation nennt ihre Container-Laufzeit mit denselben Feldern wie die [`tale.json` eines Workspace](#container-runtime): `runtime.engine` (`docker`, der Standard, oder `incus`) und mit `incus` den Block `runtime.incus`. Jeder Textwert im Block darf ein Literal oder eine Umgebungsreferenz sein (ein Port bleibt eine Zahl); die Vorbereitung löst die Referenzen auf und hält die Werte in `deployment.json` fest, und eine optionale Referenz, deren Variable nicht gesetzt ist, lässt ihr Feld weg. Mit `"engine": "incus"` wird `runtime.containerPrefix` abgelehnt, weil die Laufzeit ihre Instanzen selbst benennt, und `sandbox` ist als `{ "backend": "incus" }` ohne `address` erforderlich, weil der Spawner eine der Instanzen des Stacks ist. `sandbox.egressProxy` darf weiterhin den Egress eines Betreibers nennen; ohne ihn nutzen die Sessions den des Stacks. Die Zertifikate liegen in `<stateDirectory>/incus/`, neben `<stateDirectory>/sandbox-incus/`. Ein Bundle für die Incus-Laufzeit hält `"runtime": "incus"` in `runtime/runtime.json` fest und enthält `runtime/incus-stack.json`, sodass eine CLI, die das Feld nicht kennt, es ablehnt.
+
+**Ein verwaltetes Deployment auf Incus zu betreiben ist noch nicht verfügbar.** Vorbereitung und Anwendung lehnen eine Spezifikation mit `"engine": "incus"` mit `running a managed deployment on Incus is not available yet in this CLI` ab, bevor sie etwas ändern.
 
 #### Zusätzliche Ursprünge bedienen {#managed-additional-origins}
 

@@ -1,47 +1,34 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { z } from 'zod';
-
-import { preconditionError } from '../../utils/fail';
 import { readProject } from '../project/read-project';
+import {
+  guardDeclaredEngine,
+  incusNotAvailableYet,
+} from '../project/runtime-declaration';
 import {
   createDockerRuntime,
   type DockerRuntimeOverrides,
 } from './docker/docker-runtime';
-import {
-  RUNTIME_ENGINES,
-  type RuntimeEngine,
-  type StackRuntime,
-} from './types';
-
-/**
- * The part of `tale.json` that names the runtime. Absent, the workspace runs
- * on Docker, as every workspace did before the field existed.
- */
-const runtimeDeclarationSchema = z.object({
-  runtime: z.object({ engine: z.enum(RUNTIME_ENGINES).optional() }).optional(),
-});
+import type { RuntimeEngine, StackRuntime } from './types';
 
 /**
  * The runtime engine the workspace at `projectDir` declares. A workspace
- * without `tale.json` declares nothing, which is Docker; an engine the CLI
- * does not know is refused rather than read as Docker, because deploying on
- * the wrong runtime would build a second stack beside the first.
+ * without `tale.json` declares nothing, which is Docker. `readProject` holds
+ * the declaration to the one runtime schema (`runtime-declaration.ts`), so an
+ * engine the CLI does not know is refused rather than read as Docker:
+ * deploying on the wrong runtime would build a second stack beside the
+ * first. `TALE_RUNTIME`, when set, must name the same engine.
  */
 export async function declaredEngine(
   projectDir: string,
+  environment: NodeJS.ProcessEnv = process.env,
 ): Promise<RuntimeEngine> {
-  if (!existsSync(join(projectDir, 'tale.json'))) return 'docker';
-  const declaration = runtimeDeclarationSchema.safeParse(
-    await readProject(projectDir),
-  );
-  if (!declaration.success)
-    throw preconditionError(
-      `tale.json in ${projectDir} names a runtime engine this CLI does not know.`,
-      `Set runtime.engine to one of: ${RUNTIME_ENGINES.join(', ')}.`,
-    );
-  return declaration.data.runtime?.engine ?? 'docker';
+  const engine = existsSync(join(projectDir, 'tale.json'))
+    ? ((await readProject(projectDir)).runtime?.engine ?? 'docker')
+    : 'docker';
+  guardDeclaredEngine(engine, environment);
+  return engine;
 }
 
 /** The runtime for one engine. */
@@ -49,11 +36,7 @@ export function runtimeForEngine(
   engine: RuntimeEngine,
   overrides: { docker?: DockerRuntimeOverrides } = {},
 ): StackRuntime {
-  if (engine === 'incus')
-    throw preconditionError(
-      'tale.json declares runtime.engine "incus", which this CLI cannot run yet: the Incus runtime is not built yet.',
-      'Remove runtime.engine from tale.json to deploy on Docker.',
-    );
+  if (engine === 'incus') throw incusNotAvailableYet('workspace');
   return createDockerRuntime(overrides.docker);
 }
 

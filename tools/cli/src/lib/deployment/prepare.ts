@@ -4,6 +4,11 @@ import { dirname, join, resolve } from 'node:path';
 import { preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { gitSha } from '../config/releases/model';
+import {
+  engineOf,
+  guardDeclaredEngine,
+  incusNotAvailableYet,
+} from '../project/runtime-declaration';
 import { deploymentBuild } from './build';
 import { copyDeploymentCli, writeDeploymentBundle } from './bundle';
 import { prepareDeploymentConfig } from './config-source';
@@ -52,6 +57,11 @@ export async function prepareDeployment(
       options.spec,
     ),
   );
+  const engine = engineOf(spec.runtime);
+  guardDeclaredEngine(engine);
+  if (engine === 'incus') throw incusNotAvailableYet('managed deployment');
+  const sandbox =
+    spec.sandbox && 'address' in spec.sandbox ? spec.sandbox : undefined;
   const deploymentRef =
     options.deploymentRef !== undefined
       ? gitSha.parse(options.deploymentRef)
@@ -114,10 +124,8 @@ export async function prepareDeployment(
       logger.step(
         `Preparing the Tale runtime at ${runtimeRequest.revision} for ${spec.runtime.platform}`,
       );
-      if (spec.sandbox)
-        logger.step(
-          `Preparing the Incus sandbox shape on ${spec.sandbox.address}`,
-        );
+      if (sandbox)
+        logger.step(`Preparing the Incus sandbox shape on ${sandbox.address}`);
       await (dependencies.runtime ?? prepareRuntime)({
         repoRoot: source(runtimeRequest),
         revision: runtimeRequest.revision,
@@ -125,11 +133,11 @@ export async function prepareDeployment(
         containerPrefix: spec.runtime.containerPrefix,
         additionalOrigins: spec.additionalOrigins,
         organizationCreators: spec.organizations?.creators,
-        ...(spec.sandbox
+        ...(sandbox
           ? {
               sandbox: {
-                address: spec.sandbox.address,
-                egressProxy: spec.sandbox.egressProxy,
+                address: sandbox.address,
+                egressProxy: sandbox.egressProxy,
               },
             }
           : {}),
