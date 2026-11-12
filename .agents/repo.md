@@ -127,7 +127,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   rejection to what reports it, and fails on a second toast, on a quiet write whose one report
   hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
-  adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
+  adds `bun run gen:migration`, `bun run gen:episode` (docs-video episodes) and
+  `bun run gen:manual` (the manual-test layer of an existing unit that has none).
 - **An image is an OCI artifact that says what it is** — the final stage of every
   `services/*/Dockerfile` declares the whole `org.opencontainers.image.*` set (title, description,
   `source` exactly `https://github.com/tale-project/tale` because the CLI refuses a deployment
@@ -138,8 +139,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   back by digest, and a release publishes one OCI image index per service with
   `docker buildx imagetools create`, never `docker manifest`. The plop service templates scaffold
   the same, and `tools/cli/scripts/oci-image-metadata.test.ts` holds every part of it.
-- **Five manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/` each carry the
-  standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
+- **Six manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/`
+  and `tools/cli/tests/manual/` each carry the standard tree (`AGENTS.md` "Manual tests"), gated
+  by `bun run lint:manual`; a unit that has none gets it from `bun run gen:manual`. Suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
