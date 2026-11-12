@@ -8,6 +8,13 @@
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
     "./client": "./src/client.ts",
+    "./exec": "./src/exec.ts",
+    "./exec-session": "./src/exec-session.ts",
+    "./files": "./src/files.ts",
+    "./volumes": "./src/volumes.ts",
+    "./snapshots": "./src/snapshots.ts",
+    "./state": "./src/state.ts",
+    "./unix-transport": "./src/unix-transport.ts",
     "./tls": "./src/tls.ts",
     "./units": "./src/units.ts",
     "./fake": "./src/fake.ts",
@@ -17,7 +24,8 @@
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:real": "TALE_INCUS_REAL=1 bun test tests/real"
   },
   "devDependencies": {
     "@peculiar/x509": "1.14.3"

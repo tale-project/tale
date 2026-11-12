@@ -840,3 +840,69 @@ describe('the pinned mutual-TLS connection', () => {
     }
   });
 });
+
+describe('logs, the console and images, against the fake', () => {
+  test('a running console is consumed by a read; a stopped one is not', async () => {
+    const { FakeIncus } = await import('./fake.ts');
+    const fake = new FakeIncus({ project: 'stack' });
+    const web = fake.seedInstance('web', {}, { ephemeral: false });
+    web.consoleLog = 'line 1\nline 2\n';
+    const client = fake.client();
+    expect(new TextDecoder().decode(await client.readConsole('web'))).toBe(
+      'line 1\nline 2\n',
+    );
+    expect((await client.readConsole('web')).byteLength).toBe(0);
+    web.status = 'Stopped';
+    web.consoleLog = 'kept\n';
+    expect(await client.getConsoleLog('web', 100)).toBe('kept\n');
+    expect(await client.getConsoleLog('web', 100)).toBe('kept\n');
+  });
+
+  test('log files are listed by name and read bounded; a path is no name', async () => {
+    const { FakeIncus } = await import('./fake.ts');
+    const fake = new FakeIncus({ project: 'stack' });
+    fake.seedInstance('web', {}, { ephemeral: false });
+    const client = fake.client();
+    expect(await client.listInstanceLogs('web')).toEqual(['lxc.log']);
+    expect(
+      new TextDecoder().decode(await client.readInstanceLog('web', 'lxc.log')),
+    ).toBe('lxc log\n');
+    expect(
+      (
+        await rejection(
+          client.readInstanceLog('web', 'lxc.log', { maxBytes: 3 }),
+        )
+      ).message,
+    ).toContain('cap');
+    expect(
+      (await rejection(client.readInstanceLog('web', '../x'))).message,
+    ).toContain('log file name');
+  });
+
+  test('an alias is made, listed and deleted; deleting an image takes its aliases', async () => {
+    const { FakeIncus } = await import('./fake.ts');
+    const fake = new FakeIncus({ project: 'stack' });
+    const fingerprint = 'b'.repeat(64);
+    fake.addImage('tale-db-old', fingerprint);
+    const client = fake.client();
+    await client.createImageAlias('tale-db-new', fingerprint);
+    expect(
+      (await client.listImageAliases()).filter((a) => a.target === fingerprint),
+    ).toEqual([
+      { name: 'tale-db-old', target: fingerprint },
+      { name: 'tale-db-new', target: fingerprint },
+    ]);
+    const taken = await rejection(
+      client.createImageAlias('tale-db-new', fingerprint),
+    );
+    expect(isIncusNameConflict(taken)).toBe(true);
+    expect(await client.deleteImageAlias('tale-db-old')).toBe(true);
+    expect(await client.deleteImageAlias('tale-db-old')).toBe(false);
+    expect(await client.deleteImage(fingerprint, 5_000)).toBe(true);
+    expect(await client.getImageAlias('tale-db-new')).toBeUndefined();
+    expect(await client.deleteImage(fingerprint, 5_000)).toBe(false);
+    expect(
+      (await rejection(client.createImageAlias('x', 'nope'))).message,
+    ).toContain('fingerprint');
+  });
+});
