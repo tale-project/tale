@@ -8,13 +8,14 @@ Kubernetes paths are unaffected, and **the backend is off unless
 `SANDBOX_BACKEND=incus` is set**.
 
 > **Status.** Unit tests run both backends against a fake Incus API
-> (`src/backend/incus/fake-incus.ts`). An end-to-end lab
+> (`@tale/incus/fake`, in [`packages/incus`](../../../packages/incus/README.md),
+> which also holds the REST client the backends use). An end-to-end lab
 > ([e2e/incus](../e2e/incus/README.md), `.github/workflows/sandbox-incus-e2e.yml`)
 > runs the spawner from the same checkout against a real Incus (Zabbly's stable
 > build on a hosted Ubuntu runner, a ZFS pool on a file, the operator block below
-> run verbatim) on pull requests that touch the spawner, the runtime image or the
-> egress proxy (a draft is dispatched by hand), and holds the timings in its job
-> summary. What a hosted runner is not is what is left:
+> run verbatim) on pull requests that touch the spawner, its Incus client, the
+> runtime image or the egress proxy (a draft is dispatched by hand), and holds
+> the timings in its job summary. What a hosted runner is not is what is left:
 > [Verify a node](#verify-a-node-before-trusting-it) marks each check as proven
 > by that lab or left to your first real node.
 

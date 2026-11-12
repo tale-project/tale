@@ -8,12 +8,8 @@ import {
   SIDECAR_SERVICES,
   STATEFUL_SERVICES,
 } from '../compose/types';
-import { containerExists } from '../docker/container-exists';
-import { getContainerHealth } from '../docker/get-container-health';
-import { getContainerVersion } from '../docker/get-container-version';
-import { isContainerRunning } from '../docker/is-container-running';
-import { listContainers } from '../docker/list-containers';
-import { listComposeContainers } from '../docker/list-service-containers';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { HealthState, StackRuntime } from '../runtime/types';
 import { getDeploymentState } from '../state/get-deployment-state';
 import { getLockInfo } from '../state/get-lock-info';
 
@@ -45,7 +41,7 @@ interface StatusReport {
 function getServiceStatus(
   exists: boolean,
   running: boolean,
-  health: 'healthy' | 'unhealthy' | 'starting' | 'none',
+  health: HealthState,
 ): ServiceStatus {
   if (!exists) return 'not deployed';
   if (!running) return 'stopped';
@@ -55,23 +51,27 @@ function getServiceStatus(
   return 'running';
 }
 
-async function getContainerStatus(containerName: string) {
+async function getContainerStatus(
+  runtime: StackRuntime,
+  containerName: string,
+) {
   const [exists, running, health, version] = await Promise.all([
-    containerExists(containerName),
-    isContainerRunning(containerName),
-    getContainerHealth(containerName),
-    getContainerVersion(containerName),
+    runtime.exists(containerName),
+    runtime.isRunning(containerName),
+    runtime.health(containerName),
+    runtime.version(containerName),
   ]);
   return { exists, running, health, version };
 }
 
 async function rowsFor(
+  runtime: StackRuntime,
   services: readonly string[],
   suffix: (service: string) => string,
 ): Promise<ServiceRow[]> {
   return Promise.all(
     services.map(async (service) => {
-      const info = await getContainerStatus(suffix(service));
+      const info = await getContainerStatus(runtime, suffix(service));
       return {
         service,
         status: getServiceStatus(info.exists, info.running, info.health),
@@ -87,11 +87,14 @@ async function rowsFor(
  * container happened to be first — the operator needs to see that two of
  * three api replicas are healthy, not an average.
  */
-async function colorRows(projectName: string): Promise<ServiceRow[]> {
-  const containers = await listComposeContainers(projectName);
+async function colorRows(
+  runtime: StackRuntime,
+  projectName: string,
+): Promise<ServiceRow[]> {
+  const containers = await runtime.list({ stack: projectName });
   const rows = await Promise.all(
     containers.map(async (container) => {
-      const info = await getContainerStatus(container.name);
+      const info = await getContainerStatus(runtime, container.name);
       const total = containers.filter(
         (peer) => peer.service === container.service,
       ).length;
@@ -109,18 +112,22 @@ async function colorRows(projectName: string): Promise<ServiceRow[]> {
 }
 
 /** Gather the full status struct (no I/O ordering assumptions in the renderer). */
-async function gatherStatus(deployDir: string): Promise<StatusReport> {
+async function gatherStatus(
+  deployDir: string,
+  runtime: StackRuntime,
+): Promise<StatusReport> {
   const project = getProjectId();
   const [lock, state, stateful, blue, green, containers] = await Promise.all([
     getLockInfo(deployDir),
     getDeploymentState(deployDir),
     rowsFor(
+      runtime,
       [...STATEFUL_SERVICES, ...SIDECAR_SERVICES],
       (s) => `${project}-${s}`,
     ),
-    colorRows(`${project}-blue`),
-    colorRows(`${project}-green`),
-    listContainers(`name=${project}`),
+    colorRows(runtime, `${project}-blue`),
+    colorRows(runtime, `${project}-green`),
+    runtime.listByName(project),
   ]);
   return {
     lock: lock ? { pid: lock.pid, startedAt: lock.startedAt } : null,
@@ -209,10 +216,13 @@ interface StatusOptions {
   deployDir: string;
   /** Emit the report as a single JSON object instead of the human table. */
   json?: boolean;
+  /** The runtime to report on; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 export async function status(options: StatusOptions): Promise<void> {
-  const report = await gatherStatus(options.deployDir);
+  const runtime = options.runtime ?? (await selectRuntime(options.deployDir));
+  const report = await gatherStatus(options.deployDir, runtime);
   if (options.json) {
     emitJson('status', report);
     return;

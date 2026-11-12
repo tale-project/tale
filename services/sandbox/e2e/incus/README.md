@@ -8,11 +8,12 @@ Incus node built the way [docs/incus.md](../../docs/incus.md) tells an operator
 to build one.
 
 It runs in CI (`.github/workflows/sandbox-incus-e2e.yml`) on a Linux runner, on
-pull requests that touch the spawner, the runtime image or the egress proxy, and
-on demand; `CI ready (Sandbox Incus E2E)` is a required check (see "A required
-check"). A draft pull request is held, as the other heavy workflows hold it;
-to try a draft, dispatch the workflow on its branch (see "Running it"). It
-reconfigures its host (packages, a ZFS pool, the firewall, Incus itself), so it
+pull requests that touch the spawner, its Incus client (`packages/incus`), the
+runtime image or the egress proxy, and on demand;
+`CI ready (Sandbox Incus E2E)` is a required check (see "A required check"). A
+draft pull request is held, as the other heavy workflows hold it; to try a
+draft, dispatch the workflow on its branch (see "Running it"). It reconfigures
+its host (packages, a ZFS pool, the firewall, Incus itself), so it
 is only ever run on a throwaway machine: CI, or a VM you can lose, with
 `TALE_INCUS_E2E_THROWAWAY_HOST=1`.
 

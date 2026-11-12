@@ -157,6 +157,7 @@ services/sandbox-buildkitd/
 services/sandbox-llm-gateway/
 services/sandbox-runtime/
 !services/sandbox-runtime/daemon/package.json
+packages/incus/
 packages/shared/
 packages/marketing-ui/
 tools/
@@ -172,6 +173,7 @@ tools/
 !services/db/package.json
 !services/proxy/package.json
 !services/sandbox/package.json
+!packages/incus/package.json
 !packages/shared/package.json
 !packages/marketing-ui/package.json
 !tools/cli/package.json

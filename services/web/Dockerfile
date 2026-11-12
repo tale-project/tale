@@ -16,6 +16,7 @@ COPY package.json bun.lock bunfig.toml ./
 # refuses to run without the patch files, and they must reach the installed packages.
 COPY patches/ ./patches/
 COPY packages/e2e/package.json ./packages/e2e/
+COPY packages/incus/package.json ./packages/incus/
 COPY packages/marketing-ui/package.json ./packages/marketing-ui/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/

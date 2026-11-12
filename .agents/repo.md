@@ -24,9 +24,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   GitHub), `marketing-ui` (the marketing design language — site chrome, marketing primitives,
   feature-page and product-demo frames — layered on `@tale/ui`; the marketing site builds on it
   and it is published from GitHub the same way), `shared` (schemas + pg), `e2e` (Playwright config
-  factory). A component that carries tale business logic (org branding, abilities, backend
-  queries) stays in its service and wraps the `@tale/ui` primitive; only UI-reusable logic lives
-  in the package.
+  factory), `incus` (the typed Incus REST client over mutual TLS and its in-memory fake, which the
+  sandbox spawner's Incus backend drives its node through). A component that carries tale
+  business logic (org branding, abilities, backend queries) stays in its service and wraps the
+  `@tale/ui` primitive; only UI-reusable logic lives in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
   tale-project repo — fix a rule in `example-project` and roll it, never here), `lint-links`
@@ -126,7 +127,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   rejection to what reports it, and fails on a second toast, on a quiet write whose one report
   hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
-  adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
+  adds `bun run gen:migration`, `bun run gen:episode` (docs-video episodes) and
+  `bun run gen:manual` (the manual-test layer of an existing unit that has none).
 - **An image is an OCI artifact that says what it is** — the final stage of every
   `services/*/Dockerfile` declares the whole `org.opencontainers.image.*` set (title, description,
   `source` exactly `https://github.com/tale-project/tale` because the CLI refuses a deployment
@@ -137,8 +139,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   back by digest, and a release publishes one OCI image index per service with
   `docker buildx imagetools create`, never `docker manifest`. The plop service templates scaffold
   the same, and `tools/cli/scripts/oci-image-metadata.test.ts` holds every part of it.
-- **Five manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/` each carry the
-  standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
+- **Six manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/`
+  and `tools/cli/tests/manual/` each carry the standard tree (`AGENTS.md` "Manual tests"), gated
+  by `bun run lint:manual`; a unit that has none gets it from `bun run gen:manual`. Suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
@@ -176,9 +179,12 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   0.5.95), takes fixes alone — a `fix`, or a `test`, `docs` or `ci` change about what `main`
   already ships; **`release/0.6`, the feature line** (0.6.x, next 0.6.0), takes everything else
   and is `main` plus its own commits, rebased onto `main` whenever `main` moves, so every fix
-  reaches it without a merge. When in doubt, a change belongs to the feature line. Once a person
-  makes the feature line stable with its release, `main` takes its commits, the 0.5.x line ends
-  and `release/0.7` opens. The lanes:
+  reaches it without a merge. When in doubt, a change belongs to the feature line. The Incus
+  runtime program is the one exception to fixes alone: it ships on the stable line, `main`,
+  through pull requests a person merges once their checks pass (never `--auto`), until the
+  program completes or the feature line becomes the stable one.
+  Once a person makes the feature line stable with its release, `main` takes its commits, the
+  0.5.x line ends and `release/0.7` opens. The lanes:
   - **The merge trains** carry the autonomous development cycle's work. A task branch starts
     from its line's open train, `train` (stable) or `feature-train` (feature), and opens no pull
     request: once reviewed, it is squashed into one commit on that train and pushed only if the

@@ -1,5 +1,6 @@
 import { getProjectId } from '../../utils/load-env';
-import { volumeExists } from '../docker/ensure-volumes';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { SNAPSHOT_VOLUMES } from './constants';
 
 /**
@@ -8,11 +9,13 @@ import { SNAPSHOT_VOLUMES } from './constants';
  * the dev prefix (`${projectId}-dev_`, created by `tale dev`) when both
  * exist. Returns null when neither namespace has any data volume.
  */
-export async function resolveSnapshotPrefix(): Promise<string | null> {
+export async function resolveSnapshotPrefix(
+  runtime: StackRuntime = dockerRuntime,
+): Promise<string | null> {
   const prefixes = [`${getProjectId()}_`, `${getProjectId()}-dev_`];
   for (const prefix of prefixes) {
     for (const volume of SNAPSHOT_VOLUMES) {
-      if (await volumeExists(`${prefix}${volume}`)) {
+      if (await runtime.volumeExists(`${prefix}${volume}`)) {
         return prefix;
       }
     }

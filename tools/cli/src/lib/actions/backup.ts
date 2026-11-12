@@ -3,13 +3,16 @@ import * as logger from '../../utils/logger';
 import { createSnapshot } from '../backup/create-snapshot';
 import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { rotateSnapshots } from '../backup/rotate-snapshots';
-import { getContainerVersion } from '../docker/get-container-version';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { getCurrentColor } from '../state/get-current-color';
 import { withLock } from '../state/with-lock';
 import { colorPlatformVersion } from './color-lifecycle';
 
 interface BackupOptions {
   env: DeploymentEnv;
+  /** The runtime to snapshot on; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -19,11 +22,12 @@ interface BackupOptions {
  */
 export async function backup(options: BackupOptions): Promise<void> {
   const { env } = options;
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
 
   await withLock(env.DEPLOY_DIR, 'backup', async () => {
     logger.header('Creating Volume Snapshot');
 
-    const prefix = await resolveSnapshotPrefix();
+    const prefix = await resolveSnapshotPrefix(runtime);
     if (!prefix) {
       throw new Error(
         'No Tale data volumes found for this project — nothing to back up. ' +
@@ -37,10 +41,15 @@ export async function backup(options: BackupOptions): Promise<void> {
     // uncoloured platform container under a pinned name).
     const currentColor = await getCurrentColor(env.DEPLOY_DIR);
     const platformVersion = currentColor
-      ? await colorPlatformVersion(currentColor)
-      : await getContainerVersion(`${getProjectId()}-platform`);
+      ? await colorPlatformVersion(currentColor, runtime)
+      : await runtime.version(`${getProjectId()}-platform`);
 
-    await createSnapshot({ prefix, trigger: 'manual', platformVersion });
-    await rotateSnapshots({ prefix });
+    await createSnapshot({
+      prefix,
+      trigger: 'manual',
+      platformVersion,
+      runtime,
+    });
+    await rotateSnapshots({ prefix, runtime });
   });
 }

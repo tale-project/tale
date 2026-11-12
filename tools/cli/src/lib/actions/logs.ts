@@ -7,7 +7,6 @@ import {
   classifyVite,
   createStreamClassifier,
 } from '@tale/shared/classify';
-import { pipeLines } from '@tale/shared/process';
 import { detectCapabilities, makePalette } from '@tale/shared/terminal';
 
 import { isUserInterrupt } from '../../utils/exit-codes';
@@ -21,8 +20,8 @@ import {
   isSidecarService,
   isValidService,
 } from '../compose/types';
-import { containerExists } from '../docker/container-exists';
-import { listComposeContainers } from '../docker/list-service-containers';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { LogOptions, StackRuntime } from '../runtime/types';
 import { getCurrentColor } from '../state/get-current-color';
 
 interface LogsOptions {
@@ -34,6 +33,8 @@ interface LogsOptions {
   /** Stream literal output with no classification/coloring/filtering. */
   raw?: boolean;
   deployDir: string;
+  /** The runtime to read from; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 /** Access-log health probes are pure noise — dropped from the classified view. */
@@ -41,6 +42,7 @@ const HEALTH_LINE = /"GET \/health[^"]*"\s+200|GET \/health .* 200/;
 
 export async function logs(options: LogsOptions): Promise<void> {
   const { service, color, follow, since, tail, raw, deployDir } = options;
+  const runtime = options.runtime ?? (await selectRuntime(deployDir));
 
   // Validate service name
   if (!isValidService(service) && !isSidecarService(service)) {
@@ -66,10 +68,10 @@ export async function logs(options: LogsOptions): Promise<void> {
       logger.info(`Auto-detected active color: ${resolvedColor}`);
     }
     const replicas = resolvedColor
-      ? await listComposeContainers(
-          `${getProjectId()}-${resolvedColor}`,
+      ? await runtime.list({
+          stack: `${getProjectId()}-${resolvedColor}`,
           service,
-        )
+        })
       : [];
     const first = replicas[0];
     if (first !== undefined) {
@@ -85,7 +87,7 @@ export async function logs(options: LogsOptions): Promise<void> {
     } else {
       // `tale dev` runs these colour-less under a pinned name.
       const devContainer = `${getProjectId()}-${service}`;
-      if (await containerExists(devContainer)) {
+      if (await runtime.exists(devContainer)) {
         containerName = devContainer;
       } else {
         logger.error(`No ${service} container found`);
@@ -102,40 +104,25 @@ export async function logs(options: LogsOptions): Promise<void> {
     }
     containerName = `${getProjectId()}-${service}`;
     // docker logs works for both running and stopped containers.
-    const exists = await containerExists(containerName);
+    const exists = await runtime.exists(containerName);
     if (!exists) {
       logger.error(`Container ${containerName} does not exist`);
       throw new Error('Container not found');
     }
   }
 
-  // Build docker logs command
-  const args = ['logs'];
-
-  if (follow) {
-    args.push('--follow');
-  }
-
-  if (since) {
-    args.push('--since', since);
-  }
-
-  if (tail !== undefined) {
-    args.push('--tail', String(tail));
-  }
-
-  args.push(containerName);
+  const logOptions: LogOptions = {
+    follow,
+    ...(since ? { since } : {}),
+    ...(tail === undefined ? {} : { tail }),
+  };
 
   logger.info(`Showing logs for ${containerName}...`);
 
   // `--raw`: literal passthrough, exactly what `docker logs` prints. The escape
   // hatch for when the classified view hides something or for piping verbatim.
   if (raw) {
-    const proc = Bun.spawn(['docker', ...args], {
-      stdout: 'inherit',
-      stderr: 'inherit',
-    });
-    const exitCode = await proc.exited;
+    const exitCode = await runtime.logs(containerName, logOptions);
     if (exitCode !== 0 && !isUserInterrupt(exitCode)) {
       throw new Error(`docker logs exited with code ${exitCode}`);
     }
@@ -166,17 +153,7 @@ export async function logs(options: LogsOptions): Promise<void> {
     }
   };
 
-  const proc = Bun.spawn(['docker', ...args], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  // Uncapped: a log viewer shows a long line whole.
-  await Promise.all([
-    pipeLines(proc.stdout, render, Number.POSITIVE_INFINITY),
-    pipeLines(proc.stderr, render, Number.POSITIVE_INFINITY),
-    proc.exited,
-  ]);
-  const exitCode = await proc.exited;
+  const exitCode = await runtime.logs(containerName, logOptions, render);
   if (exitCode !== 0 && !isUserInterrupt(exitCode)) {
     throw new Error(`docker logs exited with code ${exitCode}`);
   }

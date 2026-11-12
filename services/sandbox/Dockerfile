@@ -34,10 +34,18 @@ WORKDIR /app
 # Lockfile + manifest first so the dep layer caches across source edits.
 COPY services/sandbox/package.json services/sandbox/bun.lock ./
 
-RUN bun install --frozen-lockfile
+# The manifest's one workspace dependency, @tale/incus (the Incus REST client),
+# resolves only inside the repository's workspace and has no dependencies of
+# its own. The standalone lockfile pins the registry packages alone, so the
+# entry leaves the manifest before the frozen install, and the package is
+# copied in below, where Bun resolves `@tale/incus` from ./src.
+RUN bun -e 'const m = await Bun.file("package.json").json(); delete m.dependencies["@tale/incus"]; await Bun.write("package.json", JSON.stringify(m, null, 2) + "\n");' \
+    && bun install --frozen-lockfile
 
 COPY services/sandbox/tsconfig.json ./
 COPY services/sandbox/src/ ./src/
+COPY packages/incus/package.json ./node_modules/@tale/incus/package.json
+COPY packages/incus/src/ ./node_modules/@tale/incus/src/
 # The exact shared credential scrubber used by the platform backend too.
 COPY packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/privacy.ts
 
@@ -68,13 +76,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # @kubernetes/client-node alone ships tens of MB of them — strip to keep the
 # image inside its size budget. Bun hardlinks node_modules out of its install
 # cache, so the cache must be removed in the SAME layer or the stripped files
-# survive as cache inodes and the image doesn't actually shrink.
-COPY services/sandbox/package.json services/sandbox/bun.lock ./
+# survive as cache inodes and the image doesn't actually shrink. The manifest
+# is the builder's, without its workspace entry; the workspace package comes
+# from the builder too.
+COPY --from=builder /app/package.json ./package.json
+COPY services/sandbox/bun.lock ./
 RUN bun install --frozen-lockfile --production \
     && find node_modules -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete \
     && rm -rf /root/.bun/install/cache
 
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/node_modules/@tale/incus ./node_modules/@tale/incus
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /packages/shared/src/monitoring/privacy.ts /packages/shared/src/monitoring/privacy.ts
 

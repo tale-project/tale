@@ -120,6 +120,7 @@ services/platform/
 services/db/
 services/proxy/
 services/sandbox/
+packages/incus/
 packages/shared/
 tools/
 
@@ -130,6 +131,7 @@ tools/
 !services/db/package.json
 !services/proxy/package.json
 !services/sandbox/package.json
+!packages/incus/package.json
 !packages/shared/package.json
 !tools/cli/package.json
 !tools/plop/package.json

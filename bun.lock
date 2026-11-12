@@ -87,6 +87,13 @@
         "@types/jsdom": "21.1.7",
       },
     },
+    "packages/incus": {
+      "name": "@tale/incus",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@peculiar/x509": "1.14.3",
+      },
+    },
     "packages/marketing-ui": {
       "name": "@tale/marketing-ui",
       "version": "0.1.0",
@@ -434,11 +441,11 @@
       "dependencies": {
         "@kubernetes/client-node": "^1.4.0",
         "@sentry/bun": "10.54.0",
+        "@tale/incus": "workspace:*",
         "ip-address": "10.7.1",
         "yaml": "2.8.3",
       },
       "devDependencies": {
-        "@peculiar/x509": "1.14.3",
         "@types/bun": "^1.1.0",
         "jszip": "3.10.1",
         "typescript": "^5.6.0",
@@ -2050,6 +2057,8 @@
     "@tale/docs": ["@tale/docs@workspace:services/docs"],
 
     "@tale/e2e": ["@tale/e2e@workspace:packages/e2e"],
+
+    "@tale/incus": ["@tale/incus@workspace:packages/incus"],
 
     "@tale/lint-links": ["@tale/lint-links@workspace:tools/lint-links"],
 

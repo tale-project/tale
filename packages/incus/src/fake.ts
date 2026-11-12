@@ -1,33 +1,28 @@
-// An in-memory Incus, for the Incus backend's tests: the REST API the client
-// speaks, answered from a few maps, without a socket. It models what the
-// backend relies on — async operations, ETag preconditions, ephemeral
+// An in-memory Incus, for the tests of what drives Incus: the REST API the
+// client speaks, answered from a few maps, without a socket. It models what a
+// caller relies on — async operations, ETag preconditions, ephemeral
 // instances deleted on stop, volumes that are in use, a restricted project
 // that refuses what a real one refuses — and records every request, so a
-// test can say what the backend asked for as well as what came of it.
+// test can say what was asked for as well as what came of it.
 //
-// The runnerd inside each fake instance is modelled too (FakeRunnerd): it
-// boots from the instance's environment, or from the claim file a standby
-// receives, and answers the readiness poll with the incarnation it booted.
+// What runs inside an instance is the image's business, which the API does
+// not show: a test that needs it (a process that waits for a file before it
+// boots) says so through `guest`. By default an instance's main process boots
+// at once with the instance's environment.
 //
 // Not used by production code.
 
 import { createHash } from 'node:crypto';
 
-import type { RunnerdHealth } from '../../session/runnerd-protocol.ts';
 import {
   devicesOf,
   INCUS_STATUS,
   type IncusConfigMap,
   type IncusDevices,
   stringMap,
-} from './incus-api.ts';
-import { IncusClient, type IncusFetch } from './incus-client.ts';
-import {
-  STANDBY_CLAIM_END,
-  STANDBY_CLAIM_FILE,
-  STANDBY_READY_FILE,
-} from './incus-standby.ts';
-import { incusSizeBytes } from './incus-units.ts';
+} from './api.ts';
+import { IncusClient, type IncusFetch } from './client.ts';
+import { incusSizeBytes } from './units.ts';
 
 export interface RecordedRequest {
   method: string;
@@ -49,7 +44,7 @@ export interface FakeInstance {
   files: Map<string, { content: string; mode: string }>;
   consoleLog: string;
   /** The environment the instance's main process booted with; undefined
-   * until it has (a standby is only a waiting script). */
+   * until it has (a guest that waits has not, see `FakeGuest`). */
   bootEnv: Record<string, string> | undefined;
   version: number;
 }
@@ -58,6 +53,37 @@ export interface FakeVolume {
   name: string;
   config: IncusConfigMap;
   createdAt: string;
+}
+
+/** What runs inside every instance of the fake, as far as a test needs it. */
+export interface FakeGuest {
+  /** The instance reached Running: the environment its main process booted
+   * with, or undefined while it waits for something. */
+  boot(
+    instance: FakeInstance,
+    environment: Record<string, string>,
+  ): Record<string, string> | undefined;
+  /** A file was written into the instance. */
+  written(instance: FakeInstance, path: string, content: string): void;
+}
+
+/** A guest whose main process boots at once with the instance's environment,
+ * and that no file sets off. */
+const PLAIN_GUEST: FakeGuest = {
+  boot: (_instance, environment) => environment,
+  written: () => undefined,
+};
+
+/** The instance's `environment.*` keys, without the prefix. */
+export function instanceEnvironment(
+  instance: FakeInstance,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(instance.config)) {
+    if (key.startsWith('environment.'))
+      env[key.slice('environment.'.length)] = value;
+  }
+  return env;
 }
 
 interface FakeOperation {
@@ -223,6 +249,8 @@ export class FakeIncus {
   onDeleted: ((instance: FakeInstance) => void) | undefined;
   /** Image pulls fail with this message when set. */
   pullFailure: string | undefined;
+  /** What runs inside every instance. */
+  guest: FakeGuest = PLAIN_GUEST;
 
   private readonly rules: Array<FailureRule & { left: number }> = [];
   private readonly holds: Array<{ pattern: RegExp; gate: Promise<void> }> = [];
@@ -253,12 +281,19 @@ export class FakeIncus {
     this.aliases.set(this.options.image, 'f'.repeat(64));
   }
 
-  /** A client wired to this fake. */
-  client(overrides: { requestTimeoutMs?: number } = {}): IncusClient {
+  /** A client wired to this fake; it answers to no ambient signal unless the
+   * test hands it one. */
+  client(
+    overrides: {
+      requestTimeoutMs?: number;
+      signal?: () => AbortSignal | undefined;
+    } = {},
+  ): IncusClient {
     return new IncusClient({
       endpoint: 'https://incus.fake:8443',
       project: this.options.project,
       tls: { ca: 'ca', cert: 'cert', key: 'key' },
+      signal: () => undefined,
       fetch: this.fetch,
       sleep: async () => undefined,
       ...overrides,
@@ -998,18 +1033,7 @@ export class FakeIncus {
     if (this.assignAddresses) {
       instance.address = `10.9.0.${this.nextAddress++}`;
     }
-    const env: Record<string, string> = {};
-    for (const [key, value] of Object.entries(instance.config)) {
-      if (key.startsWith('environment.'))
-        env[key.slice('environment.'.length)] = value;
-    }
-    const entrypoint = instance.config['oci.entrypoint'] ?? '';
-    // A standby only waits, and says so; the session boots when its claim
-    // arrives.
-    const standby = entrypoint.includes('standby.sh');
-    if (standby)
-      instance.files.set(STANDBY_READY_FILE, { content: '', mode: '' });
-    instance.bootEnv = standby ? undefined : env;
+    instance.bootEnv = this.guest.boot(instance, instanceEnvironment(instance));
     this.onStarted?.(instance);
   }
 
@@ -1105,32 +1129,13 @@ export class FakeIncus {
         content,
         mode: request.headers['x-incus-mode'] ?? '',
       });
-      if (path === STANDBY_CLAIM_FILE) this.claimed(instance, content);
+      this.guest.written(instance, path, content);
       return syncOk(null);
     }
     throw new FakeFailure(
       404,
       `not implemented in the fake: ${method} ${request.path}`,
     );
-  }
-
-  /** The standby script becomes the entrypoint once a complete claim is
-   * there: its variables are the environment the session boots with. */
-  private claimed(instance: FakeInstance, content: string): void {
-    if (instance.status !== 'Running' || !content.includes(STANDBY_CLAIM_END))
-      return;
-    const env: Record<string, string> = {};
-    for (const [key, value] of Object.entries(instance.config)) {
-      if (key.startsWith('environment.'))
-        env[key.slice('environment.'.length)] = value;
-    }
-    for (const match of content.matchAll(
-      /^export ([A-Z][A-Z0-9_]*)='([^']*)'$/gm,
-    )) {
-      const [, key, value] = match;
-      if (key !== undefined && value !== undefined) env[key] = value;
-    }
-    instance.bootEnv = env;
   }
 }
 
@@ -1147,65 +1152,4 @@ interface CreateBody {
 interface StateBody {
   action: 'start' | 'stop';
   force: boolean;
-}
-
-/**
- * The runnerd of each fake instance, as the backend's readiness poll sees it:
- * it answers only once the instance's main process has booted, only to the
- * token it booted with, and names the incarnation it booted with.
- */
-export class FakeRunnerd {
-  /** Failing health polls to answer before succeeding. */
-  failFirst = 0;
-  dockerReady: boolean | undefined;
-  /** Env keys runnerd refuses on a seed. */
-  denied: string[] = [];
-  readonly polls: string[] = [];
-  readonly patches: Array<{ baseUrl: string; set: Record<string, string> }> =
-    [];
-  patchFailure: string | undefined;
-  private readonly misses = new Map<string, number>();
-
-  constructor(private readonly incus: FakeIncus) {}
-
-  private instanceAt(baseUrl: string): FakeInstance | undefined {
-    return this.incus.instanceByAddress(new URL(baseUrl).hostname);
-  }
-
-  readonly health = async (
-    opts: { baseUrl: string; token: string },
-    signal?: AbortSignal,
-  ): Promise<RunnerdHealth> => {
-    signal?.throwIfAborted();
-    this.polls.push(opts.baseUrl);
-    const seen = (this.misses.get(opts.baseUrl) ?? 0) + 1;
-    this.misses.set(opts.baseUrl, seen);
-    if (seen <= this.failFirst) throw new Error('connection refused');
-    const instance = this.instanceAt(opts.baseUrl);
-    if (instance?.bootEnv === undefined) throw new Error('connection refused');
-    if (instance.bootEnv.TALE_RUNNERD_TOKEN !== opts.token)
-      throw new Error('runnerd /healthz 401');
-    const incarnation = instance.bootEnv.TALE_RUNNERD_INCARNATION;
-    return {
-      ok: true,
-      ...(this.dockerReady === undefined
-        ? {}
-        : { dockerReady: this.dockerReady }),
-      bootedAtMs: 0,
-      ...(incarnation === undefined ? {} : { incarnation }),
-      lastActivityAtMs: 0,
-      liveExecs: 0,
-    };
-  };
-
-  readonly envPatch = async (
-    opts: { baseUrl: string; token: string },
-    patch: { set?: Record<string, string>; unset?: string[] },
-    signal?: AbortSignal,
-  ): Promise<string[]> => {
-    signal?.throwIfAborted();
-    if (this.patchFailure !== undefined) throw new Error(this.patchFailure);
-    this.patches.push({ baseUrl: opts.baseUrl, set: patch.set ?? {} });
-    return this.denied;
-  };
 }

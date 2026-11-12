@@ -121,8 +121,9 @@ GitHub-hosted runners.
   Incus pulls from, starts the spawner from the checkout and drives its signed HTTP API
   through the session contract. Every pull request starts it; its PR scope runs the lab
   on GitHub's runner only for the `sandbox-incus` paths of `.github/ci-scope.yml` (the
-  sandbox, runtime and egress services and its own file), once the pull request is
-  ready for review and not from a fork. A draft is held, as in the other heavy
+  sandbox, runtime and egress services, the sandbox's Incus client `packages/incus` and
+  its own file), once the pull request is ready for review and not from a fork. A
+  draft is held, as in the other heavy
   workflows, so a draft is tried by dispatching the workflow on its branch, which names
   its runner (a Ubicloud label by default) and, if wanted, a few suites. It reads
   Build's layer caches and writes none. Each suite leaves its log as an artifact the

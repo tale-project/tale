@@ -6,8 +6,14 @@
 import { createPrivateKey, X509Certificate } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import type { IncusConfig } from '../../types.ts';
-import type { IncusTlsMaterial } from './incus-client.ts';
+import type { IncusTlsMaterial } from './client.ts';
+
+/** Where the three PEM files are. */
+export interface IncusTlsFiles {
+  clientCertFile: string;
+  clientKeyFile: string;
+  serverCertFile: string;
+}
 
 /** Warn when a certificate has less than this left. */
 const EXPIRY_WARNING_MS = 14 * 24 * 60 * 60 * 1000;
@@ -65,10 +71,7 @@ function checkValidity(
  * the variable and says what to change.
  */
 export async function readIncusTlsMaterial(
-  files: Pick<
-    IncusConfig,
-    'clientCertFile' | 'clientKeyFile' | 'serverCertFile'
-  >,
+  files: IncusTlsFiles,
   nowMs: number = Date.now(),
 ): Promise<IncusTlsMaterial> {
   const [cert, key, ca] = await Promise.all([

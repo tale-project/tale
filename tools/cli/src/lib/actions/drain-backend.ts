@@ -34,6 +34,8 @@ import {
   controlCall,
   isBackendTierRunning,
 } from '../docker/control-call';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 
 export { BACKEND_API_LABEL, backendApiContainer, isBackendTierRunning };
 
@@ -71,9 +73,13 @@ function describeInFlight(status: DrainStatus | null): string {
  * Read + validate `/api/control/drain-status`. `null` means "unknown"
  * (unreachable door, unexpected shape) — never "0 in flight".
  */
-async function readDrainStatus(container: string): Promise<DrainStatus | null> {
+async function readDrainStatus(
+  container: string,
+  runtime: StackRuntime,
+): Promise<DrainStatus | null> {
   const res = await controlCall('GET', '/api/control/drain-status', {
     container,
+    runtime,
   });
   if (!res.success) return null;
   try {
@@ -109,8 +115,11 @@ export async function drainBackend(opts: {
   colour?: DeploymentColor | null;
   pollMs?: number;
   timeoutMs?: number;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }): Promise<void> {
   const colour = opts.colour ?? null;
+  const runtime = opts.runtime ?? dockerRuntime;
   if (opts.dryRun) {
     logger.info(
       `[DRY-RUN] Would drain in-flight chat turns and automation steps on ${colour ? `the ${colour} api` : 'the backend tier'}`,
@@ -124,8 +133,8 @@ export async function drainBackend(opts: {
   // The retiring colour's leftover singleton (pre-0085) ignores the body.
   const container =
     colour === null
-      ? ((await backendApiContainers())[0] ?? null)
-      : await backendApiDrainWriter(colour);
+      ? ((await backendApiContainers(null, runtime))[0] ?? null)
+      : await backendApiDrainWriter(colour, runtime);
 
   if (container === null) {
     logger.debug('No backend-api container running; skipping backend drain.');
@@ -137,6 +146,7 @@ export async function drainBackend(opts: {
   );
   const begin = await controlCall('POST', '/api/control/drain', {
     container,
+    runtime,
     // An older backend ignores the body and drains everything, which is the
     // pre-colour behaviour and still correct for an in-place roll. An aimed
     // colour flip posts through a new-image replica so the column is written.
@@ -153,7 +163,7 @@ export async function drainBackend(opts: {
   // singleton has already been swept. Nothing left to wait for on that colour.
   if (
     colour !== null &&
-    (await backendApiContainersInColor(colour)).length === 0
+    (await backendApiContainersInColor(colour, runtime)).length === 0
   ) {
     logger.info(
       `No ${colour} api replicas left to wait out — drain flag is set.`,
@@ -163,7 +173,7 @@ export async function drainBackend(opts: {
 
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const status = await readDrainStatus(container);
+    const status = await readDrainStatus(container, runtime);
     if (status && status.inFlight === 0) {
       logger.info('All in-flight chat turns and automation steps finished.');
       return;
@@ -184,11 +194,14 @@ export async function drainBackend(opts: {
  * backend's own drain expiry clears the flag anyway, so chats can never be
  * refused forever.
  */
-export async function endDrainBackend(): Promise<void> {
-  const container = await backendApiContainer();
+export async function endDrainBackend(
+  runtime: StackRuntime = dockerRuntime,
+): Promise<void> {
+  const container = await backendApiContainer(null, runtime);
   if (container === null) return;
   const res = await controlCall('POST', '/api/control/end-drain', {
     container,
+    runtime,
   });
   if (!res.success) {
     logger.debug(

@@ -421,6 +421,49 @@ describePosix('managed native client consumer export', () => {
     }
   });
 
+  test('the credential transfer keeps its Docker argv through the runtime access', async () => {
+    const f = await fixture();
+    await exportManagedClient(f.options, { exec: f.run });
+    const start = f.executed.findIndex(
+      ({ args }) => args[0] === 'exec' && args[2] === 'stat',
+    );
+    expect(start).toBeGreaterThanOrEqual(0);
+    const transfer = f.executed.slice(start, start + 7).map(({ args }) => args);
+    const backend = transfer[0][1];
+    const temporary = transfer[1].at(-1)!;
+    expect(temporary).toMatch(/^\/tmp\/tale-client-export-[0-9a-f-]{36}$/);
+    const bundleCopy = transfer[2][1];
+    const receive = transfer[5][2];
+    expect(bundleCopy.endsWith('/.')).toBe(true);
+    expect(receive.endsWith('/artifact/')).toBe(true);
+    expect(transfer).toEqual([
+      ['exec', backend, 'stat', '-c', '%u:%g', '/app/data'],
+      ['exec', backend, 'mkdir', '-m', '700', temporary],
+      ['cp', bundleCopy, `${backend}:${temporary}/`],
+      ['exec', backend, 'chown', '-R', '1001:1001', temporary],
+      [
+        'exec',
+        '-i',
+        '-w',
+        '/',
+        '--user',
+        '1001:1001',
+        backend,
+        'bun',
+        `${temporary}/cli/tale.mjs`,
+        'deploy',
+        'export-client-native',
+        '--bundle',
+        temporary,
+        '--output',
+        `${temporary}/export-output`,
+        '--json',
+      ],
+      ['cp', `${backend}:${temporary}/export-output/.`, receive],
+      ['exec', backend, 'rm', '-rf', temporary],
+    ]);
+  });
+
   test('two generic organizations and two clients export only the selected immutable credentials; replay does not rotate', async () => {
     for (const name of ['north', 'south']) {
       const f = await fixture(name);

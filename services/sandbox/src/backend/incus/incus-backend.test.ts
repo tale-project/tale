@@ -3,8 +3,10 @@
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
+import { IncusClient } from '@tale/incus/client';
+
+import { operationSignal } from '../../operation-budget.ts';
 import { IncusBackend } from './incus-backend.ts';
-import { IncusClient } from './incus-client.ts';
 import {
   incusInstanceName,
   incusWarmupInstanceName,
@@ -88,6 +90,7 @@ describe('init', () => {
       endpoint: 'https://incus.fake:8443',
       project: f.cfg.incus?.project ?? '',
       tls: { ca: 'ca', cert: 'cert', key: 'key' },
+      signal: () => operationSignal(),
       fetch: async (url, init) =>
         // The fake serves another project than the one asked for.
         f.fake.fetch(url.replace('sandbox-pr', 'elsewhere'), init),

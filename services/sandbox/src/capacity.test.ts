@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
-import { FakeIncus } from './backend/incus/fake-incus.ts';
+import { FakeIncus } from '@tale/incus/fake';
+
 import { LABEL } from './backend/incus/incus-naming.ts';
 import { incusTestConfig } from './backend/incus/incus-test-config.ts';
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';

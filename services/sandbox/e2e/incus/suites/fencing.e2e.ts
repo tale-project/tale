@@ -10,10 +10,11 @@
 
 import { afterAll, beforeAll, describe, expect } from 'bun:test';
 
-import { IncusApiError } from '../../../src/backend/incus/incus-api.ts';
-import { IncusClient } from '../../../src/backend/incus/incus-client.ts';
+import { IncusApiError } from '@tale/incus/api';
+import { IncusClient } from '@tale/incus/client';
+import { readIncusTlsMaterial } from '@tale/incus/tls';
+
 import { LABEL, label } from '../../../src/backend/incus/incus-naming.ts';
-import { readIncusTlsMaterial } from '../../../src/backend/incus/incus-tls.ts';
 import { loadBackends } from '../../../src/backend/index.ts';
 import {
   SessionExistsError,
@@ -83,6 +84,8 @@ describe('the fence and the ETag on a real node', () => {
         clientKeyFile: lab.clientKeyFile,
         serverCertFile: lab.serverCertFile,
       }),
+      // The suite's own administrator client runs under no operation budget.
+      signal: () => undefined,
     });
     // Suites run alone find no image yet: pull it as the spawner does.
     if ((await client.getImageAlias(lab.image)) === undefined) {

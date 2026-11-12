@@ -27,10 +27,9 @@ import {
   tagDatabaseId,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
-import { ensureNetwork } from '../docker/ensure-network';
-import { ensureVolumes } from '../docker/ensure-volumes';
-import { migrateConfigVolume } from '../docker/migrate-config-volume';
-import { pullImage } from '../docker/pull-image';
+import type { pullImage } from '../docker/pull-image';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   clearFlipPending,
   getFlipPending,
@@ -60,6 +59,8 @@ interface RollbackOptions {
    * `tale -y <cmd>` flag counts as consent too — see `resolveConsent`.
    */
   assumeYes?: boolean;
+  /** The runtime to roll back on; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -116,7 +117,8 @@ export async function rollback(
 ): Promise<void> {
   const { env } = options;
   const assumeYes = resolveConsent(options.assumeYes);
-  const pull = deps.pullImage ?? pullImage;
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
+  const pull = deps.pullImage ?? ((image: string) => runtime.pull(image));
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
     logger.header('Rolling Back Deployment');
@@ -140,7 +142,7 @@ export async function rollback(
       throw new Error('No previous version');
     }
 
-    const currentVersion = await colorPlatformVersion(currentColor);
+    const currentVersion = await colorPlatformVersion(currentColor, runtime);
     if (!currentVersion) {
       logger.error(
         'Cannot determine the running platform version — refusing to roll back blind.',
@@ -262,13 +264,14 @@ export async function rollback(
         pending,
         services,
         replicas,
+        runtime,
       ));
     const promoting =
       resume && pending !== null ? pending.promoting : rollbackColor;
     const retiring =
       resume && pending !== null ? pending.retiring : currentColor;
 
-    if (await colorLooksUp(promoting, services, replicas))
+    if (await colorLooksUp(promoting, services, replicas, runtime))
       await admitPendingAutomationColor(
         colorProject(promoting),
         serviceConfig.platformImage,
@@ -286,9 +289,9 @@ export async function rollback(
     // rename runs first for the same reason it does on deploy: the generated
     // compose names `config-data`, and mounting it while the configuration
     // still sits in `convex-data` would roll back onto an empty config tree.
-    await migrateConfigVolume(`${getProjectId()}_`);
-    await ensureVolumes([...REQUIRED_VOLUMES]);
-    await ensureNetwork('internal');
+    await runtime.migrateConfigVolume(`${getProjectId()}_`);
+    await runtime.ensureVolumes(REQUIRED_VOLUMES);
+    await runtime.ensureNetwork('internal');
 
     if (!resume) {
       if (pending !== null) await clearFlipPending(env.DEPLOY_DIR);
@@ -302,7 +305,7 @@ export async function rollback(
     // Bring the rollback colour up beside the live one, at the same replica
     // counts, and wait for every replica. Skip when resuming a colour that
     // is already answering — `startColor` would wipe it first.
-    if (!(await colorLooksUp(promoting, services, replicas))) {
+    if (!(await colorLooksUp(promoting, services, replicas, runtime))) {
       logger.step(
         `Deploying ${promoting} services with version ${rollbackVersion}...`,
       );
@@ -313,6 +316,7 @@ export async function rollback(
         replicas,
         cwd: env.DEPLOY_DIR,
         healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+        runtime,
       });
     } else {
       // A colour left up by an interrupted rollback takes traffic only once
@@ -322,15 +326,17 @@ export async function rollback(
         services,
         replicas,
         healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+        runtime,
       });
     }
 
     // Sweep a leftover pre-colour singleton before the long drain so it
     // cannot keep answering `backend-api` on the old image.
-    await retireLegacyBackendTier();
+    await retireLegacyBackendTier(runtime);
 
     // Switch traffic and update version history
     logger.step(`Switching traffic to ${promoting}...`);
+    await runtime.admit(colorProject(promoting), services);
     await setCurrentColor(env.DEPLOY_DIR, promoting);
     await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
     logger.info(`Version history updated: previous=${currentVersion}`);
@@ -341,6 +347,7 @@ export async function rollback(
       await retireColor({
         color: retiring,
         drainTimeout: env.DRAIN_TIMEOUT,
+        runtime,
       });
     }
 

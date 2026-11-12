@@ -5,7 +5,8 @@
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
 
-import type { IncusClient } from './backend/incus/incus-client.ts';
+import type { IncusClient } from '@tale/incus/client';
+
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
 import {
   type CpuCounters,

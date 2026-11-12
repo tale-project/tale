@@ -21,10 +21,11 @@
 // through: a removal marks the standby retired before it deletes it, and a
 // claim that finds the mark, or loses the write, passes that standby over.
 
+import { INCUS_STATUS, incusStatus, type IncusInstance } from '@tale/incus/api';
+import { type IncusClient, isIncusBusy } from '@tale/incus/client';
+
 import { outsideOperationBudget } from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { INCUS_STATUS, incusStatus, type IncusInstance } from './incus-api.ts';
-import { type IncusClient, isIncusBusy } from './incus-client.ts';
 import { instanceAddress } from './incus-lifecycle.ts';
 import {
   incusPoolInstanceName,

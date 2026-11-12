@@ -1,8 +1,8 @@
-// The Incus REST API over fetch with mutual TLS — the only door the Incus
-// backend opens on the node. There is no Unix socket and no client library:
-// the node's API is reached with a client certificate restricted to the
-// sandbox project, and the connection is pinned to the node's own server
-// certificate.
+// The Incus REST API over fetch with mutual TLS — the only door its callers
+// open on the node (the sandbox spawner's Incus backend among them). There is
+// no Unix socket and no client library: the node's API is reached with a
+// client certificate restricted to one project, and the connection is pinned
+// to the node's own server certificate.
 //
 // TLS NOTE (Bun): the server certificate is pinned with plain `tls.ca`, full
 // verification on. Bun's BoringSSL accepts a certificate as its own trust
@@ -14,11 +14,10 @@
 // would pass. `readIncusTlsMaterial` refuses the unpinnable shape at boot.
 //
 // Every request is bounded: a timeout, the caller's cancellation (the
-// ambient operation budget included), and a cap on the response size. A
-// background operation is waited for with the API's long-poll
-// (`/1.0/operations/<id>/wait`).
+// ambient signal the caller hands the client included), and a cap on the
+// response size. A background operation is waited for with the API's
+// long-poll (`/1.0/operations/<id>/wait`).
 
-import { operationSignal } from '../../operation-budget.ts';
 import {
   IncusApiError,
   INCUS_STATUS,
@@ -46,7 +45,7 @@ import {
   type IncusStoragePool,
   type IncusVolume,
   type IncusVolumeCreate,
-} from './incus-api.ts';
+} from './api.ts';
 
 /** PEM contents: the server certificate the connection is pinned to, and the
  * client certificate and key it presents. */
@@ -75,6 +74,10 @@ export interface IncusClientOptions {
   /** The project every project-scoped call targets. */
   project: string;
   tls: IncusTlsMaterial;
+  /** The caller's ambient cancellation, read at every request: once it is
+   * aborted, the call in flight ends and no further attempt starts (the
+   * spawner hands its operation budget here). `() => undefined` for none. */
+  signal: () => AbortSignal | undefined;
   /** Budget of one request, long-poll waits excepted (default 15 s). */
   requestTimeoutMs?: number;
   /** Largest response body read (default 32 MiB). */
@@ -201,6 +204,7 @@ export class IncusClient {
   readonly project: string;
   private readonly origin: string;
   private readonly tls: IncusTlsMaterial;
+  private readonly ambientSignal: () => AbortSignal | undefined;
   private readonly requestTimeoutMs: number;
   private readonly maxResponseBytes: number;
   private readonly doFetch: IncusFetch;
@@ -210,6 +214,7 @@ export class IncusClient {
     this.origin = new URL(options.endpoint).origin;
     this.project = options.project;
     this.tls = options.tls;
+    this.ambientSignal = options.signal;
     this.requestTimeoutMs =
       options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.maxResponseBytes =
@@ -238,7 +243,7 @@ export class IncusClient {
     const signals = [
       AbortSignal.timeout(options.timeoutMs ?? this.requestTimeoutMs),
     ];
-    const ambient = operationSignal();
+    const ambient = this.ambientSignal();
     if (ambient !== undefined) signals.push(ambient);
     if (options.signal !== undefined) signals.push(options.signal);
     const signal = signals.length === 1 ? signals[0] : AbortSignal.any(signals);
@@ -280,12 +285,12 @@ export class IncusClient {
     const attempts = options.retry === true ? READ_ATTEMPTS : 1;
     let last: unknown;
     for (let i = 0; i < attempts; i += 1) {
-      operationSignal()?.throwIfAborted();
+      this.ambientSignal()?.throwIfAborted();
       options.signal?.throwIfAborted();
       try {
         return await this.attempt(method, path, options);
       } catch (error) {
-        operationSignal()?.throwIfAborted();
+        this.ambientSignal()?.throwIfAborted();
         options.signal?.throwIfAborted();
         if (
           error instanceof IncusApiError &&

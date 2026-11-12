@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 import { externalDepError } from '../../utils/fail';
-import { runtimeCommand, runtimeSleep } from './runtime-command';
+import { managedCommandAccess } from './runtime-access';
+import { runtimeSleep } from './runtime-command';
 import { requireRuntime, type RuntimeDependencies } from './runtime-model';
 
 /** How long a drained spawner is given to end its sessions, and how often it
@@ -26,18 +27,10 @@ async function control(
   command: 'drain' | 'drain-status',
   dependencies: RuntimeDependencies,
 ) {
-  const result = await runtimeCommand(
-    [
-      'exec',
-      containerId,
-      'timeout',
-      '15',
-      'bun',
-      '/app/src/control-cli.ts',
-      command,
-    ],
-    dependencies,
-    { timeout: 20 },
+  const result = await managedCommandAccess(dependencies).exec(
+    containerId,
+    ['timeout', '15', 'bun', '/app/src/control-cli.ts', command],
+    { tag: { timeout: 20 } },
   );
   return spawnerJson(result.stdout);
 }

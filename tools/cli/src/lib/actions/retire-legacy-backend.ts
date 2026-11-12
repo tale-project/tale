@@ -1,9 +1,7 @@
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import { detachColorFromNetworks } from '../docker/detach-color';
-import { listComposeContainers } from '../docker/list-service-containers';
-import { removeContainer } from '../docker/remove-container';
-import { stopContainer } from '../docker/stop-container';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 
 /**
  * Remove the backend tier from where it USED to live.
@@ -30,29 +28,30 @@ import { stopContainer } from '../docker/stop-container';
  * Best-effort, like the rest of the teardown: traffic has already moved, and
  * failing the deploy here would report a broken upgrade that isn't one.
  */
-export async function retireLegacyBackendTier(): Promise<number> {
+export async function retireLegacyBackendTier(
+  runtime: StackRuntime = dockerRuntime,
+): Promise<number> {
   const project = getProjectId();
   let removed = 0;
-  const leftoverApi = await listComposeContainers(project, 'backend-api');
+  const leftoverApi = await runtime.list({
+    stack: project,
+    service: 'backend-api',
+  });
   if (leftoverApi.some((container) => container.running)) {
     // Cut the leftover off the aliases BEFORE stop, same reason a colour
-    // is detached: a SIGTERM mid-request is a request the user sees fail.
-    await detachColorFromNetworks(
-      project,
-      ['backend-api'],
-      [`${project}_internal`, 'tale-sandbox-net'],
-    );
+    // is withdrawn: a SIGTERM mid-request is a request the user sees fail.
+    await runtime.withdraw(project, ['backend-api']);
   }
 
   for (const service of ['backend-api', 'backend-worker'] as const) {
-    for (const container of await listComposeContainers(project, service)) {
+    for (const container of await runtime.list({ stack: project, service })) {
       logger.step(
         `Removing the pre-upgrade ${service} singleton (${container.name}) — the tier now runs inside each colour...`,
       );
-      if (!(await stopContainer(container.name))) {
+      if (!(await runtime.stop(container.name))) {
         logger.warn(`Failed to stop ${container.name}, continuing...`);
       }
-      if (await removeContainer(container.name)) {
+      if (await runtime.remove(container.name)) {
         removed += 1;
       } else {
         logger.warn(

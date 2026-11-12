@@ -1,6 +1,7 @@
 import { getBackupRetention } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import { exec } from '../docker/exec';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   BACKUP_HELPER_IMAGE,
   BACKUP_VOLUME,
@@ -67,19 +68,21 @@ export function selectTornSnapshotDirs(
   );
 }
 
-async function listManifestlessDirs(backupVolume: string): Promise<string[]> {
-  const result = await exec('docker', [
-    'run',
-    '--rm',
-    '-v',
-    `${backupVolume}:/backup:ro`,
-    BACKUP_HELPER_IMAGE,
-    'sh',
-    '-c',
-    // One directory name per line; `true` keeps the exit code 0 when the
-    // volume is empty (the glob then matches nothing).
-    'for d in /backup/*/; do [ -f "${d}manifest.json" ] || basename "$d"; done; true',
-  ]);
+async function listManifestlessDirs(
+  runtime: StackRuntime,
+  backupVolume: string,
+): Promise<string[]> {
+  const result = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: backupVolume, target: '/backup', readOnly: true }],
+    argv: [
+      'sh',
+      '-c',
+      // One directory name per line; `true` keeps the exit code 0 when the
+      // volume is empty (the glob then matches nothing).
+      'for d in /backup/*/; do [ -f "${d}manifest.json" ] || basename "$d"; done; true',
+    ],
+  });
   if (!result.success) {
     logger.warn(
       `Could not scan ${backupVolume} for torn snapshots: ${result.stderr}`,
@@ -93,22 +96,18 @@ async function listManifestlessDirs(backupVolume: string): Promise<string[]> {
 }
 
 async function removeSnapshotDir(
+  runtime: StackRuntime,
   backupVolume: string,
   id: string,
 ): Promise<boolean> {
   // Ids are validated by the selectors; re-check before interpolating into a
   // shell command anyway (defense in depth).
   if (!isValidSnapshotId(id)) return false;
-  const result = await exec('docker', [
-    'run',
-    '--rm',
-    '-v',
-    `${backupVolume}:/backup`,
-    BACKUP_HELPER_IMAGE,
-    'sh',
-    '-c',
-    `rm -rf /backup/${id}`,
-  ]);
+  const result = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: backupVolume, target: '/backup' }],
+    argv: ['sh', '-c', `rm -rf /backup/${id}`],
+  });
   if (!result.success) {
     logger.warn(`Failed to rotate out snapshot ${id}: ${result.stderr}`);
   }
@@ -123,12 +122,15 @@ async function removeSnapshotDir(
  */
 export async function rotateSnapshots(options: {
   prefix: string;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }): Promise<void> {
   const { prefix } = options;
+  const runtime = options.runtime ?? dockerRuntime;
   const { keepCount, keepDays } = getBackupRetention();
   const backupVolume = `${prefix}${BACKUP_VOLUME}`;
 
-  const snapshots = await listSnapshots(prefix);
+  const snapshots = await listSnapshots(prefix, runtime);
   const expired = selectSnapshotsToDelete(
     snapshots,
     keepCount,
@@ -137,7 +139,7 @@ export async function rotateSnapshots(options: {
   );
   const deleted: string[] = [];
   for (const id of expired) {
-    if (await removeSnapshotDir(backupVolume, id)) deleted.push(id);
+    if (await removeSnapshotDir(runtime, backupVolume, id)) deleted.push(id);
   }
   if (deleted.length > 0) {
     logger.info(
@@ -146,12 +148,13 @@ export async function rotateSnapshots(options: {
   }
 
   const torn = selectTornSnapshotDirs(
-    await listManifestlessDirs(backupVolume),
+    await listManifestlessDirs(runtime, backupVolume),
     snapshots.map((snapshot) => snapshot.id),
   );
   const removedTorn: string[] = [];
   for (const id of torn) {
-    if (await removeSnapshotDir(backupVolume, id)) removedTorn.push(id);
+    if (await removeSnapshotDir(runtime, backupVolume, id))
+      removedTorn.push(id);
   }
   if (removedTorn.length > 0) {
     logger.info(

@@ -3,9 +3,10 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { FakeIncus } from '@tale/incus/fake';
+
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { FakeIncus } from './fake-incus.ts';
 import { inspectIncus, type IncusFindings } from './incus-checks.ts';
 import {
   dockerCapableOverrides,

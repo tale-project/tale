@@ -8,10 +8,8 @@ import { BACKUP_VOLUME } from '../backup/constants';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import type { DeploymentColor } from '../compose/types';
 import { SIDECAR_SERVICES, STATEFUL_SERVICES } from '../compose/types';
-import { docker } from '../docker/docker';
-import { listComposeContainers } from '../docker/list-service-containers';
-import { removeContainer } from '../docker/remove-container';
-import { removeVolume } from '../docker/remove-volume';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { getPreviousVersionFilePath } from '../state/get-previous-version-file-path';
 import { getStateFilePath } from '../state/get-state-file-path';
 import { withLock } from '../state/with-lock';
@@ -23,6 +21,8 @@ interface ResetOptions {
   force: boolean;
   includeStateful: boolean;
   dryRun: boolean;
+  /** The runtime to reset; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -39,6 +39,7 @@ function dataVolumes(): string[] {
 
 export async function reset(options: ResetOptions): Promise<void> {
   const { env, force, includeStateful, dryRun } = options;
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
 
   logger.warn('This will remove ALL blue-green containers');
   if (includeStateful) {
@@ -75,11 +76,11 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.step(`${prefix}Removing ${color} containers...`);
       const project = `${getProjectId()}-${color}`;
       if (dryRun) {
-        for (const container of await listComposeContainers(project)) {
+        for (const container of await runtime.list({ stack: project })) {
           logger.info(`${prefix}Would remove: ${container.name}`);
         }
       } else {
-        await removeColorContainers(project);
+        await removeColorContainers(project, runtime);
       }
     }
 
@@ -87,15 +88,15 @@ export async function reset(options: ResetOptions): Promise<void> {
     // outside both colours, so neither sweep above sees it.
     if (dryRun) {
       for (const service of ['backend-api', 'backend-worker'] as const) {
-        for (const container of await listComposeContainers(
-          getProjectId(),
+        for (const container of await runtime.list({
+          stack: getProjectId(),
           service,
-        )) {
+        })) {
           logger.info(`${prefix}Would remove: ${container.name}`);
         }
       }
     } else {
-      await retireLegacyBackendTier();
+      await retireLegacyBackendTier(runtime);
     }
 
     // Optionally remove stateful containers
@@ -108,7 +109,7 @@ export async function reset(options: ResetOptions): Promise<void> {
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
-          await removeContainer(containerName);
+          await runtime.remove(containerName);
         }
       }
     }
@@ -138,13 +139,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Prune unused networks for this project only
     logger.step(`${prefix}Pruning unused Docker networks...`);
     if (!dryRun) {
-      const pruned = await docker(
-        'network',
-        'prune',
-        '-f',
-        '--filter',
-        `label=project=${getProjectId()}`,
-      );
+      const pruned = await runtime.pruneNetworks();
       if (!pruned.success) {
         logger.warn(
           `Failed to prune project networks: ${pruned.stderr.trim() || 'no stderr captured'}`,
@@ -170,17 +165,20 @@ export async function reset(options: ResetOptions): Promise<void> {
         if (dryRun) {
           logger.info(`${prefix}Would remove volume: ${volume}`);
         } else {
-          await removeVolume(volume);
+          await runtime.removeVolume(volume);
         }
       }
-      // Inspected through `docker`, not `volumeExists`: other suites replace
-      // `ensure-volumes` with Bun's process-global `mock.module`, and reset's
-      // tests would then read their stub instead of their own docker mock.
+      // The runtime names how to delete the volume by hand, when it is
+      // there. Docker reads it with the `docker` runner itself, not
+      // `volumeExists`: other suites replace `ensure-volumes` with Bun's
+      // process-global `mock.module`, and reset's tests would then read their
+      // stub instead of their own docker mock.
       const backups = `${getProjectId()}_${BACKUP_VOLUME}`;
-      if ((await docker('volume', 'inspect', backups)).success) {
+      const removal = await runtime.volumeRemovalHint(backups);
+      if (removal !== null) {
         logger.info(
           `${prefix}${dryRun ? 'Would keep' : 'Kept'} volume: ${backups}, with the snapshots \`tale restore\` lists. ` +
-            `To delete them as well: docker volume rm ${backups}`,
+            `To delete them as well: ${removal}`,
         );
       }
     }
