@@ -1,13 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { incusPlanSchema, type IncusPlan } from '../plan/plan-model';
-import {
-  applyIncusPlan,
-  startStackInstance,
-  stopStackInstance,
-  writeStackRecord,
-  type ApplyHooks,
-} from './apply';
+import { startStackInstance, stopStackInstance } from '../verbs/instances';
+import { applyIncusPlan, writeStackRecord, type ApplyHooks } from './apply';
 import {
   clientOf,
   converge,
@@ -268,6 +263,8 @@ describe('a release upgrade', () => {
         spec.config['limits.memory'] = '3GiB';
     const next = desiredOf(target);
     const { plan: made } = await planned(context.client, next);
+    // Only what the apply below asks counts.
+    context.fake.requests.splice(0);
     // Someone edits the instance between the plan and the apply.
     const instance = context.fake.instances.get('sandbox-llm-gateway');
     if (!instance) throw new Error('missing');
@@ -293,6 +290,8 @@ describe('a release upgrade', () => {
         spec.config['limits.memory'] = '3GiB';
     const next = desiredOf(target);
     const { plan: made } = await planned(context.client, next);
+    // Only what the apply below asks counts.
+    context.fake.requests.splice(0);
     // A racing writer edits the instance just before the PATCH arrives.
     const racing = clientOf(context.fake, (fetch) => async (url, init) => {
       if (init.method === 'PATCH' && url.includes('sandbox-llm-gateway')) {

@@ -4,8 +4,9 @@
  * Every action that touches the stack's instances, images, volumes or
  * networks asks a `StackRuntime` instead of building `docker` argv itself.
  * `selectRuntime` picks the runtime once per command from what `tale.json`
- * declares; Docker is the default and, until the Incus runtime exists, the
- * only one.
+ * declares; Docker is the default. The Incus runtime (`incus/`) is built
+ * for a caller that hands it its Incus connection; a workspace cannot
+ * select it yet.
  *
  * The verbs mirror what the CLI does to a stack today. The Docker runtime
  * (`docker/docker-runtime.ts`) answers each with exactly the `lib/docker`
@@ -17,8 +18,9 @@
 
 import type { DeploymentColor } from '../compose/types';
 import type { ExecResult } from '../docker/exec';
+import type { ImageFacts } from '../oci/image-facts';
 
-export type { ExecResult };
+export type { ExecResult, ImageFacts };
 
 export const RUNTIME_ENGINES = ['docker', 'incus'] as const;
 export type RuntimeEngine = (typeof RUNTIME_ENGINES)[number];
@@ -120,6 +122,22 @@ export interface RuntimeCheck {
   status: 'ok' | 'warn' | 'fail';
   detail: string;
   fix?: string;
+}
+
+/** An image the stack runs, as `ensureImages` makes it present. */
+export interface ImageRef {
+  /** What is pulled: `registry/repository:tag`, or `…@sha256:…`. Incus
+   * pulls by digest only. */
+  reference: string;
+  /** Docker: a second local name the image gets (`docker tag`), as the
+   * sandbox spawner expects it. Incus: the alias the project holds it
+   * under; absent, the CLI's `tale-<repository>-<digest>`. */
+  alias?: string;
+}
+
+/** What `ensureImages` could not make present; empty when it made all. */
+export interface EnsuredImages {
+  failed: { reference: string; detail: string }[];
 }
 
 /** Whether the runtime is usable, after `probe` made it so where it can. */
@@ -237,6 +255,14 @@ export interface StackRuntime {
   inspect(name: string): Promise<InstanceInfo | null>;
 
   // Images
+  /** Make every image present, by its digest where it names one: Docker
+   *  pulls each (all at once) and then tags those with an alias; Incus pulls
+   *  each into the project under its alias, keeping one it holds. A failure
+   *  does not stop the others. */
+  ensureImages(refs: readonly ImageRef[]): Promise<EnsuredImages>;
+  /** What an image says about itself, read from its registry with no
+   *  runtime involved (`lib/oci`), for the platform the runtime runs. */
+  inspectImage(reference: string): Promise<ImageFacts>;
   pull(image: string): Promise<boolean>;
   imagePresent(image: string): Promise<boolean>;
   /** Give a local image a second name, as the sandbox spawner expects it. */

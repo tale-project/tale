@@ -298,7 +298,12 @@ export function holdings(fake: FakeIncus): unknown {
           status: instance.status,
           config: Object.fromEntries(
             Object.entries(instance.config)
-              .filter(([key]) => !key.startsWith('volatile.'))
+              // Runtime state, not configuration: when Incus last started
+              // it (a crash between the start and its record leaves none).
+              .filter(
+                ([key]) =>
+                  !key.startsWith('volatile.') && key !== 'user.tale.started',
+              )
               .sort(([left], [right]) => left.localeCompare(right)),
           ),
           devices: instance.devices,

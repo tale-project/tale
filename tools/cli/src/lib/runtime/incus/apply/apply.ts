@@ -8,7 +8,6 @@ import {
   readFile,
   writeFile,
 } from '@tale/incus/files';
-import { startInstance, stopInstance } from '@tale/incus/state';
 import { detachDevice } from '@tale/incus/volumes';
 
 import { preconditionError } from '../../../../utils/fail';
@@ -38,6 +37,11 @@ import {
   type IncusPlan,
   type IncusPlanResource,
 } from '../plan/plan-model';
+import {
+  declaredGrace,
+  startStackInstance,
+  stopStackInstance,
+} from '../verbs/instances';
 import {
   assertNoRestorePending,
   readJournal,
@@ -125,39 +129,6 @@ const WAIT_MS = 120_000;
 const WANT_LABEL = 'user.tale.want';
 const CONFIG_LABEL = 'user.tale.config';
 
-/** Mark an instance as wanted running and start it (R-09). */
-export async function startStackInstance(
-  client: IncusClient,
-  name: string,
-): Promise<void> {
-  await client.patchInstance(name, { config: { [WANT_LABEL]: 'running' } });
-  await startInstance(client, name);
-}
-
-/**
- * Mark an instance as stopped by the CLI (R-09), then stop it within its
- * grace; a stop that does not finish in time is forced, with a warning.
- */
-export async function stopStackInstance(
-  client: IncusClient,
-  name: string,
-  graceSeconds: number,
-): Promise<void> {
-  await client.patchInstance(name, { config: { [WANT_LABEL]: 'stopped' } });
-  try {
-    await stopInstance(client, name, { timeoutSeconds: graceSeconds });
-  } catch (error) {
-    // A stop Incus refused or could not finish in time; anything else (the
-    // connection, a cancellation) is no reason to force.
-    if (!(error instanceof IncusApiError)) throw error;
-    console.warn(
-      `${name} did not stop within ${graceSeconds} s; forcing it:`,
-      error instanceof Error ? error.message : error,
-    );
-    await stopInstance(client, name, { timeoutSeconds: 0, force: true });
-  }
-}
-
 /** Write the deploy record by a new generation, then delete the older ones
  * (R3-29): a crash leaves the previous record in force. */
 export async function writeStackRecord(
@@ -235,11 +206,6 @@ function compareWithPlan(
   if (observedSha === resource.desiredSha256) return 'adopt';
   if (observedSha === resource.currentSha256) return 'proceed';
   throw changedSincePlanning(resource);
-}
-
-function grace(config: Readonly<Record<string, string>>): number {
-  const value = Number(config['user.tale.grace'] ?? '10');
-  return Number.isSafeInteger(value) && value >= 0 ? value : 10;
 }
 
 function priority(spec: InstanceSpec): number {
@@ -547,7 +513,7 @@ export async function applyIncusPlan(input: ApplyInput): Promise<ApplyReceipt> {
         await hooks.drainBackend(name);
       if (resource.effects.includes('drain-sandbox'))
         await hooks.drainSandbox(name);
-      await stopStackInstance(client, name, grace(observed.config));
+      await stopStackInstance(client, name, declaredGrace(observed.config));
     }
     await client.deleteInstance(name, WAIT_MS);
     await journalUpdate((next) => {
@@ -589,7 +555,7 @@ export async function applyIncusPlan(input: ApplyInput): Promise<ApplyReceipt> {
       )
         throw error;
     }
-    await startInstance(client, spec.name);
+    await startStackInstance(client, spec.name);
   };
 
   /** Converge one instance of the target; true when it was started. */
@@ -651,7 +617,7 @@ export async function applyIncusPlan(input: ApplyInput): Promise<ApplyReceipt> {
           read.revision,
         );
       const started = !read.running;
-      if (started) await startInstance(client, name);
+      if (started) await startStackInstance(client, name);
       await done(resource, 'changed');
       return started;
     }

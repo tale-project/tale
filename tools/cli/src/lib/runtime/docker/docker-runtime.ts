@@ -52,9 +52,12 @@ import {
   listContainersUsingVolume,
   withVolumeContainersPaused,
 } from '../../docker/with-volume-paused';
+import { readImageFacts } from '../../oci/image-facts';
+import { createRegistryClient, type RegistryClient } from '../../oci/registry';
 import { getProjectId } from '../../project/project-context';
 import {
   type ConvergeScope,
+  type EnsuredImages,
   type InstanceInfo,
   type InstanceSummary,
   type StackRuntime,
@@ -70,6 +73,22 @@ const ONEOFF_LABEL = 'com.docker.compose.oneoff';
  *  tests inject (`tale deploy` passes its `ensureDocker`). */
 export interface DockerRuntimeOverrides {
   ensureDocker?: typeof ensureDocker;
+  /** The registry `inspectImage` reads; an anonymous client by default. */
+  registry?: RegistryClient;
+  /** The platform `inspectImage` reads facts for; the host's by default. */
+  platform?: string;
+}
+
+/** The image platform of the host the CLI runs on, which a local Docker
+ *  engine runs too. */
+function hostPlatform(): string {
+  const architecture =
+    process.arch === 'x64'
+      ? 'amd64'
+      : process.arch === 'arm'
+        ? 'arm/v7'
+        : process.arch;
+  return `linux/${architecture}`;
 }
 
 function colourOf(stack: string): DeploymentColor | undefined {
@@ -247,6 +266,34 @@ export function createDockerRuntime(
     },
 
     // Images
+    ensureImages: async (refs) => {
+      // Every pull at once (Docker dedups shared layers), then the tags, as
+      // a deploy has always done it.
+      const pulled = await Promise.all(
+        refs.map((ref) => pullImage(ref.reference)),
+      );
+      const failed: EnsuredImages['failed'] = [];
+      for (const [index, ref] of refs.entries()) {
+        if (pulled[index] !== true) {
+          failed.push({ reference: ref.reference, detail: 'pull failed' });
+          continue;
+        }
+        if (ref.alias === undefined) continue;
+        const tagged = await exec('docker', ['tag', ref.reference, ref.alias]);
+        if (!tagged.success)
+          failed.push({
+            reference: ref.reference,
+            detail: tagged.stderr.trim(),
+          });
+      }
+      return { failed };
+    },
+    inspectImage: (reference) =>
+      readImageFacts(
+        overrides.registry ?? createRegistryClient(),
+        reference,
+        overrides.platform ?? hostPlatform(),
+      ),
     pull: (image) => pullImage(image),
     imagePresent: (image) => imagePresent(image),
     tag: (source, alias) => exec('docker', ['tag', source, alias]),

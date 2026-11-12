@@ -532,6 +532,12 @@ function isolatedSuite(): void {
         timeoutS: 30,
       });
       await runtime.tag('example/tool:1', 'tool:latest');
+      fake.unpullable.add('example/broken:1');
+      const ensured = await runtime.ensureImages([
+        { reference: 'example/tool:2', alias: 'tool:latest' },
+        { reference: 'example/broken:1', alias: 'broken:latest' },
+        { reference: 'example/plain:3' },
+      ]);
       await runtime.pruneNetworks();
       await runtime.volumeRemovalHint(`${PROJECT}_backups`);
 
@@ -543,9 +549,48 @@ function isolatedSuite(): void {
         `docker cp ${api}:/app/data/. <deploy-dir>/out/ | silent timeout=30`,
         `docker run --rm -i -v ${PROJECT}_backups:/backup alpine:3.22 sh -c cat > /backup/x | timeout=30 stdin=${sha('manifest')}`,
         'docker tag example/tool:1 tool:latest',
+        // ensureImages: every pull first, then the tags, as a deploy does.
+        'docker pull example/tool:2',
+        'docker pull example/broken:1',
+        'docker pull example/plain:3',
+        'docker tag example/tool:2 tool:latest',
         `docker network prune -f --filter label=project=${PROJECT}`,
         `docker volume inspect ${PROJECT}_backups`,
       ]);
+      expect(ensured).toEqual({
+        failed: [{ reference: 'example/broken:1', detail: 'pull failed' }],
+      });
+    });
+
+    test('inspectImage reads the registry, never Docker', async () => {
+      const asked: string[] = [];
+      const runtime = createDockerRuntime({
+        platform: 'linux/arm64',
+        registry: {
+          resolve: async (reference, platform) => {
+            asked.push(`${reference} ${platform}`);
+            return {
+              reference: `${reference}@sha256:${'e'.repeat(64)}`,
+              digest: `sha256:${'e'.repeat(64)}`,
+              manifestDigest: `sha256:${'f'.repeat(64)}`,
+              configDigest: `sha256:${'1'.repeat(64)}`,
+              os: 'linux',
+              architecture: 'arm64',
+              variant: 'v8',
+              config: {
+                config: {
+                  Labels: { 'dev.tale.init': 'dumb-init' },
+                  User: 'app',
+                },
+              },
+            };
+          },
+        },
+      });
+      const facts = await runtime.inspectImage('example/tool:2');
+      expect(asked).toEqual(['example/tool:2 linux/arm64']);
+      expect(facts).toMatchObject({ init: 'dumb-init', user: 'app' });
+      expect(calls).toEqual([]);
     });
 
     testPosix(

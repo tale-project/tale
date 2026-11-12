@@ -331,7 +331,10 @@ export async function forgetPayload(
  * await. A journal that cannot be read is left as it is (with a warning); the
  * next run plans from the node anyway.
  */
-function markInterruptedSync(stateRoot: string, now: Date = new Date()): void {
+export function markInterruptedSync(
+  stateRoot: string,
+  now: Date = new Date(),
+): void {
   const file = journalFile(stateRoot);
   try {
     const info = lstatSync(file);

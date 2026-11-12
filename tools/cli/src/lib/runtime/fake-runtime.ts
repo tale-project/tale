@@ -28,6 +28,9 @@ import { getProjectId } from '../project/project-context';
 import {
   type ConvergeScope,
   type CopyOutOptions,
+  type EnsuredImages,
+  type ImageFacts,
+  type ImageRef,
   type CopyResult,
   type ExecOptions,
   type ExecResult,
@@ -548,6 +551,53 @@ export class FakeRuntime implements StackRuntime {
   }
 
   // Images
+
+  async ensureImages(refs: readonly ImageRef[]): Promise<EnsuredImages> {
+    const refused: EnsuredImages['failed'] = [];
+    for (const ref of refs) {
+      if (!(await this.pull(ref.reference))) {
+        refused.push({ reference: ref.reference, detail: 'pull failed' });
+        continue;
+      }
+      if (ref.alias === undefined) continue;
+      const tagged = await this.tag(ref.reference, ref.alias);
+      if (!tagged.success)
+        refused.push({ reference: ref.reference, detail: tagged.stderr });
+    }
+    return { failed: refused };
+  }
+
+  /** The registry's view of a seeded image: its labels and environment. */
+  async inspectImage(reference: string): Promise<ImageFacts> {
+    this.record('inspect-image', reference);
+    const image = this.images.get(reference);
+    if (image === undefined)
+      throw new Error(`Image ${reference} was not found in its registry.`);
+    return {
+      reference,
+      digest: image.id,
+      manifestDigest: image.id,
+      configDigest: image.id,
+      os: 'linux',
+      architecture: 'amd64',
+      variant: null,
+      labels: { ...image.labels },
+      revision: image.labels['org.opencontainers.image.revision'] ?? null,
+      automationWriterProtocol:
+        image.labels['io.tale.automation-writer-protocol'] ?? null,
+      init: image.labels['dev.tale.init'] ?? null,
+      entrypoint: null,
+      cmd: null,
+      env: Object.entries(image.environment).map(
+        ([key, value]) => `${key}=${value}`,
+      ),
+      user: null,
+      workingDir: null,
+      stopSignal: null,
+      healthcheck: null,
+      volumes: [],
+    };
+  }
 
   async pull(image: string): Promise<boolean> {
     this.record('pull', image);

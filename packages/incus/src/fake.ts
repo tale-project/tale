@@ -108,6 +108,9 @@ export interface FakeInstance {
    * until it has (a guest that waits has not, see `FakeGuest`). */
   bootEnv: Record<string, string> | undefined;
   version: number;
+  /** When it last reached Running (the state's `started_at`); empty until
+   * it has. */
+  startedAt: string;
 }
 
 export interface FakeVolumeSnapshot {
@@ -379,6 +382,19 @@ export class FakeIncus {
   auth = 'trusted';
   kernelFeatures: Record<string, string> = { idmapped_mounts: 'true' };
   extensions: string[] = [...DEFAULT_EXTENSIONS];
+  /** The architectures the server runs (`environment.architectures`). */
+  architectures: string[] = ['x86_64', 'i686'];
+  /** Whether the server is a cluster member. */
+  clustered = false;
+  /** The storage drivers and their versions the server reports. */
+  storageDrivers: Array<{ name: string; version: string; remote: boolean }> = [
+    { name: 'zfs', version: '2.4.1-1ubuntu5.1', remote: false },
+    { name: 'btrfs', version: '6.17.1', remote: false },
+    { name: 'dir', version: '1', remote: false },
+  ];
+  /** What an image holds, by fingerprint: a new instance's files start as
+   * a copy (the file API reads them, running or not). */
+  readonly imageFiles = new Map<string, Map<string, FakeFile>>();
   projectConfig: IncusConfigMap = {
     'features.images': 'true',
     'features.profiles': 'true',
@@ -606,6 +622,9 @@ export class FakeIncus {
           server_name: 'fake-node',
           server_version: '7.5.1',
           kernel_features: this.kernelFeatures,
+          architectures: this.architectures,
+          server_clustered: this.clustered,
+          storage_supported_drivers: this.storageDrivers,
         },
       });
     }
@@ -1282,6 +1301,7 @@ export class FakeIncus {
       logs: new Map([['lxc.log', new TextEncoder().encode('lxc log\n')]]),
       bootEnv: undefined,
       version: 1,
+      startedAt: '',
     };
   }
 
@@ -1306,6 +1326,7 @@ export class FakeIncus {
         ? {
             status: 'Running',
             status_code: INCUS_STATUS.running,
+            started_at: instance.startedAt,
             network: {
               lo: {
                 addresses: [
@@ -1382,6 +1403,7 @@ export class FakeIncus {
         full.state ?? {
           status: instance.status,
           status_code: STATUS_CODE[instance.status],
+          started_at: instance.startedAt,
           network: {},
         },
       );
@@ -1503,6 +1525,10 @@ export class FakeIncus {
       ephemeral: body.ephemeral,
       profiles: body.profiles,
     });
+    const content = this.imageFiles.get(
+      this.aliases.get(body.source.alias) ?? '',
+    );
+    if (content !== undefined) instance.files = copyFiles(content);
     this.instances.set(body.name, instance);
     return this.startOperation(async () => {
       if (body.start) await this.start(instance);
@@ -1592,6 +1618,7 @@ export class FakeIncus {
 
   private boot(instance: FakeInstance): void {
     instance.status = 'Running';
+    instance.startedAt = this.timestamp();
     if (this.assignAddresses) {
       instance.address = `10.9.0.${this.nextAddress++}`;
     }
