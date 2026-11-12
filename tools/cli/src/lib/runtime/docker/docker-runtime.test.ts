@@ -496,6 +496,23 @@ function isolatedSuite(): void {
       if (capture)
         writeFileSync(capture, `${JSON.stringify(recorded, null, 2)}\n`);
       expect(recorded).toEqual([...BLUE_GREEN_DEPLOY_ARGV]);
+
+      // The order that keeps a flip from cutting requests (design 7.3,
+      // R3-34): Docker's withdrawal cuts live connections, so the old
+      // colour is drained before it is disconnected, and stopped after.
+      const where = (match: (args: readonly string[]) => boolean) =>
+        calls.flatMap((call, index) => (match(call.args) ? [index] : []));
+      const drains = where((args) =>
+        args.some((word) => /\/api\/control\/drain(-status)?\b/.test(word)),
+      );
+      const disconnects = where(
+        (args) => args[0] === 'network' && args[1] === 'disconnect',
+      );
+      const stops = where((args) => args[0] === 'stop');
+      expect(drains.length).toBeGreaterThan(0);
+      expect(disconnects.length).toBeGreaterThan(0);
+      expect(Math.max(...drains)).toBeLessThan(Math.min(...disconnects));
+      expect(Math.max(...disconnects)).toBeLessThan(Math.min(...stops));
       expect(readFileSync(join(deployDir, 'tale.json'), 'utf8')).toContain(
         PROJECT,
       );

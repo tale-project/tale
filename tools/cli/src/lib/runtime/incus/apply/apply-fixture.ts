@@ -18,6 +18,8 @@ import {
   type RenderedFile,
 } from '../plan/plan';
 import type { IncusDestination, IncusPlan } from '../plan/plan-model';
+import { HOSTS_FILE, resolverFiles } from '../verbs/names';
+import { switchFiles } from '../verbs/switch';
 import {
   applyIncusPlan,
   type ApplyHooks,
@@ -79,44 +81,19 @@ export function renderedFiles(
     content: text(`${file.source.kind}:${file.source.file}\n`),
     write: 'overwrite',
   }));
-  const volumes = new Set(target.volumes.map((volume) => volume.name));
-  if (volumes.has('names-config'))
-    for (const view of ['stack', 'sessions'] as const) {
-      files.push({
-        volume: 'names-config',
-        path: `${view}/dnsmasq.conf`,
-        mode: 0o644,
-        uid: 0,
-        gid: 0,
-        content: text(`local-ttl=1\n# ${view}\n`),
-        write: 'overwrite',
-      });
-      files.push({
-        volume: 'names-config',
-        path: `${view}/hosts/records`,
-        mode: 0o644,
-        uid: 0,
-        gid: 0,
-        content: text(
-          `${Object.entries(target.names[view])
-            .map(([name, addresses]) => `${addresses.join(' ')} ${name}`)
-            .join('\n')}\n# ${records}\n`,
-        ),
-        write: 'generation',
-      });
-    }
-  if (volumes.has('switch-config'))
-    for (const [role, slots] of Object.entries(target.switch))
-      files.push({
-        volume: 'switch-config',
-        path: `${role}.upstreams`,
-        mode: 0o644,
-        uid: 0,
-        gid: 0,
-        content: text(`to ${slots.join(' ')}\n`),
-        write: 'overwrite',
-        instance: 'switch',
-      });
+  // The resolvers' and the switch's files as the CLI renders them; `records`
+  // marks a version of the records, so a test can change them alone.
+  for (const file of [...resolverFiles(target), ...switchFiles(target)])
+    files.push(
+      file.path.endsWith(`/hosts/${HOSTS_FILE}`)
+        ? {
+            ...file,
+            content: text(
+              `${new TextDecoder().decode(file.content)}# ${records}\n`,
+            ),
+          }
+        : file,
+    );
   return files;
 }
 

@@ -99,9 +99,10 @@ describe('a first deploy', () => {
     expect(fake.volumes.get('names-config')?.config['user.tale.kind']).toBe(
       'runtime',
     );
-    // Resolver records by generation; the switch's lists beside it.
+    // Resolver records in place; the switch's lists beside it.
     const names = fake.volumes.get('names-config')?.files;
-    expect([...(names?.keys() ?? [])]).toContain('/stack/hosts/records.1');
+    expect([...(names?.keys() ?? [])]).toContain('/stack/hosts/hosts');
+    expect([...(names?.keys() ?? [])]).not.toContain('/stack/hosts/hosts.1');
     expect(
       fake.volumes.get('switch-config')?.files?.get('/platform.upstreams')
         ?.content,
@@ -163,7 +164,7 @@ describe('a first deploy', () => {
 });
 
 describe('a release upgrade', () => {
-  test('replaces what changed: withdraws, drains, stops, and retires old records', async () => {
+  test('replaces what changed: withdraws, drains, stops, and rewrites the records', async () => {
     const context = setup();
     const desired = managed();
     await converge(context.client, context.hooks, context.root, desired);
@@ -194,7 +195,7 @@ describe('a release upgrade', () => {
       'instance/backend-api-1': 'replace',
       'instance/backend-worker-1': 'replace',
       'instance/bgutil-provider': 'delete',
-      'file/names-config/stack/hosts/records': 'update',
+      'file/names-config/stack/hosts/hosts': 'update',
     });
     expect(receipt.changed).toContain('instance/bgutil-provider');
     const calls = context.hooks.calls.map(
@@ -213,12 +214,11 @@ describe('a release upgrade', () => {
     expect(
       context.fake.instances.get('platform-1')?.config['user.tale.image'],
     ).toBe(`sha256:${'9'.repeat(64)}`);
-    // The new records are a new generation, and the old one is gone.
-    const names = [
-      ...(context.fake.volumes.get('names-config')?.files?.keys() ?? []),
-    ];
-    expect(names).toContain('/stack/hosts/records.2');
-    expect(names).not.toContain('/stack/hosts/records.1');
+    // The new records are written in place.
+    expect(
+      context.fake.volumes.get('names-config')?.files?.get('/stack/hosts/hosts')
+        ?.content,
+    ).toEndWith('# v2\n');
     // The deploy record is written once, by the first deploy.
     expect([
       ...(context.fake.volumes.get('backups')?.files?.keys() ?? []),
@@ -251,6 +251,30 @@ describe('a release upgrade', () => {
     const instance = context.fake.instances.get('sandbox-llm-gateway');
     expect(instance?.config['limits.memory']).toBe('3GiB');
     expect(instance?.createdAt).toBe(created);
+  });
+
+  test('a file written by generation: a new one first, the older deleted after the tier', async () => {
+    const context = setup();
+    const generational = (desired: ReturnType<typeof managed>) => ({
+      ...desired,
+      files: desired.files.map((file) =>
+        file.path === 'stack/hosts/hosts'
+          ? { ...file, write: 'generation' as const }
+          : file,
+      ),
+    });
+    const first = generational(managed());
+    await converge(context.client, context.hooks, context.root, first);
+    const listed = () => [
+      ...(context.fake.volumes.get('names-config')?.files?.keys() ?? []),
+    ];
+    expect(listed()).toContain('/stack/hosts/hosts.1');
+    const next = generational(
+      desiredOf(first.target, testKey(), renderedFiles(first.target, 'v2')),
+    );
+    await converge(context.client, context.hooks, context.root, next);
+    expect(listed()).toContain('/stack/hosts/hosts.2');
+    expect(listed()).not.toContain('/stack/hosts/hosts.1');
   });
 
   test('a change made after planning is refused (compare-and-swap)', async () => {

@@ -55,6 +55,8 @@ export const REFUSAL_REASONS = {
     'Every service of the stack has a fixed address, start order and stop group, and this one has none.',
   replicas:
     'Every role holds at most the address slots of its colour, which is the CLI maximum of 16.',
+  'infra-format':
+    'The runtime writes the configuration of its resolvers and its traffic switch in a format the image must say it reads (dev.tale.infra-formats); an image of another line would route by files it does not read.',
   'address-block':
     'A workspace needs a /24 address block, which holds two colours, and a managed deployment a /25.',
 } as const satisfies Record<string, string>;

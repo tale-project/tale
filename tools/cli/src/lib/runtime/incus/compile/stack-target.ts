@@ -6,7 +6,12 @@ import type { ImageFacts } from '../../../oci/image-facts';
 import type { incusDeclarationSchema } from '../../../project/runtime-declaration';
 import { addressPlan, type AddressPlan, type SlotRole } from './address-plan';
 import type { InterpolationPath } from './interpolate';
-import { placementOf, PROFILE_LIMITS, type PlacementRow } from './placement';
+import {
+  INFRASTRUCTURE_FORMATS,
+  placementOf,
+  PROFILE_LIMITS,
+  type PlacementRow,
+} from './placement';
 import { RefusalError, refusal, refusalsError, type Refusal } from './refusals';
 import {
   DNS_NAME,
@@ -238,13 +243,15 @@ export function compileStackTarget(input: CompileInput): CompileResult {
   )?.image;
   const infrastructure: InstanceSpec[] = [];
   if (egress) {
-    infrastructure.push(resolverInstance('names', egress.facts, context));
-    infrastructure.push(
-      resolverInstance('names-sessions', egress.facts, context),
-    );
+    for (const name of ['names', 'names-sessions'] as const) {
+      const unread = unreadFormat(name, egress.facts);
+      if (unread) refusals.push(unread);
+      else infrastructure.push(resolverInstance(name, egress.facts, context));
+    }
   }
   if (proxy) {
-    const switchInstance = switchInstanceOf(proxy.facts, context);
+    const unread = unreadFormat('switch', proxy.facts);
+    const switchInstance = unread ?? switchInstanceOf(proxy.facts, context);
     if ('id' in switchInstance) refusals.push(switchInstance);
     else infrastructure.push(switchInstance);
   }
@@ -597,6 +604,26 @@ function switchInstanceOf(
     stop: { signal, graceSeconds },
     dependsOn: [],
   };
+}
+
+/** A refusal when the image of an infrastructure instance does not name the
+ * file format the CLI writes for it (design R3-23): release/0.6's proxy
+ * image, nginx or Traefik, fails closed here instead of routing by an
+ * upstream file it never reads. */
+function unreadFormat(
+  name: 'names' | 'names-sessions' | 'switch',
+  facts: ImageFacts,
+): Refusal | null {
+  const format = INFRASTRUCTURE_FORMATS[name] ?? '';
+  const formats = (facts.labels['dev.tale.infra-formats'] ?? '')
+    .split(/[\s,]+/)
+    .filter((item) => item !== '');
+  if (formats.includes(format)) return null;
+  return refusal(
+    'infra-format',
+    `${facts.reference} does not name ${format} in dev.tale.infra-formats${formats.length === 0 ? '' : ` (it names ${formats.join(', ')})`}, so it cannot run the ${name} instance.`,
+    name,
+  );
 }
 
 /** The file formats the infrastructure image reads (design D-17, R-02). */

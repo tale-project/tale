@@ -11,8 +11,10 @@ import {
   type ObservedVolume,
   type Readback,
 } from '../apply/readback';
+import { INFRASTRUCTURE_FORMATS } from '../compile/placement';
 import type { StackTarget, StackVolume } from '../compile/stack-target';
 import type { Devices, InstanceSpec } from '../compile/translate';
+import { NAMES_VOLUME } from '../verbs/names';
 import type { PlanKey } from './digest';
 import {
   incusPlanSchema,
@@ -69,11 +71,6 @@ export interface PlanScope {
 /** The infrastructure tier: singletons on fixed addresses that are replaced
  * only on a first deploy, under --stop, or when the CLI writes a file format
  * their image does not read (design D-17, R-02). */
-const INFRASTRUCTURE_FORMATS = {
-  switch: 'switch-upstreams/1',
-  names: 'names-hosts/1',
-  'names-sessions': 'names-hosts/1',
-} as const;
 const INFRASTRUCTURE = new Set<string>(Object.keys(INFRASTRUCTURE_FORMATS));
 /** Roles the switch admits by a withdrawal marker (R3-02). */
 export const SWITCHED_SERVICES = new Set(['platform', 'backend-api']);
@@ -128,22 +125,26 @@ function isLiveKey(key: string): boolean {
   return key.startsWith('user.') && !FIXED_LABELS.has(key);
 }
 
-/** Keys Incus fills from the OCI image's `image.oci.*` when an instance is
- * made without them; the target sets none of them. */
+/** Keys Incus fills from the OCI image when an instance is made without
+ * them; the target sets none of them. */
 const IMAGE_FILLED_KEYS = new Set(['oci.cwd', 'oci.uid', 'oci.gid']);
 
-/** Whether Incus filled `key` from the image: it holds the image's value. A
- * configuration the target renders has no `image.*` keys, so none of its
- * own keys counts as filled. */
+/** Whether Incus filled `key` from the image. Where the instance carries
+ * the image's own value (`image.<key>`), only that value counts as filled,
+ * and any other was set by hand. Incus 7.6 copies the image's working
+ * directory, uid and gid into `oci.*` at create without keeping an
+ * `image.oci.*` beside them, so there a value cannot be told from one set
+ * by hand, and the key is taken as filled. A configuration the target
+ * renders never sets these keys, so none of its own counts as filled. */
 export function isImageFilled(
   config: Readonly<Record<string, string>>,
   key: string,
 ): boolean {
-  return (
-    IMAGE_FILLED_KEYS.has(key) &&
-    config[`image.${key}`] !== undefined &&
-    config[`image.${key}`] === config[key]
-  );
+  if (!IMAGE_FILLED_KEYS.has(key)) return false;
+  const image = config[`image.${key}`];
+  return image === undefined
+    ? config['image.type'] === 'oci'
+    : image === config[key];
 }
 
 function comparable(
@@ -443,10 +444,7 @@ function planInstance(
 
   const running = observed.running;
   if (running && INFRASTRUCTURE.has(spec.service)) {
-    const format =
-      INFRASTRUCTURE_FORMATS[
-        spec.service as keyof typeof INFRASTRUCTURE_FORMATS
-      ];
+    const format = INFRASTRUCTURE_FORMATS[spec.service] ?? '';
     const reads = formatsOf(observed.config['user.tale.infra-formats']);
     if (!reads.includes(format))
       return {
@@ -670,7 +668,7 @@ export function plan(
       const desiredSha = desiredFileState(key, file);
       const same = currentSha === desiredSha && stale.length === 0;
       const names: IncusPlanEffect[] =
-        file.write === 'generation' ? ['names'] : [];
+        file.volume === NAMES_VOLUME ? ['names'] : [];
       return {
         id: resourceId('file', `${file.volume}/${file.path}`),
         currentSha256: currentSha,

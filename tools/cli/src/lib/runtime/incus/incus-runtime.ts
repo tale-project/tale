@@ -29,6 +29,7 @@ import type {
   WaitHealthyOptions,
   WaitServiceHealthyOptions,
 } from '../types';
+import type { ApplyHooks } from './apply/apply';
 import { markInterruptedSync } from './apply/journal';
 import type {
   IncusDeclaration,
@@ -80,6 +81,12 @@ import {
 import { reapHelpers, runOneShot } from './verbs/oneshot';
 import { probeIncus, type IncusProbe } from './verbs/probe';
 import {
+  admitReplicas,
+  switchApplyHooks,
+  withdrawReplicas,
+  type SwitchDependencies,
+} from './verbs/switch';
+import {
   assertPoolUnchanged,
   ensureStackVolumes,
   listStackVolumes,
@@ -95,9 +102,9 @@ import {
  * restricted Incus project, over the REST API (design 3, 4).
  *
  * This is the part of `StackRuntime` that the probe, the images, the volumes,
- * the instances, exec, the file copies, the console, one-shot helpers and
- * health answer. A verb the Incus runtime cannot answer yet — converge,
- * admission and quiescing — is refused with a sentence that says so, never
+ * the instances, exec, the file copies, the console, one-shot helpers,
+ * health and the switch's admission answer. A verb the Incus runtime cannot
+ * answer yet — converge and quiescing — is refused with a sentence that says so, never
  * answered with Docker's meaning. Beyond the interface, the runtime offers
  * the whole-stack steps a managed deployment drives: the image facts, the
  * volumes with their owners, instance creation, a stop with a chosen grace,
@@ -124,6 +131,8 @@ export interface IncusRuntimeOptions {
   helperImage?: { alias: string; digest?: string };
   /** How `logs --follow` waits between reads (tests). */
   logReads?: LogReadDependencies;
+  /** How a withdrawal waits for the switch (tests). */
+  switchDependencies?: SwitchDependencies;
 }
 
 function notYet(verb: string): Promise<never> {
@@ -137,6 +146,7 @@ function notYet(verb: string): Promise<never> {
 
 export class IncusRuntime implements StackRuntime {
   readonly engine = 'incus' as const;
+  readonly withdrawal = 'marker' as const;
   readonly client: IncusClient;
   readonly declaration: IncusDeclaration;
   readonly stack: string;
@@ -149,6 +159,7 @@ export class IncusRuntime implements StackRuntime {
   private readonly healthReader: IncusHealth;
   private readonly helperImage: IncusRuntimeOptions['helperImage'];
   private readonly logReads: LogReadDependencies;
+  private readonly switchDependencies: SwitchDependencies;
   /** One-shot helpers running in this process. */
   private readonly activeHelpers = new Set<string>();
 
@@ -159,6 +170,7 @@ export class IncusRuntime implements StackRuntime {
     this.stateRoot = options.stateRoot;
     this.helperImage = options.helperImage;
     this.logReads = options.logReads ?? {};
+    this.switchDependencies = options.switchDependencies ?? {};
     this.healthReader = new IncusHealth(
       this.verbContext,
       options.healthchecks ??
@@ -628,12 +640,35 @@ export class IncusRuntime implements StackRuntime {
     return provePid1(this.client, name);
   }
 
-  admit(): Promise<never> {
-    return notYet('admit a replica to the switch');
+  /** Remove the withdrawal marker of each replica that carries one (an
+   * aborted flip), as the image's app user; a no-op for the rest. */
+  admit(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<void> {
+    return admitReplicas(this.verbContext, stack, services, replicas);
   }
 
-  withdraw(): Promise<never> {
-    return notYet('withdraw a replica from the switch');
+  /** Set each replica's withdrawal marker, as the image's app user, and
+   * wait two switch health intervals. Cuts nothing: 0. */
+  withdraw(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<number> {
+    return withdrawReplicas(
+      this.verbContext,
+      stack,
+      services,
+      replicas,
+      this.switchDependencies,
+    );
+  }
+
+  /** The applier's withdrawal hooks (design 7.3). */
+  switchHooks(): Pick<ApplyHooks, 'withdraw' | 'admit'> {
+    return switchApplyHooks(this.verbContext, this.switchDependencies);
   }
 
   /** Nothing to clean up synchronously (D-12): the journal records the

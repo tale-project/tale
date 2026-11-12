@@ -263,8 +263,25 @@ export interface OneShotJob {
   timeoutS?: number;
 }
 
+/**
+ * How a runtime takes a replica out of the serving names, which decides
+ * where a colour flip withdraws it (design 7.3, R3-34):
+ *
+ * - `disconnect` (Docker): the replica leaves the serving networks, and its
+ *   live connections are cut with it. A flip withdraws AFTER the drain, so
+ *   no in-flight request is cut, and right before the stop.
+ * - `marker` (Incus): the replica gets its withdrawal marker, its admission
+ *   probe answers 503, and the switch stops sending it new requests within
+ *   one health interval. Nothing is cut: its open requests and streams run
+ *   on until it stops. A flip withdraws BEFORE the drain, so the drain
+ *   waits out work no new request joins.
+ */
+export type WithdrawalKind = 'disconnect' | 'marker';
+
 export interface StackRuntime {
   readonly engine: RuntimeEngine;
+  /** How `withdraw` works here, and so where a flip calls it. */
+  readonly withdrawal: WithdrawalKind;
 
   // Readiness
   /** Make the runtime usable where it can (Docker: start or install the
@@ -344,11 +361,29 @@ export interface StackRuntime {
   stop(name: string): Promise<boolean>;
   /** Remove it, stopped or not; one that is gone counts as removed. */
   remove(name: string): Promise<boolean>;
-  /** Let `services` of `stack` take traffic (Docker: they do from start). */
-  admit(stack: string, services: readonly string[]): Promise<void>;
-  /** Take `services` of `stack` out of the serving names, live connections
-   *  included; returns how many instance links it cut. */
-  withdraw(stack: string, services: readonly string[]): Promise<number>;
+  /** Let the running replicas of `services` of `stack` take traffic; only
+   *  those named in `replicas`, when given (an in-place roll).
+   *  Docker: a no-op, a replica takes traffic from its start. Incus: a
+   *  no-op for a replica without its withdrawal marker; one an aborted flip
+   *  left withdrawn has the marker removed, as the image's app user. */
+  admit(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<void>;
+  /** Take the running replicas of `services` of `stack` out of the serving
+   *  names; only those named in `replicas`, when given (an in-place roll).
+   *  Returns how many instance links it cut (see `withdrawal`).
+   *  Docker: `network disconnect` from every serving network, which cuts
+   *  the replica's live connections, so it runs after the drain; returns
+   *  the links cut. Incus: the role's withdrawal marker, set as the image's
+   *  app user, then a wait of two switch health intervals; it cuts nothing
+   *  and returns 0, and runs before the drain. */
+  withdraw(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<number>;
   /** Clean up what a deploy started in `stacks` when the process is
    *  interrupted. Synchronous: a signal handler cannot wait. */
   onInterrupt(stacks: readonly string[]): void;

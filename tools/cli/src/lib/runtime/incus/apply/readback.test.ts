@@ -94,8 +94,8 @@ describe('the readback of a deployed stack', () => {
     for (const image of desired.target.images)
       expect(readback.aliases[image.alias]).toMatch(/^[0-9a-f]{64}$/);
     expect(
-      readback.files.find((file) => file.path === 'stack/hosts/records'),
-    ).toMatchObject({ generation: 1, mode: 0o644, uid: 0 });
+      readback.files.find((file) => file.path === 'stack/hosts/hosts'),
+    ).toMatchObject({ generation: null, mode: 0o644, uid: 0 });
     expect(readback.record?.deployedAt).toBeDefined();
     expect(readback.manifests).toBe(false);
     expect(deployedBefore(readback)).toBe(true);

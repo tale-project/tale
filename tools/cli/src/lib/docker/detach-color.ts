@@ -23,16 +23,22 @@ import { listComposeContainers } from './list-service-containers';
  * Best-effort, per container: a colour that cannot be detached is still going
  * to be stopped a moment later, and failing the deploy at this point would
  * leave two colours live, which is worse than the brief window this closes.
+ *
+ * `replicas`, when given, limits it to the containers of those names (an
+ * in-place roll takes one replica out at a time).
  */
 export async function detachColorFromNetworks(
   projectName: string,
   services: readonly string[],
   networks: readonly string[],
+  replicas?: readonly string[],
 ): Promise<number> {
   let detached = 0;
   for (const service of services) {
     for (const container of await listComposeContainers(projectName, service)) {
       if (!container.running) continue;
+      if (replicas !== undefined && !replicas.includes(container.name))
+        continue;
       for (const network of networks) {
         const result = await docker(
           'network',

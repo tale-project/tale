@@ -28,6 +28,7 @@ import {
   tierOrder,
   type DesiredStack,
   type PlanScope,
+  type RenderedFile,
 } from './plan';
 import {
   INCUS_PLAN_ACTIONS,
@@ -102,7 +103,7 @@ describe('a first deploy', () => {
     expect(resource(made, 'instance/switch').effects).toEqual(['switch']);
     expect(resource(made, 'instance/names').effects).toEqual(['names']);
     expect(
-      resource(made, 'file/names-config/stack/hosts/records').effects,
+      resource(made, 'file/names-config/stack/hosts/hosts').effects,
     ).toEqual(['names']);
     expect(resource(made, 'volume/db-data').effects).toEqual([]);
     expect(resource(made, 'volume/backups').action).toBe('create');
@@ -205,6 +206,26 @@ describe('a converged stack', () => {
         'instance/db',
       ).action,
     ).toBe('replace');
+  });
+
+  test('Incus 7.6 fills cwd, uid and gid with no image.oci.* beside them: not drift (TI-13, measured)', () => {
+    // As an instance of an OCI image reads back on Incus 7.6: oci.cwd,
+    // oci.uid and oci.gid set, and no image.oci.cwd/uid/gid.
+    const filled: Readback = {
+      ...readback,
+      instances: readback.instances.map((instance) => ({
+        ...instance,
+        config: {
+          ...instance.config,
+          'image.type': 'oci',
+          'image.oci.title': 'tale',
+          'oci.cwd': '/app',
+          'oci.uid': '0',
+          'oci.gid': '0',
+        },
+      })),
+    };
+    expect(isEmptyPlan(plan(desired, filled, FULL))).toBe(true);
   });
 
   test('a stopped instance is started (update)', () => {
@@ -341,27 +362,60 @@ describe('a converged stack', () => {
     });
   });
 
-  test('new resolver records are a new generation, with the names effect', () => {
+  test('new resolver records are written in place, with the names effect', () => {
     const made = plan(
       desiredOf(desired.target, testKey(), renderedFiles(desired.target, 'v2')),
       readback,
       FULL,
     );
+    expect(resource(made, 'file/names-config/stack/hosts/hosts')).toMatchObject(
+      {
+        action: 'update',
+        effects: ['names'],
+      },
+    );
     expect(
-      resource(made, 'file/names-config/stack/hosts/records'),
-    ).toMatchObject({
-      action: 'update',
-      effects: ['names'],
-    });
+      renderedFiles(desired.target)
+        .filter((file) => file.volume === 'names-config')
+        .map((file) => file.write),
+    ).toEqual(['overwrite', 'overwrite', 'overwrite', 'overwrite']);
+  });
+
+  test('a file written by generation retires the superseded ones', () => {
+    const generational = (files: RenderedFile[]) =>
+      files.map((file) =>
+        file.path === 'sessions/hosts/hosts'
+          ? { ...file, write: 'generation' as const }
+          : file,
+      );
+    const current = desiredOf(
+      desired.target,
+      testKey(),
+      generational(renderedFiles(desired.target)),
+    );
+    const observed: Readback = {
+      ...readback,
+      files: readback.files.map((file) =>
+        file.path === 'sessions/hosts/hosts'
+          ? { ...file, generation: 1 }
+          : file,
+      ),
+    };
+    expect(
+      resource(
+        plan(current, observed, FULL),
+        'file/names-config/sessions/hosts/hosts',
+      ).action,
+    ).toBe('unchanged');
     // A superseded generation left by a crash is retired.
     const stale: Readback = {
-      ...readback,
+      ...observed,
       files: [
-        ...readback.files,
+        ...observed.files,
         {
-          ...(readback.files.find(
-            (file) => file.path === 'sessions/hosts/records',
-          ) ?? readback.files[0]!),
+          ...(observed.files.find(
+            (file) => file.path === 'sessions/hosts/hosts',
+          ) ?? observed.files[0]!),
           generation: 0,
           sha256: 'f'.repeat(64),
         },
@@ -369,8 +423,8 @@ describe('a converged stack', () => {
     };
     expect(
       resource(
-        plan(desired, stale, FULL),
-        'file/names-config/sessions/hosts/records',
+        plan(current, stale, FULL),
+        'file/names-config/sessions/hosts/hosts',
       ).action,
     ).toBe('update');
   });

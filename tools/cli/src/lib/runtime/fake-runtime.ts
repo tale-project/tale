@@ -49,6 +49,7 @@ import {
   type StackTarget,
   type WaitHealthyOptions,
   type WaitServiceHealthyOptions,
+  type WithdrawalKind,
   pickInstanceEnvironment,
 } from './types';
 
@@ -163,6 +164,15 @@ function failed(stderr: string, exitCode = 1): ExecResult {
   return { success: false, stdout: '', stderr, exitCode };
 }
 
+/** What an admission verb acted on, as the journal records it. */
+function admissionSubject(
+  stack: string,
+  services: readonly string[],
+  replicas: readonly string[] | undefined,
+): string {
+  return `${stack} ${services.join(',')}${replicas === undefined ? '' : ` [${replicas.join(',')}]`}`;
+}
+
 function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
@@ -237,6 +247,9 @@ function defaultExec(
 
 export class FakeRuntime implements StackRuntime {
   readonly engine: RuntimeEngine;
+  readonly withdrawal: WithdrawalKind;
+  /** Replicas a `marker` withdrawal took out of the serving names. */
+  readonly withdrawn = new Set<string>();
   readonly instances = new Map<string, FakeInstance>();
   readonly images = new Map<string, FakeImage>();
   readonly volumes = new Map<string, Map<string, string>>();
@@ -251,8 +264,12 @@ export class FakeRuntime implements StackRuntime {
   readonly issuedIds = new Map<string, string>();
   private generation = 0;
 
-  constructor(options: { engine?: RuntimeEngine } = {}) {
+  constructor(
+    options: { engine?: RuntimeEngine; withdrawal?: WithdrawalKind } = {},
+  ) {
     this.engine = options.engine ?? 'docker';
+    this.withdrawal =
+      options.withdrawal ?? (this.engine === 'incus' ? 'marker' : 'disconnect');
   }
 
   // The model
@@ -749,19 +766,37 @@ export class FakeRuntime implements StackRuntime {
     return true;
   }
 
-  async admit(stack: string, services: readonly string[]): Promise<void> {
-    this.record('admit', `${stack} ${services.join(',')}`);
+  async admit(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<void> {
+    for (const service of services)
+      for (const instance of this.replicas(stack, service))
+        if (replicas === undefined || replicas.includes(instance.name))
+          this.withdrawn.delete(instance.name);
+    this.record('admit', admissionSubject(stack, services, replicas));
   }
 
-  async withdraw(stack: string, services: readonly string[]): Promise<number> {
+  async withdraw(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<number> {
     let cut = 0;
     for (const service of services)
       for (const instance of this.replicas(stack, service)) {
         if (instance.state !== 'running') continue;
+        if (replicas !== undefined && !replicas.includes(instance.name))
+          continue;
+        if (this.withdrawal === 'marker') {
+          this.withdrawn.add(instance.name);
+          continue;
+        }
         cut += instance.networks.size;
         instance.networks.clear();
       }
-    this.record('withdraw', `${stack} ${services.join(',')}`);
+    this.record('withdraw', admissionSubject(stack, services, replicas));
     return cut;
   }
 

@@ -54,12 +54,16 @@ export interface PlacementRow {
   /** Limits beyond the profile's, for a service its compose source leaves
    * unbounded but the profile would starve. */
   limits?: Partial<InstanceLimits>;
+  /** The file format the CLI writes for an infrastructure instance, which
+   * its image must name in `dev.tale.infra-formats` (design D-17, R3-23). */
+  format?: string;
 }
 
 export const PLACEMENT = {
   names: {
     kind: 'infrastructure',
     address: { singleton: 'names' },
+    format: 'names-hosts/1',
     start: 100,
     stop: STOP_GROUPS.data,
     limits: { memory: '256MiB', processes: 256 },
@@ -67,6 +71,7 @@ export const PLACEMENT = {
   'names-sessions': {
     kind: 'infrastructure',
     address: { singleton: 'names-sessions' },
+    format: 'names-hosts/1',
     start: 100,
     stop: STOP_GROUPS.data,
     limits: { memory: '256MiB', processes: 256 },
@@ -114,6 +119,7 @@ export const PLACEMENT = {
   switch: {
     kind: 'infrastructure',
     address: { singleton: 'switch' },
+    format: 'switch-upstreams/1',
     start: 45,
     stop: STOP_GROUPS.edge,
     limits: { memory: '1GiB' },
@@ -167,6 +173,18 @@ export function placementOf(name: string): PlacementRow | undefined {
     ? (PLACEMENT as Record<string, PlacementRow>)[name]
     : undefined;
 }
+
+/** The infrastructure instances (design D-17, R-02), each with the file
+ * format the CLI writes for it. */
+export const INFRASTRUCTURE_FORMATS: Readonly<Record<string, string>> =
+  Object.fromEntries(
+    Object.entries(PLACEMENT as Record<string, PlacementRow>).flatMap(
+      ([name, row]) =>
+        row.kind === 'infrastructure' && row.format !== undefined
+          ? [[name, row.format]]
+          : [],
+    ),
+  );
 
 /** The rows of compose services, which the parity guard holds. */
 export function servicePlacementNames(): string[] {

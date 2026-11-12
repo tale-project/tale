@@ -222,6 +222,7 @@ export function createDockerRuntime(
 ): StackRuntime {
   return {
     engine: 'docker',
+    withdrawal: 'disconnect',
 
     // Readiness
     probe: (options) => (overrides.ensureDocker ?? ensureDocker)(options),
@@ -339,8 +340,10 @@ export function createDockerRuntime(
     // Compose attaches a replica to its serving networks as it starts it: a
     // colour takes traffic as soon as it listens.
     admit: async () => {},
-    withdraw: (stack, services) =>
-      detachColorFromNetworks(stack, services, servingNetworks()),
+    // Disconnecting cuts the replica's live connections: a flip calls it
+    // after the drain (`withdrawal`).
+    withdraw: (stack, services, replicas) =>
+      detachColorFromNetworks(stack, services, servingNetworks(), replicas),
     onInterrupt: (stacks) => {
       for (const stack of stacks) {
         try {

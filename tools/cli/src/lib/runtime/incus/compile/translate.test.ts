@@ -371,6 +371,18 @@ const REFUSAL_CASES: Record<RefusalId, () => CompileInput> = {
     ]),
     replicas: { platform: 17, 'backend-api': 1, 'backend-worker': 1 },
   }),
+  'infra-format': () => {
+    const input = single('proxy', {});
+    const reference = Object.keys(input.images)[0] ?? '';
+    return {
+      ...input,
+      images: {
+        [reference]: factsFor(reference, {
+          labels: { 'dev.tale.infra-formats': 'traefik-dynamic/1' },
+        }),
+      },
+    };
+  },
   'address-block': () => ({
     ...compileInput('workspace', [{ compose: statefulDocument() }]),
     declaration: {
