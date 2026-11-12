@@ -94,7 +94,11 @@ const REMOVED_VARIABLES = [
   'SANDBOX_EGRESS_NETWORK',
   'SANDBOX_HUB_PORT',
 ] as const;
-const EGRESS_PROXY_VARIABLE = 'SANDBOX_EGRESS_PROXY';
+/** The spawner variables only its Docker backend reads, which the Incus
+ * shape removes. */
+export const SANDBOX_DOCKER_ONLY_VARIABLES: readonly string[] =
+  REMOVED_VARIABLES;
+export const EGRESS_PROXY_VARIABLE = 'SANDBOX_EGRESS_PROXY';
 /** The ten variables the CLI owns in the Incus shape: a deployment's own
  * `environment` may not name them, and the managed `.env` never keeps them. */
 export const SANDBOX_OWNED_VARIABLES: readonly string[] = [
@@ -234,10 +238,22 @@ export function sandboxPorts(address: string): {
 
 /** The six literals of the Incus shape for a bundle's image. */
 function literals(sandbox: SandboxBundle): Record<string, string> {
+  return incusSandboxVariables(sandbox.image);
+}
+
+/**
+ * The fixed spawner variables of the Incus shape: the backend, the session
+ * image and the credential files under the mount point. One source for the
+ * Docker-hosted spawner of a managed bundle and for the spawner the Incus
+ * runtime runs as an instance.
+ */
+export function incusSandboxVariables(
+  image: SandboxBundle['image'],
+): Record<string, string> {
   return {
-    SANDBOX_BACKEND: sandbox.backend,
-    SANDBOX_INCUS_IMAGE: sandbox.image.alias,
-    SANDBOX_INCUS_IMAGE_SOURCE: sandbox.image.source,
+    SANDBOX_BACKEND: 'incus',
+    SANDBOX_INCUS_IMAGE: image.alias,
+    SANDBOX_INCUS_IMAGE_SOURCE: image.source,
     SANDBOX_INCUS_CLIENT_CERT_FILE: `${SANDBOX_INCUS_MOUNT_POINT}/client.crt`,
     SANDBOX_INCUS_CLIENT_KEY_FILE: `${SANDBOX_INCUS_MOUNT_POINT}/client.key`,
     SANDBOX_INCUS_SERVER_CERT_FILE: `${SANDBOX_INCUS_MOUNT_POINT}/server.crt`,
