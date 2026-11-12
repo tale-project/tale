@@ -120,3 +120,83 @@ describe('docker-entrypoint.sh ready marker', () => {
     { timeout: 60_000 },
   );
 });
+
+// PostgreSQL's dynamic shared memory lives in /dev/shm. Docker sizes it on the
+// container (compose's shm_size) and never sets TALE_SHM_SIZE; the Incus
+// runtime cannot, so it names the size and the entrypoint mounts a tmpfs of it
+// while still root. Run the real function against `id` and `mount` doubles.
+describe('docker-entrypoint.sh /dev/shm size', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tale-db-shm-'));
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  const fn = /^mount_shm\(\) \{$[\s\S]*?^\}$/m.exec(source)?.[0];
+
+  function run(env: Record<string, string>, uid = '0', mountExit = 0) {
+    expect(fn).toBeDefined();
+    const bin = mkdtempSync(join(root, 'bin-'));
+    const log = join(bin, 'calls');
+    writeFileSync(log, '');
+    writeFileSync(join(bin, 'id'), `#!/bin/sh\necho ${uid}\n`, {
+      mode: 0o755,
+    });
+    writeFileSync(
+      join(bin, 'mount'),
+      `#!/bin/sh\necho "mount $*" >> "${log}"\nexit ${mountExit}\n`,
+      { mode: 0o755 },
+    );
+    const result = spawnSync('bash', ['-c', `set -e\n${fn}\nmount_shm`], {
+      encoding: 'utf8',
+      env: { PATH: `${bin}:/usr/bin:/bin`, ...env },
+    });
+    return { ...result, calls: readFileSync(log, 'utf8').trim() };
+  }
+
+  test('the entrypoint calls it once, before PostgreSQL starts', () => {
+    const lines = source.split('\n');
+    const calls = lines.flatMap((line, i) => (line === 'mount_shm' ? [i] : []));
+    const start = lines.findIndex((line) =>
+      line.startsWith('exec postgres-entrypoint.sh '),
+    );
+    expect(calls).toHaveLength(1);
+    expect(start).toBeGreaterThan(-1);
+    expect(calls[0]).toBeLessThan(start);
+  });
+
+  test('does nothing when TALE_SHM_SIZE is unset, as on Docker', () => {
+    const { status, calls, stderr } = run({});
+    expect(status).toBe(0);
+    expect(calls).toBe('');
+    expect(stderr).toBe('');
+  });
+
+  test('mounts a tmpfs of the named size while root', () => {
+    const { status, calls, stdout } = run({ TALE_SHM_SIZE: '256m' });
+    expect(status).toBe(0);
+    expect(calls).toBe(
+      'mount -t tmpfs -o size=256m,mode=1777,nosuid,nodev,noexec tmpfs /dev/shm',
+    );
+    expect(stdout).toContain('/dev/shm is a tmpfs of 256m');
+  });
+
+  test.each(['lots', '0', '256 m', '-1m', '1t'])(
+    'keeps /dev/shm and warns on a value that is no size (%p)',
+    (size) => {
+      const { status, calls, stderr } = run({ TALE_SHM_SIZE: size });
+      expect(status).toBe(0);
+      expect(calls).toBe('');
+      expect(stderr).toContain('is not a size');
+    },
+  );
+
+  test('keeps /dev/shm and warns when not root', () => {
+    const { status, calls, stderr } = run({ TALE_SHM_SIZE: '256m' }, '999');
+    expect(status).toBe(0);
+    expect(calls).toBe('');
+    expect(stderr).toContain('not root');
+  });
+
+  test('a failed mount warns and never stops the start', () => {
+    const { status, stderr } = run({ TALE_SHM_SIZE: '256m' }, '0', 32);
+    expect(status).toBe(0);
+    expect(stderr).toContain('could not mount');
+  });
+});

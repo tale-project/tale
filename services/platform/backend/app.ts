@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import {
   createServingIdentity,
@@ -133,7 +135,15 @@ import { requestTelemetry } from './tracing.ts';
 export interface AppDeps {
   sql: Sql;
   auth: Auth;
+  /**
+   * The withdrawal marker `/admission` reads. Production: the file a
+   * blue/green runtime sets to take this replica out of its traffic switch.
+   */
+  withdrawnMarker?: string;
 }
+
+/** Set by the Incus runtime's `withdraw`; Docker never sets it. */
+const WITHDRAWN_MARKER = '/tmp/backend-withdrawn';
 
 export function createApp(deps: AppDeps): Hono<AuthEnv> {
   const servingIdentity = createServingIdentity('backend-api');
@@ -221,6 +231,19 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // what it was asked to; killing it mid-drain cuts the generations the drain
   // is waiting for.
   app.get('/ping', (c) => c.json({ ok: true, service: 'backend' }));
+  // ADMISSION: whether a traffic switch in front of the replicas (the Incus
+  // runtime's) may send this replica new requests. 503 only while the runtime
+  // has withdrawn it, which it does before a drain. No database call: a slow
+  // query must not cut every replica out of the switch at once (`/ready` asks
+  // the database), and `/ping` stays 200 while draining by design. Not proxied
+  // by the edge.
+  const withdrawnMarker = deps.withdrawnMarker ?? WITHDRAWN_MARKER;
+  app.get('/admission', (c) => {
+    c.header('Cache-Control', 'no-store');
+    return existsSync(withdrawnMarker)
+      ? c.json({ ok: false, reason: 'withdrawn' }, 503)
+      : c.json({ ok: true });
+  });
   // The browser's availability check must reach the API and its database,
   // rather than the independently healthy web process or an FRP error page.
   // A draining replica still serves reads: drain is not an application outage.

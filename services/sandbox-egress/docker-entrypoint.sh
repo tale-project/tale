@@ -257,4 +257,44 @@ else
   echo "[sandbox-egress] WARN: iptables missing; starting without the per-session connection cap"
 fi
 
+# ----------------------------------------------------------------------------
+# Capability bounding set
+# ----------------------------------------------------------------------------
+# The proxy needs seven capabilities: CHOWN, DAC_OVERRIDE, KILL, SETGID,
+# SETUID, NET_BIND_SERVICE and NET_ADMIN (0x14e3; why each, in the CLI's
+# create-sandbox-egress-service.ts). Compose grants exactly those
+# (cap_drop: ALL plus the seven), so the bounding set is already that narrow
+# and nothing happens here. A runtime that cannot drop capabilities from a
+# container (Incus, short of host-root raw.lxc) starts it as root with the
+# whole set: drop everything else from the bounding set before the proxy, its
+# helpers and every program they start run. Narrowing needs CAP_SETPCAP, which
+# Compose's seven do not hold, hence the check first. util-linux setpriv, not
+# busybox's, which has no --bounding-set.
+EGRESS_CAPABILITIES=0x14e3
+narrow_bounding_set() {
+  _bounding=$(awk '$1 == "CapBnd:" { print $2 }' /proc/self/status 2>/dev/null || true)
+  _effective=$(awk '$1 == "CapEff:" { print $2 }' /proc/self/status 2>/dev/null || true)
+  for _set in "$_bounding" "$_effective"; do
+    case "$_set" in
+      '' | *[!0-9a-fA-F]*)
+        echo "[sandbox-egress] WARN: cannot read the capability sets from /proc/self/status; the bounding set stays as it is"
+        return 0 ;;
+    esac
+  done
+  if [ $((0x${_bounding} & ~${EGRESS_CAPABILITIES})) -eq 0 ]; then
+    echo "[sandbox-egress] bounding set holds only the proxy's seven capabilities; setpriv skipped"
+    return 0
+  fi
+  # CAP_SETPCAP is capability 8.
+  if [ $((0x${_effective} & 0x100)) -eq 0 ]; then
+    echo "[sandbox-egress] WARN: the bounding set is wider than the proxy's seven capabilities (CapBnd ${_bounding}), and without CAP_SETPCAP it cannot be narrowed; it stays as it is"
+    return 0
+  fi
+  echo "[sandbox-egress] narrowing the bounding set (CapBnd ${_bounding}) to the proxy's seven capabilities"
+  exec /usr/bin/setpriv \
+    --bounding-set -all,+chown,+dac_override,+kill,+setgid,+setuid,+net_bind_service,+net_admin \
+    -- /entrypoint.sh "$@"
+}
+narrow_bounding_set "$@"
+
 exec /entrypoint.sh "$@"

@@ -19,6 +19,37 @@ fi
 export POSTGRES_PASSWORD="${DB_PASSWORD:-${POSTGRES_PASSWORD}}"
 
 # ============================================================================
+# /dev/shm for PostgreSQL's dynamic shared memory
+# ============================================================================
+# Docker sizes /dev/shm on the container (compose's shm_size), and leaves
+# TALE_SHM_SIZE unset, so this does nothing there. An Incus project that admits
+# only pool-backed disks cannot give the container a bigger /dev/shm than the
+# 64 MiB it starts with, which parallel queries outgrow; the runtime names the
+# size in TALE_SHM_SIZE and this mounts a tmpfs of it while the entrypoint is
+# still root, before the server starts. Never fatal: the server still runs on
+# the smaller /dev/shm, and the log says so.
+mount_shm() {
+    [ -n "${TALE_SHM_SIZE:-}" ] || return 0
+    local number="${TALE_SHM_SIZE%[kKmMgG]}"
+    case "$number" in
+        '' | *[!0-9]* | 0*)
+            echo "WARN: TALE_SHM_SIZE='${TALE_SHM_SIZE}' is not a size (such as 256m); /dev/shm keeps its size" >&2
+            return 0
+            ;;
+    esac
+    if [ "$(id -u)" != 0 ]; then
+        echo "WARN: TALE_SHM_SIZE is set but the entrypoint is not root; /dev/shm keeps its size" >&2
+        return 0
+    fi
+    if mount -t tmpfs -o "size=${TALE_SHM_SIZE},mode=1777,nosuid,nodev,noexec" tmpfs /dev/shm; then
+        echo "/dev/shm is a tmpfs of ${TALE_SHM_SIZE}"
+    else
+        echo "WARN: could not mount a ${TALE_SHM_SIZE} tmpfs on /dev/shm; it keeps its size" >&2
+    fi
+}
+mount_shm
+
+# ============================================================================
 # Build PostgreSQL command-line arguments from DB_ variables
 # ============================================================================
 

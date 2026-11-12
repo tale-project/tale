@@ -45,6 +45,85 @@ test('frontend health correlates one server instance without changing its versio
   });
 });
 
+describe('admission probe for a traffic switch', () => {
+  async function withMarkers(
+    markers: string[],
+    check: (app: ReturnType<typeof createApp>) => Promise<void>,
+  ) {
+    const directory = await mkdtemp(join(tmpdir(), 'tale-run-markers-'));
+    try {
+      for (const marker of markers)
+        await writeFile(join(directory, marker), '');
+      await check(createApp(baseEnv, { markerDirectory: directory }));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+  const get = (app: ReturnType<typeof createApp>, path: string) =>
+    app.fetch(new Request(`http://localhost${path}`));
+
+  test('admits a ready replica, uncached, with the serving identity /api/health has', async () => {
+    await withMarkers(['platform-ready'], async (app) => {
+      const res = await get(app, '/api/admission');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ status: 'ok' });
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      const health = await get(app, '/api/health');
+      expect(res.headers.get('Tale-Serving-Identity')).toMatch(
+        /^v1;service=platform;instance=[a-f0-9-]{36}$/,
+      );
+      expect(res.headers.get('Tale-Serving-Identity')).toBe(
+        health.headers.get('Tale-Serving-Identity'),
+      );
+    });
+  });
+
+  test('refuses a replica that is not ready yet as starting', async () => {
+    await withMarkers([], async (app) => {
+      const res = await get(app, '/api/admission');
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({ status: 'starting' });
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+  });
+
+  test.each([
+    [['platform-ready', 'platform-withdrawn']],
+    [['platform-ready', 'platform-shutting-down']],
+    [['platform-withdrawn']],
+    [['platform-shutting-down']],
+  ])(
+    'refuses a withdrawn or stopping replica as withdrawn (%j)',
+    async (markers) => {
+      await withMarkers(markers, async (app) => {
+        const res = await get(app, '/api/admission');
+        expect(res.status).toBe(503);
+        expect(await res.json()).toEqual({ status: 'withdrawn' });
+        expect(res.headers.get('cache-control')).toBe('no-store');
+      });
+    },
+  );
+
+  test('a withdrawal leaves /api/health 200: the edge checks it through the switch', async () => {
+    await withMarkers(['platform-ready', 'platform-withdrawn'], async (app) => {
+      const res = await get(app, '/api/health');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ status: 'ok' });
+    });
+  });
+
+  test('/api/health still answers 503 once the shutdown marker is set', async () => {
+    await withMarkers(
+      ['platform-ready', 'platform-shutting-down'],
+      async (app) => {
+        const res = await get(app, '/api/health');
+        expect(res.status).toBe(503);
+        expect(await res.json()).toEqual({ status: 'shutting_down' });
+      },
+    );
+  });
+});
+
 describe('blue-green browser assets', () => {
   test('either colour serves both release bundles before and after handover', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'tale-asset-handover-'));

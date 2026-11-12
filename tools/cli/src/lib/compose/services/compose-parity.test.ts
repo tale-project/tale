@@ -34,6 +34,7 @@ import {
 } from './create-backend-services';
 import { createDbService } from './create-db-service';
 import { createObjectStorageService } from './create-object-storage-service';
+import { createProxyService } from './create-proxy-service';
 import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
@@ -73,6 +74,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       stop_grace_period?: string;
       stop_signal?: string;
       mem_limit?: string;
+      shm_size?: string;
       image?: string;
       platform?: string;
       build?: unknown;
@@ -2123,5 +2125,264 @@ describe('external TLS terminator trust (proxy)', () => {
         expect(lines).toContain(`\t\t${placeholder}`);
       },
     );
+  });
+});
+
+describe('Incus-only image settings stay off under Docker Compose', () => {
+  // The images carry settings only the Incus runtime turns on. Compose must
+  // never set them, in either pipeline, or Docker's behaviour would change.
+  const ENVIRONMENT = (service: { environment?: unknown } | undefined) => {
+    const environment = service?.environment;
+    if (Array.isArray(environment))
+      return environment.map((entry) => String(entry).split('=')[0]);
+    return environment && typeof environment === 'object'
+      ? Object.keys(environment)
+      : [];
+  };
+
+  test('neither pipeline picks the proxy role: the proxy stays the edge', () => {
+    expect(ENVIRONMENT(compose.services['proxy'])).not.toContain(
+      'TALE_PROXY_ROLE',
+    );
+    expect(
+      ENVIRONMENT(createProxyService(config, 'tale.example.com')),
+    ).not.toContain('TALE_PROXY_ROLE');
+  });
+
+  test('neither pipeline sets TALE_SHM_SIZE: Compose sizes /dev/shm itself', () => {
+    for (const name of ['db', 'knowledge-db']) {
+      expect(ENVIRONMENT(compose.services[name])).not.toContain(
+        'TALE_SHM_SIZE',
+      );
+      expect(compose.services[name]?.shm_size).toBe('256mb');
+    }
+    expect(ENVIRONMENT(createDbService(config))).not.toContain('TALE_SHM_SIZE');
+    expect(createDbService(config).shm_size).toBe('256mb');
+  });
+
+  test("the egress narrows its bounding set only past Compose's seven capabilities", () => {
+    // Linux capability numbers (include/uapi/linux/capability.h).
+    const NUMBER: Record<string, number> = {
+      CHOWN: 0,
+      DAC_OVERRIDE: 1,
+      KILL: 5,
+      SETGID: 6,
+      SETUID: 7,
+      NET_BIND_SERVICE: 10,
+      NET_ADMIN: 12,
+    };
+    const granted = createSandboxEgressService(config).cap_add ?? [];
+    const mask = granted.reduce((bits, cap) => {
+      expect(NUMBER[cap], cap).toBeDefined();
+      return bits | (1 << NUMBER[cap]!);
+    }, 0);
+    // SETPCAP (8), which narrowing the bounding set needs, is not among them:
+    // a setpriv under Compose would fail and stop the egress.
+    expect(granted).not.toContain('SETPCAP');
+    // A Windows checkout carries CRLF line ends: compare by lines.
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/sandbox-egress/docker-entrypoint.sh'),
+      'utf8',
+    ).replaceAll('\r\n', '\n');
+    const declared = /^EGRESS_CAPABILITIES=(0x[0-9a-f]+)$/m.exec(entrypoint);
+    expect(declared?.[1]).toBe(`0x${mask.toString(16)}`);
+    // util-linux setpriv, installed in the image: busybox's applet has no
+    // --bounding-set, and a missing binary would stop the egress on Incus.
+    expect(entrypoint).toContain('exec /usr/bin/setpriv \\\n');
+    const packages = readFileSync(
+      resolve(repoRoot, 'services/sandbox-egress/Dockerfile'),
+      'utf8',
+    )
+      .replaceAll('\r\n', '\n')
+      .split('\n')
+      .filter((line) => line.startsWith('RUN apk add '))
+      .flatMap((line) => line.split(/\s+/));
+    expect(packages).toContain('setpriv');
+    const kept = /--bounding-set -all,(\S+)/.exec(entrypoint)?.[1];
+    expect(
+      kept
+        ?.split(',')
+        .map((cap) => cap.replace(/^\+/, '').toUpperCase())
+        .sort(),
+    ).toEqual([...granted].sort());
+  });
+});
+
+describe('the switch role of the proxy image (Incus)', () => {
+  const switchCaddyfile = readFileSync(
+    resolve(repoRoot, 'services/proxy/Caddyfile.switch'),
+    'utf8',
+  ).replaceAll('\r\n', '\n');
+  const entrypoint = readFileSync(
+    resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+    'utf8',
+  ).replaceAll('\r\n', '\n');
+  const edgeCaddyfile = readFileSync(
+    resolve(repoRoot, 'services/proxy/Caddyfile'),
+    'utf8',
+  ).replaceAll('\r\n', '\n');
+
+  /** A site block of the switch's Caddyfile, by its address. */
+  function site(address: string): string {
+    const start = switchCaddyfile.indexOf(`\n${address} {\n`);
+    expect(start, address).toBeGreaterThan(-1);
+    return switchCaddyfile.slice(
+      start,
+      switchCaddyfile.indexOf('\n}\n', start),
+    );
+  }
+  /** The site's reverse_proxy settings, one `key value` line each. */
+  function settings(address: string): string[] {
+    return site(address)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('#'))
+      .slice(2, -1);
+  }
+
+  test('balances each role over its upstream file, admitting by the admission probe', () => {
+    expect(settings(':3000')).toEqual([
+      'import /switch/platform.upstreams',
+      'health_uri /api/admission',
+      'health_interval 2s',
+      'lb_try_duration 5s',
+      'lb_try_interval 250ms',
+      'flush_interval -1',
+    ]);
+    expect(settings(':3005')).toEqual([
+      'import /switch/backend-api.upstreams',
+      'health_uri /admission',
+      'health_interval 2s',
+      'lb_try_duration 5s',
+      'lb_try_interval 250ms',
+      'flush_interval -1',
+    ]);
+  });
+
+  test('answers on the ports the edge reaches platform and backend-api on', () => {
+    expect(edgeCaddyfile).toContain('reverse_proxy platform:3000 {');
+    expect(entrypoint).toContain(
+      'BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"',
+    );
+    // The edge checks /api/health on the switch: the switch must never take
+    // a replica out by it, or a withdrawal would show the edge a 503.
+    expect(switchCaddyfile).not.toMatch(/health_uri\s+\/api\/health\b/);
+  });
+
+  test('keeps the forwarded client chain, its admin on loopback, and its own liveness', () => {
+    expect(switchCaddyfile).toMatch(
+      /\n\{\n\tadmin localhost:2019\n\tservers \{\n(?:\t\t#.*\n)*\t\ttrusted_proxies static private_ranges\n\t\}\n\}\n/,
+    );
+    expect(site(':2020')).toContain('respond /health 200');
+    // No reload ever runs, so nothing waits for streams to close.
+    expect(switchCaddyfile).not.toContain('stream_close_delay');
+  });
+
+  test('the image ships the file where the entrypoint copies it from', () => {
+    const dockerfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Dockerfile'),
+      'utf8',
+    );
+    expect(dockerfile).toContain(
+      'COPY services/proxy/Caddyfile.switch /etc/caddy/Caddyfile.switch',
+    );
+    expect(entrypoint).toContain(
+      'SWITCH_CADDYFILE_SRC="/etc/caddy/Caddyfile.switch"',
+    );
+    expect(entrypoint).toContain('SWITCH_UPSTREAMS_DIR="/switch"');
+  });
+
+  // The entrypoint runs only in the Linux image; render it with POSIX tools.
+  describe.skipIf(process.platform === 'win32')('rendered', () => {
+    /** The entrypoint's role block, exactly as the container runs it. */
+    function roleBlock(): string {
+      const begin = entrypoint.indexOf('\n# BEGIN proxy-role\n');
+      const end = entrypoint.indexOf('\n# END proxy-role\n');
+      expect(begin).toBeGreaterThan(-1);
+      expect(end).toBeGreaterThan(begin);
+      return entrypoint.slice(begin, end);
+    }
+
+    function run(env: Record<string, string>, upstreams: string[]) {
+      const directory = mkdtempSync(resolve(tmpdir(), 'tale-proxy-role-'));
+      try {
+        const switchDir = resolve(directory, 'switch');
+        mkdirSync(switchDir);
+        for (const role of upstreams)
+          writeFileSync(
+            resolve(switchDir, `${role}.upstreams`),
+            'to 10.0.0.64:3000\n',
+          );
+        const source = resolve(directory, 'Caddyfile.switch');
+        writeFileSync(source, switchCaddyfile);
+        const target = resolve(directory, 'Caddyfile');
+        const script = [
+          'set -e',
+          `CADDYFILE='${target}'`,
+          `SWITCH_CADDYFILE_SRC='${source}'`,
+          `SWITCH_UPSTREAMS_DIR='${switchDir}'`,
+          roleBlock(),
+          'echo edge-continues',
+        ].join('\n');
+        const result = spawnSync(
+          'sh',
+          ['-c', script, 'sh', 'echo', 'caddy-runs'],
+          {
+            encoding: 'utf8',
+            env: { PATH: process.env.PATH ?? '', ...env },
+          },
+        );
+        return {
+          status: result.status,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          rendered: existsSync(target) ? readFileSync(target, 'utf8') : null,
+        };
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+
+    test.each<Record<string, string>>([{}, { TALE_PROXY_ROLE: 'edge' }])(
+      'the edge role (%j) goes on to the edge configuration',
+      (env) => {
+        const { status, stdout, rendered } = run(env, []);
+        expect(status).toBe(0);
+        expect(stdout).toContain('edge-continues');
+        expect(rendered).toBeNull();
+      },
+    );
+
+    test('the switch role installs Caddyfile.switch and runs the command', () => {
+      const { status, stdout, rendered } = run({ TALE_PROXY_ROLE: 'switch' }, [
+        'platform',
+        'backend-api',
+      ]);
+      expect(status).toBe(0);
+      expect(stdout).toContain('caddy-runs');
+      expect(stdout).not.toContain('edge-continues');
+      expect(rendered).toBe(switchCaddyfile);
+    });
+
+    test.each(['platform', 'backend-api'])(
+      'the switch role refuses to start without the %s upstream file',
+      (role) => {
+        const { status, stderr, stdout } = run(
+          { TALE_PROXY_ROLE: 'switch' },
+          ['platform', 'backend-api'].filter((other) => other !== role),
+        );
+        expect(status).toBe(1);
+        expect(stderr).toContain(`${role}.upstreams is missing`);
+        expect(stdout).not.toContain('caddy-runs');
+      },
+    );
+
+    test('an unknown role refuses to start', () => {
+      const { status, stderr } = run({ TALE_PROXY_ROLE: 'router' }, []);
+      expect(status).toBe(1);
+      expect(stderr).toContain(
+        "TALE_PROXY_ROLE 'router' must be edge or switch",
+      );
+    });
   });
 });
