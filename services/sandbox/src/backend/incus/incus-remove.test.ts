@@ -4,7 +4,8 @@
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
-import { FakeIncus } from './fake-incus.ts';
+import { FakeIncus } from '@tale/incus/fake';
+
 import { removeIncusInstance } from './incus-remove.ts';
 import { rejection } from './incus-test-support.ts';
 

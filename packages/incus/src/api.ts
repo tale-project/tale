@@ -1,8 +1,8 @@
-// The Incus REST API objects this backend reads and writes — only the fields
-// it uses, as the API documents them
+// The Incus REST API objects the client reads and writes — only the fields
+// its callers use, as the API documents them
 // (https://linuxcontainers.org/incus/docs/main/rest-api/). Every object comes
 // from a peer the connection is pinned to, but a field is still checked
-// before it is used: a parser here refuses a shape the backend could not act
+// before it is used: a parser here refuses a shape a caller could not act
 // on, naming the object, instead of letting `undefined` travel.
 
 /** A string-to-string map: instance, volume and profile `config`. */

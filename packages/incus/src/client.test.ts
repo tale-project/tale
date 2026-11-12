@@ -5,8 +5,7 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { createServer, type Server } from 'node:net';
 
-import { withOperationBudget } from '../../operation-budget.ts';
-import { IncusApiError, incusStatus } from './incus-api.ts';
+import { IncusApiError, incusStatus } from './api.ts';
 import {
   IncusClient,
   isIncusBusy,
@@ -15,14 +14,36 @@ import {
   type IncusFetch,
   type IncusRequestInit,
   type IncusTlsMaterial,
-} from './incus-client.ts';
-import { rejection } from './incus-test-support.ts';
+} from './client.ts';
 import {
   makeTestCertificates,
   type TestCertificates,
 } from './test-certificates.ts';
 
 const TLS: IncusTlsMaterial = { ca: 'ca', cert: 'cert', key: 'key' };
+const NO_SIGNAL = () => undefined;
+
+/** The error a promise rejects with; fails the test when it resolves or
+ * rejects with something that is not an Error. */
+async function rejection(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw new Error(`rejected with a non-Error: ${String(error)}`, {
+      cause: error,
+    });
+  }
+  throw new Error('expected the promise to reject');
+}
+
+/** A fetch that never answers and rejects with its signal's reason. */
+const hanging: IncusFetch = (_url, init) =>
+  new Promise<Response>((_resolve, reject) => {
+    init.signal.addEventListener('abort', () => reject(init.signal.reason), {
+      once: true,
+    });
+  });
 
 interface Seen {
   url: URL;
@@ -48,6 +69,7 @@ function scripted(answers: Answer[], options: { timeoutMs?: number } = {}) {
     endpoint: 'https://incus.test:8443',
     project: 'sandbox-pr',
     tls: TLS,
+    signal: NO_SIGNAL,
     fetch: fetchStub,
     sleep: async () => undefined,
     ...(options.timeoutMs === undefined
@@ -321,6 +343,7 @@ describe('how an answer is read', () => {
       endpoint: 'https://incus.test:8443',
       project: 'p',
       tls: TLS,
+      signal: NO_SIGNAL,
       maxResponseBytes: 100,
       fetch: async () =>
         new Response('x'.repeat(10), { headers: { 'content-length': '5000' } }),
@@ -330,6 +353,7 @@ describe('how an answer is read', () => {
       endpoint: 'https://incus.test:8443',
       project: 'p',
       tls: TLS,
+      signal: NO_SIGNAL,
       maxResponseBytes: 100,
       sleep: async () => undefined,
       fetch: async () => new Response('y'.repeat(500)),
@@ -588,29 +612,41 @@ describe('retries and cancellation', () => {
     expect(seen).toHaveLength(1);
   });
 
-  test('the ambient operation budget cancels an in-flight call', async () => {
+  test('the ambient signal cancels an in-flight call', async () => {
+    const controller = new AbortController();
     const client = new IncusClient({
       endpoint: 'https://incus.test:8443',
       project: 'p',
       tls: TLS,
+      signal: () => controller.signal,
       sleep: async () => undefined,
-      fetch: (_url, init) =>
-        new Promise<Response>((_resolve, reject) => {
-          init.signal.addEventListener(
-            'abort',
-            () => reject(init.signal.reason),
-            {
-              once: true,
-            },
-          );
-        }),
+      fetch: hanging,
     });
-    const controller = new AbortController();
-    const outcome = rejection(
-      withOperationBudget(10_000, () => client.getServer(), controller.signal),
-    );
+    const outcome = rejection(client.getServer());
     controller.abort(new Error('caller cancelled'));
     expect((await outcome).message).toBe('caller cancelled');
+  });
+
+  test('the ambient signal is read at every call, and an aborted one starts nothing', async () => {
+    const ambient: { signal: AbortSignal | undefined } = { signal: undefined };
+    const calls: string[] = [];
+    const client = new IncusClient({
+      endpoint: 'https://incus.test:8443',
+      project: 'p',
+      tls: TLS,
+      signal: () => ambient.signal,
+      sleep: async () => undefined,
+      fetch: async (url) => {
+        calls.push(url);
+        return sync({ api_extensions: [], auth: 'trusted' });
+      },
+    });
+    expect((await client.getServer()).auth).toBe('trusted');
+    ambient.signal = AbortSignal.abort(new Error('the operation is over'));
+    expect((await rejection(client.getServer())).message).toBe(
+      'the operation is over',
+    );
+    expect(calls).toHaveLength(1);
   });
 
   test('a request that never answers ends at its own timeout', async () => {
@@ -618,18 +654,10 @@ describe('retries and cancellation', () => {
       endpoint: 'https://incus.test:8443',
       project: 'p',
       tls: TLS,
+      signal: NO_SIGNAL,
       requestTimeoutMs: 50,
       sleep: async () => undefined,
-      fetch: (_url, init) =>
-        new Promise<Response>((_resolve, reject) => {
-          init.signal.addEventListener(
-            'abort',
-            () => reject(init.signal.reason),
-            {
-              once: true,
-            },
-          );
-        }),
+      fetch: hanging,
     });
     const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
@@ -721,6 +749,7 @@ describe('the pinned mutual-TLS connection', () => {
         cert: certs[identity].cert,
         key: certs[identity].key,
       },
+      signal: NO_SIGNAL,
       requestTimeoutMs,
       sleep: async () => undefined,
     });

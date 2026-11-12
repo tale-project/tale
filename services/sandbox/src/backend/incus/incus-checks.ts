@@ -4,16 +4,17 @@
 // create error, or leave sessions less contained than the operator believes,
 // and warns about what is allowed but worth knowing.
 
-import type { SpawnerConfig } from '../../types.ts';
 import type {
   IncusNetwork,
   IncusProfile,
   IncusProject,
   IncusServerInfo,
   IncusStoragePool,
-} from './incus-api.ts';
+} from '@tale/incus/api';
+import { incusSizeBytes } from '@tale/incus/units';
+
+import type { SpawnerConfig } from '../../types.ts';
 import { incusOf, sessionShape } from './incus-session-spec.ts';
-import { incusSizeBytes } from './incus-units.ts';
 
 /** API extensions every Incus deployment of the backend needs (all in
  * Incus 7.0). */

@@ -2,12 +2,13 @@
 // whether a start is long overdue. Pure functions, shared by the session
 // backend and the host backend's orphan sweep.
 
-import { isIpv4Address } from '../../network-address.ts';
 import {
   INCUS_STATUS,
   type IncusInstance,
   type IncusInstanceState,
-} from './incus-api.ts';
+} from '@tale/incus/api';
+
+import { isIpv4Address } from '../../network-address.ts';
 import { label, LABEL, stampOf } from './incus-naming.ts';
 
 /** Past a create's whole budget, how long its instance may still sit

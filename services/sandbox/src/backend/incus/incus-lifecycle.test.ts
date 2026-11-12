@@ -6,7 +6,8 @@ import {
   INCUS_STATUS,
   type IncusInstance,
   type IncusInstanceState,
-} from './incus-api.ts';
+} from '@tale/incus/api';
+
 import {
   hasEnded,
   instanceAddress,

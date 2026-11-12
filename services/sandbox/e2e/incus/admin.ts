@@ -10,7 +10,8 @@ import {
   parseInstance,
   parseInstanceState,
   parseVolume,
-} from '../../src/backend/incus/incus-api.ts';
+} from '@tale/incus/api';
+
 import type { LabConfig } from './lab-config.ts';
 
 export interface AdminResult {

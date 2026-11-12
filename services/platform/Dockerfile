@@ -39,6 +39,7 @@ COPY package.json bun.lock bunfig.toml ./
 # refuses to run without the patch files, and they must reach the installed packages.
 COPY patches/ ./patches/
 COPY packages/e2e/package.json ./packages/e2e/
+COPY packages/incus/package.json ./packages/incus/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/marketing-ui/package.json ./packages/marketing-ui/
@@ -221,6 +222,7 @@ COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 # manifest-only workspace) before dev deps are even pruned.
 # tests/guards/dockerfile-fail-closed.guard.test.ts pins the two lists equal.
 COPY --from=workspace-deps /app/packages/e2e/package.json /tmp/workspace/packages/e2e/
+COPY --from=workspace-deps /app/packages/incus/package.json /tmp/workspace/packages/incus/
 COPY --from=workspace-deps /app/packages/shared/package.json /tmp/workspace/packages/shared/
 COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
 COPY --from=workspace-deps /app/packages/marketing-ui/package.json /tmp/workspace/packages/marketing-ui/

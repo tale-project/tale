@@ -211,15 +211,16 @@ export const REPOSITORY_RUNTIME_SOURCE = [
 /**
  * The spawner modules `loadConfig` imports, which the cross-check suite runs
  * in a child process to hold the prepared Incus sandbox environment to what
- * the spawner accepts. They sit outside this workspace, so
+ * the spawner accepts: its own, and those of the repository's packages it
+ * imports (@tale/incus). They sit outside this workspace, so
  * `tools/cli/turbo.json` hashes them for `@tale/cli#test`; the suite checks
  * this list against the imports.
  */
 export const SPAWNER_CONFIG_SOURCE = [
   'services/sandbox/src/config.ts',
+  'packages/incus/src/units.ts',
   'services/sandbox/src/backend/incus/incus-config.ts',
   'services/sandbox/src/backend/incus/incus-registry-caches.ts',
-  'services/sandbox/src/backend/incus/incus-units.ts',
   'services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts',
   'services/sandbox/src/host-memory.ts',
   'services/sandbox/src/host-pressure-assessment.ts',

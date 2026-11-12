@@ -1,4 +1,4 @@
-// Throwaway certificates for the Incus backend's TLS tests, made in process
+// Throwaway certificates for the Incus client's TLS tests, made in process
 // (WebCrypto and @peculiar/x509, no external binary) into a private temp
 // directory (never committed): the shapes that matter for pinning a server
 // under Bun, and the client certificates that present themselves. Made without

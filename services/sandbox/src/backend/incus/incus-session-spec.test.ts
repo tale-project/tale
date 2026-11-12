@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from 'bun:test';
 
+import { toIncusSize } from '@tale/incus/units';
+
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { RegistryCaches } from '../../types.ts';
 import {
@@ -34,7 +36,6 @@ import {
   incusTestConfig,
   INCUS_TEST_ADDRESS,
 } from './incus-test-config.ts';
-import { toIncusSize } from './incus-units.ts';
 
 function dockerCapable(incus = {}, overrides = {}) {
   return incusTestConfig(incus, { ...dockerCapableOverrides(), ...overrides });

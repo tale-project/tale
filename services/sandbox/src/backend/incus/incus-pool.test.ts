@@ -3,9 +3,14 @@
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
-import { withOperationBudget } from '../../operation-budget.ts';
+import type { FakeIncus } from '@tale/incus/fake';
+
+import {
+  operationSignal,
+  withOperationBudget,
+} from '../../operation-budget.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { FakeIncus } from './fake-incus.ts';
+import { fakeSessionIncus } from './fake-session-runtime.ts';
 import { incusWorkspaceVolumeName, LABEL } from './incus-naming.ts';
 import { IncusPool } from './incus-pool.ts';
 import {
@@ -41,7 +46,7 @@ function fixture(
     cfg?: SpawnerConfig;
   } = {},
 ) {
-  const fake = new FakeIncus();
+  const fake = fakeSessionIncus();
   const cfg =
     options.cfg ??
     incusTestConfig(
@@ -58,7 +63,7 @@ function fixture(
   const inFlight = new Set(options.inFlight ?? []);
   /** Another spawner process over the same Incus, on the same clock. */
   const poolFor = (config: SpawnerConfig) =>
-    new IncusPool(config, fake.client(), {
+    new IncusPool(config, fake.client({ signal: () => operationSignal() }), {
       now: () => clock.now,
       sleep: async (ms) => {
         clock.now += ms;

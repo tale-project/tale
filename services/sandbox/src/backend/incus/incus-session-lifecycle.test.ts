@@ -4,11 +4,12 @@
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
+import { INCUS_STATUS } from '@tale/incus/api';
+
 import {
   SessionIncarnationChangedError,
   type BackendSession,
 } from '../types.ts';
-import { INCUS_STATUS } from './incus-api.ts';
 import {
   incusInstanceName,
   incusWorkspaceVolumeName,

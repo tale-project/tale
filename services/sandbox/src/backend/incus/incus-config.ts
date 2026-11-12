@@ -1,7 +1,7 @@
 // The Incus backend's settings (SANDBOX_INCUS_*), read from the environment
 // and held to what the backend can act on, so that a typo fails the boot in
 // words rather than every create at the Incus API. Pure: the files the paths
-// name are read when the backend connects (incus-tls.ts).
+// name are read when the backend connects (@tale/incus/tls).
 //
 // Every name of an object the operator made on the Incus side (project,
 // profile, network, pool, image, certificates) is required: there is no
@@ -10,10 +10,11 @@
 
 import { isAbsolute } from 'node:path';
 
+import { toIncusSize } from '@tale/incus/units';
+
 import { isIpv4Address } from '../../network-address.ts';
 import type { IncusConfig } from '../../types.ts';
 import { readRegistryCaches } from './incus-registry-caches.ts';
-import { toIncusSize } from './incus-units.ts';
 
 type Env = Readonly<Record<string, string | undefined>>;
 
