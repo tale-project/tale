@@ -14,6 +14,8 @@ import {
   stopGroupOf,
 } from './stop';
 
+const testPosix = test.skipIf(process.platform === 'win32');
+
 /**
  * `tale stop` and `tale start` (design D-23, R3-05, R3-28): the three stop
  * groups in order on both runtimes, each instance within its grace, the
@@ -149,26 +151,31 @@ describe('tale start', () => {
     expect(groupsOf(fake, 'start')).toEqual([10]);
   });
 
-  test('Incus refuses to start while a restore is pending (R3-22)', async () => {
-    const fake = environment('incus');
-    await stopEnvironment({ deployDir, runtime: fake });
-    await setRestorePending(deployDir, PROJECT, {
-      id: 'snap',
-      startedAt: '2026-11-13T10:00:00.000Z',
-      volumes: ['db-data'],
-      steps: { 'db-data': 'renamed' },
-      holders: {},
-    });
-    fake.journal.length = 0;
-    const refused = await startEnvironment({
-      deployDir,
-      runtime: fake,
-      healthTimeout: 5,
-    }).catch((error: unknown) => error);
-    expect(refused).toBeInstanceOf(CliError);
-    expect((refused as CliError).message).toContain('tale start');
-    expect(fake.journal.some((entry) => entry.startsWith('start '))).toBe(
-      false,
-    );
-  });
+  // The Incus runtime file's mode-0600 owner guard runs before the restore guard, and main refuses the Incus
+  // runtime on Windows, so this case is POSIX-only like the other Incus suites.
+  testPosix(
+    'Incus refuses to start while a restore is pending (R3-22)',
+    async () => {
+      const fake = environment('incus');
+      await stopEnvironment({ deployDir, runtime: fake });
+      await setRestorePending(deployDir, PROJECT, {
+        id: 'snap',
+        startedAt: '2026-11-13T10:00:00.000Z',
+        volumes: ['db-data'],
+        steps: { 'db-data': 'renamed' },
+        holders: {},
+      });
+      fake.journal.length = 0;
+      const refused = await startEnvironment({
+        deployDir,
+        runtime: fake,
+        healthTimeout: 5,
+      }).catch((error: unknown) => error);
+      expect(refused).toBeInstanceOf(CliError);
+      expect((refused as CliError).message).toContain('tale start');
+      expect(fake.journal.some((entry) => entry.startsWith('start '))).toBe(
+        false,
+      );
+    },
+  );
 });
