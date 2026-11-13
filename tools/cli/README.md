@@ -75,6 +75,10 @@ when selecting another HTTPS port, or `tale doctor --json` for structured output
 Its warnings include limitations such as ARM64 emulation; a successful check is
 not evidence that image pulls or model requests will succeed. Remote Docker
 contexts skip local port checks.
+In a workspace that declares the Incus runtime, `doctor` checks the Incus
+credentials, the Incus API and the instances Incus stopped after repeated
+crashes instead, and `tale dev` refuses: it runs on Docker only.
+`tale doctor --offline` makes no network call.
 
 ## Operate a workspace
 

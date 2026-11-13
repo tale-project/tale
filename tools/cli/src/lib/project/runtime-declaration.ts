@@ -316,6 +316,23 @@ export function incusNotAvailableYet(path: 'workspace'): CliError {
   );
 }
 
+/** The local developer loops that run on Docker only (design D-35). */
+export type DockerOnlyLoop = 'tale dev' | 'a sandbox device';
+
+/**
+ * The refusal of a local developer loop in a workspace that declares Incus:
+ * the loop runs on this machine's Docker, and Incus runs on Linux only, so
+ * the workspace's runtime can never carry it (design D-35).
+ */
+export function dockerOnlyLoop(loop: DockerOnlyLoop): CliError {
+  return preconditionError(
+    `This workspace declares runtime.engine "incus", but ${loop} runs on Docker only: it is a local developer loop, and Incus runs on Linux only.`,
+    loop === 'tale dev'
+      ? 'Run tale dev in a workspace whose tale.json declares no runtime.engine, or "docker".'
+      : 'A sandbox device needs Docker on this machine: run the command outside this workspace.',
+  );
+}
+
 /** An IPv4 network as numbers: its first and last address and its prefix. */
 interface Cidr {
   first: number;

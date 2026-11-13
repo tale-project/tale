@@ -14,6 +14,8 @@ import { confirm as promptConfirm } from '../../utils/prompt';
 import { ensureDocker } from '../docker/ensure-docker';
 import type { ExecResult } from '../docker/exec';
 import { assertDockerEngineSupported } from '../docker/setup-checks';
+import { assertDockerLoop } from '../project/declared-engine';
+import { findProject } from '../project/find-project';
 import {
   buildSandboxDeviceConfig,
   cliServerUrl,
@@ -57,6 +59,9 @@ import {
  *   update      re-lay the stack out at the server's release (the device
  *               also does this by itself when the server is updated);
  *   disconnect  remove the device from its organization and this machine.
+ *
+ * A device runs on this machine's Docker: `connect` and `update` refuse in a
+ * workspace that declares the Incus runtime (design D-35).
  */
 
 export interface SandboxDeviceDeps extends StackDeps {
@@ -69,6 +74,8 @@ export interface SandboxDeviceDeps extends StackDeps {
   confirm: (message: string) => Promise<boolean>;
   assumeYes: () => boolean;
   json: () => boolean;
+  /** Refuse when the workspace this runs in declares Incus (design D-35). */
+  assertDockerWorkspace: () => Promise<void>;
 }
 
 const defaultSandboxDeviceDeps: SandboxDeviceDeps = {
@@ -88,6 +95,8 @@ const defaultSandboxDeviceDeps: SandboxDeviceDeps = {
   confirm: (message) => promptConfirm({ message, default: false }),
   assumeYes: () => getOutputMode().assumeYes,
   json: () => getOutputMode().json,
+  assertDockerWorkspace: () =>
+    assertDockerLoop(findProject(), 'a sandbox device'),
 };
 
 const CONNECT_TIMEOUT_MS = 120_000;
@@ -191,6 +200,8 @@ export async function connectSandboxDevice(
       'Copy the command from Settings → Sandboxes → Add device.',
     );
   }
+  // Before the one-time join token is spent.
+  await deps.assertDockerWorkspace();
   const home = deps.home();
   const existing = await readSandboxDeviceConfig(sandboxDeviceConfigPath(home));
   if (existing !== null) {
@@ -464,6 +475,7 @@ export async function updateSandboxDevice(
   options: { imageTag?: string },
   deps: SandboxDeviceDeps = defaultSandboxDeviceDeps,
 ): Promise<void> {
+  await deps.assertDockerWorkspace();
   const path = sandboxDeviceConfigPath(deps.home());
   const config = await readSandboxDeviceConfig(path);
   if (config === null) {

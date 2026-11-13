@@ -103,8 +103,11 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 - `-p, --port <port>` — HTTPS port to check (default `443`); the sandbox port `8003` is also checked.
 - `--json` — emit the checks as machine-readable JSON.
+- `--offline` — make no network call: on an Incus workspace, skip the Incus API probe and the instance report.
 
 Docker, Compose, Docker Engine version or unsupported container-mode failures or selecting HTTPS port `8003` exit `3`. Warnings alone exit `0`; this does not verify image downloads, storage capacity or a model provider. Check a different port with `tale doctor --port 8443`, then use the same port with `tale dev`.
+
+The first row names the runtime the workspace declares. In a workspace whose `tale.json` declares `runtime.engine` `incus` (experimental), `tale doctor` checks Incus instead of Docker: the credentials in `.tale/incus/` (or `TALE_INCUS_DIR`), the Incus API with the stack's restricted certificate, and every instance of the stack that Incus left stopped after repeated crashes, shown with the last console lines Incus kept. It reads the console of a stopped instance only. `tale incus check` reads the whole node contract.
 
 `tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + a `CLAUDE.md` pointer, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No Docker is needed, and the production domain and TLS are chosen later, at `tale deploy`. In a terminal it asks for a project name when `directory` is omitted, confirms before overwriting an existing project, and asks once whether agents may run `docker` inside sandboxes (default: no — enabling it runs a privileged inner Docker); non-interactive runs skip all prompts. `directory` is optional (default: the current directory).
 
@@ -114,7 +117,7 @@ Docker, Compose, Docker Engine version or unsupported container-mode failures or
 - `--incus-project <name>`, `--incus-pool <name>`, `--incus-network <name>`, `--incus-subnet <cidr>`, `--incus-sessions-subnet <cidr>` — required with `--runtime incus`: the Incus project, storage pool and bridge of the stack, the bridge's IPv4 subnet and the sessions' subnet.
 - `--incus-endpoint <url>`, `--incus-gateway <address>`, `--incus-block <cidr>`, `--incus-ingress <mode>`, `--incus-listen <address>` — optional with `--runtime incus`: the Incus API (default: the bridge gateway on port 8443), the bridge gateway (default: the subnet's first host), the /24 the CLI assigns addresses from (default: the subnet, when it is a /24), `proxy-device` (default) or `routed`, and the host address proxy devices listen on (default: every address).
 
-`tale dev` — launch all services locally with a self-signed certificate. The selected host and port set the local application origin for this run, without rewriting the production settings in `.env`. Readiness waits for services with health probes to become healthy and the remaining services to be running. If startup times out, inspect the reported service logs before retrying.
+`tale dev` — launch all services locally with a self-signed certificate. It runs on Docker only and refuses in a workspace that declares the Incus runtime. The selected host and port set the local application origin for this run, without rewriting the production settings in `.env`. Readiness waits for services with health probes to become healthy and the remaining services to be running. If startup times out, inspect the reported service logs before retrying.
 
 - `-d, --detach` — run in the background instead of streaming logs.
 - `--stop` — stop this project’s local development containers and preserve their data. Run `tale dev` again to resume.
@@ -857,7 +860,7 @@ Configuration commands have no `--dry-run`: use `stage`, `verify --rebuild` and 
 
 These commands run your Tale organization's sandboxes on the machine where you run them. [Run sandboxes on your own devices](/platform/admin/sandbox-devices) covers adding a device under **Settings > Sandboxes**, which hands out the `connect` command. The device keeps its configuration and workspaces in `~/.tale/sandbox`; `TALE_SANDBOX_HOME` moves them.
 
-`tale sandbox connect <site> --token <token>` — connect this machine to the organization that issued the token: it checks Docker (and offers to install it), registers the machine, and starts the device's containers at the server's release. `site` is your Tale site, such as `https://your-org.tale.dev`. The token (`tsdj_…`) works once, within an hour. Linux and macOS only.
+`tale sandbox connect <site> --token <token>` — connect this machine to the organization that issued the token: it checks Docker (and offers to install it), registers the machine, and starts the device's containers at the server's release. `site` is your Tale site, such as `https://your-org.tale.dev`. The token (`tsdj_…`) works once, within an hour. Linux and macOS only. A device runs on Docker only: `connect` and `update` refuse in a workspace that declares the Incus runtime, before the token is used.
 
 - `--name <name>` — the name Tale shows for the device (default: the machine's hostname). Characters other than `A`–`Z`, `a`–`z`, digits, `.`, `-` and `_` become dashes.
 - `--max-sessions <n>` — how many sandboxes run here at once, from 1 to 256 (default: one per two CPUs and per 4 GiB of memory Docker can use, at most 16).

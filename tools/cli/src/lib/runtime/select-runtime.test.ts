@@ -4,11 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CliError, ExitCode } from '../../utils/fail';
-import {
-  declaredEngine,
-  runtimeForEngine,
-  selectRuntime,
-} from './select-runtime';
+import { assertDockerLoop, declaredEngine } from '../project/declared-engine';
+import { runtimeForEngine, selectRuntime } from './select-runtime';
 
 let dir: string;
 
@@ -106,6 +103,34 @@ describe('the runtime a workspace declares', () => {
     // Without tale.json the workspace is Docker, and the guard still holds.
     rmSync(join(dir, 'tale.json'));
     await refusal(declaredEngine(dir, { TALE_RUNTIME: 'incus' }));
+  });
+});
+
+describe('the local developer loops stay on Docker', () => {
+  test('no workspace, or a Docker one, runs them', async () => {
+    await assertDockerLoop(null, 'tale dev', {});
+    writeTaleJson();
+    await assertDockerLoop(dir, 'tale dev', {});
+    writeTaleJson({ runtime: { engine: 'docker' } });
+    await assertDockerLoop(dir, 'a sandbox device', {});
+  });
+
+  test.each(['tale dev', 'a sandbox device'] as const)(
+    'an Incus workspace refuses %s in one sentence that says why',
+    async (loop) => {
+      writeTaleJson({ runtime: { engine: 'incus', incus } });
+      const error = await refusal(assertDockerLoop(dir, loop, {}));
+      expect(error.info.code).toBe(ExitCode.Precondition);
+      expect(error.message).toBe(
+        `This workspace declares runtime.engine "incus", but ${loop} runs on Docker only: it is a local developer loop, and Incus runs on Linux only.`,
+      );
+    },
+  );
+
+  test('an unreadable declaration is refused, never read as Docker', async () => {
+    writeTaleJson({ runtime: { engine: 'podman' } });
+    const error = await refusal(assertDockerLoop(dir, 'tale dev', {}));
+    expect(error.message).toContain('runtime.engine');
   });
 });
 
