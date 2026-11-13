@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { FakeIncus } from '@tale/incus/fake';
 import { parse } from 'yaml';
 
+import { waitForHealthy } from '../docker/wait-for-healthy';
 import { setRestorePending } from '../runtime/incus/apply/journal';
 import type { IncusDeclaration } from '../runtime/incus/compile/stack-target';
 import { createIncusRuntime } from '../runtime/incus/incus-runtime';
@@ -263,6 +264,14 @@ describe('preparing a managed bundle for Incus', () => {
 });
 
 describe('applying a managed bundle on Incus', () => {
+  // The apply waits on the CLI's own health wait against the fake. CI runs
+  // every test file in one process, where a sibling suite's `mock.module` of
+  // that wait would read every instance as unhealthy at once: name the leak
+  // rather than a runtime that is not healthy.
+  test('the health wait it drives is the real one, not a leaked module mock', () => {
+    expect('mock' in waitForHealthy).toBe(false);
+  });
+
   test('a first deploy converges the stack, reads it back and records the shared receipt', async () => {
     const { fake, options, dependencies, bundle } = await setup();
     const result = await applyIncusRuntime(options, dependencies);
