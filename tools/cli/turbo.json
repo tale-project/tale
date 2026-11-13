@@ -59,7 +59,8 @@
         "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
         "$TURBO_ROOT$/.github/release-candidate-contract.json",
         "$TURBO_ROOT$/packages/ui/src/data/**",
-        "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts"
+        "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/operator-block.ts"
       ]
     },
     "build": {
@@ -148,6 +149,8 @@
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/proxy/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/proxy/Caddyfile.switch",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/operator-block.ts",
+        "$TURBO_ROOT$/services/sandbox/docs/incus.md",
         "$TURBO_ROOT$/services/sandbox-egress/docker-entrypoint.sh",
         "$TURBO_ROOT$/patches/dumb-init/maxsig-64.patch",
         "$TURBO_ROOT$/services/platform/Dockerfile",

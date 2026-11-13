@@ -546,6 +546,7 @@
       "dependencies": {
         "@inquirer/prompts": "8.4.1",
         "@noble/curves": "1.9.7",
+        "@peculiar/x509": "1.14.3",
         "@scure/base": "2.0.0",
         "@tale/incus": "workspace:*",
         "@tale/shared": "workspace:*",
