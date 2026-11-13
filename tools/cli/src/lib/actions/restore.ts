@@ -15,8 +15,8 @@ import {
   isValidSnapshotId,
   restoreTargetVolume,
 } from '../backup/constants';
-import type { SnapshotManifest } from '../backup/create-snapshot';
 import { listSnapshots } from '../backup/list-snapshots';
+import { manifestSizeBytes, type SnapshotManifest } from '../backup/manifest';
 import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { verifySnapshot } from '../backup/verify-snapshot';
 import {
@@ -27,6 +27,7 @@ import {
 import type { getContainerState } from '../docker/get-container-state';
 import type { listComposeContainers } from '../docker/list-service-containers';
 import type { stopContainer } from '../docker/stop-container';
+import { snapshotStoreOf } from '../runtime/incus/verbs/snapshots';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
 import { withLock } from '../state/with-lock';
@@ -39,6 +40,10 @@ interface RestoreOptions {
   stop?: boolean;
   /** Non-interactive: skip the confirmation prompt. */
   assumeYes?: boolean;
+  /** Incus: finish the restore a crash left pending. */
+  resume?: boolean;
+  /** Incus: undo the restore a crash left pending. */
+  abort?: boolean;
   /** The runtime to restore on; selected from `tale.json` when absent. */
   runtime?: StackRuntime;
 }
@@ -137,10 +142,18 @@ async function findLiveProjectContainers(
 }
 
 function totalSizeBytes(manifest: SnapshotManifest): number {
-  return Object.values(manifest.volumes).reduce(
-    (sum, info) => sum + info.sizeBytes,
-    0,
-  );
+  return manifestSizeBytes(manifest);
+}
+
+/** How a listed snapshot can be restored: from native snapshots, archives,
+ * or both. */
+function kindOf(manifest: SnapshotManifest): string {
+  const infos = Object.values(manifest.volumes);
+  const native = infos.some((info) => info.native !== undefined);
+  const archived = infos.every((info) => info.sha256 !== undefined);
+  if (native && archived) return ' · native + archive';
+  if (native) return ' · native';
+  return '';
 }
 
 function hasBlobArchive(manifest: SnapshotManifest): boolean {
@@ -155,9 +168,21 @@ function printSnapshotList(snapshots: SnapshotManifest[]): void {
   logger.table(
     snapshots.map((snapshot) => [
       snapshot.id,
-      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}${hasGatewayArchive(snapshot) ? '' : ' · without gateway'}`,
+      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${kindOf(snapshot)}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}${hasGatewayArchive(snapshot) ? '' : ' · without gateway'}`,
     ]),
   );
+}
+
+/** The running users of the volumes a native restore replaces. */
+async function liveVolumeUsers(
+  store: NonNullable<ReturnType<typeof snapshotStoreOf>>,
+  manifest: SnapshotManifest,
+): Promise<LiveContainer[]> {
+  const names = new Set<string>();
+  for (const archive of Object.keys(manifest.volumes))
+    for (const name of await store.volumeUsers(restoreTargetVolume(archive)))
+      names.add(name);
+  return [...names].sort().map((name) => ({ name, state: 'running' }));
 }
 
 export async function restore(
@@ -168,8 +193,36 @@ export async function restore(
   const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
   const deps = injected ?? runtimeDeps(runtime);
 
+  if (options.resume === true || options.abort === true) {
+    if (options.resume === true && options.abort === true)
+      throw new Error(
+        'Choose one: --resume finishes the restore, --abort undoes it.',
+      );
+    if (snapshotId !== undefined)
+      throw new Error(
+        `--${options.resume === true ? 'resume' : 'abort'} acts on the pending restore and takes no snapshot id.`,
+      );
+    if (runtime.snapshotKind !== 'native')
+      throw new Error(
+        'Docker restores in place and never leaves a restore pending: there is nothing to resume or abort.',
+      );
+    const kind = options.resume === true ? 'resume' : 'abort';
+    await withLock(env.DEPLOY_DIR, `restore --${kind}`, async () => {
+      logger.header(
+        kind === 'resume' ? 'Finishing the Restore' : 'Undoing the Restore',
+      );
+      await runtime.restoreSnapshot({ kind });
+      logger.success(
+        kind === 'resume'
+          ? 'The restore is finished.'
+          : 'The restore is undone: every volume is back as it was.',
+      );
+    });
+    return;
+  }
+
   const prefix = await deps.resolveSnapshotPrefix();
-  if (!prefix) {
+  if (prefix === null) {
     throw new Error(
       'No Tale data volumes found for this project — nothing to restore into. ' +
         'On a fresh host, run `tale deploy` once (or `tale dev` for a dev stack) ' +
@@ -211,7 +264,13 @@ export async function restore(
 
     // Restoring under a live stack guarantees corruption — Postgres would
     // be rewritten underneath a running postmaster. Refuse unless stopped.
-    const live = await findLiveProjectContainers(deps);
+    // On Incus the restore stops the volumes' users itself, gracefully,
+    // and starts them again: `--stop` is the consent to that.
+    const store = snapshotStoreOf(runtime);
+    const live =
+      store === null
+        ? await findLiveProjectContainers(deps)
+        : await liveVolumeUsers(store, manifest);
     if (live.length > 0) {
       if (!options.stop) {
         throw new Error(
@@ -221,8 +280,11 @@ export async function restore(
       }
       // A stop also ends a restart loop and stops a paused container (Docker:
       // `unless-stopped` then keeps either down, even across a daemon restart).
-      logger.step('Stopping live project containers...');
-      for (const { name } of live) {
+      if (store !== null) {
+        logger.info('The restore stops them gracefully and starts them again.');
+      }
+      if (store === null) logger.step('Stopping live project containers...');
+      for (const { name } of store === null ? live : []) {
         const stopped = await deps.stopContainer(name);
         if (!stopped) {
           throw new Error(`Failed to stop ${name} — aborting restore.`);
@@ -283,9 +345,14 @@ export async function restore(
     }
 
     if (!resolveConsent(options.assumeYes)) {
-      logger.warn(
-        `This wipes the current contents of: ${volumes.map((volume) => `${prefix}${volume}`).join(', ')}`,
-      );
+      if (store !== null)
+        logger.warn(
+          `This sets aside ${volumes.join(', ')} as <volume>.pre-restore-<time> (kept, with their snapshots, until \`tale backup prune\` finds no listed snapshot on them)`,
+        );
+      else
+        logger.warn(
+          `This wipes the current contents of: ${volumes.map((volume) => `${prefix}${volume}`).join(', ')}`,
+        );
       logger.warn(
         `and replaces them with snapshot ${snapshotId} (created ${manifest.createdAt}, platform ${manifest.platformVersion ?? 'unknown'}).`,
       );
@@ -297,6 +364,22 @@ export async function restore(
 
     logger.step('Verifying snapshot integrity...');
     await deps.verifySnapshot(prefix, manifest);
+
+    if (store !== null) {
+      // Fresh volumes, never in place, journaled until every volume is back
+      // (design D-29, R3-22).
+      await runtime.restoreSnapshot({
+        kind: 'start',
+        id: snapshotId,
+        volumes: archives.map((entry) => entry.archive),
+      });
+      logger.success(`Snapshot ${snapshotId} restored; its users run again.`);
+      if (manifest.platformVersion !== null)
+        logger.info(
+          `The data is from platform ${manifest.platformVersion}: deploy that version if the stack runs another.`,
+        );
+      return;
+    }
 
     // Fresh-host case: re-create any missing target volumes first.
     const volumesReady = await runtime.ensureVolumes(volumes, prefix);

@@ -1,5 +1,6 @@
 // The parts of the CLI Incus lab that need no node: the lab's configuration,
-// the specification it deploys, the arithmetic of the load through the edge,
+// the workspace's, the specification it deploys, the arithmetic of the load
+// through the edge and of a session's load,
 // and the lists the workflow, the suite picker and the image build keep in
 // step. An ordinary unit test (`bun run --filter @tale/cli test`).
 
@@ -15,6 +16,7 @@ import { resolveDeploymentSpec } from '../../src/lib/deployment/model';
 import { defaultSessionsZone } from '../../src/lib/runtime/incus/contract/bootstrap';
 import { deploymentEnvironment, loadLab, specOf } from './harness';
 import { judge, lengthOf, startLoad, windowsOf, type Sample } from './load';
+import { loadWorkspace, sessionVerdict } from './workspace';
 
 const here = import.meta.dir;
 const root = join(here, '../../../..');
@@ -224,6 +226,52 @@ describe('the load through the edge', () => {
   });
 });
 
+describe('the workspace lab', () => {
+  test('sits beside the managed stack, with releases a patch apart', () => {
+    const w = loadWorkspace(labEnvironment());
+    expect(w).toMatchObject({
+      name: 'cli-e2e-ws',
+      network: {
+        subnet: '10.22.0.0/22',
+        gateway: '10.22.0.1',
+        block: '10.22.1.0/24',
+      },
+      sessions: '10.23.0.0/24',
+      releases: ['0.5.901', '0.5.902'],
+    });
+    expect(w.dir).toBe(
+      join(tmpdir(), 'tale-cli-e2e-test/workspace/cli-e2e-ws'),
+    );
+  });
+
+  test('refuses releases a rollback could not cross, and names it cannot use', () => {
+    const at = (releases: string) => () =>
+      loadWorkspace(labEnvironment({ TALE_E2E_RELEASES: releases }));
+    expect(at('0.5.902,0.5.901')).toThrow('later patch');
+    expect(at('0.5.901,0.6.0')).toThrow('later patch');
+    expect(at('0.5.901')).toThrow('TALE_E2E_RELEASES');
+    expect(at('0.4.1,0.4.2')).toThrow('two releases');
+    expect(() =>
+      loadWorkspace(labEnvironment({ TALE_E2E_WS_NAME: 'Not_A_Name' })),
+    ).toThrow('TALE_E2E_WS_NAME');
+    expect(() =>
+      loadWorkspace(labEnvironment({ TALE_E2E_WS_SUBNET: '10.22.0.0' })),
+    ).toThrow('TALE_E2E_WS_SUBNET');
+  });
+
+  test("reads a session's counts and its failures", () => {
+    expect(
+      sessionVerdict('fail 1.5 HTTP/1.1 502 Bad Gateway\nok 41 fail 1\n'),
+    ).toEqual({
+      ok: 41,
+      fail: 1,
+      failures: ['fail 1.5 HTTP/1.1 502 Bad Gateway'],
+    });
+    // A session that never printed its counts did not finish: no verdict.
+    expect(sessionVerdict('').fail).toBe(-1);
+  });
+});
+
 describe('the lists kept in step', () => {
   const picker = (choice: string) =>
     spawnSync('bash', [join(here, 'suites.sh'), choice], { encoding: 'utf8' });
@@ -262,9 +310,9 @@ describe('the lists kept in step', () => {
   test('the picker refuses a suite it does not know', () => {
     expect(picker('logs,stop').stdout).toContain('logs=true');
     expect(picker('logs,stop').stdout).toContain('managed=false');
-    const wrong = picker('logs,flip');
+    const wrong = picker('logs,flop');
     expect(wrong.status).toBe(1);
-    expect(wrong.stderr).toContain("unknown suite 'flip'");
+    expect(wrong.stderr).toContain("unknown suite 'flop'");
   });
 
   test('the image build makes every Tale image the managed path pins', () => {

@@ -40,11 +40,14 @@ import {
   type InstanceMount,
   type InstanceSummary,
   type LogOptions,
+  type NativeSnapshotSet,
   type OneShotJob,
   type ProbeResult,
   type RuntimeCheck,
   type RuntimeEngine,
   type RuntimeSession,
+  type SnapshotKind,
+  type SnapshotRestore,
   type StackRuntime,
   type StackTarget,
   type WaitHealthyOptions,
@@ -249,6 +252,12 @@ function defaultExec(
 export class FakeRuntime implements StackRuntime {
   readonly engine: RuntimeEngine;
   readonly withdrawal: WithdrawalKind;
+  readonly snapshotKind: SnapshotKind;
+  /** Native snapshots by volume, then name: the files they hold. */
+  readonly nativeSnapshots = new Map<
+    string,
+    Map<string, Map<string, string>>
+  >();
   /** Replicas a `marker` withdrawal took out of the serving names. */
   readonly withdrawn = new Set<string>();
   readonly instances = new Map<string, FakeInstance>();
@@ -271,6 +280,7 @@ export class FakeRuntime implements StackRuntime {
     this.engine = options.engine ?? 'docker';
     this.withdrawal =
       options.withdrawal ?? (this.engine === 'incus' ? 'marker' : 'disconnect');
+    this.snapshotKind = this.engine === 'incus' ? 'native' : 'archive';
   }
 
   // The model
@@ -717,6 +727,71 @@ export class FakeRuntime implements StackRuntime {
     }
   }
 
+  async snapshot(
+    volumes: readonly string[],
+    name: string,
+  ): Promise<NativeSnapshotSet> {
+    this.record('snapshot', `${name} ${volumes.join(',')}`);
+    if (this.snapshotKind !== 'native')
+      throw new Error('Docker keeps no native volume snapshots.');
+    const startedAt = new Date(0).toISOString();
+    return this.quiesce(volumes, async (frozenCount) => {
+      const snapshots = volumes.map((volume) => {
+        const files = this.volumes.get(volume);
+        if (files === undefined) throw new Error(`No volume ${volume}`);
+        const byName = this.nativeSnapshots.get(volume) ?? new Map();
+        byName.set(name, new Map(files));
+        this.nativeSnapshots.set(volume, byName);
+        return {
+          volume,
+          snapshot: name,
+          createdAt: startedAt,
+          usedBytes: [...files.values()].join('').length,
+          quotaBytes: 0,
+        };
+      });
+      return {
+        snapshots,
+        freeze: { startedAt, endedAt: startedAt },
+        frozenCount,
+      };
+    });
+  }
+
+  async restoreSnapshot(request: SnapshotRestore): Promise<void> {
+    this.record(
+      'restoreSnapshot',
+      request.kind === 'start'
+        ? `${request.id} ${request.volumes.join(',')}`
+        : request.kind,
+    );
+    if (this.snapshotKind !== 'native')
+      throw new Error('Docker keeps no native volume snapshots.');
+  }
+
+  async readVolumeFile(
+    volume: string,
+    path: string,
+    onChunk: (chunk: Uint8Array) => void | Promise<void>,
+  ): Promise<void> {
+    this.record('readVolumeFile', `${volume} ${path}`);
+    const content = this.volumes.get(volume)?.get(path);
+    if (content === undefined) throw new Error(`No file ${path} in ${volume}`);
+    await onChunk(new TextEncoder().encode(content));
+  }
+
+  async writeVolumeFile(
+    volume: string,
+    path: string,
+    chunks: AsyncIterable<Uint8Array>,
+  ): Promise<void> {
+    this.record('writeVolumeFile', `${volume} ${path}`);
+    const parts: Uint8Array[] = [];
+    for await (const chunk of chunks) parts.push(chunk);
+    if (!this.volumes.has(volume)) this.seedVolume(volume);
+    this.volumes.get(volume)?.set(path, Buffer.concat(parts).toString('utf8'));
+  }
+
   // Lifecycle
 
   async converge(
@@ -752,11 +827,22 @@ export class FakeRuntime implements StackRuntime {
     return true;
   }
 
-  async stop(name: string): Promise<boolean> {
+  async stop(name: string, graceSeconds?: number): Promise<boolean> {
     const instance = this.find(name);
     if (instance === undefined) return false;
     instance.state = 'exited';
-    this.record('stop', name);
+    this.record(
+      'stop',
+      graceSeconds === undefined ? name : `${name} -t ${graceSeconds}`,
+    );
+    return true;
+  }
+
+  async start(name: string): Promise<boolean> {
+    const instance = this.find(name);
+    if (instance === undefined) return false;
+    instance.state = 'running';
+    this.record('start', name);
     return true;
   }
 
@@ -1303,7 +1389,14 @@ async function answerDocker(
       return compose(fake, args.slice(1));
     case 'stop': {
       const name = args.at(-1) ?? '';
-      return (await fake.stop(name))
+      const grace = sub === '-t' ? Number(rest[0]) : undefined;
+      return (await fake.stop(name, grace))
+        ? ok(name)
+        : failed(`Error response from daemon: No such container: ${name}`);
+    }
+    case 'start': {
+      const name = args.at(-1) ?? '';
+      return (await fake.start(name))
         ? ok(name)
         : failed(`Error response from daemon: No such container: ${name}`);
     }

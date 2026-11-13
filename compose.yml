@@ -28,8 +28,10 @@
 # inline (only 80/443 exposed) and never uses this file or compose.dev.yml.
 # A managed deployment (`tale deploy prepare`) reads this file from its pinned
 # runtime revision instead. On the Incus runtime (experimental) the CLI compiles
-# it into Incus instances, so a service, volume or setting added here reaches
-# those deployments too: tools/cli/src/lib/runtime/incus/compile/ must know it.
+# its compose into Incus instances: this file for a managed bundle, and the
+# compose it generates for a workspace (`tale deploy`). A service, volume or
+# setting added here or to the generators reaches those deployments too:
+# tools/cli/src/lib/runtime/incus/compile/ must know it.
 #
 # `.env` is OPTIONAL for all three (env_file `required: false` below). When
 # present its values win; when absent, mode 3 fills the gaps and modes 1/2 fall

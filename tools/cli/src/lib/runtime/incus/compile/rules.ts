@@ -70,7 +70,7 @@ export const RULES = {
   },
   environment: {
     action: 'map',
-    rule: 'environment.* after interpolation, over the env_file keys',
+    rule: "environment.* after interpolation, over the env_file keys, over the image config's Env (Incus would apply the config of another image with the same layers)",
   },
   restart: {
     action: 'map',

@@ -43,12 +43,12 @@ export function createDeployCommand(): Command {
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option(
       '--plan-only',
-      'With --bundle on the Incus runtime: print the plan of every Incus resource and change nothing',
+      'On the Incus runtime (a workspace or --bundle): print the plan of every Incus resource and change nothing',
       false,
     )
     .option(
       '--plan <file>',
-      'With --bundle on the Incus runtime: apply exactly this reviewed plan (from --plan-only --json)',
+      'On the Incus runtime (a workspace or --bundle): apply exactly this reviewed plan (from --plan-only --json)',
     )
     .option(
       '--host <hostname>',
@@ -127,13 +127,13 @@ export function createDeployCommand(): Command {
         if (
           options.cliRef !== undefined ||
           options.deploymentRef !== undefined ||
-          options.configurationOnly ||
-          options.planOnly ||
-          options.plan !== undefined
+          options.configurationOnly
         )
           throw usageError(
-            '--cli-ref, --deployment-ref, --configuration-only, --plan-only and --plan require --bundle.',
+            '--cli-ref, --deployment-ref and --configuration-only require --bundle.',
           );
+        if (options.planOnly && options.plan !== undefined)
+          throw usageError('--plan-only and --plan cannot be combined.');
         await runDeploy({
           stop: options.stop,
           services: options.services,
@@ -145,6 +145,8 @@ export function createDeployCommand(): Command {
           yes: options.yes,
           skipBackup: options.skipBackup,
           acceptDataLoss: options.acceptDataLoss,
+          ...(options.planOnly ? { planOnly: true } : {}),
+          ...(options.plan === undefined ? {} : { plan: options.plan }),
         });
       }),
     );

@@ -244,24 +244,65 @@ export function checkEngineDeclaration(
     });
 }
 
-/** `tale.json`'s `runtime`. Absent, the workspace runs on Docker. */
+/** A workspace flips between two colours, which the /25 cannot hold. */
+function checkWorkspaceBlock(
+  incus: { network: { block: string } } | undefined,
+  context: z.RefinementCtx,
+  path: PropertyKey[],
+): void {
+  if (incus && parseCidr(incus.network.block).prefix !== 24)
+    context.addIssue({
+      code: 'custom',
+      message:
+        'A workspace needs a /24 address block: it holds two colours during a deploy.',
+      path: [...path, 'incus', 'network', 'block'],
+    });
+}
+
+/**
+ * `tale.json`'s `runtime`. Absent, the workspace runs on Docker. `next` is
+ * the runtime `tale runtime migrate` moves the workspace to (design 14): an
+ * engine other than the one it runs on, with that engine's block. The
+ * workspace keeps running on `engine` until the migration flips it.
+ */
 export const runtimeDeclarationSchema = z
   .strictObject({
     engine: engineSchema.optional(),
     incus: incusDeclarationSchema.optional(),
+    next: z
+      .strictObject({
+        engine: engineSchema,
+        incus: incusDeclarationSchema.optional(),
+      })
+      .optional(),
   })
   .superRefine((runtime, context) => {
     checkEngineDeclaration(runtime, context);
-    // A workspace flips between two colours, which the /25 cannot hold.
-    if (runtime.incus && parseCidr(runtime.incus.network.block).prefix !== 24)
+    checkWorkspaceBlock(runtime.incus, context, []);
+    if (runtime.next === undefined) return;
+    checkEngineDeclaration(runtime.next, context, ['next']);
+    checkWorkspaceBlock(runtime.next.incus, context, ['next']);
+    if (runtime.next.engine === engineOf(runtime))
       context.addIssue({
         code: 'custom',
-        message:
-          'A workspace needs a /24 address block: it holds two colours during a deploy.',
-        path: ['incus', 'network', 'block'],
+        message: `runtime.next names the engine the workspace runs on (${runtime.next.engine}); it names the one a migration moves it to.`,
+        path: ['next', 'engine'],
       });
   });
 export type RuntimeDeclaration = z.infer<typeof runtimeDeclarationSchema>;
+
+/**
+ * The Incus declaration a workspace's Incus tooling acts on: the one it runs
+ * on, or the one `runtime.next` migrates it to (`tale incus bootstrap`,
+ * `check` and `contract` prepare the node before the migration).
+ */
+export function workspaceIncusDeclaration(
+  runtime: RuntimeDeclaration | undefined,
+): z.infer<typeof incusDeclarationSchema> | undefined {
+  if (runtime?.engine === 'incus') return runtime.incus;
+  if (runtime?.next?.engine === 'incus') return runtime.next.incus;
+  return undefined;
+}
 
 /** The managed specification's `runtime.engine` and `runtime.incus`. */
 export const managedRuntimeFields = {
@@ -319,18 +360,6 @@ export function guardDeclaredEngine(
       `${RUNTIME_GUARD_VARIABLE} expects the ${guard} runtime, but the deployment declares ${declared}.`,
       `${RUNTIME_GUARD_VARIABLE} guards the declared runtime and never selects one: change runtime.engine in the declaration, or unset ${RUNTIME_GUARD_VARIABLE}.`,
     );
-}
-
-/**
- * The refusal of a declared Incus runtime while this CLI cannot run it: the
- * workspace path. A managed deployment runs on Incus
- * (`deployment/runtime-incus-apply.ts`).
- */
-export function incusNotAvailableYet(path: 'workspace'): CliError {
-  return preconditionError(
-    `The deployment declares runtime.engine "incus": running a ${path} on Incus is not available yet in this CLI.`,
-    'Remove runtime.engine and runtime.incus from tale.json to deploy on Docker.',
-  );
 }
 
 /**

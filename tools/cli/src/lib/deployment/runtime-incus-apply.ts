@@ -392,6 +392,8 @@ function applyHooks(
         await runtime.waitHealthy(instance.name, { timeout: HEALTH_TIMEOUT_S }),
         `${instance.name} did not become healthy.`,
       );
+      // The in-place window ends when the switch admits the new replica.
+      await runtime.awaitSwitchAdmission(instance.name, instance.service);
     },
     // The spawner's sessions live on; a replaced spawner would not see them.
     drainSandbox: async (instance) => {

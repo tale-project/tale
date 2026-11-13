@@ -44,7 +44,7 @@ import type { InstanceMount, OneShotJob, StackRuntime } from './types';
  * fake answers it, and the Incus runtime over the in-memory Incus of
  * `@tale/incus`, mirrored from the same model. The Incus leg runs the verbs
  * the Incus runtime answers today; the ones it does not (converge, the
- * Docker-shaped readback, volumes, quiescing, image names) and the one it
+ * Docker-shaped readback, volumes, image names) and the one it
  * answers with another contract (withdrawal: a marker that cuts nothing,
  * `incus/verbs/switch.test.ts`) are named in its `skips`. Bun's module mocks are process-wide, so the suite
  * runs in a `bun test` of its own.
@@ -603,7 +603,14 @@ function secretReaders(leg: Leg): void {
       const output = await captureOutput(() =>
         status({ deployDir, json, runtime }),
       );
-      expect(output).toContain(`${PROJECT}-db`);
+      // Incus names a singleton by its service alone (design 6.1).
+      expect(output).toContain(
+        runtime.engine === 'incus'
+          ? json
+            ? '"name":"db"'
+            : ' db '
+          : `${PROJECT}-db`,
+      );
       expect(output).not.toContain(SENTINEL);
     }
   });
@@ -657,6 +664,14 @@ class IncusBackedModel extends FakeRuntime {
   readonly stateRoot = mkdtempSync(join(tmpdir(), 'tale-runtime-incus-'));
   readonly runtime: IncusRuntime;
   private readonly facts: Record<string, unknown> = {};
+  /** The model's name of each mirrored instance: Incus names a singleton
+   * by its service alone (design 6.1). */
+  private readonly modelNames = new Map<string, string>();
+
+  /** The model's instance an Incus instance mirrors. */
+  private modelOf(name: string): FakeInstance | undefined {
+    return this.find(this.modelNames.get(name) ?? name);
+  }
 
   constructor() {
     super();
@@ -667,7 +682,7 @@ class IncusBackedModel extends FakeRuntime {
       stack: PROJECT,
       stateRoot: this.stateRoot,
       healthchecks: (name) => {
-        const instance = this.find(name);
+        const instance = this.modelOf(name);
         if (instance === undefined) return undefined;
         if (instance.health === 'none') return { disabled: true };
         return {
@@ -682,7 +697,7 @@ class IncusBackedModel extends FakeRuntime {
     });
     this.incus.exec = async (call, io) => {
       if (call.command[0] === HEALTH_PROBE)
-        return this.find(call.instance.name)?.health === 'healthy' ? 0 : 1;
+        return this.modelOf(call.instance.name)?.health === 'healthy' ? 0 : 1;
       const bytes = await io.stdin();
       const stdin =
         bytes.byteLength === 0 ? undefined : new TextDecoder().decode(bytes);
@@ -703,7 +718,7 @@ class IncusBackedModel extends FakeRuntime {
     argv: readonly string[],
     stdin: string | undefined,
   ) {
-    const instance = this.find(name);
+    const instance = this.modelOf(name);
     if (instance === undefined)
       return { success: false, stdout: '', stderr: 'gone', exitCode: 1 };
     return this.answerExec(instance, argv, stdin);
@@ -746,8 +761,13 @@ class IncusBackedModel extends FakeRuntime {
         ? 'green'
         : undefined;
     const running = instance.state === 'running';
+    // Incus labels every instance with the project's stack and a replica
+    // with its colour; a singleton is named by its service alone.
+    const singleton = colour === undefined && instance.stack === PROJECT;
+    const name = singleton ? instance.service : instance.name;
+    this.modelNames.set(name, instance.name);
     const config: Record<string, string> = {
-      'user.tale.stack': instance.stack,
+      'user.tale.stack': PROJECT,
       'user.tale.service': instance.service,
       'user.tale.role': instance.oneOff ? 'helper' : instance.service,
       'user.tale.index': String(instance.index),
@@ -767,7 +787,7 @@ class IncusBackedModel extends FakeRuntime {
         path: mount.target,
         ...(mount.readOnly ? { readonly: 'true' } : {}),
       };
-    const mirrored = this.incus.seedInstance(instance.name, config, {
+    const mirrored = this.incus.seedInstance(name, config, {
       ephemeral: false,
       status: running ? 'Running' : 'Stopped',
       devices,
@@ -849,9 +869,8 @@ function contractSuite(): void {
     argv: () => incusModel?.incus.execs.map((call) => call.argv) ?? [],
     helperImage: HELPER_ALIAS,
     skips: new Set<ContractTest>([
-      // converge and quiescing are later lanes' verbs on Incus.
+      // converge is a later lane's verb on Incus.
       'converge',
-      'quiesce',
       // A marker withdrawal cuts no link (`withdrawal`): switch.test.ts.
       'withdraw',
       // Docker's shapes: image tags, the `Up …` status line, prefixed

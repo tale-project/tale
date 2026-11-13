@@ -19,6 +19,8 @@
 #               such as compression=zstd,oci-mediatypes=true,registry.insecure=true
 #   CACHE_FROM  a registry prefix holding <prefix>/tale-<service>-buildcache:amd64
 #   SERVICES    the services to build (default: all eight)
+#   TAG         the tag to push (default: sha-<revision>); a workspace deploys
+#               a release by its version, so its releases are tagged <version>
 
 set -euo pipefail
 
@@ -29,6 +31,10 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 
 [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || {
   echo "images.sh: the revision must be a full commit SHA, not $revision" >&2
+  exit 2
+}
+[[ "${TAG:-sha-$revision}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || {
+  echo "images.sh: $TAG is no image tag" >&2
   exit 2
 }
 [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
@@ -45,7 +51,7 @@ case "$protocol" in 1 | 2) ;; *)
 esac
 
 for service in "${services[@]}"; do
-  tag="$registry/tale-project/tale/tale-$service:sha-$revision"
+  tag="$registry/tale-project/tale/tale-$service:${TAG:-sha-$revision}"
   args=(
     --platform linux/amd64
     --file "$root/services/$service/Dockerfile"

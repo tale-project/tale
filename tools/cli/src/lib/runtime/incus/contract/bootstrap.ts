@@ -30,9 +30,15 @@ import type { IncusClient } from '@tale/incus/client';
 import { preconditionError } from '../../../../utils/fail';
 import { SANDBOX_INCUS_DIRECTORY } from '../../../deployment/runtime-sandbox';
 import { parseCidr } from '../../../project/runtime-declaration';
+import {
+  defaultSessionsZone,
+  type SessionsZone,
+} from '../compile/sessions-zone';
 import type { IncusDeclaration } from '../compile/stack-target';
 import { managedIncusDirectory, workspaceIncusDirectory } from '../credentials';
 import type { ContractRule, NodeContract } from './contract-model';
+
+export { defaultSessionsZone, type SessionsZone };
 
 /**
  * `tale incus bootstrap` (design D-31): make a single box ready for a Tale
@@ -63,24 +69,6 @@ import type { ContractRule, NodeContract } from './contract-model';
 /** The description every object bootstrap makes carries. */
 export function bootstrapMarker(stack: string): string {
   return `Made by tale incus bootstrap for ${stack}`;
-}
-
-/** Where the zone lives: names bootstrap gives the sandbox zone's objects. */
-export interface SessionsZone {
-  project: string;
-  network: string;
-  profile: string;
-}
-
-/** The zone's default names for a stack project and bridge. */
-export function defaultSessionsZone(
-  declaration: IncusDeclaration,
-): SessionsZone {
-  return {
-    project: `${declaration.project}-sessions`.slice(0, 63),
-    network: `${declaration.network.name.slice(0, 13)}-s`,
-    profile: 'sandbox',
-  };
 }
 
 export interface BootstrapStep {
@@ -862,16 +850,25 @@ export async function planBootstrap(
   }
 
   // The workspace declaration names the runtime and the endpoint; a managed
-  // deployment's specification is its operator's, and is left as it is.
+  // deployment's specification is its operator's, and is left as it is. A
+  // Docker workspace that declares its migration target (`runtime.next`,
+  // design 14) keeps running on Docker: the endpoint goes into
+  // `runtime.next`, and `tale runtime migrate` flips the engine once the
+  // stack moved.
   const taleJson = join(options.workspace, 'tale.json');
   const project =
     options.stateDirectory === undefined
       ? (JSON.parse(readFileSync(taleJson, 'utf8')) as Record<string, unknown>)
       : null;
-  const runtime = {
-    engine: 'incus',
-    incus: { ...declaration, endpoint: endpointOf(declaration) },
-  };
+  const declared = project?.runtime as
+    | { engine?: string; next?: { engine?: string } }
+    | undefined;
+  const incus = { ...declaration, endpoint: endpointOf(declaration) };
+  const migrating =
+    declared?.engine !== 'incus' && declared?.next?.engine === 'incus';
+  const runtime = migrating
+    ? { ...declared, next: { engine: 'incus', incus } }
+    : { engine: 'incus', incus };
   const runtimeChanged =
     project !== null &&
     JSON.stringify(project.runtime) !== JSON.stringify(runtime);
@@ -879,7 +876,9 @@ export async function planBootstrap(
     steps.push({
       object: taleJson,
       action: runtimeChanged ? 'write' : 'keep',
-      detail: `runtime.engine incus, runtime.incus.endpoint ${runtime.incus.endpoint}`,
+      detail: migrating
+        ? `runtime.next.engine incus, runtime.next.incus.endpoint ${incus.endpoint} (the workspace runs on ${declared?.engine ?? 'docker'} until tale runtime migrate)`
+        : `runtime.engine incus, runtime.incus.endpoint ${incus.endpoint}`,
     });
 
   // Host state the restricted certificate cannot see.

@@ -3,9 +3,17 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { FakeIncus } from '@tale/incus/fake';
+
 import { CliError, ExitCode } from '../../utils/fail';
 import { assertDockerLoop, declaredEngine } from '../project/declared-engine';
+import { IncusRuntime } from './incus/incus-runtime';
 import { runtimeForEngine, selectRuntime } from './select-runtime';
+
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const testPosix = test.skipIf(process.platform === 'win32');
 
 let dir: string;
 
@@ -76,14 +84,52 @@ describe('the runtime a workspace declares', () => {
     expect(error.message).toContain('runtime.incus');
   });
 
-  test('incus is declared, and refused for a workspace until it is available', async () => {
-    writeTaleJson({ runtime: { engine: 'incus', incus } });
-    expect(await declaredEngine(dir, {})).toBe('incus');
-    const error = await refusal(selectRuntime(dir));
-    expect(error.info.code).toBe(ExitCode.Precondition);
-    expect(error.message).toContain('not available yet');
-    expect(error.message).toContain('workspace');
-  });
+  testPosix(
+    'incus selects the workspace Incus runtime, which needs its credentials',
+    async () => {
+      writeTaleJson({ runtime: { engine: 'incus', incus } });
+      expect(await declaredEngine(dir, {})).toBe('incus');
+      const error = await refusal(selectRuntime(dir));
+      expect(error.info.code).toBe(ExitCode.Precondition);
+      expect(error.message).toContain('Incus credentials');
+      expect(error.message).toContain(join(dir, '.tale', 'incus'));
+    },
+  );
+
+  testPosix(
+    'the workspace Incus runtime is the project id, in the workspace',
+    async () => {
+      writeTaleJson({ runtime: { engine: 'incus', incus } });
+      const fake = new FakeIncus({
+        project: 'tale-demo',
+        profile: 'tale-stack',
+        network: 'tale-demo',
+        pool: 'tank',
+        image: 'tale-unused',
+      });
+      try {
+        const runtime = await selectRuntime(dir, {
+          incus: { client: fake.client() },
+        });
+        expect(runtime).toBeInstanceOf(IncusRuntime);
+        const incusRuntime = runtime as IncusRuntime;
+        expect(incusRuntime.stack).toBe('demo-abc123');
+        expect(incusRuntime.stateRoot).toBe(dir);
+        expect(incusRuntime.declaration.project).toBe('tale-demo');
+        // An action's `<id>-<service>` names the singleton; a replica keeps
+        // its own name.
+        expect(incusRuntime.instanceName('demo-abc123-db')).toBe('db');
+        expect(incusRuntime.instanceName('platform-blue-1')).toBe(
+          'platform-blue-1',
+        );
+        expect(incusRuntime.instanceName('demo-abc123-platform')).toBe(
+          'demo-abc123-platform',
+        );
+      } finally {
+        fake.close();
+      }
+    },
+  );
 
   test('an engine the CLI does not know is refused, never read as Docker', async () => {
     writeTaleJson({ runtime: { engine: 'podman' } });

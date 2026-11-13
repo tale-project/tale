@@ -1,12 +1,9 @@
 import * as logger from '../../utils/logger';
-import {
-  BACKEND_API_LABEL,
-  backendApiContainer,
-  controlCall,
-} from '../docker/control-call';
+import { BACKEND_API_LABEL, controlCall } from '../docker/control-call';
 import { requireProject } from '../project/find-project';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
+import { servingApiReplica } from './incus-deploy';
 
 interface ResetOwnerOptions {
   email?: string;
@@ -33,7 +30,7 @@ export async function resetOwner(options: ResetOwnerOptions): Promise<void> {
   }
 
   const runtime = options.runtime ?? (await selectRuntime(requireProject()));
-  const container = await backendApiContainer(null, runtime);
+  const container = await servingApiReplica(runtime);
   logger.step(
     `Resetting owner credentials via ${container ?? BACKEND_API_LABEL}...`,
   );

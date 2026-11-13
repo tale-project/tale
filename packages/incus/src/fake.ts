@@ -127,6 +127,8 @@ export interface FakeVolume {
   createdAt: string;
   files?: Map<string, FakeFile>;
   snapshots?: FakeVolumeSnapshot[];
+  /** What `GET …/state` reports as used; the files' bytes when absent. */
+  usedBytes?: number;
 }
 
 /** What runs inside every instance of the fake, as far as a test needs it. */
@@ -662,6 +664,24 @@ export class FakeIncus {
           if (sub === 'snapshots') {
             return this.snapshotRoute(method, a, d, snapshot, request);
           }
+          if (sub === 'state' && method === 'GET') {
+            const volume = this.volumes.get(d ?? '');
+            if (volume === undefined)
+              throw new FakeFailure(404, 'Storage volume not found');
+            const used = [...(volume.files ?? new Map()).values()].reduce(
+              (sum, file) =>
+                sum +
+                (file.bytes?.byteLength ??
+                  new TextEncoder().encode(file.content).byteLength),
+              0,
+            );
+            return syncOk({
+              usage: {
+                used: volume.usedBytes ?? used,
+                total: incusSizeBytes(volume.config.size ?? '') ?? 0,
+              },
+            });
+          }
           if (sub === 'files') {
             const volume = this.volumes.get(d ?? '');
             if (volume === undefined)
@@ -820,6 +840,19 @@ export class FakeIncus {
           usage: this.instances.size,
         },
         disk: { limit: limit('limits.disk'), usage: disk },
+        // Incus names a pool quota `disk.<pool>` and counts each volume's
+        // `size` on that pool against it.
+        ...Object.fromEntries(
+          Object.entries(this.projectConfig)
+            .filter(
+              ([key, value]) =>
+                key.startsWith('limits.disk.pool.') && value !== '',
+            )
+            .map(([key, value]) => [
+              `disk.${key.slice('limits.disk.pool.'.length)}`,
+              { limit: incusSizeBytes(value) ?? -1, usage: disk },
+            ]),
+        ),
       },
     });
   }
@@ -1191,6 +1224,22 @@ export class FakeIncus {
       if (entry === undefined) throw new FakeFailure(404, 'not found');
       const file = entry;
       const type = file.type ?? 'file';
+      const range = /^bytes=(\d+)-(\d+)$/.exec(request.headers.range ?? '');
+      if (method === 'GET' && range !== null && type === 'file') {
+        const whole = file.bytes ?? new TextEncoder().encode(file.content);
+        const from = Number(range[1]);
+        if (from >= whole.byteLength)
+          throw new FakeFailure(416, 'Requested range not satisfiable');
+        const to = Math.min(Number(range[2]), whole.byteLength - 1);
+        return new Response(whole.slice(from, to + 1), {
+          status: 206,
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-range': `bytes ${from}-${to}/${whole.byteLength}`,
+            ...headers(file, type),
+          },
+        });
+      }
       return new Response(
         method === 'HEAD' ? null : (file.bytes ?? file.content),
         {

@@ -26,6 +26,7 @@ import { isDevBuild } from '../version/self-update';
 import { checkBreakingCutover } from './breaking-cutover-guard';
 import { deploy } from './deploy';
 import { runDeployPreflight } from './deploy-preflight';
+import { readWorkspacePlan } from './incus-deploy';
 import { confirmOverrideAll } from './reseed-all-orgs';
 
 /**
@@ -46,6 +47,10 @@ interface RunDeployOptions {
   skipBackup?: boolean;
   /** Expert override for the breaking-cutover guard (pre-0.4 instance). */
   acceptDataLoss?: boolean;
+  /** Incus: print the plan of every scope and change nothing. */
+  planOnly?: boolean;
+  /** Incus: `--plan <file>`, apply only what this reviewed plan holds. */
+  plan?: string;
 }
 
 /**
@@ -102,7 +107,8 @@ export async function runDeploy(
         'OR --override-all (factory-reseed all orgs server-side).',
     );
   }
-  const dryRun = options.dryRun ?? false;
+  // `--plan-only` is the Incus runtime's dry run: the plan of every scope.
+  const dryRun = (options.dryRun ?? false) || (options.planOnly ?? false);
   // `--host` serves another host for this run only; `.env` keeps its own.
   const runHost =
     options.host === undefined ? undefined : resolveDeployHost(options.host);
@@ -119,6 +125,16 @@ export async function runDeploy(
   const runtime = await selectRuntime(projectDir, {
     docker: { ensureDocker: deps.ensureDocker },
   });
+
+  if (
+    runtime.engine !== 'incus' &&
+    (options.planOnly || options.plan !== undefined)
+  )
+    throw usageError(
+      '--plan-only and --plan plan Incus resources: this workspace runs on Docker Compose (use --dry-run).',
+    );
+  const reviewedPlan =
+    options.plan === undefined ? undefined : readWorkspacePlan(options.plan);
 
   // Zero-prerequisite: make sure the runtime is usable before anything else.
   const ready = await runtime.probe({ assumeYes: options.yes });
@@ -229,5 +245,6 @@ export async function runDeploy(
     forceRecreate,
     skipBackup: options.skipBackup,
     runtime,
+    ...(reviewedPlan === undefined ? {} : { plan: reviewedPlan }),
   });
 }

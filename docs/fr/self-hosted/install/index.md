@@ -13,7 +13,7 @@ La CLI gère les opérations sur les conteneurs. Tu restes responsable de la con
 
 ## Choisir un runtime de conteneurs
 
-La CLI exécute la stack sur Docker Compose, le runtime par défaut et pris en charge. Un [déploiement géré](/fr/self-hosted/install/cli-install#managed-deployments) peut à la place tourner sous forme d’instances Incus sur un hôte Linux : [Exécuter Tale sur Incus](/fr/self-hosted/install/incus) décrit le nœud qu’il demande et les limites de ce runtime, expérimental dans Tale 0.5.x. Le développement local avec `tale dev` et le `tale deploy` d’un workspace tournent sur Docker.
+La CLI exécute la stack sur Docker Compose, le runtime par défaut et pris en charge. Un déploiement dans un workspace ou un [déploiement géré](/fr/self-hosted/install/cli-install#managed-deployments) peut à la place tourner sous forme d’instances Incus sur un hôte Linux : [Exécuter Tale sur Incus](/fr/self-hosted/install/incus) décrit le nœud qu’il demande, comment y faire passer un déploiement Docker existant et les limites de ce runtime, expérimental dans Tale 0.5.x. Le développement local avec `tale dev` tourne sur Docker.
 
 ## Utiliser tes propres définitions de services
 

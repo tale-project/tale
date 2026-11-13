@@ -59,7 +59,21 @@ const COLOURS = ['blue', 'green'] as const;
 export interface SwitchDependencies {
   /** How the withdrawal waits (tests). */
   sleep?: (ms: number) => Promise<void>;
+  /** The clock a wait for the switch reads (tests). */
+  now?: () => number;
 }
+
+/** Each switched role's admission probe, as the switch asks it
+ * (`services/proxy/Caddyfile.switch`). */
+const ADMISSION_PATHS = {
+  platform: '/api/admission',
+  'backend-api': '/admission',
+} as const satisfies Record<keyof typeof SWITCHED_ROLES, string>;
+/** The switch's own instance (a singleton of the stack). */
+const SWITCH_INSTANCE = 'switch';
+/** How long a replica just made may take to answer the switch. */
+export const SWITCH_REACH_TIMEOUT_MS = 90_000;
+const SWITCH_REACH_INTERVAL_MS = 1_000;
 
 const text = (value: string) => new TextEncoder().encode(value);
 
@@ -310,4 +324,57 @@ export function switchApplyHooks(
       await clearWithdrawalMarker(context, instance, marker);
     },
   };
+}
+
+/**
+ * Wait until the switch reaches a switched replica that was just made, and
+ * finds it admitted. A replica made again in place keeps its slot's address
+ * but gets a new MAC, while the switch's neighbour cache still holds the old
+ * one; until that entry expires the switch cannot reach the new replica
+ * (the CLI Incus E2E's `services` suite measured 20 s without a platform
+ * upstream once the next replica was withdrawn). So the stale entry is
+ * flushed in the switch's own network namespace, and the admission probe is
+ * asked from there until it answers 200; only then may the next replica
+ * leave. A replica that is not switched, a stack without a running switch
+ * and a replica without a static address wait for nothing.
+ */
+export async function awaitSwitchAdmission(
+  context: IncusVerbContext,
+  name: string,
+  service: string,
+  dependencies: SwitchDependencies = {},
+): Promise<void> {
+  if (!Object.hasOwn(ADMISSION_PATHS, service)) return;
+  const role = service as keyof typeof SWITCHED_ROLES;
+  const switchRead = await context.client.getInstance(SWITCH_INSTANCE);
+  if (switchRead?.instance.status !== 'Running') return;
+  const replica = await context.client.getInstance(name);
+  const address =
+    (replica?.instance.devices.eth0?.['ipv4.address'] ?? '').split('/')[0] ??
+    '';
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(address)) return;
+  const url = `http://${address}:${SWITCHED_ROLES[role]}${ADMISSION_PATHS[role]}`;
+  const sleep = dependencies.sleep ?? Bun.sleep;
+  const now = dependencies.now ?? Date.now;
+  const deadline = now() + SWITCH_REACH_TIMEOUT_MS;
+  let flush = true;
+  for (;;) {
+    const result = await execInInstance(
+      context,
+      SWITCH_INSTANCE,
+      [
+        'sh',
+        '-c',
+        `${flush ? `ip neigh flush to ${address} 2>/dev/null; ` : ''}wget -q -T 2 -O /dev/null ${url}`,
+      ],
+      { timeoutS: 10 },
+    );
+    flush = false;
+    if (result.success) return;
+    if (now() >= deadline)
+      throw new Error(
+        `The switch cannot reach ${name} at ${url}, or does not find it admitted: ${result.stderr.trim() || `exit ${result.exitCode}`}`,
+      );
+    await sleep(SWITCH_REACH_INTERVAL_MS);
+  }
 }

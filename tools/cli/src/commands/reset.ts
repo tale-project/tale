@@ -19,6 +19,11 @@ export function createResetCommand(): Command {
       false,
     )
     .option('--dry-run', 'Preview reset without making changes', false)
+    .option(
+      '--discard-snapshots',
+      'Incus: with --all, delete the data volumes even if the newest snapshot cannot be archived into the backups volume first (their native snapshots are lost)',
+      false,
+    )
     .action(
       action(async (options) => {
         const projectDir = requireProject();
@@ -38,6 +43,7 @@ export function createResetCommand(): Command {
           force: options.force,
           includeStateful: options.all,
           dryRun: options.dryRun,
+          discardSnapshots: options.discardSnapshots,
         });
       }),
     );

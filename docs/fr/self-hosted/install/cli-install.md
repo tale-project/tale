@@ -15,7 +15,7 @@ Il te faut :
 
 - Un ordinateur sous macOS, Linux ou Windows avec PowerShell.
 - Pour les conteneurs en local sous le runtime Docker, celui par défaut : Docker Engine 24.0 ou une version ultérieure avec Compose et un daemon Docker en cours d’exécution. Les couches des images Tale sont compressées en zstd, ce que Docker sait récupérer à partir d’Engine 23.0 ; `tale doctor` signale un moteur plus ancien, et `tale dev` comme `tale deploy`, déploiement d’un bundle compris, le refusent avant de télécharger les images.
-- Pour un déploiement géré sous le [runtime Incus](/fr/self-hosted/install/incus), expérimental : un hôte Linux avec Incus à la place ; ni la préparation ni le déploiement n’ont besoin de Docker.
+- Pour un espace de travail ou un déploiement géré sous le [runtime Incus](/fr/self-hosted/install/incus), expérimental : un hôte Linux avec Incus à la place ; ni le déploiement ni la préparation d’un bundle géré n’ont besoin de Docker.
 - Pour un workspace distant : l’accès à son daemon Docker, avec Docker Engine 24.0 ou une version ultérieure, généralement par un contexte Docker SSH. Le compte utilisé sur l’hôte distant doit pouvoir exécuter Docker.
 
 Le stockage objet fourni n’existe actuellement qu’en image `linux/amd64`. Sur un hôte ARM64, le développement local et les déploiements de workspace nécessitent donc une émulation amd64 fonctionnelle : Docker Desktop l’inclut ; sur un hôte Linux avec Docker autonome, [QEMU doit être enregistré sur l’hôte](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale sélectionne l’image amd64, mais n’installe pas l’émulation. Les bundles de déploiement géré exigent toujours des images natives pour l’architecture déclarée. Un déploiement géré ARM64 doit donc attendre une image native du stockage objet.
@@ -138,16 +138,18 @@ La première ligne indique le runtime que l’espace de travail déclare. Dans u
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
 - `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions, outils et modèles des agents, contextes de révision, automatisations et répartition du travail des projets) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
 - `--dry-run` — prévisualiser sans rien modifier : `.env` et `tale.json` restent tels quels, et l'aperçu indique ce qu'une vraie exécution y écrirait.
-- `--plan-only` — avec `--bundle <directory>` d’un déploiement sur le [runtime Incus](#managed-incus-runtime), affiche le plan de chaque ressource Incus sans rien modifier ; `--json` affiche le plan lui-même.
-- `--plan <file>` — avec `--bundle <directory>` sur le runtime Incus, applique le plan qu’a affiché `--plan-only --json`, et seulement tant que le nœud a encore besoin exactement de lui. Avec `--bundle` sur Incus, `--stop` accepte l’interruption que le plan nomme ; un bundle pour Docker Compose refuse les trois.
+- `--plan-only` — sur le runtime Incus (un [workspace](#container-runtime), ou `--bundle <directory>` d’un [déploiement géré](#managed-incus-runtime)), affiche le plan de chaque ressource Incus sans rien modifier ; `--json` affiche le plan lui-même. Un workspace affiche un plan par périmètre : volumes, infrastructure, services avec état et la couleur qu’il démarre.
+- `--plan <file>` — sur le runtime Incus, applique le plan qu’a affiché `--plan-only --json`, et seulement tant que le nœud a encore besoin exactement de lui ; un workspace vérifie chaque périmètre avant de rien modifier. Avec `--bundle` sur Incus, `--stop` accepte l’interruption que le plan nomme ; Docker Compose refuse les deux options.
 
 #### Déclarer le runtime de conteneurs {#container-runtime}
 
 `tale.json` nomme dans `runtime.engine` le runtime de conteneurs sur lequel un workspace se déploie : `docker` (Docker Compose) ou `incus`. Sans `runtime`, ou avec `"engine": "docker"`, le workspace tourne sur Docker Compose, comme tous les workspaces avant ce champ. Le runtime est une déclaration relue, jamais une option par commande : un déploiement sur le mauvais runtime construirait une seconde stack à côté de la première. Une valeur que cette CLI ne connaît pas est refusée plutôt que lue comme Docker, de même qu’un bloc `incus` sans `"engine": "incus"` et ce runtime sans son bloc. `tale update` garde le bloc tel quel.
 
-**Exécuter un workspace sur Incus n’est pas encore disponible.** Chaque commande qui pilote la stack (`deploy`, `status`, `logs`, `backup`, `restore` et les autres) refuse un workspace qui déclare `"engine": "incus"` avec `running a workspace on Incus is not available yet in this CLI`. Retire `runtime.engine` et `runtime.incus` pour déployer sur Docker.
+**Exécuter un workspace sur Incus.** La CLI joint l’API Incus déclarée avec les certificats de `.tale/incus/` (`client.crt`, `client.key` et `server.crt`, mode `0600` ; `TALE_INCUS_DIR` les déplace), et le spawner du sandbox reçoit les siens depuis `.tale/sandbox-incus/` ; `tale incus bootstrap` écrit les deux. Une commande qui pilote la stack refuse sans eux. Avant de rien modifier, `tale deploy` vérifie le nœud par rapport au contrat de la stack, comme `tale incus check` sans ses sondes de transfert, et refuse un projet dont les limites, le profil, le bridge ou la confiance ne conviennent plus (après un changement du nombre de répliques, relance `tale incus bootstrap`). Il fait ensuite converger la stack périmètre par périmètre : les volumes, les résolveurs et l’aiguillage du trafic, les services avec état (un `db`, `object-store`, `proxy`, résolveur ou aiguillage en marche garde son image jusqu’à `--stop`), puis la couleur inactive. Chaque nouvelle réplique reçoit du trafic dès que l’aiguillage l’admet ; l’ancienne couleur est ensuite retirée, vidée, arrêtée et supprimée, et l’aiguillage n’est jamais rechargé. Un basculement interrompu reprend là où il s’est arrêté au prochain `tale deploy`, et `tale status` le signale. `--services` remplace les répliques de la couleur active une à une. Tant qu’une restauration est en attente, `deploy`, `rollback`, `start` et `migrate` refusent.
 
 `TALE_RUNTIME` ne fait que protéger la déclaration : réglé sur `docker` ou `incus`, il fait refuser une commande quand la déclaration nomme l’autre runtime. Il ne choisit jamais de runtime.
+
+**Déplacer un workspace Docker vers Incus.** Déclare le runtime Incus dans `runtime.next`, lance `tale incus bootstrap` (en root) et `tale incus check`, puis `tale runtime migrate --to incus` (voir plus bas). La migration déplace le déploiement tel qu’il tourne, à la même version et avec le même `.env`, puis règle `runtime.engine` sur `incus` ; la stack Docker reste arrêtée jusqu’à ce que tu la supprimes.
 
 ```json
 {
@@ -186,6 +188,7 @@ La première ligne indique le runtime que l’espace de travail déclare. Dans u
 | `incus.registryMirrors` | Pour chaque registre autre que Docker Hub, l’hôte qui sert ses dépôts à sa place, comme le registre propre d’un nœud sans accès à Internet (`{"ghcr.io": "registry.internal:5000"}`). Les images restent liées au digest que le miroir a prouvé, et le projet ne peut tirer que depuis le miroir. |
 | `incus.volumes` | Pour chaque volume de données : sa `size` et ses réglages `snapshots.*` et `zfs.*`. Aucun autre réglage n’est accepté. |
 | `incus.operatorReach` | Les destinations hors de la stack que ses instances doivent atteindre (`destination`, `protocol`, `ports`), comme un routeur d’inférence. |
+| `next` | Le runtime vers lequel `tale runtime migrate` déplace le workspace : `engine` (celui sur lequel il ne tourne pas encore) et le bloc de ce runtime, comme `"next": { "engine": "incus", "incus": { … } }` sur un workspace Docker. `tale incus bootstrap`, `check` et `contract` le lisent tant que le workspace tourne encore sur Docker. |
 
 Les certificats sont des fichiers, jamais `tale.json` ni `.env` : `client.crt`, `client.key` et `server.crt` dans `.tale/incus/` du workspace (que `.gitignore` tient hors de Git), ou dans le répertoire absolu que nomme `TALE_INCUS_DIR`. Le répertoire doit être fermé au groupe et aux autres (0700), et chaque fichier aussi (0600) ; la CLI le lit sous Linux et macOS. Le certificat du serveur doit pouvoir être épinglé par la connexion : il est sa propre ancre de confiance (`CA:TRUE`).
 
@@ -807,14 +810,37 @@ Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `f
 
 `tale backup` — sauvegarder les volumes de projet existants pris en charge. Aucun argument. Les bases et buckets externes exigent leurs propres sauvegardes ; consulte [Portée des sauvegardes](/fr/self-hosted/operate/backups-and-restore).
 
+- `--archive` — sous Incus, écrire aussi une archive `tar.gz` de chaque volume dans `backups`, pour que le snapshot survive à son pool de stockage. Docker écrit toujours les archives.
+
+`tale backup export <snapshot-id>` — écrire un snapshot dans un seul fichier, avec son manifeste et l’archive `tar.gz` de chaque volume, sur les deux runtimes ; sous Incus, il écrit d’abord les archives qui manquent à un snapshot natif. Il n’écrase jamais un fichier. Consulte [Déplacer un snapshot vers un autre hôte ou un autre runtime](/fr/self-hosted/operate/backups-and-restore#export-import).
+
+- `--to <fichier>` — où l’écrire. Par défaut : `tale-snapshot-<snapshot-id>.tar` dans le répertoire courant.
+
+`tale backup import <fichier>` — lire dans le volume `backups` un fichier écrit par `tale backup export`, en vérifiant chaque archive par SHA-256 à son arrivée, pour que `tale restore` liste le snapshot. Il refuse un identifiant de snapshot que l’espace de travail a déjà. Sous Incus, déploie d’abord l’espace de travail une fois, pour que son volume `backups` existe.
+
+`tale backup prune` — sous Incus, lister les volumes que des restaurations ont mis de côté (`<volume>.pre-restore-<horodatage>`) et supprimer, après confirmation, ceux sur lesquels ne vit plus aucun snapshot listé.
+
+- `--dry-run` — seulement les lister.
+- `-y, --yes` — ignorer la demande de confirmation.
+
 `tale restore [snapshot-id]` — restaurer un snapshot ; sans id, la liste des snapshots disponibles s'affiche.
 
 - `--stop` — avant la restauration, arrêter les conteneurs du projet en cours d’exécution, en redémarrage ou en pause. Sans cette option, la CLI refuse la restauration et nomme ces conteneurs.
 - `-y, --yes` — ignorer l'invite de confirmation.
+- `--resume` — sous Incus, terminer la restauration qu’une exécution interrompue a laissée en attente.
+- `--abort` — sous Incus, annuler la restauration en attente et remettre chaque volume tel qu’il était.
 
 `tale rollback` — revenir à la version patch précédente (niveau patch uniquement). Demande confirmation au préalable.
 
 - `-y, --yes` — ignorer l'invite de confirmation (requis en mode non-interactif).
+
+`tale stop` — arrêter tout l’environnement proprement, en trois étapes : l’edge, l’aiguillage du trafic et les deux couleurs ; puis les services du sandbox ; puis la base de données, le stockage objet et les résolveurs. Chaque service s’arrête dans son propre délai (Docker : `docker stop -t <secondes>`). Sur un hôte qui exécute d’autres projets à côté de Tale, lance-le avant l’arrêt de l’hôte.
+
+- `--dry-run` — afficher l’ordre sans rien arrêter.
+
+`tale start` — redémarrer l’environnement arrêté dans l’ordre inverse, chaque étape saine avant la suivante. Sur Incus, il redémarre aussi un service que `tale status` signale comme `stopped after repeated crashes` (le statut affiche dessous les dernières lignes de console qu’Incus a conservées).
+
+- `--dry-run` — afficher l’ordre sans rien démarrer.
 
 ### Maintenance
 
@@ -834,12 +860,14 @@ Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `f
 
 - `-f, --force` — ignorer l'invite de confirmation.
 - `-a, --all` — supprimer aussi les conteneurs d'infrastructure avec état et les volumes de données du projet : sa base de données, la configuration des organisations, les fichiers téléversés, les certificats du proxy et le stockage de la passerelle de modèles. C'est irréversible. Le volume `backups` du projet, qui contient les snapshots que liste `tale restore`, est conservé ; supprime-le avec `docker volume rm <project-id>_backups` quand tu n'en as plus besoin.
+- `--discard-snapshots` — sous Incus, avec `--all` : supprimer les volumes de données même quand le snapshot le plus récent ne peut pas être archivé d’abord dans `backups` ; leurs snapshots natifs sont perdus. Consulte [Savoir ce qu’une réinitialisation conserve](/fr/self-hosted/operate/backups-and-restore#reset).
 - `--dry-run` — prévisualiser la réinitialisation sans rien modifier.
 
 `tale uninstall` — supprimer le binaire CLI `tale` de ce système. Il demande confirmation avant de supprimer quoi que ce soit et _propose_ aussi de déconnecter l’[appareil de sandbox](#sandbox-device) de cette machine, de retirer `~/.tale-daemon` laissé par l’ancien `tale daemon` et de démanteler les ressources Docker et les fichiers d'un projet. Sans `--purge`, un projet et ses conteneurs restent intacts — lance `tale reset --all` à l'intérieur pour les supprimer. Si l’appareil de sandbox ne peut pas être arrêté, rien n’est désinstallé.
 
 - `-f, --force` — ignorer l'invite de confirmation (supprime uniquement le binaire ; les nettoyages optionnels nécessitent toujours `--purge`).
 - `--purge` — déconnecter aussi l’appareil de sandbox et supprimer ses espaces de travail, retirer `~/.tale-daemon` et, pour un projet trouvé depuis le répertoire courant, démanteler ses ressources Docker comme le fait `tale reset --all`, en conservant son volume `backups`, et supprimer ses fichiers. Irréversible.
+- `--discard-snapshots` — sous Incus, avec `--purge` : démanteler le projet même quand son snapshot le plus récent ne peut pas être archivé d’abord dans `backups` ; ses snapshots natifs sont perdus.
 - `--dry-run` — montrer ce qui serait supprimé sans rien supprimer.
 
 `tale config show` — afficher le répertoire du projet local résolu et la version de CLI. Hors d’un projet, la commande signale qu’aucun projet n’a été trouvé et se termine sans erreur.
@@ -906,6 +934,14 @@ Pour une récupération manuelle, lance la commande sans options dans un termina
 
 - `-e, --email <email>` — définir une nouvelle adresse e-mail du propriétaire.
 - `-p, --password <password>` — définir un nouveau mot de passe du propriétaire.
+
+`tale runtime migrate` — déplacer le déploiement Docker d’un workspace vers le runtime Incus que déclare `runtime.next` (expérimental). La commande vérifie d’abord le nœud comme `tale incus check` avec ses sondes de transfert, et refuse sur un hôte où le pare-feu de Docker rejette le trafic des bridges Incus, en nommant les remèdes. Le CLI doit déployer la version que Docker exécute. Ensuite, elle vide le backend et la sandbox, arrête chaque conteneur Docker (le proxy aussi), archive les volumes Docker, exporte et importe le snapshot (chaque archive vérifiée par sha256), le restaure dans des volumes Incus neufs, déploie la même version sur Incus, lance les vérifications smoke (`tale deploy smoke`) publiques et règle `runtime.engine` sur `incus`. L’interruption dure de l’arrêt jusqu’au déploiement sur Incus. Chaque étape est consignée dans `.tale/migration.json` : une exécution interrompue reprend là où elle s’est arrêtée quand tu la relances. Tant qu’un conteneur Docker en cours d’exécution publie le port 80 ou 443, elle ne démarre pas l’edge Incus. Un conteneur Docker arrêté le reste après un redémarrage de Docker ou de l’hôte.
+
+- `--to incus` — migrer, ou reprendre une migration interrompue.
+- `--to docker` — revenir en arrière : supprimer les instances Incus (leurs volumes restent), remettre `runtime.engine` sur `docker` et démarrer la stack Docker arrêtée sur les données qu’elle avait. Ce qui a changé sur Incus depuis la migration n’est pas repris.
+- `--finish` — après une migration terminée, supprimer la stack Docker arrêtée : ses conteneurs et ses volumes de données (`<id>_backups` reste). La commande demande d’abord ; un retour en arrière n’est plus possible ensuite.
+- `--smoke-url <url>` — où les vérifications smoke atteignent la nouvelle edge. Par défaut : `SITE_URL`. Un site sous un nom de loopback (`http://localhost`) est vérifié à l’adresse propre de l’edge Incus, car les périphériques proxy ne prennent aucun trafic de loopback. Sur un autre hôte, avant le changement de DNS, une adresse qui atteint l’edge du nouvel hôte.
+- `-y, --yes` — avec `--finish`, supprimer sans demander.
 
 ## Dépannage
 

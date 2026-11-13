@@ -38,6 +38,8 @@ import { INCUS_PLAN_ACTIONS } from '../plan/plan-model';
  * - `restorePending` (R3-22): a restore that has not finished. While it is
  *   set, every verb that could make a missing volume empty refuses, and only
  *   `tale restore --resume` or `--abort` clears it.
+ * - `flip`: a workspace colour flip that has not finished, with its phase,
+ *   so the next deploy or rollback resumes it from there (design 7.3).
  *
  * The caller holds the deploy lock; the journal is written whole, atomically,
  * 0600.
@@ -48,7 +50,7 @@ const INCUS_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/;
 const name = z.string().regex(INCUS_NAME);
 
 /** The steps of one volume's restore aside, in order (design D-29). */
-const RESTORE_STEPS = [
+export const RESTORE_STEPS = [
   'pending',
   'stopped',
   'detached',
@@ -67,6 +69,26 @@ export const restorePendingSchema = z
     steps: z.record(name, z.enum(RESTORE_STEPS)),
     /** Each volume's holder of what it replaced (`<v>.pre-restore-<ts>`). */
     holders: z.record(name, name),
+    /** The disk devices each volume was attached as, so a restore that
+     * detached them can attach them again after a crash. */
+    attachments: z
+      .record(
+        name,
+        z
+          .array(
+            z.strictObject({
+              instance: name,
+              device: name,
+              path: z.string().regex(/^\/[A-Za-z0-9._/-]{0,255}$/),
+              readonly: z.boolean(),
+            }),
+          )
+          .max(64),
+      )
+      .optional(),
+    /** The volume users that ran before the restore stopped them; they are
+     * started again at its end. */
+    running: z.array(name).max(256).optional(),
   })
   .superRefine((value, context) => {
     const volumes = new Set(value.volumes);
@@ -79,6 +101,7 @@ export const restorePendingSchema = z
     for (const volume of [
       ...Object.keys(value.steps),
       ...Object.keys(value.holders),
+      ...Object.keys(value.attachments ?? {}),
     ])
       if (!volumes.has(volume))
         context.addIssue({
@@ -87,6 +110,27 @@ export const restorePendingSchema = z
         });
   });
 export type RestorePending = z.infer<typeof restorePendingSchema>;
+export type RestoreStep = (typeof RESTORE_STEPS)[number];
+
+/**
+ * The phases of a colour flip, in order (design 7.3): the new colour is
+ * coming up (`starting`); it is healthy, admitted and recorded as current
+ * (`admitted`); the old colour is being withdrawn, drained and stopped
+ * (`retiring`). A resumed flip runs again from its phase: a colour that is
+ * up is not made again, and markers already set are kept.
+ */
+export const FLIP_PHASES = ['starting', 'admitted', 'retiring'] as const;
+export type FlipPhase = (typeof FLIP_PHASES)[number];
+const colour = z.enum(['blue', 'green']);
+export const flipSchema = z.strictObject({
+  promoting: colour,
+  retiring: colour.nullable(),
+  /** The release the promoting colour runs. */
+  version: z.string().min(1).max(128),
+  phase: z.enum(FLIP_PHASES),
+  startedAt: z.string().datetime(),
+});
+export type FlipRecord = z.infer<typeof flipSchema>;
 
 export const journalSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -121,6 +165,8 @@ export const journalSchema = z.strictObject({
     )
     .max(256),
   restorePending: restorePendingSchema.nullable(),
+  /** A colour flip of a workspace that has not finished (design 7.3). */
+  flip: flipSchema.nullable().optional(),
 });
 export type IncusJournal = z.infer<typeof journalSchema>;
 

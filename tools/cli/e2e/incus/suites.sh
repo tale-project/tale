@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-readonly SUITES=(bootstrap managed fresh-noop logs crash-loop stop sandbox export-client secrets)
+readonly SUITES=(bootstrap managed fresh-noop logs crash-loop stop sandbox export-client flip streams infra-skew services-rollback resume withdraw-restart backup reset-keeps-backups restore-history reboot migrate secrets)
 
 choice="${1//[[:space:]]/}"
 choice="${choice:-all}"

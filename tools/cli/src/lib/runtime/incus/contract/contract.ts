@@ -16,7 +16,10 @@ import { resolveDeploymentSpec } from '../../../deployment/model';
 import type { ImageFacts } from '../../../oci/image-facts';
 import { setProjectId } from '../../../project/project-context';
 import { readProject } from '../../../project/read-project';
-import { parseCidr } from '../../../project/runtime-declaration';
+import {
+  parseCidr,
+  workspaceIncusDeclaration,
+} from '../../../project/runtime-declaration';
 import {
   addressPlan,
   SLOT_ROLES,
@@ -209,7 +212,8 @@ export function contractOf(source: ContractSource): NodeContract {
 
 /**
  * The contract source of the workspace at `directory`: its `tale.json`
- * runtime, its `.env`, and the documents the generators make for it (the
+ * runtime (or the Incus runtime `runtime.next` migrates it to), its `.env`,
+ * and the documents the generators make for it (the
  * stateful tier and one colour; the peak counts the colour twice).
  */
 export async function workspaceContractSource(
@@ -218,11 +222,12 @@ export async function workspaceContractSource(
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<ContractSource> {
   const project = await readProject(directory);
-  const declaration = project.runtime?.incus;
-  if (project.runtime?.engine !== 'incus' || declaration === undefined)
+  // The runtime it runs on, or the one `runtime.next` migrates it to.
+  const declaration = workspaceIncusDeclaration(project.runtime);
+  if (declaration === undefined)
     throw preconditionError(
       `tale.json in ${directory} declares no Incus runtime.`,
-      'Declare it with tale init --runtime incus and the --incus-* options, or add runtime.engine and runtime.incus to tale.json.',
+      'Declare it with tale init --runtime incus and the --incus-* options, add runtime.engine and runtime.incus to tale.json, or, to migrate a Docker workspace, runtime.next with engine "incus" and its incus block.',
     );
   const dotenvPath = join(directory, '.env');
   const dotenv = existsSync(dotenvPath) ? readFileSync(dotenvPath, 'utf8') : '';

@@ -61,6 +61,17 @@ Garde cette liaison HTTP privée. Le conteneur proxy publie le port 80 : n’en
 
 Si tu maintiens plutôt une image de proxy Tale et un Caddyfile personnalisés, monte certificat et clé privée en lecture seule, puis configure la directive Caddy `tls <cert-file> <key-file>`. Monter les fichiers ou définir `TLS_MODE=external` ne les charge pas automatiquement. Ta configuration doit conserver les routes Tale, les sondes et la protection des métriques.
 
+## Joindre le proxy sur Incus {#incus}
+
+Sur le [runtime Incus](/fr/self-hosted/install/incus) expérimental, `runtime.incus.ingress.mode` décide comment le trafic atteint l’instance `proxy`. Les modes TLS ci-dessus s’appliquent sans changement.
+
+| Entrée | Comment le trafic arrive | Ce qu’il faut vérifier |
+| --- | --- | --- |
+| `proxy-device` | Incus publie les ports 80 et 443 sur l’hôte par des périphériques proxy NAT sur l’instance `proxy`, à l’adresse que nomme `ingress.listen` ou sur toutes les adresses IPv4. Ils gardent l’adresse du client. | Le DNS public et les deux ports atteignent l’hôte, comme pour Docker. Docker ne doit pas publier lui aussi 80 ou 443 sur le même hôte. |
+| `routed` | Rien n’est publié. Ton propre transfert ou reverse proxy joint l’instance `proxy` au décalage 4 du `block` déclaré (`10.30.0.4` pour le bloc `10.30.0.0/24`), sur le port 80. | En général avec `TLS_MODE=external` : règle `TRUSTED_PROXIES` sur l’adresse depuis laquelle ton proxy se connecte, et garde le port 80 fermé à tous les autres. |
+
+Un périphérique proxy NAT ne prend aucun trafic que l’hôte envoie à sa propre adresse de loopback. Sur l’hôte lui-même, ouvre le site par l’adresse propre de l’hôte ou par son nom public, pas par `localhost`. Avec `letsencrypt`, Caddy garde aussi ses certificats dans le volume `caddy-data` sur Incus, et un ensemble de snapshots l’inclut. Quand Docker tourne sur le même hôte, ses propres ports et son pare-feu gênent les périphériques proxy ; voir [Partager un hôte avec Docker](/fr/self-hosted/install/incus#docker-coexistence).
+
 ## Changer le domaine public ou le chemin de base
 
 Modifie `HOST` et `SITE_URL` ensemble, ainsi que les points d’accès de stockage publics et les callbacks du fournisseur d’identité qui utilisent l’ancienne origine. Recrée les services applicatifs et proxy concernés. Teste ensuite la connexion, le téléchargement d’un fichier existant, un import et une page actualisée en direct sur la nouvelle URL.

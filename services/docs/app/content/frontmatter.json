@@ -949,7 +949,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale auf Incus betreiben",
-      "description": "Betreibe ein verwaltetes Tale-Deployment als Incus-Instanzen statt als Docker-Compose-Container, vom Knotenvertrag und seiner Prüfung bis zu den Grenzen, die du einplanen musst."
+      "description": "Betreibe einen Tale-Workspace oder ein verwaltetes Deployment als Incus-Instanzen statt als Docker-Compose-Container, vom Knotenvertrag und seiner Prüfung über den Umzug eines bestehenden Deployments bis zu den Grenzen, die du einplanen musst."
     }
   },
   "de:self-hosted/install/index": {
@@ -2199,7 +2199,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Run Tale on Incus",
-      "description": "Run a managed Tale deployment as Incus instances instead of Docker Compose containers, from the node contract and its check to the limits you plan around."
+      "description": "Run a Tale workspace or managed deployment as Incus instances instead of Docker Compose containers, from the node contract and its check to moving an existing deployment and the limits you plan around."
     }
   },
   "en:self-hosted/install/index": {
@@ -3447,7 +3447,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Exécuter Tale sur Incus",
-      "description": "Exécute un déploiement Tale géré sous forme d’instances Incus plutôt que de conteneurs Docker Compose, du contrat de nœud et de sa vérification jusqu’aux limites à prévoir."
+      "description": "Exécute un workspace Tale ou un déploiement géré sous forme d’instances Incus plutôt que de conteneurs Docker Compose, du contrat de nœud et de sa vérification jusqu’au déménagement d’un déploiement existant et aux limites à prévoir."
     }
   },
   "fr:self-hosted/install/index": {

@@ -115,6 +115,51 @@ export interface Healthcheck {
   startPeriodMs: number;
 }
 
+/** The label an instance carries its healthcheck in, as JSON. */
+export const HEALTH_LABEL = 'user.tale.health';
+
+/** The healthcheck an instance carries (`HEALTH_LABEL`); undefined when it
+ * carries none or one that does not read as a healthcheck. */
+export function healthcheckFromLabel(
+  value: string | undefined,
+): Healthcheck | { disabled: true } | undefined {
+  if (value === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    console.warn(
+      `${HEALTH_LABEL} is no JSON:`,
+      error instanceof Error ? error.message : error,
+    );
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const record = parsed as Record<string, unknown>;
+  if (record.disabled === true) return { disabled: true };
+  const numbers = [
+    'intervalMs',
+    'timeoutMs',
+    'retries',
+    'startPeriodMs',
+  ] as const;
+  if (
+    !Array.isArray(record.test) ||
+    !record.test.every((word) => typeof word === 'string') ||
+    !numbers.every(
+      (key) => typeof record[key] === 'number' && Number.isFinite(record[key]),
+    )
+  )
+    return undefined;
+  return {
+    test: record.test as string[],
+    intervalMs: record.intervalMs as number,
+    timeoutMs: record.timeoutMs as number,
+    retries: record.retries as number,
+    startPeriodMs: record.startPeriodMs as number,
+  };
+}
+
 export interface StopContract {
   /** The signal the process gets, by number. */
   signal: number;
@@ -173,6 +218,9 @@ export interface ServiceContext {
   /** The declared registry mirrors, which the sessions' image is pulled
    * through as the stack's own images are. */
   mirrors?: RegistryMirrors;
+  /** A workspace's sandbox zone, by the spawner's variables, for those its
+   * `.env` names none of (`sessions-zone.ts`). */
+  sessionsZone?: Readonly<Record<string, string>>;
 }
 
 /** The sessions' image source as the spawner pulls it: through the mirror
@@ -893,6 +941,25 @@ function publishedPorts(
 }
 
 /**
+ * The environment the image's own config declares (its `Env`), which Docker
+ * puts under a container's environment. The instance carries it itself:
+ * Incus fingerprints an OCI image by its layers alone, so two images with the
+ * same layers and another config (a release rebuilt with a new `VERSION`, its
+ * `TALE_VERSION` in the config alone) are one Incus image, and the config
+ * Incus applies is the one of whichever was pulled first. An entry with no
+ * `=` names no value and is left out, as Docker leaves it out.
+ */
+function imageEnvironment(env: readonly string[]): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const entry of env) {
+    const separator = entry.indexOf('=');
+    if (separator <= 0) continue;
+    environment[entry.slice(0, separator)] = entry.slice(separator + 1);
+  }
+  return environment;
+}
+
+/**
  * The environment Docker Compose hands a service's container: the keys of its
  * env files, read with Compose's grammar against the interpolation source,
  * under its interpolated `environment` (a key without a value takes the
@@ -1033,7 +1100,10 @@ export function translateService(
     context.envFiles,
   );
   for (const item of assembled.refusals) refuse(item);
-  const environment = assembled.environment;
+  const environment = {
+    ...imageEnvironment(facts.env),
+    ...assembled.environment,
+  };
 
   // platform: Incus does not emulate.
   const platform = service.platform;
@@ -1243,6 +1313,9 @@ export function translateService(
       `http://${context.plan.singleton('sandbox-egress')}:3128`;
     environment.SANDBOX_INCUS_DNS = context.plan.singleton('names-sessions');
     environment.SANDBOX_INCUS_ENDPOINT = context.endpoint;
+    // The zone `tale incus bootstrap` made, unless `.env` names another.
+    for (const [variable, value] of Object.entries(context.sessionsZone ?? {}))
+      environment[variable] ??= value;
   }
 
   if (refusals.length > 0) return { result: null, refusals };

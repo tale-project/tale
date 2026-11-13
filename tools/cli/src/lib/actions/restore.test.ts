@@ -8,8 +8,19 @@ import {
   resolveOutputMode,
   setActiveOutputMode,
 } from '../../utils/output-mode';
+import { createSnapshot } from '../backup/create-snapshot';
+import {
+  incusBackupFixture,
+  type IncusBackupFixture,
+} from '../backup/incus-backup-fixture';
 import { setProjectId } from '../project/project-context';
+import { FakeRuntime } from '../runtime/fake-runtime';
 import { restore, type RestoreDeps } from './restore';
+
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
 
 // Seed the shared project-context singleton instead of mocking load-env —
 // bun's mock.module leaks across test files in one process.
@@ -752,5 +763,131 @@ describe('restore', () => {
       ).toBe(true);
       expect(execMock).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describePosix('restore on Incus (design D-29)', () => {
+  let fixture: IncusBackupFixture;
+  afterEach(() => {
+    fixture.remove();
+  });
+
+  async function snapshotThenChange(): Promise<string> {
+    const manifest = await createSnapshot({
+      prefix: '',
+      trigger: 'manual',
+      platformVersion: '0.5.9',
+      runtime: fixture.runtime,
+    });
+    if (manifest === null) throw new Error('no snapshot');
+    fixture.files('db-data').set('/rows', {
+      content: 'rows v2',
+      mode: '0600',
+      uid: 999,
+      gid: 999,
+      type: 'file',
+    });
+    return manifest.id;
+  }
+
+  test('refuses while the volumes have running users, and with --stop restores into fresh volumes', async () => {
+    fixture = incusBackupFixture();
+    const id = await snapshotThenChange();
+    await expect(
+      restore({
+        env,
+        snapshotId: id,
+        assumeYes: true,
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow(
+      /Refusing to restore while project containers are live: backend \(running\), db \(running\)/,
+    );
+    expect(fixture.text('db-data', '/rows')).toBe('rows v2');
+
+    await restore({
+      env,
+      snapshotId: id,
+      stop: true,
+      assumeYes: true,
+      runtime: fixture.runtime,
+    });
+    expect(fixture.text('db-data', '/rows')).toBe('rows v1');
+    const holders = (await fixture.runtime.listVolumes())
+      .map((volume) => volume.name)
+      .filter((name) => name.includes('.pre-restore-'));
+    expect(holders).toHaveLength(2);
+    expect((await fixture.runtime.inspect('db'))?.running).toBe(true);
+  });
+
+  test('--resume finishes the restore a crash left pending, and --abort undoes one', async () => {
+    let crash = true;
+    fixture = incusBackupFixture({
+      afterRestoreStep: (volume, step) => {
+        if (crash && volume === 'db-data' && step === 'renamed') {
+          crash = false;
+          throw new Error('killed');
+        }
+      },
+    });
+    const id = await snapshotThenChange();
+    await expect(
+      restore({
+        env,
+        snapshotId: id,
+        stop: true,
+        assumeYes: true,
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow('killed');
+    await expect(
+      restore({
+        env,
+        snapshotId: id,
+        stop: true,
+        assumeYes: true,
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow(/is not finished/);
+    await restore({ env, resume: true, runtime: fixture.runtime });
+    expect(fixture.text('db-data', '/rows')).toBe('rows v1');
+
+    crash = true;
+    fixture.files('db-data').set('/rows', {
+      content: 'rows v3',
+      mode: '0600',
+      uid: 999,
+      gid: 999,
+      type: 'file',
+    });
+    await expect(
+      restore({
+        env,
+        snapshotId: id,
+        stop: true,
+        assumeYes: true,
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow('killed');
+    await restore({ env, abort: true, runtime: fixture.runtime });
+    expect(fixture.text('db-data', '/rows')).toBe('rows v3');
+  });
+
+  test('--resume and --abort refuse on Docker, together, and with a snapshot id', async () => {
+    fixture = incusBackupFixture();
+    await expect(
+      run({ env, resume: true, runtime: new FakeRuntime() }),
+    ).rejects.toThrow(/Docker restores in place/);
+    await expect(
+      run({ env, resume: true, abort: true, runtime: fixture.runtime }),
+    ).rejects.toThrow(/Choose one/);
+    await expect(
+      run({
+        env,
+        abort: true,
+        snapshotId: '20261113-100000-manual',
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow(/takes no snapshot id/);
   });
 });

@@ -8,9 +8,11 @@ import { loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { getOutputMode } from '../../utils/output-mode';
 import { confirm as promptConfirm, isInteractive } from '../../utils/prompt';
+import { declaredEngine } from '../project/declared-engine';
 import { findProject } from '../project/find-project';
 import { resolveProjectContext } from '../project/project-context';
 import { selectRuntime } from '../runtime/select-runtime';
+import type { RuntimeEngine } from '../runtime/types';
 import {
   readSandboxDeviceConfig,
   sandboxDeviceConfigPath,
@@ -42,6 +44,9 @@ interface UninstallOptions {
   purge?: boolean;
   /** Preview what would be removed without touching anything. */
   dryRun?: boolean;
+  /** Incus: tear the project down even when its newest snapshot set could
+   * not be archived into `backups` first (R-05). */
+  discardSnapshots?: boolean;
 }
 
 /**
@@ -61,7 +66,13 @@ export interface UninstallDeps {
   disconnectSandboxDevice: () => Promise<void>;
   /** Per-user state of retired features still on disk (`~/.tale-daemon`). */
   legacyUserDirs: () => string[];
-  tearDownDocker: (projectDir: string) => Promise<void>;
+  tearDownDocker: (
+    projectDir: string,
+    options?: { discardSnapshots?: boolean },
+  ) => Promise<void>;
+  /** The runtime the project declares (`tale.json`); null when the
+   * declaration cannot be read. */
+  projectEngine: (projectDir: string) => Promise<RuntimeEngine | null>;
   confirm: (message: string) => Promise<boolean>;
   isInteractive: () => boolean;
   assumeYes: () => boolean;
@@ -88,7 +99,7 @@ const defaultDeps: UninstallDeps = {
       process.env.TALE_DAEMON_HOME?.trim() || join(homedir(), '.tale-daemon');
     return existsSync(legacy) ? [legacy] : [];
   },
-  tearDownDocker: async (projectDir) => {
+  tearDownDocker: async (projectDir, teardown = {}) => {
     await resolveProjectContext(projectDir);
     const env = loadEnv(projectDir);
     // `force: true` — we already consented at the uninstall level, so skip
@@ -101,8 +112,16 @@ const defaultDeps: UninstallDeps = {
       includeStateful: true,
       dryRun: false,
       runtime: await selectRuntime(projectDir),
+      ...(teardown.discardSnapshots === true ? { discardSnapshots: true } : {}),
     });
   },
+  projectEngine: (projectDir) =>
+    declaredEngine(projectDir).catch((error: unknown) => {
+      logger.warn(
+        `Could not read the runtime ${projectDir} declares: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }),
   confirm: (message) => promptConfirm({ message, default: false }),
   isInteractive,
   assumeYes: () => getOutputMode().assumeYes,
@@ -112,7 +131,12 @@ export async function uninstall(
   options: UninstallOptions,
   deps: UninstallDeps = defaultDeps,
 ): Promise<void> {
-  const { force = false, purge = false, dryRun = false } = options;
+  const {
+    force = false,
+    purge = false,
+    dryRun = false,
+    discardSnapshots = false,
+  } = options;
 
   // A dev build runs under the `bun` runtime, so `process.execPath` is bun —
   // not a tale release binary. Removing it would delete the user's bun install.
@@ -144,7 +168,9 @@ export async function uninstall(
       const project = deps.findProject();
       if (project) {
         logger.info(
-          `${prefix}Would tear down Docker resources and delete ${project}`,
+          (await deps.projectEngine(project)) === 'incus'
+            ? `${prefix}Would archive the newest snapshot into backups, tear down the Incus instances and data volumes (backups is kept), and delete ${project}`
+            : `${prefix}Would tear down Docker resources and delete ${project}`,
         );
       }
     } else {
@@ -178,10 +204,13 @@ export async function uninstall(
   };
 
   const project = deps.findProject();
+  const engine = project === null ? null : await deps.projectEngine(project);
   const removeProject =
     project !== null &&
     (await offerExtra(
-      `Also tear down Docker resources and delete the project at ${project}? This is irreversible.`,
+      engine === 'incus'
+        ? `Also tear down the Incus instances and data volumes and delete the project at ${project}? The newest snapshot is archived into backups first, which is kept; the native snapshots go with their volumes. This is irreversible.`
+        : `Also tear down Docker resources and delete the project at ${project}? This is irreversible.`,
     ));
   const device = await deps.findSandboxDevice();
   const removeDevice =
@@ -216,8 +245,19 @@ export async function uninstall(
 
   if (removeProject && project) {
     try {
-      await deps.tearDownDocker(project);
+      await deps.tearDownDocker(project, { discardSnapshots });
     } catch (err) {
+      // On Incus the teardown refuses before it deletes anything when the
+      // newest snapshot cannot outlive the volumes (R-05): the project and
+      // its credentials stay, so the operator can archive and retry.
+      if (engine === 'incus')
+        throw preconditionError(
+          `Tearing down the Incus project failed (${err instanceof Error ? err.message : String(err)}); nothing was uninstalled.`,
+          [
+            'tale backup --archive                        # then uninstall again',
+            'tale uninstall --purge --discard-snapshots   # or lose the native snapshots',
+          ],
+        );
       logger.warn(
         `Skipped Docker teardown for ${project}: ${err instanceof Error ? err.message : String(err)}`,
       );

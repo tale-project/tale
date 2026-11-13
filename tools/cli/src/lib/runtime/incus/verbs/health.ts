@@ -1,6 +1,10 @@
 import * as logger from '../../../../utils/logger';
 import type { HealthState } from '../../types';
-import type { Healthcheck } from '../compile/translate';
+import {
+  HEALTH_LABEL,
+  healthcheckFromLabel,
+  type Healthcheck,
+} from '../compile/translate';
 import { execInInstance, type IncusVerbContext } from './exec';
 import { HealthTracker } from './health-tracker';
 import { instanceStartedAt } from './instances';
@@ -59,10 +63,12 @@ export class IncusHealth {
       this.trackers.delete(name);
       return stoppedAfterCrashes(status, config) ? 'unhealthy' : 'none';
     }
-    const check = this.lookup(name);
+    // The compiled stack's, else the one the instance carries.
+    const check =
+      this.lookup(name) ?? healthcheckFromLabel(config[HEALTH_LABEL]);
     if (check === undefined)
       throw new Error(
-        `The health check of ${name} is unknown: the Incus runtime reads it from the compiled stack, which it was not given.`,
+        `The health check of ${name} is unknown: the Incus runtime reads it from the compiled stack, which it was not given, or from the instance's ${HEALTH_LABEL}, which it does not carry.`,
       );
     if ('disabled' in check) return 'none';
     const startedAt =
