@@ -126,7 +126,12 @@ describe('logs', () => {
     const run = cli(lab, ['logs', 'platform'], { cwd: workspace });
     expect(run.code).toBe(3);
     const output = `${run.stdout}${run.stderr}`;
-    expect(output).toContain('The Incus credentials in');
-    expect(output).toContain(join('.tale', 'incus'));
+    // No credentials directory at all: the custody check names it missing
+    // ("The Incus credentials in <dir> cannot be used" is for files that are
+    // there but make no connection).
+    expect(output).toContain(
+      `The Incus credentials directory ${join(workspace, '.tale', 'incus')} is missing`,
+    );
+    expect(output).toContain('TALE_INCUS_DIR');
   });
 });
