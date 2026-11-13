@@ -163,6 +163,44 @@ describe('a session against the fake', () => {
     expect(error.message).toBe('Command output exceeded its byte limit.');
   });
 
+  test('stdin connects last, once stdout and stderr are open on the client', async () => {
+    const fake = running();
+    const client = fake.client();
+    const sockets: WebSocket[] = [];
+    const stdinSockets = new Set<WebSocket>();
+    const openWebSocket = client.openWebSocket.bind(client);
+    client.openWebSocket = (path, query) => {
+      const ws = openWebSocket(path, query);
+      const send = ws.send.bind(ws);
+      ws.send = (data) => {
+        if (typeof data !== 'string') stdinSockets.add(ws);
+        send(data);
+      };
+      sockets.push(ws);
+      return ws;
+    };
+    let openWhenStarted: boolean[] = [];
+    fake.exec = async (_call, io) => {
+      openWhenStarted = sockets.map((ws) => ws.readyState === WebSocket.OPEN);
+      await io.stdin();
+      io.write(1, 'x'.repeat(100));
+      return 0;
+    };
+    const error = await rejection(
+      execOverWebSocket(client, 'db', ['yes'], {
+        stdin: 'in',
+        maxOutputBytes: 10,
+        deadlineMs: 5_000,
+      }),
+    );
+    expect(error.message).toBe('Command output exceeded its byte limit.');
+    expect(sockets).toHaveLength(4);
+    // The socket stdin went over is the last one opened, and the command
+    // started only after every other socket was open on the client.
+    expect([...stdinSockets]).toEqual(sockets.slice(3));
+    expect(openWhenStarted.slice(0, 3)).toEqual([true, true, true]);
+  });
+
   test('a stopped instance runs nothing', async () => {
     const fake = running();
     const db = fake.instances.get('db');

@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -36,7 +37,11 @@ import { sourceAutomationProtocol } from './source-automation-protocol';
 import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
 export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
-  const directory = mkdtempSync(join(tmpdir(), 'tale-managed-runtime-'));
+  // Resolved: macOS's temporary directory lies below the /var symlink, which
+  // the custody check of a private file refuses as an ancestor.
+  const directory = realpathSync(
+    mkdtempSync(join(tmpdir(), 'tale-managed-runtime-')),
+  );
   const repoRoot = join(directory, 'repo');
   mkdirSync(join(repoRoot, 'services/proxy'), { recursive: true });
   const source: ComposeDocument = {

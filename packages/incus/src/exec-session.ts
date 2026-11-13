@@ -126,7 +126,8 @@ function closeQuietly(ws: WebSocket): void {
   }
 }
 
-/** Starts the command and connects its four websockets (control first). */
+/** Starts the command and connects its four websockets: control first,
+ * then stdout and stderr, stdin last. */
 export async function openExecSession(
   client: IncusClient,
   instance: string,
@@ -160,20 +161,25 @@ export async function openExecSession(
     const control = open('control');
     sockets.push(control);
     await opened(control, timeoutMs, 'control');
-    const stdin = open('0');
+    // stdout and stderr are open on this side, their readers in place, before
+    // stdin connects. The command starts once the last of the four connects,
+    // so its first output can otherwise reach a socket whose upgrade this
+    // side has not finished: on macOS a command that wrote at once then read
+    // back as silent, and its output never met the byte cap.
     const stdout = open('1');
     const stderr = open('2');
-    sockets.push(stdin, stdout, stderr);
-    // The readers are in place before the command can start.
+    sockets.push(stdout, stderr);
     const outputs = Promise.all([
       drained(stdout, (chunk) => options.onOutput?.(1, chunk)),
       drained(stderr, (chunk) => options.onOutput?.(2, chunk)),
     ]);
     await Promise.all([
-      opened(stdin, timeoutMs, '0'),
       opened(stdout, timeoutMs, '1'),
       opened(stderr, timeoutMs, '2'),
     ]);
+    const stdin = open('0');
+    sockets.push(stdin);
+    await opened(stdin, timeoutMs, '0');
     let stdinOpen = true;
     const exit = (async () => {
       const done = await client.waitOperation(operation, SESSION_WAIT_MS);
