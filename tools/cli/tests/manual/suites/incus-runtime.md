@@ -48,3 +48,19 @@ Re-run `INC-F1` there with `--incus-pool tank` first. The boxes run in order.
 - [ ] `INC-B2` · **As root, run `incus network acl rule remove tale-tale-demo egress description=public-egress`, then `tale incus check`** → it exits `3`, the `public-egress` probe reads `timeout`, and the refusal lists the `DOCKER-USER` commands before `ip-forward-no-drop`; `tale incus bootstrap` then prints `update network acl tale-tale-demo`, and `tale incus check` passes again.
 - [ ] `INC-B3` · **On a host where Docker runs (`iptables -S FORWARD` shows `-P FORWARD DROP`), run `tale incus bootstrap` and answer no at the firewall question** → it prints the four `DOCKER-USER` rules and asks for them apart from the plan; `iptables -S DOCKER-USER` is unchanged afterwards, and `tale incus check` refuses the `public-egress` probe as `timeout`.
 - [ ] `INC-B4` · **As root, run `tale incus bootstrap --remove` and answer yes, then run it again** → the first run deletes the two trust entries, the zone's profile, project, bridge and ACL, then the stack's, and the credential files, in that order; the second lists nothing to delete. With any instance left in `tale-demo`, it refuses and names the count instead.
+
+## Deploy a managed bundle · the bootstrapped host from the group above · 45 min
+
+Continues on the host the bootstrap group left, with a deployment
+specification `spec.json` whose `runtime` declares `"engine": "incus"` and the
+`runtime.incus` block of `tale-demo` (a `/25` block), `sandbox`
+`{ "backend": "incus" }`, and `<stateDirectory>/incus/` and
+`<stateDirectory>/sandbox-incus/` holding the bootstrap's certificates. The
+boxes run in order.
+
+- [ ] `INC-F7` · **On a host without Docker on `PATH`, run `tale deploy prepare --spec spec.json --output bundle`** → it exits `0` without calling Docker; `bundle/runtime/runtime.json` records `"runtime": "incus"` and a `sandbox` whose `address` is the block's `.5` and whose `egressProxy` is `http://<block .10>:3128`, and `bundle/runtime/incus-stack.json` names every instance with an empty value for each `environment.*` key.
+- [ ] `INC-F8` · **Run `tale deploy --bundle bundle --plan-only`** → it exits `0` and prints one `create` line per image, volume, file and instance, the switch after the instances it fronts; `incus list --project tale-demo` still shows nothing.
+- [ ] `INC-F9` · **Run `tale deploy --bundle bundle --yes`, then `incus list --project tale-demo`** → it exits `0`; every instance of the plan is `RUNNING`, `<stateDirectory>/.tale/runtime.json` reads `"phase": "ready"`, and the origin answers through the proxy.
+- [ ] `INC-F10` · **Run `tale deploy accept --bundle bundle --cli-ref <sha> --deployment-ref <sha> --expected-version <version>`, then `tale deploy observe` with the same pins** → both exit `0`, and neither prints a value of `<stateDirectory>/secrets.env` or a `DATABASE_URL`.
+- [ ] `INC-B5` · **Run `incus config set db limits.memory=1GiB --project tale-demo`, then `tale deploy --bundle bundle --yes`** → it exits `3` with `An existing instance was changed outside the CLI since it was applied`, and `incus list` shows the instances unchanged.
+- [ ] `INC-B6` · **Prepare a second bundle from a newer release and run `tale deploy --bundle bundle-2 --plan-only`** → the plan names `replace instance/sandbox [drain-sandbox]` and prints the notice that backend-api and platform are replaced in place and the edge serves its maintenance page meanwhile.

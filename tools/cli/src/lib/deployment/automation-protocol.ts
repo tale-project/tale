@@ -79,6 +79,10 @@ const PROTOCOL_READ_FAILURE =
 export function protocolAccess(
   dependencies: RuntimeDependencies,
 ): RuntimeAccess {
+  // On Incus, the stack's own access (it never carries a URL either). Its
+  // calls here hand no tag, which every tag type allows.
+  if (dependencies.access !== undefined)
+    return dependencies.access as unknown as RuntimeAccess;
   return dockerRuntimeAccess(
     budgetedDockerRun(
       {
@@ -164,7 +168,7 @@ const backendIdentitySchema = z.object({
   restartPolicy: z.string().optional(),
   labels: z.record(z.string(), z.string()),
   environmentSize: z.number().int().max(2048),
-  databaseConnections: z.array(z.string()),
+  bundledDatabase: z.boolean(),
 });
 
 /** The installed connection matters even after its old .env override is removed.
@@ -222,7 +226,6 @@ export async function bundledBackendIdentity(
   );
   for (const value of values) {
     const labels = value.labels;
-    const connections = value.databaseConnections;
     requireRuntime(
       projects.includes(labels['com.docker.compose.project']) &&
         ['backend-api', 'backend-worker'].includes(
@@ -231,26 +234,13 @@ export async function bundledBackendIdentity(
         /^[1-9][0-9]*$/.test(
           labels['com.docker.compose.container-number'] ?? '',
         ) &&
-        labels['com.docker.compose.oneoff']?.toLowerCase() === 'false' &&
-        connections.length === 1,
+        labels['com.docker.compose.oneoff']?.toLowerCase() === 'false',
       'Installed backend database custody differs.',
     );
-    let bundled = false;
-    try {
-      const url = new URL(connections[0].slice('DATABASE_URL='.length));
-      bundled =
-        ['postgres:', 'postgresql:'].includes(url.protocol) &&
-        url.hostname === 'db' &&
-        url.port === '5432' &&
-        url.pathname === '/tale_app' &&
-        url.search === '' &&
-        url.hash === '' &&
-        url.username !== '';
-    } catch {
-      /* An unreadable connection is never the default database. */
-    }
+    // The runtime judged the connection where it lives: no URL, and so no
+    // password, reaches this process (design R-15).
     requireRuntime(
-      bundled,
+      value.bundledDatabase,
       'Custom database connections require a separately verified protocol readback. This CLI cannot safely deploy or roll back that topology.',
     );
   }
@@ -336,7 +326,7 @@ export async function bundledBackendIdentity(
           ),
           restartPolicy: v.restartPolicy ?? null,
           labels: v.labels,
-          databaseConnections: v.databaseConnections,
+          bundledDatabase: v.bundledDatabase,
         }))
         .sort((a, b) => a.id.localeCompare(b.id)),
     }),

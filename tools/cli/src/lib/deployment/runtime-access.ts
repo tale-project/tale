@@ -18,8 +18,12 @@
  * runtime applies to every call it makes for that check.
  */
 
+import { lstatSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { z } from 'zod';
 
+import { preconditionError } from '../../utils/fail';
 import { exec, type ExecResult } from '../docker/exec';
 import type { RuntimeEngine, RuntimeSession } from '../runtime/types';
 import { runtimeCommand, runtimeProcessEnvironment } from './runtime-command';
@@ -27,8 +31,11 @@ import type { RuntimeDependencies } from './runtime-model';
 
 export type { ExecResult };
 
-/** One instance read back, normalized. Every field but `id` is absent when
- *  the runtime did not report it; the caller decides what it requires. */
+/** One instance read back, normalized: the one readback the managed checks
+ *  share on every runtime. Every field but `id` is absent when the runtime
+ *  did not report it; the caller decides what it requires. On Incus it is
+ *  derived from the same `InstanceInfo` the stack's custody check reads
+ *  (`runtime-access-incus.ts`), so the two never disagree. */
 export interface RuntimeInstance {
   /** The runtime's identity of the instance (Docker: the container ID). */
   id: string;
@@ -49,10 +56,12 @@ export interface RuntimeInstance {
   labels?: Record<string, string>;
   /** How many environment entries it has. */
   environmentSize?: number;
-  /** Its `DATABASE_URL=` entries, verbatim: the one environment key a check
-   *  reads (whether the backend uses the bundled database). Every other
-   *  environment entry stays in the runtime. */
-  databaseConnections?: string[];
+  /** Whether its environment names exactly one `DATABASE_URL`, and that one
+   *  is the bundled database (`isBundledDatabaseUrl`). The runtime decides it
+   *  where the environment lives; no environment value, the connection's
+   *  password above all, leaves it (design R-15). Absent when the runtime
+   *  did not report the environment. */
+  bundledDatabase?: boolean;
   /** Its networks by name. */
   networks?: Record<string, { id?: string; address?: string }>;
   mounts?: Array<{ type?: string; source?: string; target?: string }>;
@@ -113,6 +122,60 @@ export interface RuntimeExecCall<Tag = undefined> extends RuntimeCall<Tag> {
   environment?: Readonly<Record<string, string>>;
 }
 
+/** The refusal of a `copyOut` larger than its cap, on every runtime. */
+export const COPY_OUT_LIMIT_SENTENCE =
+  'The copied directory exceeds its byte limit; nothing from it is used.';
+
+/**
+ * Whether a `DATABASE_URL` names the bundled database: Postgres at `db:5432`,
+ * database `tale_app`, with a user and no query or fragment. An unreadable
+ * connection never is.
+ */
+function isBundledDatabaseUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      ['postgres:', 'postgresql:'].includes(url.protocol) &&
+      url.hostname === 'db' &&
+      url.port === '5432' &&
+      url.pathname === '/tale_app' &&
+      url.search === '' &&
+      url.hash === '' &&
+      url.username !== ''
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** `bundledDatabase` of an environment: exactly one `DATABASE_URL`, and it
+ *  is the bundled database. */
+export function bundledDatabaseOf(
+  connections: readonly string[] | undefined,
+): boolean {
+  return (
+    connections !== undefined &&
+    connections.length === 1 &&
+    isBundledDatabaseUrl(connections[0] ?? '')
+  );
+}
+
+/** The bytes of file content under the local `directory`, symlinks not
+ *  followed; stops counting once past `limit`. */
+function localBytes(directory: string, limit: number): number {
+  let total = 0;
+  const walk = (path: string): void => {
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      if (total > limit) return;
+      const child = join(path, entry.name);
+      if (entry.isDirectory()) walk(child);
+      else if (entry.isFile()) total += lstatSync(child).size;
+    }
+  };
+  walk(directory);
+  return total;
+}
+
 /** A source on this host that `copyIn` copies. */
 export type CopySource = { directory: string } | { file: string };
 
@@ -167,12 +230,13 @@ export interface RuntimeAccess<Tag = undefined> {
     call?: RuntimeCall<Tag>,
   ): Promise<ExecResult>;
   /** Copy the contents of the directory `source` in the instance into the
-   *  local `directory`. */
+   *  local `directory`; a copy of more than `maxBytes` of file content is
+   *  refused with `COPY_OUT_LIMIT_SENTENCE` (design R-08). */
   copyOut(
     name: string,
     source: string,
     directory: string,
-    call?: RuntimeCall<Tag>,
+    call: RuntimeCall<Tag> & { maxBytes: number },
   ): Promise<ExecResult>;
   /** Stop the instances gracefully, with no time limit of the runtime's own:
    *  the call's bounds end the wait. */
@@ -256,11 +320,13 @@ export interface ManagedCommandTag {
 /**
  * The access the managed runtime's own steps use (the spawner's control, the
  * configuration activation, the writer stop): each call is one
- * `runtimeCommand`, with its fixed sentences and the host's Docker settings.
+ * `runtimeCommand`, with its fixed sentences and the host's Docker settings;
+ * on the Incus runtime, the stack's Incus access the caller hands over.
  */
 export function managedCommandAccess(
   dependencies: RuntimeDependencies,
 ): RuntimeAccess<ManagedCommandTag> {
+  if (dependencies.access !== undefined) return dependencies.access;
   return dockerRuntimeAccess<ManagedCommandTag>(async (args, call) => {
     if (call.stdin !== undefined)
       throw new Error('A managed runtime command takes no stdin.');
@@ -520,9 +586,14 @@ export function dockerRuntimeAccess<Tag = undefined>(
             restartPolicy: value.HostConfig?.RestartPolicy?.Name,
             labels: value.Config?.Labels ?? undefined,
             environmentSize: value.Config?.Env?.length,
-            databaseConnections: value.Config?.Env?.filter((entry) =>
-              entry.startsWith('DATABASE_URL='),
-            ),
+            bundledDatabase:
+              value.Config?.Env == null
+                ? undefined
+                : bundledDatabaseOf(
+                    value.Config.Env.filter((entry) =>
+                      entry.startsWith('DATABASE_URL='),
+                    ).map((entry) => entry.slice('DATABASE_URL='.length)),
+                  ),
             networks:
               value.NetworkSettings?.Networks == null
                 ? undefined
@@ -605,8 +676,17 @@ export function dockerRuntimeAccess<Tag = undefined>(
           : ['cp', source.file, `${name}:${target}`],
         call,
       ),
-    copyOut: (name, source, directory, call) =>
-      command(['cp', `${name}:${source}/.`, `${directory}/`], call),
+    // `docker cp` has no cap of its own: the copy is measured once it is
+    // here, and refused past the cap before anyone reads it.
+    copyOut: async (name, source, directory, { maxBytes, ...call }) => {
+      const result = await command(
+        ['cp', `${name}:${source}/.`, `${directory}/`],
+        call,
+      );
+      if (result.success && localBytes(directory, maxBytes) > maxBytes)
+        throw preconditionError(COPY_OUT_LIMIT_SENTENCE);
+      return result;
+    },
     stop: (names, call) => command(['stop', '--time=-1', ...names], call),
     restart: (name, graceSeconds, call) =>
       command(['restart', '--time', String(graceSeconds), name], call),

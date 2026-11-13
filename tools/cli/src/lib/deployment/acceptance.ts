@@ -7,6 +7,7 @@ import { externalDepError, preconditionError } from '../../utils/fail';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, sha, slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import type { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { validateLockPaths } from '../state/lock-guard';
 import { withLock } from '../state/with-lock';
 import {
@@ -27,13 +28,16 @@ import {
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
 import { readProvisionStateProof } from './provision-state';
 import {
-  budgetedDockerRun,
   budgetedExec,
-  dockerRuntimeAccess,
   type RuntimeBudget,
   type RuntimeInstance,
 } from './runtime-access';
 import { observeReadyState, startedAtSchema } from './runtime-apply';
+import {
+  deploymentAccess,
+  incusDeclarationOf,
+  observeReadyIncusState,
+} from './runtime-incus-apply';
 import {
   readRuntimeBundle,
   requireRuntime,
@@ -127,6 +131,8 @@ export async function acceptDeployment(
     exec?: typeof exec;
     fetch?: typeof fetch;
     now?: () => number;
+    /** The stack's Incus runtime (tests). */
+    incusRuntime?: IncusRuntime;
   } = {},
 ) {
   gitSha.parse(options.cliRef);
@@ -168,9 +174,6 @@ export async function acceptDeployment(
   const commandOptions = { exec: dependencies.exec };
   // The Ready state reader still takes an executor; it gets the same budget.
   const run = budgetedExec(budget, commandOptions);
-  const runtime = dockerRuntimeAccess(
-    budgetedDockerRun(budget, commandOptions),
-  );
   return withFrozenDeployment(
     options.bundle,
     options,
@@ -192,7 +195,29 @@ export async function acceptDeployment(
           tlsMode: bundle.spec.tlsMode,
           tlsEmail: bundle.spec.tlsEmail,
         };
-        const before = await observeReadyState(runtimeOptions, { exec: run });
+        const runtime = await deploymentAccess(
+          bundle.spec,
+          budget,
+          commandOptions,
+          initial.runtime.images.map((image) => image.reference),
+          dependencies.incusRuntime,
+        );
+        // Both runtimes read back the same normalized ready state.
+        const before =
+          bundle.spec.runtime.engine === 'incus'
+            ? await observeReadyIncusState(
+                {
+                  ...runtimeOptions,
+                  incus: incusDeclarationOf(bundle.spec),
+                  ...(bundle.spec.sandbox?.egressProxy === undefined
+                    ? {}
+                    : { egressProxy: bundle.spec.sandbox.egressProxy }),
+                },
+                dependencies.incusRuntime === undefined
+                  ? {}
+                  : { incusRuntime: dependencies.incusRuntime },
+              )
+            : await observeReadyState(runtimeOptions, { exec: run });
         const ids = before.containers.map((c) => c.Id).sort();
         const identities = async () => {
           const values = z

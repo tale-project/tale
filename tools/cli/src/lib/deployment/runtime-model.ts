@@ -14,8 +14,11 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import type { RegistryClient } from '../oci/registry';
+import type { IncusDeclaration } from '../runtime/incus/compile/stack-target';
 import { automationWriterProtocolSchema } from './automation-model';
 import { migrationInventorySchema } from './migration-model';
+import type { ManagedCommandTag, RuntimeAccess } from './runtime-access';
 import {
   assertSandboxShape,
   incusImage,
@@ -24,6 +27,7 @@ import {
   sandboxPorts,
   type SandboxBundle,
   type SandboxPrepare,
+  type SandboxShapeOptions,
 } from './runtime-sandbox';
 
 export const RUNTIME_SERVICES = [
@@ -127,6 +131,10 @@ export type RuntimeBundle = z.infer<typeof runtimeBundleSchema>;
 
 export interface RuntimeDependencies {
   exec?: typeof exec;
+  /** The runtime the managed steps act on (the spawner's control, the
+   * configuration activation, the writer stop): Docker through `exec` when
+   * absent, the Incus access of the stack on the Incus runtime. */
+  access?: RuntimeAccess<ManagedCommandTag>;
   sleep?: (milliseconds: number) => Promise<void>;
   /** Isolated tests must not create the production host workspace. */
   ensureSandboxWorkspace?: () => void;
@@ -157,6 +165,20 @@ export interface PrepareRuntimeOptions {
   /** The declared Incus sandbox: the bundle's sandbox, backend API and LLM
    * gateway services are prepared in their Incus shape. */
   sandbox?: SandboxPrepare;
+  /** The Incus runtime (design D-39): images are read from their registry
+   * with no Docker daemon, the sandbox is always in its Incus shape on the
+   * address plan, and the bundle records `runtime: "incus"` and the compiled
+   * stack. */
+  incus?: PrepareIncusOptions;
+}
+export interface PrepareIncusOptions {
+  declaration: IncusDeclaration;
+  /** `user.tale.stack`: the deployment's Compose project. */
+  stack: string;
+  /** The declared `sandbox.egressProxy`; absent, the stack's own egress. */
+  egressProxy?: string;
+  /** The registry the images are read from (tests). */
+  registry?: RegistryClient;
 }
 export interface ApplyRuntimeOptions {
   bundleDirectory: string;
@@ -276,6 +298,7 @@ export function parseCompose(
   source: string,
   containerPrefix?: string,
   sandbox?: Pick<SandboxBundle, 'address'>,
+  shape: SandboxShapeOptions = { publish: true },
 ): ComposeDocument {
   const document = parseDocument(source, { uniqueKeys: true });
   requireRuntime(
@@ -407,7 +430,9 @@ export function parseCompose(
     );
     const ports = JSON.stringify(service.ports ?? []);
     const published =
-      sandbox === undefined ? {} : sandboxPorts(sandbox.address);
+      sandbox === undefined || !shape.publish
+        ? {}
+        : sandboxPorts(sandbox.address);
     const allowedPorts: Record<string, string[]> = {
       // The Incus shape publishes the two services sessions dial on the
       // declared address, and nothing else.
@@ -508,10 +533,18 @@ export function readRuntimeBundle(directory: string): {
       'Runtime image source revision differs.',
     );
   }
+  // On the Incus runtime the sandbox is always in its Incus shape, and the
+  // services sessions dial publish nothing (their addresses are the plan's).
+  requireRuntime(
+    bundle.runtime !== 'incus' || bundle.sandbox !== undefined,
+    'A runtime bundle for Incus runs its sandbox in the Incus shape.',
+  );
+  const shape = { publish: bundle.runtime !== 'incus' };
   const compose = parseCompose(
     contents['compose.yml'].toString('utf8'),
     bundle.containerPrefix,
     bundle.sandbox,
+    shape,
   );
   for (const service of RUNTIME_SERVICES) {
     const spec = compose.services[service];
@@ -584,6 +617,7 @@ export function readRuntimeBundle(directory: string): {
     compose,
     bundle.sandbox,
     bundle.sandbox === undefined ? undefined : incusImage(runtime),
+    shape,
   );
   return { bundle, identity: hash(raw), compose, contents };
 }

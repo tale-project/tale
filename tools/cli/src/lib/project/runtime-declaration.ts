@@ -305,18 +305,14 @@ export function guardDeclaredEngine(
 }
 
 /**
- * The refusal of a declared Incus runtime while this CLI cannot run it. One
- * sentence for every caller, so the workspace and the managed path say the
- * same thing.
+ * The refusal of a declared Incus runtime while this CLI cannot run it: the
+ * workspace path. A managed deployment runs on Incus
+ * (`deployment/runtime-incus-apply.ts`).
  */
-export function incusNotAvailableYet(
-  path: 'workspace' | 'managed deployment',
-): CliError {
+export function incusNotAvailableYet(path: 'workspace'): CliError {
   return preconditionError(
     `The deployment declares runtime.engine "incus": running a ${path} on Incus is not available yet in this CLI.`,
-    path === 'workspace'
-      ? 'Remove runtime.engine and runtime.incus from tale.json to deploy on Docker.'
-      : 'Remove runtime.engine and runtime.incus from the deployment specification to deploy on Docker.',
+    'Remove runtime.engine and runtime.incus from tale.json to deploy on Docker.',
   );
 }
 

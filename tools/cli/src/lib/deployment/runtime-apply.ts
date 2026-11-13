@@ -10,7 +10,6 @@ import * as logger from '../../utils/logger';
 import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
 import { assertDockerEngineSupported } from '../docker/setup-checks';
-import { incusNotAvailableYet } from '../project/runtime-declaration';
 import { cutoverLegacyAutomation } from './automation-cutover';
 import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
 import {
@@ -59,7 +58,7 @@ import { assertIncusCredentials } from './runtime-sandbox-credentials';
 import { drainSpawner } from './runtime-spawner';
 
 const sha = z.string().regex(/^[a-f0-9]{64}$/);
-const installedFiles = [
+export const installedFiles = [
   'compose.yml',
   'Caddyfile.production',
   '.env',
@@ -81,7 +80,7 @@ const nullableHashes = z
     'secrets.env': sha.nullable(),
   })
   .strict();
-const receiptSchema = z
+export const receiptSchema = z
   .object({
     schemaVersion: z.literal(1),
     phase: z.enum(['pending', 'ready']),
@@ -99,7 +98,7 @@ const receiptSchema = z
     images: z.array(runtimeImageSchema),
   })
   .strict();
-type RuntimeReceipt = z.infer<typeof receiptSchema>;
+export type RuntimeReceipt = z.infer<typeof receiptSchema>;
 
 const containerSchema = z.object({
   Id: z.string().regex(/^[a-f0-9]{12,64}$/),
@@ -132,10 +131,10 @@ function parseJson(text: string): unknown {
     throw externalDepError('Docker returned invalid runtime metadata.');
   }
 }
-function currentHash(file: string): string | null {
+export function currentHash(file: string): string | null {
   return existsSync(file) ? hash(readRegular(file)) : null;
 }
-function targetPath(options: ApplyRuntimeOptions, file: string): string {
+export function targetPath(options: ApplyRuntimeOptions, file: string): string {
   return join(
     options.stateDirectory,
     file === 'secrets.env' ? file : `src/${file}`,
@@ -144,7 +143,7 @@ function targetPath(options: ApplyRuntimeOptions, file: string): string {
 /** Whether a runtime environment serves exactly the declared additional
  * origins. The list is managed, so any other value — or one left behind
  * without a declaration — is drift; order and repetition carry no meaning. */
-function sameAdditionalOrigins(
+export function sameAdditionalOrigins(
   environment: Record<string, string>,
   declared: readonly string[] | undefined,
 ): boolean {
@@ -155,7 +154,7 @@ function sameAdditionalOrigins(
     [...wanted].every((origin) => serving.has(origin))
   );
 }
-function receiptInput(options: ApplyRuntimeOptions): string {
+export function receiptInput(options: ApplyRuntimeOptions): string {
   return hash(
     JSON.stringify({
       stateDirectory: options.stateDirectory,
@@ -178,7 +177,7 @@ function receiptInput(options: ApplyRuntimeOptions): string {
     }),
   );
 }
-function readReceipt(file: string): RuntimeReceipt | null {
+export function readReceipt(file: string): RuntimeReceipt | null {
   if (!existsSync(file)) return null;
   const parsed = receiptSchema.safeParse(
     parseJson(readRegular(file).toString('utf8')),
@@ -190,7 +189,7 @@ function readReceipt(file: string): RuntimeReceipt | null {
   return parsed.data;
 }
 
-function pendingBytes(
+export function pendingBytes(
   options: ApplyRuntimeOptions,
   receipt: RuntimeReceipt,
 ): Record<string, Buffer> {
@@ -268,7 +267,7 @@ async function canTakeOverPreStartProtocolHandoff(
   return true;
 }
 
-function validateOptions(options: ApplyRuntimeOptions): void {
+export function validateOptions(options: ApplyRuntimeOptions): void {
   requireRuntime(
     isAbsolute(options.stateDirectory) &&
       resolve(options.stateDirectory) === options.stateDirectory &&
@@ -864,9 +863,12 @@ export async function applyRuntime(
   const { bundle, identity, compose, contents } = readRuntimeBundle(
     options.bundleDirectory,
   );
-  // This applies Docker Compose; a bundle for the Incus runtime never reaches it.
+  // This applies Docker Compose; a bundle for the Incus runtime is applied by
+  // `applyIncusRuntime` (`runtime-incus-apply.ts`) and never reaches it.
   if (bundle.runtime === 'incus')
-    throw incusNotAvailableYet('managed deployment');
+    throw preconditionError(
+      'This runtime bundle is for the Incus runtime, not Docker Compose.',
+    );
   const shape: SandboxShape = bundle.sandbox === undefined ? 'docker' : 'incus';
   if (shape === 'incus') {
     // The shape sets these variables itself; a declaration of the same name

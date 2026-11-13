@@ -211,13 +211,11 @@ describe('TALE_RUNTIME', () => {
   });
 });
 
-test('the Incus refusal says "not available yet" for both paths', () => {
-  for (const path of ['workspace', 'managed deployment'] as const) {
-    const error = incusNotAvailableYet(path);
-    expect(error.info.code).toBe(ExitCode.Precondition);
-    expect(error.message).toContain('not available yet');
-    expect(error.message).toContain(path);
-  }
+test('the Incus refusal of a workspace says "not available yet"', () => {
+  const error = incusNotAvailableYet('workspace');
+  expect(error.info.code).toBe(ExitCode.Precondition);
+  expect(error.message).toContain('not available yet');
+  expect(error.message).toContain('workspace');
 });
 
 describe('tale.json on disk', () => {

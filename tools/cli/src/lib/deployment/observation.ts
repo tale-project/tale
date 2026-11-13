@@ -9,6 +9,7 @@ import { externalDepError, preconditionError } from '../../utils/fail';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, sha, slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import type { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { LOCAL_HTTP_ENVIRONMENT } from './acceptance-health';
 import { migrationReadScript } from './acceptance-migrations';
 import { backendDataOwner } from './backend-cli';
@@ -31,13 +32,9 @@ import {
   OBSERVATION_KNOWLEDGE_SQL,
 } from './observation-sql';
 import { readProvisionStateProof } from './provision-state';
-import {
-  budgetedDockerRun,
-  dockerRuntimeAccess,
-  type RuntimeBudget,
-  type RuntimeInstance,
-} from './runtime-access';
+import type { RuntimeBudget, RuntimeInstance } from './runtime-access';
 import { startedAtSchema } from './runtime-apply';
+import { deploymentAccess } from './runtime-incus-apply';
 
 export interface ObserveDeploymentOptions {
   spec: string;
@@ -51,6 +48,8 @@ interface ObservationDependencies {
   machineId?: () => Buffer;
   now?: () => number;
   environment?: NodeJS.ProcessEnv;
+  /** The stack's Incus runtime (tests). */
+  incusRuntime?: IncusRuntime;
 }
 /** One observation call's own bounds: a longer wait, or a cleanup step's
  * small allowance outside the output budget. */
@@ -216,11 +215,12 @@ async function readDeployment(
     refused: () =>
       externalDepError('A deployment observation command was refused.'),
   };
-  const runtime = dockerRuntimeAccess(
-    budgetedDockerRun(budget, {
-      exec: dependencies.exec,
-      environment: localDockerEnvironment,
-    }),
+  const runtime = await deploymentAccess(
+    spec,
+    budget,
+    { exec: dependencies.exec, environment: localDockerEnvironment },
+    [],
+    dependencies.incusRuntime,
   );
   const pending = join(spec.stateDirectory, '.tale', 'deployment-pending.json');
   const readyFile = join(spec.stateDirectory, '.tale', 'deployment-ready.json');

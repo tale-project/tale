@@ -4,11 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { gitSha } from '../config/releases/model';
-import {
-  engineOf,
-  guardDeclaredEngine,
-  incusNotAvailableYet,
-} from '../project/runtime-declaration';
+import { engineOf, guardDeclaredEngine } from '../project/runtime-declaration';
 import { deploymentBuild } from './build';
 import { copyDeploymentCli, writeDeploymentBundle } from './bundle';
 import { prepareDeploymentConfig } from './config-source';
@@ -59,9 +55,20 @@ export async function prepareDeployment(
   );
   const engine = engineOf(spec.runtime);
   guardDeclaredEngine(engine);
-  if (engine === 'incus') throw incusNotAvailableYet('managed deployment');
   const sandbox =
     spec.sandbox && 'address' in spec.sandbox ? spec.sandbox : undefined;
+  // The Incus runtime: images are read from their registry, no Docker
+  // daemon; the sandbox runs in its Incus shape on the address plan.
+  const incus =
+    engine === 'incus' && spec.runtime.incus !== undefined
+      ? {
+          declaration: spec.runtime.incus,
+          stack: spec.composeProject,
+          ...(spec.sandbox?.egressProxy === undefined
+            ? {}
+            : { egressProxy: spec.sandbox.egressProxy }),
+        }
+      : undefined;
   const deploymentRef =
     options.deploymentRef !== undefined
       ? gitSha.parse(options.deploymentRef)
@@ -126,6 +133,10 @@ export async function prepareDeployment(
       );
       if (sandbox)
         logger.step(`Preparing the Incus sandbox shape on ${sandbox.address}`);
+      if (incus)
+        logger.step(
+          `Preparing the Incus runtime for project ${incus.declaration.project}, reading images from their registries`,
+        );
       await (dependencies.runtime ?? prepareRuntime)({
         repoRoot: source(runtimeRequest),
         revision: runtimeRequest.revision,
@@ -141,6 +152,7 @@ export async function prepareDeployment(
               },
             }
           : {}),
+        ...(incus ? { incus } : {}),
         output: join(output, 'runtime'),
       });
       return writeDeploymentBundle(output, {

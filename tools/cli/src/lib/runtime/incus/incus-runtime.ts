@@ -480,6 +480,16 @@ export class IncusRuntime implements StackRuntime {
     return ensureStackVolumes(this.client, target, volumes, this.owners);
   }
 
+  /** Read the owners the target's volumes are made with, for the applier's
+   * `volumeOwner` hook, and make none: the applier makes them, and refuses a
+   * missing data volume first (R3-22). The target's images must be in the
+   * project. */
+  async readVolumeOwners(target: StackTarget): Promise<void> {
+    this.useTarget(target);
+    await assertPoolUnchanged(this.client, target);
+    this.owners = volumeOwners(target, await this.imageFacts(target));
+  }
+
   /** The owner a volume of the last target is made with (the applier's
    * `volumeOwner` hook). */
   volumeOwner(volume: { name: string }): VolumeOwner | undefined {

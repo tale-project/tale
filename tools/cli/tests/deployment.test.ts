@@ -345,8 +345,19 @@ for (const [mode, executable] of modes) {
         expect(result.code).toBe(3);
         expect(result.stdout).toContain('runtime bundle');
       }
-      for (const flag of [
+      // --stop accepts the downtime an Incus plan names; a bundle for
+      // Docker Compose refuses it.
+      const stop = await run(executable, root, [
+        'deploy',
+        '--bundle',
+        bundle,
+        '--json',
+        '--yes',
         '--stop',
+      ]);
+      expect(stop.code).toBe(3);
+      expect(stop.stdout).toContain('apply to a bundle for the Incus runtime');
+      for (const flag of [
         '--override',
         '--override-all',
         '--skip-backup',

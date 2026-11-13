@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   mkdirSync,
   mkdtempSync,
@@ -16,6 +16,8 @@ import { parse, stringify } from 'yaml';
 
 import { BUILDKITD_MIRROR_IMAGE } from '../compose/types';
 import type { exec } from '../docker/exec';
+import type { RegistryClient, ResolvedImage } from '../oci/registry';
+import { factsFor } from '../runtime/incus/compile/compile-fixture';
 import {
   AUTOMATION_PROTOCOL_LABEL,
   AUTOMATION_PROTOCOL_SOURCE,
@@ -637,4 +639,68 @@ export function installLegacy(
   docker.installContainers(compose);
   docker.network = true;
   return { values, secrets, environment };
+}
+
+/** A registry serving every repository the fixture names, by digest of its
+ * repository, with the image shapes the compiler's fixtures use. */
+export function fakeRegistry(
+  revision: () => string,
+  digests: Record<string, string> = {},
+): RegistryClient & { reads: string[] } {
+  const reads: string[] = [];
+  return {
+    reads,
+    async resolve(reference: string): Promise<ResolvedImage> {
+      reads.push(reference);
+      const at = reference.indexOf('@');
+      const repository =
+        at === -1 ? reference.replace(/:[^/:]+$/, '') : reference.slice(0, at);
+      // A digest names itself; a tag the registry's current digest.
+      const digest =
+        at !== -1
+          ? reference.slice(at + 1)
+          : (digests[repository] ??
+            `sha256:${createHash('sha256').update(repository).digest('hex')}`);
+      const tale = repository.includes('/tale-project/tale/');
+      let facts;
+      try {
+        facts = factsFor(`${repository}@${digest}`);
+      } catch {
+        facts = {
+          labels: {},
+          env: ['PATH=/usr/bin:/bin'],
+          entrypoint: null,
+          cmd: ['/bin/sh'],
+          user: null,
+          stopSignal: null,
+          volumes: [] as string[],
+        };
+      }
+      const labels: Record<string, string> = { ...facts.labels };
+      if (tale) labels['org.opencontainers.image.revision'] = revision();
+      // The repository's source writes automation protocol 2.
+      if (repository.endsWith('/tale-platform'))
+        labels[AUTOMATION_PROTOCOL_LABEL] = '2';
+      return {
+        reference: `${repository}@${digest}`,
+        digest,
+        manifestDigest: digest,
+        configDigest: digest,
+        os: 'linux',
+        architecture: 'amd64',
+        variant: null,
+        config: {
+          config: {
+            Labels: labels,
+            Env: facts.env,
+            ...(facts.entrypoint ? { Entrypoint: facts.entrypoint } : {}),
+            ...(facts.cmd ? { Cmd: facts.cmd } : {}),
+            ...(facts.user ? { User: facts.user } : {}),
+            ...(facts.stopSignal ? { StopSignal: facts.stopSignal } : {}),
+            Volumes: Object.fromEntries(facts.volumes.map((v) => [v, {}])),
+          },
+        },
+      };
+    },
+  };
 }

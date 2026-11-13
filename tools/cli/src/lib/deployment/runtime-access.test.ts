@@ -14,6 +14,7 @@ import type { exec, ExecResult } from '../docker/exec';
 import {
   budgetedDockerRun,
   budgetedExec,
+  COPY_OUT_LIMIT_SENTENCE,
   dockerExecArgs,
   dockerRuntimeAccess,
   managedCommandAccess,
@@ -120,13 +121,24 @@ describe('Docker runtime access argv', () => {
     const { runtime, argv } = recorded();
     await runtime.copyIn('backend', { directory: '/host/bundle' }, '/tmp/t');
     await runtime.copyIn('backend', { file: '/host/tale' }, '/tmp/t/tale');
-    await runtime.copyOut('backend', '/tmp/t/export-output', '/host/receive');
+    const receive = mkdtempSync(join(tmpdir(), 'tale-access-receive-'));
+    try {
+      await runtime.copyOut('backend', '/tmp/t/export-output', receive, {
+        maxBytes: 1024,
+      });
+    } finally {
+      rmSync(receive, { recursive: true, force: true });
+    }
     await runtime.stop([ID, 'c'.repeat(64)]);
     await runtime.restart(ID, 30);
     expect(argv()).toEqual([
       ['cp', '/host/bundle/.', 'backend:/tmp/t/'],
       ['cp', '/host/tale', 'backend:/tmp/t/tale'],
-      ['cp', 'backend:/tmp/t/export-output/.', '/host/receive/'],
+      [
+        'cp',
+        'backend:/tmp/t/export-output/.',
+        expect.stringMatching(/\/tale-access-receive-[^/]+\/$/),
+      ],
       ['stop', '--time=-1', ID, 'c'.repeat(64)],
       ['restart', '--time', '30', ID],
     ]);
@@ -216,7 +228,7 @@ describe('Docker runtime access readback', () => {
     Mounts: [{ Type: 'volume', Source: '/var/lib/x', Destination: '/data' }],
   };
 
-  test('container inspect normalizes and keeps no environment entry but DATABASE_URL', async () => {
+  test('container inspect normalizes and keeps no environment entry, only whether the database is bundled', async () => {
     const { runtime, argv } = recorded(() => ok(JSON.stringify([container])));
     const [instance] = await runtime.inspect([ID]);
     expect(argv()).toEqual([['container', 'inspect', ID]]);
@@ -233,11 +245,63 @@ describe('Docker runtime access readback', () => {
       restartPolicy: 'unless-stopped',
       labels: container.Config.Labels,
       environmentSize: 2,
-      databaseConnections: ['DATABASE_URL=postgres://tale:pw@db:5432/tale_app'],
+      bundledDatabase: true,
       networks: { tale_default: { id: 'n'.repeat(64), address: '10.0.0.2' } },
       mounts: [{ type: 'volume', source: '/var/lib/x', target: '/data' }],
     });
     expect(JSON.stringify(instance)).not.toContain(secret);
+    expect(JSON.stringify(instance)).not.toContain('postgres://');
+  });
+
+  test('bundledDatabase is decided in the access: one bundled DATABASE_URL, nothing else', async () => {
+    const judged = async (env: string[] | undefined) => {
+      const { runtime } = recorded(() =>
+        ok(
+          JSON.stringify([
+            { ...container, Config: { ...container.Config, Env: env } },
+          ]),
+        ),
+      );
+      return (await runtime.inspect([ID]))[0].bundledDatabase;
+    };
+    expect(
+      await judged(['DATABASE_URL=postgresql://tale:pw@db:5432/tale_app']),
+    ).toBe(true);
+    expect(
+      await judged(['DATABASE_URL=postgresql://tale:pw@other:5432/tale_app']),
+    ).toBe(false);
+    expect(
+      await judged(['DATABASE_URL=postgresql://tale:pw@db:5432/other']),
+    ).toBe(false);
+    expect(await judged(['DATABASE_URL=postgresql://db:5432/tale_app'])).toBe(
+      false,
+    );
+    expect(
+      await judged([
+        'DATABASE_URL=postgresql://tale:pw@db:5432/tale_app',
+        'DATABASE_URL=postgresql://tale:pw@db:5432/tale_app',
+      ]),
+    ).toBe(false);
+    expect(await judged(['OTHER=1'])).toBe(false);
+    expect(await judged(undefined)).toBeUndefined();
+  });
+
+  test('copyOut refuses a copy larger than its cap with the fixed sentence', async () => {
+    const receive = mkdtempSync(join(tmpdir(), 'tale-access-cap-'));
+    try {
+      const { runtime } = recorded(() => {
+        writeFileSync(join(receive, 'big'), 'x'.repeat(2048));
+        return ok('');
+      });
+      await expect(
+        runtime.copyOut('backend', '/tmp/t/out', receive, { maxBytes: 1024 }),
+      ).rejects.toThrow(COPY_OUT_LIMIT_SENTENCE);
+      await expect(
+        runtime.copyOut('backend', '/tmp/t/out', receive, { maxBytes: 4096 }),
+      ).resolves.toMatchObject({ success: true });
+    } finally {
+      rmSync(receive, { recursive: true, force: true });
+    }
   });
 
   test('an unreported field is absent, never an undefined key', async () => {

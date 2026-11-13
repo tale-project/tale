@@ -262,14 +262,24 @@ export function incusSandboxVariables(
 
 const environmentSchema = z.record(z.string(), z.unknown());
 
+/** Where the services sessions dial are reached: published on the declared
+ * address (a Docker-hosted stack), or at their addresses in the Incus address
+ * plan, which publishes nothing (the Incus runtime). */
+export interface SandboxShapeOptions {
+  publish: boolean;
+}
+
 /**
  * Turn the sandbox, backend API and LLM gateway services of a prepared Docker
  * bundle into their Incus shape, and hold the result to the reader's rule.
- * The other eight services are not touched.
+ * The other eight services are not touched. On the Incus runtime
+ * (`publish: false`) the two services publish nothing: the sessions reach
+ * them at their addresses in the plan.
  */
 export function applyIncusShape(
   compose: ComposeDocument,
   sandbox: SandboxBundle,
+  shape: SandboxShapeOptions = { publish: true },
 ): void {
   const service = compose.services.sandbox;
   const environment = environmentSchema.parse(service.environment);
@@ -295,10 +305,13 @@ export function applyIncusShape(
       (mount) => mount !== DOCKER_SOCKET_MOUNT && mount !== SESSION_ROOT_MOUNT,
     ),
   ];
-  const ports = sandboxPorts(sandbox.address);
-  compose.services['backend-api'].ports = ports['backend-api'];
-  compose.services['sandbox-llm-gateway'].ports = ports['sandbox-llm-gateway'];
-  assertSandboxShape(compose, sandbox, sandbox.image);
+  if (shape.publish) {
+    const ports = sandboxPorts(sandbox.address);
+    compose.services['backend-api'].ports = ports['backend-api'];
+    compose.services['sandbox-llm-gateway'].ports =
+      ports['sandbox-llm-gateway'];
+  }
+  assertSandboxShape(compose, sandbox, sandbox.image, shape);
 }
 
 /**
@@ -315,6 +328,7 @@ export function assertSandboxShape(
   compose: ComposeDocument,
   sandbox: SandboxBundle | undefined,
   image: SandboxBundle['image'] | undefined,
+  shape: SandboxShapeOptions = { publish: true },
 ): void {
   const service = compose.services.sandbox;
   const environment = environmentSchema.parse(service.environment);
@@ -358,7 +372,9 @@ export function assertSandboxShape(
       REMOVED_VARIABLES.every((name) => environment[name] === undefined),
     'Runtime sandbox environment differs from the Incus shape.',
   );
-  const ports = sandboxPorts(sandbox.address);
+  const ports = shape.publish
+    ? sandboxPorts(sandbox.address)
+    : { 'backend-api': undefined, 'sandbox-llm-gateway': undefined };
   must(
     JSON.stringify(compose.services['backend-api'].ports) ===
       JSON.stringify(ports['backend-api']) &&

@@ -108,11 +108,12 @@ describePosix('a runtime bundle for the Incus runtime', () => {
     );
   }
 
-  test('is refused as not available yet before any Docker call', async () => {
+  test('is refused by the Docker apply before any Docker call', async () => {
     const { fixture, docker, apply } = await create();
     asIncus(fixture);
+    // A Docker bundle relabelled for Incus lacks the Incus sandbox shape.
     await expect(apply()).rejects.toThrow(
-      'running a managed deployment on Incus is not available yet',
+      'A runtime bundle for Incus runs its sandbox in the Incus shape.',
     );
     expect(docker.calls).toEqual([]);
   });
