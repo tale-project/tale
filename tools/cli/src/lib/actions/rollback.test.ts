@@ -1,12 +1,4 @@
-import {
-  afterAll,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import {
   mkdirSync,
   mkdtempSync,
@@ -18,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { DeploymentEnv } from '../../utils/load-env';
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import {
   resolveOutputMode,
   setActiveOutputMode,
@@ -99,26 +92,11 @@ let project = 'tale';
 /** What `tale init` makes of a folder named `2024-site`. */
 const digitLed = '2024-site-abc123';
 
-/**
- * `mock.module` is process-global in Bun and outlives this file: CI runs every
- * test file of the CLI in one process, and a module replaced here stays
- * replaced for each suite after it. Every module this file replaces is put
- * back once it ends, so a later suite reads the real module, not a mock that
- * `afterEach` reset to answer `undefined` (the Incus apply's health wait then
- * read every instance as unhealthy at once).
- */
-const restoreModules: (() => void)[] = [];
-async function mockModule(
-  path: string,
-  factory: () => Record<string, unknown>,
-): Promise<void> {
-  const real: Record<string, unknown> = { ...(await import(path)) };
-  mock.module(path, factory);
-  restoreModules.push(() => mock.module(path, () => real));
-}
-afterAll(() => {
-  for (const restore of restoreModules.splice(0)) restore();
-});
+// Every module this file replaces is put back once it ends, so a later suite
+// reads the real module, not a mock that `afterEach` reset to answer
+// `undefined` (the Incus apply's health wait then read every instance as
+// unhealthy at once).
+const { mockModule } = createModuleMocks(import.meta.dir);
 
 await mockModule('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
