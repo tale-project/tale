@@ -399,11 +399,10 @@ export async function prepareRuntime(
       ? dockerImageReader(options.platform, dependencies)
       : registryImageReader(
           incus.registry ??
-            createRegistryClient(
-              incus.declaration.registryMirror === undefined
-                ? {}
-                : { registryMirror: incus.declaration.registryMirror },
-            ),
+            createRegistryClient({
+              registryMirror: incus.declaration.registryMirror,
+              registryMirrors: incus.declaration.registryMirrors,
+            }),
           options.platform,
           facts,
         );

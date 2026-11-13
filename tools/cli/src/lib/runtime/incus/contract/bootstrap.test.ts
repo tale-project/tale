@@ -365,6 +365,37 @@ describe('tale incus bootstrap', () => {
     expect(project.id).toBe('tale');
   });
 
+  test("writes a managed deployment's credentials into its state directory and no tale.json", async () => {
+    const socket = new AdminSocket(server.cert);
+    const parent = mkdtempSync(join(tmpdir(), 'tale-bootstrap-managed-'));
+    directories.push(parent);
+    const stateDirectory = join(parent, 'state');
+    const run = firewall('ACCEPT').run;
+    const managed = { stateDirectory, workspace: join(parent, 'nowhere') };
+    const plan = await planBootstrap(options(socket, parent, run, managed));
+    expect(plan.refusals).toEqual([]);
+    expect(
+      plan.steps
+        .filter((step) => step.action === 'write')
+        .map((step) => step.object),
+    ).toEqual([
+      join(stateDirectory, 'incus'),
+      join(stateDirectory, 'sandbox-incus'),
+    ]);
+    await plan.apply();
+    for (const name of ['incus', 'sandbox-incus'])
+      for (const file of ['client.crt', 'client.key', 'server.crt'])
+        expect(statSync(join(stateDirectory, name, file)).mode & 0o777).toBe(
+          0o600,
+        );
+    expect(existsSync(join(parent, 'nowhere'))).toBe(false);
+    const again = await planBootstrap(options(socket, parent, run, managed));
+    expect(again.steps.filter((step) => step.action !== 'keep')).toEqual([]);
+    const removal = await planRemoval(options(socket, parent, run, managed));
+    await removal.apply();
+    expect(existsSync(join(stateDirectory, 'incus', 'client.key'))).toBe(false);
+  });
+
   test('changes nothing on a second run', async () => {
     const socket = new AdminSocket(server.cert);
     const directory = workspace();

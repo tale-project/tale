@@ -129,10 +129,23 @@ describe('ensureImages', () => {
       pullSource('ghcr.io/tale-project/tale/tale-proxy:0.5.104'),
     ).toThrow('by digest only');
     expect(registryHosts([PROXY, BGUTIL])).toEqual(['docker.io', 'ghcr.io']);
-    expect(registryHosts([PROXY, BGUTIL], 'mirror.gcr.io:443')).toEqual([
-      'ghcr.io',
+    expect(
+      registryHosts([PROXY, BGUTIL], { registryMirror: 'mirror.gcr.io:443' }),
+    ).toEqual(['ghcr.io', 'mirror.gcr.io:443']);
+  });
+
+  test('another registry is pulled from the mirror declared for it, under its own repository', () => {
+    const mirrors = {
+      registryMirror: 'mirror.gcr.io:443',
+      registryMirrors: { 'ghcr.io': '127.0.0.1:5000' },
+    };
+    expect(registryHosts([PROXY, BGUTIL], mirrors)).toEqual([
+      '127.0.0.1:5000',
       'mirror.gcr.io:443',
     ]);
+    const source = pullSource(PROXY.reference, mirrors);
+    expect(source.server).toBe('https://127.0.0.1:5000');
+    expect(source.alias).toBe(PROXY.reference.slice('ghcr.io/'.length));
   });
 });
 

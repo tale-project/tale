@@ -186,6 +186,7 @@ Die erste Zeile nennt die Laufzeit, die der Workspace deklariert. In einem Works
 | `incus.sessions.subnet` | Das Netz der Sandbox-Sessions, getrennt vom Subnetz des Stacks. |
 | `incus.ingress` | `proxy-device` (Incus veröffentlicht die Ports 80 und 443 auf dem Host, auf `listen` oder auf jeder Adresse) oder `routed` (deine eigene Weiterleitung erreicht den Proxy auf Port 80). |
 | `incus.registryMirror`, `incus.rootSize` | Den Registry-Host, der Docker Hub vertritt, geschrieben wie in der Remote-URL (`mirror.gcr.io:443`), und die Größe der Root-Disk jeder Instanz (`10GiB`). |
+| `incus.registryMirrors` | Je Registry außer Docker Hub den Host, der ihre Repositorys an ihrer Stelle ausliefert, etwa die eigene Registry eines Knotens ohne Internetzugang (`{"ghcr.io": "registry.internal:5000"}`). Images bleiben an den Digest gebunden, den der Mirror nachgewiesen hat, und das Projekt darf nur vom Mirror laden. |
 | `incus.volumes` | Pro Daten-Volume: seine `size` und seine Einstellungen `snapshots.*` und `zfs.*`. Andere Einstellungen sind nicht erlaubt. |
 | `incus.operatorReach` | Ziele außerhalb des Stacks, die seine Instanzen erreichen müssen (`destination`, `protocol`, `ports`), etwa ein Inferenz-Router. |
 

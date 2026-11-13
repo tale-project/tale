@@ -228,6 +228,55 @@ describe('a converged stack', () => {
     expect(isEmptyPlan(plan(desired, filled, FULL))).toBe(true);
   });
 
+  test('an empty value is a key Incus does not keep: not drift (TI-20, measured)', () => {
+    // An `.env` line such as `SENTRY_DSN=` compiles to an empty value; Incus
+    // 7.6 stores no empty value, so the instance reads back without the key.
+    const withValue = (value: string) => ({
+      ...desired,
+      target: {
+        ...desired.target,
+        instances: desired.target.instances.map((instance) =>
+          instance.name === 'db'
+            ? {
+                ...instance,
+                config: {
+                  ...instance.config,
+                  'environment.SENTRY_DSN': value,
+                },
+              }
+            : instance,
+        ),
+      },
+    });
+    const without = (stack: Readback) =>
+      changed(stack, 'db', (db) => ({
+        ...db,
+        config: Object.fromEntries(
+          Object.entries(db.config).filter(
+            ([key]) => key !== 'environment.SENTRY_DSN',
+          ),
+        ),
+      }));
+    const empty = withValue('');
+    expect(
+      isEmptyPlan(plan(empty, without(convergedReadback(empty)), FULL)),
+    ).toBe(true);
+    // With --stop too: a stop-gated db that drifted would be replaced, not
+    // merely deferred.
+    expect(
+      resource(
+        plan(empty, without(convergedReadback(empty)), STOP),
+        'instance/db',
+      ).action,
+    ).toBe('unchanged');
+    // A value that is not empty and is gone was removed by hand: drift.
+    const set = withValue('https://key@sentry.example/1');
+    expect(
+      resource(plan(set, without(convergedReadback(set)), STOP), 'instance/db')
+        .action,
+    ).toBe('replace');
+  });
+
   test('a stopped instance is started (update)', () => {
     const made = plan(
       desired,

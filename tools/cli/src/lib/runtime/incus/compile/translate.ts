@@ -12,6 +12,11 @@ import {
   type SandboxRuntimeImage,
 } from '../../../deployment/runtime-sandbox';
 import { TALE_INIT_LABEL, type ImageFacts } from '../../../oci/image-facts';
+import {
+  mirrorOf,
+  parseImageReference,
+  type RegistryMirrors,
+} from '../../../oci/registry';
 import type { AddressPlan } from './address-plan';
 import { interpolateDeep, parseDotenv, type Lookup } from './interpolate';
 import { PROFILE_LIMITS, placementOf, type PlacementRow } from './placement';
@@ -165,6 +170,19 @@ export interface ServiceContext {
   /** The Incus API the spawner dials. */
   endpoint: string;
   ingress: { mode: 'routed' | 'proxy-device'; listen?: string };
+  /** The declared registry mirrors, which the sessions' image is pulled
+   * through as the stack's own images are. */
+  mirrors?: RegistryMirrors;
+}
+
+/** The sessions' image source as the spawner pulls it: through the mirror
+ * declared for its registry, by the same repository and digest. */
+function mirroredSource(source: string, mirrors?: RegistryMirrors): string {
+  const reference = parseImageReference(source);
+  const host = mirrorOf(reference.registry, mirrors);
+  return host === undefined || reference.digest === null
+    ? source
+    : `${host}/${reference.repository}@${reference.digest}`;
 }
 
 export interface TranslatedService {
@@ -1210,11 +1228,16 @@ export function translateService(
         ),
         'environment',
       );
-    else
+    else {
+      const image = incusImage(context.sandboxRuntime);
       Object.assign(
         environment,
-        incusSandboxVariables(incusImage(context.sandboxRuntime)),
+        incusSandboxVariables({
+          ...image,
+          source: mirroredSource(image.source, context.mirrors),
+        }),
       );
+    }
     environment[EGRESS_PROXY_VARIABLE] =
       context.egressProxy ??
       `http://${context.plan.singleton('sandbox-egress')}:3128`;

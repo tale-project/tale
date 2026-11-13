@@ -5,7 +5,11 @@ import type { IncusClient } from '@tale/incus/client';
 import { z } from 'zod';
 
 import { preconditionError } from '../../../../utils/fail';
-import { parseImageReference } from '../../../oci/registry';
+import {
+  mirrorOf,
+  parseImageReference,
+  type RegistryMirrors,
+} from '../../../oci/registry';
 import { boundedJson, writePrivateJson } from '../../../state/private-files';
 import type { StackImage } from '../compile/stack-target';
 import { imageAlias } from '../compile/translate';
@@ -32,7 +36,6 @@ const PULL_WAIT_MS = 30 * 60_000;
 const DELETE_WAIT_MS = 120_000;
 /** A stack image alias: the repository part, then 32 hex of the digest. */
 const STACK_ALIAS = /^(tale-[a-z0-9._-]+)-([0-9a-f]{32})$/;
-const DOCKER_HUB = 'docker.io';
 
 const historySchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -41,10 +44,10 @@ const historySchema = z.strictObject({
 });
 type ImageHistory = z.infer<typeof historySchema>;
 
-export interface ImagePullOptions {
+/** The hosts that stand in for registries: `runtime.incus.registryMirror`
+ * for docker.io, `runtime.incus.registryMirrors` for the others. */
+export interface ImagePullOptions extends RegistryMirrors {
   stateRoot: string;
-  /** The host that stands in for docker.io (`runtime.incus.registryMirror`). */
-  registryMirror?: string;
   waitMs?: number;
 }
 
@@ -62,17 +65,14 @@ export interface EnsuredImages {
  * and the repository and digest it asks that registry for. */
 export function pullSource(
   reference: string,
-  registryMirror?: string,
+  mirrors: RegistryMirrors = {},
 ): { host: string; server: string; alias: string } {
   const parsed = parseImageReference(reference);
   if (parsed.digest === null)
     throw preconditionError(
       `Image ${reference} names no digest; Incus pulls a stack image by digest only.`,
     );
-  const host =
-    parsed.registry === DOCKER_HUB && registryMirror !== undefined
-      ? registryMirror
-      : parsed.registry;
+  const host = mirrorOf(parsed.registry, mirrors) ?? parsed.registry;
   return {
     host,
     server: `https://${host}`,
@@ -83,11 +83,11 @@ export function pullSource(
 /** The registry hosts a set of images is pulled from. */
 export function registryHosts(
   images: readonly Pick<StackImage, 'reference'>[],
-  registryMirror?: string,
+  mirrors: RegistryMirrors = {},
 ): string[] {
   return [
     ...new Set(
-      images.map((image) => pullSource(image.reference, registryMirror).host),
+      images.map((image) => pullSource(image.reference, mirrors).host),
     ),
   ].sort();
 }
@@ -156,7 +156,7 @@ export async function ensureImages(
         result.kept.push(image.alias);
         return;
       }
-      const source = pullSource(image.reference, options.registryMirror);
+      const source = pullSource(image.reference, options);
       try {
         await client.pullOciImage(
           { server: source.server, alias: source.alias },

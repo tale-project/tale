@@ -181,9 +181,8 @@ export class IncusRuntime implements StackRuntime {
     this.registry =
       options.registry ??
       createRegistryClient({
-        ...(options.declaration.registryMirror === undefined
-          ? {}
-          : { registryMirror: options.declaration.registryMirror }),
+        registryMirror: options.declaration.registryMirror,
+        registryMirrors: options.declaration.registryMirrors,
         cacheDirectory: ociCacheDirectory(options.stateRoot),
       });
   }
@@ -235,7 +234,7 @@ export class IncusRuntime implements StackRuntime {
         registries ??
         (this.target === undefined
           ? []
-          : registryHosts(this.target.images, this.declaration.registryMirror)),
+          : registryHosts(this.target.images, this.declaration)),
     });
     if (probe.facts !== null) this.platform = probe.facts.platform;
     return probe;
@@ -394,9 +393,8 @@ export class IncusRuntime implements StackRuntime {
     }
     const ensured = await ensureImages(this.client, images, {
       stateRoot: this.stateRoot,
-      ...(this.declaration.registryMirror === undefined
-        ? {}
-        : { registryMirror: this.declaration.registryMirror }),
+      registryMirror: this.declaration.registryMirror,
+      registryMirrors: this.declaration.registryMirrors,
     });
     return { failed: [...failed, ...ensured.failed] };
   }
@@ -405,9 +403,8 @@ export class IncusRuntime implements StackRuntime {
   async ensureTargetImages(target: StackTarget): Promise<void> {
     const ensured = await ensureImages(this.client, target.images, {
       stateRoot: this.stateRoot,
-      ...(this.declaration.registryMirror === undefined
-        ? {}
-        : { registryMirror: this.declaration.registryMirror }),
+      registryMirror: this.declaration.registryMirror,
+      registryMirrors: this.declaration.registryMirrors,
     });
     if (ensured.failed.length > 0) throw pullFailure(ensured.failed);
   }

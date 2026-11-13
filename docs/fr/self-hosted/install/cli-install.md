@@ -182,6 +182,7 @@ La première ligne indique le runtime que l’espace de travail déclare. Dans u
 | `incus.sessions.subnet` | Le réseau des sessions de la sandbox, distinct du sous-réseau de la stack. |
 | `incus.ingress` | `proxy-device` (Incus publie les ports 80 et 443 sur l’hôte, sur `listen` ou sur toutes les adresses) ou `routed` (ta propre redirection atteint le proxy sur le port 80). |
 | `incus.registryMirror`, `incus.rootSize` | L’hôte de registre qui remplace Docker Hub, écrit comme dans l’URL distante (`mirror.gcr.io:443`), et la taille du disque racine de chaque instance (`10GiB`). |
+| `incus.registryMirrors` | Pour chaque registre autre que Docker Hub, l’hôte qui sert ses dépôts à sa place, comme le registre propre d’un nœud sans accès à Internet (`{"ghcr.io": "registry.internal:5000"}`). Les images restent liées au digest que le miroir a prouvé, et le projet ne peut tirer que depuis le miroir. |
 | `incus.volumes` | Pour chaque volume de données : sa `size` et ses réglages `snapshots.*` et `zfs.*`. Aucun autre réglage n’est accepté. |
 | `incus.operatorReach` | Les destinations hors de la stack que ses instances doivent atteindre (`destination`, `protocol`, `ports`), comme un routeur d’inférence. |
 

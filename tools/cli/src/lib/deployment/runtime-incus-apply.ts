@@ -382,9 +382,8 @@ function applyHooks(
     pullImage: async (image) => {
       const ensured = await ensureImages(runtime.client, [image], {
         stateRoot: runtime.stateRoot,
-        ...(runtime.declaration.registryMirror === undefined
-          ? {}
-          : { registryMirror: runtime.declaration.registryMirror }),
+        registryMirror: runtime.declaration.registryMirror,
+        registryMirrors: runtime.declaration.registryMirrors,
       });
       if (ensured.failed.length > 0) throw pullFailure(ensured.failed);
     },
@@ -536,7 +535,7 @@ export async function applyIncusRuntime(
     // sessions' image into its own project.
     registryHosts(
       bundle.images.filter((image) => image.services.length > 0),
-      options.incus.registryMirror,
+      options.incus,
     ),
   );
   if (probe.errors.length > 0)
@@ -667,13 +666,17 @@ export async function applyIncusRuntime(
     if (finding.level === 'warning') logger.warn(finding.sentence);
 
   // The automation writer protocol the running stack has installed: a
-  // bundle may only keep it or move it forward, as on Docker.
-  await checkInstalledProtocol(
-    runtime,
-    bundle,
-    options.composeProject,
-    receipt?.images ?? [],
-  );
+  // bundle may only keep it or move it forward, as on Docker. A first deploy
+  // that stopped part-way (a health gate, a crash) has installed nothing: it
+  // resumes with the bundle it began with (held above), whose tiers may have
+  // started the database before any backend exists.
+  if (!(receipt?.phase === 'pending' && !receipt.existing))
+    await checkInstalledProtocol(
+      runtime,
+      bundle,
+      options.composeProject,
+      receipt?.images ?? [],
+    );
 
   const key = await loadPlanKey(options.stateDirectory);
   const desired: DesiredStack = {

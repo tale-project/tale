@@ -107,10 +107,22 @@ describe('parseImageReference', () => {
 describe('registryOrigin', () => {
   test('sends docker.io to its API host, or to the mirror in its place', () => {
     expect(registryOrigin('docker.io')).toBe('https://registry-1.docker.io');
-    expect(registryOrigin('docker.io', 'mirror.gcr.io')).toBe(
-      'https://mirror.gcr.io',
+    expect(
+      registryOrigin('docker.io', { registryMirror: 'mirror.gcr.io' }),
+    ).toBe('https://mirror.gcr.io');
+    expect(registryOrigin('ghcr.io', { registryMirror: 'mirror.gcr.io' })).toBe(
+      'https://ghcr.io',
     );
-    expect(registryOrigin('ghcr.io', 'mirror.gcr.io')).toBe('https://ghcr.io');
+  });
+
+  test('sends another registry to the mirror declared for it alone', () => {
+    const mirrors = {
+      registryMirror: 'mirror.gcr.io',
+      registryMirrors: { 'ghcr.io': '127.0.0.1:5000' },
+    };
+    expect(registryOrigin('ghcr.io', mirrors)).toBe('http://127.0.0.1:5000');
+    expect(registryOrigin('docker.io', mirrors)).toBe('https://mirror.gcr.io');
+    expect(registryOrigin('quay.io', mirrors)).toBe('https://quay.io');
   });
 
   test('speaks plain HTTP to loopback only', () => {
@@ -125,6 +137,11 @@ describe('registryOrigin', () => {
   test('a mirror is a host, never a URL', () => {
     expect(() =>
       createRegistryClient({ registryMirror: 'https://mirror.gcr.io' }),
+    ).toThrow(/must be a host/);
+    expect(() =>
+      createRegistryClient({
+        registryMirrors: { 'ghcr.io': 'http://127.0.0.1:5000' },
+      }),
     ).toThrow(/must be a host/);
   });
 });
@@ -472,6 +489,25 @@ describe('createRegistryClient against a fixture registry', () => {
       registryRequests()
         .filter((request) => request.path !== '/token')
         .every((request) => request.path.startsWith('/v2/library/alpine/')),
+    ).toBe(true);
+  });
+
+  test('reads another registry through the mirror declared for it, keeping its name', async () => {
+    const image = registry.publish('tale-project/tale/tale-proxy', '1.0', [
+      { os: 'linux', architecture: 'amd64' },
+    ]);
+    const resolved = await createRegistryClient({
+      registryMirrors: { 'ghcr.io': registry.host },
+    }).resolve('ghcr.io/tale-project/tale/tale-proxy:1.0', 'linux/amd64');
+    expect(resolved.reference).toBe(
+      `ghcr.io/tale-project/tale/tale-proxy@${image.digest}`,
+    );
+    expect(
+      registryRequests()
+        .filter((request) => request.path !== '/token')
+        .every((request) =>
+          request.path.startsWith('/v2/tale-project/tale/tale-proxy/'),
+        ),
     ).toBe(true);
   });
 

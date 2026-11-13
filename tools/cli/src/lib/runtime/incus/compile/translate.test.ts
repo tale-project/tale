@@ -276,6 +276,24 @@ describe('what every instance carries (r3)', () => {
     );
   });
 
+  test("the sessions' image is pulled through the mirror declared for its registry", () => {
+    const input = managedInput();
+    const sandbox = compiled({
+      ...input,
+      declaration: {
+        ...input.declaration,
+        registryMirrors: { 'ghcr.io': '127.0.0.1:5000' },
+      },
+    }).instances.find((instance) => instance.name === 'sandbox');
+    expect(sandbox?.config['environment.SANDBOX_INCUS_IMAGE_SOURCE']).toBe(
+      `127.0.0.1:5000/tale-project/tale/tale-sandbox-runtime@${SANDBOX_RUNTIME.digest}`,
+    );
+    // The alias names the same digest whichever host serves it.
+    expect(sandbox?.config['environment.SANDBOX_INCUS_IMAGE']).toBe(
+      `tale-sandbox-runtime-${'5'.repeat(32)}`,
+    );
+  });
+
   test('the bundled object store is left out on arm64 only when an external store is named (D-36)', () => {
     const arm = (variables: Record<string, string>): CompileInput => {
       const input = managedInput({ architecture: 'arm64' });

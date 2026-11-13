@@ -53,6 +53,7 @@ describe('the Incus declaration', () => {
         endpoint: 'https://10.30.0.1:8443',
         ingress: { mode: 'proxy-device', listen: '203.0.113.10' },
         registryMirror: 'mirror.gcr.io:443',
+        registryMirrors: { 'ghcr.io': '127.0.0.1:5000' },
         rootSize: '20GiB',
         volumes: {
           'db-data': {
@@ -126,6 +127,30 @@ describe('the Incus declaration', () => {
     [
       'a registry mirror as a URL',
       { ...incus, registryMirror: 'https://mirror.gcr.io' },
+    ],
+    [
+      "a registry's mirror as a URL",
+      { ...incus, registryMirrors: { 'ghcr.io': 'http://127.0.0.1:5000' } },
+    ],
+    [
+      "docker.io's mirror among the others",
+      { ...incus, registryMirrors: { 'docker.io': 'mirror.gcr.io:443' } },
+    ],
+    [
+      'a registry as its own mirror',
+      { ...incus, registryMirrors: { 'ghcr.io': 'ghcr.io' } },
+    ],
+    [
+      'more than eight registry mirrors',
+      {
+        ...incus,
+        registryMirrors: Object.fromEntries(
+          Array.from({ length: 9 }, (_, index) => [
+            `registry-${index}.example`,
+            `127.0.0.1:${5000 + index}`,
+          ]),
+        ),
+      },
     ],
     ['a size without a unit', { ...incus, rootSize: '20' }],
     [

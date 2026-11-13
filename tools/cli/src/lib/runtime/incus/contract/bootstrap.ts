@@ -12,7 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
   BasicConstraintsExtension,
@@ -31,7 +31,7 @@ import { preconditionError } from '../../../../utils/fail';
 import { SANDBOX_INCUS_DIRECTORY } from '../../../deployment/runtime-sandbox';
 import { parseCidr } from '../../../project/runtime-declaration';
 import type { IncusDeclaration } from '../compile/stack-target';
-import { workspaceIncusDirectory } from '../credentials';
+import { managedIncusDirectory, workspaceIncusDirectory } from '../credentials';
 import type { ContractRule, NodeContract } from './contract-model';
 
 /**
@@ -49,7 +49,9 @@ import type { ContractRule, NodeContract } from './contract-model';
  * - two restricted certificates (the CLI's, for the stack project; the
  *   spawner's, for the zone's project), trusted by the server, with the
  *   server's own certificate beside each, once it is pinnable;
- * - the workspace's `tale.json` runtime and `.tale/incus/`, `.tale/sandbox-incus/`.
+ * - the workspace's `tale.json` runtime and `.tale/incus/`, `.tale/sandbox-incus/`;
+ *   for a managed deployment (`--spec`), its state directory's `incus/` and
+ *   `sandbox-incus/`, beside a specification bootstrap never writes.
  *
  * Host state the restricted certificate cannot see is read here, as root:
  * Docker's FORWARD policy (its `DOCKER-USER` accept rules are applied only
@@ -109,6 +111,9 @@ export interface BootstrapOptions {
   declaration: IncusDeclaration;
   /** The workspace whose `tale.json` and `.tale/` bootstrap writes. */
   workspace: string;
+  /** A managed deployment instead: the state directory whose `incus/` and
+   * `sandbox-incus/` bootstrap writes; its specification stays untouched. */
+  stateDirectory?: string;
   zone: SessionsZone;
   run: HostCommand;
   environment?: NodeJS.ProcessEnv;
@@ -607,13 +612,39 @@ function writePrivate(
   if (owner !== null) chownSync(path, owner.uid, owner.gid);
 }
 
-/** The owner of the workspace, for files root writes into it. */
+/** The owner of the workspace (or of the state directory, or the nearest
+ * directory above it that exists), for files root writes into it. */
 function workspaceOwner(
   workspace: string,
 ): { uid: number; gid: number } | null {
   if (process.getuid?.() !== 0) return null;
-  const stat = statSync(workspace);
+  let path = workspace;
+  while (!existsSync(path) && dirname(path) !== path) path = dirname(path);
+  const stat = statSync(path);
   return { uid: stat.uid, gid: stat.gid };
+}
+
+/** Where the two credential pairs live: the workspace's `.tale/`, or a
+ * managed deployment's state directory. */
+function credentialDirectories(options: BootstrapOptions): {
+  owner: string;
+  stack: string;
+  sandbox: string;
+} {
+  if (options.stateDirectory !== undefined)
+    return {
+      owner: options.stateDirectory,
+      stack: managedIncusDirectory(options.stateDirectory),
+      sandbox: join(options.stateDirectory, SANDBOX_INCUS_DIRECTORY),
+    };
+  return {
+    owner: options.workspace,
+    stack: workspaceIncusDirectory(
+      options.workspace,
+      options.environment ?? process.env,
+    ),
+    sandbox: join(options.workspace, '.tale', SANDBOX_INCUS_DIRECTORY),
+  };
 }
 
 /** The endpoint the CLI and the spawner dial. */
@@ -737,17 +768,11 @@ export async function planBootstrap(
     );
 
   // Two restricted certificates: the CLI's and the spawner's.
-  const owner = workspaceOwner(options.workspace);
+  const directories = credentialDirectories(options);
+  const owner = workspaceOwner(directories.owner);
   const make = options.makeCertificate ?? makeCertificate;
-  const stackDirectory = workspaceIncusDirectory(
-    options.workspace,
-    options.environment ?? process.env,
-  );
-  const sandboxDirectory = join(
-    options.workspace,
-    '.tale',
-    SANDBOX_INCUS_DIRECTORY,
-  );
+  const stackDirectory = directories.stack;
+  const sandboxDirectory = directories.sandbox;
   const credentials: Credentials[] = [];
   for (const [directory, trust] of [
     [
@@ -836,23 +861,26 @@ export async function planBootstrap(
     });
   }
 
-  // The workspace declaration names the runtime and the endpoint.
+  // The workspace declaration names the runtime and the endpoint; a managed
+  // deployment's specification is its operator's, and is left as it is.
   const taleJson = join(options.workspace, 'tale.json');
-  const project = JSON.parse(readFileSync(taleJson, 'utf8')) as Record<
-    string,
-    unknown
-  >;
+  const project =
+    options.stateDirectory === undefined
+      ? (JSON.parse(readFileSync(taleJson, 'utf8')) as Record<string, unknown>)
+      : null;
   const runtime = {
     engine: 'incus',
     incus: { ...declaration, endpoint: endpointOf(declaration) },
   };
   const runtimeChanged =
+    project !== null &&
     JSON.stringify(project.runtime) !== JSON.stringify(runtime);
-  steps.push({
-    object: taleJson,
-    action: runtimeChanged ? 'write' : 'keep',
-    detail: `runtime.engine incus, runtime.incus.endpoint ${runtime.incus.endpoint}`,
-  });
+  if (project !== null)
+    steps.push({
+      object: taleJson,
+      action: runtimeChanged ? 'write' : 'keep',
+      detail: `runtime.engine incus, runtime.incus.endpoint ${runtime.incus.endpoint}`,
+    });
 
   // Host state the restricted certificate cannot see.
   const warnings = await stopBandWarnings(admin, contract, [
@@ -904,7 +932,7 @@ export async function planBootstrap(
         }
         writePrivate(join(item.directory, 'server.crt'), pinned, owner);
       }
-      if (runtimeChanged) {
+      if (project !== null && runtimeChanged) {
         writeFileSync(
           taleJson,
           `${JSON.stringify({ ...project, runtime }, null, 2)}\n`,
@@ -944,15 +972,8 @@ export async function planRemoval(
   const steps: BootstrapStep[] = [];
   const refusals: string[] = [];
   const actions: (() => Promise<void>)[] = [];
-  const stackDirectory = workspaceIncusDirectory(
-    options.workspace,
-    options.environment ?? process.env,
-  );
-  const sandboxDirectory = join(
-    options.workspace,
-    '.tale',
-    SANDBOX_INCUS_DIRECTORY,
-  );
+  const { stack: stackDirectory, sandbox: sandboxDirectory } =
+    credentialDirectories(options);
 
   // The credentials bootstrap made; a pair a workspace already had stays,
   // with the server certificate pinned beside it.

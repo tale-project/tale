@@ -182,6 +182,7 @@ The first row names the runtime the workspace declares. In a workspace whose `ta
 | `incus.sessions.subnet` | The sandbox sessions' network, apart from the stack's subnet. |
 | `incus.ingress` | `proxy-device` (Incus publishes ports 80 and 443 on the host, on `listen` or on every address) or `routed` (your own forward reaches the proxy on port 80). |
 | `incus.registryMirror`, `incus.rootSize` | The registry host that stands in for Docker Hub, written as the remote URL carries it (`mirror.gcr.io:443`), and the root disk size of every instance (`10GiB`). |
+| `incus.registryMirrors` | Per registry other than Docker Hub, the host that serves its repositories in its place, such as an air-gapped node's own registry (`{"ghcr.io": "registry.internal:5000"}`). Images stay pinned by the digest the mirror proved, and the project may pull only from the mirror. |
 | `incus.volumes` | Per data volume: its `size`, and its `snapshots.*` and `zfs.*` settings. No other setting may be declared. |
 | `incus.operatorReach` | Destinations outside the stack that its instances must reach (`destination`, `protocol`, `ports`), such as an inference router. |
 

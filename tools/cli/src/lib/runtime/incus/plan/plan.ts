@@ -147,12 +147,16 @@ export function isImageFilled(
     : image === config[key];
 }
 
+/** The keys a digest compares. Incus stores no empty value: a key set to
+ * "" is a key unset, so an empty value (an `.env` line such as `SENTRY_DSN=`)
+ * counts as absent on both sides. */
 function comparable(
   config: Readonly<Record<string, string>>,
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(config).filter(
-      ([key]) => !isRuntimeKey(key) && !isImageFilled(config, key),
+      ([key, value]) =>
+        value !== '' && !isRuntimeKey(key) && !isImageFilled(config, key),
     ),
   );
 }

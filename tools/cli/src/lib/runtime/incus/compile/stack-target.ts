@@ -174,6 +174,7 @@ export function compileStackTarget(input: CompileInput): CompileResult {
     endpoint:
       declaration.endpoint ?? `https://${declaration.network.gateway}:8443`,
     ingress: declaration.ingress,
+    mirrors: declaration,
   };
 
   const refusals: Refusal[] = [];

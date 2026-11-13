@@ -170,6 +170,64 @@ sandbox-incus:
   - "services/sandbox-egress/**"
   - ".github/workflows/sandbox-incus-e2e.yml"
 
+# The CLI's Incus runtime against a real node (cli-incus-e2e.yml): what the
+# compiler, the planner and the managed path read, the eight stack images'
+# builds and the lab itself, with the sandbox lab's helpers its suites
+# import. tools/cli/scripts/ci-ready-workflows.test.ts holds it to the import
+# closure of tools/cli/src/lib/runtime/incus.
+cli-incus:
+  - "tools/cli/src/lib/actions/**"
+  - "tools/cli/src/lib/backup/**"
+  - "tools/cli/src/lib/compose/**"
+  - "tools/cli/src/lib/config/**"
+  - "tools/cli/src/lib/crypto/**"
+  - "tools/cli/src/lib/deployment/**"
+  - "tools/cli/src/lib/docker/**"
+  - "tools/cli/src/lib/oci/**"
+  - "tools/cli/src/lib/project/**"
+  - "tools/cli/src/lib/runtime/**"
+  - "tools/cli/src/lib/state/**"
+  - "tools/cli/src/utils/**"
+  - "tools/cli/src/commands/deploy/**"
+  - "tools/cli/src/commands/incus.ts"
+  - "tools/cli/src/commands/logs.ts"
+  - "tools/cli/src/commands/status.ts"
+  - "tools/cli/e2e/incus/**"
+  - "tools/cli/package.json"
+  - "compose.yml"
+  - "services/proxy/**"
+  - "services/db/**"
+  - "services/sandbox/src/**"
+  - "services/sandbox/Dockerfile"
+  - "services/sandbox/docker-entrypoint.sh"
+  - "services/sandbox/entrypoint.sh"
+  - "services/sandbox/e2e/incus/**"
+  - "services/sandbox-egress/**"
+  - "services/sandbox-llm-gateway/Dockerfile"
+  - "services/sandbox-llm-gateway/docker-entrypoint.sh"
+  - "services/sandbox-runtime/Dockerfile"
+  - "services/sandbox-runtime/docker-entrypoint.sh"
+  - "services/sandbox-runtime/entrypoint.sh"
+  - "services/sandbox-buildkitd/Dockerfile"
+  - "services/sandbox-buildkitd/docker-entrypoint.sh"
+  - "services/sandbox-buildkitd/entrypoint.sh"
+  - "services/platform/Dockerfile"
+  - "services/platform/docker-entrypoint.sh"
+  - "services/platform/env.sh"
+  - "services/platform/server.ts"
+  - "patches/dumb-init/**"
+  - "packages/incus/**"
+  - "packages/shared/**"
+  - ".github/workflows/cli-incus-e2e.yml"
+
+# While the Incus runtime is experimental, the CLI Incus E2E blocks a pull
+# request only on the paths the runtime owns; on the rest of cli-incus it
+# runs and reports. Every pattern here is one of cli-incus.
+cli-incus-required:
+  - "tools/cli/src/lib/runtime/incus/**"
+  - "packages/incus/**"
+  - ".github/workflows/cli-incus-e2e.yml"
+
 guard:
   - .github/release-candidate-contract.json
   - tools/cli/scripts/release-candidate*

@@ -103,6 +103,8 @@ function fullOutputs(filter: string): Record<string, string> {
         true,
       ),
     );
+  // A run that owes everything is a run the CLI Incus lab blocks.
+  if (filter === 'cli-incus') outputs.required = 'true';
   return outputs;
 }
 

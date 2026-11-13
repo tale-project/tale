@@ -19,7 +19,8 @@
     "lint": "bunx oxlint",
     "lint:fix": "bunx oxlint --fix",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test --timeout 30000"
+    "test": "bun test --timeout 30000",
+    "test:e2e:incus": "bun test --timeout 3600000 ./e2e/incus/suites/bootstrap.e2e.ts ./e2e/incus/suites/managed.e2e.ts ./e2e/incus/suites/fresh-noop.e2e.ts ./e2e/incus/suites/logs.e2e.ts ./e2e/incus/suites/crash-loop.e2e.ts ./e2e/incus/suites/stop.e2e.ts ./e2e/incus/suites/sandbox.e2e.ts ./e2e/incus/suites/export-client.e2e.ts ./e2e/incus/suites/secrets.e2e.ts"
   },
   "dependencies": {
     "@inquirer/prompts": "8.4.1",

@@ -370,6 +370,14 @@ function globToRegExp(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`);
 }
 
+/** Incus keeps no empty value: a key set to "" on create or PUT is a key
+ * unset, as a PATCH with "" removes one (measured on Incus 7.6). */
+function kept(config: IncusConfigMap): IncusConfigMap {
+  return Object.fromEntries(
+    Object.entries(config).filter(([, value]) => value !== ''),
+  );
+}
+
 export class FakeIncus {
   readonly requests: RecordedRequest[] = [];
   readonly instances = new Map<string, FakeInstance>();
@@ -1291,7 +1299,7 @@ export class FakeIncus {
       name: input.name,
       status: 'Stopped',
       ephemeral: input.ephemeral,
-      config: { ...input.config },
+      config: kept(input.config),
       devices: structuredClone(input.devices),
       profiles: input.profiles ?? [this.options.profile],
       createdAt: this.timestamp(),
@@ -1704,7 +1712,7 @@ export class FakeIncus {
     this.checkRestrictions(name, config, devices);
     this.checkVolumes(devices);
     return this.startOperation(async () => {
-      instance.config = config;
+      instance.config = kept(config);
       instance.devices = devices;
       if (Array.isArray(body.profiles)) {
         instance.profiles = body.profiles.filter(

@@ -113,6 +113,23 @@ const incusFields = z.strictObject({
   }),
   /** The registry host that stands in for docker.io. */
   registryMirror: registryHost.optional(),
+  /** Per registry other than docker.io (`ghcr.io`), the host that serves its
+   * repositories in its place: an air-gapped node's own registry, or a lab's.
+   * Every image stays pinned by the digest the mirror proved. */
+  registryMirrors: z
+    .record(registryHost, registryHost)
+    .refine((mirrors) => Object.keys(mirrors).length <= 8, {
+      message: 'At most 8 registry mirrors may be declared.',
+    })
+    .refine((mirrors) => !Object.hasOwn(mirrors, 'docker.io'), {
+      message: "docker.io's mirror is declared as registryMirror.",
+    })
+    .refine(
+      (mirrors) =>
+        Object.entries(mirrors).every(([registry, host]) => registry !== host),
+      { message: 'A registry is not its own mirror.' },
+    )
+    .optional(),
   /** The root disk size of every instance (the profile's default). */
   rootSize: size.optional(),
   /** Per data volume: its size and its snapshots.* / zfs.* settings. */

@@ -858,6 +858,21 @@ describe('logs, the console and images, against the fake', () => {
     expect(await client.getConsoleLog('web', 100)).toBe('kept\n');
   });
 
+  test('an empty config value is a key the fake does not keep, as Incus keeps none', async () => {
+    const { FakeIncus } = await import('./fake.ts');
+    const fake = new FakeIncus({ project: 'stack' });
+    fake.seedInstance(
+      'web',
+      { 'environment.EMPTY': '', 'environment.SET': 'x' },
+      { ephemeral: false },
+    );
+    const read = await fake.client().getInstance('web');
+    expect(read?.instance.config['environment.SET']).toBe('x');
+    expect(
+      Object.hasOwn(read?.instance.config ?? {}, 'environment.EMPTY'),
+    ).toBe(false);
+  });
+
   test('log files are listed by name and read bounded; a path is no name', async () => {
     const { FakeIncus } = await import('./fake.ts');
     const fake = new FakeIncus({ project: 'stack' });

@@ -6,7 +6,11 @@ import { startInstance, stopInstance } from '@tale/incus/state';
 import { incusSizeBytes } from '@tale/incus/units';
 import { getStoragePoolResources } from '@tale/incus/volumes';
 
-import { parseImageReference } from '../../../oci/registry';
+import {
+  mirrorOf,
+  parseImageReference,
+  type RegistryMirrors,
+} from '../../../oci/registry';
 import { parseCidr } from '../../../project/runtime-declaration';
 import { addressPlan } from '../compile/address-plan';
 import { execInInstance, type IncusVerbContext } from '../verbs/exec';
@@ -573,6 +577,7 @@ export function helperProbes(
   context: IncusVerbContext,
   contract: NodeContract,
   probeImage: string,
+  mirrors: RegistryMirrors = {},
 ): ProbeRunner {
   return async (requests) => {
     const client = context.client;
@@ -584,7 +589,8 @@ export function helperProbes(
       pulled = `tale-check-probe-${randomBytes(4).toString('hex')}`;
       await client.pullOciImage(
         {
-          server: `https://${reference.registry}`,
+          // The project may pull from a declared mirror alone.
+          server: `https://${mirrorOf(reference.registry, mirrors) ?? reference.registry}`,
           alias:
             reference.digest === null
               ? `${reference.repository}:${reference.tag ?? 'latest'}`

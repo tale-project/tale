@@ -421,4 +421,25 @@ describe('the probes', () => {
     });
     expect(current.fake.instances.size).toBe(0);
   });
+
+  test('pull the probe image through the mirror declared for its registry', async () => {
+    current.fake.exec = () => 0;
+    const digest = `sha256:${'b'.repeat(64)}`;
+    const runner = helperProbes(
+      { client: current.client, stack: 'tale', stateRoot: '/nonexistent' },
+      contract,
+      `ghcr.io/tale-project/tale/tale-proxy@${digest}`,
+      { registryMirrors: { 'ghcr.io': '127.0.0.1:5000' } },
+    );
+    await runner([{ kind: 'tcp', host: '10.30.0.1', port: 8443 }]);
+    const pulled = current.fake.requests.find(
+      (request) => request.method === 'POST' && request.path === '/1.0/images',
+    );
+    expect(
+      (pulled?.body as { source?: { server: string; alias: string } })?.source,
+    ).toMatchObject({
+      server: 'https://127.0.0.1:5000',
+      alias: `tale-project/tale/tale-proxy@${digest}`,
+    });
+  });
 });

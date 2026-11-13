@@ -64,6 +64,8 @@ export const CI_JOBS = {
   ],
   // No release workflow: a release candidate never runs it.
   'sandbox-incus-e2e': ['pr-scope', 'incus'],
+  // No release workflow either; required on its own paths alone (below).
+  'cli-incus-e2e': ['pr-scope', 'incus'],
 } as const;
 
 export const CI_CONTEXTS = {
@@ -75,7 +77,29 @@ export const CI_CONTEXTS = {
   e2e: 'CI ready (E2E)',
   build: 'CI ready (Build)',
   'sandbox-incus-e2e': 'CI ready (Sandbox Incus E2E)',
+  'cli-incus-e2e': 'CI ready (CLI Incus E2E)',
 } as const;
+
+/**
+ * Whether the CLI Incus E2E blocks a pull request. While the runtime is
+ * experimental its lab is required only for the paths the Incus runtime owns
+ * (`cli-incus-required` in .github/ci-scope.yml); on the rest of its broad
+ * filter the lab runs and its verdict is reported, never blocking. A full
+ * scope (incomplete discovery, a guard file) is required.
+ */
+export function cliIncusRequired({
+  run,
+  full,
+  required,
+}: {
+  run: boolean;
+  full: boolean;
+  required: boolean;
+}): boolean {
+  if (required && !run)
+    throw new Error('Required CLI Incus scope cannot exclude the lab');
+  return full || required;
+}
 
 /** Release receipts keep their existing required graph. New ordinary-only
  * checks may be present in a candidate job listing solely as deliberate skips. */
@@ -421,6 +445,32 @@ export function evaluateReadiness(input: {
         applicable && !fork ? 'success' : 'skipped',
         fork ? 'not run for a fork' : undefined,
       );
+    if (workflow === 'cli-incus-e2e') {
+      const required = cliIncusRequired({
+        run: applicable,
+        full,
+        required: scopeBoolean(outputs.get('pr-scope')!.required),
+      });
+      if (!applicable || fork)
+        requireResult(
+          'incus',
+          'skipped',
+          fork ? 'not run for a fork' : undefined,
+        );
+      else if (required) requireResult('incus', 'success');
+      else {
+        // Reported, not blocking: the lab must have run, and its verdict
+        // stands in the summary whatever it is.
+        const result = results.get('incus')!;
+        rows.push({
+          job: 'incus',
+          result,
+          policy: 'reported, not required on these paths',
+        });
+        if (result === 'skipped')
+          reasons.push('incus: expected a run on these paths, got skipped');
+      }
+    }
     for (const id of ids) {
       if (!rows.some((row) => row.job === id))
         requireResult(id, applicable ? 'success' : 'skipped');

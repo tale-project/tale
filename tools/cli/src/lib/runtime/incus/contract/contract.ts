@@ -665,7 +665,7 @@ export function nodeContract(
   };
   const acls = aclNames(declaration.project);
   const rootSize = declaration.rootSize ?? DEFAULT_ROOT_SIZE;
-  const registries = registryHosts(target.images, declaration.registryMirror);
+  const registries = registryHosts(target.images, declaration);
   const { usage, description } = peakUsage(target);
   const volumeBytes = target.volumes.map((volume) =>
     volume.size === undefined ? null : bytesOf(volume.size, volume.name),

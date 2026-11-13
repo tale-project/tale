@@ -46,7 +46,8 @@ import { action } from '../utils/run-command';
  *
  * - `contract` prints what the node must hold, as versioned JSON;
  * - `check` reads it back with the stack's restricted certificate;
- * - `bootstrap` makes it on a single box over the local admin socket.
+ * - `bootstrap` makes it on a single box over the local admin socket, for a
+ *   workspace or (`--spec`, `--compose`) a managed deployment.
  */
 
 interface SourceOptions {
@@ -237,6 +238,7 @@ export function createIncusCommand(): Command {
                   { client, stack: contract.stack, stateRoot: directory },
                   contract,
                   options.probeImage,
+                  source.declaration,
                 )
               : null,
             publicTarget: parsePublicTarget(options.probePublic),
@@ -259,6 +261,11 @@ export function createIncusCommand(): Command {
       'Workspace whose tale.json declares the Incus runtime',
       '.',
     )
+    .option(
+      '--spec <file>',
+      'Managed deployment specification instead of a workspace: its state directory gets the credentials',
+    )
+    .option('--compose <file>', "The runtime's compose.yml, with --spec")
     .option(
       '--socket <path>',
       'The Incus unix socket',
@@ -284,6 +291,8 @@ export function createIncusCommand(): Command {
       action(
         async (options: {
           workspace: string;
+          spec?: string;
+          compose?: string;
           socket: string;
           sessionsProject?: string;
           sessionsNetwork?: string;
@@ -293,7 +302,11 @@ export function createIncusCommand(): Command {
           yes?: boolean;
         }) => {
           const workspace = resolve(options.workspace);
-          const source = await workspaceContractSource(workspace, pkg.version);
+          const source = await contractSource(options);
+          const stateDirectory =
+            options.spec === undefined
+              ? undefined
+              : await stateDirectoryOf(options.spec);
           const contract = contractOf(source);
           const defaults = defaultSessionsZone(source.declaration);
           const bootstrap = {
@@ -305,6 +318,7 @@ export function createIncusCommand(): Command {
             contract,
             declaration: source.declaration,
             workspace,
+            ...(stateDirectory === undefined ? {} : { stateDirectory }),
             zone: {
               project: options.sessionsProject ?? defaults.project,
               network: options.sessionsNetwork ?? defaults.network,

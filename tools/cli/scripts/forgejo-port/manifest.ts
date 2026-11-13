@@ -158,6 +158,10 @@ export const MANIFEST: Manifest = {
       kind: 'later',
       why: 'it builds an Incus node with a ZFS pool on the runner, which needs a runner that is a virtual machine; the pool serves system containers',
     },
+    'cli-incus-e2e.yml': {
+      kind: 'later',
+      why: "it builds an Incus node with a ZFS pool on the runner, as the sandbox's Incus lab does, which needs a runner that is a virtual machine",
+    },
     'issue-labeler.yml': {
       kind: 'later',
       why: "it labels issues with github-script and GitHub's REST API; Forgejo's labels API takes ids, not names",

@@ -104,9 +104,29 @@ export interface ResolvedImage {
   config: unknown;
 }
 
-export interface RegistryClientOptions {
+/** Hosts that serve a registry's repositories in its place. A mirror can
+ * withhold an image but never change one: every reference it answers is
+ * pinned by the digest it proved. */
+export interface RegistryMirrors {
   /** A host (`mirror.gcr.io`) that serves docker.io's repositories in its place. */
   registryMirror?: string;
+  /** Per registry other than docker.io (`ghcr.io`), the host that serves its
+   * repositories in its place. */
+  registryMirrors?: Readonly<Record<string, string>>;
+}
+
+/** The host a reference's registry is read from: its mirror when one is
+ * declared, else the registry itself (docker.io: its API host). */
+export function mirrorOf(
+  registry: string,
+  mirrors: RegistryMirrors = {},
+): string | undefined {
+  return registry === DOCKER_HUB
+    ? mirrors.registryMirror
+    : mirrors.registryMirrors?.[registry];
+}
+
+export interface RegistryClientOptions extends RegistryMirrors {
   /** Where verified manifests and configs are kept by digest: `ociCacheDirectory(root)`. */
   cacheDirectory?: string;
   /** Bounds each request, its body included (default 30 s). */
@@ -223,13 +243,14 @@ function permittedUrl(url: URL, from: URL): boolean {
   );
 }
 
-/** The origin a registry's API answers on; docker.io goes to the mirror when one is declared. */
+/** The origin a registry's API answers on; a registry goes to its mirror when one is declared. */
 export function registryOrigin(
   registry: string,
-  registryMirror?: string,
+  mirrors: RegistryMirrors = {},
 ): string {
   const host =
-    registry === DOCKER_HUB ? (registryMirror ?? DOCKER_HUB_API) : registry;
+    mirrorOf(registry, mirrors) ??
+    (registry === DOCKER_HUB ? DOCKER_HUB_API : registry);
   const { hostname } = new URL(`http://${host}`);
   return `${loopbackHost(hostname) ? 'http' : 'https'}://${host}`;
 }
@@ -435,11 +456,23 @@ interface Target {
 export function createRegistryClient(
   options: RegistryClientOptions = {},
 ): RegistryClient {
-  const { registryMirror, cacheDirectory } = options;
-  if (registryMirror !== undefined && !DOMAIN.test(registryMirror))
-    throw preconditionError(
-      `Registry mirror ${JSON.stringify(registryMirror.slice(0, 300))} must be a host, optionally with a port.`,
-    );
+  const { cacheDirectory } = options;
+  const mirrors: RegistryMirrors = {
+    ...(options.registryMirror === undefined
+      ? {}
+      : { registryMirror: options.registryMirror }),
+    ...(options.registryMirrors === undefined
+      ? {}
+      : { registryMirrors: { ...options.registryMirrors } }),
+  };
+  for (const host of [
+    ...(mirrors.registryMirror === undefined ? [] : [mirrors.registryMirror]),
+    ...Object.values(mirrors.registryMirrors ?? {}),
+  ])
+    if (!DOMAIN.test(host))
+      throw preconditionError(
+        `Registry mirror ${JSON.stringify(host.slice(0, 300))} must be a host, optionally with a port.`,
+      );
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const tokens = new Map<string, string>();
 
@@ -749,7 +782,7 @@ export function createRegistryClient(
     const reference = parseImageReference(referenceText);
     const want = parsePlatform(platformText);
     const target: Target = {
-      origin: registryOrigin(reference.registry, registryMirror),
+      origin: registryOrigin(reference.registry, mirrors),
       repository: reference.repository,
       display: referenceText,
     };

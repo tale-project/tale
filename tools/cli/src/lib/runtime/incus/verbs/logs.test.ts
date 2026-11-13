@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
+import { IncusApiError } from '@tale/incus/api';
+
 import { CliError } from '../../../../utils/fail';
 import {
   consumingReadWarning,
@@ -8,6 +10,7 @@ import {
   crashTail,
   readInstanceLogs,
   stoppedAfterCrashes,
+  untaken,
 } from './logs';
 import {
   seedStackInstance,
@@ -127,6 +130,99 @@ describe('tale logs on Incus', () => {
     expect(exitCode).toBe(0);
     expect(out.lines).toEqual(['a', 'bc', 'd', 'e']);
     expect(polls).toBe(2);
+  });
+
+  test('--follow ends cleanly when the service stops between a state read and a console read (TI-20, measured)', async () => {
+    const api = seedStackInstance(fixture.fake, 'api');
+    api.consoleLog = 'a\n';
+    const client = fixture.context.client;
+    let reads = 0;
+    // On Incus 7.6 the console of an instance that just exited answers 500
+    // ("connection refused") while its state still read Running.
+    const racing = Object.assign(Object.create(client) as typeof client, {
+      readConsole: async (...args: Parameters<typeof client.readConsole>) => {
+        reads += 1;
+        if (reads === 2) {
+          // The state still reads Running once after the console is gone.
+          let lagging = true;
+          const read = client.getInstance.bind(client);
+          racing.getInstance = async (instance: string) => {
+            const found = await read(instance);
+            if (lagging && found !== undefined) {
+              lagging = false;
+              return {
+                ...found,
+                instance: { ...found.instance, status: 'Running' },
+              };
+            }
+            return found;
+          };
+          api.status = 'Stopped';
+          api.consoleLog = 'last\n';
+          throw new IncusApiError(
+            'Incus GET /1.0/instances/api/console answered 500: connection refused',
+            500,
+          );
+        }
+        return client.readConsole(...args);
+      },
+    });
+    const out = collect();
+    const exitCode = await readInstanceLogs(
+      { ...fixture.context, client: racing },
+      'api',
+      { follow: true, consume: true },
+      out.onLine,
+      { warn: out.warn, pollMs: 1, sleep: async () => {} },
+    );
+    expect(exitCode).toBe(0);
+    expect(out.lines).toEqual(['a', 'last']);
+
+    // A console that fails while the service still runs is a failure.
+    seedStackInstance(fixture.fake, 'web');
+    const failing = Object.assign(Object.create(client) as typeof client, {
+      readConsole: async () => {
+        throw new IncusApiError('Incus GET console answered 500: broken', 500);
+      },
+    });
+    await expect(
+      readInstanceLogs(
+        { ...fixture.context, client: failing },
+        'web',
+        { follow: true, consume: true },
+        () => {},
+        { warn: () => {}, pollMs: 1, sleep: async () => {} },
+      ),
+    ).rejects.toThrow('broken');
+  });
+
+  test('--follow shows each line once when the stopped console hands out the whole run again (TI-20, measured)', async () => {
+    const api = seedStackInstance(fixture.fake, 'api');
+    api.consoleLog = 'a\nb\n';
+    const out = collect();
+    await readInstanceLogs(
+      fixture.context,
+      'api',
+      { follow: true, consume: true },
+      out.onLine,
+      {
+        warn: out.warn,
+        pollMs: 1,
+        sleep: async () => {
+          api.status = 'Stopped';
+          api.consoleLog = 'a\nb\nc\n';
+        },
+      },
+    );
+    expect(out.lines).toEqual(['a', 'b', 'c']);
+    expect(untaken('a\nb\nc\n', '')).toBe('a\nb\nc\n');
+    expect(untaken('x\na\nb\nc\n', 'a\nb\n')).toBe('c\n');
+    // A console cut at its bound no longer holds what was taken: all of it.
+    expect(untaken('c\n', 'a\nb\n')).toBe('c\n');
+    // A replay keeps its offsets: a line repeated after what was taken is
+    // still shown.
+    expect(untaken('x\nx\n', 'x\n', 0)).toBe('x\n');
+    expect(untaken('a\nx\nx\n', 'x\n', 2)).toBe('x\n');
   });
 
   test('a missing instance exits 1', async () => {

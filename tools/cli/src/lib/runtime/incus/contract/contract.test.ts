@@ -227,6 +227,20 @@ describe('the node contract', () => {
       }),
     );
     expect(mirrored.registries).toEqual(['ghcr.io', 'mirror.gcr.io:443']);
+    const both = contractOf(
+      sourceOf({
+        ...input,
+        declaration: {
+          ...input.declaration,
+          registryMirror: 'mirror.gcr.io:443',
+          registryMirrors: { 'ghcr.io': '127.0.0.1:5000' },
+        },
+      }),
+    );
+    expect(both.registries).toEqual(['127.0.0.1:5000', 'mirror.gcr.io:443']);
+    expect(both.project.config['restricted.images.servers']).toBe(
+      '127.0.0.1:5000,mirror.gcr.io:443',
+    );
   });
 
   test('allows proxy devices only for the proxy-device ingress', () => {

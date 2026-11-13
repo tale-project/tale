@@ -296,6 +296,46 @@ describe('applying a managed bundle on Incus', () => {
     expect(JSON.stringify(receipt)).not.toContain(value!);
   });
 
+  test('a first deploy that stopped at a health gate resumes, though only the data tier runs', async () => {
+    const { fake, options, dependencies } = await setup();
+    const hooks = dependencies.hooks!;
+    const failing: IncusRuntimeDependencies = {
+      ...dependencies,
+      hooks: {
+        ...hooks,
+        waitHealthy: async (instance) => {
+          if (instance.name === 'sandbox')
+            throw new Error('sandbox never became healthy');
+          await hooks.waitHealthy?.(instance);
+        },
+      },
+    };
+    await expect(applyIncusRuntime(options, failing)).rejects.toThrow(
+      'sandbox never became healthy',
+    );
+    expect(fake.instances.get('db')?.status).toBe('Running');
+    expect(fake.instances.has('backend-api-1')).toBe(false);
+    const receipt = JSON.parse(
+      readFileSync(
+        join(options.stateDirectory, '.tale', 'runtime.json'),
+        'utf8',
+      ),
+    ) as { phase: string; existing: boolean };
+    expect(receipt).toMatchObject({ phase: 'pending', existing: false });
+
+    const resumed = await applyIncusRuntime(options, dependencies);
+    expect(resumed.changed).toBe(true);
+    expect(fake.instances.has('backend-api-1')).toBe(true);
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(options.stateDirectory, '.tale', 'runtime.json'),
+          'utf8',
+        ),
+      ).phase,
+    ).toBe('ready');
+  });
+
   test('a second apply of the same bundle changes nothing', async () => {
     const { fake, options, dependencies } = await setup();
     await applyIncusRuntime(options, dependencies);
