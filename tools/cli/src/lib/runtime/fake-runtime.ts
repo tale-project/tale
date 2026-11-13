@@ -239,7 +239,8 @@ function defaultExec(
   const line = argv.join(' ');
   if (line.includes('/api/control/drain-status'))
     return ok('{"draining":true,"inFlight":0}');
-  if (line.includes('drain-status')) return ok('{"inFlight":0}');
+  if (line.includes('drain-status'))
+    return ok('{"draining":true,"sessions":0,"sessionIds":[]}');
   if (stdin?.includes('app_migrations'))
     return ok('{"schema":"public","ids":["0001_initial.sql"]}');
   return ok();
