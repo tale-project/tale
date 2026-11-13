@@ -17,7 +17,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import {
   makeTestCertificates,
@@ -95,8 +95,9 @@ async function refusal(promise: Promise<unknown>): Promise<CliError> {
 
 describe('where the Incus credentials live', () => {
   test('a workspace keeps them in .tale/incus', () => {
+    // resolve(): a rooted path takes the current drive on Windows.
     expect(workspaceIncusDirectory('/srv/acme', {})).toBe(
-      join('/srv/acme', '.tale', 'incus'),
+      join(resolve('/srv/acme'), '.tale', 'incus'),
     );
   });
 
@@ -105,7 +106,7 @@ describe('where the Incus credentials live', () => {
       workspaceIncusDirectory('/srv/acme', {
         [INCUS_DIRECTORY_VARIABLE]: '/etc/tale/incus',
       }),
-    ).toBe('/etc/tale/incus');
+    ).toBe(resolve('/etc/tale/incus'));
     expect(() =>
       workspaceIncusDirectory('/srv/acme', {
         [INCUS_DIRECTORY_VARIABLE]: 'relative/incus',

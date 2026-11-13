@@ -333,6 +333,24 @@ export function incusNotAvailableYet(path: 'workspace'): CliError {
   );
 }
 
+/**
+ * Refuse the Incus runtime on Windows, up front. Its credentials, plan key,
+ * journal and copies are private files the CLI holds by owner and mode
+ * (0600 in a 0700 directory), which Windows does not carry, so no check of
+ * them could hold there. Managed deployments are refused on Windows already
+ * (`assertManagedPlatform`); this covers `tale incus check`, `bootstrap` and
+ * every Incus runtime the CLI makes.
+ */
+export function assertIncusPlatform(
+  platform: NodeJS.Platform = process.platform,
+): void {
+  if (platform === 'win32')
+    throw preconditionError(
+      'The Incus runtime needs a POSIX host and is not supported on Windows: its credentials, plan key and journal are private files the CLI holds by owner and mode.',
+      'Run tale incus check, tale incus bootstrap and deployments on Incus from Linux or macOS; tale incus contract runs on Windows too.',
+    );
+}
+
 /** The local developer loops that run on Docker only (design D-35). */
 export type DockerOnlyLoop = 'tale dev' | 'a sandbox device';
 

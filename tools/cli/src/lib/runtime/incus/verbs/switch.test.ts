@@ -33,6 +33,11 @@ import {
   type VerbsFixture,
 } from './verbs-fixture';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 
 describe('the switch lists every slot once (design 5.3, R3-02)', () => {
@@ -125,7 +130,7 @@ describe('an image of another line is refused (R3-23)', () => {
   });
 });
 
-describe('withdraw and admit on Incus (design 7.3, R3-26, R3-34)', () => {
+describePosix('withdraw and admit on Incus (design 7.3, R3-26, R3-34)', () => {
   let fixture: VerbsFixture;
   let sleeps: number[];
   let runtime: IncusRuntime;

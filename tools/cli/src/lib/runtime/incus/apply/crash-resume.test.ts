@@ -20,6 +20,11 @@ import {
 } from './apply-fixture';
 import { readJournal } from './journal';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 /**
  * The crash-resume property (design D-07, D-12): stop the applier after
  * every write it makes, in every phase, as a crash would (the write landed,
@@ -108,7 +113,7 @@ async function run(
   );
 }
 
-describe('crash-resume', () => {
+describePosix('crash-resume', () => {
   for (const scenario of SCENARIOS)
     test(`${scenario.name}: a crash after any write converges on the next run`, async () => {
       // The uninterrupted run: what it makes, and how many writes it takes.

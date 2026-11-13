@@ -9,6 +9,7 @@ import pkg from '../../package.json';
 import { resolveConfigurationSource } from '../lib/deployment/configuration-source';
 import { parseDeclarationText } from '../lib/deployment/declaration-text';
 import { resolveDeploymentSpec } from '../lib/deployment/model';
+import { assertIncusPlatform } from '../lib/project/runtime-declaration';
 import {
   applyFirewall,
   defaultSessionsZone,
@@ -216,6 +217,7 @@ export function createIncusCommand(): Command {
             probes: boolean;
           },
         ) => {
+          assertIncusPlatform();
           const source = await contractSource(options);
           const contract = contractOf(source);
           const directory =
@@ -301,6 +303,7 @@ export function createIncusCommand(): Command {
           remove?: boolean;
           yes?: boolean;
         }) => {
+          assertIncusPlatform();
           const workspace = resolve(options.workspace);
           const source = await contractSource(options);
           const stateDirectory =

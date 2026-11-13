@@ -29,6 +29,11 @@ import {
   thawStackInstances,
 } from './instances';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 let fake: FakeIncus;
 let stateRoot: string;
 let spec: InstanceSpec;
@@ -310,19 +315,38 @@ describe('stack instances', () => {
   });
 });
 
-describe('the Incus runtime as a StackRuntime', () => {
-  const declaration: IncusDeclaration = {
-    project: 'tale-stack',
-    pool: 'tale',
-    network: {
-      name: 'talebr0',
-      subnet: '10.30.0.0/16',
-      gateway: '10.30.0.1',
-      block: '10.30.2.0/25',
-    },
-    sessions: { subnet: '10.31.0.0/24' },
-    ingress: { mode: 'routed' },
-  };
+/** The stack the Incus runtime is made for below. */
+const RUNTIME_DECLARATION: IncusDeclaration = {
+  project: 'tale-stack',
+  pool: 'tale',
+  network: {
+    name: 'talebr0',
+    subnet: '10.30.0.0/16',
+    gateway: '10.30.0.1',
+    block: '10.30.2.0/25',
+  },
+  sessions: { subnet: '10.31.0.0/24' },
+  ingress: { mode: 'routed' },
+};
+
+test.if(process.platform === 'win32')(
+  'the Incus runtime is refused on Windows before it is made',
+  () => {
+    expect(() =>
+      runtimeForEngine('incus', {
+        incus: {
+          client: clientOf(fake),
+          declaration: RUNTIME_DECLARATION,
+          stack: 'tale',
+          stateRoot,
+        },
+      }),
+    ).toThrow('The Incus runtime needs a POSIX host');
+  },
+);
+
+describePosix('the Incus runtime as a StackRuntime', () => {
+  const declaration = RUNTIME_DECLARATION;
 
   test('runtimeForEngine builds it from a connection, and refuses incus without one', () => {
     const runtime = runtimeForEngine('incus', {

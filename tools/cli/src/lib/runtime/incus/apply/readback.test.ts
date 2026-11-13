@@ -24,6 +24,11 @@ import {
   type Readback,
 } from './readback';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -76,7 +81,7 @@ describe('custody verdicts', () => {
   });
 });
 
-describe('the readback of a deployed stack', () => {
+describePosix('the readback of a deployed stack', () => {
   test('reads instances with their ETag, volumes, aliases, files and the record', async () => {
     const { readback, desired } = await deployed();
     expect(readback.instances.map((instance) => instance.name)).toEqual(
@@ -161,7 +166,7 @@ describe('the readback of a deployed stack', () => {
   });
 });
 
-describe('deployed before', () => {
+describePosix('deployed before', () => {
   const empty: Readback = {
     stack: 'tale',
     pool: 'tale',

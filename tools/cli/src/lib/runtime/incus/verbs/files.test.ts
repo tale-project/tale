@@ -20,6 +20,11 @@ import {
   type VerbsFixture,
 } from './verbs-fixture';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 let fixture: VerbsFixture;
 let scratch: string;
 
@@ -95,7 +100,7 @@ describe('where a path is written', () => {
   });
 });
 
-describe('copyIn', () => {
+describePosix('copyIn', () => {
   test('writes a read-only mounted config store through its volume, as the owner, keeping modes', async () => {
     const result = await copyIntoInstance(
       fixture.context,
@@ -160,7 +165,7 @@ describe('copyIn', () => {
   });
 });
 
-describe('copyOut', () => {
+describePosix('copyOut', () => {
   test('walks the directory into 0600 files, and stops at the byte cap', async () => {
     await copyIntoInstance(
       fixture.context,

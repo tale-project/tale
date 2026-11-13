@@ -134,11 +134,7 @@ describe('Docker runtime access argv', () => {
     expect(argv()).toEqual([
       ['cp', '/host/bundle/.', 'backend:/tmp/t/'],
       ['cp', '/host/tale', 'backend:/tmp/t/tale'],
-      [
-        'cp',
-        'backend:/tmp/t/export-output/.',
-        expect.stringMatching(/\/tale-access-receive-[^/]+\/$/),
-      ],
+      ['cp', 'backend:/tmp/t/export-output/.', `${receive}/`],
       ['stop', '--time=-1', ID, 'c'.repeat(64)],
       ['restart', '--time', '30', ID],
     ]);

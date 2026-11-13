@@ -870,7 +870,12 @@ function contractSuite(): void {
     },
   };
 
-  for (const leg of [fake, docker, incus]) {
+  // The Incus runtime needs a POSIX host and is refused on Windows
+  // (assertIncusPlatform): its plan key and journal are held by owner and
+  // mode, which Windows files do not carry.
+  const legs =
+    process.platform === 'win32' ? [fake, docker] : [fake, docker, incus];
+  for (const leg of legs) {
     describe(`StackRuntime contract: ${leg.name}`, () => contract(leg));
     describe(`no reader prints a secret: ${leg.name}`, () =>
       secretReaders(leg));

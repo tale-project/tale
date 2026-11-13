@@ -41,6 +41,11 @@ import {
 import { nodeContract } from './contract';
 import type { NodeContract } from './contract-model';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 /**
  * `tale incus bootstrap` against an in-memory administrator socket: the plan
  * comes first, a second run changes nothing, the sandbox zone is the one the
@@ -274,7 +279,7 @@ function fingerprint(pem: string): string {
     .digest('hex');
 }
 
-describe('tale incus bootstrap', () => {
+describePosix('tale incus bootstrap', () => {
   test('plans every object on a fresh host, then makes them', async () => {
     const socket = new AdminSocket(server.cert);
     const directory = workspace();

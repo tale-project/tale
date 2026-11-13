@@ -19,6 +19,11 @@ import {
   wrappedArgv,
 } from './runtime-access-incus';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 /**
  * The Incus form of `RuntimeAccess` (design 4; M1 carry-overs 1-4): one
  * normalized readback, Compose-named labels, a 64-hex identity per instance
@@ -93,7 +98,7 @@ function setup(budget?: Partial<RuntimeBudget>) {
   return { fixture, runtime, access, api, failures };
 }
 
-describe('the Incus runtime access', () => {
+describePosix('the Incus runtime access', () => {
   test('lists and inspects by a 64-hex identity, with Compose-named labels and no environment value', async () => {
     const { fixture, access, api } = setup();
     const id = instanceIdentity('tale-stack', api);

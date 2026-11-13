@@ -11,6 +11,11 @@ import {
   type VerbsFixture,
 } from './verbs-fixture';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 let fixture: VerbsFixture;
 const HELPER_IMAGE = 'tale-proxy-0123456789abcdef0123456789abcdef';
 
@@ -22,7 +27,7 @@ afterEach(() => {
   fixture.remove();
 });
 
-describe('one-shot helpers', () => {
+describePosix('one-shot helpers', () => {
   test('are named job-<purpose>-<8 hex>, and a bad purpose is refused', () => {
     expect(helperName('snapshot')).toMatch(/^job-snapshot-[0-9a-f]{8}$/);
     expect(helperName()).toMatch(/^job-job-[0-9a-f]{8}$/);

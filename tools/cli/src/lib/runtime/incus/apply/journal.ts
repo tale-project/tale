@@ -176,7 +176,8 @@ export async function readJournal(
   if (
     !info.isFile() ||
     (info.mode & 0o077) !== 0 ||
-    (uid !== undefined && info.uid !== uid)
+    uid === undefined ||
+    info.uid !== uid
   )
     throw custodyRefusal(file);
   const raw = await readOptionalJson(file);
@@ -366,7 +367,8 @@ export function markInterruptedSync(
     if (
       !info.isFile() ||
       (info.mode & 0o077) !== 0 ||
-      (uid !== undefined && info.uid !== uid)
+      uid === undefined ||
+      info.uid !== uid
     )
       throw custodyRefusal(file);
     const handle = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);

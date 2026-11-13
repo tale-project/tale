@@ -26,6 +26,11 @@ import {
   registryHosts,
 } from './images';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 let fake: FakeIncus;
 let stateRoot: string;
 
@@ -183,7 +188,7 @@ describe('pruneImages', () => {
   });
 });
 
-describe('image facts', () => {
+describePosix('image facts', () => {
   const dir = (uid: number, gid: number, mode = '0755'): FakeFile => ({
     content: '',
     type: 'directory',

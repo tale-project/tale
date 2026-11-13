@@ -26,6 +26,7 @@ Choisis Incus quand un hôte fait déjà tourner Incus pour d’autres charges, 
 | L’API Incus sur une adresse que le bridge de la stack atteint | La CLI et le spawner de sandbox s’y connectent (`runtime.incus.endpoint`, par défaut la passerelle du bridge sur le port 8443), par exemple après `incus config set core.https_address <passerelle>:8443`. Son certificat serveur doit pouvoir être épinglé : sa propre ancre de confiance (`CA:TRUE`), qui nomme l’adresse du point de terminaison. |
 | L’accès de l’hôte aux registres d’images | Incus tire chaque image par son digest depuis `ghcr.io` et Docker Hub, ou depuis les miroirs que la déclaration nomme. |
 | Root ou membre de `incus-admin`, une fois | Seul `tale incus bootstrap` utilise le socket d’administration local. Chaque commande suivante utilise le certificat restreint. |
+| La CLI sous Linux ou macOS | La CLI garde les identifiants Incus, la clé de plan et le journal dans des fichiers fermés aux autres comptes, ce que Windows ne permet pas : elle y refuse donc `tale incus check`, `tale incus bootstrap` et les déploiements sur Incus. `tale incus contract` fonctionne partout. |
 
 Ni l’hôte ni la machine qui prépare le bundle n’ont besoin de Docker. Si Docker tourne quand même sur le même hôte, lis [Partager un hôte avec Docker](#docker-coexistence).
 

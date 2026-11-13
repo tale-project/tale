@@ -10,6 +10,7 @@ import {
   parseImageReference,
   type RegistryClient,
 } from '../../oci/registry';
+import { assertIncusPlatform } from '../../project/runtime-declaration';
 import type {
   CopyOutOptions,
   CopyResult,
@@ -782,7 +783,8 @@ export class IncusRuntime implements StackRuntime {
   }
 }
 
-/** The Incus runtime for one stack. */
+/** The Incus runtime for one stack; refused on Windows (`assertIncusPlatform`). */
 export function createIncusRuntime(options: IncusRuntimeOptions): IncusRuntime {
+  assertIncusPlatform();
   return new IncusRuntime(options);
 }

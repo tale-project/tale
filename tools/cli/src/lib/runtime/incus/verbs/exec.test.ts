@@ -17,6 +17,11 @@ import {
   type VerbsFixture,
 } from './verbs-fixture';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 let fixture: VerbsFixture;
 
 beforeEach(() => {
@@ -67,7 +72,7 @@ describe('the exec mode', () => {
   });
 });
 
-describe('exec in an instance', () => {
+describePosix('exec in an instance', () => {
   test('mode 2 records the output under the image timeout and deletes it', async () => {
     seedStackInstance(fixture.fake, 'api', { service: 'backend-api' });
     fixture.fake.exec = (call, io) => {
@@ -237,7 +242,7 @@ describe('exec in an instance', () => {
   });
 });
 
-describe('stdin files a crash left', () => {
+describePosix('stdin files a crash left', () => {
   test('are reaped before the next exec in their instance, and forgotten', async () => {
     const db = seedStackInstance(fixture.fake, 'db', { service: 'db' });
     const leaked = '/dev/shm/tale-exec-leaked';

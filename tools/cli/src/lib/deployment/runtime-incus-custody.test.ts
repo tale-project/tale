@@ -21,6 +21,11 @@ import {
   INCUS_CUSTODY_SENTENCES,
 } from './runtime-incus-custody';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 /**
  * The managed stack's custody on Incus. The refusals mirror those of
  * Docker's `assertContainerCustody` (`runtime-apply.test.ts`): identity and
@@ -61,7 +66,7 @@ function changed(
   );
 }
 
-describe('the custody of a managed stack on Incus', () => {
+describePosix('the custody of a managed stack on Incus', () => {
   test('a converged stack is the deployment own, exactly, and carries no secret', async () => {
     const { desired, readback } = await deployed();
     const infos = assertIncusCustody({

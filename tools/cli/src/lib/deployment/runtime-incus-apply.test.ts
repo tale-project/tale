@@ -43,6 +43,12 @@ import {
   type RuntimeFixture,
 } from './runtime-test-helper';
 
+// Managed bundles and the Incus runtime need a POSIX host and are refused on
+// Windows (assertManagedPlatform, assertIncusPlatform): their plan key,
+// journal and credentials are held by owner and mode, which Windows files
+// do not carry. setup() makes the runtime, so both blocks are POSIX-only.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 // The git runtime fixture spawns git; a slow runner needs more than 5 s.
 setDefaultTimeout(60_000);
 
@@ -203,7 +209,7 @@ async function setup(declared: { egressProxy?: string } = {}): Promise<Setup> {
   return made;
 }
 
-describe('preparing a managed bundle for Incus', () => {
+describePosix('preparing a managed bundle for Incus', () => {
   test('reads every image from its registry, never Docker, and pins the compiled stack', async () => {
     const { fixture, registry, bundle } = await setup();
     expect(bundle.runtime).toBe('incus');
@@ -263,7 +269,7 @@ describe('preparing a managed bundle for Incus', () => {
   });
 });
 
-describe('applying a managed bundle on Incus', () => {
+describePosix('applying a managed bundle on Incus', () => {
   // The apply waits on the CLI's own health wait against the fake. CI runs
   // every test file in one process, where a sibling suite's `mock.module` of
   // that wait would read every instance as unhealthy at once: name the leak

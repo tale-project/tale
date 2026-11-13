@@ -13,6 +13,7 @@ import { CliError, ExitCode } from '../../utils/fail';
 import { init, runtimeFromFlags } from '../actions/init';
 import { readProject } from './read-project';
 import {
+  assertIncusPlatform,
   guardDeclaredEngine,
   incusDeclarationSchema,
   incusNotAvailableYet,
@@ -241,6 +242,22 @@ test('the Incus refusal of a workspace says "not available yet"', () => {
   expect(error.info.code).toBe(ExitCode.Precondition);
   expect(error.message).toContain('not available yet');
   expect(error.message).toContain('workspace');
+});
+
+test('the Incus runtime is refused on Windows in one sentence, and runs on Linux and macOS', () => {
+  expect(() => assertIncusPlatform('linux')).not.toThrow();
+  expect(() => assertIncusPlatform('darwin')).not.toThrow();
+  let refused: unknown;
+  try {
+    assertIncusPlatform('win32');
+  } catch (error) {
+    refused = error;
+  }
+  expect(refused).toBeInstanceOf(CliError);
+  expect(refused).toMatchObject({ info: { code: ExitCode.Precondition } });
+  expect(String(refused)).toContain(
+    'The Incus runtime needs a POSIX host and is not supported on Windows',
+  );
 });
 
 describe('tale.json on disk', () => {

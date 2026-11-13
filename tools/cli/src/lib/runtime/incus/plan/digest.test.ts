@@ -19,6 +19,11 @@ import {
   PlanKey,
 } from './digest';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const roots: string[] = [];
 function root(): string {
   const directory = mkdtempSync(join(tmpdir(), 'tale-plan-key-'));
@@ -30,7 +35,7 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
-describe('the plan key (design D-11)', () => {
+describePosix('the plan key (design D-11)', () => {
   test('is made once, 0600 in a 0700 directory, and read back the same', async () => {
     const state = root();
     const first = await loadPlanKey(state);

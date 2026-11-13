@@ -92,7 +92,8 @@ async function readKey(file: string): Promise<PlanKey> {
     if (
       !info.isFile() ||
       (info.mode & 0o077) !== 0 ||
-      (uid !== undefined && info.uid !== uid)
+      uid === undefined ||
+      info.uid !== uid
     )
       throw preconditionError(
         `${file} must be a regular file of this user with mode 0600.`,

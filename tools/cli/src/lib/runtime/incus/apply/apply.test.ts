@@ -31,6 +31,11 @@ import {
 } from './journal';
 import { readStackRecord } from './readback';
 
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
@@ -64,7 +69,7 @@ async function apply(
   });
 }
 
-describe('a first deploy', () => {
+describePosix('a first deploy', () => {
   test('converges the whole stack, health-gated tier by tier, and records it', async () => {
     const context = setup();
     const desired = managed();
@@ -163,7 +168,7 @@ describe('a first deploy', () => {
   });
 });
 
-describe('a release upgrade', () => {
+describePosix('a release upgrade', () => {
   test('replaces what changed: withdraws, drains, stops, and rewrites the records', async () => {
     const context = setup();
     const desired = managed();
@@ -372,7 +377,7 @@ describe('a release upgrade', () => {
   });
 });
 
-describe('the ingress (design D-19, 7.1)', () => {
+describePosix('the ingress (design D-19, 7.1)', () => {
   test('proxy devices are added once the stack runs, and removed when the ingress is routed', async () => {
     const context = setup();
     // The fake refuses proxy devices in a restricted project, as Incus does
@@ -431,7 +436,7 @@ describe('the ingress (design D-19, 7.1)', () => {
   });
 });
 
-describe('effects are gates', () => {
+describePosix('effects are gates', () => {
   test('a running stop-gated service: deferred without --stop, replaced with it', async () => {
     const context = setup();
     const desired = managed();
@@ -549,7 +554,7 @@ describe('effects are gates', () => {
   });
 });
 
-describe('the journal', () => {
+describePosix('the journal', () => {
   test('a pending restore stops every guarded verb, naming --resume and --abort', async () => {
     const context = setup();
     const desired = managed();
