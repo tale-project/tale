@@ -15,7 +15,9 @@ import { join } from 'node:path';
 import { pipeLines } from '@tale/shared/process';
 import { z } from 'zod';
 
+import { preconditionError } from '../../../utils/fail';
 import * as logger from '../../../utils/logger';
+import { BACKUP_HELPER_IMAGE } from '../../backup/constants';
 import type { DeploymentColor } from '../../compose/types';
 import { AUTOMATION_PROTOCOL_LABEL } from '../../deployment/automation-model';
 import { containerExists } from '../../docker/container-exists';
@@ -223,6 +225,7 @@ export function createDockerRuntime(
   return {
     engine: 'docker',
     withdrawal: 'disconnect',
+    snapshotKind: 'archive',
 
     // Readiness
     probe: (options) => (overrides.ensureDocker ?? ensureDocker)(options),
@@ -325,6 +328,12 @@ export function createDockerRuntime(
       ),
     volumeUsers: (volume) => listContainersUsingVolume(volume),
     quiesce: (volumes, work) => withVolumeContainersPaused(volumes, work),
+    snapshot: () => Promise.reject(nativeSnapshotRefusal()),
+    restoreSnapshot: () => Promise.reject(nativeSnapshotRefusal()),
+    readVolumeFile: (volume, path, onChunk) =>
+      streamOutOfVolume(volume, path, onChunk),
+    writeVolumeFile: (volume, path, chunks) =>
+      streamIntoVolume(volume, path, chunks),
 
     // Lifecycle
     converge: (target, scope) =>
@@ -488,6 +497,103 @@ export function createDockerRuntime(
         : exec('docker', args, options);
     },
   };
+}
+
+/** Docker keeps no native volume snapshots: its snapshot is an archive. */
+function nativeSnapshotRefusal(): Error {
+  return preconditionError(
+    'Docker keeps no native volume snapshots: a snapshot on Docker is a tar.gz archive of each volume, taken and restored with a one-shot job.',
+  );
+}
+
+/** A path relative to a volume's root, as a snapshot's files are named. */
+const VOLUME_FILE_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
+
+function volumeFilePath(path: string): string {
+  if (!VOLUME_FILE_PATH.test(path) || path.split('/').includes('..'))
+    throw new Error(`Not a file path inside a volume: ${JSON.stringify(path)}`);
+  return `/volume/${path}`;
+}
+
+async function helperFailure(
+  proc: Bun.Subprocess<'ignore' | 'pipe', 'pipe' | 'ignore', 'pipe'>,
+  what: string,
+): Promise<void> {
+  const [code, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stderr).text(),
+  ]);
+  if (code !== 0)
+    throw new Error(`${what} failed (exit ${code}): ${stderr.trim()}`);
+}
+
+/** `docker run --rm` the helper `cat` of one file, its output streamed. */
+async function streamOutOfVolume(
+  volume: string,
+  path: string,
+  onChunk: (chunk: Uint8Array) => void | Promise<void>,
+): Promise<void> {
+  const proc = Bun.spawn(
+    [
+      'docker',
+      'run',
+      '--rm',
+      '-v',
+      `${volume}:/volume:ro`,
+      BACKUP_HELPER_IMAGE,
+      'cat',
+      '--',
+      volumeFilePath(path),
+    ],
+    { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+  );
+  const failure = helperFailure(proc, `Reading ${path} from ${volume}`);
+  try {
+    for await (const chunk of proc.stdout) await onChunk(chunk);
+  } catch (error) {
+    // The reader gave up (a size or hash mismatch): the helper goes too.
+    proc.kill();
+    await failure.catch((helperError: unknown) => {
+      logger.debug(`Reading ${path} from ${volume}: ${String(helperError)}`);
+    });
+    throw error;
+  }
+  await failure;
+}
+
+/** `docker run --rm -i` the helper `cat >` one file, fed from `chunks`. */
+async function streamIntoVolume(
+  volume: string,
+  path: string,
+  chunks: AsyncIterable<Uint8Array>,
+): Promise<void> {
+  const proc = Bun.spawn(
+    [
+      'docker',
+      'run',
+      '--rm',
+      '-i',
+      '-v',
+      `${volume}:/volume`,
+      BACKUP_HELPER_IMAGE,
+      'sh',
+      '-c',
+      'umask 077 && mkdir -p "$(dirname "$1")" && cat > "$1"',
+      'sh',
+      volumeFilePath(path),
+    ],
+    { stdin: 'pipe', stdout: 'ignore', stderr: 'pipe' },
+  );
+  const failure = helperFailure(proc, `Writing ${path} into ${volume}`);
+  try {
+    for await (const chunk of chunks) {
+      proc.stdin.write(chunk);
+      await proc.stdin.flush();
+    }
+  } finally {
+    await proc.stdin.end();
+  }
+  await failure;
 }
 
 /** Every byte of every file below `dir`. */

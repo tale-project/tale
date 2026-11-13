@@ -278,8 +278,57 @@ export interface OneShotJob {
  */
 export type WithdrawalKind = 'disconnect' | 'marker';
 
+/** One volume's native snapshot, as a set took it. */
+export interface NativeSnapshot {
+  volume: string;
+  /** The snapshot's name on the volume (`tale-<id>`). */
+  snapshot: string;
+  /** When the runtime says it took it (its own clock). */
+  createdAt: string;
+  /** The bytes the volume used: the pool space a copy of it needs. */
+  usedBytes: number;
+  /** The volume's quota (`size`), which a copy counts against the
+   *  project's; 0 without one. */
+  quotaBytes: number;
+}
+
+/** A set of native snapshots taken under one freeze of their users. */
+export interface NativeSnapshotSet {
+  snapshots: NativeSnapshot[];
+  /** The CLI's clock around the freeze: every snapshot was taken in it. */
+  freeze: { startedAt: string; endedAt: string };
+  /** How many running users the freeze held. */
+  frozenCount: number;
+}
+
+/**
+ * A restore of native snapshots or archives into fresh volumes (design
+ * D-29): start one, or finish (`resume`) or undo (`abort`) the one a crash
+ * left pending.
+ */
+export type SnapshotRestore =
+  | {
+      kind: 'start';
+      /** The snapshot. */
+      id: string;
+      /** Its manifest's volume entries to restore. */
+      volumes: readonly string[];
+    }
+  | { kind: 'resume' }
+  | { kind: 'abort' };
+
+/**
+ * What a snapshot is on a runtime: `archive` (Docker), a tar.gz of each
+ * volume written under a pause; `native` (Incus), a set of volume
+ * snapshots under one freeze, archived only on request.
+ */
+export type SnapshotKind = 'archive' | 'native';
+
 export interface StackRuntime {
   readonly engine: RuntimeEngine;
+  /** What a snapshot is here, and so whether `snapshot` and
+   *  `restoreSnapshot` answer. */
+  readonly snapshotKind: SnapshotKind;
   /** How `withdraw` works here, and so where a flip calls it. */
   readonly withdrawal: WithdrawalKind;
 
@@ -341,11 +390,36 @@ export interface StackRuntime {
   /** The running instances that mount `volume`. */
   volumeUsers(volume: string): Promise<string[]>;
   /** Run `work` with every running instance that mounts one of `volumes`
-   *  frozen, then thaw them and wait until each that was healthy is again. */
+   *  frozen, then thaw them and wait until each that was healthy is again.
+   *  Incus sends each phase's calls in parallel (R3-16). */
   quiesce<T>(
     volumes: readonly string[],
     work: (frozenCount: number) => Promise<T>,
   ): Promise<T>;
+  /** Take a native snapshot `name` of each volume, all under one freeze of
+   *  their users (`snapshotKind: 'native'`). Docker keeps none and refuses:
+   *  its snapshot is an archive under `quiesce`. */
+  snapshot(
+    volumes: readonly string[],
+    name: string,
+  ): Promise<NativeSnapshotSet>;
+  /** Restore a snapshot into fresh volumes, never in place, journaled until
+   *  it finishes (`snapshotKind: 'native'`, design D-29). Docker refuses:
+   *  its restore extracts archives with a one-shot job. */
+  restoreSnapshot(request: SnapshotRestore): Promise<void>;
+  /** Stream the file `path` (relative) of `volume` out, piece by piece. */
+  readVolumeFile(
+    volume: string,
+    path: string,
+    onChunk: (chunk: Uint8Array) => void | Promise<void>,
+  ): Promise<void>;
+  /** Write the file `path` (relative) of `volume` from `chunks`, made
+   *  anew, root-owned, 0600. */
+  writeVolumeFile(
+    volume: string,
+    path: string,
+    chunks: AsyncIterable<Uint8Array>,
+  ): Promise<void>;
 
   // Lifecycle
   /** Create or replace the scoped services of `target`. */

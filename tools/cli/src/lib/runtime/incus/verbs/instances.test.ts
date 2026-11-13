@@ -391,7 +391,7 @@ describePosix('the Incus runtime as a StackRuntime', () => {
       stack: 'tale',
       stateRoot,
     });
-    for (const call of [() => runtime.converge(), () => runtime.quiesce()]) {
+    for (const call of [() => runtime.converge()]) {
       const error = await refusal(call());
       expect(error).toBeInstanceOf(CliError);
       expect(error.message).toContain('The Incus runtime cannot');

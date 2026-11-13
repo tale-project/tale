@@ -23,9 +23,11 @@ import type {
   InstanceInfo,
   LogOptions,
   OneShotJob,
+  NativeSnapshotSet,
   ProbeResult,
   RuntimeCheck,
   RuntimeSession,
+  SnapshotRestore,
   StackRuntime,
   WaitHealthyOptions,
   WaitServiceHealthyOptions,
@@ -81,6 +83,7 @@ import {
 } from './verbs/logs';
 import { reapHelpers, runOneShot } from './verbs/oneshot';
 import { probeIncus, type IncusProbe } from './verbs/probe';
+import { IncusSnapshotStore } from './verbs/snapshots';
 import {
   admitReplicas,
   switchApplyHooks,
@@ -105,7 +108,7 @@ import {
  * This is the part of `StackRuntime` that the probe, the images, the volumes,
  * the instances, exec, the file copies, the console, one-shot helpers,
  * health and the switch's admission answer. A verb the Incus runtime cannot
- * answer yet — converge and quiescing — is refused with a sentence that says so, never
+ * answer yet — converge — is refused with a sentence that says so, never
  * answered with Docker's meaning. Beyond the interface, the runtime offers
  * the whole-stack steps a managed deployment drives: the image facts, the
  * volumes with their owners, instance creation, a stop with a chosen grace,
@@ -134,6 +137,11 @@ export interface IncusRuntimeOptions {
   logReads?: LogReadDependencies;
   /** How a withdrawal waits for the switch (tests). */
   switchDependencies?: SwitchDependencies;
+  /** A crash after a restore step, and the recovery poll (tests). */
+  snapshotHooks?: Pick<
+    ConstructorParameters<typeof IncusSnapshotStore>[0],
+    'afterRestoreStep' | 'sleep'
+  >;
 }
 
 function notYet(verb: string): Promise<never> {
@@ -148,6 +156,7 @@ function notYet(verb: string): Promise<never> {
 export class IncusRuntime implements StackRuntime {
   readonly engine = 'incus' as const;
   readonly withdrawal = 'marker' as const;
+  readonly snapshotKind = 'native' as const;
   readonly client: IncusClient;
   readonly declaration: IncusDeclaration;
   readonly stack: string;
@@ -158,6 +167,12 @@ export class IncusRuntime implements StackRuntime {
   private target: StackTarget | undefined;
   private owners = new Map<string, VolumeOwner>();
   private readonly healthReader: IncusHealth;
+  private readonly healthcheckOf: HealthcheckLookup;
+  private store: IncusSnapshotStore | undefined;
+  private readonly snapshotHooks: Pick<
+    ConstructorParameters<typeof IncusSnapshotStore>[0],
+    'afterRestoreStep' | 'sleep'
+  >;
   private readonly helperImage: IncusRuntimeOptions['helperImage'];
   private readonly logReads: LogReadDependencies;
   private readonly switchDependencies: SwitchDependencies;
@@ -172,13 +187,13 @@ export class IncusRuntime implements StackRuntime {
     this.helperImage = options.helperImage;
     this.logReads = options.logReads ?? {};
     this.switchDependencies = options.switchDependencies ?? {};
-    this.healthReader = new IncusHealth(
-      this.verbContext,
+    this.healthcheckOf =
       options.healthchecks ??
-        ((name) =>
-          this.target?.instances.find((instance) => instance.name === name)
-            ?.healthcheck),
-    );
+      ((name) =>
+        this.target?.instances.find((instance) => instance.name === name)
+          ?.healthcheck);
+    this.healthReader = new IncusHealth(this.verbContext, this.healthcheckOf);
+    this.snapshotHooks = options.snapshotHooks ?? {};
     this.registry =
       options.registry ??
       createRegistryClient({
@@ -570,8 +585,65 @@ export class IncusRuntime implements StackRuntime {
     return users.sort();
   }
 
-  quiesce(): Promise<never> {
-    return notYet('quiesce volumes for a snapshot');
+  /** Native snapshots, manifests, holders and restores of this stack
+   * (design D-28, D-29). */
+  snapshotStore(): IncusSnapshotStore {
+    this.store ??= new IncusSnapshotStore({
+      client: this.client,
+      pool: this.declaration.pool,
+      stack: this.stack,
+      stateRoot: this.stateRoot,
+      health: (name) => this.health(name),
+      healthcheck: (name) => this.healthcheckOf(name),
+      oneShot: (job) => this.oneShot(job),
+      helperImage: 'tale-proxy',
+      ...this.snapshotHooks,
+    });
+    return this.store;
+  }
+
+  /** Freeze the running users of `volumes` in parallel, run `work`, thaw
+   * them in parallel and wait until each that was healthy is again. */
+  quiesce<T>(
+    volumes: readonly string[],
+    work: (frozenCount: number) => Promise<T>,
+  ): Promise<T> {
+    return this.snapshotStore().quiesce(volumes, work);
+  }
+
+  /** A native snapshot `name` of each volume under one freeze (D-28). */
+  snapshot(
+    volumes: readonly string[],
+    name: string,
+  ): Promise<NativeSnapshotSet> {
+    return this.snapshotStore().snapshot(volumes, name);
+  }
+
+  /** Restore into fresh volumes under the restore-pending journal, or
+   * finish or undo the pending one (D-29, R3-22). */
+  restoreSnapshot(request: SnapshotRestore): Promise<void> {
+    const store = this.snapshotStore();
+    if (request.kind === 'resume') return store.finish();
+    if (request.kind === 'abort') return store.abort();
+    return store.restore(request.id, request.volumes);
+  }
+
+  /** Stream a volume file out in pieces (HTTP range reads). */
+  readVolumeFile(
+    volume: string,
+    path: string,
+    onChunk: (chunk: Uint8Array) => void | Promise<void>,
+  ): Promise<void> {
+    return this.snapshotStore().readVolumeFile(volume, path, onChunk);
+  }
+
+  /** Write a volume file in pieces (the first made anew, then appended). */
+  writeVolumeFile(
+    volume: string,
+    path: string,
+    chunks: AsyncIterable<Uint8Array>,
+  ): Promise<void> {
+    return this.snapshotStore().writeVolumeFile(volume, path, chunks);
   }
 
   // ---- lifecycle -----------------------------------------------------------------

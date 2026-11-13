@@ -40,6 +40,11 @@ printf '%s\\n' "$*" >> "$TALE_FAKE_DOCKER_LOG"
 case "$1" in
   ps) printf 'c0ffee000001\\nc0ffee000002\\n' ;;
   logs) echo "first line"; echo "second line" 1>&2; exit 3 ;;
+  run)
+    case "$*" in
+      *" cat -- "*) printf 'archive bytes' ;;
+      *"cat > "*) cat > "$TALE_FAKE_DOCKER_LOG.stdin" ;;
+    esac ;;
 esac
 exit 0
 `;
@@ -648,5 +653,60 @@ function isolatedSuite(): void {
         ]);
       },
     );
+
+    testPosix(
+      'streams a backups file out and in through a helper cat, the path as an argument',
+      async () => {
+        const log = process.env.TALE_FAKE_DOCKER_LOG ?? '';
+        rmSync(log, { force: true });
+        const runtime = createDockerRuntime();
+        const read: Uint8Array[] = [];
+        await runtime.readVolumeFile(
+          `${PROJECT}_backups`,
+          '20261113-100000-manual/db-data.tar.gz',
+          (chunk) => {
+            read.push(chunk);
+          },
+        );
+        expect(Buffer.concat(read).toString()).toBe('archive bytes');
+        await runtime.writeVolumeFile(
+          `${PROJECT}_backups`,
+          '20261113-100000-manual/db-data.tar.gz',
+          (async function* () {
+            yield Buffer.from('part one, ');
+            yield Buffer.from('part two');
+          })(),
+        );
+        expect(readFileSync(`${log}.stdin`, 'utf8')).toBe('part one, part two');
+        const argv = readFileSync(log, 'utf8').trim().split('\n');
+        expect(argv[0]).toBe(
+          `run --rm -v ${PROJECT}_backups:/volume:ro alpine:3.22 cat -- /volume/20261113-100000-manual/db-data.tar.gz`,
+        );
+        expect(argv[1]).toContain(
+          `run --rm -i -v ${PROJECT}_backups:/volume alpine:3.22 sh -c`,
+        );
+        expect(argv[1]).toEndWith(
+          'sh /volume/20261113-100000-manual/db-data.tar.gz',
+        );
+        await expect(
+          runtime.readVolumeFile(
+            `${PROJECT}_backups`,
+            '../etc/passwd',
+            () => undefined,
+          ),
+        ).rejects.toThrow('Not a file path inside a volume');
+      },
+    );
+
+    test('keeps no native snapshot: a snapshot here is an archive', async () => {
+      const runtime = createDockerRuntime();
+      expect(runtime.snapshotKind).toBe('archive');
+      await expect(runtime.snapshot(['db-data'], 'tale-x')).rejects.toThrow(
+        'Docker keeps no native volume snapshots',
+      );
+      await expect(runtime.restoreSnapshot({ kind: 'resume' })).rejects.toThrow(
+        'Docker keeps no native volume snapshots',
+      );
+    });
   });
 }

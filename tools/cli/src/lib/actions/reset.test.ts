@@ -8,8 +8,19 @@ import {
   resolveOutputMode,
   setActiveOutputMode,
 } from '../../utils/output-mode';
+import { createSnapshot } from '../backup/create-snapshot';
+import {
+  incusBackupFixture,
+  type IncusBackupFixture,
+} from '../backup/incus-backup-fixture';
+import { listSnapshots } from '../backup/list-snapshots';
 import { setProjectId } from '../project/project-context';
 import { reset } from './reset';
+
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
 
 // Seed the shared project-context singleton instead of mocking load-env —
 // bun's mock.module leaks across test files in one process.
@@ -321,5 +332,123 @@ describe('reset', () => {
           line.includes('active endpoints'),
       ),
     ).toBe(true);
+  });
+});
+
+describePosix('reset --all on Incus (R-05, R3-22)', () => {
+  let fixture: IncusBackupFixture;
+  beforeEach(async () => {
+    fixture = incusBackupFixture();
+    await createSnapshot({
+      prefix: '',
+      trigger: 'deploy',
+      platformVersion: null,
+      runtime: fixture.runtime,
+    });
+    // The stack's instances are gone by the time the volumes are deleted.
+    const client = fixture.fake.client();
+    for (const name of ['db', 'backend']) {
+      await client.changeInstanceState(name, 'stop', {
+        force: true,
+        timeoutSeconds: 0,
+        waitMs: 1000,
+      });
+      await client.deleteInstance(name, 1000);
+    }
+  });
+  afterEach(() => {
+    fixture.remove();
+  });
+
+  async function volumes(): Promise<string[]> {
+    return (await fixture.runtime.listVolumes()).map((volume) => volume.name);
+  }
+
+  test('says what goes and what stays on Incus, archives the newest set, then deletes the data volumes and records resetAt', async () => {
+    await reset({
+      env,
+      force: true,
+      includeStateful: true,
+      dryRun: false,
+      runtime: fixture.runtime,
+    });
+    const warned = logged(loggerWarnMock).join('\n');
+    expect(warned).toContain(
+      'Their native snapshots go with them; the newest snapshot is archived into backups first',
+    );
+    expect(warned).not.toContain('tale_backups');
+    expect(await volumes()).toEqual(['backups', 'sandbox-credentials']);
+    const [newest] = await listSnapshots('', fixture.runtime);
+    expect(newest?.volumes['db-data']?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(
+      fixture.text('backups', `/${newest?.id}/db-data.tar.gz`),
+    ).toBeDefined();
+    const record = [...fixture.files('backups').entries()].find(([path]) =>
+      /^\/stack\.\d+\.json$/.test(path),
+    );
+    expect(record?.[1].content).toContain('"resetAt"');
+  });
+
+  test('refuses before anything is removed when the newest set cannot be archived', async () => {
+    const original = fixture.fake.exec;
+    fixture.fake.exec = (call, io) =>
+      call.command.join(' ').includes('tar czf') ? 1 : original(call, io);
+    await expect(
+      reset({
+        env,
+        force: true,
+        includeStateful: true,
+        dryRun: false,
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow(
+      /would delete every native snapshot with the data volumes, so nothing was deleted/,
+    );
+    expect(await volumes()).toEqual([
+      'backups',
+      'config-data',
+      'db-data',
+      'sandbox-credentials',
+    ]);
+  });
+
+  test('--discard-snapshots deletes them anyway, with a warning', async () => {
+    const original = fixture.fake.exec;
+    fixture.fake.exec = (call, io) =>
+      call.command.join(' ').includes('tar czf') ? 1 : original(call, io);
+    await reset({
+      env,
+      force: true,
+      includeStateful: true,
+      dryRun: false,
+      runtime: fixture.runtime,
+      discardSnapshots: true,
+    });
+    expect(logged(loggerWarnMock).join('\n')).toContain(
+      '--discard-snapshots: the native snapshots go with the data volumes',
+    );
+    expect(await volumes()).toEqual(['backups', 'sandbox-credentials']);
+  });
+
+  test('--dry-run names the volumes and the archive, and changes nothing', async () => {
+    await reset({
+      env,
+      force: true,
+      includeStateful: true,
+      dryRun: true,
+      runtime: fixture.runtime,
+    });
+    expect(logged(loggerInfoMock).join('\n')).toContain(
+      'Would remove volume: db-data',
+    );
+    expect(await volumes()).toEqual([
+      'backups',
+      'config-data',
+      'db-data',
+      'sandbox-credentials',
+    ]);
+    expect(
+      fixture.helperCommands.some((line) => line.includes('tar czf')),
+    ).toBe(false);
   });
 });

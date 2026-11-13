@@ -44,7 +44,7 @@ import type { InstanceMount, OneShotJob, StackRuntime } from './types';
  * fake answers it, and the Incus runtime over the in-memory Incus of
  * `@tale/incus`, mirrored from the same model. The Incus leg runs the verbs
  * the Incus runtime answers today; the ones it does not (converge, the
- * Docker-shaped readback, volumes, quiescing, image names) and the one it
+ * Docker-shaped readback, volumes, image names) and the one it
  * answers with another contract (withdrawal: a marker that cuts nothing,
  * `incus/verbs/switch.test.ts`) are named in its `skips`. Bun's module mocks are process-wide, so the suite
  * runs in a `bun test` of its own.
@@ -849,9 +849,8 @@ function contractSuite(): void {
     argv: () => incusModel?.incus.execs.map((call) => call.argv) ?? [],
     helperImage: HELPER_ALIAS,
     skips: new Set<ContractTest>([
-      // converge and quiescing are later lanes' verbs on Incus.
+      // converge is a later lane's verb on Incus.
       'converge',
-      'quiesce',
       // A marker withdrawal cuts no link (`withdrawal`): switch.test.ts.
       'withdraw',
       // Docker's shapes: image tags, the `Up …` status line, prefixed

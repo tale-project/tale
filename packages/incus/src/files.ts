@@ -164,6 +164,61 @@ export async function readFile(
   };
 }
 
+/**
+ * Reads `length` bytes of a file from `offset` (an HTTP `Range` request,
+ * which Incus 7.6 answers 206 with a `Content-Range`), and the file's whole
+ * size; a large file is read in pieces this way instead of in one bounded
+ * reply. Undefined when the path does not exist.
+ */
+export async function readFileRange(
+  client: IncusClient,
+  target: IncusFileTarget,
+  path: string,
+  offset: number,
+  length: number,
+): Promise<{ bytes: Uint8Array; size: number } | undefined> {
+  if (!Number.isSafeInteger(offset) || offset < 0)
+    throw new Error(`Not a file offset: ${offset}`);
+  if (!Number.isSafeInteger(length) || length < 1)
+    throw new Error(`Not a read length: ${length}`);
+  let reply: IncusReply;
+  try {
+    reply = await client.send('GET', filesPath(target), {
+      query: { project: client.project, path: checkFilePath(path) },
+      headers: { range: `bytes=${offset}-${offset + length - 1}` },
+      retry: true,
+      maxResponseBytes: length,
+    });
+  } catch (error) {
+    if (notFound(error)) return undefined;
+    // A range past the end of the file is no error: it read nothing.
+    if (error instanceof IncusApiError && error.status === 416)
+      return { bytes: new Uint8Array(), size: offset };
+    throw error;
+  }
+  if (statOf(reply, path).type !== 'file')
+    throw new IncusApiError(`${path} is not a file`, 400);
+  if (reply.status === 206) {
+    const range = /^bytes \d+-\d+\/(\d+)$/.exec(
+      reply.headers.get('content-range') ?? '',
+    );
+    if (range === null)
+      throw new IncusApiError(
+        `Incus answered a range read of ${path} without a Content-Range`,
+        502,
+      );
+    return { bytes: reply.body, size: Number(range[1]) };
+  }
+  // A server that ignores the range sends the whole file: only a file no
+  // larger than one piece fits the reply's cap at all.
+  if (offset !== 0)
+    throw new IncusApiError(
+      `Incus answered a range read of ${path} with the whole file`,
+      502,
+    );
+  return { bytes: reply.body, size: reply.body.byteLength };
+}
+
 /** The type, owner and mode of a path; undefined when it does not exist. */
 export async function statFile(
   client: IncusClient,

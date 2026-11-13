@@ -1,93 +1,23 @@
-import * as logger from '../../utils/logger';
 import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import { snapshotStoreOf } from '../runtime/incus/verbs/snapshots';
 import type { StackRuntime } from '../runtime/types';
-import {
-  BACKUP_HELPER_IMAGE,
-  BACKUP_VOLUME,
-  isValidSnapshotId,
-} from './constants';
-import {
-  type SnapshotManifest,
-  type SnapshotTrigger,
-  type SnapshotVolumeInfo,
-  SNAPSHOT_TRIGGERS,
-} from './create-snapshot';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isVolumeInfo(value: unknown): value is SnapshotVolumeInfo {
-  return (
-    isRecord(value) &&
-    typeof value.sha256 === 'string' &&
-    typeof value.sizeBytes === 'number'
-  );
-}
-
-function isTrigger(value: unknown): value is SnapshotTrigger {
-  return (
-    typeof value === 'string' &&
-    (SNAPSHOT_TRIGGERS as readonly string[]).includes(value)
-  );
-}
-
-function parseManifest(raw: string): SnapshotManifest | null {
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch (err) {
-    logger.warn(
-      `Skipping unparseable snapshot manifest: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return null;
-  }
-  if (
-    !isRecord(value) ||
-    typeof value.id !== 'string' ||
-    !isValidSnapshotId(value.id) ||
-    typeof value.createdAt !== 'string' ||
-    typeof value.cliVersion !== 'string' ||
-    (value.platformVersion !== null &&
-      typeof value.platformVersion !== 'string') ||
-    !isTrigger(value.trigger) ||
-    !isRecord(value.volumes)
-  ) {
-    logger.warn(`Skipping snapshot manifest with invalid shape: ${raw}`);
-    return null;
-  }
-
-  const volumes: Record<string, SnapshotVolumeInfo> = {};
-  for (const [name, info] of Object.entries(value.volumes)) {
-    if (!isVolumeInfo(info)) {
-      logger.warn(
-        `Skipping snapshot ${value.id}: invalid volume entry "${name}"`,
-      );
-      return null;
-    }
-    volumes[name] = info;
-  }
-
-  return {
-    id: value.id,
-    createdAt: value.createdAt,
-    cliVersion: value.cliVersion,
-    platformVersion: value.platformVersion ?? null,
-    trigger: value.trigger,
-    volumes,
-  };
-}
+import { BACKUP_HELPER_IMAGE, BACKUP_VOLUME } from './constants';
+import { parseManifest, type SnapshotManifest } from './manifest';
 
 /**
  * Read every complete snapshot manifest from the project's backups volume,
  * newest first. Directories without a manifest (torn snapshots) and
  * manifests that fail validation are skipped with a warning. Returns []
- * when the backups volume does not exist yet.
+ * when the backups volume does not exist yet. On Incus each snapshot's
+ * newest manifest generation that parses is read through the volume file API
+ * (R3-29).
  */
 export async function listSnapshots(
   prefix: string,
   runtime: StackRuntime = dockerRuntime,
 ): Promise<SnapshotManifest[]> {
+  const store = snapshotStoreOf(runtime);
+  if (store !== null) return store.listManifests();
   const backupVolume = `${prefix}${BACKUP_VOLUME}`;
   if (!(await runtime.volumeExists(backupVolume))) {
     return [];

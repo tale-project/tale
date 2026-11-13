@@ -48,7 +48,7 @@ const INCUS_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/;
 const name = z.string().regex(INCUS_NAME);
 
 /** The steps of one volume's restore aside, in order (design D-29). */
-const RESTORE_STEPS = [
+export const RESTORE_STEPS = [
   'pending',
   'stopped',
   'detached',
@@ -67,6 +67,26 @@ export const restorePendingSchema = z
     steps: z.record(name, z.enum(RESTORE_STEPS)),
     /** Each volume's holder of what it replaced (`<v>.pre-restore-<ts>`). */
     holders: z.record(name, name),
+    /** The disk devices each volume was attached as, so a restore that
+     * detached them can attach them again after a crash. */
+    attachments: z
+      .record(
+        name,
+        z
+          .array(
+            z.strictObject({
+              instance: name,
+              device: name,
+              path: z.string().regex(/^\/[A-Za-z0-9._/-]{0,255}$/),
+              readonly: z.boolean(),
+            }),
+          )
+          .max(64),
+      )
+      .optional(),
+    /** The volume users that ran before the restore stopped them; they are
+     * started again at its end. */
+    running: z.array(name).max(256).optional(),
   })
   .superRefine((value, context) => {
     const volumes = new Set(value.volumes);
@@ -79,6 +99,7 @@ export const restorePendingSchema = z
     for (const volume of [
       ...Object.keys(value.steps),
       ...Object.keys(value.holders),
+      ...Object.keys(value.attachments ?? {}),
     ])
       if (!volumes.has(volume))
         context.addIssue({
@@ -87,6 +108,7 @@ export const restorePendingSchema = z
         });
   });
 export type RestorePending = z.infer<typeof restorePendingSchema>;
+export type RestoreStep = (typeof RESTORE_STEPS)[number];
 
 export const journalSchema = z.strictObject({
   schemaVersion: z.literal(1),
