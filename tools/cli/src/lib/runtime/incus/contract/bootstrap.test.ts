@@ -217,12 +217,14 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
-function workspace(): string {
+function workspace(
+  runtime: unknown = { engine: 'incus', incus: declaration },
+): string {
   const directory = mkdtempSync(join(tmpdir(), 'tale-bootstrap-'));
   directories.push(directory);
   writeFileSync(
     join(directory, 'tale.json'),
-    `${JSON.stringify({ version: 1, cliVersion: '1.0.0', createdAt: 'now', id: 'tale', runtime: { engine: 'incus', incus: declaration } }, null, 2)}\n`,
+    `${JSON.stringify({ version: 1, cliVersion: '1.0.0', createdAt: 'now', id: 'tale', runtime }, null, 2)}\n`,
   );
   return directory;
 }
@@ -399,6 +401,32 @@ describePosix('tale incus bootstrap', () => {
     const removal = await planRemoval(options(socket, parent, run, managed));
     await removal.apply();
     expect(existsSync(join(stateDirectory, 'incus', 'client.key'))).toBe(false);
+  });
+
+  test('keeps a Docker workspace on Docker, writing its migration target', async () => {
+    const socket = new AdminSocket(server.cert);
+    const directory = workspace({
+      engine: 'docker',
+      next: { engine: 'incus', incus: declaration },
+    });
+    const run = firewall('ACCEPT').run;
+    const plan = await planBootstrap(options(socket, directory, run));
+    expect(
+      plan.steps.find((step) => step.object.endsWith('tale.json'))?.detail,
+    ).toContain('runtime.next.incus.endpoint https://10.30.0.1:8443');
+    await plan.apply();
+    const project = JSON.parse(
+      readFileSync(join(directory, 'tale.json'), 'utf8'),
+    );
+    expect(project.runtime).toEqual({
+      engine: 'docker',
+      next: {
+        engine: 'incus',
+        incus: { ...declaration, endpoint: 'https://10.30.0.1:8443' },
+      },
+    });
+    const again = await planBootstrap(options(socket, directory, run));
+    expect(again.steps.filter((step) => step.action !== 'keep')).toEqual([]);
   });
 
   test('changes nothing on a second run', async () => {

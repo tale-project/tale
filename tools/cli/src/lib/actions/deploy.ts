@@ -55,6 +55,7 @@ import {
 } from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
+import { assertNoMigrationUnderWay } from '../state/migration-journal';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
@@ -171,6 +172,8 @@ interface DeployOptions {
   runtime?: StackRuntime;
   /** `--plan <file>` on Incus: apply only what this reviewed plan holds. */
   plan?: WorkspacePlan;
+  /** The caller holds the deploy lock already (`tale runtime migrate`). */
+  lockHeld?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -212,8 +215,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 
   try {
-    await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {
+    const locked = (work: () => Promise<void>) =>
+      options.lockHeld === true
+        ? work()
+        : withLock(env.DEPLOY_DIR, `deploy ${version}`, work);
+    await locked(async () => {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
+      // A migration to Incus stopped the Docker stack on purpose.
+      if (options.lockHeld !== true && !dryRun)
+        await assertNoMigrationUnderWay(env.DEPLOY_DIR, 'tale deploy');
 
       // What every deploy does once the services are rolled, on either
       // runtime: the host config push and the reseed.

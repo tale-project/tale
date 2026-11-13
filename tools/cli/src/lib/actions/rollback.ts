@@ -39,6 +39,7 @@ import {
 import { getCurrentColor } from '../state/get-current-color';
 import { getOppositeColor } from '../state/get-opposite-color';
 import { getPreviousVersion } from '../state/get-previous-version';
+import { assertNoMigrationUnderWay } from '../state/migration-journal';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
@@ -124,6 +125,8 @@ export async function rollback(
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
     logger.header('Rolling Back Deployment');
+    // A migration to Incus stopped the Docker stack on purpose.
+    await assertNoMigrationUnderWay(env.DEPLOY_DIR, 'tale rollback');
 
     // Get current state
     const currentColor = await getCurrentColor(env.DEPLOY_DIR);

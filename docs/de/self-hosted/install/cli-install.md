@@ -153,6 +153,8 @@ Die erste Zeile nennt die Laufzeit, die der Workspace deklariert. In einem Works
 
 `TALE_RUNTIME` sichert die Festlegung nur ab: Auf `docker` oder `incus` gesetzt, lässt es einen Befehl abbrechen, wenn die Festlegung die andere Laufzeit nennt. Eine Laufzeit wählt es nie.
 
+**Einen Docker-Workspace auf Incus umziehen.** Lege die Incus-Laufzeit in `runtime.next` fest, führe `tale incus bootstrap` (als root) und `tale incus check` aus, dann `tale runtime migrate --to incus` (siehe unten). Der Umzug bringt das Deployment so, wie es läuft, mit derselben Version und derselben `.env` hinüber und setzt dann `runtime.engine` auf `incus`; der Docker-Stack bleibt gestoppt, bis du ihn entfernst.
+
 ```json
 {
   "version": 1,
@@ -190,6 +192,7 @@ Die erste Zeile nennt die Laufzeit, die der Workspace deklariert. In einem Works
 | `incus.registryMirrors` | Je Registry außer Docker Hub den Host, der ihre Repositorys an ihrer Stelle ausliefert, etwa die eigene Registry eines Knotens ohne Internetzugang (`{"ghcr.io": "registry.internal:5000"}`). Images bleiben an den Digest gebunden, den der Mirror nachgewiesen hat, und das Projekt darf nur vom Mirror laden. |
 | `incus.volumes` | Pro Daten-Volume: seine `size` und seine Einstellungen `snapshots.*` und `zfs.*`. Andere Einstellungen sind nicht erlaubt. |
 | `incus.operatorReach` | Ziele außerhalb des Stacks, die seine Instanzen erreichen müssen (`destination`, `protocol`, `ports`), etwa ein Inferenz-Router. |
+| `next` | Die Laufzeit, auf die `tale runtime migrate` den Workspace umzieht: `engine` (die, auf der er noch nicht läuft) und deren Block, etwa `"next": { "engine": "incus", "incus": { … } }` in einem Docker-Workspace. `tale incus bootstrap`, `check` und `contract` lesen ihn, solange der Workspace noch auf Docker läuft. |
 
 Die Zertifikate sind Dateien, nie `tale.json` oder `.env`: `client.crt`, `client.key` und `server.crt` in `.tale/incus/` des Workspace (das `.gitignore` aus Git heraushält) oder in dem absoluten Verzeichnis, das `TALE_INCUS_DIR` nennt. Das Verzeichnis muss für Gruppe und andere geschlossen sein (0700), ebenso jede Datei (0600); die CLI liest es unter Linux und macOS. Das Serverzertifikat muss eines sein, das die Verbindung fest verankern kann: sein eigener Vertrauensanker (`CA:TRUE`).
 
@@ -918,6 +921,14 @@ Führe den Befehl bei einer manuellen Wiederherstellung ohne Flags im interaktiv
 
 - `-e, --email <email>` — eine neue E-Mail-Adresse für das Inhaber-Konto setzen.
 - `-p, --password <password>` — ein neues Passwort für das Inhaber-Konto setzen.
+
+`tale runtime migrate` — das Docker-Deployment eines Workspace auf die Incus-Laufzeit umziehen, die `runtime.next` festlegt (experimentell). Zuerst prüft der Befehl den Knoten wie `tale incus check` mit seinen Weiterleitungsproben und bricht auf einem Host ab, auf dem die Firewall von Docker den Verkehr der Incus-Bridges verwirft; er nennt dann die Abhilfen. Die CLI muss die Version ausrollen, die Docker betreibt. Danach leert er Backend und Sandbox, stoppt jeden Docker-Container (auch den Proxy), archiviert die Docker-Volumes, exportiert und importiert den Snapshot (jedes Archiv per sha256 geprüft), stellt ihn in frische Incus-Volumes wieder her, rollt dieselbe Version auf Incus aus, führt die öffentlichen Smoke-Prüfungen (`tale deploy smoke`) aus und setzt `runtime.engine` auf `incus`. Die Ausfallzeit reicht vom Stopp bis zum Deployment auf Incus. Jeder Schritt wird in `.tale/migration.json` festgehalten: Ein unterbrochener Lauf macht beim nächsten Aufruf dort weiter, wo er stehen blieb. Solange ein laufender Docker-Container Port 80 oder 443 veröffentlicht, startet er die Incus-Edge nicht. Ein gestoppter Docker-Container bleibt auch nach einem Neustart von Docker oder des Hosts gestoppt.
+
+- `--to incus` — umziehen oder einen unterbrochenen Umzug fortsetzen.
+- `--to docker` — zurückrollen: die Incus-Instanzen löschen (ihre Volumes bleiben), `runtime.engine` wieder auf `docker` setzen und den gestoppten Docker-Stack auf seinen bisherigen Daten starten. Was sich seit dem Umzug auf Incus geändert hat, kommt nicht mit zurück.
+- `--finish` — nach einem abgeschlossenen Umzug den gestoppten Docker-Stack entfernen: seine Container und Daten-Volumes (`<id>_backups` bleibt). Der Befehl fragt vorher; ein Zurückrollen ist danach nicht mehr möglich.
+- `--smoke-url <url>` — wo die Smoke-Prüfungen die neue Edge erreichen. Standard: `SITE_URL`. Eine Site unter einem Loopback-Namen (`http://localhost`) wird an der eigenen Adresse der Incus-Edge geprüft, weil die Proxy-Geräte keinen Loopback-Verkehr annehmen. Auf einem anderen Host, bevor DNS umgestellt ist, eine Adresse, die die Edge des neuen Hosts erreicht.
+- `-y, --yes` — mit `--finish` ohne Rückfrage entfernen.
 
 ## Fehlersuche
 

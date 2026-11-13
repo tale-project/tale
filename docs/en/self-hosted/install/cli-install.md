@@ -149,6 +149,8 @@ The first row names the runtime the workspace declares. In a workspace whose `ta
 
 `TALE_RUNTIME` only guards the declaration: set to `docker` or `incus`, it makes a command refuse when the declaration names the other engine. It never selects an engine.
 
+**Move a Docker workspace to Incus.** Declare the Incus runtime in `runtime.next`, run `tale incus bootstrap` (as root) and `tale incus check`, then `tale runtime migrate --to incus` (see below). The migration moves the deployment as it runs, at the same version and with the same `.env`, and then sets `runtime.engine` to `incus`; the Docker stack stays stopped until you remove it.
+
 ```json
 {
   "version": 1,
@@ -186,6 +188,7 @@ The first row names the runtime the workspace declares. In a workspace whose `ta
 | `incus.registryMirrors` | Per registry other than Docker Hub, the host that serves its repositories in its place, such as an air-gapped node's own registry (`{"ghcr.io": "registry.internal:5000"}`). Images stay pinned by the digest the mirror proved, and the project may pull only from the mirror. |
 | `incus.volumes` | Per data volume: its `size`, and its `snapshots.*` and `zfs.*` settings. No other setting may be declared. |
 | `incus.operatorReach` | Destinations outside the stack that its instances must reach (`destination`, `protocol`, `ports`), such as an inference router. |
+| `next` | The runtime `tale runtime migrate` moves the workspace to: `engine` (the one it does not run on yet) and that engine's block, such as `"next": { "engine": "incus", "incus": { … } }` on a Docker workspace. `tale incus bootstrap`, `check` and `contract` read it while the workspace still runs on Docker. |
 
 The certificates are files, never `tale.json` or `.env`: `client.crt`, `client.key` and `server.crt` in the workspace's `.tale/incus/` (which `.gitignore` keeps out of Git), or in the absolute directory `TALE_INCUS_DIR` names. The directory must be closed to group and others (0700), and so must each file (0600); the CLI reads it on Linux and macOS. The server certificate must be one the connection can pin: its own trust anchor (`CA:TRUE`).
 
@@ -913,6 +916,14 @@ For a manual recovery, run it without flags in an interactive terminal to enter 
 
 - `-e, --email <email>` — set a new owner email address.
 - `-p, --password <password>` — set a new owner password.
+
+`tale runtime migrate` — move a workspace's Docker deployment to the Incus runtime `runtime.next` declares (experimental). It checks the node first, as `tale incus check` does with its forwarding probes, and refuses on a host where Docker's firewall drops the Incus bridges' traffic, naming the remedies. It needs the CLI to deploy the version Docker runs. Then it drains the backend and the sandbox, stops every Docker container (the proxy too), archives the Docker volumes, exports and imports the snapshot (each archive checked by sha256), restores it into fresh Incus volumes, deploys the same version on Incus, runs the public smoke checks (`tale deploy smoke`) and sets `runtime.engine` to `incus`. Downtime lasts from the stop to the Incus deploy. Each step is recorded in `.tale/migration.json`: an interrupted run continues where it stopped when you run it again. It refuses to start the Incus edge while a running Docker container still publishes port 80 or 443. A stopped Docker container stays stopped across a Docker restart and a reboot.
+
+- `--to incus` — migrate, or continue an interrupted migration.
+- `--to docker` — roll back: delete the Incus instances (their volumes stay), set `runtime.engine` back to `docker` and start the stopped Docker stack on the data it had. What changed on Incus since the migration does not go back.
+- `--finish` — after a completed migration, remove the stopped Docker stack: its containers and data volumes (`<id>_backups` stays). It asks first; a rollback is not possible afterwards.
+- `--smoke-url <url>` — where the smoke checks reach the new edge. Default: `SITE_URL`. A site under a loopback name (`http://localhost`) is checked at the Incus edge's own address, because the proxy devices take no loopback traffic. On another host, before DNS moves, an address that reaches the new host's edge.
+- `-y, --yes` — with `--finish`, remove without asking.
 
 ## Troubleshooting
 

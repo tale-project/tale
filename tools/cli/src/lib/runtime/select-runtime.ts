@@ -56,13 +56,17 @@ async function workspaceIncusRuntime(
   projectDir: string,
   overrides: Partial<IncusRuntimeOptions> = {},
   environment: NodeJS.ProcessEnv = process.env,
+  which: 'engine' | 'next' = 'engine',
 ): Promise<IncusRuntime> {
   const directory = resolve(projectDir);
   const project = await readProject(directory);
-  const declaration = project.runtime?.incus;
-  if (project.runtime?.engine !== 'incus' || declaration === undefined)
+  const runtime = which === 'next' ? project.runtime?.next : project.runtime;
+  const declaration = runtime?.incus;
+  if (runtime?.engine !== 'incus' || declaration === undefined)
     throw preconditionError(
-      `tale.json in ${directory} declares no Incus runtime.`,
+      which === 'next'
+        ? `tale.json in ${directory} declares no Incus runtime to migrate to (runtime.next).`
+        : `tale.json in ${directory} declares no Incus runtime.`,
     );
   const client =
     overrides.client ??
@@ -102,4 +106,26 @@ export async function selectRuntime(
     'docker',
     overrides.docker === undefined ? {} : { docker: overrides.docker },
   );
+}
+
+/**
+ * The Incus runtime `runtime.next` declares, which `tale runtime migrate`
+ * moves a Docker workspace to (design 14): the same stack, state root and
+ * credentials (`.tale/incus/`, where `tale incus bootstrap` writes them) as
+ * the workspace's own Incus runtime once the migration flips the engine.
+ */
+export function migrationIncusRuntime(
+  projectDir: string,
+  overrides: Partial<IncusRuntimeOptions> = {},
+): Promise<IncusRuntime> {
+  return workspaceIncusRuntime(projectDir, overrides, process.env, 'next');
+}
+
+/** The workspace's own Incus runtime, whatever `TALE_RUNTIME` says: the
+ * runtime a migration back to Docker stops (design 14). */
+export function declaredIncusRuntime(
+  projectDir: string,
+  overrides: Partial<IncusRuntimeOptions> = {},
+): Promise<IncusRuntime> {
+  return workspaceIncusRuntime(projectDir, overrides, process.env, 'engine');
 }

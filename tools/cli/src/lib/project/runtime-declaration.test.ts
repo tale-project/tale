@@ -17,6 +17,7 @@ import {
   guardDeclaredEngine,
   incusDeclarationSchema,
   runtimeDeclarationSchema,
+  workspaceIncusDeclaration,
 } from './runtime-declaration';
 import { writeProject } from './write-project';
 
@@ -199,9 +200,59 @@ describe("tale.json's runtime", () => {
         },
       },
     ],
-    ['an unknown key', { engine: 'docker', next: { engine: 'incus' } }],
+    ['an unknown key', { engine: 'docker', target: { engine: 'incus' } }],
+    ['a next Incus without its block', { next: { engine: 'incus' } }],
+    [
+      'a next block beside a next Docker',
+      { engine: 'incus', incus, next: { engine: 'docker', incus } },
+    ],
+    ['a next on the engine it runs on', { next: { engine: 'docker' } }],
+    [
+      'a next /25 block',
+      {
+        next: {
+          engine: 'incus',
+          incus: {
+            ...incus,
+            network: { ...incus.network, block: '10.30.1.0/25' },
+          },
+        },
+      },
+    ],
   ])('refuses %s', (_name, value) => {
     expect(runtimeDeclarationSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe('runtime.next, the migration target', () => {
+  test('a Docker workspace declares the Incus runtime it moves to', () => {
+    const value = {
+      engine: 'docker' as const,
+      next: { engine: 'incus' as const, incus },
+    };
+    expect(runtimeDeclarationSchema.parse(value)).toEqual(value);
+    expect(
+      workspaceIncusDeclaration(runtimeDeclarationSchema.parse(value)),
+    ).toEqual(incus);
+  });
+
+  test('an Incus workspace declares Docker, the way back', () => {
+    const value = {
+      engine: 'incus' as const,
+      incus,
+      next: { engine: 'docker' as const },
+    };
+    expect(runtimeDeclarationSchema.parse(value)).toEqual(value);
+    expect(
+      workspaceIncusDeclaration(runtimeDeclarationSchema.parse(value)),
+    ).toEqual(incus);
+  });
+
+  test('a workspace without either has no Incus declaration', () => {
+    expect(workspaceIncusDeclaration(undefined)).toBeUndefined();
+    expect(
+      workspaceIncusDeclaration(runtimeDeclarationSchema.parse({})),
+    ).toBeUndefined();
   });
 });
 

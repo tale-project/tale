@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { IncusClient } from '@tale/incus/client';
 import { createUnixSocketClient } from '@tale/incus/unix-transport';
 import { Command } from 'commander';
 
@@ -19,11 +18,7 @@ import {
   type BootstrapPlan,
   type HostCommand,
 } from '../lib/runtime/incus/contract/bootstrap';
-import {
-  checkNode,
-  helperProbes,
-  type CheckReport,
-} from '../lib/runtime/incus/contract/check';
+import type { CheckReport } from '../lib/runtime/incus/contract/check';
 import {
   contractOf,
   managedContractSource,
@@ -31,8 +26,13 @@ import {
   type ContractSource,
 } from '../lib/runtime/incus/contract/contract';
 import {
+  DEFAULT_PROBE_NAME,
+  DEFAULT_PROBE_PUBLIC,
+  defaultProbeImage,
+  probedCheck,
+} from '../lib/runtime/incus/contract/probed-check';
+import {
   managedIncusDirectory,
-  readIncusCredentials,
   workspaceIncusDirectory,
 } from '../lib/runtime/incus/credentials';
 import { ExitCode, preconditionError, usageError } from '../utils/fail';
@@ -191,17 +191,17 @@ export function createIncusCommand(): Command {
     .option(
       '--probe-image <reference>',
       'The image a probe helper runs when the project holds no tale-proxy image yet',
-      `ghcr.io/tale-project/tale/tale-proxy:${pkg.version}`,
+      defaultProbeImage(pkg.version),
     )
     .option(
       '--probe-public <address:port>',
       'The public address the egress probe connects to',
-      '1.1.1.1:443',
+      `${DEFAULT_PROBE_PUBLIC.host}:${DEFAULT_PROBE_PUBLIC.port}`,
     )
     .option(
       '--probe-name <name>',
       'The public name the gateway DNS probe asks for',
-      'tale.dev',
+      DEFAULT_PROBE_NAME,
     )
     .option(
       '--no-probes',
@@ -219,32 +219,15 @@ export function createIncusCommand(): Command {
         ) => {
           assertIncusPlatform();
           const source = await contractSource(options);
-          const contract = contractOf(source);
           const directory =
             options.spec === undefined
               ? workspaceIncusDirectory(resolve(options.workspace ?? '.'))
               : managedIncusDirectory(await stateDirectoryOf(options.spec));
-          const tls = await readIncusCredentials(directory);
-          const client = new IncusClient({
-            endpoint:
-              source.declaration.endpoint ??
-              `https://${source.declaration.network.gateway}:8443`,
-            project: source.declaration.project,
-            tls,
-            signal: () => undefined,
-          });
-          const report = await checkNode(client, contract, {
-            clientCertificate: tls.cert,
-            probes: options.probes
-              ? helperProbes(
-                  { client, stack: contract.stack, stateRoot: directory },
-                  contract,
-                  options.probeImage,
-                  source.declaration,
-                )
-              : null,
+          const report = await probedCheck(source, directory, {
+            image: options.probeImage,
             publicTarget: parsePublicTarget(options.probePublic),
             publicName: options.probeName,
+            probes: options.probes,
           });
           if (getOutputMode().json) emitJson('incus check', report, report.ok);
           else printReport(report);

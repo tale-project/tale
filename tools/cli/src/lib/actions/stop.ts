@@ -36,6 +36,7 @@ import {
 } from '../runtime/incus/apply/journal';
 import { placementOf, STOP_GROUPS } from '../runtime/incus/compile/placement';
 import type { InstanceSummary, StackRuntime } from '../runtime/types';
+import { assertNoMigrationUnderWay } from '../state/migration-journal';
 import { withLock } from '../state/with-lock';
 
 /** The stop groups, the first to stop first. */
@@ -78,7 +79,9 @@ export function declaredGraces(): Record<string, number> {
 }
 
 /** Every instance of the environment: the stack and both colours. */
-async function environment(runtime: StackRuntime): Promise<InstanceSummary[]> {
+export async function environmentInstances(
+  runtime: StackRuntime,
+): Promise<InstanceSummary[]> {
   const project = getProjectId();
   const found: InstanceSummary[] = [];
   for (const stack of [project, `${project}-blue`, `${project}-green`])
@@ -102,16 +105,29 @@ export interface StopOptions {
   deployDir: string;
   runtime: StackRuntime;
   dryRun?: boolean;
+  /** The caller holds the deploy lock already (`tale runtime migrate`). */
+  lockHeld?: boolean;
+}
+
+/** Run `work` under the deploy lock, unless the caller holds it. */
+function locked<T>(
+  options: StopOptions,
+  command: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  return options.lockHeld === true
+    ? work()
+    : withLock(options.deployDir, command, work);
 }
 
 /** Stop the whole environment, group by group. Returns how many stopped. */
 export async function stopEnvironment(options: StopOptions): Promise<number> {
   const { runtime } = options;
-  return withLock(options.deployDir, 'stop', async () => {
+  return locked(options, 'stop', async () => {
     const prefix = options.dryRun ? '[DRY-RUN] ' : '';
     logger.header(`${prefix}Stopping the environment`);
     const graces = runtime.engine === 'docker' ? declaredGraces() : {};
-    const running = (await environment(runtime)).filter(
+    const running = (await environmentInstances(runtime)).filter(
       (instance) => instance.running,
     );
     let stopped = 0;
@@ -145,12 +161,15 @@ export interface StartOptions extends StopOptions {
  * next. Returns how many started. */
 export async function startEnvironment(options: StartOptions): Promise<number> {
   const { runtime } = options;
-  return withLock(options.deployDir, 'start', async () => {
+  return locked(options, 'start', async () => {
     const prefix = options.dryRun ? '[DRY-RUN] ' : '';
     logger.header(`${prefix}Starting the environment`);
+    // A migration to Incus stopped the Docker stack on purpose.
+    if (options.lockHeld !== true && !options.dryRun)
+      await assertNoMigrationUnderWay(options.deployDir, 'tale start');
     if (runtime.engine === 'incus')
       assertNoRestorePending(await readJournal(options.deployDir), 'start');
-    const stopped = (await environment(runtime)).filter(
+    const stopped = (await environmentInstances(runtime)).filter(
       (instance) => !instance.running,
     );
     let started = 0;
