@@ -9,6 +9,7 @@ import { createConfigCommand } from './commands/config';
 import { createDeployCommand } from './commands/deploy';
 import { createDevCommand } from './commands/dev';
 import { createDoctorCommand } from './commands/doctor';
+import { createIncusCommand } from './commands/incus';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
 import { createMigrateCommand } from './commands/migrate';
@@ -78,7 +79,8 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
     parentName === 'config' ||
     parentName === 'deploy' ||
     parentName === 'auth' ||
-    parentName === 'sandbox'
+    parentName === 'sandbox' ||
+    parentName === 'incus'
       ? `${parentName} ${actionCommand.name()}`
       : actionCommand.name() === 'deploy' &&
           actionCommand.opts().bundle !== undefined
@@ -116,6 +118,7 @@ program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 program.addCommand(createSandboxCommand().helpGroup(DEVICE));
 
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
+program.addCommand(createIncusCommand().helpGroup(ADVANCED));
 
 // Docs link honors TALE_DOCS_URL (mirrors `docsOriginForSite` in
 // @tale/ui/seo/urls — the CLI deliberately does not depend on the UI

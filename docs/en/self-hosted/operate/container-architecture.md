@@ -53,6 +53,20 @@ To turn it on, add the setting to `/etc/docker/daemon.json`, keeping the file's 
 
 Then reload the daemon with `sudo systemctl reload docker`, or send `SIGHUP` to `dockerd` on a host without systemd. A reload applies the setting without stopping containers. Live restore keeps containers running across a daemon restart and a patch-release upgrade; an upgrade to a new Docker release line can still stop them, so plan it like a maintenance window. Live restore is incompatible with Swarm mode: on a Swarm node, schedule daemon restarts as maintenance instead. [Docker's live restore guide](https://docs.docker.com/engine/daemon/live-restore/) lists the remaining limits.
 
+## Trace the stack on the Incus runtime {#incus-layout}
+
+On the experimental [Incus runtime](/self-hosted/install/incus), the same services run as Incus instances in one restricted project, and a few instances that Docker does not need take the place of Docker's networking:
+
+| Instance | What it does on Incus | Where Docker does it |
+| --- | --- | --- |
+| `names` | The stack's resolver: answers the services' names with their fixed addresses on the bridge and forwards every other name to the bridge's own DNS. Every instance of the stack asks it. | Docker's embedded DNS |
+| `names-sessions` | The sessions' resolver: answers only the names a session may reach. | The sandbox network's DNS |
+| `switch` | A second instance of the proxy image (`TALE_PROXY_ROLE=switch`). The names `platform` and `backend-api` resolve to it, and it balances each over its replicas, which it admits by a separate probe (`/api/admission` on the platform, `/admission` on the backend API). A replacement therefore never changes an address. | Network aliases that replicas join and leave |
+
+A request takes the same path as above, with the switch between `proxy` and the application roles: the browser reaches `proxy`, which sends web assets to `platform` and application requests to `backend-api`, both through `switch`. Read the service behind a failure the same way. Instances carry their service's name, with a replica number for `platform-1`, `backend-api-1` and `backend-worker-1`, and their console output is in Incus, not Docker: [Read logs and crashes](/self-hosted/install/incus#logs).
+
+The trust boundary moves from the Docker socket to two restricted certificates. The CLI's reaches the stack's project alone, and the spawner's reaches the sessions' project alone; neither can make a project or touch another one, and a session holds none. The project admits no privileged, nested or low-level containers and no host disks, and network ACLs on both bridges drop what no rule allows. Sessions reach the backend API through `switch`, the model gateway, the egress proxy and `names-sessions`, and nothing else. The [network ACLs](/self-hosted/install/incus#network-acls) list every rule.
+
 ## Recognize knowledge-index repair
 
 A damaged BM25 index can cause ingestion failures even when the underlying document tables remain readable. The backend checks knowledge indexes with `pdb.verify_index`; an advisory lock coordinates repair attempts for a database. The deployment's knowledge database is checked each time a backend process starts; organization-specific databases are checked when they are first used.

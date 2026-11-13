@@ -53,6 +53,20 @@ Zum Einschalten ergänzt du die Einstellung in `/etc/docker/daemon.json` und beh
 
 Lade den Daemon danach mit `sudo systemctl reload docker` neu, oder sende auf einem Host ohne systemd `SIGHUP` an `dockerd`. Das Neuladen übernimmt die Einstellung, ohne Container zu stoppen. Live Restore hält Container über einen Daemon-Neustart und ein Patch-Release-Upgrade hinweg am Laufen; ein Upgrade auf eine neue Docker-Release-Linie kann sie trotzdem stoppen, plane es deshalb wie ein Wartungsfenster. Live Restore ist mit dem Swarm-Modus nicht vereinbar: Plane Daemon-Neustarts auf einem Swarm-Knoten stattdessen als Wartung ein. [Dockers Anleitung zu Live Restore](https://docs.docker.com/engine/daemon/live-restore/) nennt die übrigen Grenzen.
 
+## Den Stack unter der Incus-Laufzeit verfolgen {#incus-layout}
+
+Unter der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus) laufen dieselben Dienste als Incus-Instanzen in einem eingeschränkten Projekt, und einige Instanzen, die Docker nicht braucht, übernehmen die Aufgaben des Docker-Netzwerks:
+
+| Instanz | Was sie unter Incus tut | Wo Docker das erledigt |
+| --- | --- | --- |
+| `names` | Der Resolver des Stacks: Er beantwortet die Namen der Dienste mit ihren festen Adressen auf der Bridge und leitet jeden anderen Namen an das eigene DNS der Bridge weiter. Jede Instanz des Stacks fragt ihn. | Das eingebaute DNS von Docker |
+| `names-sessions` | Der Resolver der Sessions: Er beantwortet nur die Namen, die eine Session erreichen darf. | Das DNS des Sandbox-Netzes |
+| `switch` | Eine zweite Instanz des Proxy-Images (`TALE_PROXY_ROLE=switch`). Die Namen `platform` und `backend-api` zeigen auf sie, und sie verteilt jeden über seine Repliken, die sie über eine eigene Probe zulässt (`/api/admission` auf der Plattform, `/admission` auf der Backend-API). Ein Ersetzen ändert deshalb nie eine Adresse. | Netzwerk-Aliasse, denen Repliken beitreten und die sie verlassen |
+
+Eine Anfrage nimmt denselben Weg wie oben, mit dem Switch zwischen `proxy` und den Anwendungsrollen: Der Browser erreicht `proxy`, der Web-Assets an `platform` und Anwendungsanfragen an `backend-api` sendet, beide über `switch`. Den Dienst hinter einem Fehler findest du auf dieselbe Weise. Instanzen tragen den Namen ihres Dienstes, mit einer Replik-Nummer bei `platform-1`, `backend-api-1` und `backend-worker-1`, und ihre Konsolenausgabe liegt in Incus, nicht in Docker: [Logs und Abstürze lesen](/de/self-hosted/install/incus#logs).
+
+Die Vertrauensgrenze wandert vom Docker-Socket zu zwei eingeschränkten Zertifikaten. Das der CLI erreicht nur das Projekt des Stacks, das des Spawners nur das Projekt der Sessions; keines kann ein Projekt anlegen oder ein anderes berühren, und eine Session hält keines. Das Projekt lässt keine privilegierten, verschachtelten oder Low-Level-Container und keine Host-Datenträger zu, und Netzwerk-ACLs auf beiden Bridges verwerfen, was keine Regel erlaubt. Sessions erreichen die Backend-API über `switch`, das Modell-Gateway, den Egress-Proxy und `names-sessions` und sonst nichts. Die [Netzwerk-ACLs](/de/self-hosted/install/incus#network-acls) nennen jede Regel.
+
 ## Reparaturen des Wissensindex erkennen
 
 Ein beschädigter BM25-Index kann Importe scheitern lassen, obwohl die Dokumenttabellen noch lesbar sind. Das Backend prüft Wissensindizes mit `pdb.verify_index`. Ein Advisory Lock koordiniert Reparaturversuche pro Datenbank. Die Wissensdatenbank des Deployments prüft jeder Backend-Prozess bei seinem Start; organisationsspezifische Datenbanken werden bei ihrer ersten Verwendung geprüft.

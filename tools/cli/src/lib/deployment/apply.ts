@@ -23,6 +23,8 @@ import { sha, slug } from '../config/releases/model';
 import { validateNativeRelease } from '../config/releases/native';
 import type { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
+import { engineOf, guardDeclaredEngine } from '../project/runtime-declaration';
+import type { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { withLock } from '../state/with-lock';
 import { backendCliFailure, backendDataOwner } from './backend-cli';
 import { withFrozenDeployment, type DeploymentBundle } from './bundle';
@@ -43,11 +45,19 @@ import {
   readBootstrapPassword,
   type RuntimeResult,
 } from './runtime';
-import { budgetedDockerRun, dockerRuntimeAccess } from './runtime-access';
 import {
   activateRuntimeConfiguration,
   observeReadyRuntime,
 } from './runtime-apply';
+import {
+  activateIncusRuntimeConfiguration,
+  applyIncusRuntime,
+  deploymentAccess,
+  INCUS_APPLY_SENTENCES,
+  incusDeclarationOf,
+  observeReadyIncusRuntime,
+} from './runtime-incus-apply';
+import { incusSandboxDeclaration } from './runtime-incus-stack';
 import {
   atomicRuntimeFile,
   readRegular,
@@ -60,10 +70,20 @@ export interface ApplyDeploymentOptions {
   deploymentRef?: string;
   dryRun?: boolean;
   configurationOnly?: boolean;
+  /** Incus runtime: accept the downtime the plan names (stop-gated
+   * instances replaced). */
+  stop?: boolean;
+  /** Incus runtime: print the plan, change nothing. */
+  planOnly?: boolean;
+  /** Incus runtime: the reviewed plan file to apply exactly. */
+  plan?: string;
 }
 
 type Dependencies = {
   runtime?: typeof applyRuntime;
+  /** The stack's Incus runtime (tests); from the state directory's
+   * credentials by default. */
+  incusRuntime?: IncusRuntime;
   snapshot?: typeof createSnapshot;
   verifySnapshot?: typeof verifySnapshot;
   exec?: typeof exec;
@@ -334,22 +354,23 @@ async function provisionBackend(
   if (!input) throw preconditionError('Native deployment identity is missing.');
   const temporary = `/tmp/tale-deploy-${randomUUID()}`;
   const backend = runtime.backendContainer;
-  const access = dockerRuntimeAccess(
-    budgetedDockerRun(
-      {
-        bounds: () => ({ timeout: 600 }),
-        failed: () =>
-          externalDepError('The backend-local Tale CLI could not run.'),
-        refused: (result) =>
-          externalDepError(
-            backendCliFailure(
-              'The backend-local Tale CLI did not complete provisioning. Its previous receipts are retained for recovery.',
-              result,
-            ),
+  const access = await deploymentAccess(
+    bundle.spec,
+    {
+      bounds: () => ({ timeout: 600 }),
+      failed: () =>
+        externalDepError('The backend-local Tale CLI could not run.'),
+      refused: (result) =>
+        externalDepError(
+          backendCliFailure(
+            'The backend-local Tale CLI did not complete provisioning. Its previous receipts are retained for recovery.',
+            result,
           ),
-      },
-      { exec: dependencies.exec },
-    ),
+        ),
+    },
+    { exec: dependencies.exec },
+    runtime.images.map((image) => image.reference),
+    dependencies.incusRuntime,
   );
   // The phase runs as the backend's own account, the owner of its data
   // directory, because that is where it keeps its private state; the
@@ -539,6 +560,21 @@ async function provisionBackend(
   }
 }
 
+/** The reviewed Incus plan a `--plan <file>` names: JSON, as
+ * `--plan-only --json` printed it (its `runtime.plan`), or the plan alone. */
+function readReviewedPlan(file: string): unknown {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readRegular(file).toString('utf8'));
+  } catch {
+    throw preconditionError(`The reviewed plan ${file} is not JSON.`);
+  }
+  const wrapped = z
+    .object({ data: z.object({ runtime: z.object({ plan: z.unknown() }) }) })
+    .safeParse(parsed);
+  return wrapped.success ? wrapped.data.data.runtime.plan : parsed;
+}
+
 /** One lock covers state adoption, snapshot, stack rollout and native setup.
  * A ready receipt is written only after every native readback and sign-out. */
 export async function applyDeployment(
@@ -556,19 +592,52 @@ async function applyVerifiedDeployment(
   directory: string,
   bundle: DeploymentBundle,
 ) {
+  const engine = engineOf(bundle.spec.runtime);
+  guardDeclaredEngine(engine);
+  // A plan changes nothing; a configuration-only apply always changes the
+  // configuration, so the two never run together.
+  if (options.planOnly && options.configurationOnly)
+    throw preconditionError(
+      '--plan-only plans the runtime; it does not combine with --configuration-only.',
+    );
+  const incus =
+    engine === 'incus' ? incusDeclarationOf(bundle.spec) : undefined;
+  if (
+    incus === undefined &&
+    (options.stop || options.planOnly || options.plan !== undefined)
+  )
+    throw preconditionError(
+      '--stop, --plan-only and --plan apply to a bundle for the Incus runtime.',
+    );
   const runtimeBundle = readRuntimeBundle(join(directory, 'runtime')).bundle;
   const declared = bundle.spec.sandbox;
   const prepared = runtimeBundle.sandbox;
+  // On Incus the sandbox's address and effective egress come from the
+  // address plan and the declaration (R-13).
+  const expected =
+    incus === undefined
+      ? {
+          address:
+            declared && 'address' in declared ? declared.address : undefined,
+          egressProxy: declared?.egressProxy,
+        }
+      : incusSandboxDeclaration({
+          declaration: incus,
+          ...(declared?.egressProxy === undefined
+            ? {}
+            : { egressProxy: declared.egressProxy }),
+        });
   if (
     runtimeBundle.revision !== bundle.spec.runtime.revision ||
     runtimeBundle.platform !== bundle.spec.runtime.platform ||
     runtimeBundle.containerPrefix !== bundle.spec.runtime.containerPrefix ||
+    runtimeBundle.runtime !== (incus === undefined ? undefined : 'incus') ||
     prepared?.backend !== declared?.backend ||
-    prepared?.address !== declared?.address ||
-    prepared?.egressProxy !== declared?.egressProxy
+    prepared?.address !== expected.address ||
+    prepared?.egressProxy !== expected.egressProxy
   )
     throw preconditionError(
-      'Runtime bundle differs from the selected source revision, platform, container prefix or sandbox declaration.',
+      'Runtime bundle differs from the selected source revision, platform, container prefix, runtime engine or sandbox declaration.',
     );
   const configs = await configProofs(bundle, directory);
   const bundleSha256 = sha256(
@@ -598,10 +667,44 @@ async function applyVerifiedDeployment(
     tlsEmail: bundle.spec.tlsEmail,
     environment,
   };
-  const runtime = dependencies.runtime ?? applyRuntime;
-  if (options.dryRun && !options.configurationOnly) {
+  const incusOptions =
+    incus === undefined
+      ? undefined
+      : {
+          incus,
+          ...(declared?.egressProxy === undefined
+            ? {}
+            : { egressProxy: declared.egressProxy }),
+          ...(options.stop ? { stop: true } : {}),
+          ...(options.plan === undefined
+            ? {}
+            : { plan: readReviewedPlan(options.plan) }),
+        };
+  const incusDependencies = {
+    exec: dependencies.exec,
+    ...(dependencies.incusRuntime === undefined
+      ? {}
+      : { incusRuntime: dependencies.incusRuntime }),
+  };
+  const runtime: typeof applyRuntime =
+    dependencies.runtime ??
+    (incusOptions === undefined
+      ? applyRuntime
+      : (input) =>
+          applyIncusRuntime({ ...input, ...incusOptions }, incusDependencies));
+  const observeRuntime: typeof observeReadyRuntime =
+    dependencies.observeRuntime ??
+    (incusOptions === undefined
+      ? observeReadyRuntime
+      : (input) =>
+          observeReadyIncusRuntime(
+            { ...input, ...incusOptions },
+            incusDependencies,
+          ));
+  if ((options.dryRun || options.planOnly) && !options.configurationOnly) {
     return {
       dryRun: true,
+      ...(options.planOnly ? { planOnly: true } : {}),
       runtime: await runtime({ ...runtimeOptions, dryRun: true }),
       configs,
     };
@@ -690,9 +793,7 @@ async function applyVerifiedDeployment(
         throw preconditionError(
           'Configuration-only apply requires an unchanged, already-ready deployment with no pending runtime rollout. Complete a normal deployment of these exact runtime and identity inputs first.',
         );
-      const observed = await (
-        dependencies.observeRuntime ?? observeReadyRuntime
-      )(runtimeOptions);
+      const observed = await observeRuntime(runtimeOptions);
       if (
         observed.backendContainer !== preview.backendContainer ||
         observed.revision !== runtimeBundle.revision ||
@@ -720,9 +821,7 @@ async function applyVerifiedDeployment(
         throw externalDepError(
           'Configuration-only provisioning returned no verified configuration.',
         );
-      const after = await (dependencies.observeRuntime ?? observeReadyRuntime)(
-        runtimeOptions,
-      );
+      const after = await observeRuntime(runtimeOptions);
       if (valueHash(after) !== valueHash(observed))
         throw preconditionError(
           'Runtime identity changed during configuration-only apply; its native journal is retained for reconciliation.',
@@ -767,6 +866,10 @@ async function applyVerifiedDeployment(
       preview.existing &&
       (preview.changed || previous?.bundleSha256 !== bundleSha256)
     ) {
+      // Native snapshots of an Incus stack come with their own lane; until
+      // then a changed existing Incus deployment has no recovery point.
+      if (incus !== undefined && dependencies.snapshot === undefined)
+        throw preconditionError(INCUS_APPLY_SENTENCES.snapshot);
       const created = await (dependencies.snapshot ?? createSnapshot)({
         prefix: `${bundle.spec.composeProject}_`,
         trigger: 'deploy',
@@ -841,7 +944,15 @@ async function applyVerifiedDeployment(
     );
     const configurationActivation = effect
       ? await (
-          dependencies.activateConfiguration ?? activateRuntimeConfiguration
+          dependencies.activateConfiguration ??
+          (incusOptions === undefined
+            ? activateRuntimeConfiguration
+            : (input, change) =>
+                activateIncusRuntimeConfiguration(
+                  { ...input, ...incusOptions },
+                  change,
+                  incusDependencies,
+                ))
         )(runtimeOptions, effect)
       : undefined;
     const receipt = {

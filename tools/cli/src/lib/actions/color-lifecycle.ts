@@ -30,6 +30,12 @@ import { drainBackend, endDrainBackend } from './drain-backend';
  *      it earlier would drop exactly the requests the drain exists to
  *      protect;
  *   6. and only then stopped.
+ *
+ * A runtime whose withdrawal cuts nothing (Incus: a marker the switch's
+ * admission probe reads, `StackRuntime.withdrawal`) withdraws the old colour
+ * BEFORE step 4 instead: from then on no new request reaches it, so the
+ * drain waits out work that nothing joins any more, and its open requests
+ * and streams end only at the stop.
  */
 
 /** The compose project one colour's containers live in. */
@@ -312,6 +318,13 @@ export async function retireColor(args: RetireColorArgs): Promise<void> {
   // 503 from the old colour marks the whole site down. Traffic leaves this
   // colour when it is withdrawn below, not via a health probe.
 
+  // A withdrawal that cuts nothing goes first: the switch stops sending the
+  // colour new requests before the drain waits out the ones it has.
+  if (runtime.withdrawal === 'marker') {
+    await runtime.withdraw(project, ALIASED_SERVICES);
+    logger.info(`Withdrew ${args.color} from the switch.`);
+  }
+
   // Refuse new chat turns on THIS colour only, and wait for the ones already
   // running. The new colour is serving throughout and is not affected.
   await drainBackend({ dryRun: false, colour: args.color, runtime });
@@ -322,9 +335,11 @@ export async function retireColor(args: RetireColorArgs): Promise<void> {
   // Now — and only now — take the colour out of the aliases. This severs
   // live connections, which is why it comes after both drains rather than
   // before them.
-  const detached = await runtime.withdraw(project, ALIASED_SERVICES);
-  if (detached > 0) {
-    logger.info(`Detached ${args.color} from the serving networks.`);
+  if (runtime.withdrawal === 'disconnect') {
+    const detached = await runtime.withdraw(project, ALIASED_SERVICES);
+    if (detached > 0) {
+      logger.info(`Detached ${args.color} from the serving networks.`);
+    }
   }
 
   logger.step(`Stopping ${args.color} services...`);

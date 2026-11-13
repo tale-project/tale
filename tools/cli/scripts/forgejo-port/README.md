@@ -93,6 +93,7 @@ so its scope steps answer that it owes everything. Each pull request lands on it
 | `issue-labeler.yml` | later | labels issues with GitHub's REST API; Forgejo's labels API takes ids |
 | `cleanup-pr-images.yml` | later | deletes a closed pull request's image tags through GHCR's API |
 | `sandbox-incus-e2e.yml` | later | builds an Incus node with a ZFS pool on the runner, which needs a virtual machine |
+| `cli-incus-e2e.yml` | later | builds the same Incus node as the sandbox's lab, which needs a virtual machine |
 | `cli.yml` | port | ported without its manual `release` job and without the macOS and Windows rows |
 | `docs-screenshots.yml` | port | ported without its push to a `docs-screenshots/` branch, which proves a change to it on GitHub before the default branch holds it |
 

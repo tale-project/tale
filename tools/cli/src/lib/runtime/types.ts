@@ -4,8 +4,9 @@
  * Every action that touches the stack's instances, images, volumes or
  * networks asks a `StackRuntime` instead of building `docker` argv itself.
  * `selectRuntime` picks the runtime once per command from what `tale.json`
- * declares; Docker is the default and, until the Incus runtime exists, the
- * only one.
+ * declares; Docker is the default. The Incus runtime (`incus/`) is built
+ * for a caller that hands it its Incus connection; a workspace cannot
+ * select it yet.
  *
  * The verbs mirror what the CLI does to a stack today. The Docker runtime
  * (`docker/docker-runtime.ts`) answers each with exactly the `lib/docker`
@@ -17,8 +18,9 @@
 
 import type { DeploymentColor } from '../compose/types';
 import type { ExecResult } from '../docker/exec';
+import type { ImageFacts } from '../oci/image-facts';
 
-export type { ExecResult };
+export type { ExecResult, ImageFacts };
 
 export const RUNTIME_ENGINES = ['docker', 'incus'] as const;
 export type RuntimeEngine = (typeof RUNTIME_ENGINES)[number];
@@ -122,6 +124,22 @@ export interface RuntimeCheck {
   fix?: string;
 }
 
+/** An image the stack runs, as `ensureImages` makes it present. */
+export interface ImageRef {
+  /** What is pulled: `registry/repository:tag`, or `…@sha256:…`. Incus
+   * pulls by digest only. */
+  reference: string;
+  /** Docker: a second local name the image gets (`docker tag`), as the
+   * sandbox spawner expects it. Incus: the alias the project holds it
+   * under; absent, the CLI's `tale-<repository>-<digest>`. */
+  alias?: string;
+}
+
+/** What `ensureImages` could not make present; empty when it made all. */
+export interface EnsuredImages {
+  failed: { reference: string; detail: string }[];
+}
+
 /** Whether the runtime is usable, after `probe` made it so where it can. */
 export interface ProbeResult {
   status: 'ready' | 'installed' | 'refused' | 'failed';
@@ -162,6 +180,35 @@ export interface WaitServiceHealthyOptions extends WaitHealthyOptions {
 export interface ExecOptions {
   /** Delivered on the process's stdin, never in its argv. */
   stdin?: string;
+  /** Seconds the command may run; past it the command is ended and the
+   *  exec fails. Incus bounds every exec (600 s when absent); Docker keeps
+   *  the `docker exec` it always ran, which the command's own `timeout`
+   *  bounds, and ignores it. */
+  timeoutS?: number;
+  /** stdout and stderr together may not be larger; past it the exec fails
+   *  (Incus: 16 MiB when absent). Docker ignores it. */
+  maxOutputBytes?: number;
+}
+
+/**
+ * A command held open in an instance, its stdin, stdout and stderr streamed
+ * (the automation's psql session). Docker: a `docker exec -i` child process;
+ * Incus: a websocket exec (design D-03).
+ */
+export interface RuntimeSession {
+  stdin: {
+    write(chunk: string | Uint8Array): unknown;
+    flush(): unknown;
+    end(): unknown;
+  };
+  stdout: ReadableStream<Uint8Array>;
+  stderr: ReadableStream<Uint8Array>;
+  /** Resolves with the exit code once the command ended. */
+  exited: Promise<number>;
+  /** The exit code once known, else null. */
+  readonly exitCode: number | null;
+  /** End the command. */
+  kill(): void;
 }
 
 export interface FileOwner {
@@ -185,6 +232,12 @@ export interface LogOptions {
   follow: boolean;
   since?: string;
   tail?: number;
+  /**
+   * Read a running instance's log although the read takes the lines it
+   * shows (Incus: the console hands each line out once, design 11, S21).
+   * Docker reads without taking and ignores it.
+   */
+  consume?: boolean;
 }
 
 /** A volume a one-shot job mounts. */
@@ -196,7 +249,12 @@ export interface JobMount {
 
 /** A short-lived helper that runs one command over volumes, then goes. */
 export interface OneShotJob {
+  /** Docker runs the job from this image; Incus from the release's
+   *  `tale-proxy` (design D-30). */
   image: string;
+  /** What the job is for, in its Incus name (`job-<purpose>-<8 hex>`);
+   *  lower-case letters and digits, `job` when absent. */
+  purpose?: string;
   mounts: readonly JobMount[];
   argv: readonly string[];
   /** Delivered on the job's stdin, never in its argv. */
@@ -205,8 +263,25 @@ export interface OneShotJob {
   timeoutS?: number;
 }
 
+/**
+ * How a runtime takes a replica out of the serving names, which decides
+ * where a colour flip withdraws it (design 7.3, R3-34):
+ *
+ * - `disconnect` (Docker): the replica leaves the serving networks, and its
+ *   live connections are cut with it. A flip withdraws AFTER the drain, so
+ *   no in-flight request is cut, and right before the stop.
+ * - `marker` (Incus): the replica gets its withdrawal marker, its admission
+ *   probe answers 503, and the switch stops sending it new requests within
+ *   one health interval. Nothing is cut: its open requests and streams run
+ *   on until it stops. A flip withdraws BEFORE the drain, so the drain
+ *   waits out work no new request joins.
+ */
+export type WithdrawalKind = 'disconnect' | 'marker';
+
 export interface StackRuntime {
   readonly engine: RuntimeEngine;
+  /** How `withdraw` works here, and so where a flip calls it. */
+  readonly withdrawal: WithdrawalKind;
 
   // Readiness
   /** Make the runtime usable where it can (Docker: start or install the
@@ -237,6 +312,14 @@ export interface StackRuntime {
   inspect(name: string): Promise<InstanceInfo | null>;
 
   // Images
+  /** Make every image present, by its digest where it names one: Docker
+   *  pulls each (all at once) and then tags those with an alias; Incus pulls
+   *  each into the project under its alias, keeping one it holds. A failure
+   *  does not stop the others. */
+  ensureImages(refs: readonly ImageRef[]): Promise<EnsuredImages>;
+  /** What an image says about itself, read from its registry with no
+   *  runtime involved (`lib/oci`), for the platform the runtime runs. */
+  inspectImage(reference: string): Promise<ImageFacts>;
   pull(image: string): Promise<boolean>;
   imagePresent(image: string): Promise<boolean>;
   /** Give a local image a second name, as the sandbox spawner expects it. */
@@ -278,11 +361,29 @@ export interface StackRuntime {
   stop(name: string): Promise<boolean>;
   /** Remove it, stopped or not; one that is gone counts as removed. */
   remove(name: string): Promise<boolean>;
-  /** Let `services` of `stack` take traffic (Docker: they do from start). */
-  admit(stack: string, services: readonly string[]): Promise<void>;
-  /** Take `services` of `stack` out of the serving names, live connections
-   *  included; returns how many instance links it cut. */
-  withdraw(stack: string, services: readonly string[]): Promise<number>;
+  /** Let the running replicas of `services` of `stack` take traffic; only
+   *  those named in `replicas`, when given (an in-place roll).
+   *  Docker: a no-op, a replica takes traffic from its start. Incus: a
+   *  no-op for a replica without its withdrawal marker; one an aborted flip
+   *  left withdrawn has the marker removed, as the image's app user. */
+  admit(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<void>;
+  /** Take the running replicas of `services` of `stack` out of the serving
+   *  names; only those named in `replicas`, when given (an in-place roll).
+   *  Returns how many instance links it cut (see `withdrawal`).
+   *  Docker: `network disconnect` from every serving network, which cuts
+   *  the replica's live connections, so it runs after the drain; returns
+   *  the links cut. Incus: the role's withdrawal marker, set as the image's
+   *  app user, then a wait of two switch health intervals; it cuts nothing
+   *  and returns 0, and runs before the drain. */
+  withdraw(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<number>;
   /** Clean up what a deploy started in `stacks` when the process is
    *  interrupted. Synchronous: a signal handler cannot wait. */
   onInterrupt(stacks: readonly string[]): void;
@@ -293,6 +394,9 @@ export interface StackRuntime {
     argv: readonly string[],
     options?: ExecOptions,
   ): Promise<ExecResult>;
+  /** Start `argv` in the instance with its stdin, stdout and stderr open,
+   *  for as long as the caller holds it. */
+  execSession(name: string, argv: readonly string[]): Promise<RuntimeSession>;
   /** Copy the contents of the local `dir` into `target` in the instance. */
   copyIn(
     name: string,

@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
+import { CliError, usageError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import {
   countAutoInstall,
@@ -22,6 +23,13 @@ import { SCAFFOLD_DOMAINS } from '../project/org-dirs';
 import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import {
+  describeIssues,
+  parseCidr,
+  runtimeDeclarationSchema,
+  type IngressMode,
+  type RuntimeDeclaration,
+} from '../project/runtime-declaration';
+import {
   CURRENT_PROJECT_VERSION,
   type Checksums,
   type TaleProject,
@@ -29,10 +37,122 @@ import {
 import { writeProject } from '../project/write-project';
 import { writeAgentInstructions } from '../rules/generators';
 
+/** The runtime flags of `tale init`, as typed. */
+export interface InitRuntimeFlags {
+  engine?: 'docker' | 'incus';
+  incus?: {
+    endpoint?: string;
+    project?: string;
+    pool?: string;
+    network?: string;
+    subnet?: string;
+    gateway?: string;
+    block?: string;
+    sessionsSubnet?: string;
+    ingress?: IngressMode;
+    listen?: string;
+  };
+}
+
 interface InitOptions {
   directory?: string;
   force?: boolean;
   noEnv?: boolean;
+  runtime?: InitRuntimeFlags;
+}
+
+const INCUS_FLAGS: Record<
+  keyof NonNullable<InitRuntimeFlags['incus']>,
+  string
+> = {
+  endpoint: '--incus-endpoint',
+  project: '--incus-project',
+  pool: '--incus-pool',
+  network: '--incus-network',
+  subnet: '--incus-subnet',
+  gateway: '--incus-gateway',
+  block: '--incus-block',
+  sessionsSubnet: '--incus-sessions-subnet',
+  ingress: '--incus-ingress',
+  listen: '--incus-listen',
+};
+const REQUIRED_INCUS_FLAGS = [
+  'project',
+  'pool',
+  'network',
+  'subnet',
+  'sessionsSubnet',
+] as const;
+
+/**
+ * The `runtime` block `tale init` writes from its flags, or `undefined` when
+ * no `--runtime` was given (a re-init then keeps the block it finds). Every
+ * flag is checked before anything is scaffolded. The gateway defaults to the
+ * subnet's first host, the address block to the subnet when that is a /24,
+ * and the ingress to proxy devices, the self-hosted form.
+ */
+export function runtimeFromFlags(
+  flags: InitRuntimeFlags = {},
+): RuntimeDeclaration | undefined {
+  const given = Object.entries(flags.incus ?? {})
+    .filter(([, value]) => value !== undefined)
+    .map(([key]) => INCUS_FLAGS[key as keyof typeof INCUS_FLAGS]);
+  if (flags.engine !== 'incus') {
+    if (given.length > 0)
+      throw usageError(
+        `${given.join(', ')} ${given.length === 1 ? 'needs' : 'need'} --runtime incus.`,
+      );
+    return flags.engine === undefined ? undefined : { engine: flags.engine };
+  }
+  const incus = flags.incus ?? {};
+  const missing = REQUIRED_INCUS_FLAGS.filter(
+    (key) => incus[key] === undefined,
+  ).map((key) => INCUS_FLAGS[key]);
+  if (missing.length > 0)
+    throw usageError(
+      `--runtime incus needs ${missing.join(', ')}.`,
+      "Name the Incus project, storage pool and bridge prepared on the host, the bridge's subnet and the sessions' subnet.",
+    );
+  const subnet = incus.subnet ?? '';
+  const network = /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(subnet)
+    ? parseCidr(subnet)
+    : undefined;
+  if (incus.block === undefined && network?.prefix !== 24)
+    throw usageError(
+      '--incus-block is required when --incus-subnet is not a /24.',
+    );
+  const declaration = runtimeDeclarationSchema.safeParse({
+    engine: 'incus',
+    incus: {
+      ...(incus.endpoint === undefined ? {} : { endpoint: incus.endpoint }),
+      project: incus.project,
+      pool: incus.pool,
+      network: {
+        name: incus.network,
+        subnet,
+        gateway:
+          incus.gateway ??
+          (network === undefined ? '' : formatAddress(network.first + 1)),
+        block: incus.block ?? subnet,
+      },
+      sessions: { subnet: incus.sessionsSubnet },
+      ingress: {
+        mode: incus.ingress ?? 'proxy-device',
+        ...(incus.listen === undefined ? {} : { listen: incus.listen }),
+      },
+    },
+  });
+  if (!declaration.success)
+    throw usageError(
+      `The Incus runtime flags do not make a runtime declaration: ${describeIssues(declaration.error, 'runtime').join('; ')}`,
+    );
+  return declaration.data;
+}
+
+function formatAddress(value: number): string {
+  return [24, 16, 8, 0]
+    .map((shift) => Math.floor(value / 2 ** shift) % 256)
+    .join('.');
 }
 
 /**
@@ -58,6 +178,8 @@ const GITIGNORE_ENTRIES = [
 ];
 
 export async function init(options: InitOptions): Promise<InitResult> {
+  // Refuse a flag that cannot make a runtime block before anything is written.
+  const runtime = runtimeFromFlags(options.runtime);
   let directory = options.directory;
   let force = options.force ?? false;
 
@@ -136,6 +258,20 @@ export async function init(options: InitOptions): Promise<InitResult> {
           `Directory "${target}" already contains Tale project files (${hasTaleFiles.join(', ')}). Use --force to overwrite.`,
         );
       }
+    }
+  }
+
+  // Read the project a re-init replaces before anything is written. A
+  // runtime block this CLI cannot read is never dropped in silence (the
+  // workspace would fall back to Docker), so it stops the re-init here,
+  // unless the flags declare a new one.
+  let existingProject: TaleProject | null = null;
+  if (existsSync(taleJsonPath)) {
+    try {
+      existingProject = await readProject(target);
+    } catch (err) {
+      if (err instanceof CliError && runtime === undefined) throw err;
+      logger.debug(`Could not read existing tale.json: ${String(err)}`);
     }
   }
 
@@ -241,16 +377,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
   await writeChecksums(target, checksums);
 
   // Write tale.json. On reinit, preserve the existing project id and
-  // createdAt so Docker volumes/containers keyed on the id remain valid.
+  // createdAt so Docker volumes/containers keyed on the id remain valid, and
+  // the runtime block unless the flags declare a new one: a runtime changes
+  // by a reviewed edit or a migration, never as a side effect of a re-init.
   logger.step('Writing tale.json...');
-  let existingProject: TaleProject | null = null;
-  if (existsSync(taleJsonPath)) {
-    try {
-      existingProject = await readProject(target);
-    } catch (err) {
-      logger.debug(`Could not read existing tale.json: ${String(err)}`);
-    }
-  }
   const projectId = existingProject?.id ?? generateProjectId(basename(target));
   const project: TaleProject = {
     version: CURRENT_PROJECT_VERSION,
@@ -258,6 +388,8 @@ export async function init(options: InitOptions): Promise<InitResult> {
     createdAt: existingProject?.createdAt ?? new Date().toISOString(),
     id: projectId,
   };
+  const declaredRuntime = runtime ?? existingProject?.runtime;
+  if (declaredRuntime !== undefined) project.runtime = declaredRuntime;
   await writeProject(taleJsonPath, project);
 
   // Make the ID available to subsequent steps (ensureEnv uses getProjectId()).
@@ -304,6 +436,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
 
   logger.blank();
   logger.success('Tale project initialized!');
+  if (declaredRuntime?.engine === 'incus')
+    logger.warn(
+      'tale.json declares the Incus runtime. Deploying a workspace on Incus is not available yet in this CLI; commands that drive the stack refuse until it is.',
+    );
   logger.blank();
   // Honest inventory: a file on disk is a catalog entry, not an active
   // install (default/README.md explains the split). Agents split by

@@ -1,8 +1,14 @@
-// The Incus REST API over fetch with mutual TLS — the only door its callers
-// open on the node (the sandbox spawner's Incus backend among them). There is
-// no Unix socket and no client library: the node's API is reached with a
+// The Incus REST API over fetch with mutual TLS — the door its callers open
+// on the node (the sandbox spawner's Incus backend and the CLI's Incus
+// runtime). There is no client library: the node's API is reached with a
 // client certificate restricted to one project, and the connection is pinned
-// to the node's own server certificate.
+// to the node's own server certificate. The one exception is a single box's
+// bootstrap, which talks to the local Unix socket (`unix-transport.ts`).
+//
+// This module is the transport and the calls the spawner makes. The calls
+// of a whole stack live in modules of their own over `send`, `sync`,
+// `operation`, `startOperation` and `openWebSocket` (exec, exec-session,
+// files, volumes, snapshots, state), so the spawner loads none of them.
 //
 // TLS NOTE (Bun): the server certificate is pinned with plain `tls.ca`, full
 // verification on. Bun's BoringSSL accepts a certificate as its own trust
@@ -68,6 +74,13 @@ export type IncusFetch = (
   init: IncusRequestInit,
 ) => Promise<Response>;
 
+/** Opens a websocket to the node, presenting the client certificate and
+ * pinning the server's, as a request does. */
+export type IncusWebSocketFactory = (
+  url: string,
+  tls: IncusTlsMaterial,
+) => WebSocket;
+
 export interface IncusClientOptions {
   /** Origin of the API, `https://host:port`. */
   endpoint: string;
@@ -82,8 +95,11 @@ export interface IncusClientOptions {
   requestTimeoutMs?: number;
   /** Largest response body read (default 32 MiB). */
   maxResponseBytes?: number;
-  /** Test seam; defaults to the global fetch. */
+  /** Test seam (and the Unix socket's transport); defaults to the global
+   * fetch over TLS. An endpoint that is not `https:` needs one. */
   fetch?: IncusFetch;
+  /** Test seam; defaults to Bun's `WebSocket` with the same TLS material. */
+  webSocket?: IncusWebSocketFactory;
   /** Test seam for the pause between a read's attempts. */
   sleep?: (ms: number) => Promise<void>;
 }
@@ -96,10 +112,12 @@ const OPERATION_POLL_SECONDS = 30;
 const READ_ATTEMPTS = 3;
 const RETRYABLE_STATUS: ReadonlySet<number> = new Set([502, 503, 504]);
 
-type Query = Record<string, string | undefined>;
+export type IncusQuery = Record<string, string | undefined>;
 
-interface SendOptions {
-  query?: Query;
+/** One request through the client's transport: every bound of the client
+ * applies (timeout, cancellation, response cap). */
+export interface IncusSendOptions {
+  query?: IncusQuery;
   /** A JSON body. */
   json?: unknown;
   /** A raw body, with its headers. */
@@ -109,11 +127,14 @@ interface SendOptions {
   signal?: AbortSignal;
   /** Reads are retried on a transport failure; writes never are. */
   retry?: boolean;
+  /** A smaller response cap for this request than the client's. */
+  maxResponseBytes?: number;
 }
 
-interface Reply {
+export interface IncusReply {
   status: number;
   etag: string | undefined;
+  headers: Headers;
   body: Uint8Array;
 }
 
@@ -133,6 +154,9 @@ const defaultFetch: IncusFetch = (url, init) =>
     // certificate to a place nobody pinned.
     redirect: 'error',
   });
+
+const defaultWebSocket: IncusWebSocketFactory = (url, tls) =>
+  new WebSocket(url, { tls });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -208,10 +232,17 @@ export class IncusClient {
   private readonly requestTimeoutMs: number;
   private readonly maxResponseBytes: number;
   private readonly doFetch: IncusFetch;
+  private readonly webSocketFactory: IncusWebSocketFactory;
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: IncusClientOptions) {
-    this.origin = new URL(options.endpoint).origin;
+    const endpoint = new URL(options.endpoint);
+    if (endpoint.protocol !== 'https:' && options.fetch === undefined) {
+      throw new Error(
+        `The Incus endpoint ${endpoint.origin} is not https: the API is reached over mutual TLS (or through a transport that says otherwise)`,
+      );
+    }
+    this.origin = endpoint.origin;
     this.project = options.project;
     this.tls = options.tls;
     this.ambientSignal = options.signal;
@@ -220,6 +251,7 @@ export class IncusClient {
     this.maxResponseBytes =
       options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     this.doFetch = options.fetch ?? defaultFetch;
+    this.webSocketFactory = options.webSocket ?? defaultWebSocket;
     this.sleep =
       options.sleep ??
       ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -227,7 +259,7 @@ export class IncusClient {
 
   // ---- transport ---------------------------------------------------------
 
-  private url(path: string, query: Query = {}): string {
+  private url(path: string, query: IncusQuery = {}): string {
     const url = new URL(path, this.origin);
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, value);
@@ -238,8 +270,8 @@ export class IncusClient {
   private async attempt(
     method: string,
     path: string,
-    options: SendOptions,
-  ): Promise<Reply> {
+    options: IncusSendOptions,
+  ): Promise<IncusReply> {
     const signals = [
       AbortSignal.timeout(options.timeoutMs ?? this.requestTimeoutMs),
     ];
@@ -264,7 +296,13 @@ export class IncusClient {
       signal,
       tls: this.tls,
     });
-    const payload = await readBounded(res, this.maxResponseBytes);
+    const payload = await readBounded(
+      res,
+      Math.min(
+        options.maxResponseBytes ?? this.maxResponseBytes,
+        this.maxResponseBytes,
+      ),
+    );
     const etag = res.headers.get('etag') ?? undefined;
     if (res.status >= 400) {
       throw new IncusApiError(
@@ -272,16 +310,17 @@ export class IncusClient {
         res.status,
       );
     }
-    return { status: res.status, etag, body: payload };
+    return { status: res.status, etag, headers: res.headers, body: payload };
   }
 
   /** One request; a read is tried again on a transport failure or a gateway
-   * answer, never after the caller's own cancellation. */
-  private async send(
+   * answer, never after the caller's own cancellation. The door the package's
+   * own modules (exec, files, volumes, snapshots, state) call through. */
+  async send(
     method: string,
     path: string,
-    options: SendOptions = {},
-  ): Promise<Reply> {
+    options: IncusSendOptions = {},
+  ): Promise<IncusReply> {
     const attempts = options.retry === true ? READ_ATTEMPTS : 1;
     let last: unknown;
     for (let i = 0; i < attempts; i += 1) {
@@ -311,7 +350,7 @@ export class IncusClient {
     throw last;
   }
 
-  private envelope(reply: Reply, method: string, path: string): Envelope {
+  private envelope(reply: IncusReply, method: string, path: string): Envelope {
     let parsed: unknown;
     try {
       parsed = JSON.parse(new TextDecoder().decode(reply.body));
@@ -332,10 +371,10 @@ export class IncusClient {
   }
 
   /** A synchronous call's `metadata`. */
-  private async sync(
+  async sync(
     method: string,
     path: string,
-    options: SendOptions = {},
+    options: IncusSendOptions = {},
   ): Promise<unknown> {
     const reply = await this.send(method, path, options);
     const envelope = this.envelope(reply, method, path);
@@ -351,10 +390,10 @@ export class IncusClient {
   /** A call that starts a background operation: waits for it, and returns
    * the finished operation. A call Incus answered synchronously (a volume
    * create or delete) has nothing to wait for. */
-  private async operation(
+  async operation(
     method: string,
     path: string,
-    options: SendOptions & { waitMs: number },
+    options: IncusSendOptions & { waitMs: number },
   ): Promise<IncusOperation | undefined> {
     const reply = await this.send(method, path, options);
     const envelope = this.envelope(reply, method, path);
@@ -367,6 +406,45 @@ export class IncusClient {
     }
     const started = parseOperation(envelope.metadata);
     return this.waitOperation(started, options.waitMs, options.signal);
+  }
+
+  /** A call that starts a background operation, returned as started, not
+   * waited for (an exec whose websockets the caller connects first). */
+  async startOperation(
+    method: string,
+    path: string,
+    options: IncusSendOptions = {},
+  ): Promise<IncusOperation> {
+    const reply = await this.send(method, path, options);
+    const envelope = this.envelope(reply, method, path);
+    if (envelope.type !== 'async') {
+      throw new IncusApiError(
+        `Incus answered ${method} ${path} with a ${envelope.type} response, not a background operation`,
+        502,
+      );
+    }
+    return parseOperation(envelope.metadata);
+  }
+
+  /** Asks Incus to cancel a background operation. Not every operation can be
+   * cancelled: a record-output exec cannot ("This operation can't be
+   * cancelled", a failure that throws); a websocket exec ends when its
+   * control socket closes. */
+  async cancelOperation(id: string): Promise<void> {
+    await this.sync('DELETE', `/1.0/operations/${encodeURIComponent(id)}`);
+  }
+
+  /** Opens a websocket on the node (an exec's file descriptors), over the
+   * same pinned mutual TLS as every request. */
+  openWebSocket(path: string, query: IncusQuery = {}): WebSocket {
+    const url = new URL(this.url(path, query));
+    if (url.protocol !== 'https:') {
+      throw new Error(
+        'A websocket to Incus needs the TLS endpoint; this client has none',
+      );
+    }
+    url.protocol = 'wss:';
+    return this.webSocketFactory(url.toString(), this.tls);
   }
 
   /** Long-polls the operation to its end. A failed operation throws with its
@@ -472,7 +550,7 @@ export class IncusClient {
     { instance: IncusInstance; etag: string | undefined } | undefined
   > {
     const path = `/1.0/instances/${encodeURIComponent(name)}`;
-    let reply: Reply;
+    let reply: IncusReply;
     try {
       reply = await this.send('GET', path, {
         query: { project: this.project },
@@ -499,7 +577,7 @@ export class IncusClient {
     | undefined
   > {
     const path = `/1.0/instances/${encodeURIComponent(name)}`;
-    let reply: Reply;
+    let reply: IncusReply;
     try {
       reply = await this.send('GET', path, {
         query: { project: this.project, recursion: '1' },
@@ -553,11 +631,11 @@ export class IncusClient {
     });
   }
 
-  /** Starts or stops the instance and waits. A stop without `force` asks the
-   * instance to shut down within `timeoutSeconds`. */
+  /** Starts, stops, freezes or unfreezes the instance and waits. A stop
+   * without `force` asks the instance to shut down within `timeoutSeconds`. */
   async changeInstanceState(
     name: string,
-    action: 'start' | 'stop',
+    action: 'start' | 'stop' | 'freeze' | 'unfreeze',
     options: { force?: boolean; timeoutSeconds?: number; waitMs: number },
   ): Promise<void> {
     await this.operation(
@@ -633,15 +711,69 @@ export class IncusClient {
   }
 
   /** The last `tailBytes` of the instance's console log — where an OCI
-   * container's output goes. */
+   * container's output goes. Consumes as `readConsole` does. */
   async getConsoleLog(name: string, tailBytes: number): Promise<string> {
+    const text = new TextDecoder().decode(await this.readConsole(name));
+    return text.length > tailBytes ? text.slice(-tailBytes) : text;
+  }
+
+  /** The instance's console as Incus keeps it. While the instance runs, a
+   * read CONSUMES what it returns (a second read starts where this one
+   * ended); after a stop it returns what liblxc kept. */
+  async readConsole(
+    name: string,
+    options: { maxBytes?: number } = {},
+  ): Promise<Uint8Array> {
     const reply = await this.send(
       'GET',
       `/1.0/instances/${encodeURIComponent(name)}/console`,
-      { query: { project: this.project, type: 'log' } },
+      {
+        query: { project: this.project, type: 'log' },
+        ...(options.maxBytes === undefined
+          ? {}
+          : { maxResponseBytes: options.maxBytes }),
+      },
     );
-    const text = new TextDecoder().decode(reply.body);
-    return text.length > tailBytes ? text.slice(-tailBytes) : text;
+    return reply.body;
+  }
+
+  /** The log files Incus keeps for the instance (`lxc.log`; Incus 7.6 lists
+   * no `console.log`), as their names. */
+  async listInstanceLogs(name: string): Promise<string[]> {
+    const metadata = await this.sync(
+      'GET',
+      `/1.0/instances/${encodeURIComponent(name)}/logs`,
+      { query: { project: this.project }, retry: true },
+    );
+    if (!Array.isArray(metadata)) {
+      throw new IncusApiError('Incus answered a malformed log list', 502);
+    }
+    return metadata
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.slice(item.lastIndexOf('/') + 1));
+  }
+
+  /** One of the instance's log files, bounded. */
+  async readInstanceLog(
+    name: string,
+    file: string,
+    options: { maxBytes?: number } = {},
+  ): Promise<Uint8Array> {
+    if (!/^[A-Za-z0-9._-]+$/.test(file) || file === '.' || file === '..') {
+      throw new Error(`Not a log file name: ${JSON.stringify(file)}`);
+    }
+    const reply = await this.send(
+      'GET',
+      `/1.0/instances/${encodeURIComponent(name)}/logs/${encodeURIComponent(file)}`,
+      {
+        query: { project: this.project },
+        retry: true,
+        ...(options.maxBytes === undefined
+          ? {}
+          : { maxResponseBytes: options.maxBytes }),
+      },
+    );
+    return reply.body;
   }
 
   // ---- workspace volumes -------------------------------------------------
@@ -720,6 +852,66 @@ export class IncusClient {
       if (error instanceof IncusApiError && error.status === 404) {
         return undefined;
       }
+      throw error;
+    }
+  }
+
+  /** The project's image aliases. */
+  async listImageAliases(): Promise<IncusImageAlias[]> {
+    const metadata = await this.sync('GET', '/1.0/images/aliases', {
+      query: { project: this.project, recursion: '1' },
+      retry: true,
+    });
+    if (!Array.isArray(metadata)) {
+      throw new IncusApiError('Incus answered a malformed alias list', 502);
+    }
+    return metadata.map(parseImageAlias);
+  }
+
+  /** Points a new alias at an image by its fingerprint; a taken name throws
+   * (see `isIncusNameConflict`). */
+  async createImageAlias(alias: string, target: string): Promise<void> {
+    if (!/^[0-9a-f]{64}$/.test(target)) {
+      throw new Error(`Not an image fingerprint: ${JSON.stringify(target)}`);
+    }
+    await this.sync('POST', '/1.0/images/aliases', {
+      query: { project: this.project },
+      json: { name: alias, target, description: '' },
+    });
+  }
+
+  /** Deletes an alias, not its image; false when there was none (404). */
+  async deleteImageAlias(alias: string): Promise<boolean> {
+    try {
+      await this.sync(
+        'DELETE',
+        `/1.0/images/aliases/${encodeURIComponent(alias)}`,
+        { query: { project: this.project } },
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof IncusApiError && error.status === 404) return false;
+      throw error;
+    }
+  }
+
+  /** Deletes an image by its fingerprint and waits; false when there was
+   * none (404). */
+  async deleteImage(fingerprint: string, waitMs: number): Promise<boolean> {
+    if (!/^[0-9a-f]{64}$/.test(fingerprint)) {
+      throw new Error(
+        `Not an image fingerprint: ${JSON.stringify(fingerprint)}`,
+      );
+    }
+    try {
+      await this.operation(
+        'DELETE',
+        `/1.0/images/${encodeURIComponent(fingerprint)}`,
+        { query: { project: this.project }, waitMs },
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof IncusApiError && error.status === 404) return false;
       throw error;
     }
   }

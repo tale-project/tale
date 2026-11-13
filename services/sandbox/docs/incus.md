@@ -398,6 +398,34 @@ The spawner then runs with `SANDBOX_INCUS_ENDPOINT=https://<node>:8443`,
 `SANDBOX_EGRESS_PROXY=http://10.20.0.2:3128`. The node's own server certificate
 (`/var/lib/incus/server.crt`) must be the pinnable kind described above.
 
+### When the whole stack runs on Incus
+
+The block above is for a spawner whose stack runs elsewhere, such as on Docker.
+When the CLI runs the whole stack on Incus (a managed deployment with
+`runtime.engine: "incus"`, [Run Tale on Incus](../../../docs/en/self-hosted/install/incus.md)),
+the spawner is the stack's `sandbox` instance and the same zone sits beside the
+stack's project. Nothing here is written by hand:
+
+- **The zone's objects** come from the node contract (`tale incus contract`):
+  `tale incus bootstrap` makes the zone's project (`<project>-sessions`), bridge
+  (the first 13 characters of the stack's bridge name, then `-s`), ACL and
+  `sandbox` profile, with the stack's pool, and writes the spawner's restricted
+  certificate to `<stateDirectory>/sandbox-incus/`. An operator with other tooling
+  makes the same objects from the contract.
+- **The names** the sessions may reach are served by the stack's `names-sessions`
+  instance, which the CLI sets as `SANDBOX_INCUS_DNS`; the backend API is the
+  stack's `switch` and the model gateway its `sandbox-llm-gateway`, each at its
+  fixed address on the stack's bridge.
+- **The egress literal** `SANDBOX_EGRESS_PROXY` is set by the CLI: the declared
+  `sandbox.egressProxy`, else `http://<sandbox-egress address>:3128` from the
+  stack's address plan. The image variables and `SANDBOX_INCUS_ENDPOINT` (from
+  `runtime.incus.endpoint`) are set the same way.
+- **The ACL rules** use the sessions' real subnet: Incus does not translate
+  addresses between its own bridges, so the stack sees a session's own address.
+- **Declared by the operator** in the specification's `environment`:
+  `SANDBOX_INCUS_PROJECT`, `SANDBOX_INCUS_PROFILE`, `SANDBOX_INCUS_NETWORK` and
+  `SANDBOX_INCUS_STORAGE_POOL`. The spawner refuses to start without them.
+
 ## Configuration
 
 Validated at boot (`src/backend/incus/incus-config.ts`); a bad value stops the

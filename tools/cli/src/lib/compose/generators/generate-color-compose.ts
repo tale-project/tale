@@ -26,12 +26,15 @@ import { serveOrigin } from './serve-origin';
  * deploy's: stateful tier healthy first, then a colour.
  *
  * `origin` is the host a `tale deploy --host` run serves instead of `.env`'s.
+ *
+ * This returns the document as an object, which the Incus runtime compiles;
+ * generateColorCompose stringifies it for Docker Compose.
  */
-export function generateColorCompose(
+export function buildColorCompose(
   config: ServiceConfig,
   color: DeploymentColor,
   origin?: RunOrigin,
-): string {
+): ComposeConfig {
   const prefix = `${getProjectId()}_`;
   const services: ComposeConfig['services'] = {
     platform: createPlatformService(config, color),
@@ -62,5 +65,14 @@ export function generateColorCompose(
     },
   };
 
-  return stringify(compose);
+  return compose;
+}
+
+/** One colour's compose document as Docker Compose reads it. */
+export function generateColorCompose(
+  config: ServiceConfig,
+  color: DeploymentColor,
+  origin?: RunOrigin,
+): string {
+  return stringify(buildColorCompose(config, color, origin));
 }

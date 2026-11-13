@@ -42,6 +42,15 @@ export function createDeployCommand(): Command {
     )
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option(
+      '--plan-only',
+      'With --bundle on the Incus runtime: print the plan of every Incus resource and change nothing',
+      false,
+    )
+    .option(
+      '--plan <file>',
+      'With --bundle on the Incus runtime: apply exactly this reviewed plan (from --plan-only --json)',
+    )
+    .option(
       '--host <hostname>',
       'Serve this host for this run instead of HOST in .env (.env is not changed)',
     )
@@ -89,8 +98,9 @@ export function createDeployCommand(): Command {
         if (options.bundle !== undefined) {
           if (!options.bundle)
             throw usageError('--bundle must name a directory.');
+          // --stop accepts the downtime an Incus plan names; the Docker
+          // runtime refuses it when it reads the bundle.
           if (
-            options.stop ||
             options.services ||
             options.host ||
             options.override ||
@@ -108,16 +118,21 @@ export function createDeployCommand(): Command {
             dryRun: options.dryRun,
             configurationOnly: options.configurationOnly,
             yes: options.yes,
+            ...(options.stop ? { stop: true } : {}),
+            ...(options.planOnly ? { planOnly: true } : {}),
+            ...(options.plan === undefined ? {} : { plan: options.plan }),
           });
           return;
         }
         if (
           options.cliRef !== undefined ||
           options.deploymentRef !== undefined ||
-          options.configurationOnly
+          options.configurationOnly ||
+          options.planOnly ||
+          options.plan !== undefined
         )
           throw usageError(
-            '--cli-ref, --deployment-ref and --configuration-only require --bundle.',
+            '--cli-ref, --deployment-ref, --configuration-only, --plan-only and --plan require --bundle.',
           );
         await runDeploy({
           stop: options.stop,

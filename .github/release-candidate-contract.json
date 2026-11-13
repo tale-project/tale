@@ -4530,6 +4530,7 @@
                 "services/platform/lib/**",
                 "configs/platform/**",
                 "packages/shared/**",
+                "packages/incus/**",
                 "bun.lock",
                 "package.json",
                 "bunfig.toml",

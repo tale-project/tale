@@ -11,6 +11,7 @@ import * as logger from '../../utils/logger';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, sha, slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import type { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { validateLockPaths } from '../state/lock-guard';
 import { withLock } from '../state/with-lock';
 import { backendCliFailure, backendDataOwner } from './backend-cli';
@@ -29,8 +30,13 @@ import {
 import { verifyClientExportTarget } from './client-export-native';
 import { nativeProvisionProofSchema } from './native-proof';
 import { readProvisionStateProof } from './provision-state';
-import { budgetedDockerRun, dockerRuntimeAccess } from './runtime-access';
 import { observeReadyRuntime } from './runtime-apply';
+import {
+  deploymentAccess,
+  incusDeclarationOf,
+  observeReadyIncusRuntime,
+  type DeploymentRuntimeSpec,
+} from './runtime-incus-apply';
 import { readRuntimeBundle, runtimeImageSchema } from './runtime-model';
 
 export interface ExportClientOptions {
@@ -155,32 +161,37 @@ function selectTarget(
   verifyClientExportTarget(bundle, bundleSha256, target);
   return { target, file };
 }
+/** The most file content a credential export may hand back: a receipt and
+ * a consumer's credentials, never close to it. */
+const CLIENT_EXPORT_MAX_BYTES = 8 * 1024 * 1024;
 async function readBackendExport(
   directory: string,
   backend: string,
   target: ClientExportTarget,
   receive: string,
   run: typeof exec | undefined,
+  spec: DeploymentRuntimeSpec,
+  images: readonly string[],
+  incusRuntime: IncusRuntime | undefined,
 ) {
   const temporary = `/tmp/tale-client-export-${randomUUID()}`;
-  const runtime = dockerRuntimeAccess(
-    budgetedDockerRun(
-      {
-        bounds: () => ({ timeout: 120 }),
-        failed: () =>
-          externalDepError(
-            'The backend-local credential export could not run.',
+  const runtime = await deploymentAccess(
+    spec,
+    {
+      bounds: () => ({ timeout: 120 }),
+      failed: () =>
+        externalDepError('The backend-local credential export could not run.'),
+      refused: (result) =>
+        externalDepError(
+          backendCliFailure(
+            'The backend-local credential export did not complete.',
+            result,
           ),
-        refused: (result) =>
-          externalDepError(
-            backendCliFailure(
-              'The backend-local credential export did not complete.',
-              result,
-            ),
-          ),
-      },
-      { exec: run },
-    ),
+        ),
+    },
+    { exec: run },
+    images,
+    incusRuntime,
   );
   // Same account as `deploy provision`: the export reads the private state
   // that phase wrote, owned by the backend's own user.
@@ -234,7 +245,9 @@ async function readBackendExport(
       throw preconditionError(
         'Native credential export returned a different target.',
       );
-    await runtime.copyOut(backend, `${temporary}/export-output`, receive);
+    await runtime.copyOut(backend, `${temporary}/export-output`, receive, {
+      maxBytes: CLIENT_EXPORT_MAX_BYTES,
+    });
     const actual = verifyClientExportDirectory(receive, target);
     if (
       stableJson(actual.result.receipt) !== stableJson(parsed.data.receipt) ||
@@ -269,6 +282,8 @@ export async function exportManagedClient(
   dependencies: {
     exec?: typeof exec;
     observe?: typeof observeReadyRuntime;
+    /** The stack's Incus runtime (tests). */
+    incusRuntime?: IncusRuntime;
   } = {},
 ) {
   if (
@@ -298,7 +313,26 @@ export async function exportManagedClient(
           const { target, file } = selectTarget(bundle, directory, options);
           if (validateClientExportDirectory(options.output))
             verifyClientExportDirectory(options.output, target);
-          const runtime = await (dependencies.observe ?? observeReadyRuntime)(
+          const observe =
+            dependencies.observe ??
+            (bundle.spec.runtime.engine === 'incus'
+              ? (
+                  input: Parameters<typeof observeReadyRuntime>[0],
+                ): ReturnType<typeof observeReadyRuntime> =>
+                  observeReadyIncusRuntime(
+                    {
+                      ...input,
+                      incus: incusDeclarationOf(bundle.spec),
+                      ...(bundle.spec.sandbox?.egressProxy === undefined
+                        ? {}
+                        : { egressProxy: bundle.spec.sandbox.egressProxy }),
+                    },
+                    dependencies.incusRuntime === undefined
+                      ? {}
+                      : { incusRuntime: dependencies.incusRuntime },
+                  )
+              : observeReadyRuntime);
+          const runtime = await observe(
             {
               bundleDirectory: join(directory, 'runtime'),
               stateDirectory: bundle.spec.stateDirectory,
@@ -335,6 +369,9 @@ export async function exportManagedClient(
               target,
               received,
               dependencies.exec,
+              bundle.spec,
+              runtime.images.map((image) => image.reference),
+              dependencies.incusRuntime,
             );
             requireAbsent(
               join(

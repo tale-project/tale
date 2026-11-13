@@ -129,6 +129,29 @@ GitHub-hosted runners.
   Build's layer caches and writes none. Each suite leaves its log as an artifact the
   moment it ends, so a run in progress can be read; the job summary holds the timings.
   `services/sandbox/e2e/incus/README.md` says what each suite proves.
+- **CLI Incus E2E** (`cli-incus-e2e.yml`, `CI ready (CLI Incus E2E)`) is no part of the
+  candidate receipts either. On a runner it builds the same Incus node from
+  `services/sandbox/e2e/incus/lab.sh` (`install`, `storage`, `api`, `registry`), builds the
+  CLI and the stack's eight images from the checkout into the local registry (for this
+  revision and for an empty commit on top of it, the release it upgrades to), runs
+  `@tale/incus`'s real tests in the project bootstrap made, then drives the compiled CLI
+  through the managed path: `tale incus bootstrap`, `deploy prepare`, `deploy --bundle`
+  served through the edge, and a release upgrade (refused on Incus until the recovery
+  snapshot exists), with the suites `tools/cli/e2e/incus/README.md` lists; what each still
+  holds as a to-do (`accept`, `observe`, the upgrade's window) is named there. The specification declares the lab's registry as
+  `runtime.incus.registryMirrors` for `ghcr.io`, so the images keep the names a release
+  gives them. Its PR scope runs the lab for the `cli-incus` paths of `.github/ci-scope.yml`
+  (what the CLI's Incus runtime compiles, plans and applies, the managed path, the eight stack
+  images' builds, `packages/incus` and the lab), held by `ci-ready-workflows.test.ts` to the import
+  closure of `tools/cli/src/lib/runtime/incus`. While the runtime is experimental the
+  verdict blocks only when a pull request touches a `cli-incus-required` path
+  (`tools/cli/src/lib/runtime/incus/**`, `packages/incus/**`, the workflow) or owes a full
+  scope; on the rest of the filter the lab runs and `CI ready (CLI Incus E2E)` passes with
+  the lab's result in its summary (`reported, not required on these paths`). After ten
+  consecutive green runs of the lab on pull requests into `main`, the broad filter becomes blocking: the
+  `cli-incus-required` filter then lists the paths of `cli-incus`, in one change with this
+  paragraph. Drafts and forks are held as in the sandbox lab, and a dispatch on a branch
+  runs it with a runner and a choice of suites.
 - **Build** distinguishes the platform stack from standalone services: the web, docs and
   ui-docs sites and the session manager, which is no site but ships the same way (its own
   image, compose stack, container test and Playwright job, outside the platform stack).
@@ -878,7 +901,8 @@ CLI install was rejected because modest size savings did not establish a reliabl
 
 Each validation workflow emits one direct terminal context on every PR into `main` or `release/**`:
 `CI ready (Checks)`, `CI ready (Commitlint)`, `CI ready (SAST)`, `CI ready (Security)`,
-`CI ready (CLI)`, `CI ready (E2E)`, `CI ready (Build)`, and `CI ready (Sandbox Incus E2E)`.
+`CI ready (CLI)`, `CI ready (E2E)`, `CI ready (Build)`, `CI ready (Sandbox Incus E2E)`, and
+`CI ready (CLI Incus E2E)`.
 The terminal job always runs
 after its native dependencies, including failed or skipped dependencies. It reads only that
 workflow's `needs` results, not another workflow's API or a previously stored green verdict.
@@ -936,7 +960,7 @@ scope policy and passed, failed and incomplete readiness evidence.
 
 Source alone does not activate branch protection. Before requiring these contexts, observe
 their exact live names and GitHub Actions application identity (15368), positive and negative
-PR cases, and failed/latest rerun behavior. Bind the eight contexts to that app; generic
+PR cases, and failed/latest rerun behavior. Bind the nine contexts to that app; generic
 candidate or skipped execution jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
@@ -956,7 +980,7 @@ commit on top of that train, and that commit is pushed only if the fast gate pas
 (formatting, `bunx turbo run typecheck build`); the task branch is then deleted, as GitHub
 deletes a merged pull request's branch. Every eight hours each train's head departs (UTC):
 `train` as `train-<YYYYMMDD-HHMM>` with one pull request into `main` (label `merge-train`,
-`gh pr merge --rebase --auto`, which lands it when the eight `CI ready (…)` contexts pass), and
+`gh pr merge --rebase --auto`, which lands it when the nine `CI ready (…)` contexts pass), and
 `feature-train` as `feature-train-<YYYYMMDD-HHMM>` with one into `release/0.6` (label
 `merge-train`), which the cycle's feature-train role lands with
 `gh pr merge --rebase --match-head-commit` once every `CI ready (…)` check passed: the line has
@@ -969,14 +993,14 @@ landing, the train is rebased onto the branch it landed on, keeping only the com
 landed after the departure. Whenever `main` moved and no feature-train pull request is open, the
 feature-train role rebases `release/0.6` onto `main`, and `feature-train` with it, so every fix
 reaches the feature line without a merge. A pull request into `release/**` runs the same checks
-as one into `main` and reports the same eight `CI ready (…)` contexts: the pull-request workflows
+as one into `main` and reports the same nine `CI ready (…)` contexts: the pull-request workflows
 name both in their `pull_request` branches (CLI and SAST name none and run for every pull
 request), pushes stay on `main` alone, and `.github/release-candidate-contract.json` and
 `tools/cli/scripts/ci-ready-workflows.test.ts` hold them to it. Scope, readiness and commit
 ranges compare a pull request with its own base, so one into `release/0.6` is judged against
 `release/0.6`, never against `main`.
 
-**A pull request of its own** (a person's, Renovate's) squash-merges once the eight
+**A pull request of its own** (a person's, Renovate's) squash-merges once the nine
 `CI ready (…)` contexts pass on its head and its review approves, with
 `gh pr merge <n> --squash --auto`. It runs every suite its paths owe, the heavy ones included,
 so a red shows on the pull request where its author is.

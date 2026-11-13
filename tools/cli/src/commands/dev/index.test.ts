@@ -17,15 +17,42 @@ afterEach(async () => {
   );
 });
 
-async function run(scenario: string, args: string[]) {
+const INCUS_WORKSPACE = JSON.stringify({
+  version: 1,
+  cliVersion: '0.5.95',
+  createdAt: '2026-11-13T00:00:00.000Z',
+  id: 'onboarding-test',
+  runtime: {
+    engine: 'incus',
+    incus: {
+      project: 'tale-onboarding',
+      pool: 'tank',
+      network: {
+        name: 'tale-onb',
+        subnet: '10.30.0.0/23',
+        gateway: '10.30.0.1',
+        block: '10.30.0.0/24',
+      },
+      sessions: { subnet: '10.31.0.0/24' },
+      ingress: { mode: 'proxy-device' },
+    },
+  },
+});
+
+async function run(scenario: string, args: string[], taleJson?: string) {
   const cwd = await mkdtemp(join(tmpdir(), 'tale-dev-command-'));
   directories.push(cwd);
   const contents =
     'SITE_URL=https://production.example:9443\nTLS_MODE=letsencrypt\n';
   await writeFile(join(cwd, '.env'), contents);
+  if (taleJson !== undefined) await writeFile(join(cwd, 'tale.json'), taleJson);
   const child = Bun.spawn([process.execPath, fixture, 'dev', ...args], {
     cwd,
-    env: { ...process.env, TALE_DEV_TEST_SCENARIO: scenario },
+    env: {
+      ...process.env,
+      TALE_DEV_TEST_SCENARIO: scenario,
+      TALE_RUNTIME: '',
+    },
     stdout: 'pipe',
     stderr: 'pipe',
     stdin: 'ignore',
@@ -138,6 +165,25 @@ describe('local dev lifecycle', () => {
     const result = await run('foreground-probe-disabled', []);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Tale is running');
+  });
+
+  test('an Incus workspace refuses before any setup, saying why', async () => {
+    const result = await run('ready', ['--detach'], INCUS_WORKSPACE);
+    expect(result.exitCode).toBe(3);
+    expect(result.stdout + result.stderr).toContain(
+      'This workspace declares runtime.engine "incus", but tale dev runs on Docker only: it is a local developer loop, and Incus runs on Linux only.',
+    );
+    expect(result.stdout).not.toContain('CALL:');
+    expect((await readdir(result.cwd)).sort()).toEqual(['.env', 'tale.json']);
+    expect(await readFile(join(result.cwd, 'tale.json'), 'utf8')).toBe(
+      INCUS_WORKSPACE,
+    );
+  });
+
+  test('an Incus workspace can still stop the Docker containers a dev run left', async () => {
+    const result = await run('stop', ['--stop'], INCUS_WORKSPACE);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('"stop","abcdef012345","123456abcdef"');
   });
 
   test('invalid host fails before any setup', async () => {

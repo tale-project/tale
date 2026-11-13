@@ -27,6 +27,7 @@ const SCOPED = new Set<Workflow>([
   'cli',
   'security',
   'sandbox-incus-e2e',
+  'cli-incus-e2e',
 ]);
 
 /** What the port took out of each workflow, and what each job would have said to a pull request. */
@@ -39,7 +40,11 @@ function removedFor(workflow: Workflow): Record<string, JobResult> {
   if (SCOPED.has(workflow))
     gone['pr-scope'] = {
       result: 'success',
-      outputs: { run: 'true', full: 'true' },
+      outputs: {
+        run: 'true',
+        full: 'true',
+        ...(workflow === 'cli-incus-e2e' ? { required: 'true' } : {}),
+      },
     };
   return gone;
 }

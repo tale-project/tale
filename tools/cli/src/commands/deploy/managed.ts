@@ -111,6 +111,7 @@ export async function runManagedDeployment(
     assertManagedPlatform();
     if (
       !options.dryRun &&
+      !options.planOnly &&
       !resolveConsent(options.yes) &&
       !(await confirm({
         message: 'Deploy the selected Tale bundle?',

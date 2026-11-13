@@ -1,69 +1,51 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-
-import { z } from 'zod';
-
-import { preconditionError } from '../../utils/fail';
-import { readProject } from '../project/read-project';
+import { declaredEngine } from '../project/declared-engine';
+import { incusNotAvailableYet } from '../project/runtime-declaration';
 import {
   createDockerRuntime,
   type DockerRuntimeOverrides,
 } from './docker/docker-runtime';
 import {
-  RUNTIME_ENGINES,
-  type RuntimeEngine,
-  type StackRuntime,
-} from './types';
+  createIncusRuntime,
+  type IncusRuntimeOptions,
+} from './incus/incus-runtime';
+import type { RuntimeEngine, StackRuntime } from './types';
 
-/**
- * The part of `tale.json` that names the runtime. Absent, the workspace runs
- * on Docker, as every workspace did before the field existed.
- */
-const runtimeDeclarationSchema = z.object({
-  runtime: z.object({ engine: z.enum(RUNTIME_ENGINES).optional() }).optional(),
-});
-
-/**
- * The runtime engine the workspace at `projectDir` declares. A workspace
- * without `tale.json` declares nothing, which is Docker; an engine the CLI
- * does not know is refused rather than read as Docker, because deploying on
- * the wrong runtime would build a second stack beside the first.
- */
-export async function declaredEngine(
-  projectDir: string,
-): Promise<RuntimeEngine> {
-  if (!existsSync(join(projectDir, 'tale.json'))) return 'docker';
-  const declaration = runtimeDeclarationSchema.safeParse(
-    await readProject(projectDir),
-  );
-  if (!declaration.success)
-    throw preconditionError(
-      `tale.json in ${projectDir} names a runtime engine this CLI does not know.`,
-      `Set runtime.engine to one of: ${RUNTIME_ENGINES.join(', ')}.`,
-    );
-  return declaration.data.runtime?.engine ?? 'docker';
+/** What a command hands the runtime it selects: the collaborators of the
+ *  Docker runtime, and the Incus connection of an Incus one. */
+export interface RuntimeOverrides {
+  docker?: DockerRuntimeOverrides;
+  incus?: IncusRuntimeOptions;
 }
 
-/** The runtime for one engine. */
+/**
+ * The runtime for one engine. Incus needs its connection (the client, the
+ * declaration, the stack and the state root); without one it is refused.
+ */
 export function runtimeForEngine(
   engine: RuntimeEngine,
-  overrides: { docker?: DockerRuntimeOverrides } = {},
+  overrides: RuntimeOverrides = {},
 ): StackRuntime {
-  if (engine === 'incus')
-    throw preconditionError(
-      'tale.json declares runtime.engine "incus", which this CLI cannot run yet: the Incus runtime is not built yet.',
-      'Remove runtime.engine from tale.json to deploy on Docker.',
-    );
+  if (engine === 'incus') {
+    if (overrides.incus === undefined) throw incusNotAvailableYet('workspace');
+    return createIncusRuntime(overrides.incus);
+  }
   return createDockerRuntime(overrides.docker);
 }
 
 /**
  * The runtime a command drives, chosen once from what the workspace
- * declares and passed to every step after.
+ * declares and passed to every step after. A workspace that declares Incus
+ * is refused until the workspace path runs on it.
  */
 export async function selectRuntime(
   projectDir: string,
   overrides: { docker?: DockerRuntimeOverrides } = {},
 ): Promise<StackRuntime> {
-  return runtimeForEngine(await declaredEngine(projectDir), overrides);
+  // Only Docker's collaborators pass: a workspace never carries an Incus
+  // connection yet, so a declared incus is refused.
+  const { docker } = overrides;
+  return runtimeForEngine(
+    await declaredEngine(projectDir),
+    docker === undefined ? {} : { docker },
+  );
 }

@@ -32,6 +32,9 @@ interface LogsOptions {
   tail?: number;
   /** Stream literal output with no classification/coloring/filtering. */
   raw?: boolean;
+  /** Read a running instance's log although the read takes its lines
+   *  (Incus); Docker ignores it. */
+  consume?: boolean;
   deployDir: string;
   /** The runtime to read from; selected from `tale.json` when absent. */
   runtime?: StackRuntime;
@@ -41,7 +44,8 @@ interface LogsOptions {
 const HEALTH_LINE = /"GET \/health[^"]*"\s+200|GET \/health .* 200/;
 
 export async function logs(options: LogsOptions): Promise<void> {
-  const { service, color, follow, since, tail, raw, deployDir } = options;
+  const { service, color, follow, since, tail, raw, consume, deployDir } =
+    options;
   const runtime = options.runtime ?? (await selectRuntime(deployDir));
 
   // Validate service name
@@ -115,6 +119,7 @@ export async function logs(options: LogsOptions): Promise<void> {
     follow,
     ...(since ? { since } : {}),
     ...(tail === undefined ? {} : { tail }),
+    ...(consume === true ? { consume } : {}),
   };
 
   logger.info(`Showing logs for ${containerName}...`);

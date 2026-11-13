@@ -101,18 +101,24 @@ export type ReplicaCounts = Record<ReplicatedRole, number>;
  * rather than refused: the deployment topology is not the place to fail a
  * deploy over a typo, and zero replicas of the api would be an outage the
  * operator almost certainly did not mean to configure.
+ *
+ * `read` and `warn` let a caller that does not fold the `.env` into
+ * `process.env`, or whose stdout is data, read and warn elsewhere.
  */
-export function getReplicaCounts(): ReplicaCounts {
+export function getReplicaCounts(
+  read: (name: string) => string | undefined = (name) => process.env[name],
+  warn: (message: string) => void = logger.warn,
+): ReplicaCounts {
   const counts = {} as ReplicaCounts;
   for (const [role, envVar] of Object.entries(REPLICA_ENV) as [
     ReplicatedRole,
     string,
   ][]) {
-    const requested = parseIntSafe(process.env[envVar], DEFAULT_REPLICAS);
+    const requested = parseIntSafe(read(envVar), DEFAULT_REPLICAS);
     const clamped = Math.min(Math.max(requested, 1), MAX_REPLICAS);
     if (clamped !== requested) {
-      logger.warn(
-        `${envVar}=${process.env[envVar]} is out of range (1-${MAX_REPLICAS}); using ${clamped}.`,
+      warn(
+        `${envVar}=${read(envVar)} is out of range (1-${MAX_REPLICAS}); using ${clamped}.`,
       );
     }
     counts[role] = clamped;

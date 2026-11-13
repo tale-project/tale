@@ -28,6 +28,9 @@ import { getProjectId } from '../project/project-context';
 import {
   type ConvergeScope,
   type CopyOutOptions,
+  type EnsuredImages,
+  type ImageFacts,
+  type ImageRef,
   type CopyResult,
   type ExecOptions,
   type ExecResult,
@@ -41,10 +44,12 @@ import {
   type ProbeResult,
   type RuntimeCheck,
   type RuntimeEngine,
+  type RuntimeSession,
   type StackRuntime,
   type StackTarget,
   type WaitHealthyOptions,
   type WaitServiceHealthyOptions,
+  type WithdrawalKind,
   pickInstanceEnvironment,
 } from './types';
 
@@ -159,6 +164,15 @@ function failed(stderr: string, exitCode = 1): ExecResult {
   return { success: false, stdout: '', stderr, exitCode };
 }
 
+/** What an admission verb acted on, as the journal records it. */
+function admissionSubject(
+  stack: string,
+  services: readonly string[],
+  replicas: readonly string[] | undefined,
+): string {
+  return `${stack} ${services.join(',')}${replicas === undefined ? '' : ` [${replicas.join(',')}]`}`;
+}
+
 function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
@@ -233,6 +247,9 @@ function defaultExec(
 
 export class FakeRuntime implements StackRuntime {
   readonly engine: RuntimeEngine;
+  readonly withdrawal: WithdrawalKind;
+  /** Replicas a `marker` withdrawal took out of the serving names. */
+  readonly withdrawn = new Set<string>();
   readonly instances = new Map<string, FakeInstance>();
   readonly images = new Map<string, FakeImage>();
   readonly volumes = new Map<string, Map<string, string>>();
@@ -247,8 +264,12 @@ export class FakeRuntime implements StackRuntime {
   readonly issuedIds = new Map<string, string>();
   private generation = 0;
 
-  constructor(options: { engine?: RuntimeEngine } = {}) {
+  constructor(
+    options: { engine?: RuntimeEngine; withdrawal?: WithdrawalKind } = {},
+  ) {
     this.engine = options.engine ?? 'docker';
+    this.withdrawal =
+      options.withdrawal ?? (this.engine === 'incus' ? 'marker' : 'disconnect');
   }
 
   // The model
@@ -549,6 +570,53 @@ export class FakeRuntime implements StackRuntime {
 
   // Images
 
+  async ensureImages(refs: readonly ImageRef[]): Promise<EnsuredImages> {
+    const refused: EnsuredImages['failed'] = [];
+    for (const ref of refs) {
+      if (!(await this.pull(ref.reference))) {
+        refused.push({ reference: ref.reference, detail: 'pull failed' });
+        continue;
+      }
+      if (ref.alias === undefined) continue;
+      const tagged = await this.tag(ref.reference, ref.alias);
+      if (!tagged.success)
+        refused.push({ reference: ref.reference, detail: tagged.stderr });
+    }
+    return { failed: refused };
+  }
+
+  /** The registry's view of a seeded image: its labels and environment. */
+  async inspectImage(reference: string): Promise<ImageFacts> {
+    this.record('inspect-image', reference);
+    const image = this.images.get(reference);
+    if (image === undefined)
+      throw new Error(`Image ${reference} was not found in its registry.`);
+    return {
+      reference,
+      digest: image.id,
+      manifestDigest: image.id,
+      configDigest: image.id,
+      os: 'linux',
+      architecture: 'amd64',
+      variant: null,
+      labels: { ...image.labels },
+      revision: image.labels['org.opencontainers.image.revision'] ?? null,
+      automationWriterProtocol:
+        image.labels['io.tale.automation-writer-protocol'] ?? null,
+      init: image.labels['dev.tale.init'] ?? null,
+      entrypoint: null,
+      cmd: null,
+      env: Object.entries(image.environment).map(
+        ([key, value]) => `${key}=${value}`,
+      ),
+      user: null,
+      workingDir: null,
+      stopSignal: null,
+      healthcheck: null,
+      volumes: [],
+    };
+  }
+
   async pull(image: string): Promise<boolean> {
     this.record('pull', image);
     if (this.unpullable.has(image)) return false;
@@ -698,19 +766,37 @@ export class FakeRuntime implements StackRuntime {
     return true;
   }
 
-  async admit(stack: string, services: readonly string[]): Promise<void> {
-    this.record('admit', `${stack} ${services.join(',')}`);
+  async admit(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<void> {
+    for (const service of services)
+      for (const instance of this.replicas(stack, service))
+        if (replicas === undefined || replicas.includes(instance.name))
+          this.withdrawn.delete(instance.name);
+    this.record('admit', admissionSubject(stack, services, replicas));
   }
 
-  async withdraw(stack: string, services: readonly string[]): Promise<number> {
+  async withdraw(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<number> {
     let cut = 0;
     for (const service of services)
       for (const instance of this.replicas(stack, service)) {
         if (instance.state !== 'running') continue;
+        if (replicas !== undefined && !replicas.includes(instance.name))
+          continue;
+        if (this.withdrawal === 'marker') {
+          this.withdrawn.add(instance.name);
+          continue;
+        }
         cut += instance.networks.size;
         instance.networks.clear();
       }
-    this.record('withdraw', `${stack} ${services.join(',')}`);
+    this.record('withdraw', admissionSubject(stack, services, replicas));
     return cut;
   }
 
@@ -733,6 +819,60 @@ export class FakeRuntime implements StackRuntime {
     if (instance === undefined)
       return failed(`Error response from daemon: No such container: ${name}`);
     return this.answerExec(instance, argv, options.stdin);
+  }
+
+  /** A held exec: its stdin is collected until it ends, then the command
+   *  answers as one exec would. */
+  async execSession(
+    name: string,
+    argv: readonly string[],
+  ): Promise<RuntimeSession> {
+    this.record('execSession', name);
+    const chunks: string[] = [];
+    let exitCode: number | null = null;
+    let finish: (result: ExecResult) => void = () => undefined;
+    const result = new Promise<ExecResult>((resolve) => {
+      finish = resolve;
+    });
+    const stream = (pick: (answer: ExecResult) => string) =>
+      new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const text = pick(await result);
+          if (text !== '') controller.enqueue(new TextEncoder().encode(text));
+          controller.close();
+        },
+      });
+    const end = () => {
+      const instance = this.find(name);
+      finish(
+        instance === undefined
+          ? failed(`Error response from daemon: No such container: ${name}`)
+          : this.answerExec(instance, argv, chunks.join('')),
+      );
+    };
+    const exited = result.then((answer) => {
+      exitCode = answer.exitCode;
+      return answer.exitCode;
+    });
+    return {
+      stdin: {
+        write: (chunk) => {
+          chunks.push(
+            typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk),
+          );
+          return 0;
+        },
+        flush: () => 0,
+        end,
+      },
+      stdout: stream((answer) => answer.stdout),
+      stderr: stream((answer) => answer.stderr),
+      exited,
+      get exitCode() {
+        return exitCode;
+      },
+      kill: () => finish(failed('killed', 137)),
+    };
   }
 
   async copyIn(

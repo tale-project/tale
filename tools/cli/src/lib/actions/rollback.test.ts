@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  test,
+} from 'bun:test';
 import {
   mkdirSync,
   mkdtempSync,
@@ -91,60 +99,81 @@ let project = 'tale';
 /** What `tale init` makes of a folder named `2024-site`. */
 const digitLed = '2024-site-abc123';
 
-mock.module('../state/get-current-color', () => ({
+/**
+ * `mock.module` is process-global in Bun and outlives this file: CI runs every
+ * test file of the CLI in one process, and a module replaced here stays
+ * replaced for each suite after it. Every module this file replaces is put
+ * back once it ends, so a later suite reads the real module, not a mock that
+ * `afterEach` reset to answer `undefined` (the Incus apply's health wait then
+ * read every instance as unhealthy at once).
+ */
+const restoreModules: (() => void)[] = [];
+async function mockModule(
+  path: string,
+  factory: () => Record<string, unknown>,
+): Promise<void> {
+  const real: Record<string, unknown> = { ...(await import(path)) };
+  mock.module(path, factory);
+  restoreModules.push(() => mock.module(path, () => real));
+}
+afterAll(() => {
+  for (const restore of restoreModules.splice(0)) restore();
+});
+
+await mockModule('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
 }));
-mock.module('../state/get-previous-version', () => ({
+await mockModule('../state/get-previous-version', () => ({
   getPreviousVersion: getPreviousVersionMock,
 }));
-mock.module('../state/set-current-color', () => ({
+await mockModule('../state/set-current-color', () => ({
   setCurrentColor: setCurrentColorMock,
 }));
-mock.module('../state/set-previous-version', () => ({
+await mockModule('../state/set-previous-version', () => ({
   setPreviousVersion: setPreviousVersionMock,
 }));
-mock.module('../docker/get-container-version', () => ({
+await mockModule('../docker/get-container-version', () => ({
   getContainerVersion: getContainerVersionMock,
 }));
 // The retire step drains through the control door and detaches the colour
 // from the serving networks; both go through the raw `docker` helper.
-mock.module('../docker/docker', () => ({ docker: dockerMock }));
+await mockModule('../docker/docker', () => ({ docker: dockerMock }));
 // pullImage is injected via rollback's `deps` arg (below), not mock.module:
 // it's a shared module imported for real by pull-image.test.ts, and Bun's
 // process-global module mock leaked into that suite and broke it on Windows.
-mock.module('../docker/docker-compose', () => ({
+await mockModule('../docker/docker-compose', () => ({
   dockerCompose: dockerComposeMock,
 }));
-mock.module('../docker/ensure-volumes', () => ({
+await mockModule('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
   volumeExists: mock(async () => false),
 }));
-mock.module('../docker/ensure-network', () => ({
+await mockModule('../docker/ensure-network', () => ({
   ensureNetwork: ensureNetworkMock,
   ensureSandboxNetwork: ensureNetworkMock,
 }));
-mock.module('../docker/wait-for-healthy', () => ({
+await mockModule('../docker/wait-for-healthy', () => ({
   waitForHealthy: waitForHealthyMock,
 }));
-mock.module('../docker/wait-for-service-healthy', () => ({
+await mockModule('../docker/wait-for-service-healthy', () => ({
   waitForServiceHealthy: waitForServiceHealthyMock,
 }));
-mock.module('../docker/stop-container', () => ({
+await mockModule('../docker/stop-container', () => ({
   stopContainer: stopContainerMock,
 }));
-mock.module('../docker/remove-container', () => ({
+await mockModule('../docker/remove-container', () => ({
   removeContainer: removeContainerMock,
 }));
 // rollback pre-marks the old platform colour for shutdown via `docker exec`
 // before draining. Stub it deterministically (a sibling suite's exec mock
 // otherwise leaks in process-globally and returns undefined).
-mock.module('../docker/exec', () => ({
+await mockModule('../docker/exec', () => ({
   exec: execMock,
 }));
-mock.module('../../utils/prompt', () => ({
+await mockModule('../../utils/prompt', () => ({
   confirm: confirmMock,
 }));
-mock.module('../../utils/logger', () => ({
+await mockModule('../../utils/logger', () => ({
   info: loggerInfoMock,
   error: loggerErrorMock,
   warn: mock(),

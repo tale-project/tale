@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CliError, ExitCode } from '../../utils/fail';
 import type { ExecResult } from '../docker/exec';
+import { assertDockerLoop } from '../project/declared-engine';
 import {
   buildSandboxDeviceConfig,
   readSandboxDeviceConfig,
@@ -123,9 +125,42 @@ async function makeDeps(
     confirm: mock(async () => true),
     assumeYes: () => false,
     json: () => false,
+    assertDockerWorkspace: async () => {},
     ...overrides,
   };
   return { deps, home, rec };
+}
+
+/** A workspace whose tale.json declares the Incus runtime, and the check
+ * the device commands run in it. */
+async function incusWorkspace(): Promise<() => Promise<void>> {
+  const dir = await mkdtemp(join(tmpdir(), 'tale-cli-device-incus-'));
+  dirs.push(dir);
+  await writeFile(
+    join(dir, 'tale.json'),
+    JSON.stringify({
+      version: 1,
+      cliVersion: '0.5.95',
+      createdAt: '2026-11-13T00:00:00.000Z',
+      id: 'acme-a3f1b2',
+      runtime: {
+        engine: 'incus',
+        incus: {
+          project: 'tale-acme',
+          pool: 'tank',
+          network: {
+            name: 'tale-acme',
+            subnet: '10.30.0.0/23',
+            gateway: '10.30.0.1',
+            block: '10.30.0.0/24',
+          },
+          sessions: { subnet: '10.31.0.0/24' },
+          ingress: { mode: 'proxy-device' },
+        },
+      },
+    }),
+  );
+  return () => assertDockerLoop(dir, 'a sandbox device', {});
 }
 
 /** The rejection of a promise, or null when it resolved. */
@@ -173,6 +208,30 @@ describe('tale sandbox connect', () => {
     // The token was never sent, and nothing was written or started.
     expect(rec.requests).toEqual([]);
     expect(rec.streamed).toEqual([]);
+    expect(
+      await readSandboxDeviceConfig(sandboxDeviceConfigPath(home)),
+    ).toBeNull();
+  });
+
+  test('refuses in an Incus workspace before spending the join token', async () => {
+    const { deps, home, rec } = await makeDeps({
+      assertDockerWorkspace: await incusWorkspace(),
+    });
+    const error = await rejection(
+      connectSandboxDevice(
+        { url: 'https://acme.tale.dev/', token: 'tsdj_abc', autoUpdate: true },
+        deps,
+      ),
+    );
+    expect(error).toBeInstanceOf(CliError);
+    expect((error as CliError).info.code).toBe(ExitCode.Precondition);
+    expect(error?.message).toBe(
+      'This workspace declares runtime.engine "incus", but a sandbox device runs on Docker only: it is a local developer loop, and Incus runs on Linux only.',
+    );
+    expect(rec.requests).toEqual([]);
+    expect(rec.docker).toEqual([]);
+    expect(rec.streamed).toEqual([]);
+    expect(deps.ensureDocker).not.toHaveBeenCalled();
     expect(
       await readSandboxDeviceConfig(sandboxDeviceConfigPath(home)),
     ).toBeNull();
@@ -345,6 +404,16 @@ describe('tale sandbox status / update / disconnect', () => {
     expect(
       await rejection(updateSandboxDevice({ imageTag: '0.5.61' }, made.deps)),
     ).toMatchObject({ message: expect.stringContaining('older than 24.0') });
+    expect(made.rec.streamed).toEqual([]);
+  });
+
+  test('update refuses in an Incus workspace before asking the server', async () => {
+    const made = await connected();
+    made.deps.assertDockerWorkspace = await incusWorkspace();
+    expect(
+      await rejection(updateSandboxDevice({ imageTag: '0.5.61' }, made.deps)),
+    ).toMatchObject({ message: expect.stringContaining('Docker only') });
+    expect(made.rec.requests).toEqual([]);
     expect(made.rec.streamed).toEqual([]);
   });
 

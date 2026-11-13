@@ -39,6 +39,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   verification, bundle preparation, rollout, native identity provisioning, configuration
   releases and deployment receipts. Ops selects destinations, full source commits and
   credential references, then calls the CLI; do not duplicate Tale deployment internals there.
+  The CLI drives the stack through one runtime interface (`tools/cli/src/lib/runtime/types.ts`):
+  Docker Compose by default, or Incus (experimental) when the reviewed `runtime.engine` says so.
+  On Incus too, Ops passes only destinations and credential references (the node's endpoint,
+  project, pool and certificate files) and makes the node from the data `tale incus contract`
+  prints, never from Tale's services, ports or instance names.
   Model-server installation, hardware, model artifacts, routing and readiness are internal Ops
   responsibilities. Tale CLI manages native platform `configuration` resources through
   the same validate/plan/apply/readback flow in standalone commands and deployments.
@@ -250,7 +255,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-The eight workflow-specific **CI ready** terminal jobs judge complete native PR dependencies
+The nine workflow-specific **CI ready** terminal jobs judge complete native PR dependencies
 and validated scope. Their source contract, conditional limits and
 separate required-check activation procedure are in [`.github/CI.md`](../.github/CI.md).
 They do not replace independent review or the release-candidate gate.

@@ -17,6 +17,7 @@ export const INCUS_STATUS = {
   running: 103,
   starting: 106,
   stopping: 107,
+  frozen: 110,
   error: 112,
   /** A background operation that ended well. */
   success: 200,
@@ -306,6 +307,86 @@ export function parseImageAlias(raw: unknown): IncusImageAlias {
   return {
     name: text(obj, 'name', 'image alias'),
     target: text(obj, 'target', 'image alias'),
+  };
+}
+
+/** The state of a project: what its instances and volumes use, against
+ * its limits (`GET /1.0/projects/<name>/state`). A limit of -1 is none. */
+export interface IncusProjectState {
+  resources: Readonly<Record<string, { limit: number; usage: number }>>;
+}
+
+export function parseProjectState(raw: unknown): IncusProjectState {
+  const obj = record(raw, 'project state');
+  const resources: Record<string, { limit: number; usage: number }> = {};
+  if (isRecord(obj.resources)) {
+    for (const [name, entry] of Object.entries(obj.resources)) {
+      if (!isRecord(entry)) continue;
+      resources[name] = {
+        limit: whole(
+          entry,
+          'Limit' in entry ? 'Limit' : 'limit',
+          'project state',
+        ),
+        usage: whole(
+          entry,
+          'Usage' in entry ? 'Usage' : 'usage',
+          'project state',
+        ),
+      };
+    }
+  }
+  return { resources };
+}
+
+/** The room on a storage pool, in bytes and inodes
+ * (`GET /1.0/storage-pools/<pool>/resources`). */
+export interface IncusPoolResources {
+  space: { used: number; total: number };
+  inodes: { used: number; total: number };
+}
+
+export function parsePoolResources(raw: unknown): IncusPoolResources {
+  const obj = record(raw, 'storage pool resources');
+  const space = record(obj.space, 'storage pool resources');
+  const inodes = isRecord(obj.inodes) ? obj.inodes : {};
+  return {
+    space: {
+      used: whole(space, 'used', 'storage pool resources'),
+      total: whole(space, 'total', 'storage pool resources'),
+    },
+    inodes: {
+      used: typeof inodes.used === 'number' ? inodes.used : 0,
+      total: typeof inodes.total === 'number' ? inodes.total : 0,
+    },
+  };
+}
+
+/** A custom volume's snapshot. */
+export interface IncusVolumeSnapshot {
+  /** The snapshot's own name, without the volume's. */
+  name: string;
+  config: IncusConfigMap;
+  /** Epoch ms; 0 when the server says nothing. */
+  createdAtMs: number;
+  /** Epoch ms; 0 for a snapshot that does not expire. */
+  expiresAtMs: number;
+}
+
+function epochMs(value: string): number {
+  if (value === '' || value.startsWith('0001-01-01')) return 0;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+export function parseVolumeSnapshot(raw: unknown): IncusVolumeSnapshot {
+  const obj = record(raw, 'volume snapshot');
+  const name = text(obj, 'name', 'volume snapshot');
+  return {
+    name: name.slice(name.lastIndexOf('/') + 1),
+    config: stringMap(obj.config),
+    createdAtMs: epochMs(optionalText(obj, 'created_at')),
+    expiresAtMs: epochMs(optionalText(obj, 'expires_at')),
   };
 }
 
