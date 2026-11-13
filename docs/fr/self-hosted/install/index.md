@@ -11,6 +11,10 @@ Le [guide de démarrage](/fr/self-hosted/install/quickstart) couvre les prérequ
 
 La CLI gère les opérations sur les conteneurs. Tu restes responsable de la configuration, des identifiants, des volumes et des mises à jour. Conserve le répertoire du projet avec ses paramètres de déploiement. [Installer la CLI](/fr/self-hosted/install/cli-install) décrit les systèmes pris en charge, l’accès à un hôte Docker distant, les commandes et les déploiements gérés.
 
+## Choisir un runtime de conteneurs
+
+La CLI exécute la stack sur Docker Compose, le runtime par défaut et pris en charge. Un [déploiement géré](/fr/self-hosted/install/cli-install#managed-deployments) peut à la place tourner sous forme d’instances Incus sur un hôte Linux : [Exécuter Tale sur Incus](/fr/self-hosted/install/incus) décrit le nœud qu’il demande et les limites de ce runtime, expérimental dans Tale 0.5.x. Le développement local avec `tale dev` et le `tale deploy` d’un workspace tournent sur Docker.
+
 ## Utiliser tes propres définitions de services
 
 [Exploiter ton propre déploiement](/fr/self-hosted/install/own-compose) décrit les services, les volumes, le réseau, les contrôles de disponibilité et l’ordre de démarrage à respecter. Suis ce guide si tu maintiens Compose toi-même. [Déployer sur Kubernetes](/fr/self-hosted/install/kubernetes) transpose ce contrat en Deployments, Services et NetworkPolicies, et liste les vérifications qu’un cluster doit réussir. Tale ne fournit pas de chart Helm officiel.

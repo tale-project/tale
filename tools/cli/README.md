@@ -469,6 +469,29 @@ Incus variables an earlier declaration left in the managed `.env` file, unless t
 `environment` declares them. See the
 [Incus sandbox guide](../../docs/en/self-hosted/install/cli-install.md#managed-incus-sandbox).
 
+### Run the whole stack on Incus (experimental)
+
+With `runtime.engine` `incus` and a `runtime.incus` block, a managed deployment
+runs every service as an Incus instance in one restricted project, and its sessions
+in a project beside it (`sandbox` is then `{ "backend": "incus" }`). Preparation
+reads the images from their registries and needs no Docker. The node is described
+and made ready with `tale incus`:
+
+```sh
+tale incus contract --spec spec.json --compose bundle/runtime/compose.yml   # the node contract, as JSON
+sudo tale incus bootstrap --spec spec.json --compose bundle/runtime/compose.yml   # a single host, over the admin socket
+tale incus check --spec spec.json --compose bundle/runtime/compose.yml      # read back with the restricted certificate
+tale --json deploy --bundle bundle --cli-ref <sha> --plan-only > plan.json
+tale --yes deploy --bundle bundle --cli-ref <sha> --plan plan.json
+```
+
+`--workspace <dir>` replaces `--spec`/`--compose` for a workspace's `tale.json`,
+though a workspace on Incus is not deployable yet. `bootstrap --remove` takes away
+what bootstrap made; `check --no-probes` runs no helper and refuses. `--plan-only`
+prints the plan and changes nothing, `--plan` applies a reviewed plan only while the
+node still needs exactly it, and `--stop` accepts the downtime a plan names. See
+[Run Tale on Incus](../../docs/en/self-hosted/install/incus.md).
+
 ## Apply native configuration
 
 `config validate`, `plan`, `apply` and `read` use the same native configuration
