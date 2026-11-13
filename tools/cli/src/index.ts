@@ -17,7 +17,9 @@ import { createResetCommand } from './commands/reset';
 import { createRestoreCommand } from './commands/restore';
 import { createRollbackCommand } from './commands/rollback';
 import { createSandboxCommand } from './commands/sandbox';
+import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
+import { createStopCommand } from './commands/stop';
 import { createUninstallCommand } from './commands/uninstall';
 import { createUpdateCommand } from './commands/update';
 import { ensureAligned } from './lib/version/align';
@@ -107,6 +109,8 @@ program.addCommand(createLogsCommand().helpGroup(OPERATE));
 program.addCommand(createBackupCommand().helpGroup(OPERATE));
 program.addCommand(createRestoreCommand().helpGroup(OPERATE));
 program.addCommand(createRollbackCommand().helpGroup(OPERATE));
+program.addCommand(createStopCommand().helpGroup(OPERATE));
+program.addCommand(createStartCommand().helpGroup(OPERATE));
 
 program.addCommand(createUpdateCommand().helpGroup(MAINTAIN));
 program.addCommand(createMigrateCommand().helpGroup(MAINTAIN));

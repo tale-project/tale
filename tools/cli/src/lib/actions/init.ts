@@ -438,7 +438,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
   logger.success('Tale project initialized!');
   if (declaredRuntime?.engine === 'incus')
     logger.warn(
-      'tale.json declares the Incus runtime. Deploying a workspace on Incus is not available yet in this CLI; commands that drive the stack refuse until it is.',
+      'tale.json declares the Incus runtime. Place the client certificate, its key and the server certificate in .tale/incus/ (mode 0600), then run tale incus check before tale deploy.',
     );
   logger.blank();
   // Honest inventory: a file on disk is a catalog entry, not an active

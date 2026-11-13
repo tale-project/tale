@@ -30,9 +30,15 @@ import type { IncusClient } from '@tale/incus/client';
 import { preconditionError } from '../../../../utils/fail';
 import { SANDBOX_INCUS_DIRECTORY } from '../../../deployment/runtime-sandbox';
 import { parseCidr } from '../../../project/runtime-declaration';
+import {
+  defaultSessionsZone,
+  type SessionsZone,
+} from '../compile/sessions-zone';
 import type { IncusDeclaration } from '../compile/stack-target';
 import { managedIncusDirectory, workspaceIncusDirectory } from '../credentials';
 import type { ContractRule, NodeContract } from './contract-model';
+
+export { defaultSessionsZone, type SessionsZone };
 
 /**
  * `tale incus bootstrap` (design D-31): make a single box ready for a Tale
@@ -63,24 +69,6 @@ import type { ContractRule, NodeContract } from './contract-model';
 /** The description every object bootstrap makes carries. */
 export function bootstrapMarker(stack: string): string {
   return `Made by tale incus bootstrap for ${stack}`;
-}
-
-/** Where the zone lives: names bootstrap gives the sandbox zone's objects. */
-export interface SessionsZone {
-  project: string;
-  network: string;
-  profile: string;
-}
-
-/** The zone's default names for a stack project and bridge. */
-export function defaultSessionsZone(
-  declaration: IncusDeclaration,
-): SessionsZone {
-  return {
-    project: `${declaration.project}-sessions`.slice(0, 63),
-    network: `${declaration.network.name.slice(0, 13)}-s`,
-    profile: 'sandbox',
-  };
 }
 
 export interface BootstrapStep {

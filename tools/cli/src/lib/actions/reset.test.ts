@@ -15,6 +15,7 @@ import {
 } from '../backup/incus-backup-fixture';
 import { listSnapshots } from '../backup/list-snapshots';
 import { setProjectId } from '../project/project-context';
+import { FakeRuntime } from '../runtime/fake-runtime';
 import { reset } from './reset';
 
 // The Incus runtime needs a POSIX host and is refused on Windows
@@ -334,6 +335,35 @@ describe('reset', () => {
     ).toBe(true);
   });
 });
+
+describePosix(
+  'reset --all on Incus removes the stack singletons (design 7.3)',
+  () => {
+    test('the resolvers and the switch go with the stateful services', async () => {
+      const runtime = new FakeRuntime({ engine: 'incus' });
+      for (const service of ['db', 'names', 'names-sessions', 'switch'])
+        runtime.seedInstance({
+          name: `tale-${service}`,
+          stack: 'tale',
+          service,
+          image: 'ghcr.io/tale-project/tale/tale-proxy:0.5.95',
+        });
+      await reset({
+        env,
+        force: true,
+        includeStateful: true,
+        dryRun: false,
+        runtime,
+      });
+      const removed = runtime.journal.filter((entry) =>
+        entry.startsWith('remove '),
+      );
+      for (const service of ['db', 'names', 'names-sessions', 'switch'])
+        expect(removed).toContain(`remove tale-${service}`);
+      expect(runtime.instances.size).toBe(0);
+    });
+  },
+);
 
 describePosix('reset --all on Incus (R-05, R3-22)', () => {
   let fixture: IncusBackupFixture;

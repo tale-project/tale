@@ -191,7 +191,14 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.step(`${prefix}Removing stateful containers...`);
       // The sidecars restart unless stopped: left behind, they keep running
       // after the CLI is gone and pin the project network against the prune.
-      for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
+      // On Incus the stack's resolvers and its switch are singletons too.
+      for (const service of [
+        ...STATEFUL_SERVICES,
+        ...SIDECAR_SERVICES,
+        ...(runtime.engine === 'incus'
+          ? (['names', 'names-sessions', 'switch'] as const)
+          : []),
+      ]) {
         const containerName = `${getProjectId()}-${service}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);

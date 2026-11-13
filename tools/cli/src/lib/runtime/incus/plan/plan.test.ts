@@ -376,6 +376,14 @@ describe('a converged stack', () => {
     });
     // The proxy (edge) is stop-gated as on Docker.
     expect(resource(deferred, 'instance/proxy').action).toBe('deferred');
+    // A label the switch would take live waits with the new image, rather
+    // than turning the image change into a stop (R-02).
+    const labelled = structuredClone(target);
+    for (const spec of labelled.instances)
+      if (spec.service === 'switch') spec.config['user.tale.health'] = '{}';
+    expect(
+      resource(plan(desiredOf(labelled), readback, FULL), 'instance/switch'),
+    ).toMatchObject({ action: 'deferred', hint: DEFERRED_INFRASTRUCTURE_HINT });
     expect(
       resource(plan(desiredOf(target), readback, STOP), 'instance/switch'),
     ).toMatchObject({ action: 'replace', effects: ['downtime', 'switch'] });

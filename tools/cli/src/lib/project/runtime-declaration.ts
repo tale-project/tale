@@ -322,18 +322,6 @@ export function guardDeclaredEngine(
 }
 
 /**
- * The refusal of a declared Incus runtime while this CLI cannot run it: the
- * workspace path. A managed deployment runs on Incus
- * (`deployment/runtime-incus-apply.ts`).
- */
-export function incusNotAvailableYet(path: 'workspace'): CliError {
-  return preconditionError(
-    `The deployment declares runtime.engine "incus": running a ${path} on Incus is not available yet in this CLI.`,
-    'Remove runtime.engine and runtime.incus from tale.json to deploy on Docker.',
-  );
-}
-
-/**
  * Refuse the Incus runtime on Windows, up front. Its credentials, plan key,
  * journal and copies are private files the CLI holds by owner and mode
  * (0600 in a 0700 directory), which Windows does not carry, so no check of

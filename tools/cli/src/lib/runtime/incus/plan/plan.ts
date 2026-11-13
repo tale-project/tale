@@ -457,8 +457,12 @@ function planInstance(
         effects: retireEffects(spec.service, true),
         hint: `The running ${spec.name} does not read ${format}; replacing it needs --stop.`,
       };
+    // A new image, with or without a label the instance takes live, waits
+    // for --stop: the label goes with the replacement (R-02).
     const imageOnly =
-      !devicesChanged && changed.every((k) => IMAGE_KEYS.has(k));
+      !devicesChanged &&
+      changed.some((k) => IMAGE_KEYS.has(k)) &&
+      changed.every((k) => IMAGE_KEYS.has(k) || isLiveKey(k));
     if (imageOnly && !scope.stop)
       return {
         ...base,

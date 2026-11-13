@@ -1,11 +1,21 @@
+import { resolve } from 'node:path';
+
+import { IncusClient } from '@tale/incus/client';
+
+import { preconditionError } from '../../utils/fail';
 import { declaredEngine } from '../project/declared-engine';
-import { incusNotAvailableYet } from '../project/runtime-declaration';
+import { readProject } from '../project/read-project';
 import {
   createDockerRuntime,
   type DockerRuntimeOverrides,
 } from './docker/docker-runtime';
 import {
+  readIncusCredentials,
+  workspaceIncusDirectory,
+} from './incus/credentials';
+import {
   createIncusRuntime,
+  type IncusRuntime,
   type IncusRuntimeOptions,
 } from './incus/incus-runtime';
 import type { RuntimeEngine, StackRuntime } from './types';
@@ -26,26 +36,70 @@ export function runtimeForEngine(
   overrides: RuntimeOverrides = {},
 ): StackRuntime {
   if (engine === 'incus') {
-    if (overrides.incus === undefined) throw incusNotAvailableYet('workspace');
+    if (overrides.incus === undefined)
+      throw preconditionError(
+        'The Incus runtime needs its connection: the client, the runtime.incus declaration, the stack and the state root.',
+      );
     return createIncusRuntime(overrides.incus);
   }
   return createDockerRuntime(overrides.docker);
 }
 
 /**
+ * The Incus runtime of the workspace at `projectDir` (design 7.2): the
+ * stack is the project id, its state lives in the workspace (`.tale/incus/`
+ * beside the deploy lock), and the CLI dials the declared endpoint with the
+ * workspace's own credentials (`.tale/incus/`, or `TALE_INCUS_DIR`), pinned
+ * to the server certificate there.
+ */
+async function workspaceIncusRuntime(
+  projectDir: string,
+  overrides: Partial<IncusRuntimeOptions> = {},
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<IncusRuntime> {
+  const directory = resolve(projectDir);
+  const project = await readProject(directory);
+  const declaration = project.runtime?.incus;
+  if (project.runtime?.engine !== 'incus' || declaration === undefined)
+    throw preconditionError(
+      `tale.json in ${directory} declares no Incus runtime.`,
+    );
+  const client =
+    overrides.client ??
+    new IncusClient({
+      endpoint:
+        declaration.endpoint ?? `https://${declaration.network.gateway}:8443`,
+      project: declaration.project,
+      tls: await readIncusCredentials(
+        workspaceIncusDirectory(directory, environment),
+      ),
+      signal: () => undefined,
+    });
+  return createIncusRuntime({
+    ...overrides,
+    client,
+    declaration,
+    stack: project.id ?? 'tale',
+    stateRoot: directory,
+  });
+}
+
+/**
  * The runtime a command drives, chosen once from what the workspace
- * declares and passed to every step after. A workspace that declares Incus
- * is refused until the workspace path runs on it.
+ * declares and passed to every step after: Docker by default, or the
+ * workspace's Incus runtime (`workspaceIncusRuntime`).
  */
 export async function selectRuntime(
   projectDir: string,
-  overrides: { docker?: DockerRuntimeOverrides } = {},
+  overrides: {
+    docker?: DockerRuntimeOverrides;
+    incus?: Partial<IncusRuntimeOptions>;
+  } = {},
 ): Promise<StackRuntime> {
-  // Only Docker's collaborators pass: a workspace never carries an Incus
-  // connection yet, so a declared incus is refused.
-  const { docker } = overrides;
+  if ((await declaredEngine(projectDir)) === 'incus')
+    return workspaceIncusRuntime(projectDir, overrides.incus);
   return runtimeForEngine(
-    await declaredEngine(projectDir),
-    docker === undefined ? {} : { docker },
+    'docker',
+    overrides.docker === undefined ? {} : { docker: overrides.docker },
   );
 }

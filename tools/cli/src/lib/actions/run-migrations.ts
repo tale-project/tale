@@ -16,13 +16,13 @@
 import * as logger from '../../utils/logger';
 import {
   BACKEND_API_LABEL,
-  backendApiContainer,
   controlCall,
   isBackendTierRunning,
 } from '../docker/control-call';
 import { requireProject } from '../project/find-project';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
+import { servingApiReplica } from './incus-deploy';
 
 interface RunMigrationsOptions {
   dryRun: boolean;
@@ -35,7 +35,7 @@ export async function runMigrations(
   options: RunMigrationsOptions,
 ): Promise<void> {
   const runtime = options.runtime ?? (await selectRuntime(requireProject()));
-  const container = await backendApiContainer(null, runtime);
+  const container = await servingApiReplica(runtime, 'migrate');
   const label = container ?? BACKEND_API_LABEL;
 
   if (options.dryRun) {

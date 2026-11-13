@@ -33,7 +33,12 @@ import type {
   WaitServiceHealthyOptions,
 } from '../types';
 import type { ApplyHooks } from './apply/apply';
-import { markInterruptedSync } from './apply/journal';
+import {
+  markInterruptedSync,
+  readJournal,
+  updateJournal,
+} from './apply/journal';
+import { placementOf } from './compile/placement';
 import type {
   IncusDeclaration,
   StackImage,
@@ -41,6 +46,7 @@ import type {
 } from './compile/stack-target';
 import { imageAlias, type InstanceSpec } from './compile/translate';
 import { loadPlanKey, type PlanKey } from './plan/digest';
+import { SWITCHED_SERVICES } from './plan/plan';
 import {
   execInInstance,
   execSessionInInstance,
@@ -79,6 +85,7 @@ import {
   crashReport,
   crashTail,
   readInstanceLogs,
+  stoppedAfterCrashes,
   type LogReadDependencies,
 } from './verbs/logs';
 import { reapHelpers, runOneShot } from './verbs/oneshot';
@@ -153,6 +160,9 @@ function notYet(verb: string): Promise<never> {
   );
 }
 
+/** The colours a workspace stack runs, as `<stack>-<colour>` names them. */
+const COLOURS = ['blue', 'green'] as const;
+
 export class IncusRuntime implements StackRuntime {
   readonly engine = 'incus' as const;
   readonly withdrawal = 'marker' as const;
@@ -201,6 +211,21 @@ export class IncusRuntime implements StackRuntime {
         registryMirrors: options.declaration.registryMirrors,
         cacheDirectory: ociCacheDirectory(options.stateRoot),
       });
+  }
+
+  /**
+   * The instance a name the actions use means. A workspace action names a
+   * singleton as Docker's container, `<stack>-<service>` (`tale-db`); on
+   * Incus the project namespaces the stack, so the instance is the service
+   * alone (`db`, design 6.1). Any other name is the instance's own.
+   */
+  instanceName(name: string): string {
+    const prefix = `${this.stack}-`;
+    if (!name.startsWith(prefix)) return name;
+    const placed = placementOf(name.slice(prefix.length));
+    return placed !== undefined && !('slot' in placed.address)
+      ? name.slice(prefix.length)
+      : name;
   }
 
   /** What the exec, file, log, health and helper verbs act within. */
@@ -306,15 +331,38 @@ export class IncusRuntime implements StackRuntime {
 
   // ---- census and readback ---------------------------------------------------
 
+  /** The replicas of the stack, as Docker's projects list them: the stack
+   * itself holds the instances of no colour, and `<stack>-<colour>` the
+   * replicas of that colour. */
   async list(filter: { stack: string; service?: string }) {
-    return listStackInstances(this.client, filter, await this.planKey());
+    const colour = COLOURS.find(
+      (candidate) => filter.stack === `${this.stack}-${candidate}`,
+    );
+    const stack = colour === undefined ? filter.stack : this.stack;
+    const found = await listStackInstances(
+      this.client,
+      filter.service === undefined
+        ? { stack }
+        : { stack, service: filter.service },
+      await this.planKey(),
+    );
+    if (stack !== this.stack) return found;
+    // A colour's replicas carry their colour's stack name, as Docker's
+    // projects name them.
+    const replicas = found.filter((instance) => instance.colour === colour);
+    if (colour !== undefined)
+      for (const replica of replicas) replica.stack = `${this.stack}-${colour}`;
+    return replicas;
   }
 
+  /** The stack's instances whose name contains `fragment`; the stack's
+   * own name (Docker's container prefix) lists every one, because Incus
+   * names carry no prefix. */
   async listByName(fragment: string) {
     return (await this.client.listInstances())
       .filter(
         (instance) =>
-          instance.name.includes(fragment) &&
+          (fragment === this.stack || instance.name.includes(fragment)) &&
           instance.config['user.tale.stack'] === this.stack,
       )
       .map((instance) => ({ name: instance.name, status: instance.status }))
@@ -322,11 +370,16 @@ export class IncusRuntime implements StackRuntime {
   }
 
   async exists(name: string): Promise<boolean> {
-    return (await this.client.getInstance(name)) !== undefined;
+    return (
+      (await this.client.getInstance(this.instanceName(name))) !== undefined
+    );
   }
 
   async isRunning(name: string): Promise<boolean> {
-    return (await this.client.getInstance(name))?.instance.status === 'Running';
+    return (
+      (await this.client.getInstance(this.instanceName(name)))?.instance
+        .status === 'Running'
+    );
   }
 
   async state(name: string): Promise<string | null> {
@@ -335,7 +388,7 @@ export class IncusRuntime implements StackRuntime {
 
   async version(name: string): Promise<string | null> {
     return (
-      (await this.client.getInstance(name))?.instance.config[
+      (await this.client.getInstance(this.instanceName(name)))?.instance.config[
         'user.tale.version'
       ] ?? null
     );
@@ -343,11 +396,15 @@ export class IncusRuntime implements StackRuntime {
 
   /** Docker's health, judged by the CLI from exec probes (design D-24). */
   health(name: string): Promise<HealthState> {
-    return this.healthReader.health(name);
+    return this.healthReader.health(this.instanceName(name));
   }
 
   async inspect(name: string): Promise<InstanceInfo | null> {
-    return inspectStackInstance(this.client, name, await this.planKey());
+    return inspectStackInstance(
+      this.client,
+      this.instanceName(name),
+      await this.planKey(),
+    );
   }
 
   // ---- images ------------------------------------------------------------------
@@ -655,7 +712,10 @@ export class IncusRuntime implements StackRuntime {
   /** Wait as Docker's wait does, every 2 s, on the CLI's own health; the
    * console of a running instance is never read (`streamLogs` is not). */
   waitHealthy(name: string, options: WaitHealthyOptions): Promise<boolean> {
-    return waitForHealthy(name, { ...options, runtime: this });
+    return waitForHealthy(this.instanceName(name), {
+      ...options,
+      runtime: this,
+    });
   }
 
   async waitServiceHealthy(
@@ -680,19 +740,25 @@ export class IncusRuntime implements StackRuntime {
     return createStackInstance(this.client, spec);
   }
 
-  /** Start an instance and record that the CLI started it. */
-  async start(name: string): Promise<void> {
-    await startStackInstance(this.client, name);
+  /** Start an instance and record that the CLI started it, which ends a
+   * stop after repeated crashes (R-09); false when there is none. */
+  async start(name: string): Promise<boolean> {
+    const instance = this.instanceName(name);
+    if ((await this.client.getInstance(instance)) === undefined) return false;
+    await startStackInstance(this.client, instance);
+    return true;
   }
 
-  /** Stop within its declared grace, then force with a warning. */
-  async stop(name: string): Promise<boolean> {
-    const read = await this.client.getInstance(name);
+  /** Stop within its declared grace (or `graceSeconds`), then force with a
+   * warning. */
+  async stop(name: string, graceSeconds?: number): Promise<boolean> {
+    const instance = this.instanceName(name);
+    const read = await this.client.getInstance(instance);
     if (read === undefined) return false;
     await stopStackInstance(
       this.client,
-      name,
-      declaredGrace(read.instance.config),
+      instance,
+      graceSeconds ?? declaredGrace(read.instance.config),
     );
     return true;
   }
@@ -703,8 +769,23 @@ export class IncusRuntime implements StackRuntime {
     return stopStackInstance(this.client, name, grace);
   }
 
-  remove(name: string): Promise<boolean> {
-    return removeStackInstance(this.client, this.stack, name);
+  /** Remove the instance; a withdrawal marker the journal holds for it
+   * goes with it. */
+  async remove(name: string): Promise<boolean> {
+    const instance = this.instanceName(name);
+    const removed = await removeStackInstance(
+      this.client,
+      this.stack,
+      instance,
+    );
+    const journal = await readJournal(this.stateRoot);
+    if (journal?.withdrawn.some((entry) => entry.instance === instance))
+      await updateJournal(this.stateRoot, this.stack, (next) => {
+        next.withdrawn = next.withdrawn.filter(
+          (entry) => entry.instance !== instance,
+        );
+      });
+    return removed;
   }
 
   freeze(names: readonly string[]): Promise<void> {
@@ -766,12 +847,21 @@ export class IncusRuntime implements StackRuntime {
     argv: readonly string[],
     options: IncusExecOptions = {},
   ): Promise<ExecResult> {
-    return execInInstance(this.verbContext, name, argv, options);
+    return execInInstance(
+      this.verbContext,
+      this.instanceName(name),
+      argv,
+      options,
+    );
   }
 
   /** A command held open over a websocket exec. */
   execSession(name: string, argv: readonly string[]): Promise<RuntimeSession> {
-    return execSessionInInstance(this.verbContext, name, argv);
+    return execSessionInInstance(
+      this.verbContext,
+      this.instanceName(name),
+      argv,
+    );
   }
 
   /** Delete the exec stdin files a crash left, as the journal lists them. */
@@ -785,7 +875,13 @@ export class IncusRuntime implements StackRuntime {
     target: string,
     owner?: FileOwner,
   ): Promise<CopyResult> {
-    return copyIntoInstance(this.verbContext, name, dir, target, owner);
+    return copyIntoInstance(
+      this.verbContext,
+      this.instanceName(name),
+      dir,
+      target,
+      owner,
+    );
   }
 
   copyOut(
@@ -794,7 +890,13 @@ export class IncusRuntime implements StackRuntime {
     dir: string,
     options: CopyOutOptions,
   ): Promise<ExecResult> {
-    return copyOutOfInstance(this.verbContext, name, source, dir, options);
+    return copyOutOfInstance(
+      this.verbContext,
+      this.instanceName(name),
+      source,
+      dir,
+      options,
+    );
   }
 
   /** The instance's console (design 11): a running one only with
@@ -806,7 +908,7 @@ export class IncusRuntime implements StackRuntime {
   ): Promise<number> {
     return readInstanceLogs(
       this.verbContext,
-      name,
+      this.instanceName(name),
       options,
       onLine,
       this.logReads,
@@ -816,13 +918,54 @@ export class IncusRuntime implements StackRuntime {
   /** What a stopped instance's console still holds, labelled as such; null
    * while it runs. */
   crashTail(name: string, lines?: number) {
-    return crashTail(this.verbContext, name, lines);
+    return crashTail(this.verbContext, this.instanceName(name), lines);
+  }
+
+  /** Whether `boot.autorestart` gave up on the instance: it stopped by
+   * itself while wanted running (R-09). Reads no console. */
+  async stoppedAfterCrashes(name: string): Promise<boolean> {
+    const read = await this.client.getInstance(this.instanceName(name));
+    return (
+      read !== undefined &&
+      stoppedAfterCrashes(read.instance.status, read.instance.config)
+    );
+  }
+
+  /**
+   * A switched replica's admission (design 5.3), from the CLI's journal and
+   * its health: `withdrawn` while the journal holds its marker, `admitted`
+   * while it runs healthy (its admission probe passes), `waiting` before;
+   * null for an instance the switch does not hold.
+   */
+  async admission(
+    name: string,
+  ): Promise<'admitted' | 'withdrawn' | 'waiting' | null> {
+    const instance = this.instanceName(name);
+    const read = await this.client.getInstance(instance);
+    if (read === undefined) return null;
+    if (!SWITCHED_SERVICES.has(read.instance.config['user.tale.service'] ?? ''))
+      return null;
+    const journal = await readJournal(this.stateRoot);
+    if (journal?.withdrawn.some((entry) => entry.instance === instance))
+      return 'withdrawn';
+    if (read.instance.status !== 'Running') return 'waiting';
+    try {
+      return (await this.health(instance)) === 'healthy'
+        ? 'admitted'
+        : 'waiting';
+    } catch (error) {
+      console.warn(
+        `The admission of ${instance} is unknown:`,
+        error instanceof Error ? error.message : error,
+      );
+      return 'waiting';
+    }
   }
 
   /** "stopped after repeated crashes" with the console tail Incus kept,
    * for an instance `boot.autorestart` gave up on; null for any other. */
   crashReport(name: string, lines?: number) {
-    return crashReport(this.verbContext, name, lines);
+    return crashReport(this.verbContext, this.instanceName(name), lines);
   }
 
   /** The `tale-proxy` image helpers run from. */

@@ -16,7 +16,6 @@ import {
   assertIncusPlatform,
   guardDeclaredEngine,
   incusDeclarationSchema,
-  incusNotAvailableYet,
   runtimeDeclarationSchema,
 } from './runtime-declaration';
 import { writeProject } from './write-project';
@@ -235,13 +234,6 @@ describe('TALE_RUNTIME', () => {
         .message,
     ).toContain('does not know');
   });
-});
-
-test('the Incus refusal of a workspace says "not available yet"', () => {
-  const error = incusNotAvailableYet('workspace');
-  expect(error.info.code).toBe(ExitCode.Precondition);
-  expect(error.message).toContain('not available yet');
-  expect(error.message).toContain('workspace');
 });
 
 test('the Incus runtime is refused on Windows in one sentence, and runs on Linux and macOS', () => {

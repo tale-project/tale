@@ -13,8 +13,10 @@ import {
   type PlacementRow,
 } from './placement';
 import { RefusalError, refusal, refusalsError, type Refusal } from './refusals';
+import { sessionsZoneVariables } from './sessions-zone';
 import {
   DNS_NAME,
+  HEALTH_LABEL,
   imageAlias,
   nicDevice,
   ociEntrypoint,
@@ -175,6 +177,9 @@ export function compileStackTarget(input: CompileInput): CompileResult {
       declaration.endpoint ?? `https://${declaration.network.gateway}:8443`,
     ingress: declaration.ingress,
     mirrors: declaration,
+    ...(input.path === 'workspace'
+      ? { sessionsZone: sessionsZoneVariables(declaration) }
+      : {}),
   };
 
   const refusals: Refusal[] = [];
@@ -357,9 +362,9 @@ export function compileStackTarget(input: CompileInput): CompileResult {
       ...[...runtimeVolumes].sort().map((name) => volume(name, 'runtime')),
     ],
     files,
-    instances: [...infrastructure, ...instances].sort((left, right) =>
-      left.name.localeCompare(right.name),
-    ),
+    instances: [...infrastructure, ...instances]
+      .map(withHealthLabel)
+      .sort((left, right) => left.name.localeCompare(right.name)),
     names: {
       stack: sortKeys(
         Object.fromEntries(
@@ -395,6 +400,19 @@ export function compileStackTarget(input: CompileInput): CompileResult {
     ),
   };
   return { target, refusals: [] };
+}
+
+/** The instance with its healthcheck recorded on it (`HEALTH_LABEL`), so
+ * a command that compiles no stack (`tale status`, `tale start`) judges its
+ * health as a deploy does. */
+function withHealthLabel(spec: InstanceSpec): InstanceSpec {
+  return {
+    ...spec,
+    config: sortKeys({
+      ...spec.config,
+      [HEALTH_LABEL]: JSON.stringify(spec.healthcheck),
+    }),
+  };
 }
 
 function compareAddresses(left: string, right: string): number {

@@ -354,7 +354,7 @@ describePosix('the Incus runtime as a StackRuntime', () => {
     });
     expect(runtime).toBeInstanceOf(IncusRuntime);
     expect(runtime.engine).toBe('incus');
-    expect(() => runtimeForEngine('incus')).toThrow('not available yet');
+    expect(() => runtimeForEngine('incus')).toThrow('needs its connection');
   });
 
   test('answers the census, stops and removes through the verbs', async () => {

@@ -4,8 +4,8 @@
 // console keeps no times; `--follow` polls until the instance stops, and
 // every line comes out once. The verb runs here against the node with the
 // stack's restricted certificate; the compiled `tale logs` reaches it from a
-// workspace, which this CLI still refuses on Incus (the workspace path is the
-// next milestone's), and the suite holds that refusal too.
+// workspace, which runs on Incus with the workspace's own credentials, and
+// the suite holds the refusal of a workspace that has none.
 
 import { afterAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -96,7 +96,7 @@ describe('logs', () => {
     expect(numbered.at(-1)).toBe('e2e line 29');
   });
 
-  test('the compiled tale logs refuses a workspace on Incus, the next milestone', () => {
+  test('the compiled tale logs refuses a workspace on Incus without its credentials', () => {
     const workspace = mkdtempSync(join(lab.dir, 'workspace-'));
     writeFileSync(
       join(workspace, 'tale.json'),
@@ -125,6 +125,8 @@ describe('logs', () => {
     writeFileSync(join(workspace, '.env'), 'HOST=ws.lab.invalid\n');
     const run = cli(lab, ['logs', 'platform'], { cwd: workspace });
     expect(run.code).toBe(3);
-    expect(`${run.stdout}${run.stderr}`).toContain('not available yet');
+    const output = `${run.stdout}${run.stderr}`;
+    expect(output).toContain('The Incus credentials in');
+    expect(output).toContain(join('.tale', 'incus'));
   });
 });

@@ -38,6 +38,8 @@ import { INCUS_PLAN_ACTIONS } from '../plan/plan-model';
  * - `restorePending` (R3-22): a restore that has not finished. While it is
  *   set, every verb that could make a missing volume empty refuses, and only
  *   `tale restore --resume` or `--abort` clears it.
+ * - `flip`: a workspace colour flip that has not finished, with its phase,
+ *   so the next deploy or rollback resumes it from there (design 7.3).
  *
  * The caller holds the deploy lock; the journal is written whole, atomically,
  * 0600.
@@ -110,6 +112,26 @@ export const restorePendingSchema = z
 export type RestorePending = z.infer<typeof restorePendingSchema>;
 export type RestoreStep = (typeof RESTORE_STEPS)[number];
 
+/**
+ * The phases of a colour flip, in order (design 7.3): the new colour is
+ * coming up (`starting`); it is healthy, admitted and recorded as current
+ * (`admitted`); the old colour is being withdrawn, drained and stopped
+ * (`retiring`). A resumed flip runs again from its phase: a colour that is
+ * up is not made again, and markers already set are kept.
+ */
+export const FLIP_PHASES = ['starting', 'admitted', 'retiring'] as const;
+export type FlipPhase = (typeof FLIP_PHASES)[number];
+const colour = z.enum(['blue', 'green']);
+export const flipSchema = z.strictObject({
+  promoting: colour,
+  retiring: colour.nullable(),
+  /** The release the promoting colour runs. */
+  version: z.string().min(1).max(128),
+  phase: z.enum(FLIP_PHASES),
+  startedAt: z.string().datetime(),
+});
+export type FlipRecord = z.infer<typeof flipSchema>;
+
 export const journalSchema = z.strictObject({
   schemaVersion: z.literal(1),
   stack: z.string().min(1).max(128),
@@ -143,6 +165,8 @@ export const journalSchema = z.strictObject({
     )
     .max(256),
   restorePending: restorePendingSchema.nullable(),
+  /** A colour flip of a workspace that has not finished (design 7.3). */
+  flip: flipSchema.nullable().optional(),
 });
 export type IncusJournal = z.infer<typeof journalSchema>;
 

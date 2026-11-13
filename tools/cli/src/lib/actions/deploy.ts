@@ -3,7 +3,7 @@ import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { externalDepError } from '../../utils/fail';
+import { externalDepError, preconditionError } from '../../utils/fail';
 import {
   getProjectId,
   getReplicaCounts,
@@ -45,6 +45,7 @@ import {
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
 import { discoverOrgs } from '../project/org-dirs';
+import { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
 import {
@@ -73,6 +74,11 @@ import {
   endDrainBackend,
 } from './drain-backend';
 import { drainSandbox } from './drain-sandbox';
+import {
+  deployOnIncus,
+  incusWorkspaceOf,
+  type WorkspacePlan,
+} from './incus-deploy';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
@@ -163,6 +169,8 @@ interface DeployOptions {
    * deploy selects from `tale.json` itself.
    */
   runtime?: StackRuntime;
+  /** `--plan <file>` on Incus: apply only what this reviewed plan holds. */
+  plan?: WorkspacePlan;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -206,6 +214,79 @@ export async function deploy(options: DeployOptions): Promise<void> {
   try {
     await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
+
+      // What every deploy does once the services are rolled, on either
+      // runtime: the host config push and the reseed.
+      const finish = async () => {
+        if (dryRun) {
+          logger.success(
+            `${prefix}Dry-run complete! Would deploy version ${version}`,
+          );
+        } else {
+          // Containers are now rolled. Don't print "Deployment complete!"
+          // yet — that announces success over the wire, but sync + reseed
+          // still run below and either can abort the deploy.
+          logger.info(`${prefix}Services updated to version ${version}.`);
+        }
+
+        // Sync project files to the backend api container — the tier that
+        // mounts the org config store (the `config-data` volume) read-WRITE.
+        // On Incus the copy writes the volume through its file API, as the
+        // app's uid and gid.
+        await syncProjectFiles(
+          await backendApiContainer(null, runtime),
+          env.DEPLOY_DIR,
+          dryRun,
+          prefix,
+          tempStageDirs,
+          options.override ?? false,
+          runtime,
+        );
+
+        // After deploy + optional host-push, trigger the server-side reseed of
+        // the builtin catalog into every org, through the backend's control
+        // door. Its consent was resolved before the deploy began.
+        if (options.overrideAll) {
+          await reseedAllOrgsFromBuiltin({ dryRun, runtime });
+        }
+
+        if (!dryRun) {
+          logger.success(`Deployment complete! Version ${version} is now live`);
+        }
+      };
+
+      // The workspace path on Incus (design 7.2, 7.3): scope by scope, then
+      // the flip through the switch, or the roll of `--services`.
+      if (runtime instanceof IncusRuntime) {
+        logger.header(`${prefix}Deploying Tale ${version}`);
+        await deployOnIncus({
+          workspace: incusWorkspaceOf(runtime, {
+            env,
+            hostAlias,
+            ...(origin === undefined ? {} : { origin }),
+            stop,
+          }),
+          version,
+          dryRun,
+          ...(services === undefined ? {} : { services }),
+          ...(options.plan === undefined ? {} : { plan: options.plan }),
+          ...(options.override === undefined
+            ? {}
+            : { override: options.override }),
+          ...(options.overrideAll === undefined
+            ? {}
+            : { overrideAll: options.overrideAll }),
+          ...(options.skipBackup === undefined
+            ? {}
+            : { skipBackup: options.skipBackup }),
+        });
+        await finish();
+        return;
+      }
+      if (options.plan !== undefined)
+        throw preconditionError(
+          'A reviewed plan (--plan) applies to a workspace on the Incus runtime.',
+        );
       logger.header(`${prefix}Deploying Tale ${version}`);
 
       // Check if this is a first-time deployment
@@ -902,39 +983,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       }
 
-      if (dryRun) {
-        logger.success(
-          `${prefix}Dry-run complete! Would deploy version ${version}`,
-        );
-      } else {
-        // Containers are now rolled. Don't print "Deployment complete!"
-        // yet — that announces success over the wire, but sync + reseed
-        // still run below and either can abort the deploy.
-        logger.info(`${prefix}Services updated to version ${version}.`);
-      }
-
-      // Sync project files to the backend api container — the tier that
-      // mounts the org config store (the `config-data` volume) read-WRITE.
-      await syncProjectFiles(
-        await backendApiContainer(null, runtime),
-        env.DEPLOY_DIR,
-        dryRun,
-        prefix,
-        tempStageDirs,
-        options.override ?? false,
-        runtime,
-      );
-
-      // After deploy + optional host-push, trigger the server-side reseed of
-      // the builtin catalog into every org, through the backend's control
-      // door. Its consent was resolved before the deploy began.
-      if (options.overrideAll) {
-        await reseedAllOrgsFromBuiltin({ dryRun, runtime });
-      }
-
-      if (!dryRun) {
-        logger.success(`Deployment complete! Version ${version} is now live`);
-      }
+      await finish();
     });
   } finally {
     process.removeListener('SIGINT', onInterrupt);

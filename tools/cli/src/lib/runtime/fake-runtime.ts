@@ -827,11 +827,22 @@ export class FakeRuntime implements StackRuntime {
     return true;
   }
 
-  async stop(name: string): Promise<boolean> {
+  async stop(name: string, graceSeconds?: number): Promise<boolean> {
     const instance = this.find(name);
     if (instance === undefined) return false;
     instance.state = 'exited';
-    this.record('stop', name);
+    this.record(
+      'stop',
+      graceSeconds === undefined ? name : `${name} -t ${graceSeconds}`,
+    );
+    return true;
+  }
+
+  async start(name: string): Promise<boolean> {
+    const instance = this.find(name);
+    if (instance === undefined) return false;
+    instance.state = 'running';
+    this.record('start', name);
     return true;
   }
 
@@ -1378,7 +1389,14 @@ async function answerDocker(
       return compose(fake, args.slice(1));
     case 'stop': {
       const name = args.at(-1) ?? '';
-      return (await fake.stop(name))
+      const grace = sub === '-t' ? Number(rest[0]) : undefined;
+      return (await fake.stop(name, grace))
+        ? ok(name)
+        : failed(`Error response from daemon: No such container: ${name}`);
+    }
+    case 'start': {
+      const name = args.at(-1) ?? '';
+      return (await fake.start(name))
         ? ok(name)
         : failed(`Error response from daemon: No such container: ${name}`);
     }

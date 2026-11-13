@@ -431,8 +431,12 @@ export interface StackRuntime {
     service: string,
     options: WaitServiceHealthyOptions,
   ): Promise<boolean>;
-  /** Stop gracefully, within the instance's own stop grace. */
-  stop(name: string): Promise<boolean>;
+  /** Stop gracefully, within the instance's own stop grace, or within
+   *  `graceSeconds` when given (`tale stop`: Docker `docker stop -t`). */
+  stop(name: string, graceSeconds?: number): Promise<boolean>;
+  /** Start a stopped instance again as it was (`tale start`). Incus also
+   *  marks it wanted running, which ends a stop after repeated crashes. */
+  start(name: string): Promise<boolean>;
   /** Remove it, stopped or not; one that is gone counts as removed. */
   remove(name: string): Promise<boolean>;
   /** Let the running replicas of `services` of `stack` take traffic; only

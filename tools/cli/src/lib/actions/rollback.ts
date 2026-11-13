@@ -28,6 +28,7 @@ import {
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
 import type { pullImage } from '../docker/pull-image';
+import { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
 import {
@@ -50,6 +51,7 @@ import {
   retireColor,
   startColor,
 } from './color-lifecycle';
+import { incusWorkspaceOf, rollbackOnIncus } from './incus-deploy';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 interface RollbackOptions {
@@ -170,7 +172,11 @@ export async function rollback(
       throw new Error('Rollback refused: not a patch-level rollback');
     }
 
-    const installedProtocol = await tagDeploymentProtocol(getProjectId(), true);
+    // An Incus stack started on automation writer protocol 2 and keeps it:
+    // the legacy cutover is Docker's alone.
+    const incus = runtime instanceof IncusRuntime ? runtime : null;
+    const installedProtocol =
+      incus === null ? await tagDeploymentProtocol(getProjectId(), true) : 2;
     // A cut first boot of the new release left part of its migrations in
     // this database (they were written to run beside v0.5.77, no older
     // release). Only `tale deploy` may finish that cutover.
@@ -215,6 +221,24 @@ export async function rollback(
         logger.info('Rollback cancelled');
         return;
       }
+    }
+
+    // On Incus: the same flip toward the previous release, through the
+    // switch, journaled so an interrupted rollback resumes (design 7.3).
+    if (incus !== null) {
+      await rollbackOnIncus({
+        workspace: incusWorkspaceOf(incus, {
+          env,
+          hostAlias: process.env.HOST ?? 'localhost',
+        }),
+        currentColor,
+        currentVersion,
+        rollbackVersion,
+      });
+      logger.success(
+        `Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`,
+      );
+      return;
     }
 
     const serviceConfig: ServiceConfig = {

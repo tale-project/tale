@@ -142,14 +142,14 @@ Die erste Zeile nennt die Laufzeit, die der Workspace deklariert. In einem Works
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
 - `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tools und Modelle der Agenten, Review-Kontexte, Automatisierungen und die Arbeitsverteilung von Projekten) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
 - `--dry-run` — Vorschau ohne Änderungen: `.env` und `tale.json` bleiben, wie sie sind, und die Vorschau nennt, was ein echter Lauf dort schreiben würde.
-- `--plan-only` — mit `--bundle <directory>` eines Deployments auf der [Incus-Laufzeit](#managed-incus-runtime): gibt den Plan jeder Incus-Ressource aus und ändert nichts; `--json` gibt den Plan selbst aus.
-- `--plan <file>` — mit `--bundle <directory>` auf der Incus-Laufzeit: wendet den Plan an, den `--plan-only --json` ausgegeben hat, und nur, solange der Knoten noch genau ihn braucht. Mit `--bundle` auf Incus nimmt `--stop` die Ausfallzeit an, die der Plan nennt; ein Bundle für Docker Compose lehnt alle drei ab.
+- `--plan-only` — auf der Incus-Laufzeit (ein [Workspace](#container-runtime) oder `--bundle <directory>` eines [verwalteten Deployments](#managed-incus-runtime)): gibt den Plan jeder Incus-Ressource aus und ändert nichts; `--json` gibt den Plan selbst aus. Ein Workspace gibt einen Plan je Bereich aus: Volumes, Infrastruktur, zustandsbehaftete Dienste und die Farbe, die er startet.
+- `--plan <file>` — auf der Incus-Laufzeit: wendet den Plan an, den `--plan-only --json` ausgegeben hat, und nur, solange der Knoten noch genau ihn braucht; ein Workspace prüft jeden Bereich, bevor er etwas ändert. Mit `--bundle` auf Incus nimmt `--stop` die Ausfallzeit an, die der Plan nennt; Docker Compose lehnt beide Optionen ab.
 
 #### Die Container-Laufzeit festlegen {#container-runtime}
 
 `tale.json` nennt in `runtime.engine` die Container-Laufzeit, auf der ein Workspace deployt: `docker` (Docker Compose) oder `incus`. Ohne `runtime` oder mit `"engine": "docker"` läuft der Workspace auf Docker Compose, wie jeder Workspace vor diesem Feld. Die Laufzeit ist eine geprüfte Festlegung, nie eine Option pro Befehl: Ein Deployment auf der falschen Laufzeit würde einen zweiten Stack neben dem ersten aufbauen. Einen Wert, den diese CLI nicht kennt, lehnt sie ab, statt ihn als Docker zu lesen; ebenso einen `incus`-Block ohne `"engine": "incus"` und diese Laufzeit ohne ihren Block. `tale update` lässt den Block, wie er ist.
 
-**Einen Workspace auf Incus zu betreiben ist noch nicht verfügbar.** Jeder Befehl, der den Stack steuert (`deploy`, `status`, `logs`, `backup`, `restore` und die übrigen), lehnt einen Workspace mit `"engine": "incus"` mit `running a workspace on Incus is not available yet in this CLI` ab. Entferne `runtime.engine` und `runtime.incus`, um auf Docker zu deployen.
+**Einen Workspace auf Incus betreiben.** Die CLI erreicht die deklarierte Incus-API mit den Zertifikaten in `.tale/incus/` (`client.crt`, `client.key` und `server.crt`, Modus `0600`; `TALE_INCUS_DIR` verlegt sie), und der Sandbox-Spawner bekommt seine eigenen aus `.tale/sandbox-incus/`; `tale incus bootstrap` schreibt beide. Ein Befehl, der den Stack steuert, lehnt ohne sie ab. Bevor es etwas ändert, prüft `tale deploy` den Knoten gegen den Vertrag des Stacks, wie `tale incus check` ohne seine Weiterleitungsproben, und lehnt ein Projekt ab, dessen Limits, Profil, Bridge oder Vertrauen nicht mehr passen (nach einer Änderung der Replikzahlen führe `tale incus bootstrap` erneut aus). Dann bringt es den Stack Bereich für Bereich in den Zielzustand: Volumes, die Resolver und die Verkehrsweiche, die zustandsbehafteten Dienste (ein laufender `db`, `object-store`, `proxy`, Resolver oder die Weiche behält sein Image bis `--stop`), dann die freie Farbe. Jede neue Replik bekommt Verkehr, sobald die Weiche sie aufnimmt; danach wird die alte Farbe abgezogen, geleert, gestoppt und gelöscht, und die Weiche wird nie neu geladen. Ein unterbrochener Farbwechsel läuft beim nächsten `tale deploy` dort weiter, wo er stehen blieb, und `tale status` sagt das. `--services` ersetzt die Repliken der aktiven Farbe einzeln nacheinander. Solange eine Wiederherstellung aussteht, lehnen `deploy`, `rollback`, `start` und `migrate` ab.
 
 `TALE_RUNTIME` sichert die Festlegung nur ab: Auf `docker` oder `incus` gesetzt, lässt es einen Befehl abbrechen, wenn die Festlegung die andere Laufzeit nennt. Eine Laufzeit wählt es nie.
 
@@ -819,6 +819,14 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 `tale rollback` — auf die vorherige Patch-Version zurückrollen (nur Patch-Ebene). Fragt vorher nach Bestätigung.
 
 - `-y, --yes` — die Bestätigungsabfrage überspringen (im nicht-interaktiven Betrieb erforderlich).
+
+`tale stop` — die ganze Umgebung geordnet stoppen, in drei Schritten: der Edge, die Verkehrsweiche und beide Farben; dann die Sandbox-Dienste; dann die Datenbank, der Objektspeicher und die Resolver. Jeder Dienst stoppt innerhalb seiner eigenen Frist (Docker: `docker stop -t <Sekunden>`). Auf einem Host, der neben Tale weitere Projekte betreibt, führe es aus, bevor der Host herunterfährt.
+
+- `--dry-run` — die Reihenfolge ausgeben und nichts stoppen.
+
+`tale start` — die gestoppte Umgebung in umgekehrter Reihenfolge wieder starten, jeder Schritt gesund vor dem nächsten. Auf Incus startet es auch einen Dienst neu, den `tale status` als `stopped after repeated crashes` meldet (darunter zeigt der Status die letzten Konsolenzeilen, die Incus behalten hat).
+
+- `--dry-run` — die Reihenfolge ausgeben und nichts starten.
 
 ### Wartung
 

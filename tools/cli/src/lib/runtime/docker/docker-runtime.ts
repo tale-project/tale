@@ -344,7 +344,13 @@ export function createDockerRuntime(
     waitHealthy: (name, options) => waitForHealthy(name, options),
     waitServiceHealthy: (stack, service, options) =>
       waitForServiceHealthy(stack, service, options),
-    stop: (name) => stopContainer(name),
+    stop: (name, graceSeconds) =>
+      graceSeconds === undefined
+        ? stopContainer(name)
+        : docker('stop', '-t', String(graceSeconds), name).then(
+            (result) => result.success,
+          ),
+    start: async (name) => (await docker('start', name)).success,
     remove: (name) => removeContainer(name),
     // Compose attaches a replica to its serving networks as it starts it: a
     // colour takes traffic as soon as it listens.

@@ -138,14 +138,14 @@ The first row names the runtime the workspace declares. In a workspace whose `ta
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
 - `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions, agent tools and models, review contexts, automations and project dispatch) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
 - `--dry-run` — preview what would change without touching anything: `.env` and `tale.json` stay as they are, and the preview names what a real run would write there.
-- `--plan-only` — with `--bundle <directory>` of a deployment on the [Incus runtime](#managed-incus-runtime), print the plan of every Incus resource and change nothing; `--json` prints the plan itself.
-- `--plan <file>` — with `--bundle <directory>` on the Incus runtime, apply the plan `--plan-only --json` printed, and only while the node still needs exactly it. With `--bundle` on Incus, `--stop` accepts the downtime the plan names; a bundle for Docker Compose refuses all three.
+- `--plan-only` — on the Incus runtime (a [workspace](#container-runtime), or `--bundle <directory>` of a [managed deployment](#managed-incus-runtime)), print the plan of every Incus resource and change nothing; `--json` prints the plan itself. A workspace prints one plan per scope: volumes, infrastructure, stateful services and the colour it brings up.
+- `--plan <file>` — on the Incus runtime, apply the plan `--plan-only --json` printed, and only while the node still needs exactly it; a workspace checks every scope before it changes anything. With `--bundle` on Incus, `--stop` accepts the downtime the plan names; Docker Compose refuses both options.
 
 #### Declare the container runtime {#container-runtime}
 
 `tale.json` names the container runtime a workspace deploys on in `runtime.engine`: `docker` (Docker Compose) or `incus`. Without `runtime`, or with `"engine": "docker"`, the workspace runs on Docker Compose, as every workspace did before the field existed. The runtime is a reviewed declaration, never a per-command flag: a deploy on the wrong runtime would build a second stack beside the first. A value this CLI does not know is refused rather than read as Docker, and so are an `incus` block without `"engine": "incus"` and that engine without its block. `tale update` keeps the block as it is.
 
-**Running a workspace on Incus is not available yet.** Every command that drives the stack (`deploy`, `status`, `logs`, `backup`, `restore` and the others) refuses a workspace that declares `"engine": "incus"` with `running a workspace on Incus is not available yet in this CLI`. Remove `runtime.engine` and `runtime.incus` to deploy on Docker.
+**Run a workspace on Incus.** The CLI reaches the declared Incus API with the certificates in `.tale/incus/` (`client.crt`, `client.key` and `server.crt`, mode `0600`; `TALE_INCUS_DIR` moves them), and the sandbox spawner gets its own from `.tale/sandbox-incus/`; `tale incus bootstrap` writes both. A command that drives the stack refuses without them. Before it changes anything, `tale deploy` checks the node against the stack's contract, as `tale incus check` does without its forwarding probes, and refuses a project whose limits, profile, bridge or trust no longer fit (after a change of replica counts, run `tale incus bootstrap` again). It then converges the stack scope by scope: volumes, the resolvers and the traffic switch, the stateful services (a running `db`, `object-store`, `proxy`, resolver or switch keeps its image until `--stop`), then the idle colour. Each new replica takes traffic once the switch admits it; the old colour is then withdrawn, drained, stopped and deleted, and the switch is never reloaded. An interrupted flip resumes from where it stopped on the next `tale deploy`, and `tale status` says so. `--services` replaces the live colour's replicas one at a time. While a restore is pending, `deploy`, `rollback`, `start` and `migrate` refuse.
 
 `TALE_RUNTIME` only guards the declaration: set to `docker` or `incus`, it makes a command refuse when the declaration names the other engine. It never selects an engine.
 
@@ -814,6 +814,14 @@ With `--json`, the report lists each check with its status (`pass`, `fail` or `s
 `tale rollback` — roll back to the previous patch version (patch-level only). Prompts for confirmation before it touches anything.
 
 - `-y, --yes` — skip the confirmation prompt (required when running non-interactively).
+
+`tale stop` — stop the whole environment gracefully, in three steps: the edge, the traffic switch and both colours; then the sandbox services; then the database, the object store and the resolvers. Each service stops within its own grace period (Docker: `docker stop -t <seconds>`). On a host that runs other projects beside Tale, run it before the host shuts down.
+
+- `--dry-run` — print the order and stop nothing.
+
+`tale start` — start the stopped environment again the other way round, each step healthy before the next. On Incus it also restarts a service `tale status` reports as `stopped after repeated crashes` (status shows the last console lines Incus kept under it).
+
+- `--dry-run` — print the order and start nothing.
 
 ### Maintain
 

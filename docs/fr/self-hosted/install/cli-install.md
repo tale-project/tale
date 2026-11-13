@@ -138,14 +138,14 @@ La première ligne indique le runtime que l’espace de travail déclare. Dans u
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
 - `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions, outils et modèles des agents, contextes de révision, automatisations et répartition du travail des projets) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
 - `--dry-run` — prévisualiser sans rien modifier : `.env` et `tale.json` restent tels quels, et l'aperçu indique ce qu'une vraie exécution y écrirait.
-- `--plan-only` — avec `--bundle <directory>` d’un déploiement sur le [runtime Incus](#managed-incus-runtime), affiche le plan de chaque ressource Incus sans rien modifier ; `--json` affiche le plan lui-même.
-- `--plan <file>` — avec `--bundle <directory>` sur le runtime Incus, applique le plan qu’a affiché `--plan-only --json`, et seulement tant que le nœud a encore besoin exactement de lui. Avec `--bundle` sur Incus, `--stop` accepte l’interruption que le plan nomme ; un bundle pour Docker Compose refuse les trois.
+- `--plan-only` — sur le runtime Incus (un [workspace](#container-runtime), ou `--bundle <directory>` d’un [déploiement géré](#managed-incus-runtime)), affiche le plan de chaque ressource Incus sans rien modifier ; `--json` affiche le plan lui-même. Un workspace affiche un plan par périmètre : volumes, infrastructure, services avec état et la couleur qu’il démarre.
+- `--plan <file>` — sur le runtime Incus, applique le plan qu’a affiché `--plan-only --json`, et seulement tant que le nœud a encore besoin exactement de lui ; un workspace vérifie chaque périmètre avant de rien modifier. Avec `--bundle` sur Incus, `--stop` accepte l’interruption que le plan nomme ; Docker Compose refuse les deux options.
 
 #### Déclarer le runtime de conteneurs {#container-runtime}
 
 `tale.json` nomme dans `runtime.engine` le runtime de conteneurs sur lequel un workspace se déploie : `docker` (Docker Compose) ou `incus`. Sans `runtime`, ou avec `"engine": "docker"`, le workspace tourne sur Docker Compose, comme tous les workspaces avant ce champ. Le runtime est une déclaration relue, jamais une option par commande : un déploiement sur le mauvais runtime construirait une seconde stack à côté de la première. Une valeur que cette CLI ne connaît pas est refusée plutôt que lue comme Docker, de même qu’un bloc `incus` sans `"engine": "incus"` et ce runtime sans son bloc. `tale update` garde le bloc tel quel.
 
-**Exécuter un workspace sur Incus n’est pas encore disponible.** Chaque commande qui pilote la stack (`deploy`, `status`, `logs`, `backup`, `restore` et les autres) refuse un workspace qui déclare `"engine": "incus"` avec `running a workspace on Incus is not available yet in this CLI`. Retire `runtime.engine` et `runtime.incus` pour déployer sur Docker.
+**Exécuter un workspace sur Incus.** La CLI joint l’API Incus déclarée avec les certificats de `.tale/incus/` (`client.crt`, `client.key` et `server.crt`, mode `0600` ; `TALE_INCUS_DIR` les déplace), et le spawner du sandbox reçoit les siens depuis `.tale/sandbox-incus/` ; `tale incus bootstrap` écrit les deux. Une commande qui pilote la stack refuse sans eux. Avant de rien modifier, `tale deploy` vérifie le nœud par rapport au contrat de la stack, comme `tale incus check` sans ses sondes de transfert, et refuse un projet dont les limites, le profil, le bridge ou la confiance ne conviennent plus (après un changement du nombre de répliques, relance `tale incus bootstrap`). Il fait ensuite converger la stack périmètre par périmètre : les volumes, les résolveurs et l’aiguillage du trafic, les services avec état (un `db`, `object-store`, `proxy`, résolveur ou aiguillage en marche garde son image jusqu’à `--stop`), puis la couleur inactive. Chaque nouvelle réplique reçoit du trafic dès que l’aiguillage l’admet ; l’ancienne couleur est ensuite retirée, vidée, arrêtée et supprimée, et l’aiguillage n’est jamais rechargé. Un basculement interrompu reprend là où il s’est arrêté au prochain `tale deploy`, et `tale status` le signale. `--services` remplace les répliques de la couleur active une à une. Tant qu’une restauration est en attente, `deploy`, `rollback`, `start` et `migrate` refusent.
 
 `TALE_RUNTIME` ne fait que protéger la déclaration : réglé sur `docker` ou `incus`, il fait refuser une commande quand la déclaration nomme l’autre runtime. Il ne choisit jamais de runtime.
 
@@ -815,6 +815,14 @@ Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `f
 `tale rollback` — revenir à la version patch précédente (niveau patch uniquement). Demande confirmation au préalable.
 
 - `-y, --yes` — ignorer l'invite de confirmation (requis en mode non-interactif).
+
+`tale stop` — arrêter tout l’environnement proprement, en trois étapes : l’edge, l’aiguillage du trafic et les deux couleurs ; puis les services du sandbox ; puis la base de données, le stockage objet et les résolveurs. Chaque service s’arrête dans son propre délai (Docker : `docker stop -t <secondes>`). Sur un hôte qui exécute d’autres projets à côté de Tale, lance-le avant l’arrêt de l’hôte.
+
+- `--dry-run` — afficher l’ordre sans rien arrêter.
+
+`tale start` — redémarrer l’environnement arrêté dans l’ordre inverse, chaque étape saine avant la suivante. Sur Incus, il redémarre aussi un service que `tale status` signale comme `stopped after repeated crashes` (le statut affiche dessous les dernières lignes de console qu’Incus a conservées).
+
+- `--dry-run` — afficher l’ordre sans rien démarrer.
 
 ### Maintenance
 
