@@ -125,7 +125,7 @@ function readyIncus(registries: string[]): FakeIncus {
  * holding both credential directories. */
 async function setup(declared: { egressProxy?: string } = {}): Promise<Setup> {
   // The repository's own compose file and proxy, as a release carries them.
-  const fixture = runtimeFixture();
+  const fixture = runtimeFixture({}, { resolved: true });
   commitRepositorySource(fixture);
   const registry = fakeRegistry(() => fixture.revision);
   const docker: string[] = [];

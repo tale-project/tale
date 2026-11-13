@@ -36,12 +36,15 @@ import { INCUS_BACKEND_MARKER } from './runtime-sandbox';
 import { sourceAutomationProtocol } from './source-automation-protocol';
 import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
-export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
-  // Resolved: macOS's temporary directory lies below the /var symlink, which
-  // the custody check of a private file refuses as an ancestor.
-  const directory = realpathSync(
-    mkdtempSync(join(tmpdir(), 'tale-managed-runtime-')),
-  );
+export function runtimeFixture(
+  proxy: { trustsTerminator?: boolean } = {},
+  { resolved = false }: { resolved?: boolean } = {},
+) {
+  // `resolved` is for a suite whose code checks private files' custody:
+  // macOS's temporary directory lies below the /var symlink, which that check
+  // refuses as an ancestor. Other suites keep the path tmpdir() gives.
+  const made = mkdtempSync(join(tmpdir(), 'tale-managed-runtime-'));
+  const directory = resolved ? realpathSync(made) : made;
   const repoRoot = join(directory, 'repo');
   mkdirSync(join(repoRoot, 'services/proxy'), { recursive: true });
   const source: ComposeDocument = {
