@@ -548,7 +548,13 @@ export class IncusWorkspace {
       },
       waitHealthy: async (instance) => {
         const healthy = await this.waitHealthy(instance.name);
-        if (healthy) return;
+        // Healthy by the CLI's probe is not yet reachable by the switch: a
+        // replica made again in place waits for the switch to admit it
+        // before the next one is withdrawn.
+        if (healthy) {
+          await runtime.awaitSwitchAdmission(instance.name, instance.service);
+          return;
+        }
         // A third-party sidecar is best effort, as on Docker (deploy.ts).
         if (instance.service === 'bgutil-provider') {
           logger.warn(

@@ -177,7 +177,7 @@ export async function detachDevice(
 /** What a custom volume uses on its pool, and its quota (`size`) or the
  * pool's room where it has none (`GET …/volumes/custom/<name>/state`). */
 export async function getVolumeUsage(
-  client: IncusClient,
+  client: Pick<IncusClient, 'project' | 'sync'>,
   pool: string,
   name: string,
 ): Promise<{ used: number; total: number }> {
@@ -189,9 +189,14 @@ export async function getVolumeUsage(
     raw !== null && typeof raw === 'object' && 'usage' in raw
       ? raw.usage
       : undefined;
+  // Incus leaves a zero `used` out (`omitempty`): a fresh copy of a
+  // snapshot on ZFS, which shares every block with its origin, answers
+  // `{"usage":{"total":0}}`. Only an answer with no usage at all is refused.
   const used =
-    usage !== null && typeof usage === 'object' && 'used' in usage
-      ? usage.used
+    usage !== null && typeof usage === 'object'
+      ? 'used' in usage
+        ? usage.used
+        : 0
       : undefined;
   const total =
     usage !== null && typeof usage === 'object' && 'total' in usage
@@ -199,7 +204,7 @@ export async function getVolumeUsage(
       : undefined;
   if (typeof used !== 'number' || !Number.isSafeInteger(used) || used < 0)
     throw new IncusApiError(
-      `Incus answered the state of volume ${name} without its usage`,
+      `Incus answered the state of volume ${name} without its usage: ${JSON.stringify(raw)?.slice(0, 200)}`,
       502,
     );
   return {

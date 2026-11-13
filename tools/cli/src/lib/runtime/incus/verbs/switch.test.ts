@@ -19,7 +19,9 @@ import {
 } from '../compile/stack-target';
 import { IncusRuntime } from '../incus-runtime';
 import {
+  awaitSwitchAdmission,
   renderUpstreams,
+  SWITCH_REACH_TIMEOUT_MS,
   SWITCH_VOLUME,
   switchApplyHooks,
   switchFiles,
@@ -383,5 +385,100 @@ describe('a flip withdraws where its runtime allows (design 7.3, R3-34)', () => 
       `${PROJECT}-blue-backend-api-1`,
       `${PROJECT}-blue-platform-1`,
     ]);
+  });
+});
+
+describePosix('a replica made again waits for the switch to admit it', () => {
+  let fixture: VerbsFixture;
+  const execs: string[] = [];
+  let answers: number[] = [];
+
+  const nic = (address: string) => ({
+    eth0: {
+      type: 'nic',
+      network: 'tale',
+      name: 'eth0',
+      'ipv4.address': `${address}/16`,
+    },
+  });
+
+  beforeEach(() => {
+    fixture = verbsFixture();
+    execs.length = 0;
+    answers = [];
+    seedStackInstance(fixture.fake, 'switch', { service: 'switch' });
+    seedStackInstance(fixture.fake, 'tale-blue-platform-1', {
+      service: 'platform',
+      devices: nic('10.30.1.64'),
+    });
+    seedStackInstance(fixture.fake, 'tale-blue-backend-api-1', {
+      service: 'backend-api',
+      devices: nic('10.30.1.80'),
+    });
+    fixture.fake.exec = (call) => {
+      execs.push(`${call.instance.name}: ${call.command.join(' ')}`);
+      return answers.shift() ?? 0;
+    };
+  });
+
+  test('the stale neighbour entry is flushed once, then the probe is asked until it answers', async () => {
+    answers = [1, 1, 0];
+    const sleeps: number[] = [];
+    await awaitSwitchAdmission(
+      fixture.context,
+      'tale-blue-platform-1',
+      'platform',
+      { sleep: async (ms) => void sleeps.push(ms) },
+    );
+    expect(execs).toEqual([
+      'switch: sh -c ip neigh flush to 10.30.1.64 2>/dev/null; wget -q -T 2 -O /dev/null http://10.30.1.64:3000/api/admission',
+      'switch: sh -c wget -q -T 2 -O /dev/null http://10.30.1.64:3000/api/admission',
+      'switch: sh -c wget -q -T 2 -O /dev/null http://10.30.1.64:3000/api/admission',
+    ]);
+    expect(sleeps).toEqual([1_000, 1_000]);
+  });
+
+  test("a backend replica is asked on the backend's admission door", async () => {
+    await awaitSwitchAdmission(
+      fixture.context,
+      'tale-blue-backend-api-1',
+      'backend-api',
+    );
+    expect(execs).toEqual([
+      'switch: sh -c ip neigh flush to 10.30.1.80 2>/dev/null; wget -q -T 2 -O /dev/null http://10.30.1.80:3005/admission',
+    ]);
+  });
+
+  test('a service the switch does not hold, or a stack whose switch is down, waits for nothing', async () => {
+    await awaitSwitchAdmission(fixture.context, 'db', 'db');
+    const down = fixture.fake.instances.get('switch');
+    if (down !== undefined) down.status = 'Stopped';
+    await awaitSwitchAdmission(
+      fixture.context,
+      'tale-blue-platform-1',
+      'platform',
+    );
+    expect(execs).toEqual([]);
+  });
+
+  test('a replica the switch never reaches stops the roll', async () => {
+    answers = Array.from({ length: 1_000 }, () => 1);
+    let clock = 0;
+    await expect(
+      awaitSwitchAdmission(
+        fixture.context,
+        'tale-blue-platform-1',
+        'platform',
+        {
+          sleep: async (ms) => {
+            clock += ms;
+          },
+          now: () => clock,
+        },
+      ),
+    ).rejects.toThrow(
+      'The switch cannot reach tale-blue-platform-1 at http://10.30.1.64:3000/api/admission',
+    );
+    expect(clock).toBe(SWITCH_REACH_TIMEOUT_MS);
   });
 });

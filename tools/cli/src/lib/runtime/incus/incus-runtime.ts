@@ -93,6 +93,7 @@ import { probeIncus, type IncusProbe } from './verbs/probe';
 import { IncusSnapshotStore } from './verbs/snapshots';
 import {
   admitReplicas,
+  awaitSwitchAdmission,
   switchApplyHooks,
   withdrawReplicas,
   type SwitchDependencies,
@@ -832,6 +833,17 @@ export class IncusRuntime implements StackRuntime {
     return switchApplyHooks(this.verbContext, this.switchDependencies);
   }
 
+  /** Wait until the switch reaches a switched replica just made, and finds
+   * it admitted (a no-op for any other service). */
+  awaitSwitchAdmission(name: string, service: string): Promise<void> {
+    return awaitSwitchAdmission(
+      this.verbContext,
+      this.instanceName(name),
+      service,
+      this.switchDependencies,
+    );
+  }
+
   /** Nothing to clean up synchronously (D-12): the journal records the
    * interrupt, and the next run plans from what the node holds. */
   onInterrupt(): void {
@@ -968,22 +980,40 @@ export class IncusRuntime implements StackRuntime {
     return crashReport(this.verbContext, this.instanceName(name), lines);
   }
 
-  /** The `tale-proxy` image helpers run from. */
-  private helper(): { alias: string; digest?: string } {
+  /** The `tale-proxy` image helpers run from: the one the deploy compiled,
+   * or, for a command outside a deploy (`tale backup`, `restore`, `reset`),
+   * the one the stack's own edge runs. */
+  private async helper(): Promise<{ alias: string; digest?: string }> {
     if (this.helperImage !== undefined) return this.helperImage;
     const proxy = this.target?.images.find((image) =>
       image.services.includes('proxy'),
     );
-    if (proxy === undefined)
+    if (proxy !== undefined)
+      return { alias: proxy.alias, digest: proxy.digest };
+    const edge = (await this.client.getInstance(this.instanceName('proxy')))
+      ?.instance.config;
+    const fingerprint = edge?.['volatile.base_image'];
+    const alias =
+      fingerprint === undefined
+        ? undefined
+        : (await this.client.listImageAliases()).find(
+            (entry) => entry.target === fingerprint,
+          );
+    if (alias === undefined)
       throw preconditionError(
         "A one-shot job on Incus runs from the release's tale-proxy image, and this runtime knows none yet.",
+        'Deploy the stack once (tale deploy), which pulls it.',
       );
-    return { alias: proxy.alias, digest: proxy.digest };
+    const digest = edge?.['user.tale.image'];
+    return {
+      alias: alias.name,
+      ...(digest === undefined || digest === '' ? {} : { digest }),
+    };
   }
 
   /** Run one helper job over volumes (design D-30) and delete the helper. */
-  oneShot(job: OneShotJob): Promise<ExecResult> {
-    const helper = this.helper();
+  async oneShot(job: OneShotJob): Promise<ExecResult> {
+    const helper = await this.helper();
     return runOneShot(this.verbContext, job, {
       image: helper.alias,
       ...(helper.digest === undefined ? {} : { digest: helper.digest }),

@@ -351,6 +351,36 @@ describePosix('applying a managed bundle on Incus', () => {
     ).toBe('ready');
   });
 
+  test('each replica made waits for the switch to admit it after its health gate', async () => {
+    const { options, dependencies } = await setup();
+    const runtime = dependencies.incusRuntime!;
+    const { waitHealthy: _fakeGate, ...hooks } = dependencies.hooks!;
+    const order: string[] = [];
+    runtime.waitHealthy = async (name) => {
+      order.push(`healthy ${name}`);
+      return true;
+    };
+    runtime.awaitSwitchAdmission = async (name, service) => {
+      order.push(`admitted ${name} ${service}`);
+    };
+    await applyIncusRuntime(options, { ...dependencies, hooks });
+    // The hook asks the switch right after each replica's health gate (the
+    // readback after the apply waits on health alone).
+    const admitted = order.flatMap((entry, index) =>
+      entry.startsWith('admitted ') ? [index] : [],
+    );
+    for (const index of admitted)
+      expect(order[index - 1]).toBe(
+        `healthy ${order[index]!.split(' ')[1] ?? ''}`,
+      );
+    expect(admitted.map((index) => order[index])).toEqual(
+      expect.arrayContaining([
+        'admitted platform-1 platform',
+        'admitted backend-api-1 backend-api',
+      ]),
+    );
+  });
+
   test('a second apply of the same bundle changes nothing', async () => {
     const { fake, options, dependencies } = await setup();
     await applyIncusRuntime(options, dependencies);

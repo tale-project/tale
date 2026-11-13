@@ -36,7 +36,7 @@ on:
           - ubuntu-latest
         default: ubicloud-standard-8
       suites:
-        description: 'The suites to run: all, or a comma-separated choice of bootstrap, managed, fresh-noop, logs, crash-loop, stop, sandbox, export-client, secrets'
+        description: 'The suites to run: all, or a comma-separated choice of bootstrap, managed, fresh-noop, logs, crash-loop, stop, sandbox, export-client, flip, streams, infra-skew, services-rollback, resume, withdraw-restart, backup, reset-keeps-backups, restore-history, reboot, migrate, secrets'
         type: string
         default: all
 
@@ -92,7 +92,7 @@ jobs:
       github.event.pull_request.draft != true &&
       github.event.pull_request.head.repo.fork != true))
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
-    timeout-minutes: 150
+    timeout-minutes: 330
     permissions:
       contents: read
       # The shared layer caches of the image builds, read, never written.
@@ -103,6 +103,12 @@ jobs:
       TALE_E2E_ROOT: sudo -E
       TALE_E2E_REGISTRY: 127.0.0.1:5000
       TALE_E2E_VERSION: 0.0.0
+      # The workspace suites' two releases, a patch apart.
+      TALE_E2E_RELEASES: 0.5.901,0.5.902
+      # The runner is the run's own: the reboot suite may shut the node
+      # down, and the migrate suite may restart dockerd.
+      TALE_E2E_HOST_RESTART: '1'
+      TALE_E2E_RESTART_DOCKERD: '1'
 
     steps:
       - name: Checkout
@@ -228,6 +234,11 @@ jobs:
           set -euo pipefail
           bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_REVISION" "$TALE_E2E_VERSION"
           bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_NEXT_REVISION" "$TALE_E2E_VERSION"
+          # A workspace deploys a release by its version: the same images,
+          # labelled and tagged as releases N and N+1.
+          IFS=, read -r first second <<<"$TALE_E2E_RELEASES"
+          TAG="$first" bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_REVISION" "$first"
+          TAG="$second" bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_NEXT_REVISION" "$second"
 
       - name: Record the node's lifecycle events
         run: bash services/sandbox/e2e/incus/lab.sh events
@@ -307,6 +318,87 @@ jobs:
         run: |
           set -euo pipefail
           bun test --timeout 3600000 ./e2e/incus/suites/export-client.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/export-client.log"
+
+      # The workspace suites: a workspace of its own on the same node,
+      # deployed by the CLI built as releases N and N+1
+      # (tools/cli/e2e/incus/workspace.ts).
+
+      - name: Twenty flips under load through the edge
+        if: ${{ !cancelled() && steps.pick.outputs.flip == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/flip.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/flip.log"
+
+      - name: Streams across a flip and an in-place roll
+        if: ${{ !cancelled() && steps.pick.outputs.streams == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/streams.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/streams.log"
+
+      - name: Release N+1's CLI over release N's switch and resolvers
+        if: ${{ !cancelled() && steps.pick.outputs.infra-skew == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/infra-skew.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/infra-skew.log"
+
+      - name: An in-place roll and a rollback
+        if: ${{ !cancelled() && steps.pick.outputs.services-rollback == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/services-rollback.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/services-rollback.log"
+
+      - name: The CLI killed in each phase
+        if: ${{ !cancelled() && steps.pick.outputs.resume == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/resume.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/resume.log"
+
+      - name: A replica restarted with root's markers
+        if: ${{ !cancelled() && steps.pick.outputs.withdraw-restart == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/withdraw-restart.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/withdraw-restart.log"
+
+      - name: Snapshots, archives, export, import and prune
+        if: ${{ !cancelled() && steps.pick.outputs.backup == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/backup.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/backup.log"
+
+      - name: A reset keeps the backups
+        if: ${{ !cancelled() && steps.pick.outputs.reset-keeps-backups == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/reset-keeps-backups.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/reset-keeps-backups.log"
+
+      - name: Restore history, and a restore killed after each step
+        if: ${{ !cancelled() && steps.pick.outputs.restore-history == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/restore-history.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/restore-history.log"
+
+      - name: A host shutdown and restart
+        if: ${{ !cancelled() && steps.pick.outputs.reboot == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/reboot.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/reboot.log"
+
+      - name: A Docker deployment on the same host moved to Incus
+        if: ${{ !cancelled() && steps.pick.outputs.migrate == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/migrate.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/migrate.log"
 
       # Last: it reads what every suite before it made the CLI say.
       - name: No secret in any output

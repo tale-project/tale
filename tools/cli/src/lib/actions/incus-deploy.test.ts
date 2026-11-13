@@ -491,10 +491,18 @@ describePosix('a flip from N to N+1 (design 7.3, R3-02, R3-34)', () => {
     expect(await getCurrentColor(setup.deployDir)).toBe('green');
     expect(await getPreviousVersion(setup.deployDir)).toBe(N);
     // The switch was neither made again nor reloaded, and its lists are
-    // the ones it was made with.
+    // the ones it was made with. It runs nothing but the admission probes
+    // of the replicas made (each green replica's, once).
     expect(setup.fake.instances.get('switch')).toBe(switchBefore);
     expect(volumeFile('switch-config', '/platform.upstreams')).toBe(upstreams);
-    expect(setup.execs.some((exec) => exec.instance === 'switch')).toBe(false);
+    const inSwitch = setup.execs
+      .filter((exec) => exec.instance === 'switch')
+      .map((exec) => exec.command);
+    expect(inSwitch.length).toBeGreaterThan(0);
+    for (const command of inSwitch)
+      expect(command).toMatch(
+        /^sh -c ip neigh flush to [0-9.]+ 2>\/dev\/null; wget -q -T 2 -O \/dev\/null http:\/\/[0-9.]+:(3000\/api|3005)\/admission$/,
+      );
     // Withdraw (as the app user) before the drain, on Incus.
     const withdraw = setup.execs.findIndex(
       (exec) =>

@@ -278,7 +278,7 @@ export function deploymentEnvironment(lab: LabConfig): Record<string, string> {
 
 /** The environment every CLI run gets: no terminal, no colour, the values
  * behind the specification's references. */
-function cliEnvironment(lab: LabConfig): Record<string, string> {
+export function cliEnvironment(lab: LabConfig): Record<string, string> {
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter(
       (entry): entry is [string, string] =>
@@ -295,10 +295,21 @@ function cliEnvironment(lab: LabConfig): Record<string, string> {
   };
 }
 
+/** Keep what a CLI run said in `logs/cli.log` (the secrets suite reads
+ * every line of it). */
+export function logRun(lab: LabConfig, run: Run, note = ''): void {
+  mkdirSync(paths(lab).logs, { recursive: true });
+  appendFileSync(
+    join(paths(lab).logs, 'cli.log'),
+    `\n$ tale ${run.args.join(' ')}\n# exit ${run.code} after ${run.ms} ms${note}\n${run.stdout}${run.stderr}`,
+  );
+}
+
 /**
  * Run the compiled CLI, keep what it said in `logs/cli.log` (the secrets
  * suite reads every line of it), and hand the result back. `prefix` runs it
- * as the administrator.
+ * as the administrator; `binary` runs another build of the CLI (a
+ * workspace's release, `workspace.ts`), and `env` adds to its environment.
  */
 export function cli(
   lab: LabConfig,
@@ -308,13 +319,16 @@ export function cli(
     input?: string;
     timeoutMs?: number;
     cwd?: string;
+    binary?: string;
+    env?: Record<string, string>;
   } = {},
 ): Run {
-  const argv = [...(options.prefix ?? []), lab.cli, ...args];
+  const binary = options.binary ?? lab.cli;
+  const argv = [...(options.prefix ?? []), binary, ...args];
   const started = performance.now();
-  const result = spawnSync(argv[0] ?? lab.cli, argv.slice(1), {
+  const result = spawnSync(argv[0] ?? binary, argv.slice(1), {
     cwd: options.cwd ?? lab.dir,
-    env: cliEnvironment(lab),
+    env: { ...cliEnvironment(lab), ...options.env },
     encoding: 'utf8',
     input: options.input ?? '',
     timeout: options.timeoutMs ?? 45 * 60_000,
@@ -327,11 +341,7 @@ export function cli(
     stderr: `${result.stderr ?? ''}${result.error === undefined ? '' : `\n${String(result.error)}`}`,
     ms: Math.round(performance.now() - started),
   };
-  mkdirSync(paths(lab).logs, { recursive: true });
-  appendFileSync(
-    join(paths(lab).logs, 'cli.log'),
-    `\n$ tale ${args.join(' ')}\n# exit ${run.code} after ${run.ms} ms\n${run.stdout}${run.stderr}`,
-  );
+  logRun(lab, run);
   return run;
 }
 

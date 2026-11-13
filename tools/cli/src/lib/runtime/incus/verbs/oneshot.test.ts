@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
+import { IncusRuntime } from '../incus-runtime';
 import { helperDevices, helperName, reapHelpers, runOneShot } from './oneshot';
 import {
   POOL,
@@ -151,5 +152,57 @@ describePosix('one-shot helpers', () => {
       'job-other-00000004',
       'job-snapshot-00000003',
     ]);
+  });
+});
+
+describePosix('a command outside a deploy', () => {
+  const runtimeOf = () =>
+    new IncusRuntime({
+      client: fixture.context.client,
+      declaration: {
+        project: 'tale-stack',
+        pool: POOL,
+        network: {
+          name: 'talebr0',
+          subnet: '10.30.0.0/16',
+          gateway: '10.30.0.1',
+          block: '10.30.1.0/24',
+        },
+        sessions: { subnet: '10.31.0.0/24' },
+        ingress: { mode: 'routed' },
+      },
+      stack: STACK,
+      stateRoot: fixture.stateRoot,
+    });
+  const job = {
+    image: 'alpine:3.22',
+    purpose: 'snapshot',
+    mounts: [{ volume: 'db-data', target: '/data', readOnly: true }],
+    argv: ['true'],
+    timeoutS: 30,
+  };
+
+  test("runs its helpers from the image the stack's edge runs (`tale backup`, `restore`, `reset`)", async () => {
+    seedStackVolume(fixture.fake, 'db-data');
+    // The edge, from the alias the deploy pulled; another alias points
+    // elsewhere.
+    fixture.fake.addImage('tale-db-0123', 'b'.repeat(64));
+    seedStackInstance(fixture.fake, 'proxy', {
+      config: { 'volatile.base_image': 'a'.repeat(64) },
+    });
+    const result = await runtimeOf().oneShot(job);
+    expect(result.success).toBe(true);
+    expect(fixture.fake.seen('POST /1.0/instances')[0]?.body).toMatchObject({
+      source: { type: 'image', alias: HELPER_IMAGE },
+      config: expect.objectContaining({ 'user.tale.image': WITH_TIMEOUT }),
+    });
+  });
+
+  test('is refused with its remedy while the stack has no edge yet', async () => {
+    seedStackVolume(fixture.fake, 'db-data');
+    await expect(runtimeOf().oneShot(job)).rejects.toThrow(
+      "A one-shot job on Incus runs from the release's tale-proxy image, and this runtime knows none yet.",
+    );
+    expect(fixture.fake.seen('POST /1.0/instances')).toEqual([]);
   });
 });
