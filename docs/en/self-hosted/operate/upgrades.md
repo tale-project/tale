@@ -67,6 +67,40 @@ An open tab normally keeps working across the handover. If a required part is no
 
 If the new group does not become healthy within `HEALTH_CHECK_TIMEOUT`, the deploy does not complete the flip. Inspect the recorded deployment state and logs before retrying. An interrupted rollout can leave both groups or pending handover state; use the CLI's recovery output rather than deleting containers or state files by hand.
 
+## Upgrade a workspace on Incus {#incus}
+
+A workspace on the experimental [Incus runtime](/self-hosted/install/incus) upgrades with the same `tale update` and `tale deploy`. What differs is how the CLI changes the stack and hands traffic from one colour to the other. A managed deployment on Incus has no colours and replaces each service in place, and its upgrade is refused for now; see [the current limits](/self-hosted/install/incus#limits).
+
+### Review the plan first {#incus-plan}
+
+```bash
+tale --json deploy --plan-only > plan.json
+tale deploy --plan plan.json
+```
+
+`--plan-only` prints one plan per scope, for the volumes, the infrastructure, the stateful services and the colour it brings up, and changes nothing. `--plan` applies the reviewed plan only while the node still needs exactly it, and checks every scope before it changes anything. Before any change, `tale deploy` checks the node against the stack's contract; after you raise a replica count, run `tale incus bootstrap` again so that the project's limits fit. The snapshot before a version change is a native set, taken under a freeze of well under a second, as [Snapshots on Incus](/self-hosted/operate/backups-and-restore#incus) describes.
+
+### Replace the stop-gated services {#incus-stop-gated}
+
+On Incus the stop-gated tier is larger: besides `db`, `object-store` and `proxy`, the resolvers (`names`, `names-sessions`) and the traffic switch keep the image they run until a deploy with `--stop`, and the CLI reports what it left. Replacing the switch or the proxy interrupts all traffic until the new instance is healthy, so plan a short window for `tale deploy --stop`.
+
+### Follow the colour flip {#incus-flip}
+
+The traffic switch is an instance of the proxy image that stands in front of the `platform` and `backend-api` replicas. It lists every replica address of both colours from the start and is never reloaded during a flip, a rolling replacement or a rollback. Each replica of the new colour takes traffic once it passes the switch's admission probe, which a replica answers only once it is ready, and the CLI waits until every replica is healthy.
+
+The CLI then withdraws the old colour: it marks each old replica so that its admission probe fails, and within seconds the switch sends it no new request. The replica's `/api/health` keeps its meaning and fails only after its stop signal, so the edge's own health check is not disturbed. Open streams, such as a page's live updates, stay open on the old colour. Then the drains run as described above, each old replica stops within its grace period and is deleted, and its streams end there: the clients reconnect to the new colour. On Docker the order differs, because the old containers leave the serving networks only after the drains.
+
+If a deploy stops partway through the flip, the next `tale deploy` continues from the recorded phase, and `tale status` reports the unfinished flip until then; do not delete instances by hand. `--services` replaces the live colour's replicas one at a time instead: each is withdrawn, drained, replaced, and healthy before the next one goes. `tale rollback` takes the same steps towards the previous version.
+
+### Stop and start the environment {#incus-stop-start}
+
+```bash
+tale stop
+tale start
+```
+
+`tale stop` stops the environment in three groups: the edge, the switch and both colours; then the sandbox services; then the databases, the object store and the resolvers. Each service gets its own grace period. `tale start` starts the groups the other way round, each healthy before the next, also starts a service Incus stopped after repeated crashes, and refuses while a restore is pending. `--dry-run` prints the order and changes nothing. On a host that runs other projects beside Tale, run `tale stop` before the host shuts down: Incus then stops every project's groups one after another, for up to 30 seconds each, and the databases can be cut off before their stop signal, as [Plan for host shutdown](/self-hosted/install/incus#host-shutdown) explains.
+
 ## Check migrations and the user outcome
 
 At boot, the backend applies its numbered migrations in file-name order under a session advisory lock. SQL migrations change the schema; TypeScript data migrations update existing rows by the application's own rules. The `app_migrations` table records both kinds by file name, so each runs once per database. Other replicas wait for that migration path. A migration error prevents the new backend from starting normally; inspect its error and the database before retrying. Forward-only migrations are not undone by changing an image tag.

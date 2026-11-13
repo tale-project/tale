@@ -61,6 +61,17 @@ Halte die HTTP-Verbindung privat. Der Proxy-Container veröffentlicht Port 80. E
 
 Wenn du stattdessen ein eigenes Tale-Proxy-Image mit eigener Caddyfile verwaltest, binde Zertifikat und privaten Schlüssel nur lesbar ein und konfiguriere Caddys Direktive `tls <cert-file> <key-file>`. Ein Mount oder `TLS_MODE=external` allein lädt die Dateien nicht. Die eigene Konfiguration muss Tales Routen, Zustandsprüfungen und Metrikschutz erhalten.
 
+## Den Proxy auf Incus erreichen {#incus}
+
+Auf der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus) entscheidet `runtime.incus.ingress.mode`, wie Verkehr die Instanz `proxy` erreicht. Die TLS-Modi oben gelten unverändert.
+
+| Eingang | Wie der Verkehr ankommt | Was du prüfst |
+| --- | --- | --- |
+| `proxy-device` | Incus veröffentlicht die Ports 80 und 443 auf dem Host über NAT-Proxy-Geräte an der Instanz `proxy`, auf der Adresse, die `ingress.listen` nennt, oder auf jeder IPv4-Adresse. Sie erhalten die Adresse des Clients. | Öffentliches DNS und beide Ports erreichen den Host, wie unter Docker. Docker darf auf demselben Host 80 oder 443 nicht zusätzlich veröffentlichen. |
+| `routed` | Nichts wird veröffentlicht. Dein eigener Forward oder Reverse Proxy erreicht die Instanz `proxy` an Offset 4 im festgelegten `block` (`10.30.0.4` für den Block `10.30.0.0/24`), auf Port 80. | Meist mit `TLS_MODE=external`: Setze `TRUSTED_PROXIES` auf die Adresse, von der dein Proxy verbindet, und halte Port 80 für alle anderen geschlossen. |
+
+Ein NAT-Proxy-Gerät nimmt keinen Verkehr an, den der Host an seine eigene Loopback-Adresse schickt. Öffne die Seite auf dem Host selbst über seine eigene Adresse oder seinen öffentlichen Namen, nicht über `localhost`. Mit `letsencrypt` bewahrt Caddy seine Zertifikate auch auf Incus im Volume `caddy-data` auf, und ein Snapshot-Satz enthält es. Läuft Docker auf demselben Host, stören seine eigenen Ports und seine Firewall die Proxy-Geräte; siehe [Einen Host mit Docker teilen](/de/self-hosted/install/incus#docker-coexistence).
+
 ## Öffentliche Domain oder Basispfad ändern
 
 Ändere `HOST` und `SITE_URL` gemeinsam. Prüfe auch öffentliche Speicherendpunkte und Callback-Registrierungen beim Identitätsanbieter, die den alten Ursprung verwenden. Erstelle betroffene Anwendungs- und Proxy-Dienste neu. Teste anschließend Anmeldung, Download einer vorhandenen Datei, Upload und eine live aktualisierte Seite unter der neuen URL.

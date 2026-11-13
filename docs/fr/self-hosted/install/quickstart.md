@@ -103,6 +103,6 @@ Réessaie après avoir corrigé la cause signalée ; conserve `.env` et les vol
 
 ## Préparer la production
 
-`tale deploy` applique la configuration du projet sur l’hôte Docker choisi. Le développement et le déploiement utilisent des volumes distincts : le compte local, les chats et les fichiers téléversés ne sont pas transférés. Prépare DNS, TLS, sauvegardes et contrôles d’accès avant d’ajouter ton équipe.
+`tale deploy` applique la configuration du projet sur l’hôte Docker choisi. Pour exécuter plutôt le déploiement sous forme d’instances Incus sur un hôte Linux, déclare le runtime Incus dans `tale.json` avant le premier déploiement, comme le décrit [Exécuter Tale sur Incus](/fr/self-hosted/install/incus#declare) ; ce runtime est expérimental, et `tale dev` reste sur Docker. Le développement et le déploiement utilisent des volumes distincts : le compte local, les chats et les fichiers téléversés ne sont pas transférés. Prépare DNS, TLS, sauvegardes et contrôles d’accès avant d’ajouter ton équipe.
 
 Lis [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains), [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) et [Renforcement](/fr/self-hosted/operate/security/hardening). Si tu dois maintenir toi-même les définitions des services, utilise [Exécuter ton propre Compose](/fr/self-hosted/install/own-compose).

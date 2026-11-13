@@ -19,7 +19,7 @@ Du brauchst:
 
 - Einen Rechner mit macOS, Linux oder Windows mit PowerShell.
 - Für lokale Container unter der Docker-Laufzeit, dem Standard: Docker Engine 24.0 oder neuer mit Compose und einen laufenden Docker-Daemon. Die Schichten der Tale-Images sind mit zstd komprimiert, und Docker lädt solche Schichten ab Engine 23.0. `tale doctor` meldet eine ältere Engine; `tale dev` und `tale deploy`, auch mit einem Bundle, brechen dann ab, bevor sie Images herunterladen.
-- Für ein verwaltetes Deployment unter der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus): stattdessen einen Linux-Host mit Incus; weder die Vorbereitung noch das Deployment braucht Docker.
+- Für einen Workspace oder ein verwaltetes Deployment unter der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus): stattdessen einen Linux-Host mit Incus; weder das Deployment noch die Vorbereitung eines verwalteten Bundles braucht Docker.
 - Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon mit Docker Engine 24.0 oder neuer, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
 
 Den mitgelieferten Objektspeicher gibt es derzeit nur als `linux/amd64`-Image. Auf ARM64-Hosts brauchen lokale Entwicklung und Workspace-Deployments deshalb eine funktionierende amd64-Emulation: Docker Desktop bringt sie mit; auf einem eigenständigen Linux-Docker-Host muss [QEMU auf dem Host registriert sein](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale wählt das amd64-Image aus, installiert aber keine Emulation. Verwaltete Bundles benötigen weiterhin native Images für ihre deklarierte Architektur. Ein verwaltetes ARM64-Deployment ist daher erst mit einem nativen Objektspeicher-Image möglich.
@@ -814,10 +814,25 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 
 `tale backup` — unterstützte, vorhandene Projekt-Volumes sichern. Keine Argumente. Externe Datenbanken und Buckets brauchen eigene Backups; siehe [Sicherungsumfang](/de/self-hosted/operate/backups-and-restore).
 
+- `--archive` — unter Incus zusätzlich ein `tar.gz`-Archiv jedes Volumes nach `backups` schreiben, damit der Snapshot seinen Storage-Pool überdauert. Docker schreibt die Archive immer.
+
+`tale backup export <snapshot-id>` — einen Snapshot als eine einzige Datei schreiben, mit seinem Manifest und dem `tar.gz`-Archiv jedes Volumes, auf beiden Laufzeiten; unter Incus schreibt es zuerst die Archive, die einem nativen Snapshot fehlen. Es überschreibt nie eine Datei. Siehe [Einen Snapshot auf einen anderen Host oder eine andere Laufzeit bringen](/de/self-hosted/operate/backups-and-restore#export-import).
+
+- `--to <datei>` — wohin es schreibt. Standard: `tale-snapshot-<snapshot-id>.tar` im aktuellen Verzeichnis.
+
+`tale backup import <datei>` — eine Datei, die `tale backup export` geschrieben hat, in das Volume `backups` einlesen und jedes Archiv beim Eintreffen per SHA-256 prüfen, sodass `tale restore` den Snapshot auflistet. Eine Snapshot-ID, die der Workspace schon hat, lehnt es ab. Unter Incus rollst du den Workspace vorher einmal aus, damit sein Volume `backups` existiert.
+
+`tale backup prune` — unter Incus die Volumes auflisten, die Wiederherstellungen beiseitegestellt haben (`<volume>.pre-restore-<zeitstempel>`), und nach Rückfrage die löschen, auf denen kein aufgelisteter Snapshot mehr liegt.
+
+- `--dry-run` — sie nur auflisten.
+- `-y, --yes` — die Rückfrage überspringen.
+
 `tale restore [snapshot-id]` — einen Snapshot wiederherstellen; ohne ID werden die verfügbaren Snapshots aufgelistet.
 
 - `--stop` — vor dem Wiederherstellen die Projekt-Container stoppen, die laufen, gerade neu gestartet werden oder pausiert sind. Ohne die Option verweigert die CLI die Wiederherstellung und nennt diese Container.
 - `-y, --yes` — die Bestätigungsabfrage überspringen.
+- `--resume` — unter Incus die Wiederherstellung abschließen, die ein unterbrochener Lauf offen gelassen hat.
+- `--abort` — unter Incus die offene Wiederherstellung rückgängig machen und jedes Volume wieder so herstellen, wie es war.
 
 `tale rollback` — auf die vorherige Patch-Version zurückrollen (nur Patch-Ebene). Fragt vorher nach Bestätigung.
 
@@ -849,12 +864,14 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 
 - `-f, --force` — die Bestätigungsabfrage überspringen.
 - `-a, --all` — auch die zustandsbehafteten Infrastruktur-Container entfernen und die Daten-Volumes des Projekts löschen: die Datenbank, die Konfiguration der Organisationen, die hochgeladenen Dateien, die Proxy-Zertifikate und den Speicher des Modell-Gateways. Das lässt sich nicht rückgängig machen. Das Volume `backups` des Projekts mit den Snapshots, die `tale restore` auflistet, bleibt erhalten; lösch es mit `docker volume rm <project-id>_backups`, sobald du sie nicht mehr brauchst.
+- `--discard-snapshots` — unter Incus, mit `--all`: die Daten-Volumes auch dann löschen, wenn sich der neueste Snapshot vorher nicht nach `backups` archivieren lässt; ihre nativen Snapshots gehen verloren. Siehe [Wissen, was ein Reset behält](/de/self-hosted/operate/backups-and-restore#reset).
 - `--dry-run` — den Reset vorab anzeigen, ohne Änderungen.
 
 `tale uninstall` — das `tale`-CLI-Binary von diesem System entfernen. Fragt nach, bevor etwas gelöscht wird, und _bietet an_, zusätzlich das [Sandbox-Gerät](#sandbox-device) dieses Rechners zu trennen, das vom eingestellten `tale daemon` hinterlassene `~/.tale-daemon` zu entfernen und die Docker-Ressourcen und Dateien eines Projekts abzubauen. Ohne `--purge` bleiben ein Projekt und seine Container unangetastet — führ darin `tale reset --all` aus, um sie zu entfernen. Lässt sich das Sandbox-Gerät nicht stoppen, wird nichts deinstalliert.
 
 - `-f, --force` — die Bestätigungsabfrage überspringen (entfernt nur das Binary; die optionalen Aufräumschritte brauchen weiterhin `--purge`).
 - `--purge` — zusätzlich das Sandbox-Gerät trennen und seine Arbeitsbereiche löschen, `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen wie `tale reset --all` abbauen, wobei sein Volume `backups` erhalten bleibt, und seine Dateien löschen. Nicht umkehrbar.
+- `--discard-snapshots` — unter Incus, mit `--purge`: das Projekt auch dann abbauen, wenn sich sein neuester Snapshot vorher nicht nach `backups` archivieren lässt; seine nativen Snapshots gehen verloren.
 - `--dry-run` — anzeigen, was entfernt würde, ohne etwas zu entfernen.
 
 `tale config show` — das aufgelöste lokale Projektverzeichnis und die CLI-Version ausgeben. Außerhalb eines Projekts meldet der Befehl, dass er keines gefunden hat, und endet ohne Fehler.

@@ -61,6 +61,17 @@ Keep the HTTP hop private. The proxy container publishes port 80, so allow only 
 
 If you maintain a custom Tale proxy image and Caddyfile instead, mount your certificate and private key read-only and configure Caddy's `tls <cert-file> <key-file>` directive yourself. Merely mounting the files or setting `TLS_MODE=external` does not make Caddy load them. The custom configuration must retain Tale's routes, health behavior, and metrics protection.
 
+## Reach the proxy on Incus {#incus}
+
+On the experimental [Incus runtime](/self-hosted/install/incus), `runtime.incus.ingress.mode` decides how traffic reaches the `proxy` instance. The TLS modes above apply unchanged.
+
+| Ingress | How traffic arrives | What to check |
+| --- | --- | --- |
+| `proxy-device` | Incus publishes ports 80 and 443 on the host through NAT proxy devices on the `proxy` instance, on the address `ingress.listen` names or on every IPv4 address. They keep the client's address. | Public DNS and both ports reach the host, as for Docker. Docker on the same host must not publish 80 or 443 as well. |
+| `routed` | Nothing is published. Your own forward or reverse proxy reaches the `proxy` instance at offset 4 in the declared `block` (`10.30.0.4` for the block `10.30.0.0/24`), on port 80. | Usually with `TLS_MODE=external`: set `TRUSTED_PROXIES` to the address your proxy connects from, and keep port 80 closed to everyone else. |
+
+A NAT proxy device takes no traffic that the host sends to its own loopback address. On the host itself, open the site through the host's own address or its public name, not `localhost`. With `letsencrypt`, Caddy keeps its certificates in the `caddy-data` volume on Incus too, and a snapshot set includes it. When Docker runs on the same host, its own ports and firewall interfere with the proxy devices; see [Share a host with Docker](/self-hosted/install/incus#docker-coexistence).
+
 ## Change the public domain or base path
 
 Update `HOST` and `SITE_URL` together, plus any browser-facing storage endpoint and identity-provider callback registrations that use the old origin. Recreate the affected application and proxy services, then test sign-in, an existing file download, an upload, and a live-updating page at the new URL.

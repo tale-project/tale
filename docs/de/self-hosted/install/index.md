@@ -13,7 +13,7 @@ Die CLI übernimmt Containeraktionen. Für Konfiguration, Zugangsdaten, Volumes 
 
 ## Eine Container-Laufzeit wählen
 
-Die CLI betreibt den Stack auf Docker Compose, dem Standard und der unterstützten Laufzeit. Ein [verwaltetes Deployment](/de/self-hosted/install/cli-install#managed-deployments) kann stattdessen als Incus-Instanzen auf einem Linux-Host laufen: [Tale auf Incus betreiben](/de/self-hosted/install/incus) beschreibt den Knoten, den es braucht, und die Grenzen dieser Laufzeit, die in Tale 0.5.x experimentell ist. Lokale Entwicklung mit `tale dev` und `tale deploy` eines Workspace laufen auf Docker.
+Die CLI betreibt den Stack auf Docker Compose, dem Standard und der unterstützten Laufzeit. Eine Workspace-Bereitstellung oder ein [verwaltetes Deployment](/de/self-hosted/install/cli-install#managed-deployments) kann stattdessen als Incus-Instanzen auf einem Linux-Host laufen: [Tale auf Incus betreiben](/de/self-hosted/install/incus) beschreibt den Knoten, den es braucht, wie du ein bestehendes Docker-Deployment umziehst, und die Grenzen dieser Laufzeit, die in Tale 0.5.x experimentell ist. Lokale Entwicklung mit `tale dev` läuft auf Docker.
 
 ## Eigene Dienstdefinitionen verwenden
 

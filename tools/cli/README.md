@@ -118,6 +118,65 @@ Commands such as `reset`, `restore`, `--override` and `--override-all` change or
 replace state. Read their reference and preview what is available before using
 confirmation-bypass flags. They are not routine fixes for an unexplained failure.
 
+`tale stop` stops the whole environment gracefully in three groups (the edge, the
+traffic switch and both colours; the sandbox services; the data services), and
+`tale start` starts it again the other way round, each group healthy before the
+next. Both take `--dry-run`. Run `tale stop` before a host that runs other projects
+beside Tale shuts down.
+
+### Move snapshots between hosts and runtimes
+
+```bash
+tale backup export <snapshot-id> --to snapshot.tar   # one file: manifest + tar.gz archives
+tale backup import snapshot.tar                       # checked by sha256 on arrival
+tale restore <snapshot-id> --stop
+```
+
+`export` and `import` work on Docker and Incus alike, in the same archive format, and
+never overwrite a file or a snapshot ID that exists. See
+[Backups and restore](../../docs/en/self-hosted/operate/backups-and-restore.md#export-import).
+
+### Run a workspace on Incus (experimental)
+
+A workspace whose `tale.json` declares `runtime.engine` `incus` (`tale init --runtime
+incus --incus-…`) deploys as Incus instances with the same commands:
+
+```sh
+sudo tale incus bootstrap          # once, over the admin socket: project, bridge, certificates in .tale/
+tale incus check                   # the node read back with the restricted certificate
+tale --json deploy --plan-only > plan.json
+tale deploy --plan plan.json       # converge volumes, infrastructure, stateful tier, then flip colours
+tale status                        # replicas, switch admission, an unfinished flip or restore
+```
+
+Upgrades flip colours behind a traffic switch that admits a replica by its admission
+probe and is never reloaded; `--stop` also replaces `db`, `object-store`, `proxy`,
+the resolvers and the switch. `tale logs` reads a running service only with
+`--consume`, because a read takes the lines it shows.
+
+Snapshots are native Incus volume snapshots:
+
+- `tale backup --archive` also writes a `tar.gz` archive of each volume into
+  `backups` (Docker always does).
+- `tale restore <id> --stop` sets each volume aside (`<volume>.pre-restore-<ts>`)
+  and copies the snapshot into a fresh one, after checking that the pool's free
+  space and the project's disk quota fit the copies plus 10% (the volume set
+  aside keeps the old data, so a restore needs about twice the space). An
+  interrupted restore blocks
+  `deploy`, `start`, `rollback` and `runtime migrate` until `tale restore --resume`
+  finishes it or `tale restore --abort` puts every volume back.
+- `tale backup prune` lists the volumes restores set aside and deletes, after
+  asking, those no listed snapshot lives on (`--dry-run`, `--yes`).
+- `tale reset --all` and `tale uninstall --purge` archive the newest snapshot into
+  `backups` first and refuse if that fails, unless `--discard-snapshots` accepts
+  losing the native snapshots.
+
+`tale runtime migrate --to incus` moves a running Docker workspace to the Incus
+runtime `runtime.next` declares, at the same version and with the same `.env`; it
+resumes after an interruption, `--to docker` rolls back to the stopped Docker
+stack, and `--finish` removes that stack. See
+[Run Tale on Incus](../../docs/en/self-hosted/install/incus.md#migrate).
+
 ## Deploy a reviewed bundle
 
 Managed deployments select full source commits, a target, credentials and a pinned
@@ -485,8 +544,8 @@ tale --json deploy --bundle bundle --cli-ref <sha> --plan-only > plan.json
 tale --yes deploy --bundle bundle --cli-ref <sha> --plan plan.json
 ```
 
-`--workspace <dir>` replaces `--spec`/`--compose` for a workspace's `tale.json`,
-though a workspace on Incus is not deployable yet. `bootstrap --remove` takes away
+In a workspace, `tale incus` reads `tale.json` (`--workspace <dir>` names another
+one) instead of `--spec`/`--compose`. `bootstrap --remove` takes away
 what bootstrap made; `check --no-probes` runs no helper and refuses. `--plan-only`
 prints the plan and changes nothing, `--plan` applies a reviewed plan only while the
 node still needs exactly it, and `--stop` accepts the downtime a plan names. See

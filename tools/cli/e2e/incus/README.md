@@ -133,7 +133,7 @@ Each is a `test.todo` with its body in place (`bun test --todo` runs them):
   nowhere and nothing terminates TLS in front of its edge, and on Incus there is no
   private-origin container to dial instead.
 - **The release upgrade's window.** A changed existing deployment on Incus is refused until the
-  CLI can take its recovery snapshot there (the next milestone); the suite holds that refusal,
+  CLI can take its recovery snapshot there (a later milestone); the suite holds that refusal,
   and the measurement of the in-place window waits for it.
 
 ## Known findings

@@ -13,7 +13,7 @@ The CLI manages container operations, but you still own the project's configurat
 
 ## Choose a container runtime
 
-The CLI runs the stack on Docker Compose, the default and the supported runtime. A [managed deployment](/self-hosted/install/cli-install#managed-deployments) can instead run as Incus instances on a Linux host: [Run Tale on Incus](/self-hosted/install/incus) covers the node it needs and the limits of that runtime, which is experimental in Tale 0.5.x. Local development with `tale dev` and a workspace's `tale deploy` run on Docker.
+The CLI runs the stack on Docker Compose, the default and the supported runtime. A workspace deployment or a [managed deployment](/self-hosted/install/cli-install#managed-deployments) can instead run as Incus instances on a Linux host: [Run Tale on Incus](/self-hosted/install/incus) covers the node it needs, how to move an existing Docker deployment over and the limits of that runtime, which is experimental in Tale 0.5.x. Local development with `tale dev` runs on Docker.
 
 ## Use your own service definitions
 

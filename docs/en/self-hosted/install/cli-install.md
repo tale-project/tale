@@ -15,7 +15,7 @@ You need:
 
 - A workstation running macOS, Linux, or Windows with PowerShell.
 - For local container operations on the Docker runtime, the default: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy`, a bundle deployment included, refuse it before downloading images.
-- For a managed deployment on the experimental [Incus runtime](/self-hosted/install/incus): a Linux host with Incus instead; neither preparation nor the deployment needs Docker.
+- For a workspace or a managed deployment on the experimental [Incus runtime](/self-hosted/install/incus): a Linux host with Incus instead; neither the deployment nor a managed bundle's preparation needs Docker.
 - For a remote workspace: access to its Docker daemon, running Docker Engine 24.0 or later, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
 The bundled object store currently ships only a `linux/amd64` image. On an ARM64 host, local development and workspace deployment need working amd64 emulation: Docker Desktop includes it; a standalone Linux Docker host needs [QEMU registered on the host](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale selects the amd64 image but does not install emulation. Managed bundles still require native images for their declared architecture, so an ARM64 managed deployment must wait for a native object-store image.
@@ -809,10 +809,25 @@ With `--json`, the report lists each check with its status (`pass`, `fail` or `s
 
 `tale backup` — snapshot the supported, existing project volumes. No arguments. External databases and buckets need separate backups; see [Backup coverage](/self-hosted/operate/backups-and-restore).
 
+- `--archive` — on Incus, also write a `tar.gz` archive of each volume into `backups`, so that the snapshot outlives its storage pool. Docker always writes the archives.
+
+`tale backup export <snapshot-id>` — write one snapshot as a single file, its manifest and each volume's `tar.gz` archive, on either runtime; on Incus it first writes the archives a native snapshot lacks. It never overwrites a file. See [Move a snapshot to another host or runtime](/self-hosted/operate/backups-and-restore#export-import).
+
+- `--to <file>` — where to write it. Default: `tale-snapshot-<snapshot-id>.tar` in the current directory.
+
+`tale backup import <file>` — read a file `tale backup export` wrote into the `backups` volume, checking each archive by SHA-256 as it arrives, so that `tale restore` lists the snapshot. It refuses a snapshot ID the workspace already has. On Incus, deploy the workspace once first, so that its `backups` volume exists.
+
+`tale backup prune` — on Incus, list the volumes restores set aside (`<volume>.pre-restore-<timestamp>`) and delete, after asking, those on which no listed snapshot lives.
+
+- `--dry-run` — only list them.
+- `-y, --yes` — skip the confirmation prompt.
+
 `tale restore [snapshot-id]` — restore a snapshot; omit the id to list available snapshots.
 
 - `--stop` — before restoring, stop the project containers that are running, restarting or paused. Without it, the restore refuses and names them.
 - `-y, --yes` — skip the confirmation prompt.
+- `--resume` — on Incus, finish the restore an interrupted run left pending.
+- `--abort` — on Incus, undo the pending restore and put every volume back as it was.
 
 `tale rollback` — roll back to the previous patch version (patch-level only). Prompts for confirmation before it touches anything.
 
@@ -844,12 +859,14 @@ With `--json`, the report lists each check with its status (`pass`, `fail` or `s
 
 - `-f, --force` — skip the confirmation prompt.
 - `-a, --all` — also remove the stateful infrastructure containers and delete the project's data volumes: its database, organization configuration, uploaded files, proxy certificates and model gateway store. This cannot be undone. The project's `backups` volume, which holds the snapshots `tale restore` lists, is kept; delete it with `docker volume rm <project-id>_backups` once you no longer need them.
+- `--discard-snapshots` — on Incus, with `--all`: delete the data volumes even when the newest snapshot cannot be archived into `backups` first; their native snapshots are lost. See [Know what a reset keeps](/self-hosted/operate/backups-and-restore#reset).
 - `--dry-run` — preview the reset without making changes.
 
 `tale uninstall` — remove the `tale` CLI binary from this system. It prompts before deleting anything and _offers_ to also disconnect this machine's [sandbox device](#sandbox-device), remove `~/.tale-daemon` left by the retired `tale daemon`, and tear down a project's Docker resources and files. Without `--purge`, a project and its containers are left intact — run `tale reset --all` inside one to remove those. If the sandbox device cannot be stopped, nothing is uninstalled.
 
 - `-f, --force` — skip the confirmation prompt (removes the binary only; the optional cleanups still need `--purge`).
 - `--purge` — also disconnect the sandbox device and delete its workspaces, remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources as `tale reset --all` does, keeping its `backups` volume, and delete its files. Irreversible.
+- `--discard-snapshots` — on Incus, with `--purge`: tear the project down even when its newest snapshot cannot be archived into `backups` first; its native snapshots are lost.
 - `--dry-run` — show what would be removed without removing anything.
 
 `tale config show`—print the resolved local project directory and CLI version. Outside a project, it reports that no project was found and exits successfully.
