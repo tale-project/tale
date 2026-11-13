@@ -941,6 +941,27 @@ function publishedPorts(
 }
 
 /**
+ * The environment the image's own config declares (its `Env`), which Docker
+ * puts under a container's environment. The instance carries it itself:
+ * Incus fingerprints an OCI image by its layers alone, so two images with the
+ * same layers and another config (a release rebuilt with a new `VERSION`, its
+ * `TALE_VERSION` in the config alone) are one Incus image, and the config
+ * Incus applies is the one of whichever was pulled first. An entry with no
+ * `=` names no value and is left out, as Docker leaves it out.
+ */
+function imageEnvironment(
+  env: readonly string[],
+): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const entry of env) {
+    const separator = entry.indexOf('=');
+    if (separator <= 0) continue;
+    environment[entry.slice(0, separator)] = entry.slice(separator + 1);
+  }
+  return environment;
+}
+
+/**
  * The environment Docker Compose hands a service's container: the keys of its
  * env files, read with Compose's grammar against the interpolation source,
  * under its interpolated `environment` (a key without a value takes the
@@ -1081,7 +1102,10 @@ export function translateService(
     context.envFiles,
   );
   for (const item of assembled.refusals) refuse(item);
-  const environment = assembled.environment;
+  const environment = {
+    ...imageEnvironment(facts.env),
+    ...assembled.environment,
+  };
 
   // platform: Incus does not emulate.
   const platform = service.platform;

@@ -294,6 +294,46 @@ describe('what every instance carries (r3)', () => {
     );
   });
 
+  test("the image config's Env reaches the instance under the compose environment", () => {
+    const input = managedInput();
+    const reference = Object.keys(input.images).find((image) =>
+      image.includes('/tale-platform'),
+    );
+    if (reference === undefined) throw new Error('No platform image.');
+    const facts = input.images[reference];
+    if (facts === undefined) throw new Error('No platform facts.');
+    const managed = compiled({
+      ...input,
+      images: {
+        ...input.images,
+        [reference]: {
+          ...facts,
+          env: [
+            ...facts.env,
+            'TALE_VERSION=0.5.901',
+            'SENTRY_ENVIRONMENT=from-the-image',
+            'NO_VALUE',
+          ],
+        },
+      },
+      envFiles: {
+        '.env': `${input.envFiles['.env'] ?? ''}\nSENTRY_ENVIRONMENT=from-env\n`,
+      },
+    });
+    const platform = managed.instances.find(
+      (instance) => instance.service === 'platform',
+    );
+    // Incus would apply the config of an image with the same layers pulled
+    // before (an earlier build's TALE_VERSION): the instance names its own.
+    expect(platform?.config['environment.TALE_VERSION']).toBe('0.5.901');
+    expect(platform?.config['environment.PATH']).toBe(
+      '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    );
+    // As in Docker, the service's own environment wins over the image's.
+    expect(platform?.config['environment.SENTRY_ENVIRONMENT']).toBe('from-env');
+    expect(platform?.config['environment.NO_VALUE']).toBeUndefined();
+  });
+
   test('the bundled object store is left out on arm64 only when an external store is named (D-36)', () => {
     const arm = (variables: Record<string, string>): CompileInput => {
       const input = managedInput({ architecture: 'arm64' });
