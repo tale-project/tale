@@ -949,9 +949,7 @@ function publishedPorts(
  * Incus applies is the one of whichever was pulled first. An entry with no
  * `=` names no value and is left out, as Docker leaves it out.
  */
-function imageEnvironment(
-  env: readonly string[],
-): Record<string, string> {
+function imageEnvironment(env: readonly string[]): Record<string, string> {
   const environment: Record<string, string> = {};
   for (const entry of env) {
     const separator = entry.indexOf('=');
