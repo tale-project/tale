@@ -174,7 +174,7 @@ export function GrantCompetenceDialog({
   // The members are searched on the server as the admin types (MEMBER-R12),
   // never read all at once; the one granted to is named by id. Until the
   // search answers it offers nobody, and that never reads as nobody to grant
-  // to (#4586): a pending read masks the picker, a failed one names the list
+  // to: a pending read masks the picker, a failed one names the list
   // with Try again above it.
   const [memberQuery, setMemberQuery] = useState('');
   const members = useMemberChoices(organizationId, memberQuery, {
@@ -185,7 +185,7 @@ export function GrantCompetenceDialog({
   });
   // The switch as the server reads it for every surface (`readModelApiStanding`,
   // an unreadable policy reading as off); the settings rail already holds this
-  // read. Only an answer says the endpoints are off (#4586), and the grant
+  // read. Only an answer says the endpoints are off, and the grant
   // stays allowed either way: its holder calls the models once they are on.
   const modelApi = useMyModelApiAccess(organizationId);
   const modelApiOff =
