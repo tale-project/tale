@@ -26,12 +26,22 @@ import {
 } from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
+import type {
+  NativeConnectorContext,
+  NativeConnectorImpl,
+} from '../../connectors/dispatcher';
+import { ConnectorError } from '../../connectors/errors';
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import {
   base64Decode,
   base64Encode,
   toConnectorResponse,
 } from '../../connectors/live-host';
+import {
+  platformAutomationNatives,
+  type PositionSave,
+  type WorkflowAutomationPositions,
+} from '../../connectors/natives/platform-automation';
 import { connectorFailureOf } from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
@@ -83,6 +93,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'automation',
   'gmail',
   'jev',
   'slack',
@@ -1771,6 +1782,46 @@ const GMAIL_STORED: Record<string, StoredFile[]> = {
   ],
 };
 
+/** What a native action's services answer in one case, and who calls it. */
+interface NativeProof {
+  /** A step of the automation run `AUTOMATION_RUN`, or a call from outside any run. */
+  caller: 'step' | 'outside';
+  /** The position store's answer to a read_position call. */
+  read?: { value: unknown; revision: string };
+  /** The position store's answer to a save_position call; null when the run is gone. */
+  save?: PositionSave | null;
+}
+
+const AUTOMATION_RUN = 'run_0000000000000001';
+const AUTOMATION_PLACE = { until: 1791000000000 };
+
+/**
+ * The native actions' proofs, keyed as the HTTP proofs are: each answers what
+ * its position store says in that case, and the native implementation runs
+ * against it. A native failure is the ConnectorError it throws, which a
+ * scenario names by its message alone, as it carries no HTTP status.
+ */
+const AUTOMATION_PROOFS: Record<string, NativeProof> = {
+  'read_position/saved_place': {
+    caller: 'step',
+    read: { value: AUTOMATION_PLACE, revision: '3' },
+  },
+  'read_position/nothing_saved': {
+    caller: 'step',
+    read: { value: null, revision: '0' },
+  },
+  'read_position/not_a_step': { caller: 'outside' },
+  'save_position/place_saved': {
+    caller: 'step',
+    save: { saved: true, conflict: false, revision: '4' },
+  },
+  'save_position/run_gone': { caller: 'step', save: null },
+  'save_position/saved_again': {
+    caller: 'step',
+    save: { saved: false, conflict: true, revision: '4' },
+  },
+};
+
 /**
  * Every listed connector's proofs, with the secrets its credential holds —
  * synthetic, as every answer is — and, by proof, the files its body stores,
@@ -1782,9 +1833,11 @@ const SCENARIO_PROOFS: Record<
   {
     secrets?: Record<string, string>;
     proofs: Record<string, ProofAnswers>;
+    natives?: Record<string, NativeProof>;
     stored?: Record<string, StoredFile[]>;
   }
 > = {
+  automation: { proofs: {}, natives: AUTOMATION_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
@@ -1798,6 +1851,12 @@ const SCENARIO_PROOFS: Record<
   teams: { proofs: TEAMS_PROOFS },
   twilio: { secrets: { username: TWILIO_ACCOUNT }, proofs: TWILIO_PROOFS },
 };
+
+/** The keys of every proof a listed connector ships, HTTP and native. */
+function proofKeysOf(slug: ScenarioConnector): string[] {
+  const { proofs, natives = {} } = SCENARIO_PROOFS[slug];
+  return [...Object.keys(proofs), ...Object.keys(natives)];
+}
 
 /** A file a live body handed `ctx.files.store`, as it handed it over. */
 interface StoredFile {
@@ -1988,7 +2047,7 @@ describe('a connector scenario fits its action and answers as the live call woul
           (scenario) => `${action.name}/${scenario.name}`,
         ),
       );
-      const proofs = Object.keys(SCENARIO_PROOFS[slug].proofs);
+      const proofs = proofKeysOf(slug);
       const storing = Object.keys(SCENARIO_PROOFS[slug].stored ?? {});
       const shipped = new Set(scenarios);
       const proven = new Set(proofs);
@@ -2067,6 +2126,89 @@ describe('a connector scenario fits its action and answers as the live call woul
       ).toStrictEqual(
         connectorFailureOf(simulated, slug, `${slug}.${actionName}`),
       );
+    },
+  );
+});
+
+describe('a native scenario answers as its implementation does [CONN-R33]', () => {
+  it.each(
+    SCENARIO_CONNECTORS.flatMap((slug) =>
+      Object.keys(SCENARIO_PROOFS[slug].natives ?? {}).map(
+        (key): [ScenarioConnector, string] => [slug, key],
+      ),
+    ),
+  )(
+    '%s %s: the native implementation, given the answer the scenario stands for, returns its output or throws its error',
+    async (slug, key) => {
+      const [actionName, scenarioName] = key.split('/');
+      const connector = loadConnector(slug);
+      const action = connector.actions.find((a) => a.name === actionName);
+      const scenario = action?.scenarios?.find((s) => s.name === scenarioName);
+      const proof = SCENARIO_PROOFS[slug].natives?.[key];
+      if (
+        action?.backend?.kind !== 'native' ||
+        scenario === undefined ||
+        proof === undefined
+      ) {
+        throw new Error(
+          `${slug}.${key} has no native backend, no scenario, or no proof`,
+        );
+      }
+      // The store notes each call with the run it is for, and answers the
+      // proof's answer to it.
+      const asked: string[] = [];
+      const store: WorkflowAutomationPositions = {
+        async read({ runId }) {
+          asked.push(`read ${runId}`);
+          if (proof.read === undefined) {
+            throw new Error(`the proof gives no read for ${key}`);
+          }
+          return proof.read;
+        },
+        async save({ runId }) {
+          asked.push(`save ${runId}`);
+          if (proof.save === undefined) {
+            throw new Error(`the proof gives no save for ${key}`);
+          }
+          return proof.save;
+        },
+      };
+      const natives: Record<string, NativeConnectorImpl> =
+        platformAutomationNatives(store);
+      const impl = natives[action.backend.impl];
+      const ctx = {
+        organizationId: 'org-example',
+        credentialId: 'cred-example',
+        authMethod: 'platform',
+        caller:
+          proof.caller === 'step'
+            ? { kind: 'workflow' as const, runId: AUTOMATION_RUN }
+            : undefined,
+      } as unknown as NativeConnectorContext;
+      const outcome = await outcomeOf(
+        impl({ ...action.exampleInput, ...scenario.when }, ctx),
+      );
+
+      const method = actionName === 'read_position' ? 'read' : 'save';
+      expect(asked).toEqual(
+        proof.caller === 'step' ? [`${method} ${AUTOMATION_RUN}`] : [],
+      );
+      if (scenario.error === undefined) {
+        expect(outcome).toEqual({ output: scenario.output });
+        return;
+      }
+      if (!('thrown' in outcome)) {
+        throw new Error(
+          `${slug}.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+        );
+      }
+      const { thrown } = outcome;
+      expect(thrown).toBeInstanceOf(ConnectorError);
+      expect(thrown instanceof Error ? thrown.message : thrown).toBe(
+        scenario.error.message,
+      );
+      // A native failure carries no HTTP status, so the scenario names none.
+      expect(scenario.error.status).toBeUndefined();
     },
   );
 });
