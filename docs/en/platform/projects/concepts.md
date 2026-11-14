@@ -17,7 +17,7 @@ Use a project when several questions or tasks depend on the same reference mater
 
 Project chat starts with the saved project instructions. It can search this project's files together with the organization's accessible knowledge. This gives later conversations a common starting point without copying a brief into every message. Other projects' files are outside that search scope.
 
-Under **Chats** on **General**, **Default chat agent** decides who the project's new chats answer as. **First agent created**, the default, is always the oldest agent the project still has; you can also choose one of the agents or **Assistant**. People can still switch in a chat's message box, and chats that already exist keep theirs. Editors and Admins change it while the project is active.
+Under **Chats** on **General**, **Default chat agent** decides who the project's new chats answer as. **First agent created**, the default, is always the oldest agent the project still has; you can also choose one of the agents or **Assistant**. People can still switch in a chat's message box, and chats that already exist keep theirs. Editors, Developers, Admins and Owners change it while the project is active.
 
 <Frame caption="General holds the project instructions and sharing controls. Save after changing the fields.">
 
