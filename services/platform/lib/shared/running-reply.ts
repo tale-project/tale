@@ -10,7 +10,7 @@ export interface MessageRowState {
   readonly error?: string;
 }
 
-export function isRunningReply(row: MessageRowState): boolean {
+function isRunningReply(row: MessageRowState): boolean {
   return row.status === 'pending' && row.error === undefined;
 }
 
