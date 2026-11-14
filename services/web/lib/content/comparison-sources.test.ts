@@ -29,7 +29,6 @@ const SOURCED_GUIDES = [
   'tale-vs-conductor',
   'tale-vs-crewai',
   'tale-vs-dify',
-  'tale-vs-flowise',
   'tale-vs-glean',
   'tale-vs-gumloop',
   'tale-vs-haystack',
