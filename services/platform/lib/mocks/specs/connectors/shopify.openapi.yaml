@@ -42,7 +42,7 @@ components:
         name: { type: string }
         email: { type: string }
         financial_status: { type: string }
-        fulfillment_status: { type: string }
+        fulfillment_status: { type: [string, 'null'] }
         total_price: { type: string }
         currency: { type: string }
         created_at: { type: string }
