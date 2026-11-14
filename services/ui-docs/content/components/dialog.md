@@ -85,7 +85,7 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `initialFocusRef` | The element the dialog opens on, for a form whose first field is not where a person starts. Without it the dialog opens on the first text field in its body, which in a form that begins with a Radix `Select` is the hidden native twin the `Select` draws inside the `<form>`. `FormDialog` takes it too. Like the default it applies to a fine pointer only: on a touch screen the dialog itself takes focus, so the keyboard stays down. |
 | `restoreFocusRef` | Stable fallback when the captured opener unmounts or moves, for example a toolbar button the first row replaces. A dialog opened from a menu item needs none: it returns to that menu's button. |
 | `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. `ResponsiveDialogContent` takes it too, for a close that hands the reader on to another panel. |
-| `onCloseAutoFocus` | Called after the close focus handler runs. Available on `Dialog`, `ConfirmDialog` and `DeleteDialog`; use it to release a retained virtual row after focus returns to its opener. |
+| `onCloseAutoFocus` | Called after the close focus handler runs, which returns focus to the opener when it can and otherwise hands focus to the part of the page that survived (the opener is gone, as when a confirmed delete removed its row). Available on `Dialog`, `ConfirmDialog` and `DeleteDialog`; use it to release a retained virtual row once the close has moved focus. |
 
 ## Keep the actions of a long form in reach
 
