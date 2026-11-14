@@ -1,7 +1,7 @@
 /**
  * The composer's project glyph sits beside its ghost toolbar icons: it takes
  * their 16 px size and colour, and the no-project folder icon matches it, so
- * choosing a project does not make the toolbar jump (#5400).
+ * choosing a project does not make the toolbar jump.
  */
 
 import { describe, expect, it, vi } from 'vitest';
