@@ -5,7 +5,7 @@
  * `package.json` files, and its `.dockerignore` re-includes the same files
  * past its exclusions. A workspace missing from either list breaks the image
  * only in CI: packages/incus was added without the five site Dockerfiles, four
- * dockerignores and the plop template (tale#5422, fixed on #5423).
+ * dockerignores and the plop template.
  *
  * The rule: a copied list must hold every workspace that the copied manifests
  * and the `packages/*` libraries depend on, transitively through `workspace:`
