@@ -280,7 +280,11 @@ import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
 } from './lib/http-hygiene.ts';
-import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
+import {
+  RATE_LIMITS,
+  type RateLimitName,
+  setRateLimitClockForTests,
+} from './lib/rate-limit.ts';
 import { appOrigin } from './lib/write-origin.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 import { checkOrgSlugRefusals } from './rest/org-slug-refusals.integration.ts';
@@ -7968,10 +7972,30 @@ async function checkTaskCommentCrossTaskBurst(
   );
 }
 
+/**
+ * Every door refuses on a spent budget, with the clock held: a fixed window
+ * spent in one minute and charged in the next starts from zero, so the wall
+ * clock must not tick between the spend and the request (the folders flake).
+ */
 async function checkRateLimitShapes(
   sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const heldNow = Date.now();
+  const restoreClock = setRateLimitClockForTests(() => heldNow);
+  try {
+    await probeRateLimitDoors(sql, base, ctx, heldNow);
+  } finally {
+    restoreClock();
+  }
+}
+
+async function probeRateLimitDoors(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  heldNow: number,
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
   const doors: {
@@ -8033,7 +8057,7 @@ async function checkRateLimitShapes(
   ];
   const spend = async (rule: RateLimitName, key: string): Promise<void> => {
     const spec = RATE_LIMITS[rule];
-    const now = Date.now();
+    const now = heldNow;
     if (spec.kind === 'token bucket') {
       await sql`
         INSERT INTO app.rate_limits (name, key, value, ts)
