@@ -252,4 +252,43 @@ describe('shipped connector catalog', () => {
       );
     },
   );
+
+  // Shopify's count defaults to `status=open`, so a bare count leaves out the
+  // closed and cancelled orders the description promises to count.
+  it('shopify: count_orders asks for every order status', async () => {
+    const action = loadConnector('shopify').actions.find(
+      (a) => a.name === 'count_orders',
+    );
+    if (action?.backend?.kind !== 'yaml-js') {
+      throw new Error('shopify.count_orders has no yaml-js live body');
+    }
+    const requested: string[] = [];
+    const ctx = {
+      endpoint: 'https://acme.myshopify.com',
+      secrets: { get: () => 'shpat_test' },
+      http: {
+        get: async (url: string) => {
+          requested.push(url);
+          const body = { count: 3 };
+          return {
+            status: 200,
+            json: () => body,
+            text: () => JSON.stringify(body),
+          };
+        },
+      },
+    };
+
+    const out = await inProcessLiveRunner().runBody(
+      action.backend.live,
+      { input: {}, ctx },
+      LIMITS,
+      { async: true },
+    );
+
+    expect(out).toEqual({ count: 3 });
+    expect(requested).toEqual([
+      'https://acme.myshopify.com/admin/api/2026-01/orders/count.json?status=any',
+    ]);
+  });
 });

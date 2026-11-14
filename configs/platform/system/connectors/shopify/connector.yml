@@ -267,7 +267,7 @@ actions:
         status:
           {
             type: string,
-            description: 'Filter by order status: open, closed, cancelled, or any.',
+            description: 'Filter by order status: open, closed, cancelled, or any. Leaving it out lists only open orders.',
           }
         fields:
           {
@@ -409,7 +409,7 @@ actions:
       kind: yaml-js
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
-        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders/count.json`, { headers: h });
+        const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders/count.json?status=any`, { headers: h });
         if (r.status === 401) throw Object.assign(new Error('Shopify count_orders failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
         if (r.status === 403) throw Object.assign(new Error('Shopify count_orders failed: access denied — verify the app has the required API scopes.'), { status: r.status });
         if (r.status === 404) throw Object.assign(new Error('Shopify count_orders failed: store not found — verify the store domain on this credential.'), { status: r.status });
