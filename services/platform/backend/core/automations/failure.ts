@@ -95,6 +95,12 @@ const AGENT_RETRY_ONLY_CODES: Record<
   // The EU/EEA rule refused the model's endpoint before anything launched:
   // a refused start; the run's detail says why.
   endpoint_refused: 'start_failed',
+  // The sandbox service took no connection at the start: a refused start,
+  // as it read before the cause had a name.
+  sandbox_unreachable: 'start_failed',
+  // The sandbox service stopped answering mid-turn: a crashed turn, as it
+  // read before the cause had a name.
+  sandbox_lost: 'turn_crashed',
 };
 
 const AGENT_RETRY_ONLY_CODE_MAP: ReadonlyMap<string, RunFailureCode> = new Map(

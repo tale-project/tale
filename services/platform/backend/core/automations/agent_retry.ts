@@ -49,6 +49,15 @@ export type WorkflowAgentFailureCode =
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
+  /** The start could not reach the run's sandbox service — it took no
+   * connection once the acquire had waited out a restart. Nothing launched,
+   * so it is retried like a refused start (`start_failed` on the wire) and
+   * no conversation is resumed. */
+  | 'sandbox_unreachable'
+  /** The sandbox service stopped answering mid-turn for longer than its
+   * outage budget, and the turn was stopped. Retried like a crashed turn
+   * (`turn_crashed` on the wire). */
+  | 'sandbox_lost'
   | 'harvest_failed'
   | 'resume_failed'
   | 'deadline'
@@ -197,6 +206,7 @@ export interface WorkflowAgentRetryResume {
 const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
   'session_gone',
   'start_failed',
+  'sandbox_unreachable',
   'credential_cooldown',
   'sandbox_capacity',
 ] satisfies WorkflowAgentFailureCode[]);

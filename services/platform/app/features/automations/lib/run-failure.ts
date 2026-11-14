@@ -306,6 +306,40 @@ function leadingCode(failure: StepFailure): RunFailureCode | undefined {
   return isRunFailureCode(code) && code !== 'node_error' ? code : undefined;
 }
 
+/**
+ * The agent settle codes that name their own cause (`runtime.agentCauses`).
+ * The run-level code folds each into a wire code that says less — an
+ * out-of-memory turn reads as a crashed one, an unreachable sandbox as a
+ * start that found no room — so the step's record, which keeps the settle's
+ * own code as `agentCode`, names it instead. Every other agent code reads
+ * as its run-level code does.
+ */
+export const AGENT_CAUSE_CODES: ReadonlySet<string> = new Set([
+  'sandbox_unreachable',
+  'sandbox_lost',
+  'resource_exhausted',
+  'turn_stalled',
+  'sandbox_destroying',
+  'endpoint_refused',
+]);
+
+/** The words of an agent failure whose cause has its own, or undefined. */
+function agentCauseText(
+  failure: StepFailure,
+  ctx: FailureTextContext,
+): FailureText | undefined {
+  const code = asText(failure.params.agentCode);
+  if (code === undefined || !AGENT_CAUSE_CODES.has(code)) return undefined;
+  const key = `runtime.agentCauses.${code}`;
+  return {
+    title: say(ctx.t, `${key}.title`),
+    explanation: say(ctx.t, `${key}.explanation`),
+    cause: '',
+    fix: say(ctx.t, `${key}.fix`),
+    known: true,
+  };
+}
+
 /** Title, meaning, cause and fix of a step's failure, in `ctx`'s language. */
 export function stepFailureText(
   failure: StepFailure,
@@ -314,6 +348,10 @@ export function stepFailureText(
   const reason = failure.reason;
   if (!isStepFailureReason(reason)) {
     return { ...runFailureText(failure.code, ctx), known: false };
+  }
+  if (reason === 'AGENT_FAILED') {
+    const named = agentCauseText(failure, ctx);
+    if (named !== undefined) return named;
   }
   const values = failureParamsForText(failure, ctx);
   const cause = say(ctx.t, `runtime.codes.${reason}.cause`, values);

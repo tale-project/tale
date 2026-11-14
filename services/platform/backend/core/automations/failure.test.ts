@@ -103,6 +103,13 @@ describe('agentFailureCodeOf', () => {
     // Nor did one refused while the run's workspace was being destroyed.
     expect(agentFailureCodeOf('sandbox_destroying')).toBe('start_failed');
     expect(RUN_FAILURE_CODES).not.toContain('sandbox_destroying');
+    // A sandbox service that took no connection at the start never launched
+    // either; one that stopped answering mid-turn crashed the turn, as the
+    // turn read before its cause had a name.
+    expect(agentFailureCodeOf('sandbox_unreachable')).toBe('start_failed');
+    expect(agentFailureCodeOf('sandbox_lost')).toBe('turn_crashed');
+    expect(RUN_FAILURE_CODES).not.toContain('sandbox_unreachable');
+    expect(RUN_FAILURE_CODES).not.toContain('sandbox_lost');
   });
 
   it('files anything else, or nothing, under the harness', () => {

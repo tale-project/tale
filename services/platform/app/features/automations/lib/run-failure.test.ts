@@ -12,6 +12,7 @@ import type { StepFailure } from '@/lib/engine/core/record/types';
 import { i18n } from '@/tests/utils/i18n-all-languages';
 
 import {
+  AGENT_CAUSE_CODES,
   failureParamsForText,
   type FailureTextContext,
   RUN_FAILURE_DERIVED_PARAMS,
@@ -242,6 +243,73 @@ describe('stepFailureText — every reason in every language', () => {
     expect(text.known).toBe(false);
     expect(text.title).toBe('Un appel de service a échoué');
     expect(text.cause).toBe('');
+  });
+});
+
+describe('stepFailureText — an agent failure names the cause it had', () => {
+  /** An agent step's failure as the stepper records it: the run-level code
+   * folds the settle's own code, which the record keeps as `agentCode`. */
+  function agentFailure(agentCode: string): StepFailure {
+    return {
+      code: 'turn_crashed',
+      reason: 'AGENT_FAILED',
+      params: { agentCode, harness: 'claude-code', attempts: 2 },
+      message: 'ENGINE ENGLISH',
+    };
+  }
+
+  it('names an unreachable sandbox service at the start, in each language', () => {
+    const failure = agentFailure('sandbox_unreachable');
+    const en = stepFailureText(failure, context('en'));
+    expect(en.title).toBe("The sandbox service couldn't be reached");
+    expect(en.explanation).toBe(
+      "The agent's sandbox service didn't answer when the turn was to start, so the agent never started.",
+    );
+    expect(stepFailureText(failure, context('de')).title).toBe(
+      'Der Sandbox-Dienst war nicht erreichbar',
+    );
+    expect(stepFailureText(failure, context('fr')).title).toBe(
+      'Le service bac à sable est injoignable',
+    );
+  });
+
+  it('names a sandbox service lost mid-turn, not a crashed agent', () => {
+    const text = stepFailureText(agentFailure('sandbox_lost'), context('en'));
+    expect(text.title).toBe('The sandbox service stopped answering');
+    expect(text.title).not.toBe('The agent stopped unexpectedly');
+  });
+
+  it('names an out-of-memory turn and a stalled one, not a crashed agent', () => {
+    const oom = stepFailureText(
+      agentFailure('resource_exhausted'),
+      context('en'),
+    );
+    expect(oom.title).toBe('The agent ran out of memory');
+    expect(oom.fix).toBe(
+      'Run again. If it keeps happening, ask an admin to give agents more memory.',
+    );
+    const stalled = stepFailureText(
+      agentFailure('turn_stalled'),
+      context('en'),
+    );
+    expect(stalled.title).toBe('The agent stopped responding');
+    expect(stalled.title).not.toBe('The agent stopped unexpectedly');
+  });
+
+  it('keeps the run-level words for an agent code with no cause of its own', () => {
+    const text = stepFailureText(agentFailure('turn_crashed'), context('en'));
+    expect(text.title).toBe('The agent stopped unexpectedly');
+  });
+
+  it('gives every named cause its words in every language', () => {
+    for (const code of AGENT_CAUSE_CODES) {
+      for (const locale of LOCALES) {
+        const text = stepFailureText(agentFailure(code), context(locale));
+        const where = `${code} (${locale})`;
+        expect(text.known, where).toBe(true);
+        expectWords([text.title, text.explanation, text.fix], where);
+      }
+    }
   });
 });
 
