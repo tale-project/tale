@@ -38,6 +38,8 @@ import {
   readJsonFile,
 } from '../../core/lib/file_io.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { BrandingError } from './errors.ts';
+import { normalizeBrandingImage } from './image-normalize.ts';
 
 /**
  * Branding file I/O — the 0.5 twin of `convex/branding/file_actions.ts`
@@ -91,16 +93,7 @@ const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 /** Platform-wide bucket read by the pre-auth shell when no org is in scope. */
 const DEFAULT_ORG_SLUG = 'default';
 
-export class BrandingError extends Error {
-  readonly code: string;
-  readonly status: 400 | 403 | 404;
-  constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
-    super(message);
-    this.name = 'BrandingError';
-    this.code = code;
-    this.status = status;
-  }
-}
+export { BrandingError } from './errors.ts';
 
 /**
  * Whether a role may change the organization's branding — read it for
@@ -335,7 +328,10 @@ export async function saveBrandingImage(
   }
   // Narrowed here: the guard above does not reach into the closure below.
   const imageType: BrandingImageType = args.type;
-  const filename = `${imageType}.${ext}`;
+  // What is stored is the image at the size the product shows it, not the
+  // upload as it came: a 2 MB logo is scaled into its box first.
+  const stored = await normalizeBrandingImage(imageType, buffer, ext);
+  const filename = `${imageType}.${stored.ext}`;
   const imagesDir = resolveImagesDir(orgSlug);
   // Replacing an image is a delete-then-write across extensions: two saves
   // of the same type interleaving there leave the loser's file beside the
@@ -350,12 +346,15 @@ export async function saveBrandingImage(
       }
       await mkdir(imagesDir, { recursive: true });
       await removeImageVariants(imagesDir, imageType, 'saveBrandingImage');
-      await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
+      await atomicWriteBuffer(
+        resolveImagePath(orgSlug, filename),
+        stored.bytes,
+      );
       const written = await writeImageReference(orgSlug, imageType, filename);
       await createAuditLog(tx, {
         ...brandingAuditFields(actor),
         action: 'branding.image_uploaded',
-        metadata: { type: imageType, filename, bytes: buffer.length },
+        metadata: { type: imageType, filename, bytes: stored.bytes.length },
       });
       return written;
     }),

@@ -25,6 +25,8 @@ Ohne Logo dient der Organisationsname als Textmarke. Diesen Namen änderst du, i
 
 Wähle im jeweiligen Uploadfeld das Bild aus. Das Hochladen oder Entfernen eines Bildes wirkt sofort und wartet nicht auf Speichern. Nach erfolgreichem Abschluss werden Vorschau und Organisationsdarstellung aktualisiert.
 
+Tale speichert ein PNG-, JPG- oder WebP-Logo so verkleinert, dass es in 148 × 48 Pixel passt, und ein Favicon so, dass es in 64 × 64 Pixel passt, beides als PNG. Ein übergroßer Upload verlangsamt so nicht jeden Seitenaufruf. Eine SVG-Datei bleibt unverändert erhalten.
+
 Wenn kein eigenes Favicon hinterlegt ist, kann Tale eines aus dem hochgeladenen Logo ableiten. Wählt jemand ein Favicon, während Tale noch eines ableitet – auf dieser Seite oder in einem anderen Fenster –, bleibt diese Wahl bestehen, und das abgeleitete Favicon wird nicht gespeichert. Verwende ein eigenes Symbol, wenn das vollständige Logo in Tab-Größe schwer zu erkennen ist. Prüfe nach dem Upload das Tab-Symbol und die Seitenleiste auch im anderen Design.
 
 <Note>

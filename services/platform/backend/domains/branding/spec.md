@@ -29,6 +29,16 @@ searched for such content.
 - **Example**: Ada uploads an SVG logo that contains a script → refused, and the organization
   keeps the logo it had.
 
+### BRAND-R7 · A logo or icon is stored at the size the product shows it
+
+A PNG, JPEG or WebP logo or icon is scaled down to fit the box the product draws it in: 148 × 48
+pixels for the logo and 64 × 64 for an icon, which is twice the size on screen. It is stored as a
+PNG, and an image already within its box is kept at its size. An SVG is stored as it came. A file
+that is not a readable image is refused (`IMAGE_MIME_UNSUPPORTED`).
+
+- **Example**: Ada uploads a 1200 × 800 JPEG logo → the organization keeps a 72 × 48 PNG of it,
+  and the audit entry names the stored file.
+
 ## Saving the branding
 
 ### BRAND-R2 · An uploaded image is part of the branding at once, and gone when deleted
@@ -70,6 +80,6 @@ The entry lists the fields that were added, removed or changed.
 
 - **Who can read the branding**: it is readable without signing in, because the sign-in page
   shows it. No test holds it yet (`routes.ts`).
-- **Limits on an image's size and type**, and the icon derived from a logo when none is
-  uploaded (`service.ts`, `core/branding/file_utils.ts`).
+- **The 2 MB upload cap**, the ICO icons, which are stored as they came, and the icon derived
+  from a logo when none is uploaded (`service.ts`, `image-normalize.ts`).
 - **Reset**, which deletes the images and clears the accent color.
