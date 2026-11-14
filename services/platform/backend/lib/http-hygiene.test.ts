@@ -670,6 +670,25 @@ describe('installClientErrorEnvelope', () => {
       await close();
     }
   });
+
+  it('refuses a raw backslash in the path before any route sees it', async () => {
+    // GHSA-jpvv-r467-5p4w: the 1.x adapter let `new URL` fold `\` into `/`
+    // and resolve the dot segments, so `/public\..\ping` reached `/ping`
+    // although a proxy matching on the raw path saw a `/public` request.
+    // The 2.x adapter refuses the target as a bad request instead.
+    const { port, close } = await listening();
+    try {
+      const res = parse(
+        await exchange(port, [
+          'GET /public\\..\\ping HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n',
+        ]),
+      );
+      expect(res.status).toBe(400);
+      expect(res.body).not.toContain('"ok"');
+    } finally {
+      await close();
+    }
+  });
 });
 
 describe('backendSecureHeaders — frameable variant', () => {
