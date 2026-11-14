@@ -170,8 +170,8 @@ list is refused (`INVALID_QUERY`).
 
 A person's own key works in every organization they belong to. An Owner or Admin of one of them
 can block it there, from the member's row in Settings > Members: its next request against that
-organization is refused (`API_KEY_BLOCKED`, which lists the organizations it still works in),
-while the block does not reach the holder's other organizations and the holder keeps it. The same
+organization is refused (`API_KEY_BLOCKED`, which lists the organizations it still works in;
+the door's other refusals for the key list only those too), while the block does not reach the holder's other organizations and the holder keeps it. The same
 roles lift the block. An Admin cannot block an Owner's key or lift its block, an Owner can do
 both on anyone's, and nobody blocks their own key, which they can end
 (`API_KEY_BLOCK_FORBIDDEN`). A key bound to an organization, the key its holder made after single

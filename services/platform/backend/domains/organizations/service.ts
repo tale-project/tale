@@ -6,6 +6,7 @@ import {
   MembershipError,
 } from '../../auth/membership.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { listBlockingOrgSlugs } from '../api_keys/block-check.ts';
 import { deleteOrganizationApiKeysInTx } from '../api_keys/retire.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
@@ -124,14 +125,24 @@ export interface SelectableOrganization {
  * (`GET /api/v1/me` sits behind the same header), so a 400, a 403 and a
  * 404 alike say what to send, not only what was wrong. Nothing beyond the
  * caller's own memberships is revealed.
+ *
+ * Given the personal key that asks, the list leaves out the organizations
+ * that blocked that key (APIKEY-R11): it names only where the key works, the
+ * same as the `API_KEY_BLOCKED` refusal does, so no refusal can send a
+ * client to an organization that would answer it 403 `API_KEY_BLOCKED`.
  */
 export async function listSelectableOrganizations(
   sql: Sql,
   userId: string,
+  apiKeyId?: string,
 ): Promise<SelectableOrganization[]> {
-  return (await listUserOrganizations(sql, userId)).flatMap((org) =>
-    org.slug === undefined ? [] : [{ slug: org.slug, name: org.name }],
+  const organizations = (await listUserOrganizations(sql, userId)).flatMap(
+    (org) =>
+      org.slug === undefined ? [] : [{ slug: org.slug, name: org.name }],
   );
+  if (apiKeyId === undefined) return organizations;
+  const blocking = await listBlockingOrgSlugs(sql, apiKeyId);
+  return organizations.filter((org) => !blocking.has(org.slug));
 }
 
 export async function getOrganization(
@@ -211,8 +222,12 @@ export async function resolveUserOrganization(
     userId: string;
     orgSlug?: string;
     requireExplicitOrgSlug?: boolean;
+    /** The personal key that asks; its refusals list only where it works. */
+    apiKeyId?: string;
   },
 ): Promise<ResolvedUserOrganization> {
+  const selectable = () =>
+    listSelectableOrganizations(sql, args.userId, args.apiKeyId);
   if (args.orgSlug) {
     const orgs = await sql<{ id: string; slug: string | null }[]>`
       SELECT "id", "slug" FROM "organization"
@@ -224,7 +239,7 @@ export async function resolveUserOrganization(
         'ORG_SLUG_INVALID',
         `Organization not found: ${args.orgSlug}`,
         404,
-        { organizations: await listSelectableOrganizations(sql, args.userId) },
+        { organizations: await selectable() },
       );
     }
     const member = await findOrganizationMember(sql, org.id, args.userId);
@@ -233,7 +248,7 @@ export async function resolveUserOrganization(
         'ORG_FORBIDDEN',
         `Not a member of organization ${org.slug}`,
         403,
-        { organizations: await listSelectableOrganizations(sql, args.userId) },
+        { organizations: await selectable() },
       );
     }
     return { organizationId: org.id, orgSlug: org.slug };
@@ -272,7 +287,7 @@ export async function resolveUserOrganization(
     }
     if (!pickedOrgId) {
       // The refusal names what to send — the message quotes the slugs too.
-      const organizations = await listSelectableOrganizations(sql, args.userId);
+      const organizations = await selectable();
       throw new OrganizationError(
         'ORG_SLUG_REQUIRED',
         `Send X-Organization-Slug: the key holder belongs to ${memberships.length} organizations (${organizations.map((org) => org.slug).join(', ')})`,
@@ -291,7 +306,7 @@ export async function resolveUserOrganization(
       'ORG_SLUG_INVALID',
       'Organization slug not found',
       404,
-      { organizations: await listSelectableOrganizations(sql, args.userId) },
+      { organizations: await selectable() },
     );
   }
   return { organizationId: pickedOrgId, orgSlug: slug };

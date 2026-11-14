@@ -736,6 +736,60 @@ describe('/api/v1 door — a personal key an organization blocked', () => {
     });
   });
 
+  it('lists only where the key works in every other refusal, never the organization that blocked it [APIKEY-R11]', async () => {
+    // The key holder belongs to org-1 and org-2; the key is blocked in org-1.
+    // Each refusal below must offer org-2 alone: a client that picks org-1
+    // from a list would land straight on API_KEY_BLOCKED.
+    const { sql } = fakeSql(new Set(), {
+      organizations: orgs,
+      memberOf: new Set(['org-1', 'org-2']),
+      blocked: new Set(['org-1|key-1']),
+    });
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.post('/probe', (c) => c.json({ ok: true }));
+    const onlyOrg2 = [{ slug: 'org-2', name: 'Org org-2' }];
+
+    const missing = await app.request('http://localhost/probe', {
+      method: 'POST',
+      ...bearer(GOOD_KEY),
+    });
+    expect(await missing.json()).toMatchObject({
+      code: 'ORG_SLUG_REQUIRED',
+      data: { organizations: onlyOrg2 },
+    });
+
+    const unknown = await app.request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'no-such-org' }),
+    );
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toMatchObject({
+      code: 'ORG_SLUG_INVALID',
+      data: { organizations: onlyOrg2 },
+    });
+
+    const malformed = await app.request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'Not A Slug!' }),
+    );
+    expect(malformed.status).toBe(404);
+    expect(await malformed.json()).toMatchObject({
+      code: 'ORG_SLUG_INVALID',
+      data: { organizations: onlyOrg2 },
+    });
+
+    const foreign = await app.request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'org-3' }),
+    );
+    expect(foreign.status).toBe(403);
+    expect(await foreign.json()).toMatchObject({
+      code: 'ORG_FORBIDDEN',
+      data: { organizations: onlyOrg2 },
+    });
+  });
+
   it('lets the same key into the holder’s other organization [APIKEY-R11]', async () => {
     const { sql } = fakeSql(new Set(), {
       organizations: orgs,
