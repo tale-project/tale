@@ -99,10 +99,9 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
       await user.clear(workflow);
       await user.type(workflow, '13');
       expect(total).toHaveTextContent('19 / 18');
-      expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute(
-        'aria-disabled',
-        'true',
-      );
+      // A total over capacity is no field error: its alert says why, and Save
+      // stays plainly disabled, without a reason of its own.
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
       expect(workflow).toHaveFocus();
       const error = screen.getByRole('alert');
       expect(workflow).toHaveAccessibleDescription(error.textContent ?? '');
@@ -114,11 +113,11 @@ describe('sandbox limit keyboard interaction in Chromium', () => {
       await user.clear(workflow);
       await user.type(workflow, '12');
       await user.tab();
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: 'Save' }),
-        ).not.toHaveAttribute('aria-disabled'),
-      );
+      await waitFor(() => {
+        const save = screen.getByRole('button', { name: 'Save' });
+        expect(save).toBeEnabled();
+        expect(save).not.toHaveAttribute('aria-disabled');
+      });
       expect(total).toHaveTextContent('18 / 18');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       await user.keyboard('{Control>}s{/Control}');

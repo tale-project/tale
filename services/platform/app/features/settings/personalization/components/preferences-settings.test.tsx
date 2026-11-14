@@ -218,7 +218,11 @@ describe('PreferencesSettings', () => {
         ),
       ).toBeVisible();
       await waitFor(() => expect(capture.current?.isValid).toBe(false));
-      expect(screen.getByRole('button', { name: saveLabel })).toBeDisabled();
+      expect(screen.getByRole('button', { name: saveLabel })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      expect(screen.getByRole('button', { name: saveLabel })).toBeEnabled();
       expect(upsert).not.toHaveBeenCalled();
       expect(field).toHaveValue('a'.repeat(3201));
       await checkAccessibility(container);
@@ -226,6 +230,10 @@ describe('PreferencesSettings', () => {
       fireEvent.change(field, { target: { value: 'a'.repeat(3200) } });
       await waitFor(() => expect(capture.current?.isValid).toBe(true));
       expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.getByRole('button', { name: saveLabel })).toBeEnabled();
+      expect(
+        screen.getByRole('button', { name: saveLabel }),
+      ).not.toHaveAttribute('aria-disabled');
       await user.click(screen.getByRole('button', { name: saveLabel }));
       await waitFor(() =>
         expect(upsert).toHaveBeenCalledWith({

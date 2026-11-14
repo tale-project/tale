@@ -214,6 +214,22 @@ function Bare({ children }: { children: ReactNode }) {
   );
 }
 
+// Invalid fields hold Save back with a reason: `aria-disabled` keeps it
+// focusable so the reason can be read, so it is never natively disabled.
+// Both read Save afresh: the reason's tooltip wraps the button, so Save is a
+// new element each time the reason comes or goes.
+function expectSaveHeldWithReason() {
+  const button = screen.getByRole('button', { name: /^save$/i });
+  expect(button).toHaveAttribute('aria-disabled', 'true');
+  expect(button).toBeEnabled();
+}
+
+function expectSaveReady() {
+  const button = screen.getByRole('button', { name: /^save$/i });
+  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute('aria-disabled');
+}
+
 describe('EnterpriseSsoForm accessibility', () => {
   it('passes axe when unconfigured (defaults to OIDC)', async () => {
     const { container } = render(
@@ -251,13 +267,11 @@ describe('EnterpriseSsoForm validation + save', () => {
     const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
 
-    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await screen.findByRole('button', { name: /^save$/i });
 
     // `isValid` gates the Save button regardless of validation timing, so it
-    // disables as soon as the field is empty.
-    await waitFor(() => {
-      expect(saveButton).toBeDisabled();
-    });
+    // turns off as soon as the field is empty — focusable, to say why.
+    await waitFor(expectSaveHeldWithReason);
 
     // Blur the field so the inline error surfaces (shared `mode: 'onTouched'`
     // default, #1943 — the error does not render on the first keystroke).
@@ -553,9 +567,9 @@ describe('EnterpriseSsoForm validation + save', () => {
     await user.click(
       screen.getByRole('switch', { name: /require encrypted assertions/i }),
     );
-    // `isValid` gates Save, so it stays disabled while the key is missing …
-    const saveButton = await screen.findByRole('button', { name: /^save$/i });
-    await waitFor(() => expect(saveButton).toBeDisabled());
+    // `isValid` gates Save, so it stays off while the key is missing …
+    await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(expectSaveHeldWithReason);
 
     // … and the inline error surfaces under the key field once it is touched
     // (shared `mode: 'onTouched'`).
@@ -662,8 +676,8 @@ describe('EnterpriseSsoForm validation + save', () => {
       'client-123',
     );
 
-    const saveButton = await screen.findByRole('button', { name: /^save$/i });
-    await waitFor(() => expect(saveButton).toBeDisabled());
+    await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(expectSaveHeldWithReason);
     expect(upsertOidcMock).not.toHaveBeenCalled();
   });
 
@@ -998,10 +1012,10 @@ describe('EnterpriseSsoForm Save follows a value the form fills (#5260)', () => 
     );
 
     const displayName = screen.getByRole('textbox', { name: /display name/i });
-    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await screen.findByRole('button', { name: /^save$/i });
     await user.clear(displayName);
     await user.tab();
-    await waitFor(() => expect(saveButton).toBeDisabled());
+    await waitFor(expectSaveHeldWithReason);
     expect(screen.getByText(/this field is required/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('combobox', { name: /protocol/i }));
@@ -1010,7 +1024,7 @@ describe('EnterpriseSsoForm Save follows a value the form fills (#5260)', () => 
     );
 
     expect(displayName).toHaveValue('OIDC SSO');
-    await waitFor(() => expect(saveButton).toBeEnabled());
+    await waitFor(expectSaveReady);
     expect(
       screen.queryByText(/this field is required/i),
     ).not.toBeInTheDocument();
@@ -1025,15 +1039,15 @@ describe('EnterpriseSsoForm Save follows a value the form fills (#5260)', () => 
     const displayName = screen.getByRole('textbox', { name: /display name/i });
     await user.clear(displayName);
     await user.type(displayName, 'Renamed SSO');
-    const saveButton = await screen.findByRole('button', { name: /^save$/i });
-    await waitFor(() => expect(saveButton).toBeDisabled());
+    await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(expectSaveHeldWithReason);
 
     await act(async () => reveal.resolve('client-123'));
 
     expect(screen.getByRole('textbox', { name: /^client id$/i })).toHaveValue(
       'client-123',
     );
-    await waitFor(() => expect(saveButton).toBeEnabled());
+    await waitFor(expectSaveReady);
     expect(
       screen.queryByText(/this field is required/i),
     ).not.toBeInTheDocument();
@@ -1061,9 +1075,8 @@ describe('EnterpriseSsoForm Save follows a value the form fills (#5260)', () => 
         screen.queryByText(/this field is required/i),
       ).not.toBeInTheDocument(),
     );
-    expect(
-      await screen.findByRole('button', { name: /^save$/i }),
-    ).toBeEnabled();
+    await screen.findByRole('button', { name: /^save$/i });
+    expectSaveReady();
   });
 });
 

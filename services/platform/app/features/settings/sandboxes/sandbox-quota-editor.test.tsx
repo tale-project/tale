@@ -55,6 +55,20 @@ function HeaderActions() {
   return editor ? <EditorActions controller={editor} /> : null;
 }
 
+// Invalid fields hold Save back with a reason: `aria-disabled` keeps it
+// focusable so the reason can be read, so it is never natively disabled.
+function expectSaveHeldWithReason() {
+  const button = screen.getByRole('button', { name: 'Save' });
+  expect(button).toHaveAttribute('aria-disabled', 'true');
+  expect(button).toBeEnabled();
+}
+
+function expectSaveReady() {
+  const button = screen.getByRole('button', { name: 'Save' });
+  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute('aria-disabled');
+}
+
 function EditorView(props: Partial<ComponentProps<typeof SandboxQuotaEditor>>) {
   return (
     <ActiveEditorProvider>
@@ -270,7 +284,7 @@ describe('SandboxQuotaEditor', () => {
     expect(
       screen.getByRole('status', { name: 'Total organization sessions' }),
     ).toHaveTextContent('18 / 18');
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expectSaveReady();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
   });
@@ -332,7 +346,7 @@ describe('SandboxQuotaEditor', () => {
     const input = screen.getByRole('spinbutton', { name: label });
     await user.clear(input);
     if (value) await user.type(input, value);
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await waitFor(expectSaveHeldWithReason);
     await user.tab();
     expect(
       await screen.findByText('Must be a whole number between 1 and 500.'),
@@ -409,7 +423,7 @@ describe('SandboxQuotaEditor', () => {
       expect(
         screen.getByRole('status', { name: 'Total organization sessions' }),
       ).toHaveTextContent('8 / Unavailable');
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+      expectSaveReady();
       await user.click(screen.getByRole('button', { name: 'Save' }));
       await waitFor(() =>
         expect(save).toHaveBeenCalledWith(
@@ -432,7 +446,7 @@ describe('SandboxQuotaEditor', () => {
     await user.clear(input);
     await user.type(input, '8');
     await user.tab();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expectSaveReady();
     rerender(
       <EditorView
         deploymentLimits={{ status: 'available', maxSessions: 10 }}
@@ -446,7 +460,7 @@ describe('SandboxQuotaEditor', () => {
     await user.clear(input);
     await user.type(input, '4');
     await user.tab();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expectSaveReady();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
   });
@@ -690,7 +704,7 @@ describe('SandboxQuotaEditor', () => {
     await user.clear(workflow);
     await user.type(workflow, '3');
     await user.tab();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expectSaveReady();
     state.usage.isError = true;
     state.usage.error = new BackendApiError(503, 'Reader failed');
     rerender(<EditorView />);

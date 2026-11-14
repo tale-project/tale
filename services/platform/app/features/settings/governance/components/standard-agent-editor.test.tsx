@@ -460,7 +460,11 @@ describe('standard agent settings', () => {
       screen.getByRole('textbox', { name: 'Instructions' }),
       'Draft',
     );
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     await user.clear(screen.getByRole('textbox', { name: 'Instructions' }));
     await user.click(screen.getByRole('button', { name: MODEL }));
     expect(screen.getByRole('button', { name: MODEL })).toHaveAttribute(
@@ -470,6 +474,9 @@ describe('standard agent settings', () => {
     await user.click(await screen.findByRole('option', { name: /^Automatic/ }));
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save' })).not.toHaveAttribute(
+      'aria-disabled',
+    );
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() =>

@@ -44,6 +44,20 @@ function HeaderActions() {
   return editor ? <EditorActions controller={editor} /> : null;
 }
 
+// Invalid fields hold Save back with a reason: `aria-disabled` keeps it
+// focusable so the reason can be read, so it is never natively disabled.
+function expectSaveHeldWithReason() {
+  const button = screen.getByRole('button', { name: 'Save' });
+  expect(button).toHaveAttribute('aria-disabled', 'true');
+  expect(button).toBeEnabled();
+}
+
+function expectSaveReady() {
+  const button = screen.getByRole('button', { name: 'Save' });
+  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute('aria-disabled');
+}
+
 function EditorView() {
   return (
     <ActiveEditorProvider>
@@ -139,9 +153,7 @@ describe('WorkspaceCleanupEditor', () => {
       const { user } = render(<EditorView />);
       await user.clear(daysInput());
       if (value) await user.type(daysInput(), value);
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
-      );
+      await waitFor(expectSaveHeldWithReason);
       await user.tab();
       expect(await screen.findByText(INVALID_DAYS)).toBeInTheDocument();
       expect(daysInput()).toHaveAttribute('aria-invalid', 'true');
@@ -159,10 +171,10 @@ describe('WorkspaceCleanupEditor', () => {
       await user.type(daysInput(), String(days));
       await user.tab();
       if (accepted) {
-        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        expectSaveReady();
         expect(screen.queryByText(INVALID_DAYS)).not.toBeInTheDocument();
       } else {
-        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expectSaveHeldWithReason();
         expect(await screen.findByText(INVALID_DAYS)).toBeInTheDocument();
       }
     },
@@ -346,10 +358,10 @@ describe('WorkspaceCleanupEditor — disk space and size', () => {
       await user.type(sizeInput(), String(gib));
       await user.tab();
       if (accepted) {
-        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        expectSaveReady();
         expect(screen.queryByText(INVALID_SIZE)).not.toBeInTheDocument();
       } else {
-        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expectSaveHeldWithReason();
         expect(await screen.findByText(INVALID_SIZE)).toBeInTheDocument();
       }
     },
@@ -367,10 +379,10 @@ describe('WorkspaceCleanupEditor — disk space and size', () => {
       await user.type(hoursInput(), String(hours));
       await user.tab();
       if (accepted) {
-        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+        expectSaveReady();
         expect(screen.queryByText(INVALID_HOURS)).not.toBeInTheDocument();
       } else {
-        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        expectSaveHeldWithReason();
         expect(await screen.findByText(INVALID_HOURS)).toBeInTheDocument();
       }
     },

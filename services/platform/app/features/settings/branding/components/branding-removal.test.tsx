@@ -46,6 +46,15 @@ vi.mock(
   }),
 );
 
+// Save the reader can press. Until the form's validity settles, invalid
+// fields hold Save back with a reason (`aria-disabled`, still focusable), so
+// a native `disabled` check alone passes before a click would land.
+function expectSaveReady() {
+  const button = screen.getByRole('button', { name: 'Save' });
+  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute('aria-disabled');
+}
+
 const images = [
   {
     type: 'logo',
@@ -138,9 +147,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.drop(screen.getByRole('button', { name: image.upload }), {
       dataTransfer: {
         files: [
@@ -191,9 +198,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith(
@@ -236,9 +241,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith(
@@ -257,9 +260,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     expect(screen.getByLabelText('Accent color hex value')).toHaveValue(
       '224466',
     );
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     vi.mocked(backendFetch).mockResolvedValue({ ok: true });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
@@ -290,9 +291,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: image.remove }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith(
@@ -329,9 +328,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith(
@@ -376,9 +373,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: image.remove }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith(
@@ -513,9 +508,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '335577' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith('/branding/save', {
@@ -565,9 +558,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '335577' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(backendFetch).toHaveBeenCalledWith('/branding/save', {
@@ -587,9 +578,7 @@ describe.each(images)('Branding removal: $type', (image) => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: image.remove }));
     await waitFor(() =>
       expect(
@@ -630,9 +619,7 @@ it('keeps the colour-change save control working without an image removal', asyn
   fireEvent.change(screen.getByLabelText('Accent color hex value'), {
     target: { value: '224466' },
   });
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-  );
+  await waitFor(expectSaveReady);
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
     expect(backendFetch).toHaveBeenCalledWith('/branding/save', {
@@ -698,9 +685,7 @@ it('queues Save until the derived favicon has finished and keeps the derived ref
   fireEvent.change(screen.getByLabelText('Accent color hex value'), {
     target: { value: '224466' },
   });
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-  );
+  await waitFor(expectSaveReady);
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await act(async () => {
     await Promise.resolve();
@@ -767,9 +752,7 @@ it('queues a derived favicon behind Save and does not let an older Save overwrit
   fireEvent.change(screen.getByLabelText('Accent color hex value'), {
     target: { value: '224466' },
   });
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-  );
+  await waitFor(expectSaveReady);
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
     expect(backendFetch).toHaveBeenCalledWith(
@@ -929,9 +912,7 @@ it('rechecks derivation after an explicit favicon upload already queued behind t
   fireEvent.change(screen.getByLabelText('Accent color hex value'), {
     target: { value: '224466' },
   });
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-  );
+  await waitFor(expectSaveReady);
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(authoritative.accentColor).toBe('#224466'));
   expect(authoritative.logoFilename).toBe('replacement.svg');
@@ -1058,9 +1039,7 @@ describe('Logo-derived favicon and an explicit favicon choice', () => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(stored.accentColor).toBe('#224466'));
   }
@@ -1155,9 +1134,7 @@ describe('Logo-derived favicon and an explicit favicon choice', () => {
     fireEvent.change(screen.getByLabelText('Accent color hex value'), {
       target: { value: '224466' },
     });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
-    );
+    await waitFor(expectSaveReady);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     // The logo lands and queues its derivation behind the pending Save.
     await act(async () => logo.resolve());
