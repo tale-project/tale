@@ -5,19 +5,33 @@ import { Grid } from '@tale/ui/layout';
 import type { ComponentPropsWithoutRef } from 'react';
 
 import { Image } from '@/app/components/image';
+import { productImageVariantUrl } from '@/lib/shared/product-images';
 
 interface ProductImageProps extends ComponentPropsWithoutRef<'div'> {
   images: string[];
   productName: string;
+  /**
+   * Serve each slot its variant (the list cell and the hover card). `false`
+   * serves the original upload, as the product's own view does.
+   */
+  variants?: boolean;
 }
 
 export function ProductImage({
   images,
   productName,
+  variants = true,
   className,
   ...restProps
 }: ProductImageProps) {
   const hasImages = images && images.length > 0;
+  const cellSrc = hasImages
+    ? variants
+      ? productImageVariantUrl(images[0], 'list')
+      : images[0]
+    : undefined;
+  const cardSrc = (image: string) =>
+    variants ? productImageVariantUrl(image, 'card') : image;
 
   return (
     <div
@@ -29,7 +43,7 @@ export function ProductImage({
       {...restProps}
     >
       <Image
-        src={hasImages ? images[0] : undefined}
+        src={cellSrc}
         alt={productName}
         width={80}
         height={80}
@@ -48,7 +62,7 @@ export function ProductImage({
                   className="bg-muted relative h-32 w-32 overflow-hidden rounded-md"
                 >
                   <Image
-                    src={image}
+                    src={cardSrc(image)}
                     alt={`${productName} - ${imgIndex + 1}`}
                     width={128}
                     height={128}

@@ -160,6 +160,7 @@ export function ProductViewDialog({
         <ProductImage
           images={product.imageUrl ? [product.imageUrl] : []}
           productName={product.name}
+          variants={false}
           className={
             product.imageUrl
               ? 'size-16 shrink-0 rounded-lg'
