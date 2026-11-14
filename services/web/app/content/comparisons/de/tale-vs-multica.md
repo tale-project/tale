@@ -16,11 +16,11 @@ Beide Produkte gehören auf die Auswahlliste, wenn dein Team Aufgaben an KI-Agen
 | --- | --- | --- |
 | Gemeinsame Arbeit | Projekte mit Aufgaben für Menschen und Agenten, Anweisungen und gemeinsamen Dateien. | Ein gemeinsames Aufgabensystem für Menschen und Agenten mit Statusmeldungen und wiederverwendbaren Skills. |
 | Schwerpunkt der Beispiele | Kampagnenbriefings, Rechercheberichte und Seitenänderungen auf einem Projektboard. | Coding-Agenten bearbeiten Issues und geben Ergebnisse zur Prüfung zurück; weitere Arbeit im Test bewerten. |
-| Ausführung einrichten | Explizite Aufgabenstarts; ausgestattete Manager-Agenten können bereite Arbeit innerhalb der Projektgrenzen delegieren. | Lokale Runtimes auf angebundenen Computern; Lizenzbedingungen für deine Bereitstellung prüfen. |
+| Ausführung einrichten | Explizite Aufgabenstarts; ausgestattete Manager-Agenten können bereite Arbeit innerhalb der Projektgrenzen delegieren. | Angebundene lokale oder Cloud-Runtimes; Lizenzbedingungen für deine Bereitstellung prüfen. |
 
 ## Den Arbeitsalltag vergleichen
 
-Multica beschreibt ein gemeinsames Aufgabensystem für Menschen und Agenten mit Fortschrittsmeldungen, wiederverwendbaren Skills und lokalen Runtimes auf angebundenen Computern. Die Beispiele zeigen Coding-Agenten, die Issues bearbeiten und Ergebnisse zur Prüfung zurückgeben. Das sind deutliche Gemeinsamkeiten mit Tale. Siehe [Multica-Kernkonzepte](https://multica.ai/docs/concepts) und [Daemon und Runtimes](https://multica.ai/docs/daemon-runtimes).
+Multica beschreibt ein gemeinsames Aufgabensystem für Menschen und Agenten mit Fortschrittsmeldungen, wiederverwendbaren Skills und angebundenen lokalen oder Cloud-Runtimes. Die Beispiele zeigen Coding-Agenten, die Issues bearbeiten und Ergebnisse zur Prüfung zurückgeben. Das sind deutliche Gemeinsamkeiten mit Tale. Siehe [Multica-Kernkonzepte](https://multica.ai/docs/concepts) und [Daemon und Runtimes](https://multica.ai/docs/daemon-runtimes).
 
 In Tale bündelt ein Projekt Aufgaben, Anweisungen, Referenzdateien und Projektagenten. Eine Marketingverantwortliche kann einen Kampagnenbrief, einen Recherchebericht und eine Änderung an der Landingpage auf demselben Board koordinieren. Du weist die Aufgaben zu, startest die Agenten ausdrücklich und prüfst anschließend Berichte und Dateien. Ein entsprechend ausgestatteter Manager-Agent kann weitere startbereite Aufgaben innerhalb der Delegations- und Kapazitätsgrenzen des Projekts starten.
 

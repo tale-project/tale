@@ -16,11 +16,11 @@ Les deux produits méritent d’être évalués si ton équipe veut attribuer du
 | --- | --- | --- |
 | Travail partagé | Projets avec tâches pour humains et agents, consignes et fichiers partagés. | Un système de tâches pour humains et agents avec suivi d’avancement et compétences réutilisables. |
 | Orientation des exemples | Briefs de campagne, rapports de recherche et modifications de pages sur un même tableau. | Des agents de code traitent des tickets et soumettent le résultat à validation ; évaluer les autres usages. |
-| Configuration de l’exécution | Démarrage explicite des tâches ; les agents de coordination équipés peuvent déléguer le travail prêt dans les limites du projet. | Runtimes locaux sur des ordinateurs connectés ; vérifier les conditions de licence pour ton déploiement. |
+| Configuration de l’exécution | Démarrage explicite des tâches ; les agents de coordination équipés peuvent déléguer le travail prêt dans les limites du projet. | Runtimes locaux ou cloud connectés ; vérifier les conditions de licence pour ton déploiement. |
 
 ## Comparer le travail quotidien
 
-Multica présente un système de tâches partagé entre humains et agents, avec suivi de progression, skills réutilisables et runtimes locaux sur des ordinateurs connectés. Ses exemples mettent en avant des agents de programmation qui traitent des issues et remettent leur travail pour vérification. Ces usages recoupent largement ceux de Tale. Voir [les concepts de Multica](https://multica.ai/docs/concepts) et [la documentation sur le daemon et les runtimes](https://multica.ai/docs/daemon-runtimes).
+Multica présente un système de tâches partagé entre humains et agents, avec suivi de progression, skills réutilisables et runtimes locaux ou cloud connectés. Ses exemples mettent en avant des agents de programmation qui traitent des issues et remettent leur travail pour vérification. Ces usages recoupent largement ceux de Tale. Voir [les concepts de Multica](https://multica.ai/docs/concepts) et [la documentation sur le daemon et les runtimes](https://multica.ai/docs/daemon-runtimes).
 
 Dans Tale, un projet réunit tâches, instructions, fichiers de référence et agents de projet. Une responsable marketing peut coordonner un brief de campagne, une étude et une modification de page sur le même tableau. Attribue les tâches, lance explicitement les agents, puis examine leurs rapports et fichiers. Un agent de coordination équipé pour cela peut lancer d’autres tâches prêtes, dans les limites de délégation et de capacité du projet.
 

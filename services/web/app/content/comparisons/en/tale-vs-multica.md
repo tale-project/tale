@@ -16,11 +16,11 @@ Both products deserve a place on your shortlist when teammates need to assign wo
 | --- | --- | --- |
 | Shared work | Projects with human and agent tasks, instructions and shared files. | A shared human-and-agent task system with progress updates and reusable skills. |
 | Example focus | Campaign briefs, research reports and page changes on one project board. | Coding agents handle issues and return work for review; broader work needs evaluation. |
-| Execution setup | Explicit task starts; equipped manager agents can delegate ready work within project limits. | Local runtimes on connected computers; check license conditions for your deployment. |
+| Execution setup | Explicit task starts; equipped manager agents can delegate ready work within project limits. | Connected local or cloud runtimes; check license conditions for your deployment. |
 
 ## Compare the daily work
 
-Multica describes a shared human-and-agent task system with progress updates, reusable skills and local runtimes on connected computers. Its examples emphasize coding agents handling issues and returning work for review. Those are substantial overlaps with Tale, not features unique to either product. See [Multica core concepts](https://multica.ai/docs/concepts) and the [daemon and runtime documentation](https://multica.ai/docs/daemon-runtimes).
+Multica describes a shared human-and-agent task system with progress updates, reusable skills and connected local or cloud runtimes. Its examples emphasize coding agents handling issues and returning work for review. Those are substantial overlaps with Tale, not features unique to either product. See [Multica core concepts](https://multica.ai/docs/concepts) and the [daemon and runtime documentation](https://multica.ai/docs/daemon-runtimes).
 
 In Tale, a project brings tasks, instructions, reference files and project agents together. A marketing lead can coordinate a campaign brief, a research report and a landing-page change on the same board. Assign the tasks, explicitly start the agents, then inspect their reports and files. An equipped manager agent can start other ready tasks within the project's delegation and capacity limits.
 
