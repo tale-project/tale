@@ -1259,6 +1259,29 @@ export function spendRefusalReason(finalText: string | undefined): string {
   }`;
 }
 
+/**
+ * Which way an errored terminal window failed on the platform's side, when it
+ * was not the provider's: the sandbox could not replay the turn's output
+ * (`replay_failed`), or the agent runtime exited with no turn ended and no
+ * provider error in its exec failure (`runtime_exited`). A provider error, a
+ * spend refusal, a model-capacity refusal and a sandbox end (a stall, an out
+ * of memory kill) are none of these and read as they did; so is every
+ * window that did not fail. Read beside {@link classifyHarnessEnd}.
+ */
+export function harnessEndFailure(
+  window: HarnessEndWindow,
+): 'replay_failed' | 'runtime_exited' | undefined {
+  if (unreplayableExecResult(window.execResult)) return 'replay_failed';
+  if (window.ended !== undefined || !window.exited) return undefined;
+  if (sandboxEndOf(window) !== undefined) return undefined;
+  // An exec that never ran, a start the spawner refused, has no exit status.
+  if (typeof window.execResult?.exitCode !== 'number') return undefined;
+  const provider = classifyProviderExecFailure(window.execResult?.errorMessage);
+  if (provider.apiErrorStatus !== undefined) return undefined;
+  if (provider.providerErrorKind !== undefined) return undefined;
+  return 'runtime_exited';
+}
+
 /** How a terminal window classifies: the agent's own `turn-ended.isError`
  * wins when it exists (with the failure the harness named, when it named
  * one); an exit without `turn-ended` is a crash by definition, with the

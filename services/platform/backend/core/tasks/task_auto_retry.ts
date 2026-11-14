@@ -63,6 +63,16 @@ export function resourceExhaustedRetryDelayMs(
  * wake) — never regex-derived from the free-text reason. */
 export type TaskRunFailureCode =
   | 'harness_error'
+  /** The agent runtime (the program that runs the harness) exited without
+   * finishing its turn, and no provider error explains the exit: a crash on
+   * the sandbox side, such as a `CODEX_HOME` that does not exist. Retried as
+   * `harness_error` is; named apart so the task does not blame the AI model. */
+  | 'runtime_exited'
+  /** The sandbox could not replay the complete output of the turn (the exec
+   * reported a gap, a limit or an unavailable replay), so the result cannot
+   * be trusted. Retried; the preserved workspace lets the next attempt
+   * continue. Named apart so the task does not blame the AI model. */
+  | 'replay_failed'
   /** The selected model is overloaded, not a failed credential. The retry
    * spends no attempt, waits on the model's capacity hold with every other
    * run on it, and keeps the prior account eligible. */

@@ -376,6 +376,61 @@ describe('drive window failure', () => {
   });
 });
 
+describe('a turn that fails on the platform side', () => {
+  const crashedWindow = (execResult: Record<string, unknown>) => ({
+    kind: 'terminal',
+    text: '',
+    timeline: [],
+    exited: true,
+    execResult: {
+      status: 'failed',
+      durationMs: 5,
+      stdoutBase64: '',
+      stderrBase64: '',
+      truncated: { stdout: false, stderr: false },
+      ...execResult,
+    },
+  });
+
+  it('settles a runtime that exits without ending its turn as runtime_exited, not as a model error [TASK-R100]', async () => {
+    io.terminal = crashedWindow({ exitCode: 1 });
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(run.status).toBe('failed');
+    const failed = mutations.filter((m) =>
+      m.name.endsWith(':markTaskAgentRunFailed'),
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.args).toMatchObject({
+      failureCode: 'runtime_exited',
+      error: expect.stringContaining('exited unexpectedly (exit code 1)'),
+    });
+  });
+
+  it('settles a turn the sandbox could not replay as replay_failed, not as a model error [TASK-R100]', async () => {
+    io.terminal = crashedWindow({ exitCode: 1, errorCode: 'REPLAY_GAP' });
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(run.status).toBe('failed');
+    const failed = mutations.filter((m) =>
+      m.name.endsWith(':markTaskAgentRunFailed'),
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.args).toMatchObject({
+      failureCode: 'replay_failed',
+      error: expect.stringContaining(
+        'could not replay the complete agent output',
+      ),
+    });
+  });
+});
+
 describe('a spawner outage', () => {
   const away = (since: number) => ({
     kind: 'running',

@@ -136,6 +136,8 @@ agentRun:
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
     start: The run couldn't start. Show an Admin what the run reported, then start the agent again.
     sandbox_unreachable: The sandbox service this agent works in couldn't be reached, so the run stopped. Ask your operator to check the sandbox service, then start the agent again.
+    runtime_exited: The agent's runtime stopped on its own before the work was done, so the run stopped. It was not the AI model. Start the agent again — if it stops again, ask an Admin to check the agent runtime and what the run reported.
+    replay_failed: The sandbox couldn't replay everything the agent printed, so the run stopped before its result could be trusted. Start the agent again to continue from the files it left — if it keeps happening, ask your operator to check the sandbox service.
     interrupted: The run was interrupted before the agent finished. Start the agent again.
     out_of_memory: The agent's sandbox ran out of memory, so its work was stopped. Start the agent again — if it keeps happening, ask an Admin to give agents more memory.
     stalled: The agent stopped responding — it printed nothing and did almost no work for a long time — so its sandbox stopped it. Start the agent again; if it stops again, show an Admin what the run reported.

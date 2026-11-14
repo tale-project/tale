@@ -45,6 +45,7 @@ import {
   buildExternalTurnExec,
   classifyProviderExecFailure,
   classifyHarnessEnd,
+  harnessEndFailure,
   sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
@@ -2258,6 +2259,9 @@ async function continueOrSettle(
   const classifiedProviderErrorKind = execFailure.providerErrorKind;
   // An exec the sandbox ended (a hang) is named as such, not as a crash.
   const sandboxEnd = sandboxEndOf(window);
+  // A failure on the platform's side, not the provider's: the runtime exited
+  // on its own, or the sandbox could not replay the turn's output.
+  const platformFailure = harnessEndFailure(window);
   const endReason = sandboxEnd?.reason ?? classifiedReason;
   // A `--resume` of a dead conversation echoes the handle back on its error
   // result: stamping THAT would re-arm the dead handle on every Retry
@@ -2353,11 +2357,15 @@ async function continueOrSettle(
               ? ('turn_stalled' as const)
               : sandboxEnd?.failure === 'out_of_memory'
                 ? ('resource_exhausted' as const)
-                : spendRefused
-                  ? ('budget_exceeded' as const)
-                  : modelCapacity
-                    ? ('model_capacity' as const)
-                    : ('harness_error' as const),
+                : platformFailure === 'replay_failed'
+                  ? ('replay_failed' as const)
+                  : platformFailure === 'runtime_exited'
+                    ? ('runtime_exited' as const)
+                    : spendRefused
+                      ? ('budget_exceeded' as const)
+                      : modelCapacity
+                        ? ('model_capacity' as const)
+                        : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for

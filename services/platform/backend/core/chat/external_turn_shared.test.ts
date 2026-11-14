@@ -214,6 +214,7 @@ const {
   drainHarnessWindow,
   classifyProviderExecFailure,
   classifyHarnessEnd,
+  harnessEndFailure,
   harnessOutputTail,
   isSpendRefusal,
   removeStagedInstructions,
@@ -1712,6 +1713,89 @@ describe('classifyHarnessEnd', () => {
         execResult: { ...crashed.execResult, errorMessage: 'OOM killed' },
       }).reason,
     ).toBe('The harness stopped: OOM killed');
+  });
+
+  it('names a runtime that exits without a turn end as its own failure, not the model’s', () => {
+    const exited = {
+      text: '',
+      timeline: [],
+      exited: true,
+      execResult: {
+        status: 'failed' as const,
+        exitCode: 1,
+        durationMs: 5,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+      },
+    };
+    expect(harnessEndFailure(exited)).toBe('runtime_exited');
+    // A provider error in the exec's own message stays the provider's.
+    expect(
+      harnessEndFailure({
+        ...exited,
+        execResult: {
+          ...exited.execResult,
+          errorMessage:
+            'exceeded retry limit, last status: 429 Too Many Requests',
+        },
+      }),
+    ).toBeUndefined();
+    expect(
+      harnessEndFailure({
+        ...exited,
+        execResult: {
+          ...exited.execResult,
+          errorMessage: 'exceeded retry limit, last status: 401 Unauthorized',
+        },
+      }),
+    ).toBeUndefined();
+    // A start the spawner refused never ran: it has no exit status.
+    expect(
+      harnessEndFailure({
+        ...exited,
+        execResult: {
+          ...exited.execResult,
+          exitCode: null,
+          durationMs: 0,
+          errorCode: 'RUNTIME_ERROR',
+          errorMessage: 'exec id is live',
+        },
+      }),
+    ).toBeUndefined();
+    // Not exited, or a turn that ended, is not a runtime exit.
+    expect(harnessEndFailure({ ...exited, exited: false })).toBeUndefined();
+    expect(
+      harnessEndFailure(
+        cleanEnd({ ended: { type: 'turn-ended', status: 'completed' } }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it('names a turn the sandbox could not replay as a replay failure, and says so', () => {
+    for (const errorCode of [
+      'OUTPUT_GAP',
+      'REPLAY_GAP',
+      'REPLAY_UNAVAILABLE',
+      'OUTPUT_LIMIT',
+    ]) {
+      const gap = {
+        text: '',
+        timeline: [],
+        exited: true,
+        execResult: {
+          status: 'failed' as const,
+          exitCode: 1,
+          durationMs: 5,
+          stdoutBase64: '',
+          stderrBase64: '',
+          truncated: { stdout: false, stderr: false },
+          errorCode,
+        },
+      };
+      expect(harnessEndFailure(gap)).toBe('replay_failed');
+      expect(classifyHarnessEnd(gap).errored).toBe(true);
+    }
   });
 
   it('classifies a provider 429 when the CLI exits before turn-ended', () => {
