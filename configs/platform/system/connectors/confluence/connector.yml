@@ -48,6 +48,51 @@ actions:
       const parent = { id: 'mock-1', title: 'Handbook', version: 3, spaceKey: space, ancestorPath: '', hasChildren: true, folderSubPath: 'Handbook' };
       const child = { id: 'mock-2', title: 'Onboarding', version: 1, spaceKey: space, ancestorPath: 'Handbook', hasChildren: false, folderSubPath: 'Handbook' };
       return { pages: [parent, child], archivedIds: [], truncated: false };
+    scenarios:
+      - name: two_pages
+        kind: success
+        description: 'The space holds a parent page with a child, and one archived page, which is reported by id only.'
+        output:
+          pages:
+            - id: '1001'
+              title: Handbook
+              version: 3
+              modifiedAt: '2026-10-02T09:00:00.000Z'
+              spaceKey: ENG
+              ancestorPath: ''
+              hasChildren: true
+              folderSubPath: Handbook
+              webUrl: 'https://example.atlassian.net/wiki/spaces/ENG/pages/1001/Handbook'
+            - id: '1002'
+              title: Onboarding
+              version: 1
+              modifiedAt: '2026-10-03T10:00:00.000Z'
+              spaceKey: ENG
+              ancestorPath: Handbook
+              hasChildren: false
+              folderSubPath: Handbook
+              webUrl: 'https://example.atlassian.net/wiki/spaces/ENG/pages/1002/Onboarding'
+          archivedIds: ['1003']
+          truncated: false
+      - name: no_pages
+        kind: empty
+        description: 'The space holds no pages and no archived pages, so both lists are empty.'
+        output:
+          pages: []
+          archivedIds: []
+          truncated: false
+      - name: invalid_credentials
+        kind: error
+        description: 'Confluence refuses the account email and API token with HTTP 401.'
+        error:
+          message: 'Confluence list_pages failed (401): {"statusCode":401,"message":"Client must be authenticated to access this resource."}'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Confluence rate-limits the search with HTTP 429.'
+        error:
+          message: 'Confluence list_pages failed (429): {"statusCode":429,"message":"Rate limit exceeded."}'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -155,7 +200,8 @@ actions:
         title: Récupérer une page
     description: >-
       Fetch a single page's rendered content by pageId, convert it to plain
-      text, and store it as a text/plain file.
+      text, and store it as a text/plain file. A page with no text (an
+      image-only page, say) stores nothing and answers no file.
     effects: read
     input:
       type: object
@@ -171,7 +217,7 @@ actions:
             type: string,
             description: 'Page title to use when storing the converted text.',
           }
-    output: '{ file: { id: string, fileName: string, contentType: string, size: number } }'
+    output: '{ file?: { id: string, fileName: string, contentType: string, size: number } }'
     mock: |
       const text = `Mock contents of Confluence page ${input.pageId}.`;
       return {
@@ -182,6 +228,27 @@ actions:
           size: text.length,
         },
       };
+    scenarios:
+      - name: one_page
+        kind: success
+        description: 'Confluence renders the page, and its text is stored as a text/plain file.'
+        output:
+          file:
+            id: 's3:example-org/00000000-0000-0000-0000-000000000001'
+            fileName: Onboarding.txt
+            contentType: text/plain
+            size: 46
+      - name: no_text
+        kind: empty
+        description: 'The page holds only an image, so it has no text to store. The blob store refuses an empty file, so the action answers no file.'
+        output: {}
+      - name: page_not_found
+        kind: error
+        description: 'The page was deleted between listing and fetching, and Confluence answers HTTP 404.'
+        when: { pageId: '999999' }
+        error:
+          message: 'Confluence page 999999 no longer exists (deleted between listing and fetch) — skipping.'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -214,6 +281,11 @@ actions:
           .replace(/&quot;/g, '"')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
+
+        // A page without text (an image-only page, say) has nothing to store:
+        // the organization's blob store refuses an empty file, so the action
+        // answers no file rather than fail the batch.
+        if (text === '') return {};
 
         const file = await ctx.files.store(text, {
           encoding: 'utf-8',

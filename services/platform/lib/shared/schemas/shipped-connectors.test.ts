@@ -126,6 +126,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'confluence',
   'conversation',
   'discord',
   'gmail',
@@ -2219,6 +2220,142 @@ const TWILIO_PROOFS: Record<string, ProofAnswers> = {
   },
 };
 
+/** The Confluence site the credential names: a synthetic Atlassian origin,
+ * which the bodies build every URL from (`ctx.endpoint`). */
+const CONFLUENCE_ORIGIN = 'https://example.atlassian.net';
+
+/** The one search each list makes: the pages of space ENG, whose current
+ * pages come first and whose archived pages follow in a second search. */
+const CONFLUENCE_SEARCH = `${CONFLUENCE_ORIGIN}/wiki/rest/api/content/search?cql=space%3D%22ENG%22%20and%20type%3Dpage`;
+const CONFLUENCE_CURRENT = `GET ${CONFLUENCE_SEARCH}&expand=version,ancestors,space&limit=100`;
+const CONFLUENCE_ARCHIVED = `GET ${CONFLUENCE_SEARCH}&cqlcontext=%7B%22contentStatuses%22%3A%5B%22archived%22%5D%7D&limit=100`;
+
+/** The request get_page makes for a page: its rendered body and its storage
+ * body, which the body reads for the page's text. */
+function confluencePage(id: string): string {
+  return `GET ${CONFLUENCE_ORIGIN}/wiki/rest/api/content/${id}?expand=body.export_view,body.storage`;
+}
+
+/** A search's answer: the results on this page and the link base the body
+ * builds each page's web address from. A last page carries no next link. */
+function confluenceList(results: unknown[]): ServiceAnswer {
+  return {
+    status: 200,
+    body: {
+      results,
+      size: results.length,
+      _links: { base: `${CONFLUENCE_ORIGIN}/wiki` },
+    },
+  };
+}
+
+/** Confluence's answers to a bad account and to a rate limit: the status and
+ * the error body as Confluence sends it, which the body puts in its message. */
+const CONFLUENCE_UNAUTHORIZED: ServiceAnswer = {
+  status: 401,
+  body: '{"statusCode":401,"message":"Client must be authenticated to access this resource."}',
+};
+const CONFLUENCE_RATE_LIMITED: ServiceAnswer = {
+  status: 429,
+  headers: { 'retry-after': '30' },
+  body: '{"statusCode":429,"message":"Rate limit exceeded."}',
+};
+
+const CONFLUENCE_HANDBOOK = {
+  id: '1001',
+  title: 'Handbook',
+  version: { number: 3, when: '2026-10-02T09:00:00.000Z' },
+  ancestors: [],
+  space: { key: 'ENG' },
+  _links: { webui: '/spaces/ENG/pages/1001/Handbook' },
+};
+
+const CONFLUENCE_ONBOARDING = {
+  id: '1002',
+  title: 'Onboarding',
+  version: { number: 1, when: '2026-10-03T10:00:00.000Z' },
+  ancestors: [{ id: '1001', title: 'Handbook' }],
+  space: { key: 'ENG' },
+  _links: { webui: '/spaces/ENG/pages/1002/Onboarding' },
+};
+
+const CONFLUENCE_ARCHIVED_PAGE = {
+  id: '1003',
+  title: 'Old runbook',
+  version: { number: 2, when: '2026-09-20T08:00:00.000Z' },
+  ancestors: [],
+  space: { key: 'ENG' },
+  _links: { webui: '/spaces/ENG/pages/1003/Old+runbook' },
+};
+
+/** A page's rendered body and storage body, as get_page reads them. */
+function confluenceBody(html: string): ServiceAnswer {
+  return {
+    status: 200,
+    body: {
+      id: '123456',
+      title: 'Onboarding',
+      body: { export_view: { value: html }, storage: { value: html } },
+    },
+  };
+}
+
+/**
+ * The proof of every Confluence scenario, keyed as Slack's are: Confluence's
+ * answer to each request the action makes, in the order the body makes them.
+ * An answer carries the members the action's output names; the bodies hand
+ * the pages on as they come, and throw a refusal with its status.
+ */
+const CONFLUENCE_PROOFS: Record<string, ProofAnswers> = {
+  'list_pages/two_pages': {
+    [CONFLUENCE_CURRENT]: confluenceList([
+      CONFLUENCE_HANDBOOK,
+      CONFLUENCE_ONBOARDING,
+    ]),
+    [CONFLUENCE_ARCHIVED]: confluenceList([CONFLUENCE_ARCHIVED_PAGE]),
+  },
+  'list_pages/no_pages': {
+    [CONFLUENCE_CURRENT]: confluenceList([]),
+    [CONFLUENCE_ARCHIVED]: confluenceList([]),
+  },
+  'list_pages/invalid_credentials': {
+    [CONFLUENCE_CURRENT]: CONFLUENCE_UNAUTHORIZED,
+  },
+  'list_pages/rate_limited': {
+    [CONFLUENCE_CURRENT]: CONFLUENCE_RATE_LIMITED,
+  },
+  'get_page/one_page': {
+    [confluencePage('123456')]: confluenceBody(
+      '<p>Welcome to the team.</p><p>Read the handbook first.</p>',
+    ),
+  },
+  // An image-only page: its text is empty, so nothing is stored.
+  'get_page/no_text': {
+    [confluencePage('123456')]: confluenceBody(
+      '<p><ac:image><ri:attachment ri:filename="diagram.png" /></ac:image></p>',
+    ),
+  },
+  'get_page/page_not_found': {
+    [confluencePage('999999')]: {
+      status: 404,
+      body: '{"statusCode":404,"message":"No content found with id: ContentId{id=999999}"}',
+    },
+  },
+};
+
+/** The file each Confluence proof stores: the page's text, as the body
+ * converts it. */
+const CONFLUENCE_STORED: Record<string, StoredFile[]> = {
+  'get_page/one_page': [
+    {
+      fileName: 'Onboarding.txt',
+      contentType: 'text/plain',
+      encoding: 'utf-8',
+      data: 'Welcome to the team.\n\nRead the handbook first.',
+    },
+  ],
+};
+
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
 /** The message of the Gmail actions' example input, which starts its own
@@ -3559,6 +3696,8 @@ const DRIVE_STORED: Record<string, StoredFile[]> = {
 type ScenarioProofs =
   | { natives: Record<string, MailProof> }
   | {
+      /** The endpoint the credential names, which a body reads as `ctx.endpoint`. */
+      endpoint?: string;
       secrets?: Record<string, string>;
       proofs: Record<string, ProofAnswers>;
       /** A native connector's cases, proven against its store instead. */
@@ -3567,6 +3706,11 @@ type ScenarioProofs =
     };
 
 const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
+  confluence: {
+    endpoint: CONFLUENCE_ORIGIN,
+    proofs: CONFLUENCE_PROOFS,
+    stored: CONFLUENCE_STORED,
+  },
   conversation: { proofs: {}, native: CONVERSATION_NATIVE_PROOFS },
   discord: { proofs: DISCORD_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
@@ -3613,10 +3757,11 @@ interface StoredFile {
 function proofHost(
   answers: ProofAnswers,
   secrets: Record<string, string> = {},
+  endpoint?: string,
 ): {
   ctx: Pick<
     ConnectorContext,
-    'http' | 'secrets' | 'base64Encode' | 'base64Decode'
+    'endpoint' | 'http' | 'secrets' | 'base64Encode' | 'base64Decode'
   > & {
     files: Pick<NonNullable<ConnectorContext['files']>, 'store' | 'download'>;
   };
@@ -3655,6 +3800,7 @@ function proofHost(
     };
   };
   const ctx = {
+    ...(endpoint !== undefined && { endpoint }),
     http: {
       get: answer('GET'),
       post: answer('POST'),
@@ -4044,9 +4190,9 @@ describe('a connector scenario fits its action and answers as the live call woul
       if (action.backend?.kind !== 'yaml-js') {
         throw new Error(`${slug}.${actionName} has no live body`);
       }
-      const { secrets, proofs, stored: storing } = entry;
+      const { endpoint, secrets, proofs, stored: storing } = entry;
       const answers = proofs[key];
-      const { ctx, asked, stored } = proofHost(answers, secrets);
+      const { ctx, asked, stored } = proofHost(answers, secrets, endpoint);
       const outcome = await outcomeOf(
         inProcessLiveRunner().runBody(
           connectorLiveBody(connector, action.backend.live),
