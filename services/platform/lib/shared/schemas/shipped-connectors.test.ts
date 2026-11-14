@@ -62,6 +62,11 @@ import {
   type WorkflowConversationStore,
 } from '../../connectors/natives/platform-conversations';
 import {
+  platformDocumentNatives,
+  type WorkflowDocumentStore,
+  type WorkflowFolderFile,
+} from '../../connectors/natives/platform-documents';
+import {
   notifyNatives,
   type WorkflowNotifyStore,
 } from '../../connectors/natives/platform-notify';
@@ -135,6 +140,7 @@ const SCENARIO_CONNECTORS = [
   'confluence',
   'conversation',
   'discord',
+  'document',
   'gmail',
   'google-drive',
   'http',
@@ -3009,6 +3015,7 @@ type NativeCall =
   | keyof WorkflowNotifyStore
   | keyof WorkflowConversationStore
   | keyof WorkflowAutomationPositions
+  | keyof WorkflowDocumentStore
   | 'runScript';
 
 /** One case of a native action: the call it makes to its service, and what the
@@ -3518,6 +3525,46 @@ const SANDBOX_NATIVE_PROOFS: Record<string, NativeProof> = {
   },
 };
 
+const DOCUMENT_FILES = [
+  { name: 'invoice-001.pdf', storageId: 'blob_a' },
+  { name: 'summary.xlsx', storageId: 'blob_b' },
+] satisfies WorkflowFolderFile[];
+
+/**
+ * The document native's proofs, keyed `<action>/<scenario>`: what its document
+ * store answers in each case. A refusal the store raises is the message the
+ * native's error carries, and the native passes it on unchanged.
+ */
+const DOCUMENT_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'list/two_files': {
+    call: 'listFolder',
+    answer: { returns: { files: DOCUMENT_FILES, truncated: false } },
+  },
+  'list/empty': {
+    call: 'listFolder',
+    answer: { returns: { files: [], truncated: false } },
+  },
+  'list/missing_folder': {
+    call: 'listFolder',
+    answer: { returns: null },
+  },
+  'create/created': {
+    call: 'create',
+    answer: { returns: { documentId: 'doc_0002', action: 'created' } },
+  },
+  'create/updated': {
+    call: 'create',
+    answer: { returns: { documentId: 'doc_0001', action: 'updated' } },
+  },
+  'create/not_stored': {
+    call: 'create',
+    answer: {
+      throws:
+        'document.create: storageId is not a stored file of this organization ({"storageId":"blob_missing"})',
+    },
+  },
+};
+
 const AUTOMATION_PLACE = { until: 1791000000000 };
 
 /**
@@ -3772,6 +3819,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   },
   conversation: { proofs: {}, native: CONVERSATION_NATIVE_PROOFS },
   discord: { proofs: DISCORD_PROOFS },
+  document: { proofs: {}, native: DOCUMENT_NATIVE_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   'google-drive': { proofs: DRIVE_PROOFS, stored: DRIVE_STORED },
   http: { proofs: HTTP_PROOFS },
@@ -4392,6 +4440,22 @@ function notifyStoreOf(
   };
 }
 
+/** A document store that answers the one call its proof names. */
+function documentStoreOf(
+  proof: NativeProof,
+  asked: string[],
+): WorkflowDocumentStore {
+  const answer = answerOf(proof, asked);
+  return {
+    listFolder: async () =>
+      answer('listFolder') as Awaited<
+        ReturnType<WorkflowDocumentStore['listFolder']>
+      >,
+    create: async () =>
+      answer('create') as Awaited<ReturnType<WorkflowDocumentStore['create']>>,
+  };
+}
+
 /** A position store that answers its one call with the proof's answer. */
 function automationStoreOf(
   proof: NativeProof,
@@ -4434,6 +4498,8 @@ const NATIVE_BACKENDS: Partial<
     platformAutomationNatives(automationStoreOf(proof, asked)),
   conversation: (proof, asked) =>
     platformConversationNatives(conversationStoreOf(proof, asked)),
+  document: (proof, asked) =>
+    platformDocumentNatives(documentStoreOf(proof, asked)),
   notify: (proof, asked) => notifyNatives(notifyStoreOf(proof, asked)),
   sandbox: (proof, asked) =>
     sandboxScriptNatives(sandboxRunnerOf(proof, asked)),

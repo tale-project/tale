@@ -55,6 +55,32 @@ actions:
           { name: 'summary.xlsx', storageId: 'blob_b' },
         ],
       };
+    scenarios:
+      - name: empty
+        kind: empty
+        description: 'The folder exists and holds no files, so the listing is empty and complete.'
+        when: { folderId: 'fld_empty' }
+        output:
+          count: 0
+          truncated: false
+          files: []
+      - name: missing_folder
+        kind: error
+        description: 'No folder has this id in the organization, so the listing fails and names the folder.'
+        when: { folderId: 'fld_missing' }
+        error:
+          message: 'document.list: the folder does not exist ({"folderId":"fld_missing"})'
+      - name: two_files
+        kind: success
+        description: 'The folder holds two files, and the listing is complete.'
+        output:
+          count: 2
+          truncated: false
+          files:
+            - name: 'invoice-001.pdf'
+              storageId: 'blob_a'
+            - name: 'summary.xlsx'
+              storageId: 'blob_b'
     backend:
       kind: native
       impl: document.list
@@ -90,6 +116,26 @@ actions:
     output: '{ documentId: string, action: string }'
     mock: |
       return { documentId: `doc_${String(input.name ?? '').length}`, action: 'created' };
+    scenarios:
+      - name: updated
+        kind: duplicate
+        description: 'The folder already holds a document of this name, so the platform refreshes it in place and answers with the same document.'
+        when: { name: 'invoice-001.pdf' }
+        output:
+          documentId: 'doc_0001'
+          action: 'updated'
+      - name: not_stored
+        kind: refusal
+        description: 'No stored file of the organization has this storageId, so nothing is filed and the write is refused.'
+        when: { storageId: 'blob_missing' }
+        error:
+          message: 'document.create: storageId is not a stored file of this organization ({"storageId":"blob_missing"})'
+      - name: created
+        kind: success
+        description: 'The stored file is filed as a new document in the folder.'
+        output:
+          documentId: 'doc_0002'
+          action: 'created'
     backend:
       kind: native
       impl: document.create
