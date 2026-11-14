@@ -122,6 +122,30 @@ actions:
         headers: { 'content-type': 'application/json' },
         body: { mock: true, method: 'GET', url: input.url },
       };
+    scenarios:
+      - name: orders_found
+        kind: success
+        description: 'The API answers 200 with the open orders as JSON.'
+        output:
+          status: 200
+          ok: true
+          headers: { content-type: 'application/json' }
+          body:
+            - { id: 'ord_1001', status: 'open', total: 42.5 }
+      - name: no_orders
+        kind: empty
+        description: 'The API answers 204 with no body, so the output carries a null body.'
+        output:
+          status: 204
+          ok: true
+          headers: {}
+          body: null
+      - name: order_not_found
+        kind: error
+        description: 'The API answers 404: no order matches the URL.'
+        error:
+          message: 'api.example.com answered 404 to the GET request'
+          status: 404
     backend:
       kind: native
       impl: http.get
@@ -216,6 +240,31 @@ actions:
           body: input.body === undefined ? null : input.body,
         },
       };
+    scenarios:
+      - name: order_created
+        kind: success
+        description: 'The API answers 201 with the order it created.'
+        output:
+          status: 201
+          ok: true
+          headers: { content-type: 'application/json' }
+          body: { id: 'ord_1002', status: 'open', item: 'A-1', quantity: 2 }
+      - name: quantity_refused
+        kind: refusal
+        description: 'The API refuses the order with 422 because its quantity is not positive.'
+        error:
+          message: 'api.example.com answered 422 to the POST request'
+          status: 422
+      - name: order_exists
+        kind: duplicate
+        description: 'The API answers 409 because the order already exists. The call names 409 in okStatuses, so the step answers with that status rather than failing.'
+        when:
+          okStatuses: [409]
+        output:
+          status: 409
+          ok: false
+          headers: { content-type: 'application/json' }
+          body: { error: 'order ord_1002 already exists' }
     backend:
       kind: native
       impl: http.send
