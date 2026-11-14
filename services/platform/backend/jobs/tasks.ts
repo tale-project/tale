@@ -32,7 +32,11 @@ export interface TaskPayloads {
   /** Health/latency probe; also used by the integration check. */
   noop: { seq?: number; sentAtMs?: number };
   /** Seed a new org's on-disk config tree from the builtin catalog. */
-  'org.scaffold': { orgSlug: string; cleanFirst?: boolean };
+  'org.scaffold': {
+    orgSlug: string;
+    cleanFirst?: boolean;
+    fillMissing?: boolean;
+  };
   /** Tear down a deleted org's slug-keyed remains — corpus rows, blobs,
    *  config subtree — then clear its slug tombstone. */
   'org.cleanup_files': { orgSlug: string };

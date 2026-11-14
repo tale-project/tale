@@ -24,12 +24,18 @@
  * connectors/providers/skills/…) re-register in the Layer-A registry.
  *
  * `scaffoldNewOrganization`:
- *   - org-create path (`cleanFirst:true`, scheduled from
- *     `auth.afterCreateOrganization`): purge any leftover `<orgSlug>/` subtree
- *     first — the slug is provably new at that hook, so anything there is an
- *     orphan from a deleted org or a dev wipe — then seed every domain into the
- *     now-empty dir. The result is a faithful, complete copy of the catalog
- *     with no stale/renamed orphans and no cross-tenant secret inheritance.
+ *   - org-create path (`fillMissing:true`, scheduled from
+ *     `auth.afterCreateOrganization`): the leftover `<orgSlug>/` subtree was
+ *     already purged by `clearOrgConfigLeftovers`, called from
+ *     `auth.beforeCreateOrganization` while the slug owned no organization —
+ *     so anything there was an orphan from a dev wipe, and nothing the new
+ *     organization wrote can be in it. The job then seeds every catalog file
+ *     the org does not already have and never overwrites or removes one: a
+ *     file a client or an automation wrote between the create and the job's
+ *     run survives, and the rest of its domain is still seeded.
+ *   - legacy org-create (`cleanFirst:true`, still queued by a release
+ *     before the purge moved to create time): purge the subtree, then seed. Destroys anything written since the create — no
+ *     new enqueue site may use it for a live organization.
  *   - bare org-create / retry (`override:false`, default, no `cleanFirst`):
  *     idempotent per-domain skip if the target dir already has files.
  *   - reseed path (`override:true`, called by `reseedAllOrgsFromBuiltin`):
@@ -54,13 +60,17 @@
 
 import { randomUUID } from 'node:crypto';
 import {
+  link,
   lstat,
+  mkdir,
+  open,
   readdir,
   readFile,
   realpath,
   rename,
   rm,
   stat,
+  unlink,
 } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -241,9 +251,21 @@ async function writeFileFromCatalog(
   src: string,
   dst: string,
   domain?: ConfigDomain,
+  keepExisting = false,
 ): Promise<void> {
   const buf = await readFile(src);
   const name = path.basename(src);
+  if (keepExisting) {
+    if (
+      (name.endsWith('.yml') || name.endsWith('.json')) &&
+      domain &&
+      !catalogConfigFileIsValid(domain, name, buf.toString('utf-8'))
+    ) {
+      return;
+    }
+    await publishIfAbsent(dst, buf);
+    return;
+  }
   if (name.endsWith('.yml') || name.endsWith('.json')) {
     const text = buf.toString('utf-8');
     if (domain && !catalogConfigFileIsValid(domain, name, text)) {
@@ -262,6 +284,76 @@ async function writeFileFromCatalog(
 }
 
 /**
+ * Write `content` to `dst` only if nothing is there, atomically: the bytes
+ * go to a temp file that is then hard-linked into place, and `link` refuses
+ * an existing target. A fill's existence check alone leaves a window in
+ * which a config writer (holding its per-domain lock, which the scaffold's
+ * `'org'` lock does not exclude) can save the same file and have it replaced
+ * by the catalog copy. A filesystem without hard links falls back to a
+ * re-check and a rename, which narrows that window but cannot close it.
+ */
+async function publishIfAbsent(dst: string, content: Buffer): Promise<void> {
+  const dir = path.dirname(dst);
+  await mkdir(dir, { recursive: true });
+  const tmpPath = path.join(
+    dir,
+    `.${path.basename(dst)}.${Date.now()}.${randomUUID().slice(0, 8)}.tmp`,
+  );
+  const fd = await open(tmpPath, 'wx');
+  let renamed = false;
+  try {
+    try {
+      await fd.writeFile(content);
+      await fd.sync();
+    } finally {
+      await fd.close();
+    }
+    try {
+      await link(tmpPath, dst);
+    } catch (err) {
+      const code = errnoCode(err);
+      if (code === 'EEXIST') return;
+      if (code !== 'EPERM' && code !== 'ENOTSUP' && code !== 'EOPNOTSUPP') {
+        throw err;
+      }
+      console.warn(
+        '[scaffold.publishIfAbsent] hard links unsupported, falling back to rename:',
+        dst,
+      );
+      if (await pathExists(dst)) return;
+      await rename(tmpPath, dst);
+      renamed = true;
+    }
+  } finally {
+    if (!renamed) {
+      await unlink(tmpPath).catch((err: unknown) => {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(
+            '[scaffold.publishIfAbsent] temp cleanup failed:',
+            tmpPath,
+            err,
+          );
+        }
+      });
+    }
+  }
+}
+
+/** Whether anything (a file, a dir, a symlink) is at `p`. A failure other
+ * than ENOENT counts as present, so a fill never overwrites what it could
+ * not inspect. */
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await lstat(p);
+    return true;
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return false;
+    console.warn('[scaffold.pathExists] lstat failed:', p, err);
+    return true;
+  }
+}
+
+/**
  * Recursively copy `sourceDir` → `targetDir`. Skips `.history/`, dotfiles
  * (`.<name>`), `*.secrets.json`, and symlinks at every level.
  *
@@ -273,12 +365,17 @@ async function writeFileFromCatalog(
  * `domain` is threaded down to `writeFileFromCatalog` so each `.json` file
  * is schema-checked (via its `seedSchemas` mapping, when it has one) before being
  * written — omit it to copy unchecked.
+ *
+ * `keepExisting` skips every catalog entry (file or bundle dir) whose target
+ * path is already taken, so nothing someone else wrote is replaced or mixed
+ * with catalog files.
  */
 async function copyTree(
   sourceDir: string,
   targetDir: string,
   allowSubdirs = true,
   domain?: ConfigDomain,
+  keepExisting = false,
 ): Promise<void> {
   let entries: string[];
   try {
@@ -310,6 +407,9 @@ async function copyTree(
       console.warn('[scaffold.copyTree] skipping symlink:', src);
       continue;
     }
+    // A taken path is someone else's: a whole skill bundle someone wrote is
+    // kept as it is, never topped up with catalog files.
+    if (keepExisting && (await pathExists(dst))) continue;
 
     if (info.isDirectory()) {
       if (!allowSubdirs) {
@@ -319,14 +419,23 @@ async function copyTree(
         );
         continue;
       }
-      await copyTree(src, dst, allowSubdirs, domain);
+      await copyTree(src, dst, allowSubdirs, domain, keepExisting);
       continue;
     }
 
     if (!info.isFile()) continue;
-    await writeFileFromCatalog(src, dst, domain);
+    await writeFileFromCatalog(src, dst, domain, keepExisting);
   }
 }
+
+/**
+ * How a seed treats a domain directory that already has content:
+ * - `overwrite` — reseed: replace every catalog-named file.
+ * - `skip-populated` — leave a domain with any file in it untouched.
+ * - `fill-missing` — write each catalog file the directory lacks, keep every
+ *   file already there.
+ */
+type SeedMode = 'overwrite' | 'skip-populated' | 'fill-missing';
 
 /**
  * Seed a single domain for an org. Source is `<catalogRoot>/<domain>` — the
@@ -357,7 +466,7 @@ async function seedDomain(
   domain: ConfigDomain,
   catalogRoot: string,
   orgSlug: string,
-  override: boolean,
+  mode: SeedMode,
 ): Promise<DomainResult> {
   // Domains without a `scaffoldKind` are not catalog-scaffolded (e.g. `sso`,
   // whose single connection.yml is created on demand by the admin form).
@@ -413,7 +522,7 @@ async function seedDomain(
     return { domain: domain.name, ok: true };
   }
 
-  if (!override) {
+  if (mode === 'skip-populated') {
     const alreadyScaffolded = await dirHasFiles(targetDir);
     if (alreadyScaffolded) {
       console.warn(
@@ -434,6 +543,7 @@ async function seedDomain(
       targetDir,
       /* allowSubdirs */ domain.scaffoldKind === 'bundle',
       domain,
+      /* keepExisting */ mode === 'fill-missing',
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -658,6 +768,27 @@ export async function removeOrgSubtree(
   }
 }
 
+/**
+ * Purge a leftover `<orgSlug>/` config subtree before an organization with
+ * that slug is created. Run from `auth.beforeCreateOrganization`, after the
+ * slug is known to be free and not retiring: no organization owns the slug,
+ * so nothing there belongs to anyone, and nothing the new organization
+ * writes can exist yet. Doing this at create time instead of in the
+ * asynchronous scaffold job is what keeps a file written right after the
+ * create from being wiped. Non-fatal, like {@link removeOrgSubtree}: a
+ * refusal or a missing config root only logs.
+ */
+export async function clearOrgConfigLeftovers(orgSlug: string): Promise<void> {
+  const configRoot = process.env.TALE_CONFIG_DIR;
+  if (!configRoot || !path.isAbsolute(configRoot)) {
+    console.warn(
+      '[clearOrgConfigLeftovers] TALE_CONFIG_DIR is unset or not absolute; nothing purged',
+    );
+    return;
+  }
+  await removeOrgSubtree(configRoot, orgSlug);
+}
+
 export interface ScaffoldRunResult {
   ok: boolean;
   skipped: boolean;
@@ -676,6 +807,8 @@ export async function scaffoldOrgFromCatalog(args: {
   override?: boolean;
   strict?: boolean;
   cleanFirst?: boolean;
+  /** Seed only the catalog files the org lacks; see the module header. */
+  fillMissing?: boolean;
 }): Promise<ScaffoldRunResult> {
   if (!validateOrgSlug(args.orgSlug)) {
     console.warn(
@@ -718,7 +851,11 @@ export async function scaffoldOrgFromCatalog(args: {
     }
     return { ok: false, skipped: true, results: [] };
   }
-  const override = args.override ?? false;
+  const mode: SeedMode = args.override
+    ? 'overwrite'
+    : args.fillMissing
+      ? 'fill-missing'
+      : 'skip-populated';
 
   // Exact-mirror org-create: purge any leftover subtree for this (new) slug
   // before seeding, so renamed/removed catalog files don't survive as
@@ -730,7 +867,7 @@ export async function scaffoldOrgFromCatalog(args: {
 
   const results: DomainResult[] = [];
   for (const domain of CONFIG_DOMAINS) {
-    results.push(await seedDomain(domain, catalogRoot, args.orgSlug, override));
+    results.push(await seedDomain(domain, catalogRoot, args.orgSlug, mode));
   }
 
   const failed = results.filter((r) => !r.ok);

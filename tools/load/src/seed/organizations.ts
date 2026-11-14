@@ -12,11 +12,11 @@
  *     credential, embedding model, one shared project, the chat model the
  *     composer offers — after its scaffold job has finished.
  *
- * The wait matters: the scaffold runs with `cleanFirst`, which REMOVES the
- * organization's config subtree before seeding it, so a provider definition
- * written before the job ran would be deleted; and the starter content is
- * only seeded into an organization without projects, so a load project
- * created first would suppress it. Splitting the passes lets the worker
+ * The wait matters: the starter content is only seeded into an organization
+ * without projects, so a load project created first would suppress it; and
+ * a deployment older than the fix for tale#5437 scaffolds with `cleanFirst`,
+ * which REMOVES the organization's config subtree before seeding it, so a
+ * provider definition written before the job ran would be deleted there. Splitting the passes lets the worker
  * scaffold early organizations while later ones are still being created.
  *
  * Every step reads before it writes, so each is idempotent; transient
@@ -290,7 +290,8 @@ async function listProjects(
 /**
  * Wait until the organization's scaffold job is done. With the database the
  * job row itself is read (a job still pending at the deadline is a failure:
- * configuring now would race its `cleanFirst`); over HTTP alone the starter
+ * configuring now would race its starter content, and an older deployment's
+ * `cleanFirst`); over HTTP alone the starter
  * project is the signal, and a deadline without one is only a warning, since
  * a deployment may run with provisioning disabled.
  */
