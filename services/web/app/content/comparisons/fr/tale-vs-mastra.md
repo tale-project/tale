@@ -12,7 +12,7 @@ draft: false
 
 Pour une équipe TypeScript, intégrer des agents dans un produit existant peut être un choix cohérent. Pour les collègues qui les utilisent, le besoin immédiat peut plutôt être un projet partagé avec des responsables clairs et des livrables à vérifier. Détermine lequel de ces résultats ton initiative doit fournir.
 
-La [documentation des agents Mastra](https://mastra.ai/docs/agents/overview) décrit des agents qui utilisent des LLM et des outils, et la [documentation des workflows](https://mastra.ai/en/docs/workflows/overview) des enchaînements d’étapes combinés aux agents. Les agents peuvent conserver une mémoire ; agents et workflows enregistrés utilisent des fonctions de journalisation et d’observabilité. C’est une base de développement : le choix porte donc sur la création d’une application ou l’adoption de l’espace projet de Tale.
+La [documentation des agents Mastra](https://mastra.ai/docs/agents/overview) décrit des agents qui utilisent des LLM et des outils, et la [documentation des workflows](https://mastra.ai/en/docs/workflows/overview) des enchaînements d’étapes structurées, où une étape peut appeler des agents ou outils enregistrés. Les agents peuvent conserver une mémoire ; agents et workflows enregistrés utilisent des fonctions de journalisation et d’observabilité. C’est une base de développement : le choix porte donc sur la création d’une application ou l’adoption de l’espace projet de Tale.
 
 ## Comparaison en bref
 

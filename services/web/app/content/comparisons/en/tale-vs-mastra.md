@@ -12,7 +12,7 @@ draft: false
 
 For a TypeScript team, building agents into an existing product can be a sensible choice. For the colleagues using those agents, the immediate need may instead be a shared project with clear owners and reviewable deliverables. Decide which of those outcomes your initiative is funded to deliver.
 
-[Mastra's agent documentation](https://mastra.ai/docs/agents/overview) describes agents that use LLMs and tools, and [its workflow documentation](https://mastra.ai/en/docs/workflows/overview) describes workflows that combine steps with agents. Agents can keep memory, and registered agents and workflows use logging and observability features. It is a development foundation, so this comparison concerns building an application versus adopting Tale's project workspace.
+[Mastra's agent documentation](https://mastra.ai/docs/agents/overview) describes agents that use LLMs and tools, and [its workflow documentation](https://mastra.ai/en/docs/workflows/overview) describes workflows as structured steps, where a step can call registered agents or tools. Agents can keep memory, and registered agents and workflows use logging and observability features. It is a development foundation, so this comparison concerns building an application versus adopting Tale's project workspace.
 
 ## Compare at a glance
 

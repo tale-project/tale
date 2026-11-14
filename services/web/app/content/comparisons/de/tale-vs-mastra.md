@@ -12,7 +12,7 @@ draft: false
 
 Für ein TypeScript-Team kann es sinnvoll sein, Agenten in ein bestehendes Produkt einzubauen. Die Kollegen, die damit arbeiten, brauchen vielleicht zunächst ein gemeinsames Projekt mit klaren Zuständigkeiten und prüfbaren Ergebnissen. Entscheide, welches dieser Ziele dein Vorhaben erreichen soll.
 
-Die [Agenten-Dokumentation von Mastra](https://mastra.ai/docs/agents/overview) beschreibt Agenten, die LLMs und Tools nutzen, und [die Workflow-Dokumentation](https://mastra.ai/en/docs/workflows/overview) Workflows, die Schritte mit Agenten verbinden. Agenten können ein Gedächtnis führen; registrierte Agenten und Workflows nutzen Logging- und Observability-Funktionen. Mastra ist eine Entwicklungsgrundlage. Dieser Vergleich stellt daher die eigene Anwendung dem Einsatz von Tales Projekt-Workspace gegenüber.
+Die [Agenten-Dokumentation von Mastra](https://mastra.ai/docs/agents/overview) beschreibt Agenten, die LLMs und Tools nutzen, und [die Workflow-Dokumentation](https://mastra.ai/en/docs/workflows/overview) Workflows als klar strukturierte Schritte, in denen ein Schritt registrierte Agenten oder Tools aufrufen kann. Agenten können ein Gedächtnis führen; registrierte Agenten und Workflows nutzen Logging- und Observability-Funktionen. Mastra ist eine Entwicklungsgrundlage. Dieser Vergleich stellt daher die eigene Anwendung dem Einsatz von Tales Projekt-Workspace gegenüber.
 
 ## Vergleich auf einen Blick
 
