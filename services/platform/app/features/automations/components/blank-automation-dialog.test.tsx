@@ -10,47 +10,53 @@ import { BlankAutomationDialog } from './blank-automation-dialog';
 // an EU gateway's key, plus a subscription entry bound to another harness.
 // The wizard used to collapse options by id and store a bare model string —
 // the saved node then resolved to whichever provider the walk reached first,
-// never the one picked on screen.
+// never the one picked on screen. The box lets a case empty the roster: an
+// organization with no model on offer is the wizard's hint case.
+const { fullRoster, roster } = vi.hoisted(() => {
+  const rows = [
+    {
+      id: 'anthropic/claude-fable-5',
+      label: 'anthropic/claude-fable-5',
+      providerSlug: 'openrouter',
+      providerLabel: 'OpenRouter',
+      credential: { authMethod: 'api-key' },
+    },
+    {
+      id: 'claude-fable-5',
+      label: 'claude-fable-5',
+      providerSlug: 'anthropic',
+      providerLabel: 'Anthropic',
+      credential: {
+        authMethod: 'subscription-broker',
+        constraints: { harness: 'claude-code' },
+      },
+    },
+    {
+      id: 'claude-fable-5',
+      label: 'claude-fable-5',
+      providerSlug: 'eu-gateway',
+      providerLabel: 'EU Gateway',
+      credential: { authMethod: 'api-key' },
+    },
+    {
+      id: 'gpt-6-codex',
+      label: 'gpt-6-codex',
+      providerSlug: 'openai',
+      providerLabel: 'OpenAI',
+      credential: {
+        authMethod: 'subscription-key',
+        constraints: { harness: 'codex' },
+      },
+    },
+  ];
+  return { fullRoster: rows, roster: { models: rows } };
+});
+
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({
     data: {
       harnesses: [{ harness: 'claude-code', label: 'Claude Code' }],
-      models: [
-        {
-          id: 'anthropic/claude-fable-5',
-          label: 'anthropic/claude-fable-5',
-          providerSlug: 'openrouter',
-          providerLabel: 'OpenRouter',
-          credential: { authMethod: 'api-key' },
-        },
-        {
-          id: 'claude-fable-5',
-          label: 'claude-fable-5',
-          providerSlug: 'anthropic',
-          providerLabel: 'Anthropic',
-          credential: {
-            authMethod: 'subscription-broker',
-            constraints: { harness: 'claude-code' },
-          },
-        },
-        {
-          id: 'claude-fable-5',
-          label: 'claude-fable-5',
-          providerSlug: 'eu-gateway',
-          providerLabel: 'EU Gateway',
-          credential: { authMethod: 'api-key' },
-        },
-        {
-          id: 'gpt-6-codex',
-          label: 'gpt-6-codex',
-          providerSlug: 'openai',
-          providerLabel: 'OpenAI',
-          credential: {
-            authMethod: 'subscription-key',
-            constraints: { harness: 'codex' },
-          },
-        },
-      ],
+      models: roster.models,
     },
     isError: false,
   }),
@@ -109,6 +115,7 @@ vi.mock('@/lib/shared/zoned-time', async (importOriginal) => ({
 }));
 
 beforeEach(() => {
+  roster.models = fullRoster;
   saveAutomation.mockClear();
   setTrigger.mockClear();
   deployAutomation.mockClear();
@@ -546,5 +553,39 @@ describe('BlankAutomationDialog model pin', () => {
       model: 'claude-fable-5',
       modelProvider: 'anthropic',
     });
+  });
+});
+
+describe('BlankAutomationDialog starting model', () => {
+  it('starts on the default model, so name and instructions alone enable Next', async () => {
+    const { user } = renderDialog();
+    await user.type(screen.getByLabelText(/Name/i), 'Triage');
+    await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+    expect(screen.getByRole('button', { name: /Next/i })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    // Editable: the author can still pick another model.
+    await user.click(screen.getByRole('button', { name: /Agent model/i }));
+    await user.click(
+      screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+    );
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveTextContent('Anthropic · claude-fable-5');
+  });
+
+  it('keeps Next disabled and says how to get a model when none is on offer', async () => {
+    roster.models = [];
+    const { user } = renderDialog();
+    await user.type(screen.getByLabelText(/Name/i), 'Triage');
+    await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+    expect(screen.getByRole('button', { name: /Next/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(
+      screen.getByText(/Ask an admin to set up an AI provider/),
+    ).toBeVisible();
   });
 });
