@@ -42,9 +42,12 @@ import {
 } from './runtime-apply';
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
+import { INCUS_APPLY_SENTENCES } from './runtime-incus-apply';
 import { readRuntimeBundle } from './runtime-model';
 import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
 import {
+  commitRepositorySource,
+  fakeRegistry,
   installLegacy,
   RuntimeDockerFixture,
   runtimeFixture,
@@ -412,6 +415,115 @@ describePosix('fresh native receipt custody', () => {
     await applyDeployment({ bundle: prefixBundle }, run.dependencies);
     expect(run.events).not.toContain('up');
     expect(run.events).not.toContain('snapshot');
+  });
+
+  test('a plan never runs with a configuration-only apply, and a Docker bundle takes no Incus plan flags', async () => {
+    const run = await create();
+    run.events.length = 0;
+    await expect(
+      applyDeployment(
+        { bundle: run.bundle, planOnly: true, configurationOnly: true },
+        run.dependencies,
+      ),
+    ).rejects.toThrow('does not combine with --configuration-only');
+    for (const flags of [{ planOnly: true }, { stop: true }, { plan: 'x' }])
+      await expect(
+        applyDeployment({ bundle: run.bundle, ...flags }, run.dependencies),
+      ).rejects.toThrow('apply to a bundle for the Incus runtime');
+    expect(run.events).toEqual([]);
+  });
+
+  test('a bundle for the Incus runtime plans without the lock and refuses a changed existing stack without a recovery snapshot', async () => {
+    const run = await create(
+      false,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    commitRepositorySource(run.fixture);
+    writeFileSync(
+      run.preparation.sourcesFile,
+      JSON.stringify({
+        [`${TALE_REPOSITORY}@${run.fixture.revision}`]: run.fixture.repoRoot,
+      }),
+    );
+    const incus = {
+      project: 'tale-stack',
+      pool: 'tale',
+      network: {
+        name: 'talebr0',
+        subnet: '10.30.0.0/16',
+        gateway: '10.30.0.1',
+        block: '10.30.2.0/25',
+      },
+      sessions: { subnet: '10.40.0.0/24' },
+      ingress: { mode: 'routed' },
+    };
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        runtime: { revision: run.fixture.revision, engine: 'incus', incus },
+        sandbox: { backend: 'incus', egressProxy: 'http://10.30.0.9:3128' },
+      }),
+    );
+    const bundle = join(run.fixture.directory, 'incus-deployment');
+    const registry = fakeRegistry(() => run.fixture.revision);
+    await prepareDeployment(
+      { ...run.preparation, output: bundle },
+      {
+        ...run.prepareDependencies,
+        runtime: (options) =>
+          prepareRuntime(
+            { ...options, incus: { ...options.incus!, registry } },
+            {
+              exec: async () => {
+                throw new Error('prepare called Docker');
+              },
+            },
+          ),
+      },
+    );
+    const prepared = readRuntimeBundle(join(bundle, 'runtime')).bundle;
+    expect(prepared.runtime).toBe('incus');
+    // The declared egress proxy is kept; the address is the plan's.
+    expect(prepared.sandbox?.egressProxy).toBe('http://10.30.0.9:3128');
+    const calls: { dryRun?: boolean }[] = [];
+    const preview = {
+      backendContainer: 'f'.repeat(64),
+      sourceDirectory: join(run.fixture.options.stateDirectory, 'src'),
+      regeneratedSecrets: [],
+      images: prepared.images,
+      revision: prepared.revision,
+      changed: true,
+      existing: true,
+      gateway: { volume: true, newImage: false, target: null, running: null },
+      dryRun: true,
+    };
+    const { snapshot: _snapshot, ...dependencies } = run.dependencies;
+    const incusDependencies: NonNullable<
+      Parameters<typeof applyDeployment>[1]
+    > = {
+      ...dependencies,
+      runtime: async (options) => {
+        calls.push(options);
+        return { ...preview, dryRun: options.dryRun ?? false };
+      },
+    };
+    const planned = await applyDeployment(
+      { bundle, planOnly: true },
+      incusDependencies,
+    );
+    expect(planned).toMatchObject({ dryRun: true, planOnly: true });
+    expect(calls.map((call) => call.dryRun)).toEqual([true]);
+    calls.length = 0;
+    await expect(
+      applyDeployment({ bundle }, incusDependencies),
+    ).rejects.toThrow(INCUS_APPLY_SENTENCES.snapshot);
+    // Only the preview ran: nothing on the node changed.
+    expect(calls.map((call) => call.dryRun)).toEqual([true]);
   });
 
   test('a missing or malformed break-glass hash refuses before destination access', async () => {

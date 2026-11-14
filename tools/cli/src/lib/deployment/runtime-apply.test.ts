@@ -83,6 +83,73 @@ function gatewayOf(docker: RuntimeDockerFixture) {
 }
 
 // The managed CLI refuses NTFS: runtime custody includes POSIX file modes.
+describePosix('a runtime bundle for the Incus runtime', () => {
+  /** The prepared Docker bundle rewritten as an Incus one: `runtime: incus`,
+   * and `incus-stack.json` pinned (or not) beside the two Compose files. */
+  function asIncus(
+    fixture: RuntimeFixture,
+    { pin = true, file = '{}\n' }: { pin?: boolean; file?: string } = {},
+  ) {
+    const manifest = join(fixture.options.bundleDirectory, 'runtime.json');
+    const bundle = JSON.parse(readFileSync(manifest, 'utf8'));
+    writeFileSync(
+      join(fixture.options.bundleDirectory, 'incus-stack.json'),
+      file,
+    );
+    writeFileSync(
+      manifest,
+      JSON.stringify({
+        ...bundle,
+        runtime: 'incus',
+        files: pin
+          ? { ...bundle.files, 'incus-stack.json': hash('{}\n') }
+          : bundle.files,
+      }),
+    );
+  }
+
+  test('is refused by the Docker apply before any Docker call', async () => {
+    const { fixture, docker, apply } = await create();
+    asIncus(fixture);
+    // A Docker bundle relabelled for Incus lacks the Incus sandbox shape.
+    await expect(apply()).rejects.toThrow(
+      'A runtime bundle for Incus runs its sandbox in the Incus shape.',
+    );
+    expect(docker.calls).toEqual([]);
+  });
+
+  test('pins incus-stack.json exactly when it declares the runtime', async () => {
+    const unpinned = await create();
+    asIncus(unpinned.fixture, { pin: false });
+    await expect(unpinned.apply()).rejects.toThrow(
+      'Invalid runtime bundle manifest.',
+    );
+    const altered = await create();
+    asIncus(altered.fixture, { file: '{"changed":true}\n' });
+    await expect(altered.apply()).rejects.toThrow(
+      'Runtime bundle file digest differs.',
+    );
+    const docker = await create();
+    const manifest = join(
+      docker.fixture.options.bundleDirectory,
+      'runtime.json',
+    );
+    const bundle = JSON.parse(readFileSync(manifest, 'utf8'));
+    writeFileSync(
+      manifest,
+      JSON.stringify({
+        ...bundle,
+        files: { ...bundle.files, 'incus-stack.json': hash('{}\n') },
+      }),
+    );
+    await expect(docker.apply()).rejects.toThrow(
+      'Invalid runtime bundle manifest.',
+    );
+    for (const { docker: calls } of [unpinned, altered, docker])
+      expect(calls.calls).toEqual([]);
+  });
+});
+
 describePosix('managed source-Compose runtime adoption', () => {
   test('renames visible containers through an interrupted managed rollout without moving storage or regenerating credentials', async () => {
     const { fixture, docker, apply, receipt } = await create(true);

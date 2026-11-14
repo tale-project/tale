@@ -1,6 +1,15 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import { createSnapshot } from './create-snapshot';
+import {
+  incusBackupFixture,
+  type IncusBackupFixture,
+} from './incus-backup-fixture';
+
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): its plan key, journal, credentials and copies are
+// held by owner and mode, which Windows files do not carry.
+const describePosix = describe.skipIf(process.platform === 'win32');
 
 const dockerMock = mock();
 const execMock = mock();
@@ -631,5 +640,89 @@ describe('createSnapshot', () => {
       expect(manifest?.volumes['object-store-data']).toBeDefined();
       expect(loggerNoticeMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+describePosix('createSnapshot on Incus (design D-28)', () => {
+  let fixture: IncusBackupFixture;
+  beforeEach(() => {
+    fixture = incusBackupFixture();
+  });
+  afterEach(() => {
+    fixture.remove();
+  });
+
+  test('takes one native set of the data volumes under one freeze, and writes manifest v2 by generation', async () => {
+    const manifest = await createSnapshot({
+      prefix: '',
+      trigger: 'deploy',
+      platformVersion: '0.5.9',
+      runtime: fixture.runtime,
+    });
+    expect(manifest?.schemaVersion).toBe(2);
+    expect(manifest?.runtime).toBe('incus');
+    expect(Object.keys(manifest?.volumes ?? {}).sort()).toEqual([
+      'config-data',
+      'db-data',
+    ]);
+    for (const info of Object.values(manifest?.volumes ?? {})) {
+      expect(info.native?.snapshot).toBe(`tale-${manifest?.id}`);
+      expect(info.sha256).toBeUndefined();
+    }
+    // The CLI-owned volumes are never in a set (R-07), whatever exists.
+    expect(
+      fixture.fake.seen(
+        'POST /1.0/storage-pools/tale/volumes/custom/sandbox-credentials/snapshots',
+      ),
+    ).toEqual([]);
+    expect(
+      fixture.text('backups', `/${manifest?.id}/manifest.1.json`),
+    ).toContain('"schemaVersion":2');
+    // No tar ran: the set is native only.
+    expect(
+      fixture.helperCommands.some((line) => line.includes('tar czf')),
+    ).toBe(false);
+    const freezes = fixture.fake
+      .seen('PUT /1.0/instances/*/state')
+      .filter(
+        (request) => (request.body as { action?: string }).action === 'freeze',
+      );
+    expect(freezes).toHaveLength(2);
+  });
+
+  test("--archive writes today's tar.gz of each volume from a copy of its snapshot", async () => {
+    const manifest = await createSnapshot({
+      prefix: '',
+      trigger: 'manual',
+      platformVersion: null,
+      runtime: fixture.runtime,
+      archive: true,
+    });
+    const tars = fixture.helperCommands.filter((line) =>
+      line.includes('tar czf'),
+    );
+    expect(tars).toHaveLength(2);
+    for (const line of tars) expect(line).toContain('--numeric-owner');
+    expect(manifest?.volumes['db-data']?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest?.volumes['db-data']?.native).toBeDefined();
+    // The newest generation records the archives; the first is gone.
+    expect(
+      fixture.text('backups', `/${manifest?.id}/manifest.1.json`),
+    ).toBeUndefined();
+    expect(
+      fixture.text('backups', `/${manifest?.id}/manifest.2.json`),
+    ).toContain('sha256');
+  });
+
+  test('refuses without a backups volume to hold the manifest', async () => {
+    await fixture.runtime.removeVolume('backups');
+    await expect(
+      createSnapshot({
+        prefix: '',
+        trigger: 'manual',
+        platformVersion: null,
+        runtime: fixture.runtime,
+      }),
+    ).rejects.toThrow(/no backups volume/);
   });
 });

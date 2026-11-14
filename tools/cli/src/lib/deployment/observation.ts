@@ -8,8 +8,9 @@ import { z } from 'zod';
 import { externalDepError, preconditionError } from '../../utils/fail';
 import { sha256, stableJson } from '../config/releases/identity';
 import { gitSha, sha, slug } from '../config/releases/model';
-import { exec } from '../docker/exec';
-import { localHttpEnvironmentArgs } from './acceptance-health';
+import type { exec } from '../docker/exec';
+import type { IncusRuntime } from '../runtime/incus/incus-runtime';
+import { LOCAL_HTTP_ENVIRONMENT } from './acceptance-health';
 import { migrationReadScript } from './acceptance-migrations';
 import { backendDataOwner } from './backend-cli';
 import { parseDeclarationText } from './declaration-text';
@@ -31,7 +32,9 @@ import {
   OBSERVATION_KNOWLEDGE_SQL,
 } from './observation-sql';
 import { readProvisionStateProof } from './provision-state';
+import type { RuntimeBudget, RuntimeInstance } from './runtime-access';
 import { startedAtSchema } from './runtime-apply';
+import { deploymentAccess } from './runtime-incus-apply';
 
 export interface ObserveDeploymentOptions {
   spec: string;
@@ -45,6 +48,14 @@ interface ObservationDependencies {
   machineId?: () => Buffer;
   now?: () => number;
   environment?: NodeJS.ProcessEnv;
+  /** The stack's Incus runtime (tests). */
+  incusRuntime?: IncusRuntime;
+}
+/** One observation call's own bounds: a longer wait, or a cleanup step's
+ * small allowance outside the output budget. */
+interface ObservationCall {
+  duration?: number;
+  cleanup?: boolean;
 }
 const safeId = z
   .string()
@@ -78,10 +89,21 @@ const containerSchema = z.strictObject({
   restartCount: z.number().int().nonnegative(),
   mounts: z.array(mountSchema).max(64),
 });
-const CONTAINER_FORMAT =
-  '{"id":{{json .Id}},"image":{{json .Image}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"service":{{json (index .Config.Labels "com.docker.compose.service")}},"running":{{json .State.Running}},"startedAt":{{json .State.StartedAt}},"restartCount":{{json .RestartCount}},"mounts":{{json .Mounts}}}';
-const IMAGE_FORMAT =
-  '{"id":{{json .Id}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"version":{{json (index .Config.Labels "org.opencontainers.image.version")}},"architecture":{{json .Architecture}},"os":{{json .Os}}}';
+/** The observed record of an instance, from its metadata-only readback. */
+const observedContainer = (instance: RuntimeInstance) => ({
+  id: instance.id,
+  image: instance.image,
+  project: instance.labels?.['com.docker.compose.project'],
+  service: instance.labels?.['com.docker.compose.service'],
+  running: instance.running,
+  startedAt: instance.startedAt,
+  restartCount: instance.restartCount,
+  mounts: instance.mounts?.map((mount) => ({
+    Type: mount.type,
+    Source: mount.source,
+    Destination: mount.target,
+  })),
+});
 const absentLabel = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === '' ? null : value), schema.nullable());
 const imageSchema = z.strictObject({
@@ -162,39 +184,44 @@ async function readDeployment(
       'Observation requires a declared existing native identity.',
     );
   let outputBytes = 0;
-  const run = async (
-    args: string[],
-    stdin?: string,
-    duration = 10,
-    cleanup = false,
-    allowFailure = false,
-  ) => {
-    const remaining = deadline - now() - (cleanup ? 0 : 5000);
-    if (remaining <= 0)
-      throw preconditionError('Deployment observation exceeded its deadline.');
-    let result;
-    try {
-      result = await (dependencies.exec ?? exec)('docker', args, {
-        stdin,
-        silent: true,
-        timeout: Math.min(duration, remaining / 1000),
-        maxOutputBytes: cleanup ? 65536 : 1_048_576,
-        env: localDockerEnvironment(),
-      });
-    } catch {
-      throw externalDepError('Bounded deployment observation command failed.');
-    }
-    const size =
-      Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr);
-    if (!cleanup) outputBytes += size;
-    if ((cleanup ? size > 65536 : outputBytes > 4_194_304) || now() >= deadline)
-      throw preconditionError(
-        'Deployment observation exceeded its output or time budget.',
-      );
-    if (!result.success && !allowFailure)
-      throw externalDepError('A deployment observation command was refused.');
-    return result;
+  // Every call is bounded by the observation's deadline and output budget; a
+  // cleanup step has its own small allowance and does not spend the budget.
+  const budget: RuntimeBudget<ObservationCall> = {
+    bounds: (call) => {
+      const remaining = deadline - now() - (call?.cleanup ? 0 : 5000);
+      if (remaining <= 0)
+        throw preconditionError(
+          'Deployment observation exceeded its deadline.',
+        );
+      return {
+        timeout: Math.min(call?.duration ?? 10, remaining / 1000),
+        maxOutputBytes: call?.cleanup ? 65536 : 1_048_576,
+      };
+    },
+    failed: () =>
+      externalDepError('Bounded deployment observation command failed.'),
+    settled: (result, call) => {
+      const size =
+        Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr);
+      if (!call?.cleanup) outputBytes += size;
+      if (
+        (call?.cleanup ? size > 65536 : outputBytes > 4_194_304) ||
+        now() >= deadline
+      )
+        throw preconditionError(
+          'Deployment observation exceeded its output or time budget.',
+        );
+    },
+    refused: () =>
+      externalDepError('A deployment observation command was refused.'),
   };
+  const runtime = await deploymentAccess(
+    spec,
+    budget,
+    { exec: dependencies.exec, environment: localDockerEnvironment },
+    [],
+    dependencies.incusRuntime,
+  );
   const pending = join(spec.stateDirectory, '.tale', 'deployment-pending.json');
   const readyFile = join(spec.stateDirectory, '.tale', 'deployment-ready.json');
   const retained = () => {
@@ -223,26 +250,14 @@ async function readDeployment(
   phase('retained');
   const before = retained();
   phase('containers');
-  const ids = async () => {
-    const output = (
-      await run([
-        'ps',
-        '--all',
-        '--no-trunc',
-        '--filter',
-        `label=com.docker.compose.project=${spec.composeProject}`,
-        '--format',
-        '{{.ID}}',
-      ])
-    ).stdout.trim();
-    return z
+  const ids = async () =>
+    z
       .array(sha)
       .min(1)
       .max(64)
       .refine((value) => new Set(value).size === value.length)
-      .parse(output.split('\n'))
+      .parse(await runtime.list({ stack: spec.composeProject }))
       .sort();
-  };
   const selectedIds = await ids();
   const containers = async () =>
     z
@@ -250,12 +265,9 @@ async function readDeployment(
       .min(1)
       .max(64)
       .parse(
-        (
-          await run(['inspect', '--format', CONTAINER_FORMAT, ...selectedIds])
-        ).stdout
-          .trim()
-          .split('\n')
-          .map((line) => JSON.parse(line)),
+        (await runtime.inspect(selectedIds, { metadataOnly: true })).map(
+          observedContainer,
+        ),
       )
       .sort((a, b) => a.id.localeCompare(b.id));
   const captured = await containers();
@@ -280,14 +292,16 @@ async function readDeployment(
     return matches[0];
   };
   phase('application');
-  const app = await run(
-    ['exec', '-i', service('db').id, 'sh', '-s'],
-    migrationReadScript('db', OBSERVATION_APP_SQL),
-  );
+  const app = await runtime.exec(service('db').id, ['sh', '-s'], {
+    stdin: migrationReadScript('db', OBSERVATION_APP_SQL),
+  });
   phase('knowledge');
-  const knowledge = await run(
-    ['exec', '-i', service('knowledge-db').id, 'sh', '-s'],
-    migrationReadScript('knowledge-db', OBSERVATION_KNOWLEDGE_SQL),
+  const knowledge = await runtime.exec(
+    service('knowledge-db').id,
+    ['sh', '-s'],
+    {
+      stdin: migrationReadScript('knowledge-db', OBSERVATION_KNOWLEDGE_SQL),
+    },
   );
   phase('database');
   const database = observedDatabaseFacts(app.stdout, knowledge.stdout);
@@ -296,11 +310,14 @@ async function readDeployment(
   for (const id of [
     ...new Set(captured.map((container) => container.image)),
   ].sort()) {
-    const image = imageSchema.parse(
-      JSON.parse(
-        (await run(['image', 'inspect', '--format', IMAGE_FORMAT, id])).stdout,
-      ),
-    );
+    const [read] = await runtime.inspectImage([id], { metadataOnly: true });
+    const image = imageSchema.parse({
+      id: read?.id,
+      revision: read?.labels?.['org.opencontainers.image.revision'] ?? null,
+      version: read?.labels?.['org.opencontainers.image.version'] ?? null,
+      architecture: read?.architecture,
+      os: read?.os,
+    });
     if (image.id !== id)
       throw preconditionError('Observed image identity changed.');
     images.push(image);
@@ -336,42 +353,35 @@ async function readDeployment(
     const backend = service('backend-api').id;
     const temporary = `/tmp/tale-observe-${randomUUID()}`;
     const binary = `${temporary}/tale`;
-    const owner = await backendDataOwner(
-      (args, stdin) => run(args, stdin),
-      backend,
-    );
+    const owner = await backendDataOwner(runtime, backend);
     const group = owner.split(':')[1];
     const cleanTemporary = async () => {
       try {
         const type = (
-          await run(
-            ['exec', backend, 'stat', '-c', '%F:%u', '--', temporary],
-            undefined,
-            2,
-            true,
+          await runtime.exec(
+            backend,
+            ['stat', '-c', '%F:%u', '--', temporary],
+            {
+              tag: { duration: 2, cleanup: true },
+            },
           )
         ).stdout.trim();
         if (type !== 'directory:0') throw Error('custody');
-        await run(
-          ['exec', backend, 'rm', '-rf', '--', temporary],
-          undefined,
-          3,
-          true,
-        );
+        await runtime.exec(backend, ['rm', '-rf', '--', temporary], {
+          tag: { duration: 3, cleanup: true },
+        });
       } catch {
         throw new ObservationCleanupError('tooling');
       }
     };
-    await run(['exec', backend, 'mkdir', '-m', '700', temporary]);
+    await runtime.exec(backend, ['mkdir', '-m', '700', temporary]);
     try {
-      await run(['cp', build.binary, `${backend}:${binary}`]);
-      await run(['exec', backend, 'chmod', '550', binary]);
-      await run(['exec', backend, 'chown', `0:${group}`, temporary, binary]);
-      await run(['exec', backend, 'chmod', '510', temporary]);
+      await runtime.copyIn(backend, { file: build.binary }, binary);
+      await runtime.exec(backend, ['chmod', '550', binary]);
+      await runtime.exec(backend, ['chown', `0:${group}`, temporary, binary]);
+      await runtime.exec(backend, ['chmod', '510', temporary]);
       const custody = (
-        await run([
-          'exec',
-          backend,
+        await runtime.exec(backend, [
           'stat',
           '-c',
           '%F:%u:%g:%a:%h',
@@ -390,7 +400,7 @@ async function readDeployment(
         throw preconditionError(
           'Native observation tooling has unsafe custody.',
         );
-      const copied = (await run(['exec', backend, 'sha256sum', binary])).stdout
+      const copied = (await runtime.exec(backend, ['sha256sum', binary])).stdout
         .trim()
         .split(/\s+/);
       if (
@@ -427,23 +437,16 @@ async function readDeployment(
         },
       };
       phase('native');
-      const result = await run(
-        [
-          'exec',
-          '-i',
-          ...localHttpEnvironmentArgs(),
-          '--user',
-          owner,
-          backend,
-          binary,
-          'deploy',
-          'observe-native',
-          '--json',
-        ],
-        JSON.stringify(input),
-        (budgetMs + 1000) / 1000,
-        false,
-        true,
+      const result = await runtime.exec(
+        backend,
+        [binary, 'deploy', 'observe-native', '--json'],
+        {
+          stdin: JSON.stringify(input),
+          environment: LOCAL_HTTP_ENVIRONMENT,
+          user: owner,
+          allowFailure: true,
+          tag: { duration: (budgetMs + 1000) / 1000 },
+        },
       );
       const rawResponse: unknown = JSON.parse(result.stdout);
       const nativeFailure = nativeObservationFailure(rawResponse);

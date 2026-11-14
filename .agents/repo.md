@@ -24,9 +24,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   GitHub), `marketing-ui` (the marketing design language — site chrome, marketing primitives,
   feature-page and product-demo frames — layered on `@tale/ui`; the marketing site builds on it
   and it is published from GitHub the same way), `shared` (schemas + pg), `e2e` (Playwright config
-  factory). A component that carries tale business logic (org branding, abilities, backend
-  queries) stays in its service and wraps the `@tale/ui` primitive; only UI-reusable logic lives
-  in the package.
+  factory), `incus` (the typed Incus REST client over mutual TLS and its in-memory fake, which the
+  sandbox spawner's Incus backend drives its node through). A component that carries tale
+  business logic (org branding, abilities, backend queries) stays in its service and wraps the
+  `@tale/ui` primitive; only UI-reusable logic lives in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
   tale-project repo — fix a rule in `example-project` and roll it, never here), `lint-links`
@@ -38,6 +39,11 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   verification, bundle preparation, rollout, native identity provisioning, configuration
   releases and deployment receipts. Ops selects destinations, full source commits and
   credential references, then calls the CLI; do not duplicate Tale deployment internals there.
+  The CLI drives the stack through one runtime interface (`tools/cli/src/lib/runtime/types.ts`):
+  Docker Compose by default, or Incus (experimental) when the reviewed `runtime.engine` says so.
+  On Incus too, Ops passes only destinations and credential references (the node's endpoint,
+  project, pool and certificate files) and makes the node from the data `tale incus contract`
+  prints, never from Tale's services, ports or instance names.
   Model-server installation, hardware, model artifacts, routing and readiness are internal Ops
   responsibilities. Tale CLI manages native platform `configuration` resources through
   the same validate/plan/apply/readback flow in standalone commands and deployments.
@@ -126,7 +132,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   rejection to what reports it, and fails on a second toast, on a quiet write whose one report
   hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
-  adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
+  adds `bun run gen:migration`, `bun run gen:episode` (docs-video episodes) and
+  `bun run gen:manual` (the manual-test layer of an existing unit that has none).
 - **An image is an OCI artifact that says what it is** — the final stage of every
   `services/*/Dockerfile` declares the whole `org.opencontainers.image.*` set (title, description,
   `source` exactly `https://github.com/tale-project/tale` because the CLI refuses a deployment
@@ -137,8 +144,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   back by digest, and a release publishes one OCI image index per service with
   `docker buildx imagetools create`, never `docker manifest`. The plop service templates scaffold
   the same, and `tools/cli/scripts/oci-image-metadata.test.ts` holds every part of it.
-- **Five manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/` each carry the
-  standard tree (`AGENTS.md` "Manual tests"), gated by `bun run lint:manual`: suites under
+- **Six manual layers, one shape** — `services/{platform,web,docs,ui-docs,session-manager}/tests/manual/`
+  and `tools/cli/tests/manual/` each carry the standard tree (`AGENTS.md` "Manual tests"), gated
+  by `bun run lint:manual`; a unit that has none gets it from `bun run gen:manual`. Suites under
   `suites/`, the four registers under `reference/`, the round journal under `runs/`. Box IDs are
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
@@ -176,9 +184,12 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   0.5.95), takes fixes alone — a `fix`, or a `test`, `docs` or `ci` change about what `main`
   already ships; **`release/0.6`, the feature line** (0.6.x, next 0.6.0), takes everything else
   and is `main` plus its own commits, rebased onto `main` whenever `main` moves, so every fix
-  reaches it without a merge. When in doubt, a change belongs to the feature line. Once a person
-  makes the feature line stable with its release, `main` takes its commits, the 0.5.x line ends
-  and `release/0.7` opens. The lanes:
+  reaches it without a merge. When in doubt, a change belongs to the feature line. The Incus
+  runtime program is the one exception to fixes alone: it ships on the stable line, `main`,
+  through pull requests a person merges once their checks pass (never `--auto`), until the
+  program completes or the feature line becomes the stable one.
+  Once a person makes the feature line stable with its release, `main` takes its commits, the
+  0.5.x line ends and `release/0.7` opens. The lanes:
   - **The merge trains** carry the autonomous development cycle's work. A task branch starts
     from its line's open train, `train` (stable) or `feature-train` (feature), and opens no pull
     request: once reviewed, it is squashed into one commit on that train and pushed only if the
@@ -244,7 +255,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-The eight workflow-specific **CI ready** terminal jobs judge complete native PR dependencies
+The nine workflow-specific **CI ready** terminal jobs judge complete native PR dependencies
 and validated scope. Their source contract, conditional limits and
 separate required-check activation procedure are in [`.github/CI.md`](../.github/CI.md).
 They do not replace independent review or the release-candidate gate.
@@ -383,9 +394,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
   `release-candidate-*` workflows and the `setup-cli` action, plus the container image harness used to prove fork
   build coverage; the files the compose parity
-  suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
-  `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
-  `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
+  suite reads: `compose.yml`, the proxy's `Caddyfile`, `Caddyfile.switch` and entrypoint, the
+  platform's `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, the
+  sandbox-egress entrypoint, and the `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
   `runtime-test-helper.ts`); the sandbox cross-check suite also runs the spawner's
   configuration modules in a child process (`SPAWNER_CONFIG_SOURCE` there, held to
@@ -393,7 +404,7 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `LICENSE`, both published packages’ manifests and READMEs, `publish-packages.yml` and
   `release.yml`.
   The image metadata suite reads every service `Dockerfile`, both plop service Dockerfile
-  templates and `.github/renovate.json`.
+  templates, `.github/renovate.json` and the dumb-init patch (`patches/dumb-init/`).
   Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its

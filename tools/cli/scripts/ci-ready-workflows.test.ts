@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { constants, runInNewContext } from 'node:vm';
 
+import picomatch from 'picomatch';
 import { parse } from 'yaml';
 
 import {
@@ -76,7 +77,7 @@ const workflow = async (stem: string): Promise<Workflow> =>
 const actions = async (name: string): Promise<Step[]> =>
   (await yaml(`.github/actions/${name}/action.yml`)).runs.steps;
 
-describe('eight complete native merge gates', () => {
+describe('nine complete native merge gates', () => {
   test('unique direct contexts cover every actual job, including explicit event-only lanes', async () => {
     const names: string[] = [];
     for (const [stem, expected] of Object.entries(CI_JOBS)) {
@@ -84,7 +85,7 @@ describe('eight complete native merge gates', () => {
       const gate = file.jobs['ci-ready']!;
       expect(gate.name).toBe(CI_CONTEXTS[stem as keyof typeof CI_CONTEXTS]);
       expect(gate.name).toMatch(
-        /^CI ready \((Checks|Commitlint|SAST|Security|CLI|E2E|Build|Sandbox Incus E2E)\)$/,
+        /^CI ready \((Checks|Commitlint|SAST|Security|CLI|E2E|Build|Sandbox Incus E2E|CLI Incus E2E)\)$/,
       );
       names.push(gate.name);
       expect(gate.if).toBe("always() && github.event_name == 'pull_request'");
@@ -107,7 +108,7 @@ describe('eight complete native merge gates', () => {
       });
       expect(file.on.pull_request?.paths).toBeUndefined();
       expect(file.on.pull_request?.types).toContain('ready_for_review');
-      if (stem === 'sandbox-incus-e2e') {
+      if (stem === 'sandbox-incus-e2e' || stem === 'cli-incus-e2e') {
         // No release workflow: a release candidate never runs it.
         expect(CANDIDATE_JOBS[stem]).toBeUndefined();
         expect(file.jobs['candidate-gate']).toBeUndefined();
@@ -125,7 +126,7 @@ describe('eight complete native merge gates', () => {
       for (const job of Object.values(file.jobs))
         expect([undefined, false]).toContain(job['continue-on-error']);
     }
-    expect(new Set(names).size).toBe(8);
+    expect(new Set(names).size).toBe(9);
     const observed: string[] = [];
     for (const file of await readdir(`${root}/.github/workflows`)) {
       if (!/\.ya?ml$/.test(file)) continue;
@@ -156,7 +157,7 @@ describe('eight complete native merge gates', () => {
     expect(body).toContain('core.setFailed');
   });
 
-  test('a pull request into main or a release line starts all eight, and a push starts them on main alone', async () => {
+  test('a pull request into main or a release line starts all nine, and a push starts them on main alone', async () => {
     for (const stem of Object.keys(CI_JOBS)) {
       const triggers = (await workflow(stem)).on;
       expect(triggers.pull_request?.['branches-ignore'], stem).toBeUndefined();
@@ -195,8 +196,8 @@ describe('eight complete native merge gates', () => {
         expect(JSON.stringify(job), `${stem} ${id}`).not.toMatch(main);
       }
     }
-    // Five PR scopes, Checks' integration scope and eight verdicts.
-    expect(jobs).toBe(14);
+    // Six PR scopes, Checks' integration scope and nine verdicts.
+    expect(jobs).toBe(16);
     const commitlint = (await workflow('commitlint')).jobs.commitlint!.steps!;
     expect(
       commitlint.find((step) => step.name === 'Run commitlint')?.env?.PR_BASE,
@@ -607,6 +608,7 @@ describe('real non-cone scope and readiness checkouts', () => {
         'cli',
         'security',
         'sandbox-incus',
+        'cli-incus',
       ]) {
         expect(filters[filter].length).toBeGreaterThan(0);
         const env = {
@@ -614,6 +616,7 @@ describe('real non-cone scope and readiness checkouts', () => {
           SCOPE_FULL: before.outputs.full!,
           SCOPE_BEFORE: before.outputs.identity!,
           SCOPE_TOUCHED: 'true',
+          SCOPE_REQUIRED: 'false',
           SCOPE_GUARD: 'false',
           SCOPE_COUNT: '2',
           SCOPE_FILES: '["services/web/a.ts","README.md"]',
@@ -641,6 +644,9 @@ describe('real non-cone scope and readiness checkouts', () => {
         expect(executeNative(steps[2]!, workspace, env)).toMatchObject(result);
         expect(result.calls).toBe(1);
         expect(result.outputs).toMatchObject({ run: 'true', full: 'false' });
+        if (filter === 'cli-incus')
+          expect(result.outputs.required).toBe('false');
+        else expect(result.outputs.required).toBeUndefined();
         if (filter === 'build')
           expect(result.outputs).toMatchObject({
             changes: '[]',
@@ -994,5 +1000,124 @@ describe('actual scope action boundaries', () => {
       (await execute(decide, {}, 'push', { ...env, SCOPE_FULL: 'true' }, null))
         .outputs,
     ).toEqual({ run: 'true', full: 'true' });
+  });
+});
+
+describe('the CLI Incus E2E scope', () => {
+  const pathFilters = async () =>
+    (await yaml('.github/ci-scope.yml')) as Record<string, string[]>;
+
+  test('blocks on the paths the Incus runtime owns, inside the paths it runs for', async () => {
+    const filters = await pathFilters();
+    expect(filters['cli-incus-required']).toEqual([
+      'tools/cli/src/lib/runtime/incus/**',
+      'packages/incus/**',
+      '.github/workflows/cli-incus-e2e.yml',
+    ]);
+    // Every path that blocks is one the lab runs for.
+    const broad = picomatch(filters['cli-incus']!, { dot: true });
+    let required = 0;
+    for (const pattern of filters['cli-incus-required']!)
+      for await (const path of new Bun.Glob(pattern).scan({
+        cwd: root,
+        dot: true,
+      })) {
+        required++;
+        expect(broad(path), path).toBe(true);
+      }
+    expect(required).toBeGreaterThan(50);
+    const file = await workflow('cli-incus-e2e');
+    const scope = file.jobs['pr-scope']!;
+    expect(scope.steps?.find((step) => step.id === 'scope')?.with).toEqual({
+      filter: 'cli-incus',
+    });
+    expect(
+      (scope as Job & { outputs?: Record<string, string> }).outputs,
+    ).toEqual({
+      run: '${{ steps.scope.outputs.run }}',
+      full: '${{ steps.scope.outputs.full }}',
+      required: '${{ steps.scope.outputs.required }}',
+    });
+    const lab = file.jobs.incus!;
+    expect([lab.needs].flat()).toEqual(['pr-scope']);
+    for (const condition of [
+      "needs.pr-scope.outputs.run == 'true'",
+      'github.event.pull_request.draft != true',
+      'github.event.pull_request.head.repo.fork != true',
+    ])
+      expect(lab.if).toContain(condition);
+    // The lab's own verdict never decides whether it runs: only the scope does.
+    expect(lab.if).not.toContain('required');
+  });
+
+  test("covers the CLI's import closure of lib/runtime/incus", async () => {
+    const filters = await pathFilters();
+    const matches = picomatch(filters['cli-incus']!, { dot: true });
+    const transpiler = new Bun.Transpiler({ loader: 'ts' });
+    const packages: Record<string, string> = {};
+    for (const name of ['incus', 'shared', 'ui']) {
+      const manifest = JSON.parse(
+        await readFile(`${root}/packages/${name}/package.json`, 'utf8'),
+      ) as { name: string };
+      packages[manifest.name] = `packages/${name}`;
+    }
+    const resolveImport = async (
+      from: string,
+      specifier: string,
+    ): Promise<string | null> => {
+      let base: string | null = null;
+      if (specifier.startsWith('.')) base = join(dirname(from), specifier);
+      else
+        for (const [name, directory] of Object.entries(packages)) {
+          if (specifier !== name && !specifier.startsWith(`${name}/`)) continue;
+          const manifest = JSON.parse(
+            await readFile(`${root}/${directory}/package.json`, 'utf8'),
+          ) as { exports: Record<string, string | { default?: string }> };
+          const entry =
+            manifest.exports[
+              specifier === name ? '.' : `./${specifier.slice(name.length + 1)}`
+            ];
+          const target = typeof entry === 'string' ? entry : entry?.default;
+          if (target !== undefined) base = join(directory, target);
+        }
+      if (base === null) return null;
+      for (const candidate of [base, `${base}.ts`, `${base}/index.ts`])
+        if (await Bun.file(`${root}/${candidate}`).exists())
+          return candidate.replace(/^\.\//, '');
+      return null;
+    };
+    const start = 'tools/cli/src/lib/runtime/incus';
+    const queue: string[] = [];
+    const walk = async (directory: string) => {
+      for (const entry of await readdir(`${root}/${directory}`, {
+        withFileTypes: true,
+      })) {
+        const path = `${directory}/${entry.name}`;
+        if (entry.isDirectory()) await walk(path);
+        else if (path.endsWith('.ts') && !path.endsWith('.test.ts'))
+          queue.push(path);
+      }
+    };
+    await walk(start);
+    const closure = new Set<string>();
+    while (queue.length > 0) {
+      const file = queue.pop()!;
+      if (closure.has(file)) continue;
+      closure.add(file);
+      if (!file.endsWith('.ts')) continue;
+      for (const { path } of transpiler.scanImports(
+        await readFile(`${root}/${file}`, 'utf8'),
+      )) {
+        const resolved = await resolveImport(file, path);
+        if (resolved !== null && !closure.has(resolved)) queue.push(resolved);
+      }
+    }
+    expect(closure.size).toBeGreaterThan(100);
+    // The generated embedded trees are the configuration catalogue's, built
+    // from configs/platform at generate time; nothing the runtime reads.
+    const outside = [...closure].filter(
+      (file) => !file.startsWith('tools/cli/src/generated/') && !matches(file),
+    );
+    expect(outside).toEqual([]);
   });
 });

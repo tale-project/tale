@@ -11,6 +11,10 @@ The [quickstart](/self-hosted/install/quickstart) takes you through the prerequi
 
 The CLI manages container operations, but you still own the project's configuration, credentials, volumes, and updates. Keep the project directory and its deployment settings together. [Install the CLI](/self-hosted/install/cli-install) covers supported systems, remote Docker access, commands, and managed deployment options.
 
+## Choose a container runtime
+
+The CLI runs the stack on Docker Compose, the default and the supported runtime. A workspace deployment or a [managed deployment](/self-hosted/install/cli-install#managed-deployments) can instead run as Incus instances on a Linux host: [Run Tale on Incus](/self-hosted/install/incus) covers the node it needs, how to move an existing Docker deployment over and the limits of that runtime, which is experimental in Tale 0.5.x. Local development with `tale dev` runs on Docker.
+
 ## Use your own service definitions
 
 [Run your own stack](/self-hosted/install/own-compose) describes the services, volumes, networking, readiness checks, and boot order you must preserve. Use it when maintaining Compose yourself. [Deploy on Kubernetes](/self-hosted/install/kubernetes) translates that contract into Deployments, Services, and NetworkPolicies, and lists the checks a cluster must pass. Tale does not ship an official Helm chart.

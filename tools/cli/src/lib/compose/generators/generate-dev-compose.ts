@@ -113,12 +113,16 @@ export function orgConfigMountTargets(projectDir: string): string[] {
   );
 }
 
-export function generateDevCompose(
+/**
+ * The dev compose document as an object. `tale dev` stays on Docker; the
+ * Incus compiler reads it only to hold its interpolation to Docker Compose's.
+ */
+export function buildDevCompose(
   config: ServiceConfig,
   hostAlias: string,
   port: number,
   options: DevComposeOptions = {},
-): string {
+): ComposeConfig {
   const origin = resolveDevOrigin(hostAlias, port);
   const projectDir = options.projectDir ?? process.cwd();
 
@@ -233,5 +237,15 @@ export function generateDevCompose(
     },
   };
 
-  return stringify(compose);
+  return compose;
+}
+
+/** The dev compose document as Docker Compose reads it. */
+export function generateDevCompose(
+  config: ServiceConfig,
+  hostAlias: string,
+  port: number,
+  options: DevComposeOptions = {},
+): string {
+  return stringify(buildDevCompose(config, hostAlias, port, options));
 }

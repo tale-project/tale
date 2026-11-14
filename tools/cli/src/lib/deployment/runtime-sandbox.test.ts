@@ -12,6 +12,8 @@ import {
 } from './runtime-model';
 import { prepareRuntime } from './runtime-prepare';
 import {
+  applyIncusShape,
+  assertSandboxShape,
   incusImage,
   isEgressProxy,
   isUnicastIpv4,
@@ -270,6 +272,67 @@ async function edited(
 }
 const environmentOf = (compose: ComposeDocument) =>
   compose.services.sandbox.environment as Record<string, string>;
+
+describe('the Incus shape on the Incus runtime', () => {
+  /** The sandbox, backend API and gateway services of a Docker bundle. */
+  function dockerShaped(): ComposeDocument {
+    return {
+      services: {
+        sandbox: {
+          environment: {
+            SANDBOX_RUNTIME: 'runc',
+            SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',
+            SANDBOX_HUB_PORT: '8004',
+            SANDBOX_EGRESS_PROXY: 'http://sandbox-egress:3128',
+          },
+          volumes: [
+            '/var/run/docker.sock:/var/run/docker.sock',
+            '/var/lib/tale-sandbox:/var/lib/tale-sandbox',
+            'config-data:/app/platform-config:ro',
+          ],
+        },
+        'backend-api': {},
+        'sandbox-llm-gateway': {},
+      },
+      volumes: {},
+      networks: {},
+    };
+  }
+  const bundle = sandboxBundleSchema.parse({
+    backend: 'incus',
+    ...DECLARED,
+    image: incusImage({
+      reference: `ghcr.io/tale-project/tale/tale-sandbox-runtime@${DIGEST}`,
+      digest: DIGEST,
+    }),
+  });
+
+  test('publishes nothing: the sessions reach both services at their plan addresses', () => {
+    const compose = dockerShaped();
+    applyIncusShape(compose, bundle, { publish: false });
+    expect(compose.services['backend-api']?.ports).toBeUndefined();
+    expect(compose.services['sandbox-llm-gateway']?.ports).toBeUndefined();
+    expect(compose.services.sandbox?.volumes).toContain(SANDBOX_INCUS_MOUNT);
+    const environment = compose.services.sandbox?.environment as
+      | Record<string, string>
+      | undefined;
+    expect(environment?.SANDBOX_EGRESS_PROXY).toBe(DECLARED.egressProxy);
+  });
+
+  test('a published port is refused where nothing is published, and its absence where it is', () => {
+    const compose = dockerShaped();
+    applyIncusShape(compose, bundle, { publish: false });
+    expect(() =>
+      assertSandboxShape(compose, bundle, bundle.image, { publish: true }),
+    ).toThrow('published ports differ');
+    compose.services['backend-api']!.ports = sandboxPorts(DECLARED.address)[
+      'backend-api'
+    ];
+    expect(() =>
+      assertSandboxShape(compose, bundle, bundle.image, { publish: false }),
+    ).toThrow('published ports differ');
+  });
+});
 
 describe('reading a bundle that records the Incus sandbox', () => {
   test('reads what it prepared, in the shape of the record', async () => {

@@ -243,6 +243,7 @@
     "self-hosted/install/cli-install",
     "self-hosted/install/docker-compose-reference",
     "self-hosted/install/first-admin",
+    "self-hosted/install/incus",
     "self-hosted/install/kubernetes",
     "self-hosted/install/linux-server",
     "self-hosted/install/own-compose",

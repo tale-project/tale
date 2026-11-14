@@ -124,6 +124,8 @@ async function fixture(includeDaemon = false): Promise<string> {
     ['shared', {}],
     ['e2e', {}],
     ['cli', { '@tale/shared': 'workspace:*' }],
+    ['incus', {}],
+    ['sandbox', { '@tale/incus': 'workspace:*' }],
     ['unrelated', {}],
     ['db', {}],
     ['proxy', {}],
@@ -410,6 +412,33 @@ describe('dependency-aware Turbo cache', () => {
     expect(getTask(sharedChanged, '@tale/cli#typecheck').hash).not.toBe(
       getTask(unrelatedChanged, '@tale/cli#typecheck').hash,
     );
+  }, 60_000);
+
+  test('sandbox checks hash the Incus client package they import', async () => {
+    for (const name of ['lint', 'typecheck', 'test']) {
+      const id = `@tale/sandbox#${name}`;
+      expect(
+        prerequisites(getTask(tasks, id), tasks).map((entry) => entry.taskId),
+        id,
+      ).toContain('@tale/incus#transit');
+    }
+    const directory = await fixture();
+    const baseline = graph(directory);
+    await writeFile(
+      join(directory, 'packages/incus/source.ts'),
+      'export const value = 2;\n',
+    );
+    const changed = graph(directory);
+    for (const name of ['lint', 'typecheck', 'test']) {
+      const id = `@tale/sandbox#${name}`;
+      expect(getTask(changed, id).hash, id).not.toBe(
+        getTask(baseline, id).hash,
+      );
+      const unrelated = `@tale/unrelated#${name}`;
+      expect(getTask(changed, unrelated).hash, unrelated).toBe(
+        getTask(baseline, unrelated).hash,
+      );
+    }
   }, 60_000);
 
   for (const packageName of DOCUMENTATION_PACKAGES) {

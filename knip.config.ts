@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 
+import incusPackage from './packages/incus/package.json';
 import marketingUiPackage from './packages/marketing-ui/package.json';
 import sharedPackage from './packages/shared/package.json';
 import uiPackage from './packages/ui/package.json';
@@ -250,6 +251,9 @@ export default {
     'packages/shared': {
       entry: Object.values(sharedPackage.exports),
     },
+    'packages/incus': {
+      entry: Object.values(incusPackage.exports),
+    },
     'packages/ui': {
       storybook: {
         config: ['.storybook/main.ts'],
@@ -301,6 +305,9 @@ export default {
       entry: [
         'scripts/check-sbom-hashes.ts',
         'scripts/check-deployment-acceptance.ts',
+        // The Incus end-to-end (e2e/incus/README.md): its suites are run by
+        // name by `test:e2e:incus` and the CLI Incus E2E workflow.
+        'e2e/incus/suites/*.e2e.ts',
       ],
       project: ['**/*.ts'],
       // The embedded native workflow validator imports Ajv and the

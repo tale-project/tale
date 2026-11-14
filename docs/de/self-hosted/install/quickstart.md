@@ -103,6 +103,6 @@ Versuche es erneut, sobald die gemeldete Ursache behoben ist. Behalte `.env` und
 
 ## Eine produktive Bereitstellung vorbereiten
 
-`tale deploy` stellt die Projektkonfiguration auf dem gewählten Docker-Host bereit. Entwicklung und Bereitstellung verwenden getrennte Datenvolumes: Das lokale Konto, Chats und hochgeladene Dateien werden dabei nicht übertragen. Bereite DNS, TLS, Backups und Zugriffskontrollen vor, bevor du dein Team hinzufügst.
+`tale deploy` stellt die Projektkonfiguration auf dem gewählten Docker-Host bereit. Soll die Bereitstellung stattdessen als Incus-Instanzen auf einem Linux-Host laufen, lege die Incus-Laufzeit vor der ersten Bereitstellung in `tale.json` fest, wie [Tale auf Incus betreiben](/de/self-hosted/install/incus#declare) es beschreibt; diese Laufzeit ist experimentell, und `tale dev` bleibt auf Docker. Entwicklung und Bereitstellung verwenden getrennte Datenvolumes: Das lokale Konto, Chats und hochgeladene Dateien werden dabei nicht übertragen. Bereite DNS, TLS, Backups und Zugriffskontrollen vor, bevor du dein Team hinzufügst.
 
 Lies [TLS und Domains](/de/self-hosted/configuration/tls-and-domains), [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) und [Absicherung](/de/self-hosted/operate/security/hardening). Falls du die Dienstdefinitionen selbst verwalten musst, nutze [Compose selbst betreiben](/de/self-hosted/install/own-compose).

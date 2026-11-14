@@ -14,8 +14,11 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import { slug } from '../config/releases/model';
 import type { exec } from '../docker/exec';
+import type { RegistryClient } from '../oci/registry';
+import type { IncusDeclaration } from '../runtime/incus/compile/stack-target';
 import { automationWriterProtocolSchema } from './automation-model';
 import { migrationInventorySchema } from './migration-model';
+import type { ManagedCommandTag, RuntimeAccess } from './runtime-access';
 import {
   assertSandboxShape,
   incusImage,
@@ -24,6 +27,7 @@ import {
   sandboxPorts,
   type SandboxBundle,
   type SandboxPrepare,
+  type SandboxShapeOptions,
 } from './runtime-sandbox';
 
 export const RUNTIME_SERVICES = [
@@ -41,6 +45,13 @@ export const RUNTIME_SERVICES = [
 ] as const;
 export const TALE_REGISTRY = 'ghcr.io/tale-project/tale';
 export const RUNTIME_FILES = ['compose.yml', 'Caddyfile.production'] as const;
+/** The compiled Incus stack target, without secret values: recorded, and
+ * hash-pinned like the two files above, only by a bundle for the Incus
+ * runtime. */
+export const INCUS_STACK_FILE = 'incus-stack.json';
+export type RuntimeFile =
+  | (typeof RUNTIME_FILES)[number]
+  | typeof INCUS_STACK_FILE;
 export const hash = (bytes: string | Buffer): string =>
   createHash('sha256').update(bytes).digest('hex');
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
@@ -78,6 +89,10 @@ export const runtimeBundleSchema = z
     revision: revisionSchema,
     platform: platformSchema,
     containerPrefix: containerPrefixSchema.optional(),
+    /** Recorded only for the Incus runtime, which also pins
+     * `incus-stack.json`. A CLI that predates the field refuses the bundle
+     * through this strict schema instead of running it on Docker. */
+    runtime: z.literal('incus').optional(),
     /** Recorded only when the deployment declares organization creators: the
      * policy then hands organization creation to the backend instead of
      * refusing it, and the reader checks the file against this word. */
@@ -93,16 +108,33 @@ export const runtimeBundleSchema = z
     automationWriterProtocol: automationWriterProtocolSchema.optional(),
     source: z.object({ composeSha256: sha256, caddySha256: sha256 }).strict(),
     files: z
-      .object({ 'compose.yml': sha256, 'Caddyfile.production': sha256 })
+      .object({
+        'compose.yml': sha256,
+        'Caddyfile.production': sha256,
+        [INCUS_STACK_FILE]: sha256.optional(),
+      })
       .strict(),
     services: z.array(z.enum(RUNTIME_SERVICES)).length(RUNTIME_SERVICES.length),
     images: z.array(runtimeImageSchema).min(8).max(20),
   })
-  .strict();
+  .strict()
+  .refine(
+    (bundle) =>
+      (bundle.runtime === 'incus') ===
+      (bundle.files[INCUS_STACK_FILE] !== undefined),
+    {
+      message: `A runtime bundle pins ${INCUS_STACK_FILE} exactly when it is for the Incus runtime.`,
+      path: ['files', INCUS_STACK_FILE],
+    },
+  );
 export type RuntimeBundle = z.infer<typeof runtimeBundleSchema>;
 
 export interface RuntimeDependencies {
   exec?: typeof exec;
+  /** The runtime the managed steps act on (the spawner's control, the
+   * configuration activation, the writer stop): Docker through `exec` when
+   * absent, the Incus access of the stack on the Incus runtime. */
+  access?: RuntimeAccess<ManagedCommandTag>;
   sleep?: (milliseconds: number) => Promise<void>;
   /** Isolated tests must not create the production host workspace. */
   ensureSandboxWorkspace?: () => void;
@@ -133,6 +165,20 @@ export interface PrepareRuntimeOptions {
   /** The declared Incus sandbox: the bundle's sandbox, backend API and LLM
    * gateway services are prepared in their Incus shape. */
   sandbox?: SandboxPrepare;
+  /** The Incus runtime (design D-39): images are read from their registry
+   * with no Docker daemon, the sandbox is always in its Incus shape on the
+   * address plan, and the bundle records `runtime: "incus"` and the compiled
+   * stack. */
+  incus?: PrepareIncusOptions;
+}
+export interface PrepareIncusOptions {
+  declaration: IncusDeclaration;
+  /** `user.tale.stack`: the deployment's Compose project. */
+  stack: string;
+  /** The declared `sandbox.egressProxy`; absent, the stack's own egress. */
+  egressProxy?: string;
+  /** The registry the images are read from (tests). */
+  registry?: RegistryClient;
 }
 export interface ApplyRuntimeOptions {
   bundleDirectory: string;
@@ -252,6 +298,7 @@ export function parseCompose(
   source: string,
   containerPrefix?: string,
   sandbox?: Pick<SandboxBundle, 'address'>,
+  shape: SandboxShapeOptions = { publish: true },
 ): ComposeDocument {
   const document = parseDocument(source, { uniqueKeys: true });
   requireRuntime(
@@ -383,7 +430,9 @@ export function parseCompose(
     );
     const ports = JSON.stringify(service.ports ?? []);
     const published =
-      sandbox === undefined ? {} : sandboxPorts(sandbox.address);
+      sandbox === undefined || !shape.publish
+        ? {}
+        : sandboxPorts(sandbox.address);
     const allowedPorts: Record<string, string[]> = {
       // The Incus shape publishes the two services sessions dial on the
       // declared address, and nothing else.
@@ -417,11 +466,19 @@ export function parseCompose(
   return compose;
 }
 
+/** The files a runtime bundle pins, by its runtime. */
+function runtimeFiles(bundle: Pick<RuntimeBundle, 'runtime'>): RuntimeFile[] {
+  return bundle.runtime === 'incus'
+    ? [...RUNTIME_FILES, INCUS_STACK_FILE]
+    : [...RUNTIME_FILES];
+}
+
 export function readRuntimeBundle(directory: string): {
   bundle: RuntimeBundle;
   identity: string;
   compose: ComposeDocument;
-  contents: Record<(typeof RUNTIME_FILES)[number], Buffer>;
+  contents: Record<(typeof RUNTIME_FILES)[number], Buffer> &
+    Partial<Record<typeof INCUS_STACK_FILE, Buffer>>;
 } {
   const raw = readRegular(join(directory, 'runtime.json'));
   let input: unknown;
@@ -437,15 +494,22 @@ export function readRuntimeBundle(directory: string): {
     new Set(bundle.services).size === RUNTIME_SERVICES.length,
     'Duplicate runtime service.',
   );
-  const contents = {
+  const contents: Record<(typeof RUNTIME_FILES)[number], Buffer> &
+    Partial<Record<typeof INCUS_STACK_FILE, Buffer>> = {
     'compose.yml': readRegular(join(directory, 'compose.yml')),
     'Caddyfile.production': readRegular(
       join(directory, 'Caddyfile.production'),
     ),
+    ...(bundle.runtime === 'incus'
+      ? {
+          [INCUS_STACK_FILE]: readRegular(join(directory, INCUS_STACK_FILE)),
+        }
+      : {}),
   };
-  for (const file of RUNTIME_FILES) {
+  for (const file of runtimeFiles(bundle)) {
+    const bytes = contents[file];
     requireRuntime(
-      hash(contents[file]) === bundle.files[file],
+      bytes !== undefined && hash(bytes) === bundle.files[file],
       'Runtime bundle file digest differs.',
     );
   }
@@ -469,10 +533,18 @@ export function readRuntimeBundle(directory: string): {
       'Runtime image source revision differs.',
     );
   }
+  // On the Incus runtime the sandbox is always in its Incus shape, and the
+  // services sessions dial publish nothing (their addresses are the plan's).
+  requireRuntime(
+    bundle.runtime !== 'incus' || bundle.sandbox !== undefined,
+    'A runtime bundle for Incus runs its sandbox in the Incus shape.',
+  );
+  const shape = { publish: bundle.runtime !== 'incus' };
   const compose = parseCompose(
     contents['compose.yml'].toString('utf8'),
     bundle.containerPrefix,
     bundle.sandbox,
+    shape,
   );
   for (const service of RUNTIME_SERVICES) {
     const spec = compose.services[service];
@@ -545,6 +617,7 @@ export function readRuntimeBundle(directory: string): {
     compose,
     bundle.sandbox,
     bundle.sandbox === undefined ? undefined : incusImage(runtime),
+    shape,
   );
   return { bundle, identity: hash(raw), compose, contents };
 }

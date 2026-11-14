@@ -1,7 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { InstallHandle, ResolvedRelease } from '../version/self-update';
 import { type RunUpdateDeps, runUpdate } from './run-update';
+import { update } from './update';
 
 const HANDLE: InstallHandle = {
   installPath: '/usr/local/bin/tale',
@@ -110,5 +114,47 @@ describe('runUpdate', () => {
     expect(deps.installBinary).toHaveBeenCalledWith(
       expect.objectContaining({ version: '0.8.1' }),
     );
+  });
+});
+
+describe('update keeps the runtime declaration', () => {
+  test('a file sync rewrites tale.json and keeps its runtime block as it was', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-update-runtime-'));
+    const runtime = {
+      engine: 'incus',
+      incus: {
+        project: 'tale-acme',
+        pool: 'tank',
+        network: {
+          name: 'tale-acme',
+          subnet: '10.30.0.0/24',
+          gateway: '10.30.0.1',
+          block: '10.30.0.0/24',
+        },
+        sessions: { subnet: '10.31.0.0/24' },
+        ingress: { mode: 'routed' },
+      },
+    };
+    writeFileSync(
+      join(dir, 'tale.json'),
+      JSON.stringify({
+        version: 1,
+        cliVersion: '0.0.1',
+        createdAt: '2026-11-12T00:00:00.000Z',
+        id: 'acme-a3f1b2',
+        runtime,
+      }),
+    );
+    const previous = process.cwd();
+    try {
+      process.chdir(dir);
+      await update({ skipHeader: true });
+      const written = JSON.parse(readFileSync(join(dir, 'tale.json'), 'utf8'));
+      expect(written.cliVersion).not.toBe('0.0.1');
+      expect(written.runtime).toEqual(runtime);
+    } finally {
+      process.chdir(previous);
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

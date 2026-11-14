@@ -17,11 +17,11 @@
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
     "@sentry/bun": "10.54.0",
+    "@tale/incus": "workspace:*",
     "ip-address": "10.7.1",
     "yaml": "2.8.3"
   },
   "devDependencies": {
-    "@peculiar/x509": "1.14.3",
     "@types/bun": "^1.1.0",
     "jszip": "3.10.1",
     "typescript": "^5.6.0"

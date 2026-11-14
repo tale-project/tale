@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 import { externalDepError } from '../../utils/fail';
-import { runtimeCommand, runtimeSleep } from './runtime-command';
+import { managedCommandAccess } from './runtime-access';
+import { runtimeSleep } from './runtime-command';
 import { requireRuntime, type RuntimeDependencies } from './runtime-model';
 
 /** How long a drained spawner is given to end its sessions, and how often it
@@ -26,41 +27,46 @@ async function control(
   command: 'drain' | 'drain-status',
   dependencies: RuntimeDependencies,
 ) {
-  const result = await runtimeCommand(
-    [
-      'exec',
-      containerId,
-      'timeout',
-      '15',
-      'bun',
-      '/app/src/control-cli.ts',
-      command,
-    ],
-    dependencies,
-    { timeout: 20 },
+  const result = await managedCommandAccess(dependencies).exec(
+    containerId,
+    ['timeout', '15', 'bun', '/app/src/control-cli.ts', command],
+    { tag: { timeout: 20 } },
   );
   return spawnerJson(result.stdout);
 }
 
-/** The spawner's drain state and the sessions it still holds, in the exact
- * shape its control CLI answers. */
-export async function spawnerStatus(
-  containerId: string,
-  dependencies: RuntimeDependencies,
-) {
-  const result = z
-    .strictObject({
-      draining: z.boolean(),
-      sessions: z.number().int().nonnegative(),
-      sessionIds: z.array(z.string().min(1).max(128)).max(10000),
-    })
-    .parse(await control(containerId, 'drain-status', dependencies));
+/** The spawner's `GET /v1/drain-status` answer, in the exact shape its
+ * control CLI prints (services/sandbox/src/control-routes.ts). Every reader of
+ * that answer parses it here, so a drifted field fails loudly instead of
+ * reading as "nothing in flight" or as "still busy". */
+export const spawnerDrainStatusSchema = z.strictObject({
+  draining: z.boolean(),
+  sessions: z.number().int().nonnegative(),
+  sessionIds: z.array(z.string().min(1).max(128)).max(10000),
+});
+
+export type SpawnerDrainStatus = z.infer<typeof spawnerDrainStatusSchema>;
+
+/** Validate a decoded drain-status answer; throws when it breaks the
+ * contract or its session count disagrees with its session ids. */
+export function parseSpawnerDrainStatus(value: unknown): SpawnerDrainStatus {
+  const result = spawnerDrainStatusSchema.parse(value);
   requireRuntime(
     result.sessions === result.sessionIds.length &&
       new Set(result.sessionIds).size === result.sessions,
     'Spawner drain status is inconsistent.',
   );
   return result;
+}
+
+/** The spawner's drain state and the sessions it still holds. */
+export async function spawnerStatus(
+  containerId: string,
+  dependencies: RuntimeDependencies,
+) {
+  return parseSpawnerDrainStatus(
+    await control(containerId, 'drain-status', dependencies),
+  );
 }
 
 /**

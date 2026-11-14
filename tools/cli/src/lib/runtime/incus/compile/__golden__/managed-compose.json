@@ -1,0 +1,1499 @@
+{
+  "schemaVersion": 1,
+  "path": "managed",
+  "stack": "tale",
+  "project": "tale-stack",
+  "pool": "tale",
+  "network": {
+    "name": "talebr0",
+    "subnet": "10.30.0.0/16",
+    "gateway": "10.30.0.1",
+    "block": "10.30.2.0/25"
+  },
+  "images": [
+    {
+      "alias": "tale-bgutil-ytdlp-pot-provider-87490efa523211e368b62d31d7b1737a",
+      "reference": "brainicism/bgutil-ytdlp-pot-provider@sha256:87490efa523211e368b62d31d7b1737a8486f79e0c15659469ba8ea609022773",
+      "digest": "sha256:87490efa523211e368b62d31d7b1737a8486f79e0c15659469ba8ea609022773",
+      "services": ["bgutil-provider"]
+    },
+    {
+      "alias": "tale-db-5012aa27ae1012504803d2bc028156a4",
+      "reference": "ghcr.io/tale-project/tale/tale-db@sha256:5012aa27ae1012504803d2bc028156a410ea75879bac7342e3964e2a86e53a80",
+      "digest": "sha256:5012aa27ae1012504803d2bc028156a410ea75879bac7342e3964e2a86e53a80",
+      "services": ["db", "knowledge-db"]
+    },
+    {
+      "alias": "tale-minio-b51fab27acc36fff0b5ae8c0a24625fe",
+      "reference": "ghcr.io/tale-project/ops/minio@sha256:b51fab27acc36fff0b5ae8c0a24625fe54cfbfe825da90b985248a7278128128",
+      "digest": "sha256:b51fab27acc36fff0b5ae8c0a24625fe54cfbfe825da90b985248a7278128128",
+      "services": ["object-store"]
+    },
+    {
+      "alias": "tale-platform-a496b6a280d0b4079eaaf51c2ed3b571",
+      "reference": "ghcr.io/tale-project/tale/tale-platform@sha256:a496b6a280d0b4079eaaf51c2ed3b571ef1ad360e43fff4793298bebd99f45c0",
+      "digest": "sha256:a496b6a280d0b4079eaaf51c2ed3b571ef1ad360e43fff4793298bebd99f45c0",
+      "services": ["backend-api", "backend-worker", "platform"]
+    },
+    {
+      "alias": "tale-proxy-b81b94ac05b40d553cd856248f9a1969",
+      "reference": "ghcr.io/tale-project/tale/tale-proxy@sha256:b81b94ac05b40d553cd856248f9a19691c50385b8be735d940e9f39689418ff7",
+      "digest": "sha256:b81b94ac05b40d553cd856248f9a19691c50385b8be735d940e9f39689418ff7",
+      "services": ["proxy", "switch"]
+    },
+    {
+      "alias": "tale-sandbox-2df58f806c0b50a66e9a104ece2e9be7",
+      "reference": "ghcr.io/tale-project/tale/tale-sandbox@sha256:2df58f806c0b50a66e9a104ece2e9be7cb29760b03168a2493ff3074707e425a",
+      "digest": "sha256:2df58f806c0b50a66e9a104ece2e9be7cb29760b03168a2493ff3074707e425a",
+      "services": ["sandbox"]
+    },
+    {
+      "alias": "tale-sandbox-egress-7ea4422d675b76cb25f2710c42c26f82",
+      "reference": "ghcr.io/tale-project/tale/tale-sandbox-egress@sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
+      "digest": "sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
+      "services": ["names", "names-sessions", "sandbox-egress"]
+    },
+    {
+      "alias": "tale-sandbox-llm-gateway-9d3cd417832e31acf82eb37fa5c0fa2c",
+      "reference": "ghcr.io/tale-project/tale/tale-sandbox-llm-gateway@sha256:9d3cd417832e31acf82eb37fa5c0fa2c1450f20529983bac59d8e48d66b776f4",
+      "digest": "sha256:9d3cd417832e31acf82eb37fa5c0fa2c1450f20529983bac59d8e48d66b776f4",
+      "services": ["sandbox-llm-gateway"]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "caddy-config",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "caddy-data",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "config-data",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "db-backup",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "db-data",
+      "kind": "data",
+      "pool": "tale",
+      "size": "50GiB",
+      "config": {
+        "snapshots.expiry": "14d"
+      }
+    },
+    {
+      "name": "knowledge-db-backup",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "knowledge-db-data",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "llm-gateway-data",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "object-store-data",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "static-assets",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "names-config",
+      "kind": "runtime",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "proxy-files",
+      "kind": "runtime",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "sandbox-credentials",
+      "kind": "runtime",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "switch-config",
+      "kind": "runtime",
+      "pool": "tale",
+      "config": {}
+    }
+  ],
+  "files": [
+    {
+      "volume": "proxy-files",
+      "path": "Caddyfile",
+      "mode": 420,
+      "source": {
+        "kind": "bundle",
+        "file": "Caddyfile.production"
+      }
+    },
+    {
+      "volume": "sandbox-credentials",
+      "path": "client.crt",
+      "mode": 384,
+      "source": {
+        "kind": "sandbox-credentials",
+        "file": "client.crt"
+      }
+    },
+    {
+      "volume": "sandbox-credentials",
+      "path": "client.key",
+      "mode": 384,
+      "source": {
+        "kind": "sandbox-credentials",
+        "file": "client.key"
+      }
+    },
+    {
+      "volume": "sandbox-credentials",
+      "path": "server.crt",
+      "mode": 384,
+      "source": {
+        "kind": "sandbox-credentials",
+        "file": "server.crt"
+      }
+    }
+  ],
+  "instances": [
+    {
+      "name": "backend-api-1",
+      "service": "backend-api",
+      "index": 1,
+      "colour": null,
+      "image": "tale-platform-a496b6a280d0b4079eaaf51c2ed3b571",
+      "address": "10.30.2.80",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DATABASE_URL": "postgresql://tale:fixture-db-password@db:5432/tale_app",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_ACCESS_KEY": "tale",
+        "environment.OBJECT_STORE_BUCKET": "tale-blobs",
+        "environment.OBJECT_STORE_ENDPOINT": "http://object-store:9000",
+        "environment.OBJECT_STORE_FORCE_PATH_STYLE": "",
+        "environment.OBJECT_STORE_PREFIX": "",
+        "environment.OBJECT_STORE_PUBLIC_ENDPOINT": "https://demo.tale.dev",
+        "environment.OBJECT_STORE_REGION": "us-east-1",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.PORT": "3005",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_AGENT_PROFILE": "agent",
+        "environment.SANDBOX_HTTP_API_BASE_URL": "http://backend-api:3005",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SANDBOX_URL": "http://sandbox:8003",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_CONFIG_DIR": "/app/data",
+        "environment.TALE_ROLE": "api",
+        "environment.TALE_SANDBOX_CLAUDE_EFFORT": "",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "12GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "30",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sf http://localhost:3005/ping\"],\"intervalMs\":10000,\"timeoutMs\":3000,\"startPeriodMs\":30000,\"retries\":3}",
+        "user.tale.image": "sha256:a496b6a280d0b4079eaaf51c2ed3b571ef1ad360e43fff4793298bebd99f45c0",
+        "user.tale.index": "1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "backend-api",
+        "user.tale.service": "backend-api",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.80/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD-SHELL", "curl -sf http://localhost:3005/ping"],
+        "intervalMs": 10000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 30000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 30
+      },
+      "dependsOn": [
+        {
+          "service": "db",
+          "condition": "service_healthy"
+        },
+        {
+          "service": "object-store",
+          "condition": "service_healthy"
+        }
+      ]
+    },
+    {
+      "name": "backend-worker-1",
+      "service": "backend-worker",
+      "index": 1,
+      "colour": null,
+      "image": "tale-platform-a496b6a280d0b4079eaaf51c2ed3b571",
+      "address": "10.30.2.96",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DATABASE_URL": "postgresql://tale:fixture-db-password@db:5432/tale_app",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_ACCESS_KEY": "tale",
+        "environment.OBJECT_STORE_BUCKET": "tale-blobs",
+        "environment.OBJECT_STORE_ENDPOINT": "http://object-store:9000",
+        "environment.OBJECT_STORE_FORCE_PATH_STYLE": "",
+        "environment.OBJECT_STORE_PREFIX": "",
+        "environment.OBJECT_STORE_PUBLIC_ENDPOINT": "https://demo.tale.dev",
+        "environment.OBJECT_STORE_REGION": "us-east-1",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_AGENT_PROFILE": "agent",
+        "environment.SANDBOX_HTTP_API_BASE_URL": "http://backend-api:3005",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SANDBOX_URL": "http://sandbox:8003",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_CONFIG_DIR": "/app/data",
+        "environment.TALE_ROLE": "worker",
+        "environment.TALE_SANDBOX_CLAUDE_EFFORT": "",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "12GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "120",
+        "user.tale.health": "{\"disabled\":true}",
+        "user.tale.image": "sha256:a496b6a280d0b4079eaaf51c2ed3b571ef1ad360e43fff4793298bebd99f45c0",
+        "user.tale.index": "1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "backend-worker",
+        "user.tale.service": "backend-worker",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.96/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "disabled": true
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 120
+      },
+      "dependsOn": [
+        {
+          "service": "db",
+          "condition": "service_healthy"
+        },
+        {
+          "service": "object-store",
+          "condition": "service_healthy"
+        }
+      ]
+    },
+    {
+      "name": "bgutil-provider",
+      "service": "bgutil-provider",
+      "index": null,
+      "colour": null,
+      "image": "tale-bgutil-ytdlp-pot-provider-87490efa523211e368b62d31d7b1737a",
+      "address": "10.30.2.12",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "20",
+        "boot.stop.priority": "50",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "limits.memory": "512MiB",
+        "limits.processes": "512",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "docker-entrypoint.sh node build/main.js",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "10",
+        "user.tale.health": "{\"test\":[\"CMD\",\"node\",\"-e\",\"require('net').connect(4416,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\"],\"intervalMs\":30000,\"timeoutMs\":5000,\"startPeriodMs\":20000,\"retries\":3}",
+        "user.tale.image": "sha256:87490efa523211e368b62d31d7b1737a8486f79e0c15659469ba8ea609022773",
+        "user.tale.role": "bgutil-provider",
+        "user.tale.service": "bgutil-provider",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale"
+      },
+      "devices": {
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.12/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "require('net').connect(4416,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+        ],
+        "intervalMs": 30000,
+        "timeoutMs": 5000,
+        "startPeriodMs": 20000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 10
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "db",
+      "service": "db",
+      "index": null,
+      "colour": null,
+      "image": "tale-db-5012aa27ae1012504803d2bc028156a4",
+      "address": "10.30.2.6",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "90",
+        "boot.stop.priority": "10",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_DB_ROLE": "platform",
+        "environment.TALE_SHM_SIZE": "256m",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "8GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:2 --rewrite 37:2 --rewrite 38:2 -- /usr/local/bin/docker-entrypoint.sh postgres",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "60",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"pg_isready -U tale -d tale && [ -f /tmp/.db_ready ]\"],\"intervalMs\":5000,\"timeoutMs\":10000,\"startPeriodMs\":120000,\"retries\":3}",
+        "user.tale.image": "sha256:5012aa27ae1012504803d2bc028156a410ea75879bac7342e3964e2a86e53a80",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "db",
+        "user.tale.service": "db",
+        "user.tale.signal": "2",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "db-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "db-data",
+          "path": "/var/lib/postgresql/data"
+        },
+        "db-backup": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "db-backup",
+          "path": "/var/lib/postgresql/backup"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.6/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U tale -d tale && [ -f /tmp/.db_ready ]"
+        ],
+        "intervalMs": 5000,
+        "timeoutMs": 10000,
+        "startPeriodMs": 120000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 2,
+        "graceSeconds": 60
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "knowledge-db",
+      "service": "knowledge-db",
+      "index": null,
+      "colour": null,
+      "image": "tale-db-5012aa27ae1012504803d2bc028156a4",
+      "address": "10.30.2.7",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "90",
+        "boot.stop.priority": "10",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_DB_ROLE": "knowledge",
+        "environment.TALE_SHM_SIZE": "256m",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "8GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:2 --rewrite 37:2 --rewrite 38:2 -- /usr/local/bin/docker-entrypoint.sh postgres",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "60",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"pg_isready -U tale -d tale_knowledge && [ -f /tmp/.db_ready ]\"],\"intervalMs\":5000,\"timeoutMs\":10000,\"startPeriodMs\":120000,\"retries\":3}",
+        "user.tale.image": "sha256:5012aa27ae1012504803d2bc028156a410ea75879bac7342e3964e2a86e53a80",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "knowledge-db",
+        "user.tale.service": "knowledge-db",
+        "user.tale.signal": "2",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "knowledge-db-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "knowledge-db-data",
+          "path": "/var/lib/postgresql/data"
+        },
+        "knowledge-db-backup": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "knowledge-db-backup",
+          "path": "/var/lib/postgresql/backup"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.7/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U tale -d tale_knowledge && [ -f /tmp/.db_ready ]"
+        ],
+        "intervalMs": 5000,
+        "timeoutMs": 10000,
+        "startPeriodMs": 120000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 2,
+        "graceSeconds": 60
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "names",
+      "service": "names",
+      "index": null,
+      "colour": null,
+      "image": "tale-sandbox-egress-7ea4422d675b76cb25f2710c42c26f82",
+      "address": "10.30.2.2",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "100",
+        "boot.stop.priority": "10",
+        "limits.memory": "256MiB",
+        "limits.processes": "256",
+        "oci.dns.nameservers": "10.30.0.1",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- dnsmasq --keep-in-foreground --no-hosts --hostsdir=/names/stack/hosts --conf-file=/names/stack/dnsmasq.conf",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "5",
+        "user.tale.health": "{\"test\":[\"CMD\",\"nslookup\",\"-type=a\",\"host.docker.internal\",\"127.0.0.1\"],\"intervalMs\":10000,\"timeoutMs\":3000,\"retries\":3,\"startPeriodMs\":5000}",
+        "user.tale.image": "sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
+        "user.tale.infra-formats": "names-hosts/1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "names",
+        "user.tale.service": "names",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "names-config": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "names-config",
+          "path": "/names",
+          "readonly": "true"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.2/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "nslookup",
+          "-type=a",
+          "host.docker.internal",
+          "127.0.0.1"
+        ],
+        "intervalMs": 10000,
+        "timeoutMs": 3000,
+        "retries": 3,
+        "startPeriodMs": 5000
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 5
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "names-sessions",
+      "service": "names-sessions",
+      "index": null,
+      "colour": null,
+      "image": "tale-sandbox-egress-7ea4422d675b76cb25f2710c42c26f82",
+      "address": "10.30.2.3",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "100",
+        "boot.stop.priority": "10",
+        "limits.memory": "256MiB",
+        "limits.processes": "256",
+        "oci.dns.nameservers": "10.30.0.1",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- dnsmasq --keep-in-foreground --no-hosts --hostsdir=/names/sessions/hosts --conf-file=/names/sessions/dnsmasq.conf",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "5",
+        "user.tale.health": "{\"test\":[\"CMD\",\"nslookup\",\"-type=a\",\"backend-api\",\"127.0.0.1\"],\"intervalMs\":10000,\"timeoutMs\":3000,\"retries\":3,\"startPeriodMs\":5000}",
+        "user.tale.image": "sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
+        "user.tale.infra-formats": "names-hosts/1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "names-sessions",
+        "user.tale.service": "names-sessions",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "names-config": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "names-config",
+          "path": "/names",
+          "readonly": "true"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.3/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD", "nslookup", "-type=a", "backend-api", "127.0.0.1"],
+        "intervalMs": 10000,
+        "timeoutMs": 3000,
+        "retries": 3,
+        "startPeriodMs": 5000
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 5
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "object-store",
+      "service": "object-store",
+      "index": null,
+      "colour": null,
+      "image": "tale-minio-b51fab27acc36fff0b5ae8c0a24625fe",
+      "address": "10.30.2.8",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "80",
+        "boot.stop.priority": "10",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.MINIO_BROWSER": "off",
+        "environment.MINIO_ROOT_PASSWORD": "fixture-object-store-secret",
+        "environment.MINIO_ROOT_USER": "tale",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "2GiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/usr/bin/docker-entrypoint.sh server /data --address :9000 --console-address :9001",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "30",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"mc ready local || exit 1\"],\"intervalMs\":10000,\"timeoutMs\":3000,\"startPeriodMs\":20000,\"retries\":5}",
+        "user.tale.image": "sha256:b51fab27acc36fff0b5ae8c0a24625fe54cfbfe825da90b985248a7278128128",
+        "user.tale.role": "object-store",
+        "user.tale.service": "object-store",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale"
+      },
+      "devices": {
+        "object-store-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "object-store-data",
+          "path": "/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.8/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD-SHELL", "mc ready local || exit 1"],
+        "intervalMs": 10000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 20000,
+        "retries": 5
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 30
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "platform-1",
+      "service": "platform",
+      "index": 1,
+      "colour": null,
+      "image": "tale-platform-a496b6a280d0b4079eaaf51c2ed3b571",
+      "address": "10.30.2.64",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_BACKEND_URL": "http://backend-api:3005",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "4GiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "45",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]\"],\"intervalMs\":5000,\"timeoutMs\":3000,\"startPeriodMs\":180000,\"retries\":3}",
+        "user.tale.image": "sha256:a496b6a280d0b4079eaaf51c2ed3b571ef1ad360e43fff4793298bebd99f45c0",
+        "user.tale.index": "1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "platform",
+        "user.tale.service": "platform",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data",
+          "readonly": "true"
+        },
+        "static-assets": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "static-assets",
+          "path": "/app/static-assets"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.64/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]"
+        ],
+        "intervalMs": 5000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 180000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 45
+      },
+      "dependsOn": [
+        {
+          "service": "db",
+          "condition": "service_healthy"
+        },
+        {
+          "service": "proxy",
+          "condition": "service_healthy"
+        }
+      ]
+    },
+    {
+      "name": "proxy",
+      "service": "proxy",
+      "index": null,
+      "colour": null,
+      "image": "tale-proxy-b81b94ac05b40d553cd856248f9a1969",
+      "address": "10.30.2.4",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "10",
+        "boot.stop.priority": "90",
+        "environment.BACKEND_UPSTREAM": "backend-api:3005",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_BUCKET": "tale-blobs",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.OBJECT_STORE_UPSTREAM": "object-store:9000",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "1GiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /usr/local/bin/docker-entrypoint.sh caddy run --config /config/Caddyfile --adapter caddyfile",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "10",
+        "user.tale.health": "{\"test\":[\"CMD\",\"wget\",\"--no-verbose\",\"--tries=1\",\"--spider\",\"http://127.0.0.1:2020/health\"],\"intervalMs\":30000,\"timeoutMs\":10000,\"startPeriodMs\":10000,\"retries\":3}",
+        "user.tale.image": "sha256:b81b94ac05b40d553cd856248f9a19691c50385b8be735d940e9f39689418ff7",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "proxy",
+        "user.tale.service": "proxy",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "caddy-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "caddy-data",
+          "path": "/data"
+        },
+        "caddy-config": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "caddy-config",
+          "path": "/config"
+        },
+        "proxy-files": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "proxy-files",
+          "path": "/etc/caddy",
+          "readonly": "true"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.4/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:2020/health"
+        ],
+        "intervalMs": 30000,
+        "timeoutMs": 10000,
+        "startPeriodMs": 10000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 10
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "sandbox",
+      "service": "sandbox",
+      "index": null,
+      "colour": null,
+      "image": "tale-sandbox-2df58f806c0b50a66e9a104ece2e9be7",
+      "address": "10.30.2.11",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "50",
+        "boot.stop.priority": "50",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_BACKEND": "incus",
+        "environment.SANDBOX_BUILDKITD_IMAGE": "ghcr.io/tale-project/tale/tale-sandbox-buildkitd@sha256:514d848e0d0cfa6adbd44db1a687ba2adc4b27df37677f46c2be9603d1e36677",
+        "environment.SANDBOX_BUILDKITD_MIRROR_IMAGE": "registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8",
+        "environment.SANDBOX_DIND_INNER_POOL": "",
+        "environment.SANDBOX_DOCKER_BUILD_CACHE": "",
+        "environment.SANDBOX_DOCKER_IN_CONTAINER": "",
+        "environment.SANDBOX_DOCKER_WORKLOADS": "",
+        "environment.SANDBOX_EGRESS_PROXY": "http://10.30.2.10:3128",
+        "environment.SANDBOX_INCUS_CLIENT_CERT_FILE": "/run/secrets/incus/client.crt",
+        "environment.SANDBOX_INCUS_CLIENT_KEY_FILE": "/run/secrets/incus/client.key",
+        "environment.SANDBOX_INCUS_DNS": "10.30.2.3",
+        "environment.SANDBOX_INCUS_ENDPOINT": "https://10.30.0.1:8443",
+        "environment.SANDBOX_INCUS_IMAGE": "tale-sandbox-runtime-55555555555555555555555555555555",
+        "environment.SANDBOX_INCUS_IMAGE_SOURCE": "ghcr.io/tale-project/tale/tale-sandbox-runtime@sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SANDBOX_INCUS_SERVER_CERT_FILE": "/run/secrets/incus/server.crt",
+        "environment.SANDBOX_RUNTIME_IMAGE": "ghcr.io/tale-project/tale/tale-sandbox-runtime@sha256:27d798bd1d22097168efd27f9099c34bafd48ef9d98c7fd5c41dc7b7caabb6e4",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.kernel.nofile": "4096:8192",
+        "limits.memory": "1GiB",
+        "limits.processes": "1024",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "30",
+        "user.tale.health": "{\"test\":[\"CMD\",\"curl\",\"-fsS\",\"http://127.0.0.1:8003/health\"],\"intervalMs\":30000,\"timeoutMs\":5000,\"startPeriodMs\":30000,\"retries\":3}",
+        "user.tale.image": "sha256:2df58f806c0b50a66e9a104ece2e9be7cb29760b03168a2493ff3074707e425a",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "sandbox",
+        "user.tale.service": "sandbox",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/platform-config",
+          "readonly": "true"
+        },
+        "sandbox-credentials": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "sandbox-credentials",
+          "path": "/run/secrets/incus",
+          "readonly": "true"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.11/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD", "curl", "-fsS", "http://127.0.0.1:8003/health"],
+        "intervalMs": 30000,
+        "timeoutMs": 5000,
+        "startPeriodMs": 30000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 30
+      },
+      "dependsOn": [
+        {
+          "service": "sandbox-egress",
+          "condition": "service_healthy"
+        }
+      ]
+    },
+    {
+      "name": "sandbox-egress",
+      "service": "sandbox-egress",
+      "index": null,
+      "colour": null,
+      "image": "tale-sandbox-egress-7ea4422d675b76cb25f2710c42c26f82",
+      "address": "10.30.2.10",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "70",
+        "boot.stop.priority": "50",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_EGRESS_MAX_CLIENTS": "2000",
+        "environment.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION": "256",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.kernel.nofile": "8192:16384",
+        "limits.memory": "512MiB",
+        "limits.processes": "4096",
+        "linux.sysctl.net.ipv6.conf.all.disable_ipv6": "1",
+        "linux.sysctl.net.ipv6.conf.default.disable_ipv6": "1",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "10",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1\"],\"intervalMs\":10000,\"timeoutMs\":5000,\"startPeriodMs\":10000,\"retries\":2}",
+        "user.tale.image": "sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "sandbox-egress",
+        "user.tale.service": "sandbox-egress",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.10/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1"
+        ],
+        "intervalMs": 10000,
+        "timeoutMs": 5000,
+        "startPeriodMs": 10000,
+        "retries": 2
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 10
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "sandbox-llm-gateway",
+      "service": "sandbox-llm-gateway",
+      "index": null,
+      "colour": null,
+      "image": "tale-sandbox-llm-gateway-9d3cd417832e31acf82eb37fa5c0fa2c",
+      "address": "10.30.2.9",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "60",
+        "boot.stop.priority": "50",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "3328MiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /usr/local/bin/docker-entrypoint.sh /app/main",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "90",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1\"],\"intervalMs\":10000,\"timeoutMs\":5000,\"startPeriodMs\":15000,\"retries\":3}",
+        "user.tale.image": "sha256:9d3cd417832e31acf82eb37fa5c0fa2c1450f20529983bac59d8e48d66b776f4",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "sandbox-llm-gateway",
+        "user.tale.service": "sandbox-llm-gateway",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "llm-gateway-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "llm-gateway-data",
+          "path": "/app/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.9/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"
+        ],
+        "intervalMs": 10000,
+        "timeoutMs": 5000,
+        "startPeriodMs": 15000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 90
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "switch",
+      "service": "switch",
+      "index": null,
+      "colour": null,
+      "image": "tale-proxy-b81b94ac05b40d553cd856248f9a1969",
+      "address": "10.30.2.5",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "45",
+        "boot.stop.priority": "90",
+        "environment.TALE_PROXY_ROLE": "switch",
+        "limits.memory": "1GiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.2.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /usr/local/bin/docker-entrypoint.sh caddy run --config /config/Caddyfile --adapter caddyfile",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.grace": "30",
+        "user.tale.health": "{\"test\":[\"CMD\",\"wget\",\"--no-verbose\",\"--tries=1\",\"--spider\",\"http://127.0.0.1:2020/health\"],\"intervalMs\":30000,\"timeoutMs\":10000,\"retries\":3,\"startPeriodMs\":10000}",
+        "user.tale.image": "sha256:b81b94ac05b40d553cd856248f9a19691c50385b8be735d940e9f39689418ff7",
+        "user.tale.infra-formats": "switch-upstreams/1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "switch",
+        "user.tale.service": "switch",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "switch-config": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "switch-config",
+          "path": "/switch",
+          "readonly": "true"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.2.5/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:2020/health"
+        ],
+        "intervalMs": 30000,
+        "timeoutMs": 10000,
+        "retries": 3,
+        "startPeriodMs": 10000
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 30
+      },
+      "dependsOn": []
+    }
+  ],
+  "names": {
+    "stack": {
+      "backend-api": ["10.30.2.5"],
+      "backend-worker": ["10.30.2.96"],
+      "bgutil-provider": ["10.30.2.12"],
+      "db": ["10.30.2.6"],
+      "demo.tale.dev": ["10.30.2.4"],
+      "host.docker.internal": ["10.30.0.1"],
+      "knowledge-db": ["10.30.2.7"],
+      "object-store": ["10.30.2.8"],
+      "platform": ["10.30.2.5"],
+      "proxy": ["10.30.2.4"],
+      "sandbox": ["10.30.2.11"],
+      "sandbox-egress": ["10.30.2.10"],
+      "sandbox-llm-gateway": ["10.30.2.9"]
+    },
+    "sessions": {
+      "backend-api": ["10.30.2.5"],
+      "backend-relay": ["10.30.2.5"],
+      "llm-gateway": ["10.30.2.9"],
+      "sandbox-llm-gateway": ["10.30.2.9"]
+    }
+  },
+  "switch": {
+    "platform": [
+      "10.30.2.64:3000",
+      "10.30.2.65:3000",
+      "10.30.2.66:3000",
+      "10.30.2.67:3000",
+      "10.30.2.68:3000",
+      "10.30.2.69:3000",
+      "10.30.2.70:3000",
+      "10.30.2.71:3000",
+      "10.30.2.72:3000",
+      "10.30.2.73:3000",
+      "10.30.2.74:3000",
+      "10.30.2.75:3000",
+      "10.30.2.76:3000",
+      "10.30.2.77:3000",
+      "10.30.2.78:3000",
+      "10.30.2.79:3000"
+    ],
+    "backend-api": [
+      "10.30.2.80:3005",
+      "10.30.2.81:3005",
+      "10.30.2.82:3005",
+      "10.30.2.83:3005",
+      "10.30.2.84:3005",
+      "10.30.2.85:3005",
+      "10.30.2.86:3005",
+      "10.30.2.87:3005",
+      "10.30.2.88:3005",
+      "10.30.2.89:3005",
+      "10.30.2.90:3005",
+      "10.30.2.91:3005",
+      "10.30.2.92:3005",
+      "10.30.2.93:3005",
+      "10.30.2.94:3005",
+      "10.30.2.95:3005"
+    ]
+  },
+  "ingress": {
+    "mode": "routed",
+    "proxy": "10.30.2.4",
+    "ports": [
+      {
+        "host": 80,
+        "container": 80
+      },
+      {
+        "host": 443,
+        "container": 443
+      }
+    ]
+  },
+  "ignored": [
+    {
+      "service": "db",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "db",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "db",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "db",
+      "key": "ports",
+      "reason": "127.0.0.1:5432:5432: nothing on the node dials the loopback publish, and the CLI reaches Postgres by exec"
+    },
+    {
+      "service": "knowledge-db",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "knowledge-db",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "knowledge-db",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "knowledge-db",
+      "key": "ports",
+      "reason": "127.0.0.1:5433:5432: nothing on the node dials the loopback publish, and the CLI reaches Postgres by exec"
+    },
+    {
+      "service": "bgutil-provider",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "bgutil-provider",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "bgutil-provider",
+      "key": "init",
+      "reason": "the patched /init, or lxc-init for an accepted image, reaps child processes"
+    },
+    {
+      "service": "bgutil-provider",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "platform",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "platform",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "platform",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "object-store",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "object-store",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "object-store",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "backend-api",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "backend-api",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "backend-worker",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "backend-worker",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "proxy",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "proxy",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "proxy",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "proxy",
+      "key": "ports",
+      "reason": "the routed ingress publishes nothing: the operator forwards to the proxy"
+    },
+    {
+      "service": "sandbox-egress",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "sandbox-egress",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "sandbox-egress",
+      "key": "cap_drop",
+      "reason": "Incus cannot drop capabilities without raw.lxc; the egress narrows its bounding set itself with setpriv"
+    },
+    {
+      "service": "sandbox-egress",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "sandbox",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    },
+    {
+      "service": "sandbox",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "sandbox",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "sandbox",
+      "key": "volumes",
+      "reason": "/var/run/docker.sock belongs to the Docker sandbox shape; the spawner runs its sessions on Incus"
+    },
+    {
+      "service": "sandbox",
+      "key": "volumes",
+      "reason": "/var/lib/tale-sandbox belongs to the Docker sandbox shape; the spawner runs its sessions on Incus"
+    },
+    {
+      "service": "sandbox-llm-gateway",
+      "key": "container_name",
+      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
+    },
+    {
+      "service": "sandbox-llm-gateway",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "sandbox-llm-gateway",
+      "key": "pull_policy",
+      "reason": "images are always pulled by digest"
+    }
+  ],
+  "omitted": []
+}

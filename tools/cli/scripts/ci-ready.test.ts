@@ -4,6 +4,7 @@ import {
   BUILD_SERVICES,
   BUILD_FILTERS,
   buildScope,
+  cliIncusRequired,
   e2eScope,
   CI_JOBS,
   COMPOSE_SERVICES,
@@ -32,6 +33,8 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
   if (needs.release) needs.release.result = 'skipped';
   if (needs['pr-scope'])
     needs['pr-scope'].outputs = { run: 'true', full: 'false' };
+  if (workflow === 'cli-incus-e2e')
+    needs['pr-scope']!.outputs.required = 'true';
   if (needs['integration-scope'])
     needs['integration-scope'].outputs = { run: 'true' };
   if (workflow === 'build') {
@@ -338,6 +341,92 @@ describe('native CI readiness', () => {
     expect(verdict.jobs.find((job) => job.job === 'incus')?.policy).toBe(
       'not run for a fork',
     );
+  });
+
+  test('CLI Incus E2E blocks only on its required paths, and reports elsewhere', () => {
+    const required = fixture('cli-incus-e2e');
+    expect(evaluateReadiness(required).passed).toBe(true);
+    for (const result of ['failure', 'cancelled', 'skipped']) {
+      required.needs.incus!.result = result;
+      expect(evaluateReadiness(required).passed, result).toBe(false);
+    }
+
+    // On the broad filter alone the lab runs and its verdict is reported:
+    // a red lab passes the terminal job, with the result in its summary.
+    const reported = fixture('cli-incus-e2e');
+    reported.needs['pr-scope']!.outputs.required = 'false';
+    for (const result of ['success', 'failure', 'cancelled']) {
+      reported.needs.incus!.result = result;
+      const verdict = evaluateReadiness(reported);
+      expect(verdict.passed, result).toBe(true);
+      expect(verdict.jobs.find((job) => job.job === 'incus')).toEqual({
+        job: 'incus',
+        result,
+        policy: 'reported, not required on these paths',
+      });
+    }
+    // It must have run, though: a skipped lab on its paths is no report.
+    reported.needs.incus!.result = 'skipped';
+    expect(evaluateReadiness(reported).passed).toBe(false);
+
+    // A full scope is required whatever the paths say.
+    const full = fixture('cli-incus-e2e');
+    full.needs['pr-scope']!.outputs = {
+      run: 'true',
+      full: 'true',
+      required: 'false',
+    };
+    full.needs.incus!.result = 'failure';
+    expect(evaluateReadiness(full).passed).toBe(false);
+
+    // Outside the filter the lab is skipped, and the job passes.
+    const outside = fixture('cli-incus-e2e');
+    outside.needs['pr-scope']!.outputs = {
+      run: 'false',
+      full: 'false',
+      required: 'false',
+    };
+    outside.needs.incus!.result = 'skipped';
+    expect(evaluateReadiness(outside).passed).toBe(true);
+    outside.needs.incus!.result = 'success';
+    expect(evaluateReadiness(outside).passed).toBe(false);
+
+    // A required scope that excludes the lab, or no answer at all, is refused.
+    for (const value of [
+      { run: 'false', full: 'false', required: 'true' },
+      { run: 'true', full: 'false' },
+      { run: 'true', full: 'false', required: 'yes' },
+    ] as Record<string, string>[]) {
+      const broken = fixture('cli-incus-e2e');
+      broken.needs['pr-scope']!.outputs = value;
+      expect(evaluateReadiness(broken).passed, JSON.stringify(value)).toBe(
+        false,
+      );
+    }
+
+    const fork = fixture('cli-incus-e2e');
+    fork.payload.pull_request.head.repo.fork = true;
+    fork.needs.incus!.result = 'skipped';
+    const verdict = evaluateReadiness(fork);
+    expect(verdict.passed).toBe(true);
+    expect(verdict.jobs.find((job) => job.job === 'incus')?.policy).toBe(
+      'not run for a fork',
+    );
+  });
+
+  test('cliIncusRequired holds the required paths inside the lab', () => {
+    expect(cliIncusRequired({ run: true, full: false, required: true })).toBe(
+      true,
+    );
+    expect(cliIncusRequired({ run: true, full: false, required: false })).toBe(
+      false,
+    );
+    expect(cliIncusRequired({ run: true, full: true, required: false })).toBe(
+      true,
+    );
+    expect(() =>
+      cliIncusRequired({ run: false, full: false, required: true }),
+    ).toThrow('cannot exclude the lab');
   });
 
   test('malformed and incomplete Build scope never means no work', () => {

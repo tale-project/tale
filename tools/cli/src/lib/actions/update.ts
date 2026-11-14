@@ -190,7 +190,8 @@ export async function update(options: UpdateOptions): Promise<void> {
     }
   }
 
-  // Update tale.json and checksums
+  // Update tale.json and checksums. The spread keeps every other field,
+  // the runtime block included: `tale update` changes no runtime.
   if (!options.dryRun) {
     const updatedProject = {
       ...project,

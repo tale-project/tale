@@ -8,14 +8,37 @@
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
 
+# =============================================================================
+# tale-init: patched dumb-init 1.2.5 at /init (MAXSIG 31 -> 64), for Incus.
+# Incus runs /init as PID 1 and halts a container with SIGPWR, or SIGRTMIN+3
+# when PID 1 blocks it; the runtime rewrites both to the stop signal. Docker
+# never runs it: the ENTRYPOINT below is unchanged. patches/README.md says why
+# and when it goes. Byte-identical in the six stack images (db, platform,
+# proxy, sandbox, sandbox-egress, sandbox-llm-gateway), held by
+# tools/cli/scripts/oci-image-metadata.test.ts.
+# =============================================================================
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS tale-init
+COPY patches/dumb-init/maxsig-64.patch /tmp/maxsig-64.patch
+RUN set -eux; \
+    apk add --no-cache gcc musl-dev patch; \
+    wget -q -O /tmp/dumb-init.tar.gz https://github.com/Yelp/dumb-init/archive/refs/tags/v1.2.5.tar.gz; \
+    echo '3eda470d8a4a89123f4516d26877a727c0945006c8830b7e3bad717a5f6efc4e  /tmp/dumb-init.tar.gz' | sha256sum -c -; \
+    tar -C /tmp -xzf /tmp/dumb-init.tar.gz; \
+    cd /tmp/dumb-init-1.2.5; \
+    patch -p1 < /tmp/maxsig-64.patch; \
+    grep -qx '#define MAXSIG 64' dumb-init.c; \
+    gcc -std=gnu99 -static -s -Wall -Werror -O2 -o /init dumb-init.c; \
+    /init --version
+
 FROM caddy:2.11-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
 
 # Set environment variables with sensible defaults
 ENV HOST=localhost \
     TLS_MODE=selfsigned
 
-# Copy Caddyfile
+# Copy Caddyfile, and the switch role's (TALE_PROXY_ROLE=switch, Incus only)
 COPY services/proxy/Caddyfile /etc/caddy/Caddyfile
+COPY services/proxy/Caddyfile.switch /etc/caddy/Caddyfile.switch
 
 # Copy maintenance page for deployment transitions
 # Shown when no healthy backends are available (e.g., during blue-green deployment)
@@ -24,6 +47,9 @@ COPY services/proxy/maintenance.html /var/www/maintenance.html
 # Copy entrypoint script that fixes certificate permissions
 COPY services/proxy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# /init for Incus, from the tale-init stage (Docker never runs it).
+COPY --from=tale-init /init /init
 
 # Keep version metadata after filesystem work so new releases reuse its layers.
 # Re-declare VERSION arg (ARGs don't persist after FROM)
@@ -36,6 +62,8 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.documentation="https://docs.tale.dev" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
+LABEL dev.tale.init="dumb-init-1.2.5+maxsig64" \
+      dev.tale.infra-formats="switch-upstreams/1"
 ENV TALE_VERSION=${VERSION}
 
 # Expose HTTP and HTTPS ports

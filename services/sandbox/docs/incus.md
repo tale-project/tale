@@ -8,13 +8,14 @@ Kubernetes paths are unaffected, and **the backend is off unless
 `SANDBOX_BACKEND=incus` is set**.
 
 > **Status.** Unit tests run both backends against a fake Incus API
-> (`src/backend/incus/fake-incus.ts`). An end-to-end lab
+> (`@tale/incus/fake`, in [`packages/incus`](../../../packages/incus/README.md),
+> which also holds the REST client the backends use). An end-to-end lab
 > ([e2e/incus](../e2e/incus/README.md), `.github/workflows/sandbox-incus-e2e.yml`)
 > runs the spawner from the same checkout against a real Incus (Zabbly's stable
 > build on a hosted Ubuntu runner, a ZFS pool on a file, the operator block below
-> run verbatim) on pull requests that touch the spawner, the runtime image or the
-> egress proxy (a draft is dispatched by hand), and holds the timings in its job
-> summary. What a hosted runner is not is what is left:
+> run verbatim) on pull requests that touch the spawner, its Incus client, the
+> runtime image or the egress proxy (a draft is dispatched by hand), and holds
+> the timings in its job summary. What a hosted runner is not is what is left:
 > [Verify a node](#verify-a-node-before-trusting-it) marks each check as proven
 > by that lab or left to your first real node.
 
@@ -396,6 +397,34 @@ The spawner then runs with `SANDBOX_INCUS_ENDPOINT=https://<node>:8443`,
 `SANDBOX_INCUS_IMAGE=tale-sandbox-runtime`, the three certificate files, and
 `SANDBOX_EGRESS_PROXY=http://10.20.0.2:3128`. The node's own server certificate
 (`/var/lib/incus/server.crt`) must be the pinnable kind described above.
+
+### When the whole stack runs on Incus
+
+The block above is for a spawner whose stack runs elsewhere, such as on Docker.
+When the CLI runs the whole stack on Incus (a managed deployment with
+`runtime.engine: "incus"`, [Run Tale on Incus](../../../docs/en/self-hosted/install/incus.md)),
+the spawner is the stack's `sandbox` instance and the same zone sits beside the
+stack's project. Nothing here is written by hand:
+
+- **The zone's objects** come from the node contract (`tale incus contract`):
+  `tale incus bootstrap` makes the zone's project (`<project>-sessions`), bridge
+  (the first 13 characters of the stack's bridge name, then `-s`), ACL and
+  `sandbox` profile, with the stack's pool, and writes the spawner's restricted
+  certificate to `<stateDirectory>/sandbox-incus/`. An operator with other tooling
+  makes the same objects from the contract.
+- **The names** the sessions may reach are served by the stack's `names-sessions`
+  instance, which the CLI sets as `SANDBOX_INCUS_DNS`; the backend API is the
+  stack's `switch` and the model gateway its `sandbox-llm-gateway`, each at its
+  fixed address on the stack's bridge.
+- **The egress literal** `SANDBOX_EGRESS_PROXY` is set by the CLI: the declared
+  `sandbox.egressProxy`, else `http://<sandbox-egress address>:3128` from the
+  stack's address plan. The image variables and `SANDBOX_INCUS_ENDPOINT` (from
+  `runtime.incus.endpoint`) are set the same way.
+- **The ACL rules** use the sessions' real subnet: Incus does not translate
+  addresses between its own bridges, so the stack sees a session's own address.
+- **Declared by the operator** in the specification's `environment`:
+  `SANDBOX_INCUS_PROJECT`, `SANDBOX_INCUS_PROFILE`, `SANDBOX_INCUS_NETWORK` and
+  `SANDBOX_INCUS_STORAGE_POOL`. The spawner refuses to start without them.
 
 ## Configuration
 

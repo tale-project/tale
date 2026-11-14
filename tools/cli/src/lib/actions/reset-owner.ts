@@ -1,17 +1,20 @@
 import * as logger from '../../utils/logger';
-import {
-  BACKEND_API_LABEL,
-  backendApiContainer,
-  controlCall,
-} from '../docker/control-call';
+import { BACKEND_API_LABEL, controlCall } from '../docker/control-call';
+import { requireProject } from '../project/find-project';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
+import { servingApiReplica } from './incus-deploy';
 
 interface ResetOwnerOptions {
   email?: string;
   password?: string;
+  /** The runtime to address; selected from the project's `tale.json` when
+   *  absent. */
+  runtime?: StackRuntime;
 }
 
 /**
- * Owner recovery. The operator is on the host with docker access, so the
+ * Owner recovery. The operator is on the host with runtime access, so the
  * control door's bearer token IS the authorization — and the token is read
  * INSIDE the container (`sh -c`), so it never crosses the CLI's process
  * boundary or its logs. Same channel as the deploy drain (drain-backend.ts).
@@ -26,12 +29,14 @@ export async function resetOwner(options: ResetOwnerOptions): Promise<void> {
     throw new Error('At least one of --email or --password is required');
   }
 
-  const container = await backendApiContainer();
+  const runtime = options.runtime ?? (await selectRuntime(requireProject()));
+  const container = await servingApiReplica(runtime);
   logger.step(
     `Resetting owner credentials via ${container ?? BACKEND_API_LABEL}...`,
   );
 
   const result = await controlCall('POST', '/api/control/reset-owner', {
+    runtime,
     ...(container === null ? {} : { container }),
     body: {
       ...(email ? { newEmail: email } : {}),

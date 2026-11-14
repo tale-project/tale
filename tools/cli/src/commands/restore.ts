@@ -18,11 +18,24 @@ export function createRestoreCommand(): Command {
       'before restoring, stop project containers that are running, restarting or paused',
     )
     .option('-y, --yes', 'non-interactive: skip the confirmation prompt')
+    .option(
+      '--resume',
+      'Incus: finish the restore an interrupted run left pending',
+    )
+    .option(
+      '--abort',
+      'Incus: undo the restore an interrupted run left pending, putting every volume back',
+    )
     .action(
       action(
         async (
           snapshotId: string | undefined,
-          opts: { stop?: boolean; yes?: boolean },
+          opts: {
+            stop?: boolean;
+            yes?: boolean;
+            resume?: boolean;
+            abort?: boolean;
+          },
         ) => {
           const projectDir = requireProject();
           await resolveProjectContext(projectDir);
@@ -32,6 +45,8 @@ export function createRestoreCommand(): Command {
             snapshotId,
             stop: opts.stop,
             assumeYes: opts.yes,
+            resume: opts.resume,
+            abort: opts.abort,
           });
         },
       ),

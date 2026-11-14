@@ -1,0 +1,467 @@
+name: CLI Incus E2E
+
+# The CLI's Incus runtime (runtime.engine "incus"), judged against a real
+# Incus node. The unit tests run the compiler, the planner, the applier and
+# the verbs against an in-memory Incus; this workflow is what shows them
+# right. On a fresh runner it builds the node as sandbox-incus-e2e.yml does
+# (Incus from Zabbly's stable channel, a ZFS pool on a file, a pinnable server
+# certificate, a local registry), builds the stack's images from this
+# checkout into that registry, runs @tale/incus's real tests, then drives the
+# compiled CLI through the managed path: bootstrap, prepare, deploy and the
+# suites tools/cli/e2e/incus/README.md lists (which names what each still
+# holds as a to-do). A draft is held; to try one, dispatch this workflow on
+# its branch.
+#
+# `CI ready (CLI Incus E2E)` judges the run. Every pull request starts it, and
+# PR scope runs the lab for the paths of the `cli-incus` filter in
+# .github/ci-scope.yml. While the runtime is experimental the verdict blocks
+# only for the paths of `cli-incus-required` (the Incus runtime, its client
+# and this workflow); on the rest of the filter it is reported, not required
+# (.github/CI.md).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'The runner label the node is built on'
+        type: choice
+        options:
+          - ubicloud-standard-8
+          - ubicloud-standard-4
+          - ubuntu-latest
+        default: ubicloud-standard-8
+      suites:
+        description: 'The suites to run: all, or a comma-separated choice of bootstrap, managed, fresh-noop, logs, crash-loop, stop, sandbox, export-client, flip, streams, infra-skew, services-rollback, resume, withdraw-restart, backup, reset-keeps-backups, restore-history, reboot, migrate, secrets'
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: cli-incus
+
+  incus:
+    name: CLI on Incus
+    needs: pr-scope
+    # A pull request runs the lab only when PR scope finds a path it covers. A
+    # draft is held, and so is a fork's pull request (it is not trusted with a
+    # root-owned lab).
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.outputs.run == 'true' &&
+      github.event.pull_request.draft != true &&
+      github.event.pull_request.head.repo.fork != true))
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      # The shared layer caches of the image builds, read, never written.
+      packages: read
+    env:
+      TALE_E2E_LAB: '1'
+      TALE_E2E_INCUS: sudo /usr/bin/incus
+      TALE_E2E_ROOT: sudo -E
+      TALE_E2E_REGISTRY: 127.0.0.1:5000
+      TALE_E2E_VERSION: 0.0.0
+      # The workspace suites' two releases, a patch apart.
+      TALE_E2E_RELEASES: 0.5.901,0.5.902
+      # The runner is the run's own: the reboot suite may shut the node
+      # down, and the migrate suite may restart dockerd.
+      TALE_E2E_HOST_RESTART: '1'
+      TALE_E2E_RESTART_DOCKERD: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Name the lab's files
+        run: |
+          set -euo pipefail
+          bash services/sandbox/e2e/incus/lab.sh env >> "$GITHUB_ENV"
+          echo "TALE_E2E_DIR=/mnt/tale-incus-e2e/cli" >> "$GITHUB_ENV"
+          echo "TALE_E2E_NEXT_SOURCE=/mnt/tale-incus-e2e/next-source" >> "$GITHUB_ENV"
+
+      - name: Choose the suites
+        id: pick
+        env:
+          SUITES: ${{ inputs.suites }}
+        run: bash tools/cli/e2e/incus/suites.sh "$SUITES" | tee -a "$GITHUB_OUTPUT"
+
+      # Eight image builds and the node's pool need the room the Build
+      # workflow's runtime build does.
+      - name: Reclaim disk space
+        env:
+          MIN_FREE_GIB: '40'
+        run: |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
+          # Run as the job's user, like its Docker steps: sudo resets the
+          # environment and would lose a self-hosted runner's DOCKER_HOST.
+          docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # The cheap, risky steps first: whether this runner can be the node at
+      # all is known before the images are built.
+      - name: Install Incus, skopeo and ZFS
+        run: bash services/sandbox/e2e/incus/lab.sh install
+
+      - name: Create the ZFS pool and the Incus storage pool
+        run: bash services/sandbox/e2e/incus/lab.sh storage
+
+      - name: Give Incus the server certificate Bun can pin, and bind its API
+        run: bash services/sandbox/e2e/incus/lab.sh api
+
+      - name: Start the local registry
+        run: bash services/sandbox/e2e/incus/lab.sh registry
+
+      # The compiled CLI and, beside it, the interpreted bundle a managed
+      # deployment's backend-local steps run (tools/cli/dist/tale.mjs).
+      - name: Build the CLI from this checkout
+        run: |
+          set -euo pipefail
+          bun run --filter @tale/cli build:host
+          bun run --filter @tale/cli build:backend-local
+
+      # The release the stack upgrades to: this checkout and an empty commit,
+      # whose images differ from this one's by their revision label alone.
+      - name: Make the next release
+        id: releases
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$TALE_E2E_NEXT_SOURCE" HEAD
+          git -C "$TALE_E2E_NEXT_SOURCE" -c user.name='CLI Incus E2E' -c user.email='cli-incus-e2e@lab.invalid' \
+            commit --quiet --allow-empty --no-verify -m 'e2e: the next release'
+          echo "TALE_E2E_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "TALE_E2E_NEXT_REVISION=$(git -C "$TALE_E2E_NEXT_SOURCE" rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Set up the Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
+          # The builder shares the host's network, so that it pushes to the
+          # registry on the loopback.
+          driver-opts: network=host
+
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Built as a release builds them (zstd layers, OCI media types), reading
+      # the release's own layer caches, never writing them.
+      - name: Build the stack's images from this checkout, for both releases
+        env:
+          OUTPUT: compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          CACHE_FROM: ${{ env.REGISTRY }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_REVISION" "$TALE_E2E_VERSION"
+          bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_NEXT_REVISION" "$TALE_E2E_VERSION"
+          # A workspace deploys a release by its version: the same images,
+          # labelled and tagged as releases N and N+1.
+          IFS=, read -r first second <<<"$TALE_E2E_RELEASES"
+          TAG="$first" bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_REVISION" "$first"
+          TAG="$second" bash tools/cli/e2e/incus/images.sh "$TALE_E2E_REGISTRY" "$TALE_E2E_NEXT_REVISION" "$second"
+
+      - name: Record the node's lifecycle events
+        run: bash services/sandbox/e2e/incus/lab.sh events
+
+      # Each suite drives the compiled CLI against the node and builds on the
+      # deployment the ones before it left; one that finds something does not
+      # stop the next. Each leaves its output behind as an artifact.
+
+      - name: Bootstrap, then the restricted certificate alone
+        id: bootstrap
+        if: ${{ steps.pick.outputs.bootstrap == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          mkdir -p "$TALE_E2E_DIR/logs"
+          bun test --timeout 3600000 ./e2e/incus/suites/bootstrap.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/bootstrap.log"
+
+      # @tale/incus against the node, in the project bootstrap made and with
+      # the restricted certificate it made, before anything is deployed.
+      - name: The Incus client against the node
+        if: ${{ !cancelled() && steps.bootstrap.outcome == 'success' }}
+        env:
+          TALE_INCUS_REAL: '1'
+        run: |
+          set -euo pipefail
+          export TALE_INCUS_DIR="$TALE_E2E_DIR/state/incus"
+          export TALE_INCUS_ENDPOINT=https://10.20.0.1:8443
+          export TALE_INCUS_PROJECT=cli-e2e TALE_INCUS_POOL=tank TALE_INCUS_NETWORK=cli-e2e
+          export TALE_INCUS_IMAGE_SERVER=https://mirror.gcr.io:443
+          bun run --filter @tale/incus test:real 2>&1 | tee "$TALE_E2E_DIR/logs/incus-real.log"
+
+      - name: Prepare, deploy, accept, observe and upgrade
+        if: ${{ !cancelled() && steps.pick.outputs.managed == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/managed.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/managed.log"
+
+      - name: A second plan is empty
+        if: ${{ !cancelled() && steps.pick.outputs.fresh-noop == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/fresh-noop.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/fresh-noop.log"
+
+      - name: Logs, read from the console
+        if: ${{ !cancelled() && steps.pick.outputs.logs == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/logs.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/logs.log"
+
+      - name: A service that crashes at once
+        if: ${{ !cancelled() && steps.pick.outputs.crash-loop == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/crash-loop.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/crash-loop.log"
+
+      - name: A graceful stop
+        if: ${{ !cancelled() && steps.pick.outputs.stop == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/stop.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/stop.log"
+
+      - name: A session reaches what the contract allows
+        if: ${{ !cancelled() && steps.pick.outputs.sandbox == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/sandbox.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/sandbox.log"
+
+      - name: The credential export
+        if: ${{ !cancelled() && steps.pick.outputs.export-client == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/export-client.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/export-client.log"
+
+      # The workspace suites: a workspace of its own on the same node,
+      # deployed by the CLI built as releases N and N+1
+      # (tools/cli/e2e/incus/workspace.ts).
+
+      - name: Twenty flips under load through the edge
+        if: ${{ !cancelled() && steps.pick.outputs.flip == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/flip.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/flip.log"
+
+      - name: Streams across a flip and an in-place roll
+        if: ${{ !cancelled() && steps.pick.outputs.streams == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/streams.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/streams.log"
+
+      - name: Release N+1's CLI over release N's switch and resolvers
+        if: ${{ !cancelled() && steps.pick.outputs.infra-skew == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/infra-skew.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/infra-skew.log"
+
+      - name: An in-place roll and a rollback
+        if: ${{ !cancelled() && steps.pick.outputs.services-rollback == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/services-rollback.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/services-rollback.log"
+
+      - name: The CLI killed in each phase
+        if: ${{ !cancelled() && steps.pick.outputs.resume == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/resume.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/resume.log"
+
+      - name: A replica restarted with root's markers
+        if: ${{ !cancelled() && steps.pick.outputs.withdraw-restart == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/withdraw-restart.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/withdraw-restart.log"
+
+      - name: Snapshots, archives, export, import and prune
+        if: ${{ !cancelled() && steps.pick.outputs.backup == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/backup.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/backup.log"
+
+      - name: A reset keeps the backups
+        if: ${{ !cancelled() && steps.pick.outputs.reset-keeps-backups == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/reset-keeps-backups.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/reset-keeps-backups.log"
+
+      - name: Restore history, and a restore killed after each step
+        if: ${{ !cancelled() && steps.pick.outputs.restore-history == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/restore-history.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/restore-history.log"
+
+      - name: A host shutdown and restart
+        if: ${{ !cancelled() && steps.pick.outputs.reboot == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/reboot.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/reboot.log"
+
+      - name: A Docker deployment on the same host moved to Incus
+        if: ${{ !cancelled() && steps.pick.outputs.migrate == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 14400000 ./e2e/incus/suites/migrate.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/migrate.log"
+
+      # Last: it reads what every suite before it made the CLI say.
+      - name: No secret in any output
+        if: ${{ !cancelled() && steps.pick.outputs.secrets == 'true' }}
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun test --timeout 3600000 ./e2e/incus/suites/secrets.e2e.ts 2>&1 | tee "$TALE_E2E_DIR/logs/secrets.log"
+
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          bash services/sandbox/e2e/incus/lab.sh diagnose || true
+          sudo /usr/bin/incus list --all-projects > "$TALE_E2E_DIR/logs/instances.txt" 2>&1 || true
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            bash services/sandbox/e2e/incus/lab.sh facts || true
+            echo '## CLI Incus E2E measurements'
+            for report in "$TALE_E2E_DIR"/report/*.json; do
+              [ -e "$report" ] || continue
+              echo "### $(basename "$report" .json)"
+              echo '```json'
+              cat "$report"
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the logs and the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cli-incus-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.INCUS_E2E_DIR }}/logs
+            ${{ env.INCUS_E2E_DIR }}/phases.tsv
+            ${{ env.TALE_E2E_DIR }}/logs
+            ${{ env.TALE_E2E_DIR }}/report
+          retention-days: 14
+          if-no-files-found: warn
+
+  # A context that must report even when an upstream job failed or skipped.
+  ci-ready:
+    name: CI ready (CLI Incus E2E)
+    if: always() && github.event_name == 'pull_request'
+    needs: [pr-scope, incus]
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: cli-incus-e2e
+          jobs: ${{ toJSON(needs) }}

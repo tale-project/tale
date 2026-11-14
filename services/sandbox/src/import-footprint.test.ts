@@ -13,13 +13,14 @@ import { expect, test } from 'bun:test';
 const source = import.meta.dir;
 
 const HEAVY = ['/@kubernetes/client-node/', '/@sentry/'];
-/** The Incus backend's runtime: what talks to the node. (Its settings reader
- * is plain code the config loads whatever the backend.) */
+/** The Incus backend's runtime: what talks to the node, the REST client of
+ * @tale/incus included. (Its settings reader is plain code the config loads
+ * whatever the backend.) */
 const INCUS = [
   '/backend/incus/incus-backend.ts',
-  '/backend/incus/incus-client.ts',
   '/backend/incus/incus-pool.ts',
   '/backend/incus/incus-session-backend.ts',
+  '/incus/src/client.ts',
 ];
 
 async function loadedHeavyModules(

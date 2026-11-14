@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { ReplicaCounts } from '../../utils/load-env';
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { setProjectId } from '../project/project-context';
 
 setProjectId('tale');
@@ -9,21 +10,25 @@ const dockerMock = mock();
 const getContainerVersionMock = mock();
 const getCurrentColorMock = mock();
 
-mock.module('../docker/docker', () => ({ docker: dockerMock }));
-mock.module('../docker/get-container-version', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite (the Incus deploy reads the current colour) meets the
+// real module, not a spy reset to answer `undefined`.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../docker/docker', () => ({ docker: dockerMock }));
+await mockModule('../docker/get-container-version', () => ({
   getContainerVersion: getContainerVersionMock,
 }));
-mock.module('../state/get-current-color', () => ({
+await mockModule('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
 }));
 // Other suites in this process mock the stop and remove helpers with stubs of
-// their own, and Bun's module mocks are process-wide: bind both back to this
-// file's docker spy, so the colour's teardown is the one this suite drives.
-mock.module('../docker/stop-container', () => ({
+// their own: bind both back to this file's docker spy, so the colour's
+// teardown is the one this suite drives.
+await mockModule('../docker/stop-container', () => ({
   stopContainer: async (name: string) =>
     ((await dockerMock('stop', name)) as { success: boolean }).success,
 }));
-mock.module('../docker/remove-container', () => ({
+await mockModule('../docker/remove-container', () => ({
   removeContainer: async (name: string) =>
     ((await dockerMock('rm', '-f', name)) as { success: boolean }).success,
 }));

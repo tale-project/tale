@@ -1,12 +1,9 @@
 import pkg from '../../../package.json';
 import { formatBytes } from '../../utils/format-bytes';
 import * as logger from '../../utils/logger';
-import { ensureVolumes, volumeExists } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
-import {
-  listContainersUsingVolume,
-  withVolumeContainersPaused,
-} from '../docker/with-volume-paused';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import { snapshotStoreOf } from '../runtime/incus/verbs/snapshots';
+import type { StackRuntime } from '../runtime/types';
 import {
   archiveTimeoutSeconds,
   BACKUP_HELPER_IMAGE,
@@ -17,28 +14,13 @@ import {
   SNAPSHOT_VOLUMES,
 } from './constants';
 import { type BlobStoreLayout, inspectBlobStore } from './inspect-blob-store';
-
-export const SNAPSHOT_TRIGGERS = [
-  'deploy',
-  'start',
-  'update',
-  'manual',
-] as const;
-export type SnapshotTrigger = (typeof SNAPSHOT_TRIGGERS)[number];
-
-export interface SnapshotVolumeInfo {
-  sha256: string;
-  sizeBytes: number;
-}
-
-export interface SnapshotManifest {
-  id: string;
-  createdAt: string;
-  cliVersion: string;
-  platformVersion: string | null;
-  trigger: SnapshotTrigger;
-  volumes: Record<string, SnapshotVolumeInfo>;
-}
+import {
+  nativeSnapshotName,
+  nativeSource,
+  type SnapshotManifest,
+  type SnapshotTrigger,
+  type SnapshotVolumeInfo,
+} from './manifest';
 
 interface CreateSnapshotOptions {
   /** Volume namespace: `${projectId}_` (prod) or `${projectId}-dev_` (dev). */
@@ -52,6 +34,11 @@ interface CreateSnapshotOptions {
    * preflight, where "no volumes yet" means there is nothing to protect.
    */
   allowMissingVolumes?: boolean;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
+  /** Incus: write a tar.gz archive of each volume too (`--archive`); Docker
+   * always does. */
+  archive?: boolean;
 }
 
 function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
@@ -61,45 +48,12 @@ function newSnapshotId(trigger: SnapshotTrigger, now = new Date()): string {
   return `${date}-${time}-${trigger}`;
 }
 
-/**
- * Tar one volume into the backups volume and return its integrity info. The
- * caller holds every running container that has the volume mounted paused,
- * so the archive is crash-consistent — a live tar of a running Postgres data
- * dir is not restorable.
- */
-async function archiveVolume(
-  prefix: string,
-  backupVolume: string,
-  id: string,
-  volume: string,
-  pausedCount: number,
-): Promise<SnapshotVolumeInfo> {
-  const volumeName = `${prefix}${volume}`;
-  const tarResult = await exec(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-v',
-      `${volumeName}:/data:ro`,
-      '-v',
-      `${backupVolume}:/backup`,
-      BACKUP_HELPER_IMAGE,
-      'sh',
-      '-c',
-      // tee writes the .sha256 sidecar AND echoes it so sha256 + byte size
-      // are parseable from the last two stdout lines below.
-      `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
-    ],
-    { timeout: archiveTimeoutSeconds(volume) },
-  );
-  if (!tarResult.success) {
-    throw new Error(
-      `Snapshot of volume ${volumeName} failed: ${tarResult.stderr || tarResult.stdout}`,
-    );
-  }
-
-  const lines = tarResult.stdout
+/** The sha256 and size an archive job printed as its last two lines. */
+function archiveIntegrity(
+  volumeName: string,
+  stdout: string,
+): { sha256: string; sizeBytes: number } {
+  const lines = stdout
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
@@ -109,9 +63,49 @@ async function archiveVolume(
   const sizeBytes = Number.parseInt(sizeLine, 10);
   if (!/^[0-9a-f]{64}$/.test(sha256) || Number.isNaN(sizeBytes)) {
     throw new Error(
-      `Snapshot of ${volumeName} produced unparseable integrity output: "${tarResult.stdout}"`,
+      `Snapshot of ${volumeName} produced unparseable integrity output: "${stdout}"`,
     );
   }
+  return { sha256, sizeBytes };
+}
+
+/**
+ * Tar one volume into the backups volume and return its integrity info. The
+ * caller holds every running container that has the volume mounted paused,
+ * so the archive is crash-consistent — a live tar of a running Postgres data
+ * dir is not restorable.
+ */
+async function archiveVolume(
+  runtime: StackRuntime,
+  prefix: string,
+  backupVolume: string,
+  id: string,
+  volume: string,
+  pausedCount: number,
+): Promise<SnapshotVolumeInfo> {
+  const volumeName = `${prefix}${volume}`;
+  const tarResult = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [
+      { volume: volumeName, target: '/data', readOnly: true },
+      { volume: backupVolume, target: '/backup' },
+    ],
+    argv: [
+      'sh',
+      '-c',
+      // tee writes the .sha256 sidecar AND echoes it so sha256 + byte size
+      // are parseable from the last two stdout lines below.
+      `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
+    ],
+    timeoutS: archiveTimeoutSeconds(volume),
+  });
+  if (!tarResult.success) {
+    throw new Error(
+      `Snapshot of volume ${volumeName} failed: ${tarResult.stderr || tarResult.stdout}`,
+    );
+  }
+
+  const { sha256, sizeBytes } = archiveIntegrity(volumeName, tarResult.stdout);
 
   logger.info(
     `  ${volume}: ${formatBytes(sizeBytes)}${pausedCount > 0 ? ` (${pausedCount} container(s) paused during tar)` : ''}`,
@@ -122,20 +116,22 @@ async function archiveVolume(
 /**
  * Tar a run of volumes inside ONE pause of the containers that use them. The
  * pause typically lasts seconds; unpausing, and waiting until the containers
- * report healthy again, is guaranteed by withVolumeContainersPaused.
+ * report healthy again, is guaranteed by the runtime's `quiesce`.
  */
 async function snapshotVolumes(
+  runtime: StackRuntime,
   prefix: string,
   backupVolume: string,
   id: string,
   volumes: readonly string[],
 ): Promise<Record<string, SnapshotVolumeInfo>> {
-  return withVolumeContainersPaused(
+  return runtime.quiesce(
     volumes.map((volume) => `${prefix}${volume}`),
     async (pausedCount) => {
       const archived: Record<string, SnapshotVolumeInfo> = {};
       for (const volume of volumes) {
         archived[volume] = await archiveVolume(
+          runtime,
           prefix,
           backupVolume,
           id,
@@ -156,12 +152,13 @@ async function snapshotVolumes(
  * archives capture the same instant.
  */
 async function pauseGroups(
+  runtime: StackRuntime,
   prefix: string,
   volumes: readonly string[],
 ): Promise<string[][]> {
   const groups: { users: string; volumes: string[] }[] = [];
   for (const volume of volumes) {
-    const users = (await listContainersUsingVolume(`${prefix}${volume}`))
+    const users = (await runtime.volumeUsers(`${prefix}${volume}`))
       .sort()
       .join(',');
     const previous = groups.at(-1);
@@ -222,8 +219,11 @@ export async function createSnapshot(
   options: CreateSnapshotOptions,
 ): Promise<SnapshotManifest | null> {
   const { prefix, trigger, platformVersion } = options;
+  const runtime = options.runtime ?? dockerRuntime;
+  if (runtime.snapshotKind === 'native')
+    return createNativeSnapshot({ ...options, runtime });
 
-  const blobStore = await inspectBlobStore(prefix);
+  const blobStore = await inspectBlobStore(prefix, runtime);
   const candidates: readonly string[] =
     blobStore.default.kind === 'external'
       ? SNAPSHOT_VOLUMES.filter((volume) => volume !== BLOB_VOLUME)
@@ -235,14 +235,16 @@ export async function createSnapshot(
       // First upgrade: snapshot runs BEFORE the volume rename. Live org
       // config is still in `convex-data`. Snapshotting only `config-data`
       // would omit agents/SSO/governance from the recovery point.
-      if (await volumeExists(`${prefix}${CONFIG_VOLUME}`)) {
+      if (await runtime.volumeExists(`${prefix}${CONFIG_VOLUME}`)) {
         present.push(CONFIG_VOLUME);
-      } else if (await volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`)) {
+      } else if (
+        await runtime.volumeExists(`${prefix}${LEGACY_CONFIG_VOLUME}`)
+      ) {
         present.push(LEGACY_CONFIG_VOLUME);
       }
       continue;
     }
-    if (await volumeExists(`${prefix}${volume}`)) {
+    if (await runtime.volumeExists(`${prefix}${volume}`)) {
       present.push(volume);
     }
   }
@@ -256,7 +258,7 @@ export async function createSnapshot(
   }
 
   const backupVolume = `${prefix}${BACKUP_VOLUME}`;
-  const volumesReady = await ensureVolumes([BACKUP_VOLUME], prefix);
+  const volumesReady = await runtime.ensureVolumes([BACKUP_VOLUME], prefix);
   if (!volumesReady) {
     throw new Error(`Failed to create backup volume ${backupVolume}`);
   }
@@ -266,10 +268,10 @@ export async function createSnapshot(
   announceExternalBlobs(blobStore);
 
   const volumes: Record<string, SnapshotVolumeInfo> = {};
-  for (const group of await pauseGroups(prefix, present)) {
+  for (const group of await pauseGroups(runtime, prefix, present)) {
     Object.assign(
       volumes,
-      await snapshotVolumes(prefix, backupVolume, id, group),
+      await snapshotVolumes(runtime, prefix, backupVolume, id, group),
     );
   }
 
@@ -281,21 +283,12 @@ export async function createSnapshot(
     trigger,
     volumes,
   };
-  const writeResult = await exec(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '-i',
-      '-v',
-      `${backupVolume}:/backup`,
-      BACKUP_HELPER_IMAGE,
-      'sh',
-      '-c',
-      `cat > /backup/${id}/manifest.json`,
-    ],
-    { stdin: JSON.stringify(manifest) },
-  );
+  const writeResult = await runtime.oneShot({
+    image: BACKUP_HELPER_IMAGE,
+    mounts: [{ volume: backupVolume, target: '/backup' }],
+    argv: ['sh', '-c', `cat > /backup/${id}/manifest.json`],
+    stdin: JSON.stringify(manifest),
+  });
   if (!writeResult.success) {
     throw new Error(
       `Failed to write snapshot manifest for ${id}: ${writeResult.stderr}`,
@@ -303,11 +296,157 @@ export async function createSnapshot(
   }
 
   const totalBytes = Object.values(volumes).reduce(
-    (sum, info) => sum + info.sizeBytes,
+    (sum, info) => sum + (info.sizeBytes ?? 0),
     0,
   );
   logger.success(
     `Snapshot ${id} complete (${present.length} volume(s), ${formatBytes(totalBytes)})`,
+  );
+  return manifest;
+}
+
+/**
+ * Write the tar.gz archive of one volume of a native snapshot, from a copy of
+ * the snapshot (never the live volume, so nothing is frozen for the tar), in
+ * today's format: `<id>/<volume>.tar.gz` with its `.sha256` beside it, owners
+ * kept as numbers (design D-28).
+ */
+async function archiveNativeVolume(
+  runtime: StackRuntime,
+  id: string,
+  volume: string,
+  info: SnapshotVolumeInfo,
+): Promise<{ sha256: string; sizeBytes: number }> {
+  const store = snapshotStoreOf(runtime);
+  const source = nativeSource(volume, info);
+  if (store === null || source === null)
+    throw new Error(
+      `${volume} of snapshot ${id} has no native snapshot to archive.`,
+    );
+  return store.withSnapshotCopy(source, async (scratch) => {
+    const result = await runtime.oneShot({
+      image: BACKUP_HELPER_IMAGE,
+      purpose: 'archive',
+      mounts: [
+        { volume: scratch, target: '/data', readOnly: true },
+        { volume: BACKUP_VOLUME, target: '/backup' },
+      ],
+      argv: [
+        'sh',
+        '-c',
+        `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz --numeric-owner -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
+      ],
+      timeoutS: archiveTimeoutSeconds(volume),
+    });
+    if (!result.success)
+      throw new Error(
+        `Archive of ${volume} (snapshot ${id}) failed: ${result.stderr || result.stdout}`,
+      );
+    const integrity = archiveIntegrity(volume, result.stdout);
+    logger.info(`  ${volume}: archive ${formatBytes(integrity.sizeBytes)}`);
+    return integrity;
+  });
+}
+
+/**
+ * Give every volume of a native snapshot its archive, and record them in a
+ * new manifest generation; one that has an archive keeps it. Returns the
+ * manifest as written.
+ */
+export async function archiveNativeSnapshot(
+  runtime: StackRuntime,
+  manifest: SnapshotManifest,
+): Promise<SnapshotManifest> {
+  const store = snapshotStoreOf(runtime);
+  if (store === null) return manifest;
+  const volumes = structuredClone(manifest.volumes);
+  let changed = false;
+  for (const [volume, info] of Object.entries(volumes)) {
+    if (info.sha256 !== undefined) continue;
+    Object.assign(
+      info,
+      await archiveNativeVolume(runtime, manifest.id, volume, info),
+    );
+    changed = true;
+  }
+  if (!changed) return manifest;
+  const archived = { ...manifest, volumes };
+  await store.writeManifest(archived);
+  return archived;
+}
+
+/**
+ * Incus (design D-28): a set of native snapshots `tale-<id>` of every data
+ * volume that exists, under one parallel freeze of their users; the
+ * manifest (v2, by generation) goes into `backups` last, so a set without
+ * one is torn and never listed. With `archive`, each volume also gets
+ * today's tar.gz, written from a copy of its snapshot.
+ */
+async function createNativeSnapshot(
+  options: CreateSnapshotOptions & { runtime: StackRuntime },
+): Promise<SnapshotManifest | null> {
+  const { runtime, trigger, platformVersion } = options;
+  const store = snapshotStoreOf(runtime);
+  if (store === null)
+    throw new Error('A native snapshot needs the Incus runtime.');
+
+  const blobStore = await inspectBlobStore('', runtime);
+  const present: string[] = [];
+  for (const volume of SNAPSHOT_VOLUMES) {
+    if (volume === BLOB_VOLUME && blobStore.default.kind === 'external')
+      continue;
+    if (await runtime.volumeExists(volume)) present.push(volume);
+  }
+  if (present.length === 0) {
+    const message =
+      'No data volumes found in the Incus project — nothing to snapshot';
+    if (options.allowMissingVolumes) {
+      logger.warn(`${message}.`);
+      return null;
+    }
+    throw new Error(message);
+  }
+  if (!(await runtime.volumeExists(BACKUP_VOLUME)))
+    throw new Error(
+      `The stack has no ${BACKUP_VOLUME} volume to hold the snapshot manifests; deploy it first.`,
+    );
+
+  const id = newSnapshotId(trigger);
+  logger.step(`Creating native snapshot set ${id} (${present.join(', ')})...`);
+  announceExternalBlobs(blobStore);
+  const set = await runtime.snapshot(present, nativeSnapshotName(id));
+  logger.info(
+    `  ${set.snapshots.length} snapshot(s) in ${Date.parse(set.freeze.endedAt) - Date.parse(set.freeze.startedAt)} ms${set.frozenCount > 0 ? `, ${set.frozenCount} instance(s) frozen` : ''}`,
+  );
+
+  let manifest: SnapshotManifest = {
+    schemaVersion: 2,
+    id,
+    createdAt: new Date().toISOString(),
+    cliVersion: pkg.version,
+    platformVersion,
+    trigger,
+    runtime: 'incus',
+    freeze: set.freeze,
+    volumes: Object.fromEntries(
+      set.snapshots.map((snapshot) => [
+        snapshot.volume,
+        {
+          native: {
+            snapshot: snapshot.snapshot,
+            createdAt: snapshot.createdAt,
+            usedBytes: snapshot.usedBytes,
+            quotaBytes: snapshot.quotaBytes,
+          },
+        },
+      ]),
+    ),
+  };
+  await store.writeManifest(manifest);
+  if (options.archive === true)
+    manifest = await archiveNativeSnapshot(runtime, manifest);
+  logger.success(
+    `Snapshot ${id} complete (${present.length} volume(s)${options.archive === true ? ', archived' : ''})`,
   );
   return manifest;
 }

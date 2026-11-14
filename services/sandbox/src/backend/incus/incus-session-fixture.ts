@@ -1,10 +1,11 @@
 // A session backend over the fake Incus, on a virtual clock, for the tests of
 // the Incus backends. Not used by production code.
 
+import { operationSignal } from '../../operation-budget.ts';
 import { deriveRunnerdToken } from '../../session/session-naming.ts';
 import type { IncusConfig, SpawnerConfig } from '../../types.ts';
 import type { SessionSpec } from '../types.ts';
-import { FakeIncus, FakeRunnerd } from './fake-incus.ts';
+import { FakeRunnerd, fakeSessionIncus } from './fake-session-runtime.ts';
 import { IncusRuntime } from './incus-runtime.ts';
 import { IncusSessionBackend } from './incus-session-backend.ts';
 import { incusTestConfig } from './incus-test-config.ts';
@@ -22,8 +23,10 @@ export interface SessionFixtureOptions {
 }
 
 export function sessionFixture(options: SessionFixtureOptions = {}) {
-  const fake = new FakeIncus();
+  const fake = fakeSessionIncus();
   const runnerd = new FakeRunnerd(fake);
+  // The spawner's clients answer to its operation budget.
+  const client = () => fake.client({ signal: () => operationSignal() });
   const base = incusTestConfig(options.incus, options.overrides);
   const cfg: SpawnerConfig = {
     ...base,
@@ -37,7 +40,7 @@ export function sessionFixture(options: SessionFixtureOptions = {}) {
   let attempts = 0;
   let standbys = 0;
   const runtime = new IncusRuntime(cfg, {
-    client: fake.client(),
+    client: client(),
     now: () => clock.now,
     sleep: async (ms) => {
       clock.now += ms;
@@ -55,7 +58,7 @@ export function sessionFixture(options: SessionFixtureOptions = {}) {
   const restart = () =>
     new IncusSessionBackend(cfg, {
       runtime: new IncusRuntime(cfg, {
-        client: fake.client(),
+        client: client(),
         now: () => clock.now,
         sleep: async (ms) => {
           clock.now += ms;

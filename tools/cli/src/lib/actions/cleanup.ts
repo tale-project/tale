@@ -1,5 +1,7 @@
 import { type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { getCurrentColor } from '../state/get-current-color';
 import { getOppositeColor } from '../state/get-opposite-color';
 import { withLock } from '../state/with-lock';
@@ -7,6 +9,8 @@ import { colorProject, removeColorContainers } from './color-lifecycle';
 
 interface CleanupOptions {
   env: DeploymentEnv;
+  /** The runtime to clean up on; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
 }
 
 /**
@@ -19,6 +23,7 @@ interface CleanupOptions {
  */
 export async function cleanup(options: CleanupOptions): Promise<void> {
   const { env } = options;
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
 
   await withLock(env.DEPLOY_DIR, 'cleanup', async () => {
     logger.header('Cleaning Up Inactive Containers');
@@ -33,7 +38,10 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
     logger.info(`Active color: ${currentColor}`);
     logger.info(`Cleaning up: ${inactiveColor}`);
 
-    const cleaned = await removeColorContainers(colorProject(inactiveColor));
+    const cleaned = await removeColorContainers(
+      colorProject(inactiveColor),
+      runtime,
+    );
 
     if (cleaned > 0) {
       logger.success(`Cleaned up ${cleaned} inactive container(s)`);

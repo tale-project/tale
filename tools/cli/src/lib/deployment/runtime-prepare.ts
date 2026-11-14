@@ -1,19 +1,31 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { stringify } from 'yaml';
+import { parse as parseYaml, stringify } from 'yaml';
 import { z } from 'zod';
 
 import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { git } from '../config/releases/git';
+import { readImageFacts, type ImageFacts } from '../oci/image-facts';
+import {
+  createRegistryClient,
+  ImageNotFoundError,
+  type RegistryClient,
+} from '../oci/registry';
 import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
 import { imageWriterProtocol } from './automation-protocol';
 import { runtimeCommand } from './runtime-command';
 import {
+  compileIncusStack,
+  incusSandboxDeclaration,
+  preparedIncusStack,
+} from './runtime-incus-stack';
+import {
   atomicRuntimeFile,
   containerPrefixSchema,
   hash,
+  INCUS_STACK_FILE,
   parseCompose,
   platformSchema,
   readRegular,
@@ -111,19 +123,26 @@ export async function inspectRuntimeImage(
   };
 }
 
-async function resolveImage(
+/** What one tag or digest of a repository resolves to, verified: through
+ * `docker pull` and `docker image inspect`, or (the Incus runtime, design
+ * D-39) through the registry, with no Docker daemon. null: the registry has
+ * no such tag or digest for the platform. */
+type ImageReader = (
+  reference: string,
   repository: string,
-  sourceTags: string[],
-  platform: RuntimePlatform,
   revision: string | null,
+) => Promise<{
+  digest: string;
+  reference: string;
+  revision: string | null;
+  automationWriterProtocol?: 1 | 2;
+} | null>;
+
+function dockerImageReader(
+  platform: RuntimePlatform,
   dependencies: RuntimeDependencies,
-  requireSameDigest: boolean,
-): Promise<RuntimeImage | null> {
-  let selected: RuntimeImage | null = null;
-  for (const tag of sourceTags) {
-    const reference = tag.startsWith('sha256:')
-      ? `${repository}@${tag}`
-      : `${repository}:${tag}`;
+): ImageReader {
+  return async (reference, repository, revision) => {
     const pulled = await runtimeCommand(
       ['pull', '--platform', platform, reference],
       dependencies,
@@ -134,15 +153,76 @@ async function resolveImage(
         /manifest unknown|not found|no matching manifest/i.test(pulled.stderr),
         'Runtime image pull failed; image provenance cannot be established.',
       );
-      continue;
+      return null;
     }
-    const identity = await inspectRuntimeImage(
+    return inspectRuntimeImage(
       reference,
       repository,
       platform,
       revision,
       dependencies,
     );
+  };
+}
+
+/**
+ * The registry form of the reader: the same proofs as `inspectRuntimeImage`
+ * (the platform, the source revision, one digest), read from the registry's
+ * verified manifests and config. The facts are kept for the compiler.
+ */
+function registryImageReader(
+  registry: RegistryClient,
+  platform: RuntimePlatform,
+  facts: Map<string, ImageFacts>,
+): ImageReader {
+  return async (reference, repository, revision) => {
+    let read: ImageFacts;
+    try {
+      read = await readImageFacts(registry, reference, platform);
+    } catch (error) {
+      if (error instanceof ImageNotFoundError) return null;
+      throw error;
+    }
+    requireRuntime(
+      `${read.os}/${read.architecture}` === platform,
+      'Selected runtime image does not support the requested platform.',
+    );
+    requireRuntime(
+      revision === null || read.revision === revision,
+      'Selected Tale image does not match the complete source revision.',
+    );
+    requireRuntime(
+      /^sha256:[a-f0-9]{64}$/.test(read.digest),
+      'The registry did not prove one repository digest for the selected runtime image.',
+    );
+    const pinned = `${repository}@${read.digest}`;
+    facts.set(pinned, { ...read, reference: pinned });
+    return {
+      digest: read.digest,
+      reference: pinned,
+      revision: read.revision,
+      ...(repository.endsWith('/tale-platform')
+        ? { automationWriterProtocol: imageWriterProtocol(read.labels) }
+        : {}),
+    };
+  };
+}
+
+async function resolveImage(
+  repository: string,
+  sourceTags: string[],
+  platform: RuntimePlatform,
+  revision: string | null,
+  read: ImageReader,
+  requireSameDigest: boolean,
+): Promise<RuntimeImage | null> {
+  let selected: RuntimeImage | null = null;
+  for (const tag of sourceTags) {
+    const reference = tag.startsWith('sha256:')
+      ? `${repository}@${tag}`
+      : `${repository}:${tag}`;
+    const identity = await read(reference, repository, revision);
+    if (identity === null) continue;
     if (selected) {
       requireRuntime(
         selected.digest === identity.digest,
@@ -291,9 +371,18 @@ export async function prepareRuntime(
     'Runtime output must be separate from the source checkout.',
   );
   const source = sourceFiles(options.repoRoot, options.revision);
+  const incus = options.incus;
+  // On the Incus runtime the sandbox is always in its Incus shape, on the
+  // address plan; a Docker-runtime sandbox declaration does not apply.
+  requireRuntime(
+    incus === undefined || options.sandbox === undefined,
+    'The Incus runtime takes its sandbox address from the address plan, not a sandbox declaration.',
+  );
   const sandboxDeclaration = sandboxPrepareSchema
     .optional()
-    .safeParse(options.sandbox);
+    .safeParse(
+      incus === undefined ? options.sandbox : incusSandboxDeclaration(incus),
+    );
   requireRuntime(
     sandboxDeclaration.success,
     'The Incus sandbox needs a unicast IPv4 address and an http egress proxy with a port from 1 to 65535 other than 80.',
@@ -303,6 +392,20 @@ export async function prepareRuntime(
       sourceHasIncusBackend(options.repoRoot, options.revision),
     'Runtime source predates the Incus sandbox backend; select a Tale revision from v0.5.91 or later.',
   );
+  // The Incus runtime reads images from their registry: no Docker daemon.
+  const facts = new Map<string, ImageFacts>();
+  const read =
+    incus === undefined
+      ? dockerImageReader(options.platform, dependencies)
+      : registryImageReader(
+          incus.registry ??
+            createRegistryClient({
+              registryMirror: incus.declaration.registryMirror,
+              registryMirrors: incus.declaration.registryMirrors,
+            }),
+          options.platform,
+          facts,
+        );
   const migrations = sourceMigrationInventory(
     options.repoRoot,
     options.revision,
@@ -349,7 +452,7 @@ export async function prepareRuntime(
           historical,
           options.platform,
           revision,
-          dependencies,
+          read,
           true,
         )
       : null;
@@ -360,7 +463,7 @@ export async function prepareRuntime(
         : [externalTag],
       options.platform,
       revision,
-      dependencies,
+      read,
       false,
     );
     requireRuntime(
@@ -476,13 +579,39 @@ export async function prepareRuntime(
     sandboxDeclaration.data === undefined
       ? undefined
       : sandboxBundle(sandboxDeclaration.data, runtimeImage);
-  if (sandbox !== undefined) applyIncusShape(compose, sandbox);
+  // On Incus the sessions reach the backend API and the gateway at their
+  // addresses in the plan: nothing is published.
+  if (sandbox !== undefined)
+    applyIncusShape(compose, sandbox, { publish: incus === undefined });
   const productionCompose = stringify(compose, { lineWidth: 0 });
+  // The compiled stack, without secret values (design D-39): what the
+  // deploy compiles again from the deployment's own `.env` and holds to.
+  const stack =
+    incus === undefined
+      ? undefined
+      : `${JSON.stringify(
+          preparedIncusStack(
+            compileIncusStack({
+              compose: parseYaml(productionCompose),
+              dotenv: '',
+              declaration: incus.declaration,
+              stack: incus.stack,
+              platform: options.platform,
+              facts,
+              ...(incus.egressProxy === undefined
+                ? {}
+                : { egressProxy: incus.egressProxy }),
+            }),
+          ),
+          null,
+          2,
+        )}\n`;
   const bundle = runtimeBundleSchema.parse({
     schemaVersion: 1,
     kind: 'source-compose-0.5',
     revision: options.revision,
     platform: options.platform,
+    ...(incus === undefined ? {} : { runtime: 'incus' as const }),
     ...(containerPrefix === undefined ? {} : { containerPrefix }),
     ...(options.organizationCreators?.length
       ? { organizationCreatorsDeclared: true as const }
@@ -495,6 +624,7 @@ export async function prepareRuntime(
     files: {
       'compose.yml': hash(productionCompose),
       'Caddyfile.production': hash(caddy),
+      ...(stack === undefined ? {} : { [INCUS_STACK_FILE]: hash(stack) }),
     },
     services: [...RUNTIME_SERVICES],
     images: [...images.values()].sort((a, b) =>
@@ -503,15 +633,16 @@ export async function prepareRuntime(
     migrations,
     automationWriterProtocol,
   });
-  const files = {
+  const files: Record<string, string> = {
     'compose.yml': productionCompose,
     'Caddyfile.production': caddy,
+    ...(stack === undefined ? {} : { [INCUS_STACK_FILE]: stack }),
     'runtime.json': `${JSON.stringify(bundle, null, 2)}\n`,
   };
   if (existsSync(output)) {
     requireRuntime(
       readdirSync(output).every((file) =>
-        [...RUNTIME_FILES, 'runtime.json'].includes(file),
+        [...RUNTIME_FILES, INCUS_STACK_FILE, 'runtime.json'].includes(file),
       ),
       'Runtime output contains unrelated files.',
     );

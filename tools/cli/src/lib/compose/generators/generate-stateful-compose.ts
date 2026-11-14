@@ -13,14 +13,17 @@ import type { ComposeConfig, ServiceConfig } from '../types';
 import { serveOrigin } from './serve-origin';
 
 /**
+ * The stateful compose document as an object: what Docker Compose reads once
+ * stringified (generateStatefulCompose), and what the Incus runtime compiles.
+ *
  * `origin` is the host a `tale deploy --host` run serves instead of `.env`'s;
  * without it the proxy reads HOST and SITE_URL from `.env`.
  */
-export function generateStatefulCompose(
+export function buildStatefulCompose(
   config: ServiceConfig,
   hostAlias: string,
   origin?: RunOrigin,
-): string {
+): ComposeConfig {
   const prefix = `${getProjectId()}_`;
   const proxy = createProxyService(config, hostAlias);
   if (origin) serveOrigin([proxy], origin);
@@ -70,5 +73,14 @@ export function generateStatefulCompose(
     },
   };
 
-  return stringify(compose);
+  return compose;
+}
+
+/** The stateful compose document as Docker Compose reads it. */
+export function generateStatefulCompose(
+  config: ServiceConfig,
+  hostAlias: string,
+  origin?: RunOrigin,
+): string {
+  return stringify(buildStatefulCompose(config, hostAlias, origin));
 }

@@ -944,6 +944,14 @@
       "description": "Schließe die Ersteinrichtung ab, prüfe die Inhaberrolle und bereite die Instanz für dein Team vor."
     }
   },
+  "de:self-hosted/install/incus": {
+    "slug": "self-hosted/install/incus",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Tale auf Incus betreiben",
+      "description": "Betreibe einen Tale-Workspace oder ein verwaltetes Deployment als Incus-Instanzen statt als Docker-Compose-Container, vom Knotenvertrag und seiner Prüfung über den Umzug eines bestehenden Deployments bis zu den Grenzen, die du einplanen musst."
+    }
+  },
   "de:self-hosted/install/index": {
     "slug": "self-hosted/install/index",
     "locale": "de",
@@ -2186,6 +2194,14 @@
       "description": "Complete first-time setup, confirm ownership and prepare the instance for teammates."
     }
   },
+  "en:self-hosted/install/incus": {
+    "slug": "self-hosted/install/incus",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Run Tale on Incus",
+      "description": "Run a Tale workspace or managed deployment as Incus instances instead of Docker Compose containers, from the node contract and its check to moving an existing deployment and the limits you plan around."
+    }
+  },
   "en:self-hosted/install/index": {
     "slug": "self-hosted/install/index",
     "locale": "en",
@@ -3424,6 +3440,14 @@
     "frontmatter": {
       "title": "Créer le premier compte propriétaire",
       "description": "Termine la première configuration, vérifie le rôle propriétaire et prépare l’instance pour ton équipe."
+    }
+  },
+  "fr:self-hosted/install/incus": {
+    "slug": "self-hosted/install/incus",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Exécuter Tale sur Incus",
+      "description": "Exécute un workspace Tale ou un déploiement géré sous forme d’instances Incus plutôt que de conteneurs Docker Compose, du contrat de nœud et de sa vérification jusqu’au déménagement d’un déploiement existant et aux limites à prévoir."
     }
   },
   "fr:self-hosted/install/index": {

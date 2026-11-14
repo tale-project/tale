@@ -1,0 +1,1035 @@
+import { IncusApiError } from '@tale/incus/api';
+import type { IncusClient } from '@tale/incus/client';
+
+import { preconditionError } from '../../../utils/fail';
+import { waitForHealthy } from '../../docker/wait-for-healthy';
+import { readImageFacts } from '../../oci/image-facts';
+import {
+  createRegistryClient,
+  ociCacheDirectory,
+  parseImageReference,
+  type RegistryClient,
+} from '../../oci/registry';
+import { assertIncusPlatform } from '../../project/runtime-declaration';
+import type {
+  CopyOutOptions,
+  CopyResult,
+  EnsuredImages,
+  ExecResult,
+  FileOwner,
+  HealthState,
+  ImageFacts,
+  ImageRef,
+  InstanceInfo,
+  LogOptions,
+  OneShotJob,
+  NativeSnapshotSet,
+  ProbeResult,
+  RuntimeCheck,
+  RuntimeSession,
+  SnapshotRestore,
+  StackRuntime,
+  WaitHealthyOptions,
+  WaitServiceHealthyOptions,
+} from '../types';
+import type { ApplyHooks } from './apply/apply';
+import {
+  markInterruptedSync,
+  readJournal,
+  updateJournal,
+} from './apply/journal';
+import { placementOf } from './compile/placement';
+import type {
+  IncusDeclaration,
+  StackImage,
+  StackTarget,
+} from './compile/stack-target';
+import { imageAlias, type InstanceSpec } from './compile/translate';
+import { loadPlanKey, type PlanKey } from './plan/digest';
+import { SWITCHED_SERVICES } from './plan/plan';
+import {
+  execInInstance,
+  execSessionInInstance,
+  reapPayloads,
+  type IncusExecOptions,
+  type IncusVerbContext,
+} from './verbs/exec';
+import { copyIntoInstance, copyOutOfInstance } from './verbs/files';
+import { IncusHealth, type HealthcheckLookup } from './verbs/health';
+import {
+  imageFsFacts,
+  reapProbes,
+  type ImageFsFacts,
+} from './verbs/image-facts-cache';
+import {
+  ensureImages,
+  pruneImages,
+  pullFailure,
+  registryHosts,
+} from './verbs/images';
+import {
+  createStackInstance,
+  declaredGrace,
+  freezeStackInstances,
+  inspectStackInstance,
+  listStackInstances,
+  provePid1,
+  removeStackInstance,
+  startStackInstance,
+  stopStackInstance,
+  thawStackInstances,
+  type Pid1Proof,
+  type StopGrace,
+} from './verbs/instances';
+import {
+  crashReport,
+  crashTail,
+  readInstanceLogs,
+  stoppedAfterCrashes,
+  type LogReadDependencies,
+} from './verbs/logs';
+import { reapHelpers, runOneShot } from './verbs/oneshot';
+import { probeIncus, type IncusProbe } from './verbs/probe';
+import { IncusSnapshotStore } from './verbs/snapshots';
+import {
+  admitReplicas,
+  awaitSwitchAdmission,
+  switchApplyHooks,
+  withdrawReplicas,
+  type SwitchDependencies,
+} from './verbs/switch';
+import {
+  assertPoolUnchanged,
+  ensureStackVolumes,
+  listStackVolumes,
+  mountPointsByDigest,
+  removeStackVolume,
+  volumeOwners,
+  type VolumeInfo,
+  type VolumeOwner,
+} from './verbs/volumes';
+
+/**
+ * The Incus runtime: the stack's instances, images and volumes in one
+ * restricted Incus project, over the REST API (design 3, 4).
+ *
+ * This is the part of `StackRuntime` that the probe, the images, the volumes,
+ * the instances, exec, the file copies, the console, one-shot helpers,
+ * health and the switch's admission answer. A verb the Incus runtime cannot
+ * answer yet — converge — is refused with a sentence that says so, never
+ * answered with Docker's meaning. Beyond the interface, the runtime offers
+ * the whole-stack steps a managed deployment drives: the image facts, the
+ * volumes with their owners, instance creation, a stop with a chosen grace,
+ * freeze and thaw, image pruning, the PID 1 proof, the reaping of what a
+ * crash left (exec stdin files, helpers) and a stopped instance's crash
+ * tail.
+ */
+
+export interface IncusRuntimeOptions {
+  client: IncusClient;
+  declaration: IncusDeclaration;
+  /** `user.tale.stack`: the workspace project id or the managed project. */
+  stack: string;
+  /** Where `.tale/incus/` (plan key, image facts, pull order) lives. */
+  stateRoot: string;
+  /** The registry `inspectImage` reads; an anonymous client with the
+   * declared mirror and a cache under the state root by default. */
+  registry?: RegistryClient;
+  /** The healthcheck of each instance; from the compiled stack the
+   * runtime was given (`useTarget`) by default. */
+  healthchecks?: HealthcheckLookup;
+  /** The `tale-proxy` image one-shot helpers run from (design D-30); the
+   * target's proxy image by default. */
+  helperImage?: { alias: string; digest?: string };
+  /** How `logs --follow` waits between reads (tests). */
+  logReads?: LogReadDependencies;
+  /** How a withdrawal waits for the switch (tests). */
+  switchDependencies?: SwitchDependencies;
+  /** A crash after a restore step, and the recovery poll (tests). */
+  snapshotHooks?: Pick<
+    ConstructorParameters<typeof IncusSnapshotStore>[0],
+    'afterRestoreStep' | 'sleep'
+  >;
+}
+
+function notYet(verb: string): Promise<never> {
+  return Promise.reject(
+    preconditionError(
+      `The Incus runtime cannot ${verb} yet in this CLI.`,
+      'Deploy this stack on Docker until the Incus runtime is complete.',
+    ),
+  );
+}
+
+/** The colours a workspace stack runs, as `<stack>-<colour>` names them. */
+const COLOURS = ['blue', 'green'] as const;
+
+export class IncusRuntime implements StackRuntime {
+  readonly engine = 'incus' as const;
+  readonly withdrawal = 'marker' as const;
+  readonly snapshotKind = 'native' as const;
+  readonly client: IncusClient;
+  readonly declaration: IncusDeclaration;
+  readonly stack: string;
+  readonly stateRoot: string;
+  private readonly registry: RegistryClient;
+  private key: Promise<PlanKey> | undefined;
+  private platform: string | undefined;
+  private target: StackTarget | undefined;
+  private owners = new Map<string, VolumeOwner>();
+  private readonly healthReader: IncusHealth;
+  private readonly healthcheckOf: HealthcheckLookup;
+  private store: IncusSnapshotStore | undefined;
+  private readonly snapshotHooks: Pick<
+    ConstructorParameters<typeof IncusSnapshotStore>[0],
+    'afterRestoreStep' | 'sleep'
+  >;
+  private readonly helperImage: IncusRuntimeOptions['helperImage'];
+  private readonly logReads: LogReadDependencies;
+  private readonly switchDependencies: SwitchDependencies;
+  /** One-shot helpers running in this process. */
+  private readonly activeHelpers = new Set<string>();
+
+  constructor(options: IncusRuntimeOptions) {
+    this.client = options.client;
+    this.declaration = options.declaration;
+    this.stack = options.stack;
+    this.stateRoot = options.stateRoot;
+    this.helperImage = options.helperImage;
+    this.logReads = options.logReads ?? {};
+    this.switchDependencies = options.switchDependencies ?? {};
+    this.healthcheckOf =
+      options.healthchecks ??
+      ((name) =>
+        this.target?.instances.find((instance) => instance.name === name)
+          ?.healthcheck);
+    this.healthReader = new IncusHealth(this.verbContext, this.healthcheckOf);
+    this.snapshotHooks = options.snapshotHooks ?? {};
+    this.registry =
+      options.registry ??
+      createRegistryClient({
+        registryMirror: options.declaration.registryMirror,
+        registryMirrors: options.declaration.registryMirrors,
+        cacheDirectory: ociCacheDirectory(options.stateRoot),
+      });
+  }
+
+  /**
+   * The instance a name the actions use means. A workspace action names a
+   * singleton as Docker's container, `<stack>-<service>` (`tale-db`); on
+   * Incus the project namespaces the stack, so the instance is the service
+   * alone (`db`, design 6.1). Any other name is the instance's own.
+   */
+  instanceName(name: string): string {
+    const prefix = `${this.stack}-`;
+    if (!name.startsWith(prefix)) return name;
+    const placed = placementOf(name.slice(prefix.length));
+    return placed !== undefined && !('slot' in placed.address)
+      ? name.slice(prefix.length)
+      : name;
+  }
+
+  /** What the exec, file, log, health and helper verbs act within. */
+  get verbContext(): IncusVerbContext {
+    return {
+      client: this.client,
+      stack: this.stack,
+      stateRoot: this.stateRoot,
+    };
+  }
+
+  /** The API the client dials, as the declaration names it. */
+  private get endpoint(): string {
+    return (
+      this.declaration.endpoint ??
+      `https://${this.declaration.network.gateway}:8443`
+    );
+  }
+
+  private planKey(): Promise<PlanKey> {
+    this.key ??= loadPlanKey(this.stateRoot);
+    return this.key;
+  }
+
+  /** The compiled stack the volume verbs make volumes for. */
+  useTarget(target: StackTarget): void {
+    if (target.stack !== this.stack || target.pool !== this.declaration.pool)
+      throw new Error(
+        `The target ${target.stack} on ${target.pool} is not this runtime's stack ${this.stack} on ${this.declaration.pool}.`,
+      );
+    this.target = target;
+  }
+
+  private requireTarget(): StackTarget {
+    if (this.target === undefined)
+      throw new Error('The Incus runtime has no stack target yet.');
+    return this.target;
+  }
+
+  // ---- readiness -----------------------------------------------------------
+
+  /** The full probe: every refusal and warning, and the server's facts. */
+  async probeDetail(registries?: readonly string[]): Promise<IncusProbe> {
+    const probe = await probeIncus(this.client, {
+      pool: this.declaration.pool,
+      registries:
+        registries ??
+        (this.target === undefined
+          ? []
+          : registryHosts(this.target.images, this.declaration)),
+    });
+    if (probe.facts !== null) this.platform = probe.facts.platform;
+    return probe;
+  }
+
+  async probe(): Promise<ProbeResult> {
+    let probe: IncusProbe;
+    try {
+      probe = await this.probeDetail();
+    } catch (error) {
+      return {
+        status: 'failed',
+        detail: `The Incus API at ${this.endpoint} did not answer: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    if (probe.errors.length > 0)
+      return { status: 'refused', detail: probe.errors.join('\n') };
+    for (const warning of probe.warnings) console.warn(warning);
+    return {
+      status: 'ready',
+      detail: `Incus ${probe.facts?.version ?? ''} on ${probe.facts?.architecture ?? ''}, pool ${this.declaration.pool} (${probe.facts?.poolDriver ?? ''})`,
+    };
+  }
+
+  async checkReachable(): Promise<RuntimeCheck> {
+    try {
+      await this.client.getServer();
+      return { status: 'ok', detail: `Incus API ${this.endpoint}` };
+    } catch (error) {
+      return {
+        status: 'fail',
+        detail: `The Incus API at ${this.endpoint} did not answer: ${error instanceof Error ? error.message : String(error)}`,
+        fix: 'Check runtime.incus.endpoint and that the client certificate is trusted.',
+      };
+    }
+  }
+
+  async checkEngine(): Promise<RuntimeCheck> {
+    const probe = await this.probeDetail();
+    if (probe.errors.length > 0)
+      return {
+        status: 'fail',
+        detail: probe.errors.join('\n'),
+        fix: 'tale incus contract prints what the project needs.',
+      };
+    return probe.warnings.length > 0
+      ? { status: 'warn', detail: probe.warnings.join('\n') }
+      : {
+          status: 'ok',
+          detail: `Incus ${probe.facts?.version ?? ''} (${probe.facts?.platform ?? ''})`,
+        };
+  }
+
+  // ---- census and readback ---------------------------------------------------
+
+  /** The replicas of the stack, as Docker's projects list them: the stack
+   * itself holds the instances of no colour, and `<stack>-<colour>` the
+   * replicas of that colour. */
+  async list(filter: { stack: string; service?: string }) {
+    const colour = COLOURS.find(
+      (candidate) => filter.stack === `${this.stack}-${candidate}`,
+    );
+    const stack = colour === undefined ? filter.stack : this.stack;
+    const found = await listStackInstances(
+      this.client,
+      filter.service === undefined
+        ? { stack }
+        : { stack, service: filter.service },
+      await this.planKey(),
+    );
+    if (stack !== this.stack) return found;
+    // A colour's replicas carry their colour's stack name, as Docker's
+    // projects name them.
+    const replicas = found.filter((instance) => instance.colour === colour);
+    if (colour !== undefined)
+      for (const replica of replicas) replica.stack = `${this.stack}-${colour}`;
+    return replicas;
+  }
+
+  /** The stack's instances whose name contains `fragment`; the stack's
+   * own name (Docker's container prefix) lists every one, because Incus
+   * names carry no prefix. */
+  async listByName(fragment: string) {
+    return (await this.client.listInstances())
+      .filter(
+        (instance) =>
+          (fragment === this.stack || instance.name.includes(fragment)) &&
+          instance.config['user.tale.stack'] === this.stack,
+      )
+      .map((instance) => ({ name: instance.name, status: instance.status }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async exists(name: string): Promise<boolean> {
+    return (
+      (await this.client.getInstance(this.instanceName(name))) !== undefined
+    );
+  }
+
+  async isRunning(name: string): Promise<boolean> {
+    return (
+      (await this.client.getInstance(this.instanceName(name)))?.instance
+        .status === 'Running'
+    );
+  }
+
+  async state(name: string): Promise<string | null> {
+    return (await this.inspect(name))?.state ?? null;
+  }
+
+  async version(name: string): Promise<string | null> {
+    return (
+      (await this.client.getInstance(this.instanceName(name)))?.instance.config[
+        'user.tale.version'
+      ] ?? null
+    );
+  }
+
+  /** Docker's health, judged by the CLI from exec probes (design D-24). */
+  health(name: string): Promise<HealthState> {
+    return this.healthReader.health(this.instanceName(name));
+  }
+
+  async inspect(name: string): Promise<InstanceInfo | null> {
+    return inspectStackInstance(
+      this.client,
+      this.instanceName(name),
+      await this.planKey(),
+    );
+  }
+
+  // ---- images ------------------------------------------------------------------
+
+  /** The platform the server runs, from the probe. */
+  private async serverPlatform(): Promise<string> {
+    if (this.platform === undefined) {
+      const probe = await this.probeDetail([]);
+      if (probe.facts === null)
+        throw preconditionError(
+          `The Incus server's platform is unknown:\n${probe.errors.join('\n')}`,
+        );
+    }
+    return this.platform ?? '';
+  }
+
+  async inspectImage(reference: string): Promise<ImageFacts> {
+    return readImageFacts(
+      this.registry,
+      reference,
+      await this.serverPlatform(),
+    );
+  }
+
+  /** An `ImageRef` as the stack image Incus pulls; it must name a digest. */
+  private stackImage(ref: ImageRef): StackImage {
+    const digest = parseImageReference(ref.reference).digest;
+    if (digest === null)
+      throw preconditionError(
+        `Image ${ref.reference} names no digest; Incus pulls a stack image by digest only.`,
+      );
+    const alias = imageAlias({ reference: ref.reference, digest });
+    // An alias names exactly one digest: one of another shape (Docker's
+    // `tale-sandbox:latest`) fails this image alone, not the whole pull.
+    if (ref.alias !== undefined && ref.alias !== alias)
+      throw preconditionError(
+        `Image ${ref.reference} is asked for under the alias ${ref.alias}, not ${alias}.`,
+      );
+    return {
+      alias,
+      reference: ref.reference,
+      digest,
+      services: [],
+    };
+  }
+
+  async ensureImages(refs: readonly ImageRef[]): Promise<EnsuredImages> {
+    const images: StackImage[] = [];
+    const failed: EnsuredImages['failed'] = [];
+    for (const ref of refs) {
+      try {
+        images.push(this.stackImage(ref));
+      } catch (error) {
+        failed.push({
+          reference: ref.reference,
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    const ensured = await ensureImages(this.client, images, {
+      stateRoot: this.stateRoot,
+      registryMirror: this.declaration.registryMirror,
+      registryMirrors: this.declaration.registryMirrors,
+    });
+    return { failed: [...failed, ...ensured.failed] };
+  }
+
+  /** Pull the target's images; any failure is refused. */
+  async ensureTargetImages(target: StackTarget): Promise<void> {
+    const ensured = await ensureImages(this.client, target.images, {
+      stateRoot: this.stateRoot,
+      registryMirror: this.declaration.registryMirror,
+      registryMirrors: this.declaration.registryMirrors,
+    });
+    if (ensured.failed.length > 0) throw pullFailure(ensured.failed);
+  }
+
+  /** Delete the stack's images beyond the target's and the ones before. */
+  pruneImages(current: readonly string[]): Promise<string[]> {
+    return pruneImages(this.client, current, { stateRoot: this.stateRoot });
+  }
+
+  /** The filesystem facts of every image of `target` (its images must be
+   * in the project): the mount points' owners, the app user, `timeout`
+   * and the infrastructure formats. */
+  async imageFacts(target: StackTarget): Promise<Map<string, ImageFsFacts>> {
+    const paths = mountPointsByDigest(target);
+    await reapProbes(this.client, this.stack);
+    const requests = [];
+    for (const image of target.images) {
+      const facts = await this.inspectImage(image.reference);
+      requests.push({
+        alias: image.alias,
+        digest: image.digest,
+        env: facts.env,
+        labels: facts.labels,
+        paths: paths.get(image.digest) ?? [],
+      });
+    }
+    return imageFsFacts(this.client, requests, {
+      stateRoot: this.stateRoot,
+      stack: this.stack,
+    });
+  }
+
+  pull(image: string): Promise<boolean> {
+    return this.ensureImages([{ reference: image }]).then(
+      (ensured) => ensured.failed.length === 0,
+    );
+  }
+
+  /** Whether the project holds the image; one named by tag alone never
+   * is, because Incus holds stack images by digest. */
+  async imagePresent(image: string): Promise<boolean> {
+    if (parseImageReference(image).digest === null) return false;
+    return (
+      (await this.client.getImageAlias(
+        this.stackImage({ reference: image }).alias,
+      )) !== undefined
+    );
+  }
+
+  tag(): Promise<never> {
+    return notYet('give an image a second name (Incus names it by its alias)');
+  }
+
+  // ---- volumes and networks --------------------------------------------------
+
+  /** Make the target's volumes (all of them, or those named) with the
+   * owners their images give them; the pool must not have changed. */
+  async ensureStackVolumes(
+    target: StackTarget,
+    names?: readonly string[],
+  ): Promise<string[]> {
+    this.useTarget(target);
+    await assertPoolUnchanged(this.client, target);
+    const facts = await this.imageFacts(target);
+    this.owners = volumeOwners(target, facts);
+    const volumes =
+      names === undefined
+        ? target.volumes
+        : target.volumes.filter((volume) => names.includes(volume.name));
+    return ensureStackVolumes(this.client, target, volumes, this.owners);
+  }
+
+  /** Read the owners the target's volumes are made with, for the applier's
+   * `volumeOwner` hook, and make none: the applier makes them, and refuses a
+   * missing data volume first (R3-22). The target's images must be in the
+   * project. */
+  async readVolumeOwners(target: StackTarget): Promise<void> {
+    this.useTarget(target);
+    await assertPoolUnchanged(this.client, target);
+    this.owners = volumeOwners(target, await this.imageFacts(target));
+  }
+
+  /** The owner a volume of the last target is made with (the applier's
+   * `volumeOwner` hook). */
+  volumeOwner(volume: { name: string }): VolumeOwner | undefined {
+    return this.owners.get(volume.name);
+  }
+
+  async volumeExists(name: string): Promise<boolean> {
+    return (
+      (await this.client.getVolume(this.declaration.pool, name)) !== undefined
+    );
+  }
+
+  /** Incus volumes carry no prefix (D-27): `names` are the target's
+   * logical names, which must all be in it. */
+  async ensureVolumes(names: readonly string[]): Promise<boolean> {
+    const target = this.requireTarget();
+    const unknown = names.filter(
+      (name) => !target.volumes.some((volume) => volume.name === name),
+    );
+    if (unknown.length > 0)
+      throw preconditionError(`The stack has no volume ${unknown.join(', ')}.`);
+    await this.ensureStackVolumes(target, names);
+    return true;
+  }
+
+  listVolumes(): Promise<VolumeInfo[]> {
+    return listStackVolumes(this.client, this.declaration.pool, this.stack);
+  }
+
+  removeVolume(name: string): Promise<boolean> {
+    return removeStackVolume(
+      this.client,
+      this.declaration.pool,
+      this.stack,
+      name,
+    );
+  }
+
+  async volumeRemovalHint(name: string): Promise<string | null> {
+    return (await this.volumeExists(name))
+      ? `incus storage volume delete ${this.declaration.pool} ${name} --project ${this.client.project}`
+      : null;
+  }
+
+  /** Docker's pre-rename config volume never existed on Incus. */
+  async migrateConfigVolume(): Promise<void> {}
+
+  /** The CLI makes no network on Incus (D-15): the declared bridge must
+   * exist, and only it may be asked for. */
+  async ensureNetwork(name: string): Promise<boolean> {
+    if (name !== this.declaration.network.name) return false;
+    try {
+      await this.client.getNetwork(name);
+      return true;
+    } catch (error) {
+      if (error instanceof IncusApiError && error.status === 404) return false;
+      throw error;
+    }
+  }
+
+  /** The stack has no sandbox network on Incus (D-14): sessions are routed
+   * in from their own zone. */
+  async ensureSandboxNetwork(): Promise<boolean> {
+    return true;
+  }
+
+  async pruneNetworks() {
+    return { success: true, stdout: '', stderr: '', exitCode: 0 };
+  }
+
+  async volumeUsers(volume: string): Promise<string[]> {
+    const found = await this.client.getVolume(this.declaration.pool, volume);
+    if (found === undefined) return [];
+    const users: string[] = [];
+    for (const url of found.usedBy) {
+      const path = url.split('?')[0] ?? '';
+      const name = decodeURIComponent(path.slice(path.lastIndexOf('/') + 1));
+      if (await this.isRunning(name)) users.push(name);
+    }
+    return users.sort();
+  }
+
+  /** Native snapshots, manifests, holders and restores of this stack
+   * (design D-28, D-29). */
+  snapshotStore(): IncusSnapshotStore {
+    this.store ??= new IncusSnapshotStore({
+      client: this.client,
+      pool: this.declaration.pool,
+      stack: this.stack,
+      stateRoot: this.stateRoot,
+      health: (name) => this.health(name),
+      healthcheck: (name) => this.healthcheckOf(name),
+      oneShot: (job) => this.oneShot(job),
+      helperImage: 'tale-proxy',
+      ...this.snapshotHooks,
+    });
+    return this.store;
+  }
+
+  /** Freeze the running users of `volumes` in parallel, run `work`, thaw
+   * them in parallel and wait until each that was healthy is again. */
+  quiesce<T>(
+    volumes: readonly string[],
+    work: (frozenCount: number) => Promise<T>,
+  ): Promise<T> {
+    return this.snapshotStore().quiesce(volumes, work);
+  }
+
+  /** A native snapshot `name` of each volume under one freeze (D-28). */
+  snapshot(
+    volumes: readonly string[],
+    name: string,
+  ): Promise<NativeSnapshotSet> {
+    return this.snapshotStore().snapshot(volumes, name);
+  }
+
+  /** Restore into fresh volumes under the restore-pending journal, or
+   * finish or undo the pending one (D-29, R3-22). */
+  restoreSnapshot(request: SnapshotRestore): Promise<void> {
+    const store = this.snapshotStore();
+    if (request.kind === 'resume') return store.finish();
+    if (request.kind === 'abort') return store.abort();
+    return store.restore(request.id, request.volumes);
+  }
+
+  /** Stream a volume file out in pieces (HTTP range reads). */
+  readVolumeFile(
+    volume: string,
+    path: string,
+    onChunk: (chunk: Uint8Array) => void | Promise<void>,
+  ): Promise<void> {
+    return this.snapshotStore().readVolumeFile(volume, path, onChunk);
+  }
+
+  /** Write a volume file in pieces (the first made anew, then appended). */
+  writeVolumeFile(
+    volume: string,
+    path: string,
+    chunks: AsyncIterable<Uint8Array>,
+  ): Promise<void> {
+    return this.snapshotStore().writeVolumeFile(volume, path, chunks);
+  }
+
+  // ---- lifecycle -----------------------------------------------------------------
+
+  converge(): Promise<never> {
+    return notYet('converge a compose document');
+  }
+
+  /** Wait as Docker's wait does, every 2 s, on the CLI's own health; the
+   * console of a running instance is never read (`streamLogs` is not). */
+  waitHealthy(name: string, options: WaitHealthyOptions): Promise<boolean> {
+    return waitForHealthy(this.instanceName(name), {
+      ...options,
+      runtime: this,
+    });
+  }
+
+  async waitServiceHealthy(
+    stack: string,
+    service: string,
+    options: WaitServiceHealthyOptions,
+  ): Promise<boolean> {
+    const replicas = await this.list({ stack, service });
+    if (replicas.length < options.expectedReplicas) {
+      console.error(
+        `Expected ${options.expectedReplicas} ${service} replica(s) in ${stack}, found ${replicas.length}`,
+      );
+      return false;
+    }
+    for (const replica of replicas)
+      if (!(await this.waitHealthy(replica.name, options))) return false;
+    return true;
+  }
+
+  /** Make an instance of the target, stopped. */
+  createInstance(spec: InstanceSpec): Promise<void> {
+    return createStackInstance(this.client, spec);
+  }
+
+  /** Start an instance and record that the CLI started it, which ends a
+   * stop after repeated crashes (R-09); false when there is none. */
+  async start(name: string): Promise<boolean> {
+    const instance = this.instanceName(name);
+    if ((await this.client.getInstance(instance)) === undefined) return false;
+    await startStackInstance(this.client, instance);
+    return true;
+  }
+
+  /** Stop within its declared grace (or `graceSeconds`), then force with a
+   * warning. */
+  async stop(name: string, graceSeconds?: number): Promise<boolean> {
+    const instance = this.instanceName(name);
+    const read = await this.client.getInstance(instance);
+    if (read === undefined) return false;
+    await stopStackInstance(
+      this.client,
+      instance,
+      graceSeconds ?? declaredGrace(read.instance.config),
+    );
+    return true;
+  }
+
+  /** Stop within `grace` seconds, then force with a warning; `forever`
+   * waits the declared grace and never forces. */
+  stopWithin(name: string, grace: StopGrace): Promise<void> {
+    return stopStackInstance(this.client, name, grace);
+  }
+
+  /** Remove the instance; a withdrawal marker the journal holds for it
+   * goes with it. */
+  async remove(name: string): Promise<boolean> {
+    const instance = this.instanceName(name);
+    const removed = await removeStackInstance(
+      this.client,
+      this.stack,
+      instance,
+    );
+    const journal = await readJournal(this.stateRoot);
+    if (journal?.withdrawn.some((entry) => entry.instance === instance))
+      await updateJournal(this.stateRoot, this.stack, (next) => {
+        next.withdrawn = next.withdrawn.filter(
+          (entry) => entry.instance !== instance,
+        );
+      });
+    return removed;
+  }
+
+  freeze(names: readonly string[]): Promise<void> {
+    return freezeStackInstances(this.client, names);
+  }
+
+  thaw(names: readonly string[]): Promise<void> {
+    return thawStackInstances(this.client, names);
+  }
+
+  /** What runs as PID 1 of a converged instance. */
+  provePid1(name: string): Promise<Pid1Proof> {
+    return provePid1(this.client, name);
+  }
+
+  /** Remove the withdrawal marker of each replica that carries one (an
+   * aborted flip), as the image's app user; a no-op for the rest. */
+  admit(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<void> {
+    return admitReplicas(this.verbContext, stack, services, replicas);
+  }
+
+  /** Set each replica's withdrawal marker, as the image's app user, and
+   * wait two switch health intervals. Cuts nothing: 0. */
+  withdraw(
+    stack: string,
+    services: readonly string[],
+    replicas?: readonly string[],
+  ): Promise<number> {
+    return withdrawReplicas(
+      this.verbContext,
+      stack,
+      services,
+      replicas,
+      this.switchDependencies,
+    );
+  }
+
+  /** The applier's withdrawal hooks (design 7.3). */
+  switchHooks(): Pick<ApplyHooks, 'withdraw' | 'admit'> {
+    return switchApplyHooks(this.verbContext, this.switchDependencies);
+  }
+
+  /** Wait until the switch reaches a switched replica just made, and finds
+   * it admitted (a no-op for any other service). */
+  awaitSwitchAdmission(name: string, service: string): Promise<void> {
+    return awaitSwitchAdmission(
+      this.verbContext,
+      this.instanceName(name),
+      service,
+      this.switchDependencies,
+    );
+  }
+
+  /** Nothing to clean up synchronously (D-12): the journal records the
+   * interrupt, and the next run plans from what the node holds. */
+  onInterrupt(): void {
+    markInterruptedSync(this.stateRoot);
+  }
+
+  // ---- exec, files, logs, helpers ------------------------------------------------
+
+  /** Run one command (design D-03): modes 1-2 under the image's `timeout`,
+   * else over the websocket; bounded in time and output. */
+  exec(
+    name: string,
+    argv: readonly string[],
+    options: IncusExecOptions = {},
+  ): Promise<ExecResult> {
+    return execInInstance(
+      this.verbContext,
+      this.instanceName(name),
+      argv,
+      options,
+    );
+  }
+
+  /** A command held open over a websocket exec. */
+  execSession(name: string, argv: readonly string[]): Promise<RuntimeSession> {
+    return execSessionInInstance(
+      this.verbContext,
+      this.instanceName(name),
+      argv,
+    );
+  }
+
+  /** Delete the exec stdin files a crash left, as the journal lists them. */
+  reapExecPayloads(instance?: string): Promise<string[]> {
+    return reapPayloads(this.verbContext, instance);
+  }
+
+  copyIn(
+    name: string,
+    dir: string,
+    target: string,
+    owner?: FileOwner,
+  ): Promise<CopyResult> {
+    return copyIntoInstance(
+      this.verbContext,
+      this.instanceName(name),
+      dir,
+      target,
+      owner,
+    );
+  }
+
+  copyOut(
+    name: string,
+    source: string,
+    dir: string,
+    options: CopyOutOptions,
+  ): Promise<ExecResult> {
+    return copyOutOfInstance(
+      this.verbContext,
+      this.instanceName(name),
+      source,
+      dir,
+      options,
+    );
+  }
+
+  /** The instance's console (design 11): a running one only with
+   * `consume`, after a one-line warning. */
+  logs(
+    name: string,
+    options: LogOptions,
+    onLine?: (line: string) => void,
+  ): Promise<number> {
+    return readInstanceLogs(
+      this.verbContext,
+      this.instanceName(name),
+      options,
+      onLine,
+      this.logReads,
+    );
+  }
+
+  /** What a stopped instance's console still holds, labelled as such; null
+   * while it runs. */
+  crashTail(name: string, lines?: number) {
+    return crashTail(this.verbContext, this.instanceName(name), lines);
+  }
+
+  /** Whether `boot.autorestart` gave up on the instance: it stopped by
+   * itself while wanted running (R-09). Reads no console. */
+  async stoppedAfterCrashes(name: string): Promise<boolean> {
+    const read = await this.client.getInstance(this.instanceName(name));
+    return (
+      read !== undefined &&
+      stoppedAfterCrashes(read.instance.status, read.instance.config)
+    );
+  }
+
+  /**
+   * A switched replica's admission (design 5.3), from the CLI's journal and
+   * its health: `withdrawn` while the journal holds its marker, `admitted`
+   * while it runs healthy (its admission probe passes), `waiting` before;
+   * null for an instance the switch does not hold.
+   */
+  async admission(
+    name: string,
+  ): Promise<'admitted' | 'withdrawn' | 'waiting' | null> {
+    const instance = this.instanceName(name);
+    const read = await this.client.getInstance(instance);
+    if (read === undefined) return null;
+    if (!SWITCHED_SERVICES.has(read.instance.config['user.tale.service'] ?? ''))
+      return null;
+    const journal = await readJournal(this.stateRoot);
+    if (journal?.withdrawn.some((entry) => entry.instance === instance))
+      return 'withdrawn';
+    if (read.instance.status !== 'Running') return 'waiting';
+    try {
+      return (await this.health(instance)) === 'healthy'
+        ? 'admitted'
+        : 'waiting';
+    } catch (error) {
+      console.warn(
+        `The admission of ${instance} is unknown:`,
+        error instanceof Error ? error.message : error,
+      );
+      return 'waiting';
+    }
+  }
+
+  /** "stopped after repeated crashes" with the console tail Incus kept,
+   * for an instance `boot.autorestart` gave up on; null for any other. */
+  crashReport(name: string, lines?: number) {
+    return crashReport(this.verbContext, this.instanceName(name), lines);
+  }
+
+  /** The `tale-proxy` image helpers run from: the one the deploy compiled,
+   * or, for a command outside a deploy (`tale backup`, `restore`, `reset`),
+   * the one the stack's own edge runs. */
+  private async helper(): Promise<{ alias: string; digest?: string }> {
+    if (this.helperImage !== undefined) return this.helperImage;
+    const proxy = this.target?.images.find((image) =>
+      image.services.includes('proxy'),
+    );
+    if (proxy !== undefined)
+      return { alias: proxy.alias, digest: proxy.digest };
+    const edge = (await this.client.getInstance(this.instanceName('proxy')))
+      ?.instance.config;
+    const fingerprint = edge?.['volatile.base_image'];
+    const alias =
+      fingerprint === undefined
+        ? undefined
+        : (await this.client.listImageAliases()).find(
+            (entry) => entry.target === fingerprint,
+          );
+    if (alias === undefined)
+      throw preconditionError(
+        "A one-shot job on Incus runs from the release's tale-proxy image, and this runtime knows none yet.",
+        'Deploy the stack once (tale deploy), which pulls it.',
+      );
+    const digest = edge?.['user.tale.image'];
+    return {
+      alias: alias.name,
+      ...(digest === undefined || digest === '' ? {} : { digest }),
+    };
+  }
+
+  /** Run one helper job over volumes (design D-30) and delete the helper. */
+  async oneShot(job: OneShotJob): Promise<ExecResult> {
+    const helper = await this.helper();
+    return runOneShot(this.verbContext, job, {
+      image: helper.alias,
+      ...(helper.digest === undefined ? {} : { digest: helper.digest }),
+      pool: this.declaration.pool,
+      active: this.activeHelpers,
+    });
+  }
+
+  /** Delete the helpers a crash left in the stack. */
+  reapHelpers(): Promise<string[]> {
+    return reapHelpers(this.verbContext, this.activeHelpers);
+  }
+}
+
+/** The Incus runtime for one stack; refused on Windows (`assertIncusPlatform`). */
+export function createIncusRuntime(options: IncusRuntimeOptions): IncusRuntime {
+  assertIncusPlatform();
+  return new IncusRuntime(options);
+}

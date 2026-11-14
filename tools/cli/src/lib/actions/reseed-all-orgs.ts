@@ -32,9 +32,13 @@ import {
   backendApiContainer,
   controlCall,
 } from '../docker/control-call';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 
 interface ReseedAllOrgsOptions {
   dryRun: boolean;
+  /** The runtime the command selected; Docker when not given. */
+  runtime?: StackRuntime;
 }
 
 /** The terminal the consent question needs, injectable for the tests. */
@@ -55,7 +59,14 @@ export interface ReseedDeps {
   controlCall: typeof controlCall;
 }
 
-const DEFAULT_DEPS: ReseedDeps = { backendApiContainer, controlCall };
+/** The control door of `runtime`. */
+function runtimeDeps(runtime: StackRuntime): ReseedDeps {
+  return {
+    backendApiContainer: (colour) => backendApiContainer(colour, runtime),
+    controlCall: (method, path, options = {}) =>
+      controlCall(method, path, { ...options, runtime }),
+  };
+}
 
 const RESEED_TIMEOUT_S = 1800;
 const RESEED_TIMEOUT_EXIT = 124;
@@ -131,7 +142,7 @@ export async function confirmOverrideAll(
 
 export async function reseedAllOrgsFromBuiltin(
   options: ReseedAllOrgsOptions,
-  deps: ReseedDeps = DEFAULT_DEPS,
+  deps: ReseedDeps = runtimeDeps(options.runtime ?? dockerRuntime),
 ): Promise<void> {
   // A dry run returns before the api is looked up at all: otherwise
   // `tale deploy --override-all --dry-run` would touch docker on hosts where

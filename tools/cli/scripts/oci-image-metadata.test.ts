@@ -15,6 +15,8 @@ import { dirname, join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
 
+import { TALE_INIT_LABEL } from '../src/lib/oci/image-facts';
+
 /**
  * Tale's images are OCI artifacts that say what they are. A registry, a
  * scanner and `docker inspect` read the org.opencontainers.image.* labels of an
@@ -1156,6 +1158,201 @@ describe('every image the Dockerfiles pull is pinned by digest', () => {
       expect(pulledImages(sample.replaceAll('\n', '\r\n'))).toEqual(
         pulledImages(sample),
       );
+    });
+  });
+});
+
+/**
+ * Incus runs `/init` as PID 1 and halts a container with SIGPWR, or with
+ * SIGRTMIN+3 when PID 1 blocks it. Each stack image ships dumb-init 1.2.5 with
+ * MAXSIG raised from 31 to 64 at `/init`, so the runtime can rewrite either to
+ * the image's stop signal (patches/README.md). One build stage, byte-identical
+ * in the six images, builds it from a pinned source; Docker never runs it.
+ */
+describe('the stack images ship the patched init at /init', () => {
+  const INIT_IMAGES = [
+    'db',
+    'platform',
+    'proxy',
+    'sandbox',
+    'sandbox-egress',
+    'sandbox-llm-gateway',
+  ];
+  const INIT = 'dumb-init-1.2.5+maxsig64';
+  /** The file formats an infrastructure-tier image reads (D-17, R-02). */
+  const INFRA_FORMATS: Record<string, string> = {
+    proxy: 'switch-upstreams/1',
+    'sandbox-egress': 'names-hosts/1',
+  };
+  const SOURCE_SHA256 =
+    '3eda470d8a4a89123f4516d26877a727c0945006c8830b7e3bad717a5f6efc4e';
+  const PATCH = 'patches/dumb-init/maxsig-64.patch';
+
+  /**
+   * The `tale-init` stage as written: from its FROM to the line before the
+   * next FROM, without the comments and blank lines that lead into the next
+   * stage. Null when the file has none; '' when it has more than one.
+   */
+  function initStage(text: string): string | null {
+    const lines = text.replaceAll('\r\n', '\n').split('\n');
+    const starts = lines.flatMap((line, index) =>
+      /^FROM\s.*\sAS\s+tale-init\s*$/i.test(line) ? [index] : [],
+    );
+    if (starts.length === 0) return null;
+    if (starts.length > 1) return '';
+    const start = starts[0]!;
+    let end = lines.findIndex(
+      (line, index) => index > start && /^FROM\s/i.test(line),
+    );
+    if (end === -1) end = lines.length;
+    while (end > start && /^\s*(#|$)/.test(lines[end - 1]!)) end -= 1;
+    return lines.slice(start, end).join('\n');
+  }
+
+  /** Every way an image falls short of the init contract. */
+  function initProblems(
+    service: string,
+    text: string,
+    reference: string,
+  ): string[] {
+    const problems: string[] = [];
+    const stage = initStage(text);
+    if (stage === null) return ['has no tale-init stage'];
+    if (stage === '') return ['has more than one tale-init stage'];
+    if (stage !== reference)
+      problems.push('its tale-init stage differs from the db image');
+    const final = finalStage(text);
+    if (
+      !final.some(
+        (entry) =>
+          entry.keyword === 'COPY' &&
+          /^--from=tale-init\s+\/init\s+\/init$/.test(entry.args.trim()),
+      )
+    )
+      problems.push('its final stage does not copy /init from tale-init');
+    const labels = labelsOf(final);
+    const label = (key: string) =>
+      labels.find((entry) => entry.key === key)?.raw.replace(/^"(.*)"$/s, '$1');
+    if (label(TALE_INIT_LABEL) !== INIT)
+      problems.push(`${TALE_INIT_LABEL} must be ${INIT}`);
+    if (label('dev.tale.infra-formats') !== INFRA_FORMATS[service])
+      problems.push(
+        `dev.tale.infra-formats must be ${INFRA_FORMATS[service] ?? 'absent'}`,
+      );
+    // Docker keeps its own entrypoint: /init runs only where a runtime puts
+    // it in front (Incus).
+    const entrypoint = final.findLast(
+      (entry) => entry.keyword === 'ENTRYPOINT',
+    );
+    if (entrypoint?.args.includes('/init'))
+      problems.push('its ENTRYPOINT runs /init, which changes Docker');
+    return problems;
+  }
+
+  const reference = initStage(dockerfile('db')) ?? '';
+
+  test('the reference stage builds the pinned source with the patch, statically', () => {
+    const instructions = instructionsOf(reference);
+    expect(instructions[0]?.args).toMatch(
+      /^alpine:[^\s@]+@sha256:[a-f0-9]{64}\s+AS\s+tale-init$/,
+    );
+    expect(reference).toContain(
+      'https://github.com/Yelp/dumb-init/archive/refs/tags/v1.2.5.tar.gz',
+    );
+    expect(reference).toContain(`'${SOURCE_SHA256}  /tmp/dumb-init.tar.gz'`);
+    expect(reference).toContain('sha256sum -c -');
+    expect(reference).toContain(`COPY ${PATCH} /tmp/maxsig-64.patch`);
+    expect(reference).toContain('patch -p1 < /tmp/maxsig-64.patch');
+    expect(reference).toContain("grep -qx '#define MAXSIG 64' dumb-init.c");
+    expect(reference).toMatch(/gcc [^;]*-static[^;]*-o \/init dumb-init\.c/);
+  });
+
+  test('the patch raises MAXSIG from 31 to 64 and nothing else', async () => {
+    const patch = (await readFile(join(repository, PATCH), 'utf8')).replaceAll(
+      '\r\n',
+      '\n',
+    );
+    const changed = patch
+      .split('\n')
+      .filter((line) => /^[-+](?![-+]{2} )/.test(line))
+      .filter((line) => !/^[-+]\s*\/\//.test(line));
+    expect(changed).toEqual(['-#define MAXSIG 31', '+#define MAXSIG 64']);
+    expect(patch).toMatch(/^--- a\/dumb-init\.c\n\+\+\+ b\/dumb-init\.c\n/);
+  });
+
+  test.each(INIT_IMAGES)(
+    '%s: the same stage, /init in the final stage, and the labels',
+    (service) => {
+      expect(initProblems(service, dockerfile(service), reference)).toEqual([]);
+    },
+  );
+
+  test('no other image claims the init or an infrastructure format', () => {
+    const claiming = services.filter((service) => {
+      const labels = new Set(
+        labelsOf(finalStage(dockerfile(service))).map((entry) => entry.key),
+      );
+      return (
+        labels.has(TALE_INIT_LABEL) || labels.has('dev.tale.infra-formats')
+      );
+    });
+    expect(claiming).toEqual(INIT_IMAGES);
+  });
+
+  describe('the check itself', () => {
+    const db = dockerfile('db');
+
+    test('refuses a stage that drifted from the others', () => {
+      expect(
+        initProblems(
+          'db',
+          db.replace('-O2 -o /init', '-O3 -o /init'),
+          reference,
+        ),
+      ).toEqual(['its tale-init stage differs from the db image']);
+    });
+
+    test('refuses an image without the stage, the copy or the label', () => {
+      expect(
+        initProblems(
+          'db',
+          db.replace(/ AS tale-init$/m, ' AS init'),
+          reference,
+        ),
+      ).toEqual(['has no tale-init stage']);
+      expect(
+        initProblems(
+          'db',
+          db.replace('COPY --from=tale-init /init /init', ''),
+          reference,
+        ),
+      ).toEqual(['its final stage does not copy /init from tale-init']);
+      expect(
+        initProblems(
+          'db',
+          db.replace(`${TALE_INIT_LABEL}="${INIT}"`, `${TALE_INIT_LABEL}="x"`),
+          reference,
+        ),
+      ).toEqual([`${TALE_INIT_LABEL} must be ${INIT}`]);
+    });
+
+    test('refuses a missing or stray infrastructure format', () => {
+      expect(initProblems('proxy', db, reference)).toEqual([
+        'dev.tale.infra-formats must be switch-upstreams/1',
+      ]);
+    });
+
+    test('refuses an ENTRYPOINT that would run /init under Docker', () => {
+      expect(
+        initProblems(
+          'db',
+          db.replace(
+            'ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]',
+            'ENTRYPOINT ["/init", "--", "/usr/local/bin/docker-entrypoint.sh"]',
+          ),
+          reference,
+        ),
+      ).toEqual(['its ENTRYPOINT runs /init, which changes Docker']);
     });
   });
 });

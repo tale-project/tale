@@ -1,17 +1,23 @@
 import { unlink } from 'node:fs/promises';
 
+import { preconditionError } from '../../utils/fail';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import { BACKUP_VOLUME } from '../backup/constants';
+import { archiveNativeSnapshot } from '../backup/create-snapshot';
+import { listSnapshots } from '../backup/list-snapshots';
+import { verifySnapshot } from '../backup/verify-snapshot';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import type { DeploymentColor } from '../compose/types';
 import { SIDECAR_SERVICES, STATEFUL_SERVICES } from '../compose/types';
-import { docker } from '../docker/docker';
-import { listComposeContainers } from '../docker/list-service-containers';
-import { removeContainer } from '../docker/remove-container';
-import { removeVolume } from '../docker/remove-volume';
+import {
+  snapshotStoreOf,
+  type IncusSnapshotStore,
+} from '../runtime/incus/verbs/snapshots';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { getPreviousVersionFilePath } from '../state/get-previous-version-file-path';
 import { getStateFilePath } from '../state/get-state-file-path';
 import { withLock } from '../state/with-lock';
@@ -23,6 +29,12 @@ interface ResetOptions {
   force: boolean;
   includeStateful: boolean;
   dryRun: boolean;
+  /** The runtime to reset; selected from `tale.json` when absent. */
+  runtime?: StackRuntime;
+  /** Incus: delete the data volumes even when the newest snapshot set
+   * could not be archived into `backups` first, losing its native
+   * snapshots (R-05). */
+  discardSnapshots?: boolean;
 }
 
 /**
@@ -37,18 +49,89 @@ function dataVolumes(): string[] {
   );
 }
 
+/**
+ * Incus (design D-28a, R-05): a native snapshot lives on its volume, so
+ * deleting the data volumes deletes every native recovery point. Before
+ * they go, the newest snapshot set gets a tar.gz archive of each volume in
+ * `backups` (verified by sha256), which survives; when that fails the reset
+ * is refused, unless `--discard-snapshots` accepts the loss.
+ */
+async function keepNewestSnapshot(
+  runtime: StackRuntime,
+  discard: boolean,
+): Promise<void> {
+  const fail = (detail: string) => {
+    if (discard) {
+      logger.warn(
+        `${detail} --discard-snapshots: the native snapshots go with the data volumes.`,
+      );
+      return;
+    }
+    throw preconditionError(
+      `${detail} The reset would delete every native snapshot with the data volumes, so nothing was deleted.`,
+      [
+        'tale backup --archive         (archive a fresh snapshot, then reset again)',
+        'tale reset --all --discard-snapshots   (delete them anyway)',
+      ],
+    );
+  };
+  let newest;
+  try {
+    newest = (await listSnapshots('', runtime))[0];
+  } catch (error) {
+    fail(
+      `The snapshots in ${BACKUP_VOLUME} could not be listed: ${errorText(error)}.`,
+    );
+    return;
+  }
+  if (newest === undefined) {
+    logger.warn(`There is no snapshot in ${BACKUP_VOLUME} to keep.`);
+    return;
+  }
+  logger.step(
+    `Archiving snapshot ${newest.id} into ${BACKUP_VOLUME}, so it outlives the volumes...`,
+  );
+  try {
+    const archived = await archiveNativeSnapshot(runtime, newest);
+    await verifySnapshot('', archived, runtime);
+    logger.info(
+      `Snapshot ${newest.id} is archived in ${BACKUP_VOLUME} and verified.`,
+    );
+  } catch (error) {
+    fail(
+      `Snapshot ${newest.id} could not be archived into ${BACKUP_VOLUME}: ${errorText(error)}.`,
+    );
+  }
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** What `--all` deletes and keeps on Incus, before the question. */
+async function warnIncusVolumes(store: IncusSnapshotStore): Promise<void> {
+  logger.warn(
+    `and deleting their data volumes, which cannot be undone: ${(await store.dataVolumes()).join(', ')}. ` +
+      `Their native snapshots go with them; the newest snapshot is archived into ${BACKUP_VOLUME} first, which is kept with the archives and manifests it holds. Volumes set aside by a restore are kept.`,
+  );
+}
+
 export async function reset(options: ResetOptions): Promise<void> {
   const { env, force, includeStateful, dryRun } = options;
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
+  const store = snapshotStoreOf(runtime);
 
   logger.warn('This will remove ALL blue-green containers');
   if (includeStateful) {
     logger.warn(
       `Including stateful services: ${[...STATEFUL_SERVICES, ...SIDECAR_SERVICES].join(', ')}`,
     );
-    logger.warn(
-      `and deleting their data volumes, which cannot be undone: ${dataVolumes().join(', ')}. ` +
-        `The snapshots in ${getProjectId()}_${BACKUP_VOLUME} are kept.`,
-    );
+    if (store !== null) await warnIncusVolumes(store);
+    else
+      logger.warn(
+        `and deleting their data volumes, which cannot be undone: ${dataVolumes().join(', ')}. ` +
+          `The snapshots in ${getProjectId()}_${BACKUP_VOLUME} are kept.`,
+      );
   }
 
   // `--force` or the global `tale -y` consents; the confirm below would
@@ -68,6 +151,11 @@ export async function reset(options: ResetOptions): Promise<void> {
     const prefix = dryRun ? '[DRY-RUN] ' : '';
     logger.header(`${prefix}Resetting Deployment`);
 
+    // Before anything is removed: the newest snapshot set must outlive the
+    // data volumes on Incus, or the reset stops here (R-05).
+    if (includeStateful && store !== null && !dryRun)
+      await keepNewestSnapshot(runtime, options.discardSnapshots === true);
+
     // Remove all blue-green containers. Listed by compose project, not by
     // reconstructed name: a colour is a replica set, so what has to go is
     // every container compose created for it.
@@ -75,11 +163,11 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.step(`${prefix}Removing ${color} containers...`);
       const project = `${getProjectId()}-${color}`;
       if (dryRun) {
-        for (const container of await listComposeContainers(project)) {
+        for (const container of await runtime.list({ stack: project })) {
           logger.info(`${prefix}Would remove: ${container.name}`);
         }
       } else {
-        await removeColorContainers(project);
+        await removeColorContainers(project, runtime);
       }
     }
 
@@ -87,15 +175,15 @@ export async function reset(options: ResetOptions): Promise<void> {
     // outside both colours, so neither sweep above sees it.
     if (dryRun) {
       for (const service of ['backend-api', 'backend-worker'] as const) {
-        for (const container of await listComposeContainers(
-          getProjectId(),
+        for (const container of await runtime.list({
+          stack: getProjectId(),
           service,
-        )) {
+        })) {
           logger.info(`${prefix}Would remove: ${container.name}`);
         }
       }
     } else {
-      await retireLegacyBackendTier();
+      await retireLegacyBackendTier(runtime);
     }
 
     // Optionally remove stateful containers
@@ -103,12 +191,19 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.step(`${prefix}Removing stateful containers...`);
       // The sidecars restart unless stopped: left behind, they keep running
       // after the CLI is gone and pin the project network against the prune.
-      for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
+      // On Incus the stack's resolvers and its switch are singletons too.
+      for (const service of [
+        ...STATEFUL_SERVICES,
+        ...SIDECAR_SERVICES,
+        ...(runtime.engine === 'incus'
+          ? (['names', 'names-sessions', 'switch'] as const)
+          : []),
+      ]) {
         const containerName = `${getProjectId()}-${service}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
-          await removeContainer(containerName);
+          await runtime.remove(containerName);
         }
       }
     }
@@ -138,13 +233,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Prune unused networks for this project only
     logger.step(`${prefix}Pruning unused Docker networks...`);
     if (!dryRun) {
-      const pruned = await docker(
-        'network',
-        'prune',
-        '-f',
-        '--filter',
-        `label=project=${getProjectId()}`,
-      );
+      const pruned = await runtime.pruneNetworks();
       if (!pruned.success) {
         logger.warn(
           `Failed to prune project networks: ${pruned.stderr.trim() || 'no stderr captured'}`,
@@ -164,23 +253,43 @@ export async function reset(options: ResetOptions): Promise<void> {
     // given `--all`, which older daemons refuse, and every volume here is
     // named. The `project` label a prune would filter on also marks the
     // snapshots and the dev stack's volumes.
-    if (includeStateful) {
+    if (includeStateful && store !== null) {
+      if (dryRun) {
+        for (const volume of await store.dataVolumes())
+          logger.info(`${prefix}Would remove volume: ${volume}`);
+        logger.info(
+          `${prefix}Would archive the newest snapshot into ${BACKUP_VOLUME} first, and keep ${BACKUP_VOLUME}`,
+        );
+      } else {
+        logger.step('Removing data volumes...');
+        for (const volume of await store.dataVolumes())
+          await runtime.removeVolume(volume);
+        // The next deploy may make the data volumes again (R3-22).
+        await store.recordReset();
+        logger.info(
+          `Kept volume: ${BACKUP_VOLUME}, with the snapshots \`tale restore\` lists. To delete them as well: ${await runtime.volumeRemovalHint(BACKUP_VOLUME)}`,
+        );
+      }
+    } else if (includeStateful) {
       logger.step(`${prefix}Removing data volumes...`);
       for (const volume of dataVolumes()) {
         if (dryRun) {
           logger.info(`${prefix}Would remove volume: ${volume}`);
         } else {
-          await removeVolume(volume);
+          await runtime.removeVolume(volume);
         }
       }
-      // Inspected through `docker`, not `volumeExists`: other suites replace
-      // `ensure-volumes` with Bun's process-global `mock.module`, and reset's
-      // tests would then read their stub instead of their own docker mock.
+      // The runtime names how to delete the volume by hand, when it is
+      // there. Docker reads it with the `docker` runner itself, not
+      // `volumeExists`: other suites replace `ensure-volumes` with Bun's
+      // process-global `mock.module`, and reset's tests would then read their
+      // stub instead of their own docker mock.
       const backups = `${getProjectId()}_${BACKUP_VOLUME}`;
-      if ((await docker('volume', 'inspect', backups)).success) {
+      const removal = await runtime.volumeRemovalHint(backups);
+      if (removal !== null) {
         logger.info(
           `${prefix}${dryRun ? 'Would keep' : 'Kept'} volume: ${backups}, with the snapshots \`tale restore\` lists. ` +
-            `To delete them as well: docker volume rm ${backups}`,
+            `To delete them as well: ${removal}`,
         );
       }
     }

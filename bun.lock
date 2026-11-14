@@ -87,6 +87,13 @@
         "@types/jsdom": "21.1.7",
       },
     },
+    "packages/incus": {
+      "name": "@tale/incus",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@peculiar/x509": "1.14.3",
+      },
+    },
     "packages/marketing-ui": {
       "name": "@tale/marketing-ui",
       "version": "0.1.0",
@@ -327,7 +334,7 @@
         "file-type": "^22.0.1",
         "framer-motion": "12.38.0",
         "he": "1.2.0",
-        "hono": "4.13.7",
+        "hono": "4.13.16",
         "i18next": "26.0.4",
         "image-size": "2.0.4",
         "imapflow": "1.4.3",
@@ -434,11 +441,11 @@
       "dependencies": {
         "@kubernetes/client-node": "^1.4.0",
         "@sentry/bun": "10.54.0",
+        "@tale/incus": "workspace:*",
         "ip-address": "10.7.1",
         "yaml": "2.8.3",
       },
       "devDependencies": {
-        "@peculiar/x509": "1.14.3",
         "@types/bun": "^1.1.0",
         "jszip": "3.10.1",
         "typescript": "^5.6.0",
@@ -481,7 +488,7 @@
         "camoufox-js": "0.13.0",
         "fast-xml-parser": "5.12.0",
         "fingerprint-generator": "2.1.89",
-        "hono": "4.13.7",
+        "hono": "4.13.16",
         "playwright-core": "1.62.1",
         "react-hook-form": "7.72.1",
         "react-i18next": "17.0.2",
@@ -539,7 +546,9 @@
       "dependencies": {
         "@inquirer/prompts": "8.4.1",
         "@noble/curves": "1.9.7",
+        "@peculiar/x509": "1.14.3",
         "@scure/base": "2.0.0",
+        "@tale/incus": "workspace:*",
         "@tale/shared": "workspace:*",
         "@tale/ui": "workspace:*",
         "acorn": "8.18.0",
@@ -640,7 +649,7 @@
     "fast-uri": "3.1.8",
     "follow-redirects": "1.16.2",
     "form-data": "4.0.6",
-    "hono": "4.13.7",
+    "hono": "4.13.16",
     "html-to-text": "10.0.1",
     "immutable": "5.1.9",
     "ip-address": "10.7.1",
@@ -2051,6 +2060,8 @@
 
     "@tale/e2e": ["@tale/e2e@workspace:packages/e2e"],
 
+    "@tale/incus": ["@tale/incus@workspace:packages/incus"],
+
     "@tale/lint-links": ["@tale/lint-links@workspace:tools/lint-links"],
 
     "@tale/lint-manual": ["@tale/lint-manual@workspace:tools/lint-manual"],
@@ -3119,7 +3130,7 @@
 
     "homedir-polyfill": ["homedir-polyfill@1.0.3", "", { "dependencies": { "parse-passwd": "^1.0.0" } }, "sha512-eSmmWE5bZTK2Nou4g0AI3zZ9rswp7GRKoKXS1BLUkvPviOqs4YTN1djQIqrXy9k5gEtdLPy86JjRwsNM9tnDcA=="],
 
-    "hono": ["hono@4.13.7", "", {}, "sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ=="],
+    "hono": ["hono@4.13.16", "", {}, "sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A=="],
 
     "hpagent": ["hpagent@1.2.0", "", {}, "sha512-A91dYTeIB6NoXG+PxTQpCCDDnfHsW9kc06Lvpu1TEe9gnd6ZFeiBoRO9JvzEv6xK7EX97/dUE8g/vBMTqTS3CA=="],
 

@@ -19,12 +19,15 @@
     "lint": "bunx oxlint",
     "lint:fix": "bunx oxlint --fix",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun test --timeout 30000"
+    "test": "bun test --timeout 30000",
+    "test:e2e:incus": "bun test --timeout 14400000 ./e2e/incus/suites/bootstrap.e2e.ts ./e2e/incus/suites/managed.e2e.ts ./e2e/incus/suites/fresh-noop.e2e.ts ./e2e/incus/suites/logs.e2e.ts ./e2e/incus/suites/crash-loop.e2e.ts ./e2e/incus/suites/stop.e2e.ts ./e2e/incus/suites/sandbox.e2e.ts ./e2e/incus/suites/export-client.e2e.ts ./e2e/incus/suites/flip.e2e.ts ./e2e/incus/suites/streams.e2e.ts ./e2e/incus/suites/infra-skew.e2e.ts ./e2e/incus/suites/services-rollback.e2e.ts ./e2e/incus/suites/resume.e2e.ts ./e2e/incus/suites/withdraw-restart.e2e.ts ./e2e/incus/suites/backup.e2e.ts ./e2e/incus/suites/reset-keeps-backups.e2e.ts ./e2e/incus/suites/restore-history.e2e.ts ./e2e/incus/suites/reboot.e2e.ts ./e2e/incus/suites/migrate.e2e.ts ./e2e/incus/suites/secrets.e2e.ts"
   },
   "dependencies": {
     "@inquirer/prompts": "8.4.1",
     "@noble/curves": "1.9.7",
+    "@peculiar/x509": "1.14.3",
     "@scure/base": "2.0.0",
+    "@tale/incus": "workspace:*",
     "@tale/shared": "workspace:*",
     "@tale/ui": "workspace:*",
     "acorn": "8.18.0",

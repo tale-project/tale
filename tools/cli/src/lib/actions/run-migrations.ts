@@ -16,19 +16,26 @@
 import * as logger from '../../utils/logger';
 import {
   BACKEND_API_LABEL,
-  backendApiContainer,
   controlCall,
   isBackendTierRunning,
 } from '../docker/control-call';
+import { requireProject } from '../project/find-project';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
+import { servingApiReplica } from './incus-deploy';
 
 interface RunMigrationsOptions {
   dryRun: boolean;
+  /** The runtime to address; selected from the project's `tale.json` when
+   *  absent. */
+  runtime?: StackRuntime;
 }
 
 export async function runMigrations(
   options: RunMigrationsOptions,
 ): Promise<void> {
-  const container = await backendApiContainer();
+  const runtime = options.runtime ?? (await selectRuntime(requireProject()));
+  const container = await servingApiReplica(runtime, 'migrate');
   const label = container ?? BACKEND_API_LABEL;
 
   if (options.dryRun) {
@@ -40,7 +47,7 @@ export async function runMigrations(
     return;
   }
 
-  if (!(await isBackendTierRunning())) {
+  if (!(await isBackendTierRunning(runtime))) {
     throw new Error(
       `tale migrate needs the backend tier: no ${label} container is running. ` +
         'Start the deployment (`tale deploy`, or `tale dev` for a local stack), then re-run.',
@@ -54,7 +61,7 @@ export async function runMigrations(
   const res = await controlCall(
     'POST',
     '/api/control/provision',
-    container === null ? {} : { container },
+    container === null ? { runtime } : { container, runtime },
   );
   if (!res.success) {
     throw new Error(

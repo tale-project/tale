@@ -1,6 +1,8 @@
 /**
- * THE machine channel between the CLI and a running deployment:
- * `docker exec <backend-api> curl localhost:$PORT/api/control/...`.
+ * THE machine channel between the CLI and a running deployment: an exec of
+ * `curl localhost:$PORT/api/control/...` in a backend-api replica, through
+ * the deployment's runtime (`docker exec` on Docker, an Incus exec on Incus,
+ * which the call's budget bounds too).
  *
  * Deliberately NOT the proxy — a control call often runs precisely while the
  * proxy is pointing at a container that is going away (deploy drain), and the
@@ -19,10 +21,9 @@
 
 import { getProjectId } from '../../utils/load-env';
 import type { DeploymentColor } from '../compose/types';
+import { dockerRuntime } from '../runtime/docker/docker-runtime';
+import type { StackRuntime } from '../runtime/types';
 import { getOppositeColor } from '../state/get-opposite-color';
-import { docker } from './docker';
-import { exec } from './exec';
-import { listRunningServiceContainers } from './list-service-containers';
 
 /** The api container's in-container port (compose sets PORT=3005). */
 const BACKEND_CONTROL_PORT = '3005';
@@ -59,6 +60,16 @@ function drainWriterProjects(retiring: DeploymentColor): string[] {
   return [`${id}-${getOppositeColor(retiring)}`, `${id}-${retiring}`, id];
 }
 
+/** The running api replicas of one stack, in replica order. */
+async function runningApiReplicas(
+  runtime: StackRuntime,
+  stack: string,
+): Promise<string[]> {
+  return (await runtime.list({ stack, service: BACKEND_API_SERVICE }))
+    .filter((replica) => replica.running)
+    .map((replica) => replica.name);
+}
+
 /**
  * Every RUNNING api replica, in replica order. Scoped to one colour when
  * given — a drain aims at the colour it is retiring, not at the one that
@@ -66,12 +77,11 @@ function drainWriterProjects(retiring: DeploymentColor): string[] {
  */
 export async function backendApiContainers(
   colour?: DeploymentColor | null,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<string[]> {
   const found: string[] = [];
   for (const project of backendProjects(colour)) {
-    found.push(
-      ...(await listRunningServiceContainers(project, BACKEND_API_SERVICE)),
-    );
+    found.push(...(await runningApiReplicas(runtime, project)));
   }
   return found;
 }
@@ -84,8 +94,9 @@ export async function backendApiContainers(
  */
 export async function backendApiContainer(
   colour?: DeploymentColor | null,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<string | null> {
-  return (await backendApiContainers(colour))[0] ?? null;
+  return (await backendApiContainers(colour, runtime))[0] ?? null;
 }
 
 /**
@@ -95,12 +106,10 @@ export async function backendApiContainer(
  */
 export async function backendApiDrainWriter(
   retiring: DeploymentColor,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<string | null> {
   for (const project of drainWriterProjects(retiring)) {
-    const found = await listRunningServiceContainers(
-      project,
-      BACKEND_API_SERVICE,
-    );
+    const found = await runningApiReplicas(runtime, project);
     const first = found[0];
     if (first !== undefined) return first;
   }
@@ -110,11 +119,9 @@ export async function backendApiDrainWriter(
 /** Running api replicas in ONE colour's project — not the leftover singleton. */
 export async function backendApiContainersInColor(
   colour: DeploymentColor,
+  runtime: StackRuntime = dockerRuntime,
 ): Promise<string[]> {
-  return listRunningServiceContainers(
-    `${getProjectId()}-${colour}`,
-    BACKEND_API_SERVICE,
-  );
+  return runningApiReplicas(runtime, `${getProjectId()}-${colour}`);
 }
 
 /** How to NAME the api tier in a message when no replica is up to name.
@@ -124,8 +131,10 @@ export const BACKEND_API_LABEL = 'backend-api';
 
 /** Is any backend api replica up? Every control call degrades on `false`
  *  rather than failing the command that wraps it. */
-export async function isBackendTierRunning(): Promise<boolean> {
-  return (await backendApiContainers()).length > 0;
+export async function isBackendTierRunning(
+  runtime: StackRuntime = dockerRuntime,
+): Promise<boolean> {
+  return (await backendApiContainers(null, runtime)).length > 0;
 }
 
 export interface ControlCallResult {
@@ -143,6 +152,10 @@ export interface ControlCallResult {
  */
 export const DEFAULT_CONTROL_TIMEOUT_S = 15;
 
+/** How long the runtime waits for an exec beyond the call's own budget
+ *  (Incus needs a bound for every exec; Docker keeps today's call). */
+const CONTROL_EXEC_SLACK_S = 30;
+
 /**
  * One control-door call. `body`, when given, is sent as a JSON request body
  * over stdin (never argv). `timeoutS` (default `DEFAULT_CONTROL_TIMEOUT_S`)
@@ -152,9 +165,16 @@ export const DEFAULT_CONTROL_TIMEOUT_S = 15;
 export async function controlCall(
   method: 'GET' | 'POST',
   path: string,
-  options: { container?: string; body?: unknown; timeoutS?: number } = {},
+  options: {
+    container?: string;
+    body?: unknown;
+    timeoutS?: number;
+    runtime?: StackRuntime;
+  } = {},
 ): Promise<ControlCallResult> {
-  const container = options.container ?? (await backendApiContainer());
+  const runtime = options.runtime ?? dockerRuntime;
+  const container =
+    options.container ?? (await backendApiContainer(null, runtime));
   if (container === null) {
     return {
       success: false,
@@ -164,30 +184,27 @@ export async function controlCall(
   }
   const auth = '-H "Authorization: Bearer $TALE_CONTROL_TOKEN"';
   const url = `http://localhost:${BACKEND_CONTROL_PORT}${path}`;
-  const prefix = `timeout ${options.timeoutS ?? DEFAULT_CONTROL_TIMEOUT_S} `;
+  const budget = options.timeoutS ?? DEFAULT_CONTROL_TIMEOUT_S;
+  const prefix = `timeout ${budget} `;
+  const timeoutS = budget + CONTROL_EXEC_SLACK_S;
 
   if (options.body === undefined) {
-    return docker(
-      'exec',
+    return runtime.exec(
       container,
-      'sh',
-      '-c',
-      `${prefix}curl -fsS -X ${method} ${auth} ${url}`,
+      ['sh', '-c', `${prefix}curl -fsS -X ${method} ${auth} ${url}`],
+      { timeoutS },
     );
   }
 
   // `--data-binary @-` reads the body from the curl process's stdin, which is
-  // the `docker exec -i` stream: the payload never appears in argv.
-  return exec(
-    'docker',
+  // the exec's stdin stream: the payload never appears in argv.
+  return runtime.exec(
+    container,
     [
-      'exec',
-      '-i',
-      container,
       'sh',
       '-c',
       `${prefix}curl -fsS -X ${method} ${auth} -H "Content-Type: application/json" --data-binary @- ${url}`,
     ],
-    { stdin: JSON.stringify(options.body) },
+    { stdin: JSON.stringify(options.body), timeoutS },
   );
 }

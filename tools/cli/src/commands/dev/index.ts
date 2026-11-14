@@ -7,7 +7,9 @@ import { action } from '../../utils/run-command';
 
 export function createDevCommand(): Command {
   return new Command('dev')
-    .description('Run Tale locally with your project files (live-reloaded)')
+    .description(
+      'Run Tale locally on Docker with your project files (live-reloaded)',
+    )
     .option('-d, --detach', 'run in background')
     .addOption(
       new Option('--stop', 'stop this local stack, keeping its data').conflicts(

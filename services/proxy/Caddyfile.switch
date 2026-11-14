@@ -1,0 +1,60 @@
+# Caddy configuration of the traffic switch (TALE_PROXY_ROLE=switch)
+#
+# On the Incus runtime the stable names `platform` and `backend-api` resolve to
+# this instance, and it balances each over the replicas of both colours. The
+# edge in front of it (the proxy in its default role, Caddyfile unchanged) and
+# the stack's own callers never see a colour flip as a change of address.
+#
+# Each upstream file names every replica slot of its role in both colours. The
+# runtime writes them once, when it creates the switch, on the volume mounted
+# at /switch, and never changes them during a flip, a roll or a scale change: a
+# slot whose replica is absent, stopped, starting or withdrawn fails the active
+# check below and gets no traffic. Nothing here reloads, so no config change
+# ever closes a stream. A replica leaves the switch through its admission
+# probe, never through /api/health, which the edge checks on this switch and
+# which must stay 200 while any replica is admitted.
+#
+# Docker Compose never runs this role: it joins and leaves replicas by network
+# alias instead.
+
+{
+	admin localhost:2019
+	servers {
+		# The edge, and the stack's callers, reach the switch from private
+		# addresses: keep the X-Forwarded-For chain they send, so the backend
+		# still attributes a request to its client.
+		trusted_proxies static private_ranges
+	}
+}
+
+# The platform web tier. Its admission probe answers 503 while the replica is
+# starting, withdrawn or shutting down (services/platform/server.ts).
+:3000 {
+	reverse_proxy {
+		import /switch/platform.upstreams
+		health_uri /api/admission
+		health_interval 2s
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		flush_interval -1
+	}
+}
+
+# The backend API. Its admission probe answers 503 while the replica is
+# withdrawn, and asks no database (services/platform/backend/app.ts).
+:3005 {
+	reverse_proxy {
+		import /switch/backend-api.upstreams
+		health_uri /admission
+		health_interval 2s
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		flush_interval -1
+	}
+}
+
+# Liveness of the switch itself, as the edge role answers it (the image's
+# HEALTHCHECK reads it).
+:2020 {
+	respond /health 200
+}

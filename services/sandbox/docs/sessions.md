@@ -1264,8 +1264,9 @@ storage driver.
   attach replay), `docker-session-args` + `k8s-session-pod-spec` snapshots,
   the session route layer against a fake runnerd, the agent adapters.
 - Incus (no node): `src/backend/incus/*.test.ts` run every method of both
-  backends, the warm pool and the node checks against `fake-incus.ts`, an
-  in-memory Incus API, and the TLS pinning against a real mutual-TLS server.
+  backends, the warm pool and the node checks against `@tale/incus/fake`, an
+  in-memory Incus API; `packages/incus/src/*.test.ts` run the REST client and
+  the TLS pinning against a real mutual-TLS server.
 - Incus (a real node): `e2e/incus` builds on a CI runner the node incus.md
   describes and drives this spawner's signed API through the session contract
   (`.github/workflows/sandbox-incus-e2e.yml`; dispatch it on a draft branch).

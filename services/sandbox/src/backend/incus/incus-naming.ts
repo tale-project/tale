@@ -12,8 +12,9 @@
 
 import { createHash } from 'node:crypto';
 
+import type { IncusConfigMap } from '@tale/incus/api';
+
 import { belongsToInstance } from '../../session/session-naming.ts';
-import type { IncusConfigMap } from './incus-api.ts';
 
 const INSTANCE_PREFIX = 'tale-sbx-ses-';
 const POOL_PREFIX = 'tale-sbx-pool-';

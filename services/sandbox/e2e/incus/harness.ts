@@ -5,7 +5,8 @@
 import { afterAll, setDefaultTimeout, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
-import type { IncusVolume } from '../../src/backend/incus/incus-api.ts';
+import type { IncusVolume } from '@tale/incus/api';
+
 import {
   incusInstanceName,
   incusWorkspaceVolumeName,

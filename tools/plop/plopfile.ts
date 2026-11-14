@@ -1,5 +1,6 @@
 import type { NodePlopAPI } from 'plop';
 
+import { registerManual } from './generators/manual';
 import { registerMigration } from './generators/migration';
 import { registerPackage } from './generators/package';
 import { registerService } from './generators/service';
@@ -12,6 +13,7 @@ export default function (plop: NodePlopAPI): void {
   registerHelpers(plop);
   registerPackage(plop);
   registerService(plop);
+  registerManual(plop);
   registerTool(plop);
   registerSkill(plop);
   registerMigration(plop);

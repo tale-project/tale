@@ -10,6 +10,9 @@ from the root manifests copies this directory (`COPY patches/ ./patches/`): the 
 `workspace-deps` stage and its pruner), web, docs, ui-docs, the session manager and the service
 template in `tools/plop`.
 
+One directory holds a patch Bun does not apply: `dumb-init/` patches a C program that six images
+build from source (see its entry below).
+
 ## `postgres@3.4.7.patch`
 
 **Why.** postgres.js 3.4.7 (and 3.4.9, the latest 3.x release) crashes the process when a PostgreSQL
@@ -288,3 +291,39 @@ and an unmounted toast no longer dismisses itself late.
 **Remove it when** `@radix-ui/react-toast` 1.2.18 or later is locked. Bump it in `packages/ui` and
 `services/platform` together, delete this entry and its `patchedDependencies` line, and keep the
 test.
+
+## `dumb-init/maxsig-64.patch`
+
+**Why.** Incus runs `/init` as PID 1 of an OCI container and stops it with a halt signal: SIGPWR,
+or SIGRTMIN+3 (signal 37) when PID 1 blocks that signal. liblxc picks it in `do_lxcapi_shutdown`
+([lxccontainer.c](https://github.com/lxc/lxc/blob/main/src/lxc/lxccontainer.c)), and a
+restricted Incus project cannot change it (`raw.lxc` is host root). PostgreSQL handles neither
+signal, and either one ends it without a clean shutdown, so its next start runs a crash recovery. dumb-init can
+rewrite a signal to the image's stop signal (`--rewrite 30:2`), but 1.2.5 caps a rewrite at signal
+31 (`MAXSIG`) and refuses `--rewrite 37:…` at start-up. dumb-init blocks every signal and waits in
+`sigwait`, so liblxc normally sends SIGPWR; in a race (one stop in 30 under a SIGCHLD storm, Incus
+7.6) it sends SIGRTMIN+3, and only a real-time rewrite catches that one. Upstream has no
+real-time rewrite; [Yelp/dumb-init](https://github.com/Yelp/dumb-init) is asked for one.
+
+**What.** `MAXSIG` goes from 31 to 64 in `dumb-init.c`, so `--rewrite` takes every signal up to
+SIGRTMAX and the rewrite table covers them. The same stage in each of the six stack images' Dockerfiles
+(db, platform, proxy, sandbox, sandbox-egress, sandbox-llm-gateway) fetches the 1.2.5 source tarball
+by its sha256, applies this patch, builds `/init` statically with musl, and copies it into the
+image; the label `dev.tale.init=dumb-init-1.2.5+maxsig64` says so.
+`tools/cli/scripts/oci-image-metadata.test.ts` holds the six stages byte-equal and pinned, the
+patch to that one change, and the copy and the label to every image.
+
+**Proof.** On Incus, the CLI starts each instance as `/init --single-child --rewrite 30:S
+--rewrite 37:S --rewrite 38:S -- <entrypoint>`, where S is the stop signal. Measured on Incus 7.6:
+`tale-db` under it logs `database system is shut down` on `incus stop --timeout 60`, and its next
+start reads `was shut down at` with no recovery; under Incus's own init it logged
+`not properly shut down; automatic recovery` after a stop under load, and the released dumb-init
+refuses `--rewrite 37:2`. The stop suite of the CLI's Incus end-to-end check repeats the first
+measurement on every run.
+
+**Behaviour change.** None under Docker or Kubernetes: no image's `ENTRYPOINT` names `/init`, so
+nothing runs it there. Under Incus the halt signal reaches the service as its stop signal.
+
+**Remove it when** dumb-init releases a real-time rewrite, or Incus stops an OCI container with
+the image's `StopSignal`. Then build that release unpatched (or drop the stage, if Incus's own
+init is enough), keep the label in step, and delete this entry and the directory.

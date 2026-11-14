@@ -5,7 +5,7 @@ description: Réunis les éléments nécessaires à la reprise, copie les snapsh
 
 Une instance Tale récupérable demande plus qu’une archive de base de données. Conserve ses fichiers, la configuration des organisations, le dossier de déploiement et les clés de déchiffrement, avec la version qui a écrit les données. Définis d’abord la perte de données et la durée de reprise acceptables, puis vérifie que tes sauvegardes et ta procédure respectent ces objectifs.
 
-Ce guide couvre les snapshots de volumes Docker de la CLI utilisée dans un workspace. Si tu gères Compose toi-même, prévois une sauvegarde des mêmes stockages. Les bases et buckets externes exigent des sauvegardes séparées et coordonnées.
+Ce guide couvre les snapshots de volumes Docker de la CLI utilisée dans un workspace et, à partir de [Snapshots sur Incus](#incus), ceux d’un workspace sur le runtime Incus expérimental. Si tu gères Compose toi-même, prévois une sauvegarde des mêmes stockages. Les bases et buckets externes exigent des sauvegardes séparées et coordonnées.
 
 ## Préparer un hôte de reprise vide
 
@@ -19,7 +19,7 @@ docker volume create --label "project=$TALE_RESTORE_PROJECT" "${TALE_RESTORE_PRE
 docker volume inspect "${TALE_RESTORE_PREFIX}backups"
 ```
 
-Ces commandes préparent les volumes de configuration et de sauvegarde sans démarrer de backend ni appliquer de migration. Avec ton système de sauvegarde, restaure le contenu complet de `backups` dans ce volume. Le point de montage affiché appartient à l’hôte Docker, qui peut être distant. Conserve la structure des répertoires et les manifestes des snapshots. `tale restore` doit ensuite afficher le snapshot attendu. Pendant la restauration effective, la CLI crée les autres volumes cibles manquants après avoir vérifié le snapshot.
+Ces commandes préparent les volumes de configuration et de sauvegarde sans démarrer de backend ni appliquer de migration. Pour transporter un snapshot sous forme d’un seul fichier, ou vers un workspace sur Incus, utilise plutôt [l’export et l’import](#export-import). Avec ton système de sauvegarde, restaure le contenu complet de `backups` dans ce volume. Le point de montage affiché appartient à l’hôte Docker, qui peut être distant. Conserve la structure des répertoires et les manifestes des snapshots. `tale restore` doit ensuite afficher le snapshot attendu. Pendant la restauration effective, la CLI crée les autres volumes cibles manquants après avoir vérifié le snapshot.
 
 ## Vérifier la portée du snapshot
 
@@ -70,7 +70,7 @@ Utilise l’identifiant de projet de `tale.json` pour trouver le volume :
 docker volume inspect <project-id>_backups
 ```
 
-Le chemin de montage appartient à l’hôte Docker, qui peut être une VM ou une machine distante. Configure ton agent de sauvegarde à cet endroit sans supposer que le chemin existe sur ton poste. Vérifie que la copie externe contient `manifest.json`, toutes les archives qu’il cite et leurs fichiers de somme de contrôle.
+Le chemin de montage appartient à l’hôte Docker, qui peut être une VM ou une machine distante. Configure ton agent de sauvegarde à cet endroit sans supposer que le chemin existe sur ton poste. Vérifie que la copie externe contient `manifest.json`, toutes les archives qu’il cite et leurs fichiers de somme de contrôle. Sur les deux runtimes, `tale backup export` écrit aussi un snapshot sous forme d’un seul fichier que tu peux copier hors de l’hôte, comme le décrit [Déplacer un snapshot vers un autre hôte ou un autre runtime](#export-import).
 
 La rotation locale garde les cinq snapshots les plus récents **et** ceux des 14 derniers jours. Un snapshot n’est supprimé que s’il dépasse les deux limites. Modifie `BACKUP_KEEP_COUNT` et `BACKUP_KEEP_DAYS` dans `.env` pour ajuster ces fenêtres ; configure séparément la rétention des copies externes.
 
@@ -100,6 +100,63 @@ tale status
 ```
 
 La version compte : un backend plus récent peut appliquer des migrations dès son démarrage. Restaurer les données puis lancer une image actuelle choisie arbitrairement ne rétablit pas l’état enregistré. La CLI restaure les anciennes archives de configuration `convex-data` dans le volume actuel `config-data`.
+
+## Snapshots sur Incus {#incus}
+
+Dans un workspace qui tourne sur Incus, `tale backup`, `tale restore` et le snapshot qui précède un `tale deploy` changeant de version utilisent les snapshots de volumes propres à Incus. Les commandes, la liste et les réglages de rétention restent les mêmes ; ce qu’est un snapshot, le déroulement d’une restauration et ce qu’elle exige diffèrent.
+
+### Ce que contient un ensemble natif {#incus-sets}
+
+Sur Incus, un snapshot est un ensemble : un snapshot natif de chaque volume de données de la stack, dont ceux de l’inventaire ci-dessus, tous pris pendant que les services en marche qui utilisent ces volumes sont gelés. Le gel dure bien moins d’une seconde, et non le temps d’une archive ; ensuite, le snapshot attend que chaque service qui était en bonne santé le soit de nouveau. Un manifeste dans le volume `backups` nomme l’ensemble. Les volumes que la CLI écrit elle-même (les enregistrements des résolveurs, les listes d’upstreams du switch de trafic et les identifiants du spawner sandbox) ne font jamais partie d’un ensemble, car la CLI les réécrit à partir de la déclaration.
+
+Un snapshot natif vit sur son volume, dans le même pool de stockage : il ne survit donc pas à la perte du pool ou de l’hôte. `tale backup --archive` écrit en plus une archive `tar.gz` de chaque volume dans `backups`, avec son SHA-256, au même format que sur Docker. `tale restore` marque chaque snapshot listé comme `native` ou `native + archive`. Les snapshots qu’Incus prend selon son propre calendrier (`snapshots.schedule` dans `runtime.incus.volumes`) ne sont pas des ensembles : `tale restore` ne les liste ni ne les fait tourner, et Incus les fait expirer selon `snapshots.expiry`.
+
+La rotation garde les mêmes fenêtres que sur Docker (`BACKUP_KEEP_COUNT`, `BACKUP_KEEP_DAYS`). Elle supprime ensemble les snapshots natifs et les archives d’un ensemble expiré, ainsi qu’un volume mis de côté par une restauration dès qu’aucun snapshot conservé n’y vit plus.
+
+### Restaurer sur Incus {#incus-restore}
+
+Sur Incus, une restauration ne ramène jamais un volume en arrière sur place : les snapshots plus récents que celui que tu restaures restent donc disponibles. Pour chaque volume, `tale restore <snapshot-id> --stop` arrête les services qui l’utilisent, chacun dans son délai de grâce, et détache le volume. Il met le volume de côté sous le nom `<volume>.pre-restore-<horodatage>`, qui emporte son historique de snapshots, et copie le snapshot (ou extrait son archive) dans un volume neuf portant le nom d’origine. Il rattache ensuite le volume et redémarre les services. Sans `--stop`, la restauration refuse tant qu’un service utilise l’un des volumes.
+
+Le volume mis de côté garde l’intégralité des données précédentes : une restauration demande donc environ deux fois la place du volume. Avant de changer quoi que ce soit, la restauration vérifie que l’espace libre du pool et ce qui reste de chaque quota de disque que le projet fixe (`limits.disk.pool.<pool>`, `limits.disk`) dépassent la taille des copies plus 10 %, et refuse sinon.
+
+Chaque étape est consignée dans le journal comme restauration en attente. Quand une restauration s’arrête en cours de route, après un plantage, une connexion perdue ou un pool plein, `tale deploy`, `tale start`, `tale rollback`, `tale runtime migrate` et un nouveau snapshot refusent, et `tale status` nomme l’étape de chaque volume. Rien ne recrée entre-temps un volume de données manquant à vide. Termine la restauration, ou annule-la pour que chaque volume redevienne tel qu’il était :
+
+```bash
+tale restore --resume
+tale restore --abort
+```
+
+Déploie ensuite la version que le snapshot a enregistrée, comme le décrit l’étape 5 de [Restaurer les données et leur version](#restaurer-les-donnees-et-leur-version).
+
+`tale backup prune` liste les volumes que des restaurations ont mis de côté, avec les snapshots qui y vivent encore, et supprime, après confirmation, ceux sur lesquels ne vit plus aucun snapshot listé ; `--dry-run` se contente de les lister, `--yes` saute la question. Un volume mis de côté qui porte encore un snapshot listé n’est jamais supprimé.
+
+## Déplacer un snapshot vers un autre hôte ou un autre runtime {#export-import}
+
+`tale backup export` écrit un snapshot sous forme d’un seul fichier : un `tar` de son manifeste et de l’archive `tar.gz` de chaque volume, chaque archive étant vérifiée par rapport à son SHA-256 à la sortie. Sur Incus, l’export écrit d’abord les archives qui manquent à un ensemble natif, à partir de copies de ses snapshots ; les snapshots natifs eux-mêmes ne quittent jamais l’hôte. L’export n’écrase jamais un fichier.
+
+```bash
+tale backup export <snapshot-id> --to tale-snapshot.tar
+```
+
+Sans `--to`, le fichier s’appelle `tale-snapshot-<snapshot-id>.tar`, dans le dossier courant. Dans le workspace de destination, `tale backup import` lit le fichier dans `backups`, vérifie chaque archive par SHA-256 à son arrivée et écrit le manifeste en dernier, si bien qu’un import interrompu n’est jamais listé. Il refuse un identifiant de snapshot que le workspace possède déjà. Sur Incus, déploie d’abord le workspace une fois, pour que son volume `backups` existe. Restaure ensuite comme d’habitude :
+
+```bash
+tale backup import tale-snapshot.tar
+tale restore <snapshot-id> --stop
+```
+
+Le format est le même sur les deux runtimes : un fichier exporté sur Docker se restaure sur Incus et inversement, avec le même `.env`, les mêmes clés et la même version des deux côtés. [`tale runtime migrate`](/fr/self-hosted/install/incus#migrate) enchaîne lui-même ces étapes quand il fait passer un workspace de Docker à Incus.
+
+## Savoir ce que garde une réinitialisation {#reset}
+
+`tale reset --all` supprime les volumes de données, et `tale uninstall --purge` démonte tout le projet. Ce qui reste dépend du runtime :
+
+| Runtime | Supprimé | Conservé |
+| --- | --- | --- |
+| Docker | Les volumes de données. | Le volume `<project-id>_backups` avec chaque snapshot. |
+| Incus | Les volumes de données, et avec eux chaque snapshot natif qui y vit. | Le volume `backups`, avec l’archive de l’ensemble le plus récent et chaque archive et manifeste qu’il contenait déjà, ainsi que les volumes mis de côté par des restaurations. |
+
+Sur Incus, la réinitialisation archive d’abord l’ensemble le plus récent dans `backups` et vérifie l’archive. Si cela échoue, elle refuse et ne supprime rien ; `--discard-snapshots` supprime quand même les volumes et perd leurs snapshots natifs. Un ensemble plus ancien sans archive ne peut plus être restauré une fois ses volumes partis, sauf s’il vit sur un volume qu’une restauration a mis de côté : archive donc avec `tale backup --archive` ce que tu veux garder avant de réinitialiser. Le `tale deploy` suivant crée des volumes de données vides, et `tale restore` liste le snapshot archivé.
 
 ## Valider la reprise avant de rouvrir le trafic
 

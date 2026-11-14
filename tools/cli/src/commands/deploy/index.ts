@@ -42,6 +42,15 @@ export function createDeployCommand(): Command {
     )
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option(
+      '--plan-only',
+      'On the Incus runtime (a workspace or --bundle): print the plan of every Incus resource and change nothing',
+      false,
+    )
+    .option(
+      '--plan <file>',
+      'On the Incus runtime (a workspace or --bundle): apply exactly this reviewed plan (from --plan-only --json)',
+    )
+    .option(
       '--host <hostname>',
       'Serve this host for this run instead of HOST in .env (.env is not changed)',
     )
@@ -89,8 +98,9 @@ export function createDeployCommand(): Command {
         if (options.bundle !== undefined) {
           if (!options.bundle)
             throw usageError('--bundle must name a directory.');
+          // --stop accepts the downtime an Incus plan names; the Docker
+          // runtime refuses it when it reads the bundle.
           if (
-            options.stop ||
             options.services ||
             options.host ||
             options.override ||
@@ -108,6 +118,9 @@ export function createDeployCommand(): Command {
             dryRun: options.dryRun,
             configurationOnly: options.configurationOnly,
             yes: options.yes,
+            ...(options.stop ? { stop: true } : {}),
+            ...(options.planOnly ? { planOnly: true } : {}),
+            ...(options.plan === undefined ? {} : { plan: options.plan }),
           });
           return;
         }
@@ -119,6 +132,8 @@ export function createDeployCommand(): Command {
           throw usageError(
             '--cli-ref, --deployment-ref and --configuration-only require --bundle.',
           );
+        if (options.planOnly && options.plan !== undefined)
+          throw usageError('--plan-only and --plan cannot be combined.');
         await runDeploy({
           stop: options.stop,
           services: options.services,
@@ -130,6 +145,8 @@ export function createDeployCommand(): Command {
           yes: options.yes,
           skipBackup: options.skipBackup,
           acceptDataLoss: options.acceptDataLoss,
+          ...(options.planOnly ? { planOnly: true } : {}),
+          ...(options.plan === undefined ? {} : { plan: options.plan }),
         });
       }),
     );

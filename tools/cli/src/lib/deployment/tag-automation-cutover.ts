@@ -18,7 +18,7 @@ import { ledgerFloor } from './automation-floor';
 import {
   bundledBackendIdentity,
   installedAutomationLedger,
-  protocolRead,
+  protocolAccess,
 } from './automation-protocol';
 import {
   requireRuntime,
@@ -137,11 +137,11 @@ export async function assessTagAutomationCutover(
   let busy: boolean;
   try {
     busy = legacyCutoverBusy(
-      await protocolRead(
-        ['exec', '-i', database, 'sh', '-s'],
-        dependencies,
-        migrationReadScript('db', AUTOMATION_CUTOVER_READINESS_SQL),
-      ),
+      (
+        await protocolAccess(dependencies).exec(database, ['sh', '-s'], {
+          stdin: migrationReadScript('db', AUTOMATION_CUTOVER_READINESS_SQL),
+        })
+      ).stdout,
     );
   } catch {
     throw preconditionError(
@@ -204,19 +204,14 @@ async function imageRevision(
   const [image] = z
     .array(
       z.object({
-        Config: z.object({
-          Labels: z.record(z.string(), z.string()).nullish(),
-        }),
+        // Present, and null for an image without labels.
+        labels: z.record(z.string(), z.string()).nullable(),
       }),
     )
     .length(1)
-    .parse(
-      JSON.parse(
-        await protocolRead(['image', 'inspect', reference], dependencies),
-      ),
-    );
+    .parse(await protocolAccess(dependencies).inspectImage([reference]));
   const revision = revisionSchema.safeParse(
-    image.Config.Labels?.['org.opencontainers.image.revision'],
+    image.labels?.['org.opencontainers.image.revision'],
   );
   requireRuntime(
     revision.success,

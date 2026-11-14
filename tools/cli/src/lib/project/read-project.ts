@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { parseRuntimeDeclaration } from './runtime-declaration';
 import { isTaleProject, type TaleProject } from './types';
 
 export async function readProject(dir: string): Promise<TaleProject> {
@@ -17,5 +18,6 @@ export async function readProject(dir: string): Promise<TaleProject> {
     throw new Error(`Invalid tale.json in ${dir}`);
   }
 
-  return content;
+  const runtime = parseRuntimeDeclaration(content.runtime, dir);
+  return runtime === undefined ? content : { ...content, runtime };
 }

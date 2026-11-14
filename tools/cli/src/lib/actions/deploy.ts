@@ -3,7 +3,7 @@ import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { externalDepError } from '../../utils/fail';
+import { externalDepError, preconditionError } from '../../utils/fail';
 import {
   getProjectId,
   getReplicaCounts,
@@ -44,19 +44,10 @@ import {
   admitTagAutomationImage,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
-import { dockerCompose } from '../docker/docker-compose';
-import { imagePresent } from '../docker/ensure-image-present';
-import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
-import { ensureVolumes } from '../docker/ensure-volumes';
-import { exec } from '../docker/exec';
-import { getContainerVersion } from '../docker/get-container-version';
-import { isContainerRunning } from '../docker/is-container-running';
-import { composeCreatedContainerFilters } from '../docker/list-service-containers';
-import { migrateConfigVolume } from '../docker/migrate-config-volume';
-import { pullImage } from '../docker/pull-image';
-import { waitForHealthy } from '../docker/wait-for-healthy';
-import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
 import { discoverOrgs } from '../project/org-dirs';
+import { IncusRuntime } from '../runtime/incus/incus-runtime';
+import { selectRuntime } from '../runtime/select-runtime';
+import type { StackRuntime } from '../runtime/types';
 import {
   clearFlipPending,
   getFlipPending,
@@ -64,6 +55,7 @@ import {
 } from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
+import { assertNoMigrationUnderWay } from '../state/migration-journal';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
@@ -83,12 +75,18 @@ import {
   endDrainBackend,
 } from './drain-backend';
 import { drainSandbox } from './drain-sandbox';
+import {
+  deployOnIncus,
+  incusWorkspaceOf,
+  type WorkspacePlan,
+} from './incus-deploy';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 async function ensureInfrastructure(
   prefix: string,
   dryRun: boolean,
+  runtime: StackRuntime,
 ): Promise<void> {
   logger.step(`${prefix}Ensuring volumes and network exist...`);
   if (dryRun) {
@@ -107,18 +105,18 @@ async function ensureInfrastructure(
   // configuration still sits in `convex-data` would start the deployment
   // with an empty config tree. Throws on a failed copy, which aborts the
   // deploy with the old volume intact.
-  await migrateConfigVolume(`${getProjectId()}_`);
+  await runtime.migrateConfigVolume(`${getProjectId()}_`);
 
-  const volumesCreated = await ensureVolumes([...REQUIRED_VOLUMES]);
+  const volumesCreated = await runtime.ensureVolumes(REQUIRED_VOLUMES);
   if (!volumesCreated) {
     throw new Error('Failed to create required volumes');
   }
-  const networkCreated = await ensureNetwork('internal');
+  const networkCreated = await runtime.ensureNetwork('internal');
   if (!networkCreated) {
     throw new Error('Failed to create required network');
   }
   // Sandbox bridge: fixed name `tale-sandbox-net`, internal-only, IPv6 off.
-  const sandboxNetworkCreated = await ensureSandboxNetwork();
+  const sandboxNetworkCreated = await runtime.ensureSandboxNetwork();
   if (!sandboxNetworkCreated) {
     throw new Error('Failed to create sandbox network');
   }
@@ -167,11 +165,21 @@ interface DeployOptions {
    * external backups the operator maintains.
    */
   skipBackup?: boolean;
+  /**
+   * The runtime `tale deploy` selected for this workspace. Without it the
+   * deploy selects from `tale.json` itself.
+   */
+  runtime?: StackRuntime;
+  /** `--plan <file>` on Incus: apply only what this reviewed plan holds. */
+  plan?: WorkspacePlan;
+  /** The caller holds the deploy lock already (`tale runtime migrate`). */
+  lockHeld?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
   const { version, stop, env, hostAlias, origin, dryRun, services } = options;
   const streamLogs = !options.quiet && (process.stdout.isTTY ?? false);
+  const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
 
   // Colour projects started during this deploy but not yet live — torn down
   // on interrupt. A project, not a list of names: the replicas are named by
@@ -186,32 +194,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
     interrupted = true;
     logger.blank();
     logger.warn('Deployment interrupted, cleaning up started containers...');
-    for (const project of startedColorProjects) {
-      try {
-        // Signal handlers must be synchronous, so the replica names are
-        // resolved here rather than through the async lister.
-        const listed = Bun.spawnSync([
-          'docker',
-          'ps',
-          '-aq',
-          ...composeCreatedContainerFilters(project),
-        ]);
-        for (const id of listed.stdout
-          .toString()
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)) {
-          Bun.spawnSync(['docker', 'stop', '-t', '2', id]);
-          Bun.spawnSync(['docker', 'rm', '-f', id]);
-          logger.info(`Stopped ${id}`);
-        }
-      } catch (err) {
-        // Best-effort cleanup: log so an operator can follow up manually.
-        logger.warn(
-          `Failed to clean up ${project}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
+    runtime.onInterrupt(startedColorProjects);
     for (const stageDir of tempStageDirs) {
       try {
         Bun.spawnSync(['rm', '-rf', stageDir]);
@@ -232,8 +215,88 @@ export async function deploy(options: DeployOptions): Promise<void> {
   }
 
   try {
-    await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {
+    const locked = (work: () => Promise<void>) =>
+      options.lockHeld === true
+        ? work()
+        : withLock(env.DEPLOY_DIR, `deploy ${version}`, work);
+    await locked(async () => {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
+      // A migration to Incus stopped the Docker stack on purpose.
+      if (options.lockHeld !== true && !dryRun)
+        await assertNoMigrationUnderWay(env.DEPLOY_DIR, 'tale deploy');
+
+      // What every deploy does once the services are rolled, on either
+      // runtime: the host config push and the reseed.
+      const finish = async () => {
+        if (dryRun) {
+          logger.success(
+            `${prefix}Dry-run complete! Would deploy version ${version}`,
+          );
+        } else {
+          // Containers are now rolled. Don't print "Deployment complete!"
+          // yet — that announces success over the wire, but sync + reseed
+          // still run below and either can abort the deploy.
+          logger.info(`${prefix}Services updated to version ${version}.`);
+        }
+
+        // Sync project files to the backend api container — the tier that
+        // mounts the org config store (the `config-data` volume) read-WRITE.
+        // On Incus the copy writes the volume through its file API, as the
+        // app's uid and gid.
+        await syncProjectFiles(
+          await backendApiContainer(null, runtime),
+          env.DEPLOY_DIR,
+          dryRun,
+          prefix,
+          tempStageDirs,
+          options.override ?? false,
+          runtime,
+        );
+
+        // After deploy + optional host-push, trigger the server-side reseed of
+        // the builtin catalog into every org, through the backend's control
+        // door. Its consent was resolved before the deploy began.
+        if (options.overrideAll) {
+          await reseedAllOrgsFromBuiltin({ dryRun, runtime });
+        }
+
+        if (!dryRun) {
+          logger.success(`Deployment complete! Version ${version} is now live`);
+        }
+      };
+
+      // The workspace path on Incus (design 7.2, 7.3): scope by scope, then
+      // the flip through the switch, or the roll of `--services`.
+      if (runtime instanceof IncusRuntime) {
+        logger.header(`${prefix}Deploying Tale ${version}`);
+        await deployOnIncus({
+          workspace: incusWorkspaceOf(runtime, {
+            env,
+            hostAlias,
+            ...(origin === undefined ? {} : { origin }),
+            stop,
+          }),
+          version,
+          dryRun,
+          ...(services === undefined ? {} : { services }),
+          ...(options.plan === undefined ? {} : { plan: options.plan }),
+          ...(options.override === undefined
+            ? {}
+            : { override: options.override }),
+          ...(options.overrideAll === undefined
+            ? {}
+            : { overrideAll: options.overrideAll }),
+          ...(options.skipBackup === undefined
+            ? {}
+            : { skipBackup: options.skipBackup }),
+        });
+        await finish();
+        return;
+      }
+      if (options.plan !== undefined)
+        throw preconditionError(
+          'A reviewed plan (--plan) applies to a workspace on the Incus runtime.',
+        );
       logger.header(`${prefix}Deploying Tale ${version}`);
 
       // Check if this is a first-time deployment
@@ -247,7 +310,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // the admitted image is protocol 2; its messages name what runs now.
       const legacyVersion =
         installedProtocol === 1 && currentColor !== null
-          ? await colorPlatformVersion(currentColor)
+          ? await colorPlatformVersion(currentColor, runtime)
           : null;
       let cutover: TagCutoverPlan | null = null;
 
@@ -271,7 +334,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         for (const service of STOP_GATED_SERVICES) {
           runningState.set(
             service,
-            await isContainerRunning(`${getProjectId()}-${service}`),
+            await runtime.isRunning(`${getProjectId()}-${service}`),
           );
         }
         const selection = selectDefaultServices({
@@ -403,7 +466,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // an image already here is admitted as the deploy would, one not
           // pulled yet leaves its check to the deploy.
           const target = imageRef(serviceConfig, 'platform');
-          if (await imagePresent(target)) {
+          if (await runtime.imagePresent(target)) {
             serviceConfig.platformImage = await admitTagAutomationImage(
               serviceConfig,
               installedProtocol,
@@ -457,7 +520,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           imagesToPull.map((image) => ({
             label: image,
             run: async () => {
-              if (!(await pullImage(image))) {
+              if (!(await runtime.pull(image))) {
                 throw new Error(`pull failed: ${image}`);
               }
             },
@@ -497,7 +560,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
           });
           const pending = await getFlipPending(env.DEPLOY_DIR);
           const promoting = pending?.promoting ?? getNextColor(currentColor);
-          if (await colorLooksUp(promoting, rotatableToUpdate, replicas))
+          if (
+            await colorLooksUp(promoting, rotatableToUpdate, replicas, runtime)
+          )
             await admitPendingAutomationColor(
               colorProject(promoting),
               serviceConfig.platformImage,
@@ -506,11 +571,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
         await checkInstalledWriter();
         if (runtimeImageRemote) {
-          const tagResult = await exec('docker', [
-            'tag',
+          const tagResult = await runtime.tag(
             runtimeImageRemote,
             'tale-sandbox-runtime:latest',
-          ]);
+          );
           if (!tagResult.success) {
             throw new Error(
               `Failed to re-tag sandbox runtime image: ${tagResult.stderr.trim()}`,
@@ -518,11 +582,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
           }
         }
         if (buildkitdImageRemote) {
-          const tagResult = await exec('docker', [
-            'tag',
+          const tagResult = await runtime.tag(
             buildkitdImageRemote,
             'tale-sandbox-buildkitd:latest',
-          ]);
+          );
           if (!tagResult.success) {
             throw new Error(
               `Failed to re-tag sandbox buildkitd image: ${tagResult.stderr.trim()}`,
@@ -539,7 +602,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // via --skip-backup.
       if (!isFirstDeploy) {
         const snapshotPrefix = `${getProjectId()}_`;
-        const runningVersion = await colorPlatformVersion(currentColor);
+        const runningVersion = await colorPlatformVersion(
+          currentColor,
+          runtime,
+        );
         const wouldMutate =
           runningVersion !== version ||
           Boolean(options.override) ||
@@ -558,8 +624,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
               prefix: snapshotPrefix,
               trigger: 'deploy',
               platformVersion: runningVersion,
+              runtime,
             });
-            await rotateSnapshots({ prefix: snapshotPrefix });
+            await rotateSnapshots({ prefix: snapshotPrefix, runtime });
           }
         }
       }
@@ -568,7 +635,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // networks) and BEFORE any `docker compose up` for stateful or rotatable
       // services.
       await checkInstalledWriter();
-      await ensureInfrastructure(prefix, dryRun);
+      await ensureInfrastructure(prefix, dryRun, runtime);
 
       // Deploy stateful services if any
       if (statefulToUpdate.length > 0) {
@@ -587,12 +654,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
           !isFirstDeploy &&
           statefulToUpdate.includes('sandbox') &&
           (Boolean(options.forceRecreate) ||
-            (await getContainerVersion(`${getProjectId()}-sandbox`)) !==
-              version);
+            (await runtime.version(`${getProjectId()}-sandbox`)) !== version);
 
         if (dryRun) {
           if (sandboxWillRecreate) {
-            await drainSandbox({ dryRun: true });
+            await drainSandbox({ dryRun: true, runtime });
           }
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
@@ -607,18 +673,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // drain + stop_grace_period backstops anything that outlasts the
           // budget.
           if (sandboxWillRecreate) {
-            await drainSandbox({ dryRun: false });
+            await drainSandbox({ dryRun: false, runtime });
           }
 
-          const result = await dockerCompose(
-            statefulCompose,
-            [
-              'up',
-              '-d',
-              ...(options.forceRecreate ? ['--force-recreate'] : []),
-              ...statefulToUpdate,
-            ],
-            { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
+          const result = await runtime.converge(
+            {
+              stack: getProjectId(),
+              compose: statefulCompose,
+              cwd: env.DEPLOY_DIR,
+            },
+            {
+              services: statefulToUpdate,
+              forceRecreate: Boolean(options.forceRecreate),
+            },
           );
 
           if (!result.success) {
@@ -640,7 +707,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // Wait for stateful services to be healthy
           for (const service of statefulToUpdate) {
             const containerName = `${getProjectId()}-${service}`;
-            const healthy = await waitForHealthy(containerName, {
+            const healthy = await runtime.waitHealthy(containerName, {
               timeout: env.HEALTH_CHECK_TIMEOUT,
               streamLogs,
             });
@@ -655,15 +722,16 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // must never fail the core deploy, and YouTube ingestion degrades
           // gracefully (no PO token) if it never starts. Always attempted —
           // it's the zero-config path, not opt-in.
-          const bgutilUp = await dockerCompose(
-            statefulCompose,
-            [
-              'up',
-              '-d',
-              ...(options.forceRecreate ? ['--force-recreate'] : []),
-              'bgutil-provider',
-            ],
-            { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
+          const bgutilUp = await runtime.converge(
+            {
+              stack: getProjectId(),
+              compose: statefulCompose,
+              cwd: env.DEPLOY_DIR,
+            },
+            {
+              services: ['bgutil-provider'],
+              forceRecreate: Boolean(options.forceRecreate),
+            },
           );
           if (!bgutilUp.success) {
             logger.warn(
@@ -690,7 +758,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // once the update is healthy — see below.
           const currentPlatformVersion = dryRun
             ? null
-            : await colorPlatformVersion(currentColor);
+            : await colorPlatformVersion(currentColor, runtime);
 
           // Update services in current color
           logger.step(`${prefix}Updating ${currentColor} services...`);
@@ -719,24 +787,20 @@ export async function deploy(options: DeployOptions): Promise<void> {
               await drainBackend({
                 dryRun: false,
                 colour: currentColor,
+                runtime,
               });
             }
             try {
-              const deployResult = await dockerCompose(
-                colorCompose,
-                [
-                  'up',
-                  '-d',
-                  ...(options.forceRecreate ? ['--force-recreate'] : []),
-                  ...rotatableToUpdate.flatMap((service) => [
-                    '--scale',
-                    `${service}=${replicas[service]}`,
-                  ]),
-                  ...rotatableToUpdate,
-                ],
+              const deployResult = await runtime.converge(
                 {
-                  projectName: colorProject(currentColor),
+                  stack: colorProject(currentColor),
+                  compose: colorCompose,
                   cwd: env.DEPLOY_DIR,
+                },
+                {
+                  services: rotatableToUpdate,
+                  scale: replicas,
+                  forceRecreate: Boolean(options.forceRecreate),
                 },
               );
 
@@ -749,7 +813,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               // Wait for services to be healthy
               logger.step('Waiting for services to be healthy...');
               for (const service of rotatableToUpdate) {
-                const healthy = await waitForServiceHealthy(
+                const healthy = await runtime.waitServiceHealthy(
                   colorProject(currentColor),
                   service,
                   {
@@ -781,7 +845,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               }
             } finally {
               // Same-colour replacements 503 new turns until this clears.
-              if (drainLiveApi) await endDrainBackend();
+              if (drainLiveApi) await endDrainBackend(runtime);
             }
           }
         } else {
@@ -828,6 +892,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 pending,
                 rotatableToUpdate,
                 replicas,
+                runtime,
               ));
             const promoting =
               resume && pending !== null ? pending.promoting : nextColor;
@@ -865,6 +930,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               promoting,
               rotatableToUpdate,
               replicas,
+              runtime,
             );
             if (alreadyUp) {
               // Resuming onto a colour that is already up: a deploy that
@@ -876,6 +942,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 replicas,
                 healthTimeout: env.HEALTH_CHECK_TIMEOUT,
                 streamLogs,
+                runtime,
               });
             } else {
               // Registered BEFORE the bring-up, not after: the health wait is
@@ -892,6 +959,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 healthTimeout: env.HEALTH_CHECK_TIMEOUT,
                 forceRecreate: options.forceRecreate ?? false,
                 streamLogs,
+                runtime,
               });
             }
 
@@ -902,9 +970,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
             // Sweep the pre-upgrade singleton BEFORE the long colour drain.
             // Left running it writes `convex-data` while the new colour
             // writes `config-data`, and it is the wrong door for beginDrain.
-            await retireLegacyBackendTier();
+            await retireLegacyBackendTier(runtime);
 
             logger.step(`Switching traffic to ${promoting}...`);
+            await runtime.admit(colorProject(promoting), rotatableToUpdate);
             await setCurrentColor(env.DEPLOY_DIR, promoting);
             if (currentPlatformVersion) {
               await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
@@ -915,6 +984,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               await retireColor({
                 color: retiring,
                 drainTimeout: env.DRAIN_TIMEOUT,
+                runtime,
               });
             }
 
@@ -923,38 +993,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       }
 
-      if (dryRun) {
-        logger.success(
-          `${prefix}Dry-run complete! Would deploy version ${version}`,
-        );
-      } else {
-        // Containers are now rolled. Don't print "Deployment complete!"
-        // yet — that announces success over the wire, but sync + reseed
-        // still run below and either can abort the deploy.
-        logger.info(`${prefix}Services updated to version ${version}.`);
-      }
-
-      // Sync project files to the backend api container — the tier that
-      // mounts the org config store (the `config-data` volume) read-WRITE.
-      await syncProjectFiles(
-        await backendApiContainer(),
-        env.DEPLOY_DIR,
-        dryRun,
-        prefix,
-        tempStageDirs,
-        options.override ?? false,
-      );
-
-      // After deploy + optional host-push, trigger the server-side reseed of
-      // the builtin catalog into every org, through the backend's control
-      // door. Its consent was resolved before the deploy began.
-      if (options.overrideAll) {
-        await reseedAllOrgsFromBuiltin({ dryRun });
-      }
-
-      if (!dryRun) {
-        logger.success(`Deployment complete! Version ${version} is now live`);
-      }
+      await finish();
     });
   } finally {
     process.removeListener('SIGINT', onInterrupt);
@@ -969,6 +1008,7 @@ async function syncProjectFiles(
   prefix: string,
   tempStageDirs: Set<string>,
   override: boolean,
+  runtime: StackRuntime,
 ): Promise<void> {
   // Default deploy never pushes host config: the container self-seeds builtin
   // defaults on first start and UI edits stay authoritative. Host config is
@@ -1012,7 +1052,7 @@ async function syncProjectFiles(
     return;
   }
   if (!dryRun && containerName !== null) {
-    const running = await isContainerRunning(containerName);
+    const running = await runtime.isRunning(containerName);
     if (!running) {
       logger.warn(
         `${prefix}Container ${containerName} is not running, skipping file sync`,
@@ -1034,7 +1074,8 @@ async function syncProjectFiles(
 
   // Stage the full set of org subtrees into a single tmp dir whose top-level
   // mirrors the in-container `/app/data/` shape: `<stage>/<org>/<domain>/...`.
-  // Then a single `docker cp <stage>/. <container>:/app/data/` does the push.
+  // Then a single copy of `<stage>/.` into `<container>:/app/data/` does the
+  // push (`docker cp` on Docker).
   // Root-level junk (`tale.json`, `.tale/`, `.env`, `.git/`, IDE configs, etc.)
   // is excluded by allowlist — never staged, never shipped.
   const stageDir = await mkdtemp(join(tmpdir(), 'tale-sync-'));
@@ -1067,34 +1108,23 @@ async function syncProjectFiles(
       throw new Error('No backend-api replica to push the config into');
     }
 
-    const dockerSrcPath = stageDir.replaceAll('\\', '/');
-    const result = await exec('docker', [
-      'cp',
-      `${dockerSrcPath}/.`,
-      `${containerName}:/app/data/`,
-    ]);
+    // The copy lands as root; ownership goes to the app user so it can write.
+    const pushed = await runtime.copyIn(containerName, stageDir, '/app/data/', {
+      user: 'app',
+      group: 'app',
+    });
 
     // docker cp is non-atomic across the multi-org staging dir: a failure
     // here means a partial push may have landed in the container. Throw
     // so the outer `deployToContainer` flow exits non-zero instead of
     // printing `success('Deployment complete!')` over a half-pushed state.
-    if (!result.success) {
+    if (!pushed.success && pushed.stage === 'copy') {
       throw new Error(
-        `--override docker cp into ${containerName} failed: ${result.stderr?.trim() ?? '(no stderr)'}. ` +
+        `--override docker cp into ${containerName} failed: ${pushed.detail}. ` +
           `Partial push possible; re-run --override after addressing the cause.`,
       );
     }
-
-    // docker cp copies files as root — fix ownership so the app user can write
-    const chownResult = await exec('docker', [
-      'exec',
-      containerName,
-      'chown',
-      '-R',
-      'app:app',
-      `/app/data/`,
-    ]);
-    if (!chownResult.success) {
+    if (!pushed.success) {
       // Hard fail: files landed but the app user can't write them.
       // Printing `Overrode N orgs!` while the volume is root-owned
       // sent operators into a debugging maze when later writes failed
@@ -1102,7 +1132,7 @@ async function syncProjectFiles(
       // can re-run --override after fixing the cause — but a quiet
       // wrong-perms state is not.
       throw new Error(
-        `Failed to fix ownership on /app/data after push: ${chownResult.stderr?.trim() ?? '(no stderr)'}. ` +
+        `Failed to fix ownership on /app/data after push: ${pushed.detail}. ` +
           `The push completed but files are root-owned and the app user can't write to them. ` +
           `Re-run --override after addressing the cause.`,
       );

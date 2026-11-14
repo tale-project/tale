@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import type { ExecResult } from '../docker/exec';
+import { dockerRuntimeAccess, type RuntimeAccess } from './runtime-access';
 
 /** The org config store inside every backend container (`TALE_CONFIG_DIR`).
  * The image ships it owned by the account the entrypoint drops to, and the
@@ -10,8 +11,8 @@ import type { ExecResult } from '../docker/exec';
  * keep their private state beneath it (`provision-state.ts`). */
 const BACKEND_DATA_DIRECTORY = '/app/data';
 
-/** One docker invocation against the deployment, as the callers wrap it:
- * `docker <args>` with an optional private stdin. */
+/** One `docker <args>` invocation as a caller that holds a Docker executor
+ * wraps it, with an optional private stdin. */
 export type BackendExecute = (
   args: string[],
   stdin?: string,
@@ -30,14 +31,21 @@ export type BackendExecute = (
  * user on every boot. The owner is read from the container rather than
  * assumed, the rule `ensure-config-mountpoints.ts` already follows: the image
  * decides, and a uid written here would rot the moment the image changed.
+ *
+ * `runtime` is the check's runtime access, or a Docker executor, which is
+ * read through the Docker access.
  */
-export async function backendDataOwner(
-  execute: BackendExecute,
+export async function backendDataOwner<Tag>(
+  runtime: RuntimeAccess<Tag> | BackendExecute,
   container: string,
 ): Promise<string> {
-  const result = await execute([
-    'exec',
-    container,
+  const access =
+    typeof runtime === 'function'
+      ? dockerRuntimeAccess((args, call) =>
+          runtime(args, call.stdin, call.allowFailure),
+        )
+      : runtime;
+  const result = await access.exec(container, [
     'stat',
     '-c',
     '%u:%g',

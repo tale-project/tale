@@ -20,6 +20,7 @@ function makeDeps(overrides: Partial<UninstallDeps> = {}): UninstallDeps {
     disconnectSandboxDevice: mock(async () => {}),
     legacyUserDirs: mock(() => [LEGACY]),
     tearDownDocker: mock(async () => {}),
+    projectEngine: mock(async () => 'docker' as const),
     confirm: mock(async () => true),
     isInteractive: mock(() => true),
     assumeYes: mock(() => false),
@@ -51,7 +52,9 @@ describe('uninstall', () => {
     const deps = makeDeps({ assumeYes: mock(() => true) }); // skip primary prompt
     await uninstall({ purge: true }, deps);
 
-    expect(deps.tearDownDocker).toHaveBeenCalledWith(PROJECT);
+    expect(deps.tearDownDocker).toHaveBeenCalledWith(PROJECT, {
+      discardSnapshots: false,
+    });
     expect(deps.removeDir).toHaveBeenCalledWith(PROJECT);
     expect(deps.removeDir).toHaveBeenCalledWith(LEGACY);
     expect(deps.disconnectSandboxDevice).toHaveBeenCalledTimes(1);
@@ -132,7 +135,9 @@ describe('uninstall', () => {
     const deps = makeDeps({ confirm });
     await uninstall({}, deps);
 
-    expect(deps.tearDownDocker).toHaveBeenCalledWith(PROJECT);
+    expect(deps.tearDownDocker).toHaveBeenCalledWith(PROJECT, {
+      discardSnapshots: false,
+    });
     expect(deps.removeDir).toHaveBeenCalledWith(PROJECT);
     expect(deps.removeDir).not.toHaveBeenCalledWith(LEGACY);
     expect(deps.disconnectSandboxDevice).not.toHaveBeenCalled();
@@ -170,5 +175,57 @@ describe('uninstall', () => {
     expect(deps.removeBinary).not.toHaveBeenCalled();
     expect(deps.tearDownDocker).not.toHaveBeenCalled();
     expect(deps.removeDir).not.toHaveBeenCalled();
+  });
+
+  describe('a project on Incus (R-05)', () => {
+    test('names what it keeps, and passes --discard-snapshots on', async () => {
+      const deps = makeDeps({
+        projectEngine: mock(async () => 'incus' as const),
+      });
+      await uninstall({ purge: true, discardSnapshots: true }, deps);
+      expect(deps.tearDownDocker).toHaveBeenCalledWith(PROJECT, {
+        discardSnapshots: true,
+      });
+      expect(deps.removeDir).toHaveBeenCalledWith(PROJECT);
+    });
+
+    test('asks with the Incus text: the newest snapshot is archived, native snapshots go', async () => {
+      const deps = makeDeps({
+        projectEngine: mock(async () => 'incus' as const),
+      });
+      await uninstall({}, deps);
+      const asked = (deps.confirm as ReturnType<typeof mock>).mock.calls
+        .map((call) => String(call[0]))
+        .find((message) => message.includes('Incus instances'));
+      expect(asked).toContain('archived into backups first');
+      expect(asked).toContain('native snapshots go with their volumes');
+    });
+
+    test('a refused teardown stops the uninstall: the project and the binary stay', async () => {
+      const deps = makeDeps({
+        projectEngine: mock(async () => 'incus' as const),
+        tearDownDocker: mock(async () => {
+          throw new Error(
+            'Snapshot 20261113-100000-manual could not be archived',
+          );
+        }),
+      });
+      await expect(uninstall({ purge: true }, deps)).rejects.toThrow(
+        /nothing was uninstalled/,
+      );
+      expect(deps.removeDir).not.toHaveBeenCalledWith(PROJECT);
+      expect(deps.removeBinary).not.toHaveBeenCalled();
+    });
+
+    test('a failed Docker teardown still only warns, as before', async () => {
+      const deps = makeDeps({
+        tearDownDocker: mock(async () => {
+          throw new Error('docker is not running');
+        }),
+      });
+      await uninstall({ purge: true }, deps);
+      expect(deps.removeDir).toHaveBeenCalledWith(PROJECT);
+      expect(deps.removeBinary).toHaveBeenCalled();
+    });
   });
 });

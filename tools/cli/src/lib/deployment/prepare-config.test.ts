@@ -14,6 +14,7 @@ import {
   verifyPreparedDeploymentConfig,
 } from './config-source';
 import { prepareDeployment } from './prepare';
+import type { prepareRuntime } from './runtime';
 import { TALE_REPOSITORY } from './sources';
 
 const roots: string[] = [];
@@ -189,4 +190,61 @@ describePosix('managed preparation native-owner binding', () => {
     },
     30_000,
   );
+});
+
+test('prepares a specification on the Incus runtime with the registry reader and no Docker sandbox shape', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tale-prepare-incus-'));
+  roots.push(root);
+  const specPath = join(root, 'spec.json');
+  const incus = {
+    project: 'tale-north',
+    pool: 'tank',
+    network: {
+      name: 'tale-north',
+      subnet: '10.30.0.0/24',
+      gateway: '10.30.0.1',
+      block: '10.30.0.0/25',
+    },
+    sessions: { subnet: '10.31.0.0/24' },
+    ingress: { mode: 'routed' as const },
+  };
+  await writeFile(
+    specPath,
+    JSON.stringify({
+      schemaVersion: 1,
+      name: 'north',
+      composeProject: 'north',
+      stateDirectory: join(root, 'state'),
+      origin: 'https://north.example.invalid',
+      tlsMode: 'external',
+      runtime: { revision: 'a'.repeat(40), engine: 'incus', incus },
+      sandbox: { backend: 'incus', egressProxy: 'http://192.0.2.7:3128' },
+      configs: [],
+    }),
+  );
+  const elf = Buffer.alloc(128);
+  elf.set([0x7f, 0x45, 0x4c, 0x46, 2, 1]);
+  elf.writeUInt16LE(62, 18);
+  await writeFile(join(root, 'tale'), elf);
+  await writeFile(join(root, 'tale.mjs'), 'process.exit(0);\n');
+  let asked: Parameters<typeof prepareRuntime>[0] | undefined;
+  await expect(
+    prepareDeployment(
+      { spec: specPath, output: join(root, 'prepared') },
+      {
+        build: () => ({ binary: join(root, 'tale'), revision: 'b'.repeat(40) }),
+        sources: async (_requests, _options, work) => work(() => root),
+        runtime: async (options) => {
+          asked = options;
+          throw new Error('runtime reached');
+        },
+      },
+    ),
+  ).rejects.toThrow('runtime reached');
+  expect(asked?.sandbox).toBeUndefined();
+  expect(asked?.incus).toEqual({
+    declaration: incus,
+    stack: 'north',
+    egressProxy: 'http://192.0.2.7:3128',
+  });
 });

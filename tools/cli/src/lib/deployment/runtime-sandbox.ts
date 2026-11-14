@@ -94,7 +94,11 @@ const REMOVED_VARIABLES = [
   'SANDBOX_EGRESS_NETWORK',
   'SANDBOX_HUB_PORT',
 ] as const;
-const EGRESS_PROXY_VARIABLE = 'SANDBOX_EGRESS_PROXY';
+/** The spawner variables only its Docker backend reads, which the Incus
+ * shape removes. */
+export const SANDBOX_DOCKER_ONLY_VARIABLES: readonly string[] =
+  REMOVED_VARIABLES;
+export const EGRESS_PROXY_VARIABLE = 'SANDBOX_EGRESS_PROXY';
 /** The ten variables the CLI owns in the Incus shape: a deployment's own
  * `environment` may not name them, and the managed `.env` never keeps them. */
 export const SANDBOX_OWNED_VARIABLES: readonly string[] = [
@@ -234,10 +238,22 @@ export function sandboxPorts(address: string): {
 
 /** The six literals of the Incus shape for a bundle's image. */
 function literals(sandbox: SandboxBundle): Record<string, string> {
+  return incusSandboxVariables(sandbox.image);
+}
+
+/**
+ * The fixed spawner variables of the Incus shape: the backend, the session
+ * image and the credential files under the mount point. One source for the
+ * Docker-hosted spawner of a managed bundle and for the spawner the Incus
+ * runtime runs as an instance.
+ */
+export function incusSandboxVariables(
+  image: SandboxBundle['image'],
+): Record<string, string> {
   return {
-    SANDBOX_BACKEND: sandbox.backend,
-    SANDBOX_INCUS_IMAGE: sandbox.image.alias,
-    SANDBOX_INCUS_IMAGE_SOURCE: sandbox.image.source,
+    SANDBOX_BACKEND: 'incus',
+    SANDBOX_INCUS_IMAGE: image.alias,
+    SANDBOX_INCUS_IMAGE_SOURCE: image.source,
     SANDBOX_INCUS_CLIENT_CERT_FILE: `${SANDBOX_INCUS_MOUNT_POINT}/client.crt`,
     SANDBOX_INCUS_CLIENT_KEY_FILE: `${SANDBOX_INCUS_MOUNT_POINT}/client.key`,
     SANDBOX_INCUS_SERVER_CERT_FILE: `${SANDBOX_INCUS_MOUNT_POINT}/server.crt`,
@@ -246,14 +262,24 @@ function literals(sandbox: SandboxBundle): Record<string, string> {
 
 const environmentSchema = z.record(z.string(), z.unknown());
 
+/** Where the services sessions dial are reached: published on the declared
+ * address (a Docker-hosted stack), or at their addresses in the Incus address
+ * plan, which publishes nothing (the Incus runtime). */
+export interface SandboxShapeOptions {
+  publish: boolean;
+}
+
 /**
  * Turn the sandbox, backend API and LLM gateway services of a prepared Docker
  * bundle into their Incus shape, and hold the result to the reader's rule.
- * The other eight services are not touched.
+ * The other eight services are not touched. On the Incus runtime
+ * (`publish: false`) the two services publish nothing: the sessions reach
+ * them at their addresses in the plan.
  */
 export function applyIncusShape(
   compose: ComposeDocument,
   sandbox: SandboxBundle,
+  shape: SandboxShapeOptions = { publish: true },
 ): void {
   const service = compose.services.sandbox;
   const environment = environmentSchema.parse(service.environment);
@@ -279,10 +305,13 @@ export function applyIncusShape(
       (mount) => mount !== DOCKER_SOCKET_MOUNT && mount !== SESSION_ROOT_MOUNT,
     ),
   ];
-  const ports = sandboxPorts(sandbox.address);
-  compose.services['backend-api'].ports = ports['backend-api'];
-  compose.services['sandbox-llm-gateway'].ports = ports['sandbox-llm-gateway'];
-  assertSandboxShape(compose, sandbox, sandbox.image);
+  if (shape.publish) {
+    const ports = sandboxPorts(sandbox.address);
+    compose.services['backend-api'].ports = ports['backend-api'];
+    compose.services['sandbox-llm-gateway'].ports =
+      ports['sandbox-llm-gateway'];
+  }
+  assertSandboxShape(compose, sandbox, sandbox.image, shape);
 }
 
 /**
@@ -299,6 +328,7 @@ export function assertSandboxShape(
   compose: ComposeDocument,
   sandbox: SandboxBundle | undefined,
   image: SandboxBundle['image'] | undefined,
+  shape: SandboxShapeOptions = { publish: true },
 ): void {
   const service = compose.services.sandbox;
   const environment = environmentSchema.parse(service.environment);
@@ -342,7 +372,9 @@ export function assertSandboxShape(
       REMOVED_VARIABLES.every((name) => environment[name] === undefined),
     'Runtime sandbox environment differs from the Incus shape.',
   );
-  const ports = sandboxPorts(sandbox.address);
+  const ports = shape.publish
+    ? sandboxPorts(sandbox.address)
+    : { 'backend-api': undefined, 'sandbox-llm-gateway': undefined };
   must(
     JSON.stringify(compose.services['backend-api'].ports) ===
       JSON.stringify(ports['backend-api']) &&

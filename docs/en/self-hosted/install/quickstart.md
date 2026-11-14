@@ -103,6 +103,6 @@ Rerun after correcting the reported cause; keep `.env` and the data volumes. For
 
 ## Prepare a production deployment
 
-`tale deploy` deploys the project configuration to the selected Docker host. Development and deployment use separate data volumes: deploying does not transfer the local account, chats or uploaded files. Prepare DNS, TLS, backups and access controls before adding a production team.
+`tale deploy` deploys the project configuration to the selected Docker host. To run the deployment as Incus instances on a Linux host instead, declare the Incus runtime in `tale.json` before the first deploy, as [Run Tale on Incus](/self-hosted/install/incus#declare) describes; that runtime is experimental, and `tale dev` stays on Docker. Development and deployment use separate data volumes: deploying does not transfer the local account, chats or uploaded files. Prepare DNS, TLS, backups and access controls before adding a production team.
 
 Read [TLS and domains](/self-hosted/configuration/tls-and-domains), [Backups and restore](/self-hosted/operate/backups-and-restore) and [Hardening](/self-hosted/operate/security/hardening). If your infrastructure requires service definitions you maintain directly, use [Run Compose yourself](/self-hosted/install/own-compose).

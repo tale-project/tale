@@ -5,11 +5,13 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { IncusClient } from '@tale/incus/client';
+import { readIncusTlsMaterial } from '@tale/incus/tls';
+
+import { operationSignal } from '../../operation-budget.ts';
 import type { IncusConfig, SpawnerConfig } from '../../types.ts';
-import { IncusClient } from './incus-client.ts';
 import { IncusPool } from './incus-pool.ts';
 import { incusOf } from './incus-session-spec.ts';
-import { readIncusTlsMaterial } from './incus-tls.ts';
 
 export interface IncusRuntimeDeps {
   /** A client to use instead of one built from the certificate files. */
@@ -77,6 +79,8 @@ export class IncusRuntime {
         endpoint: this.incus.endpoint,
         project: this.incus.project,
         tls: await readIncusTlsMaterial(this.incus),
+        // Every call runs under the spawner's ambient operation budget.
+        signal: () => operationSignal(),
         requestTimeoutMs: this.incus.apiTimeoutMs,
       });
     const pool = new IncusPool(this.cfg, client, {

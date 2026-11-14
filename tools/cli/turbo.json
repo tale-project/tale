@@ -59,7 +59,13 @@
         "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
         "$TURBO_ROOT$/.github/release-candidate-contract.json",
         "$TURBO_ROOT$/packages/ui/src/data/**",
-        "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts"
+        "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/operator-block.ts",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/spawner-api.ts",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/sse.ts",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/util.ts",
+        "$TURBO_ROOT$/services/sandbox/src/auth.ts",
+        "$TURBO_ROOT$/services/sandbox/src/wire.ts"
       ]
     },
     "build": {
@@ -131,9 +137,9 @@
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/services/proxy/Caddyfile",
         "$TURBO_ROOT$/services/sandbox/src/config.ts",
+        "$TURBO_ROOT$/packages/incus/src/units.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-config.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-registry-caches.ts",
-        "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-units.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts",
         "$TURBO_ROOT$/services/sandbox/src/host-memory.ts",
         "$TURBO_ROOT$/services/sandbox/src/host-pressure-assessment.ts",
@@ -147,6 +153,11 @@
         "$TURBO_ROOT$/services/platform/backend/db/migrations/**",
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/proxy/docker-entrypoint.sh",
+        "$TURBO_ROOT$/services/proxy/Caddyfile.switch",
+        "$TURBO_ROOT$/services/sandbox/e2e/incus/operator-block.ts",
+        "$TURBO_ROOT$/services/sandbox/docs/incus.md",
+        "$TURBO_ROOT$/services/sandbox-egress/docker-entrypoint.sh",
+        "$TURBO_ROOT$/patches/dumb-init/maxsig-64.patch",
         "$TURBO_ROOT$/services/platform/Dockerfile",
         "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/platform/env.sh",

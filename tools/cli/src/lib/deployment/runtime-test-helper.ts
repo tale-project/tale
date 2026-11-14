@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,6 +17,8 @@ import { parse, stringify } from 'yaml';
 
 import { BUILDKITD_MIRROR_IMAGE } from '../compose/types';
 import type { exec } from '../docker/exec';
+import type { RegistryClient, ResolvedImage } from '../oci/registry';
+import { factsFor } from '../runtime/incus/compile/compile-fixture';
 import {
   AUTOMATION_PROTOCOL_LABEL,
   AUTOMATION_PROTOCOL_SOURCE,
@@ -33,8 +36,15 @@ import { INCUS_BACKEND_MARKER } from './runtime-sandbox';
 import { sourceAutomationProtocol } from './source-automation-protocol';
 import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
-export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
-  const directory = mkdtempSync(join(tmpdir(), 'tale-managed-runtime-'));
+export function runtimeFixture(
+  proxy: { trustsTerminator?: boolean } = {},
+  { resolved = false }: { resolved?: boolean } = {},
+) {
+  // `resolved` is for a suite whose code checks private files' custody:
+  // macOS's temporary directory lies below the /var symlink, which that check
+  // refuses as an ancestor. Other suites keep the path tmpdir() gives.
+  const made = mkdtempSync(join(tmpdir(), 'tale-managed-runtime-'));
+  const directory = resolved ? realpathSync(made) : made;
   const repoRoot = join(directory, 'repo');
   mkdirSync(join(repoRoot, 'services/proxy'), { recursive: true });
   const source: ComposeDocument = {
@@ -211,15 +221,16 @@ export const REPOSITORY_RUNTIME_SOURCE = [
 /**
  * The spawner modules `loadConfig` imports, which the cross-check suite runs
  * in a child process to hold the prepared Incus sandbox environment to what
- * the spawner accepts. They sit outside this workspace, so
+ * the spawner accepts: its own, and those of the repository's packages it
+ * imports (@tale/incus). They sit outside this workspace, so
  * `tools/cli/turbo.json` hashes them for `@tale/cli#test`; the suite checks
  * this list against the imports.
  */
 export const SPAWNER_CONFIG_SOURCE = [
   'services/sandbox/src/config.ts',
+  'packages/incus/src/units.ts',
   'services/sandbox/src/backend/incus/incus-config.ts',
   'services/sandbox/src/backend/incus/incus-registry-caches.ts',
-  'services/sandbox/src/backend/incus/incus-units.ts',
   'services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts',
   'services/sandbox/src/host-memory.ts',
   'services/sandbox/src/host-pressure-assessment.ts',
@@ -636,4 +647,68 @@ export function installLegacy(
   docker.installContainers(compose);
   docker.network = true;
   return { values, secrets, environment };
+}
+
+/** A registry serving every repository the fixture names, by digest of its
+ * repository, with the image shapes the compiler's fixtures use. */
+export function fakeRegistry(
+  revision: () => string,
+  digests: Record<string, string> = {},
+): RegistryClient & { reads: string[] } {
+  const reads: string[] = [];
+  return {
+    reads,
+    async resolve(reference: string): Promise<ResolvedImage> {
+      reads.push(reference);
+      const at = reference.indexOf('@');
+      const repository =
+        at === -1 ? reference.replace(/:[^/:]+$/, '') : reference.slice(0, at);
+      // A digest names itself; a tag the registry's current digest.
+      const digest =
+        at !== -1
+          ? reference.slice(at + 1)
+          : (digests[repository] ??
+            `sha256:${createHash('sha256').update(repository).digest('hex')}`);
+      const tale = repository.includes('/tale-project/tale/');
+      let facts;
+      try {
+        facts = factsFor(`${repository}@${digest}`);
+      } catch {
+        facts = {
+          labels: {},
+          env: ['PATH=/usr/bin:/bin'],
+          entrypoint: null,
+          cmd: ['/bin/sh'],
+          user: null,
+          stopSignal: null,
+          volumes: [] as string[],
+        };
+      }
+      const labels: Record<string, string> = { ...facts.labels };
+      if (tale) labels['org.opencontainers.image.revision'] = revision();
+      // The repository's source writes automation protocol 2.
+      if (repository.endsWith('/tale-platform'))
+        labels[AUTOMATION_PROTOCOL_LABEL] = '2';
+      return {
+        reference: `${repository}@${digest}`,
+        digest,
+        manifestDigest: digest,
+        configDigest: digest,
+        os: 'linux',
+        architecture: 'amd64',
+        variant: null,
+        config: {
+          config: {
+            Labels: labels,
+            Env: facts.env,
+            ...(facts.entrypoint ? { Entrypoint: facts.entrypoint } : {}),
+            ...(facts.cmd ? { Cmd: facts.cmd } : {}),
+            ...(facts.user ? { User: facts.user } : {}),
+            ...(facts.stopSignal ? { StopSignal: facts.stopSignal } : {}),
+            Volumes: Object.fromEntries(facts.volumes.map((v) => [v, {}])),
+          },
+        },
+      };
+    },
+  };
 }

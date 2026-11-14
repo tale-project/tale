@@ -19,12 +19,18 @@ export function createUninstallCommand(): Command {
       'show what would be removed without removing anything',
       false,
     )
+    .option(
+      '--discard-snapshots',
+      'Incus: tear the project down even if its newest snapshot cannot be archived into the backups volume first (its native snapshots are lost)',
+      false,
+    )
     .action(
       action(async (opts) => {
         await uninstall({
           force: opts.force,
           purge: opts.purge,
           dryRun: opts.dryRun,
+          discardSnapshots: opts.discardSnapshots,
         });
       }),
     );

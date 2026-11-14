@@ -28,7 +28,7 @@ afterEach(() => {
 // Execute the real entrypoint with a private PATH. The gosu double records
 // the handoff instead of changing this test process's OS identity. Nothing
 // may dispatch an application before that handoff, even if gosu fails.
-function runRootStartup(role: string, gosuExit: number) {
+function runRootStartup(role: string, gosuExit: number, rmExit = 0) {
   const dir = mkdtempSync(path.join(tmpdir(), 'privilege-drop-guard-'));
   tempDirs.push(dir);
   const log = path.join(dir, 'startup.log');
@@ -37,6 +37,7 @@ function runRootStartup(role: string, gosuExit: number) {
     id: 'printf "0\\n"',
     iptables: 'printf "firewall:%s\\n" "$*" >> "$STARTUP_LOG"',
     chown: ':',
+    rm: 'printf "rm:%s\\n" "$*" >> "$STARTUP_LOG"; exit "$RM_EXIT"',
     gosu: [
       'printf "gosu:%s\\n" "$@" >> "$STARTUP_LOG"',
       'exit "$GOSU_EXIT"',
@@ -55,6 +56,7 @@ function runRootStartup(role: string, gosuExit: number) {
       PATH: dir,
       STARTUP_LOG: log,
       GOSU_EXIT: String(gosuExit),
+      RM_EXIT: String(rmExit),
       TALE_ROLE: role,
     },
     encoding: 'utf8',
@@ -95,6 +97,39 @@ describe('platform root startup', () => {
       expect(result.calls.some((call) => call.startsWith('application:'))).toBe(
         false,
       );
+    },
+  );
+});
+
+// A restart keeps /tmp (`docker restart`, an Incus restart). The run markers
+// of the previous start are deleted as root, before the drop to `app`: a
+// marker an exec created as root in sticky /tmp cannot be deleted by `app`,
+// and the api, worker and all roles exec node without reaching the web role's
+// own cleanup. A failed delete only warns: the entrypoint runs under
+// `set -eo pipefail`, and a start must not die on it.
+describe('platform run markers', () => {
+  const MARKERS =
+    'rm:-f /tmp/platform-withdrawn /tmp/platform-shutting-down /tmp/platform-ready /tmp/backend-withdrawn';
+
+  it.each(['web', 'api', 'worker', 'all'])(
+    'deletes every marker as root before %s drops to the app user',
+    (role) => {
+      const result = runRootStartup(role, 0);
+      expect(result.status).toBe(0);
+      const deleted = result.calls.indexOf(MARKERS);
+      expect(deleted).toBeGreaterThan(-1);
+      expect(deleted).toBeLessThan(result.calls.indexOf('gosu:app'));
+    },
+  );
+
+  it.each(['web', 'api'])(
+    'still starts %s when the delete fails, and says so',
+    (role) => {
+      const result = runRootStartup(role, 0, 1);
+      expect(result.status).toBe(0);
+      expect(result.calls).toContain(MARKERS);
+      expect(result.calls).toContain('gosu:app');
+      expect(result.stderr).toContain('could not delete the run markers');
     },
   );
 });

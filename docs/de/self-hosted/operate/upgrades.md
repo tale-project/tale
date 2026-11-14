@@ -71,6 +71,40 @@ Ein offener Tab arbeitet bei der Übergabe normalerweise weiter. Ist ein benöti
 
 Wird die neue Gruppe nicht innerhalb von `HEALTH_CHECK_TIMEOUT` gesund, schließt die CLI den Wechsel nicht ab. Prüfe gespeicherten Bereitstellungszustand und Protokolle vor einem erneuten Versuch. Ein unterbrochener Rollout kann beide Gruppen oder eine ausstehende Übergabe hinterlassen. Folge den Wiederherstellungshinweisen der CLI, statt Container oder Zustandsdateien von Hand zu löschen.
 
+## Einen Workspace auf Incus aktualisieren {#incus}
+
+Ein Workspace auf der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus) wird mit denselben Befehlen `tale update` und `tale deploy` aktualisiert. Anders ist, wie die CLI den Stack ändert und den Verkehr von einer Farbe an die andere übergibt. Eine verwaltete Bereitstellung auf Incus hat keine Farben, ersetzt jeden Dienst an Ort und Stelle, und ihr Upgrade wird vorerst abgelehnt; siehe [die aktuellen Grenzen](/de/self-hosted/install/incus#limits).
+
+### Zuerst den Plan prüfen {#incus-plan}
+
+```bash
+tale --json deploy --plan-only > plan.json
+tale deploy --plan plan.json
+```
+
+`--plan-only` gibt einen Plan je Bereich aus, für die Volumes, die Infrastruktur, die zustandsbehafteten Dienste und die Farbe, die es startet, und ändert nichts. `--plan` wendet den geprüften Plan nur an, solange der Knoten noch genau ihn braucht, und prüft jeden Bereich, bevor es etwas ändert. Vor jeder Änderung prüft `tale deploy` den Knoten gegen den Vertrag des Stacks; nach dem Erhöhen einer Replikatzahl führst du `tale incus bootstrap` erneut aus, damit die Limits des Projekts passen. Der Snapshot vor einem Versionswechsel ist ein nativer Satz, aufgenommen unter einem Einfrieren von deutlich unter einer Sekunde, wie unter [Snapshots auf Incus](/de/self-hosted/operate/backups-and-restore#incus) beschrieben.
+
+### Die stoppgebundenen Dienste ersetzen {#incus-stop-gated}
+
+Auf Incus ist die stoppgebundene Stufe größer: Neben `db`, `object-store` und `proxy` behalten auch die Resolver (`names`, `names-sessions`) und der Traffic-Switch ihr laufendes Image, bis eine Bereitstellung mit `--stop` kommt, und die CLI meldet, was sie stehen gelassen hat. Das Ersetzen des Switch oder des Proxys unterbricht allen Verkehr, bis die neue Instanz gesund ist; plane für `tale deploy --stop` also ein kurzes Fenster ein.
+
+### Dem Farbwechsel folgen {#incus-flip}
+
+Der Traffic-Switch ist eine Instanz des Proxy-Images, die vor den Replikaten von `platform` und `backend-api` steht. Er kennt von Anfang an jede Replikat-Adresse beider Farben und wird während eines Farbwechsels, eines rollierenden Ersetzens oder eines Rollbacks nie neu geladen. Jedes Replikat der neuen Farbe bekommt Verkehr, sobald es die Zulassungsprobe des Switch besteht, die ein Replikat erst beantwortet, wenn es bereit ist, und die CLI wartet, bis jedes Replikat gesund ist.
+
+Dann zieht die CLI die alte Farbe zurück: Sie markiert jedes alte Replikat so, dass seine Zulassungsprobe fehlschlägt, und innerhalb von Sekunden schickt der Switch ihm keine neue Anfrage mehr. `/api/health` des Replikats behält seine Bedeutung und schlägt erst nach seinem Stoppsignal fehl, sodass die eigene Zustandsprüfung des Edge nicht gestört wird. Offene Streams, etwa die Live-Aktualisierungen einer Seite, bleiben auf der alten Farbe offen. Dann laufen die Leerungsphasen wie oben beschrieben, jedes alte Replikat stoppt innerhalb seiner Schonfrist und wird gelöscht, und seine Streams enden dort: Die Clients verbinden sich mit der neuen Farbe neu. Unter Docker ist die Reihenfolge anders, weil die alten Container die bedienenden Netzwerke erst nach den Leerungsphasen verlassen.
+
+Bricht eine Bereitstellung mitten im Farbwechsel ab, macht das nächste `tale deploy` an der festgehaltenen Phase weiter, und `tale status` meldet bis dahin den unvollendeten Wechsel; lösche keine Instanzen von Hand. `--services` ersetzt stattdessen die Replikate der aktiven Farbe nacheinander: Jedes wird zurückgezogen, geleert, ersetzt und ist gesund, bevor das nächste dran ist. `tale rollback` geht dieselben Schritte zur vorherigen Version.
+
+### Die Umgebung stoppen und starten {#incus-stop-start}
+
+```bash
+tale stop
+tale start
+```
+
+`tale stop` stoppt die Umgebung in drei Gruppen: den Edge, den Switch und beide Farben; dann die Sandbox-Dienste; dann die Datenbanken, den Objektspeicher und die Resolver. Jeder Dienst bekommt seine eigene Schonfrist. `tale start` startet die Gruppen in umgekehrter Reihenfolge, jede gesund vor der nächsten, startet auch einen Dienst, den Incus nach wiederholten Abstürzen gestoppt hat, und lehnt ab, solange eine Wiederherstellung aussteht. `--dry-run` gibt die Reihenfolge aus und ändert nichts. Auf einem Host, der neben Tale andere Projekte betreibt, führst du `tale stop` aus, bevor der Host herunterfährt: Incus stoppt sonst die Gruppen aller Projekte nacheinander, jede bis zu 30 Sekunden lang, und die Datenbanken können vor ihrem Stoppsignal abgeschnitten werden, wie [Das Herunterfahren des Hosts einplanen](/de/self-hosted/install/incus#host-shutdown) erklärt.
+
 ## Migrationen und Nutzerergebnis prüfen
 
 Beim Start wendet das Backend seine nummerierten Migrationen in der Reihenfolge ihrer Dateinamen unter einem sitzungsgebundenen Advisory Lock an. SQL-Migrationen ändern das Schema, TypeScript-Datenmigrationen aktualisieren bestehende Zeilen nach den Regeln der Anwendung. Die Tabelle `app_migrations` verzeichnet beide Arten mit ihrem Dateinamen, sodass jede Migration pro Datenbank nur einmal läuft. Andere Replikate warten darauf. Ein Migrationsfehler verhindert den regulären Start des neuen Backends. Prüfe Fehler und Datenbank vor einem neuen Versuch. Vorwärtsgerichtete Migrationen werden durch einen anderen Image-Tag nicht rückgängig gemacht.

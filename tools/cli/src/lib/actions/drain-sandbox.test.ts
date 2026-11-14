@@ -25,6 +25,16 @@ mock.module('../../utils/logger', () => ({
 const { CONTROL_TIMEOUT_S, controlScript, drainSandbox } =
   await import('./drain-sandbox');
 
+/** The spawner's drain-status answer (services/sandbox control-routes.ts). */
+function drainStatus(sessionIds: string[]): string {
+  return JSON.stringify({
+    draining: true,
+    sessions: sessionIds.length,
+    sessionIds,
+  });
+}
+const IDLE = drainStatus([]);
+
 function ok(stdout = '') {
   return { success: true, stdout, stderr: '', exitCode: 0 };
 }
@@ -89,7 +99,7 @@ describe('drainSandbox', () => {
   });
 
   test('drains through the signed in-container control client on the single container', async () => {
-    arrangeDrainStatus(['{"inFlight":0}']);
+    arrangeDrainStatus([IDLE]);
     await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 5_000 });
     const drainCall = dockerMock.mock.calls
       .map((c) => c.map(String))
@@ -115,7 +125,7 @@ describe('drainSandbox', () => {
     const prev = process.env.SANDBOX_TOKEN;
     process.env.SANDBOX_TOKEN = 'leak-canary-0123456789abcdef';
     try {
-      arrangeDrainStatus(['{"inFlight":0}']);
+      arrangeDrainStatus([IDLE]);
       await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 5_000 });
       for (const call of dockerMock.mock.calls) {
         expect(call.map(String).join(' ')).not.toContain('leak-canary');
@@ -147,7 +157,7 @@ describe('drainSandbox', () => {
   });
 
   test('drain-status rides the same signed client', async () => {
-    arrangeDrainStatus(['{"inFlight":0}']);
+    arrangeDrainStatus([IDLE]);
     await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 5_000 });
     const statusCall = dockerMock.mock.calls
       .map((c) => c.map(String))
@@ -163,25 +173,74 @@ describe('drainSandbox', () => {
     );
   });
 
-  test('returns as soon as inFlight reaches 0', async () => {
-    arrangeDrainStatus(['{"inFlight":2}', '{"inFlight":0}']);
+  test('returns as soon as the spawner holds no session', async () => {
+    arrangeDrainStatus([drainStatus(['s-1', 's-2']), IDLE]);
     await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 5_000 });
     const infoLines = loggerInfoMock.mock.calls.map((c) => String(c[0]));
     expect(infoLines.some((l) => l.includes('finished'))).toBe(true);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  test("reads the spawner's shipped answer instead of waiting out the budget", async () => {
+    // Regression: the reader once looked for an `inFlight` field the spawner
+    // never sends, so an idle spawner read as "unknown" and every Docker
+    // deploy waited the full drain budget before recreating it.
+    arrangeDrainStatus([IDLE]);
+    const started = performance.now();
+    await drainSandbox({ dryRun: false, pollMs: 50, timeoutMs: 2_000 });
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+    expect(
+      dockerMock.mock.calls.filter((c) =>
+        c.map(String).join(' ').includes('control-cli.ts drain-status;'),
+      ),
+    ).toHaveLength(1);
   });
 
   test('gives up and warns after the budget, leaving recreate to proceed', async () => {
-    arrangeDrainStatus(['{"inFlight":1}']);
+    arrangeDrainStatus([drainStatus(['s-1'])]);
     await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 10 });
     expect(loggerWarnMock).toHaveBeenCalledTimes(1);
     const warn = String(loggerWarnMock.mock.calls[0]?.[0] ?? '');
+    expect(warn).toContain('1 session(s)');
     expect(warn).toContain('recreating anyway');
   });
 
-  test('treats an unparseable drain-status as unknown and waits to the deadline', async () => {
-    arrangeDrainStatus(['not json at all']);
+  test('keeps polling through a failed status call, as unknown', async () => {
+    dockerMock.mockImplementation((...args: string[]) =>
+      args.join(' ').includes('control-cli.ts drain-status;')
+        ? Promise.resolve(fail('timeout'))
+        : Promise.resolve(ok()),
+    );
     await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 10 });
     const warn = String(loggerWarnMock.mock.calls[0]?.[0] ?? '');
     expect(warn).toContain('unknown');
   });
+
+  for (const [name, answer] of [
+    ['a missing field', '{"inFlight":0}'],
+    ['an extra field', '{"draining":true,"sessions":0,"sessionIds":[],"x":1}'],
+    [
+      'a count that disagrees with the ids',
+      '{"draining":true,"sessions":0,"sessionIds":["s-1"]}',
+    ],
+    ['an unparseable answer', 'not json at all'],
+  ] as const) {
+    test(`warns once on ${name} and waits it out as unknown`, async () => {
+      // A drifted answer says nothing about the sessions still held, so it
+      // never reads as "drained": the drain warns once and keeps polling.
+      arrangeDrainStatus([answer]);
+      await drainSandbox({ dryRun: false, pollMs: 1, timeoutMs: 20 });
+      expect(loggerInfoMock).not.toHaveBeenCalled();
+      const warns = loggerWarnMock.mock.calls.map((c) => String(c[0]));
+      expect(warns).toHaveLength(2);
+      expect(warns[0]).toContain("not the spawner's contract");
+      expect(warns[1]).toContain('unknown session(s)');
+      expect(
+        dockerMock.mock.calls.filter((c) =>
+          c.map(String).join(' ').includes('control-cli.ts drain-status;'),
+        ).length,
+      ).toBeGreaterThan(1);
+    });
+  }
 });

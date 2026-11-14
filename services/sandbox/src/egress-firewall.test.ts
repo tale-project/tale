@@ -40,13 +40,31 @@ writeFileSync(
   '#!/bin/sh\nprintf "proxy-start\\n" >> "$TALE_FIREWALL_TEST_LOG"\n',
   { mode: 0o755 },
 );
+// util-linux setpriv: records its arguments, then runs the command after `--`.
+const setpriv = join(bin, 'setpriv');
+writeFileSync(
+  setpriv,
+  '#!/bin/sh\nprintf "setpriv %s\\n" "$*" >> "$TALE_FIREWALL_TEST_LOG"\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n',
+  { mode: 0o755 },
+);
+// The process status the entrypoint reads its capability sets from. Compose
+// runs the proxy with cap_drop ALL plus its seven capabilities: 0x14e3 in the
+// bounding set and no CAP_SETPCAP.
+const procStatus = join(root, 'status');
+const COMPOSE_CAPABILITIES = '00000000000014e3';
+let capabilities = {
+  bounding: COMPOSE_CAPABILITIES,
+  effective: COMPOSE_CAPABILITIES,
+};
 const entrypoint = readFileSync(
   resolve(import.meta.dir, '../../sandbox-egress/docker-entrypoint.sh'),
   'utf8',
 )
   .replaceAll('/proc/sys/net/ipv6', ipv6)
   .replaceAll('/etc/resolv.conf', resolv)
-  .replace('exec /entrypoint.sh "$@"', 'exec "$TALE_FIREWALL_TEST_NEXT" "$@"');
+  .replaceAll('/proc/self/status', procStatus)
+  .replaceAll('/usr/bin/setpriv', setpriv)
+  .replaceAll('/entrypoint.sh "$@"', '"$TALE_FIREWALL_TEST_NEXT" "$@"');
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 function boot(
@@ -59,6 +77,10 @@ function boot(
 ) {
   const log = join(root, 'calls');
   writeFileSync(log, '');
+  writeFileSync(
+    procStatus,
+    `Name:\tsh\nCapInh:\t0000000000000000\nCapPrm:\t${capabilities.effective}\nCapEff:\t${capabilities.effective}\nCapBnd:\t${capabilities.bounding}\n`,
+  );
   rmSync(resolv, { recursive: true, force: true });
   if (resolverConfig === null) mkdirSync(resolv);
   else writeFileSync(resolv, resolverConfig);
@@ -390,4 +412,66 @@ describe('per-session connection cap', () => {
       expect(calls.filter((call) => call.startsWith('ip'))).toEqual([]);
     },
   );
+});
+
+describe('capability bounding set', () => {
+  const FULL = '000001ffffffffff';
+  const narrowed = `setpriv --bounding-set -all,+chown,+dac_override,+kill,+setgid,+setuid,+net_bind_service,+net_admin -- ${launch}`;
+  afterAll(() => {
+    capabilities = {
+      bounding: COMPOSE_CAPABILITIES,
+      effective: COMPOSE_CAPABILITIES,
+    };
+  });
+
+  test("Compose's seven capabilities skip setpriv, which would fail there without CAP_SETPCAP", () => {
+    capabilities = {
+      bounding: COMPOSE_CAPABILITIES,
+      effective: COMPOSE_CAPABILITIES,
+    };
+    const { result, calls } = boot();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('setpriv skipped');
+    expect(calls.some((call) => call.startsWith('setpriv'))).toBe(false);
+    expect(calls.at(-1)).toBe('proxy-start');
+  });
+
+  test('a wider bounding set (root on Incus) is narrowed to the seven before the proxy starts', () => {
+    capabilities = { bounding: FULL, effective: FULL };
+    const { result, calls } = boot();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('narrowing the bounding set');
+    // Last, after the firewall: the proxy and its helpers run narrowed.
+    expect(calls.slice(-2)).toEqual([narrowed, 'proxy-start']);
+    expect(calls.indexOf('iptables -I FORWARD 1 -j DROP')).toBeLessThan(
+      calls.length - 2,
+    );
+  });
+
+  test('a wider bounding set without CAP_SETPCAP warns and starts as before', () => {
+    capabilities = { bounding: FULL, effective: COMPOSE_CAPABILITIES };
+    const { result, calls } = boot();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      'without CAP_SETPCAP it cannot be narrowed',
+    );
+    expect(calls.some((call) => call.startsWith('setpriv'))).toBe(false);
+    expect(calls.at(-1)).toBe('proxy-start');
+  });
+
+  test('a failed setpriv stops the start instead of running the proxy unnarrowed', () => {
+    capabilities = { bounding: FULL, effective: FULL };
+    writeFileSync(setpriv, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    try {
+      const { result, calls } = boot();
+      expect(result.status).toBe(1);
+      expect(calls).not.toContain('proxy-start');
+    } finally {
+      writeFileSync(
+        setpriv,
+        '#!/bin/sh\nprintf "setpriv %s\\n" "$*" >> "$TALE_FIREWALL_TEST_LOG"\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n',
+        { mode: 0o755 },
+      );
+    }
+  });
 });

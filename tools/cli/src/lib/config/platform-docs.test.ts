@@ -103,6 +103,18 @@ const PARITY_FILES = [
   'services/platform/env.sh',
   'services/db/Dockerfile',
   'services/sandbox-egress/Dockerfile',
+  'services/sandbox-egress/docker-entrypoint.sh',
+  'services/proxy/Caddyfile.switch',
+];
+
+/** Read by `scripts/oci-image-metadata.test.ts` beside every Dockerfile. */
+const IMAGE_METADATA_FILES = ['patches/dumb-init/maxsig-64.patch'];
+
+/** Read by `runtime/incus/contract/contract.test.ts`: the sandbox zone an
+ * operator makes, which the node contract's zone rules must match. */
+const OPERATOR_BLOCK_FILES = [
+  'services/sandbox/e2e/incus/operator-block.ts',
+  'services/sandbox/docs/incus.md',
 ];
 
 /** Read by publish-package.test.ts: publication inputs and both workflows. */
@@ -499,6 +511,8 @@ test('turbo re-runs the suites when an install page or another outside file they
         'scripts/install-cli.sh',
         'scripts/install-cli.ps1',
         ...PARITY_FILES,
+        ...IMAGE_METADATA_FILES,
+        ...OPERATOR_BLOCK_FILES,
         ...PACKAGE_PUBLICATION_FILES,
         ...REPOSITORY_RUNTIME_SOURCE,
         ...SPAWNER_CONFIG_SOURCE,

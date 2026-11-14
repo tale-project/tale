@@ -60,6 +60,7 @@ import {
   assertComposeAvailable,
   assertDockerEngineSupported,
 } from '../docker/setup-checks';
+import { assertDockerLoop } from '../project/declared-engine';
 import { findChildProject, findProject } from '../project/find-project';
 import {
   resolveOrAssignProjectContext,
@@ -231,6 +232,8 @@ export async function runDev(options: DevOptions): Promise<void> {
       throw new Error('Initialization failed: tale.json was not created.');
     }
   }
+  // Before anything is written: a workspace on Incus never runs a local loop.
+  await assertDockerLoop(projectDir, 'tale dev');
 
   // Environment setup runs unconditionally so `tale dev` after a CLI upgrade
   // that introduces a new auto-secret picks it up before compose starts.

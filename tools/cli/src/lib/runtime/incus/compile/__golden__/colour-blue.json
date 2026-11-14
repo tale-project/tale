@@ -1,0 +1,547 @@
+{
+  "schemaVersion": 1,
+  "path": "workspace",
+  "stack": "tale",
+  "project": "tale-stack",
+  "pool": "tale",
+  "network": {
+    "name": "talebr0",
+    "subnet": "10.30.0.0/16",
+    "gateway": "10.30.0.1",
+    "block": "10.30.1.0/24"
+  },
+  "images": [
+    {
+      "alias": "tale-platform-6667294432b12202ca1d5978dae4206f",
+      "reference": "ghcr.io/tale-project/tale/tale-platform@sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+      "digest": "sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+      "services": ["backend-api", "backend-worker", "platform"]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "config-data",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    },
+    {
+      "name": "static-assets",
+      "kind": "data",
+      "pool": "tale",
+      "config": {}
+    }
+  ],
+  "files": [],
+  "instances": [
+    {
+      "name": "backend-api-blue-1",
+      "service": "backend-api",
+      "index": 1,
+      "colour": "blue",
+      "image": "tale-platform-6667294432b12202ca1d5978dae4206f",
+      "address": "10.30.1.80",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DATABASE_URL": "postgresql://tale:fixture-db-password@db:5432/tale_app",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_ACCESS_KEY": "tale",
+        "environment.OBJECT_STORE_BUCKET": "tale-blobs",
+        "environment.OBJECT_STORE_ENDPOINT": "http://object-store:9000",
+        "environment.OBJECT_STORE_FORCE_PATH_STYLE": "",
+        "environment.OBJECT_STORE_PREFIX": "",
+        "environment.OBJECT_STORE_PUBLIC_ENDPOINT": "https://demo.tale.dev",
+        "environment.OBJECT_STORE_REGION": "us-east-1",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.PORT": "3005",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_AGENT_PROFILE": "agent",
+        "environment.SANDBOX_HTTP_API_BASE_URL": "http://backend-api:3005",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SANDBOX_URL": "http://sandbox:8003",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_COLOR": "blue",
+        "environment.TALE_CONFIG_DIR": "/app/data",
+        "environment.TALE_ROLE": "api",
+        "environment.TALE_SANDBOX_CLAUDE_EFFORT": "",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.kernel.nofile": "65536:65536",
+        "limits.memory": "12GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.1.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.colour": "blue",
+        "user.tale.grace": "30",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sf http://localhost:3005/ping\"],\"intervalMs\":10000,\"timeoutMs\":3000,\"startPeriodMs\":30000,\"retries\":3}",
+        "user.tale.image": "sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+        "user.tale.index": "1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "backend-api",
+        "user.tale.service": "backend-api",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.1.80/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD-SHELL", "curl -sf http://localhost:3005/ping"],
+        "intervalMs": 10000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 30000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 30
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "backend-api-blue-2",
+      "service": "backend-api",
+      "index": 2,
+      "colour": "blue",
+      "image": "tale-platform-6667294432b12202ca1d5978dae4206f",
+      "address": "10.30.1.81",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DATABASE_URL": "postgresql://tale:fixture-db-password@db:5432/tale_app",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_ACCESS_KEY": "tale",
+        "environment.OBJECT_STORE_BUCKET": "tale-blobs",
+        "environment.OBJECT_STORE_ENDPOINT": "http://object-store:9000",
+        "environment.OBJECT_STORE_FORCE_PATH_STYLE": "",
+        "environment.OBJECT_STORE_PREFIX": "",
+        "environment.OBJECT_STORE_PUBLIC_ENDPOINT": "https://demo.tale.dev",
+        "environment.OBJECT_STORE_REGION": "us-east-1",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.PORT": "3005",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_AGENT_PROFILE": "agent",
+        "environment.SANDBOX_HTTP_API_BASE_URL": "http://backend-api:3005",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SANDBOX_URL": "http://sandbox:8003",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_COLOR": "blue",
+        "environment.TALE_CONFIG_DIR": "/app/data",
+        "environment.TALE_ROLE": "api",
+        "environment.TALE_SANDBOX_CLAUDE_EFFORT": "",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.kernel.nofile": "65536:65536",
+        "limits.memory": "12GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.1.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.colour": "blue",
+        "user.tale.grace": "30",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sf http://localhost:3005/ping\"],\"intervalMs\":10000,\"timeoutMs\":3000,\"startPeriodMs\":30000,\"retries\":3}",
+        "user.tale.image": "sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+        "user.tale.index": "2",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "backend-api",
+        "user.tale.service": "backend-api",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.1.81/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD-SHELL", "curl -sf http://localhost:3005/ping"],
+        "intervalMs": 10000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 30000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 30
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "backend-worker-blue-1",
+      "service": "backend-worker",
+      "index": 1,
+      "colour": "blue",
+      "image": "tale-platform-6667294432b12202ca1d5978dae4206f",
+      "address": "10.30.1.96",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DATABASE_URL": "postgresql://tale:fixture-db-password@db:5432/tale_app",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_ACCESS_KEY": "tale",
+        "environment.OBJECT_STORE_BUCKET": "tale-blobs",
+        "environment.OBJECT_STORE_ENDPOINT": "http://object-store:9000",
+        "environment.OBJECT_STORE_FORCE_PATH_STYLE": "",
+        "environment.OBJECT_STORE_PREFIX": "",
+        "environment.OBJECT_STORE_PUBLIC_ENDPOINT": "https://demo.tale.dev",
+        "environment.OBJECT_STORE_REGION": "us-east-1",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_AGENT_PROFILE": "agent",
+        "environment.SANDBOX_HTTP_API_BASE_URL": "http://backend-api:3005",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SANDBOX_URL": "http://sandbox:8003",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TALE_COLOR": "blue",
+        "environment.TALE_CONFIG_DIR": "/app/data",
+        "environment.TALE_ROLE": "worker",
+        "environment.TALE_SANDBOX_CLAUDE_EFFORT": "",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.kernel.nofile": "65536:65536",
+        "limits.memory": "12GiB",
+        "limits.processes": "4096",
+        "oci.dns.nameservers": "10.30.1.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.colour": "blue",
+        "user.tale.grace": "120",
+        "user.tale.health": "{\"disabled\":true}",
+        "user.tale.image": "sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+        "user.tale.index": "1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "backend-worker",
+        "user.tale.service": "backend-worker",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.1.96/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "disabled": true
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 120
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "platform-blue-1",
+      "service": "platform",
+      "index": 1,
+      "colour": "blue",
+      "image": "tale-platform-6667294432b12202ca1d5978dae4206f",
+      "address": "10.30.1.64",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "4GiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.1.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.colour": "blue",
+        "user.tale.grace": "45",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]\"],\"intervalMs\":5000,\"timeoutMs\":3000,\"startPeriodMs\":180000,\"retries\":3}",
+        "user.tale.image": "sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+        "user.tale.index": "1",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "platform",
+        "user.tale.service": "platform",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data",
+          "readonly": "true"
+        },
+        "static-assets": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "static-assets",
+          "path": "/app/static-assets"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.1.64/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]"
+        ],
+        "intervalMs": 5000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 180000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 45
+      },
+      "dependsOn": []
+    },
+    {
+      "name": "platform-blue-2",
+      "service": "platform",
+      "index": 2,
+      "colour": "blue",
+      "image": "tale-platform-6667294432b12202ca1d5978dae4206f",
+      "address": "10.30.1.65",
+      "config": {
+        "boot.autorestart": "true",
+        "boot.autostart.priority": "40",
+        "boot.stop.priority": "90",
+        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
+        "environment.DB_PASSWORD": "fixture-db-password",
+        "environment.HOST": "demo.tale.dev",
+        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
+        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "environment.POSTGRES_USER": "tale",
+        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
+        "environment.SITE_URL": "https://demo.tale.dev",
+        "environment.TLS_MODE": "letsencrypt",
+        "limits.memory": "4GiB",
+        "limits.processes": "2048",
+        "oci.dns.nameservers": "10.30.1.2",
+        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh",
+        "security.guestapi": "false",
+        "security.idmap.isolated": "true",
+        "user.tale.colour": "blue",
+        "user.tale.grace": "45",
+        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]\"],\"intervalMs\":5000,\"timeoutMs\":3000,\"startPeriodMs\":180000,\"retries\":3}",
+        "user.tale.image": "sha256:6667294432b12202ca1d5978dae4206fd5a0a52fecfe82c68782e9e0172ae3a1",
+        "user.tale.index": "2",
+        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
+        "user.tale.role": "platform",
+        "user.tale.service": "platform",
+        "user.tale.signal": "15",
+        "user.tale.stack": "tale",
+        "user.tale.version": "0.5.95"
+      },
+      "devices": {
+        "config-data": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "config-data",
+          "path": "/app/data",
+          "readonly": "true"
+        },
+        "static-assets": {
+          "type": "disk",
+          "pool": "tale",
+          "source": "static-assets",
+          "path": "/app/static-assets"
+        },
+        "eth0": {
+          "type": "nic",
+          "network": "talebr0",
+          "name": "eth0",
+          "ipv4.address": "10.30.1.65/16",
+          "ipv4.gateway": "10.30.0.1",
+          "ipv6.address": "none"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]"
+        ],
+        "intervalMs": 5000,
+        "timeoutMs": 3000,
+        "startPeriodMs": 180000,
+        "retries": 3
+      },
+      "stop": {
+        "signal": 15,
+        "graceSeconds": 45
+      },
+      "dependsOn": []
+    }
+  ],
+  "names": {
+    "stack": {
+      "backend-api": ["10.30.1.5"],
+      "backend-api-blue": ["10.30.1.80", "10.30.1.81"],
+      "backend-worker": ["10.30.1.96"],
+      "backend-worker-blue": ["10.30.1.96"],
+      "host.docker.internal": ["10.30.0.1"],
+      "platform": ["10.30.1.5"],
+      "platform-blue": ["10.30.1.64", "10.30.1.65"]
+    },
+    "sessions": {
+      "backend-api": ["10.30.1.5"],
+      "backend-relay": ["10.30.1.5"]
+    }
+  },
+  "switch": {
+    "platform": [
+      "10.30.1.64:3000",
+      "10.30.1.65:3000",
+      "10.30.1.66:3000",
+      "10.30.1.67:3000",
+      "10.30.1.68:3000",
+      "10.30.1.69:3000",
+      "10.30.1.70:3000",
+      "10.30.1.71:3000",
+      "10.30.1.72:3000",
+      "10.30.1.73:3000",
+      "10.30.1.74:3000",
+      "10.30.1.75:3000",
+      "10.30.1.76:3000",
+      "10.30.1.77:3000",
+      "10.30.1.78:3000",
+      "10.30.1.79:3000",
+      "10.30.1.128:3000",
+      "10.30.1.129:3000",
+      "10.30.1.130:3000",
+      "10.30.1.131:3000",
+      "10.30.1.132:3000",
+      "10.30.1.133:3000",
+      "10.30.1.134:3000",
+      "10.30.1.135:3000",
+      "10.30.1.136:3000",
+      "10.30.1.137:3000",
+      "10.30.1.138:3000",
+      "10.30.1.139:3000",
+      "10.30.1.140:3000",
+      "10.30.1.141:3000",
+      "10.30.1.142:3000",
+      "10.30.1.143:3000"
+    ],
+    "backend-api": [
+      "10.30.1.80:3005",
+      "10.30.1.81:3005",
+      "10.30.1.82:3005",
+      "10.30.1.83:3005",
+      "10.30.1.84:3005",
+      "10.30.1.85:3005",
+      "10.30.1.86:3005",
+      "10.30.1.87:3005",
+      "10.30.1.88:3005",
+      "10.30.1.89:3005",
+      "10.30.1.90:3005",
+      "10.30.1.91:3005",
+      "10.30.1.92:3005",
+      "10.30.1.93:3005",
+      "10.30.1.94:3005",
+      "10.30.1.95:3005",
+      "10.30.1.144:3005",
+      "10.30.1.145:3005",
+      "10.30.1.146:3005",
+      "10.30.1.147:3005",
+      "10.30.1.148:3005",
+      "10.30.1.149:3005",
+      "10.30.1.150:3005",
+      "10.30.1.151:3005",
+      "10.30.1.152:3005",
+      "10.30.1.153:3005",
+      "10.30.1.154:3005",
+      "10.30.1.155:3005",
+      "10.30.1.156:3005",
+      "10.30.1.157:3005",
+      "10.30.1.158:3005",
+      "10.30.1.159:3005"
+    ]
+  },
+  "ingress": {
+    "mode": "proxy-device",
+    "proxy": "10.30.1.4",
+    "ports": []
+  },
+  "ignored": [
+    {
+      "service": "platform",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "backend-api",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    },
+    {
+      "service": "backend-worker",
+      "key": "logging",
+      "reason": "Incus keeps the console log of the instance"
+    }
+  ],
+  "omitted": []
+}
