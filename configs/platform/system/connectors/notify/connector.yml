@@ -85,6 +85,54 @@ actions:
         })),
         skipped: [],
       };
+    scenarios:
+      - name: delivered_to_members
+        kind: success
+        description: 'Both members get the message in their notifications and by email, and nobody is skipped.'
+        output:
+          delivered:
+            - { to: ada@example.com, userId: usr_ada }
+            - { to: grace@example.com, userId: usr_grace }
+          skipped: []
+      - name: muted_member_skipped
+        kind: success
+        description: 'One member gets the message; the other has switched off messages from automations, so the step lists them as skipped.'
+        output:
+          delivered:
+            - { to: ada@example.com, userId: usr_ada }
+          skipped:
+            - { to: grace@example.com, userId: usr_grace, reason: preference }
+      - name: no_starter
+        kind: empty
+        when: { to: [run-starter] }
+        description: 'The run was started by a trigger, so it has no starter: nobody gets the message, and the step lists run-starter as skipped.'
+        output:
+          delivered: []
+          skipped:
+            - { to: run-starter, reason: no_starter }
+      - name: not_a_member
+        kind: refusal
+        when: { to: [noah@example.com] }
+        description: 'The recipient is not a member of the organization, so the whole message is refused before anything is sent.'
+        error:
+          message: 'notify.member sent nothing: not members of this organization: noah@example.com'
+      - name: run_limit
+        kind: refusal
+        description: 'The run has sent 99 of its 100 messages, and this step would pass the cap, so the whole message is refused.'
+        error:
+          message: 'notify.member sent nothing: the run has sent 99 of its 100 messages, and this step would pass that'
+      - name: run_gone
+        kind: refusal
+        description: 'The run no longer exists, so there is no run to send its message as.'
+        error:
+          message: 'The run no longer exists, so there is nothing to send its message as'
+      - name: repeated_send
+        kind: duplicate
+        description: 'The step comes again after a retry: its member already has the message from the first try, so nothing is sent twice and the first try''s member is answered.'
+        output:
+          delivered:
+            - { to: ada@example.com, userId: usr_ada }
+          skipped: []
     backend:
       kind: native
       impl: notify.member

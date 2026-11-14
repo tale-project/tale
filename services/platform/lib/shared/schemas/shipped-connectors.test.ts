@@ -52,6 +52,10 @@ import {
   type SmtpSession,
 } from '../../connectors/natives/imap-smtp';
 import {
+  notifyNatives,
+  type WorkflowNotifyStore,
+} from '../../connectors/natives/platform-notify';
+import {
   type WebdavEntry,
   type WebdavStore,
   type WebdavStoreErrorCode,
@@ -117,6 +121,7 @@ const SCENARIO_CONNECTORS = [
   'http',
   'imap-smtp',
   'jev',
+  'notify',
   'outlook',
   'slack',
   'tavily',
@@ -2831,13 +2836,18 @@ function mailContext(): NativeConnectorContext {
 }
 
 /** What a native action's store answers in one case: the value a store method
- * returns, or the refusal it raises. */
+ * returns, or the refusal it raises. A store's answer that is a value, such as
+ * `notify`'s delivered-or-refused result, is returned as it is. */
 type StoreAnswer = { returns: unknown } | { refuses: WebdavStoreErrorCode };
+
+/** A store method a native case answers: each method of the stores the native
+ * connectors read (WebDAV's document store, the notification store). */
+type NativeCall = keyof WebdavStore | keyof WorkflowNotifyStore;
 
 /** One case of a native action: the store method it calls, and what the store
  * answers. A native's service is its store, so the proof is that answer. */
 interface NativeProof {
-  call: 'list' | 'read' | 'write' | 'remove';
+  call: NativeCall;
   answer: StoreAnswer;
 }
 
@@ -2964,6 +2974,86 @@ const WEBDAV_NATIVE_PROOFS: Record<string, NativeProof> = {
 };
 
 /**
+ * The answers `notify.member`'s store gives in each scenario, keyed
+ * `<action>/<scenario>`: the store's own answer, delivered or refused. A retry
+ * of a delivered step finds its member's row and answers them again, so
+ * `repeated_send` answers the first send's member.
+ */
+const NOTIFY_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'member/delivered_to_members': {
+    call: 'notify',
+    answer: {
+      returns: {
+        ok: true,
+        delivered: [
+          { to: 'ada@example.com', userId: 'usr_ada' },
+          { to: 'grace@example.com', userId: 'usr_grace' },
+        ],
+        skipped: [],
+      },
+    },
+  },
+  'member/muted_member_skipped': {
+    call: 'notify',
+    answer: {
+      returns: {
+        ok: true,
+        delivered: [{ to: 'ada@example.com', userId: 'usr_ada' }],
+        skipped: [
+          {
+            to: 'grace@example.com',
+            userId: 'usr_grace',
+            reason: 'preference',
+          },
+        ],
+      },
+    },
+  },
+  'member/no_starter': {
+    call: 'notify',
+    answer: {
+      returns: {
+        ok: true,
+        delivered: [],
+        skipped: [{ to: 'run-starter', reason: 'no_starter' }],
+      },
+    },
+  },
+  'member/not_a_member': {
+    call: 'notify',
+    answer: {
+      returns: {
+        ok: false,
+        refusal: { kind: 'not_a_member', recipients: ['noah@example.com'] },
+      },
+    },
+  },
+  'member/run_limit': {
+    call: 'notify',
+    answer: {
+      returns: {
+        ok: false,
+        refusal: { kind: 'run_limit', limit: 100, sent: 99 },
+      },
+    },
+  },
+  'member/run_gone': {
+    call: 'notify',
+    answer: { returns: { ok: false, refusal: { kind: 'no_run' } } },
+  },
+  'member/repeated_send': {
+    call: 'notify',
+    answer: {
+      returns: {
+        ok: true,
+        delivered: [{ to: 'ada@example.com', userId: 'usr_ada' }],
+        skipped: [],
+      },
+    },
+  },
+};
+
+/**
  * Every listed connector's proofs. A connector whose actions call HTTP proves
  * them with the answers its live body gets, and the secrets its credential
  * holds — synthetic, as every answer is — and, by proof, the files its body
@@ -2991,6 +3081,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
     secrets: { apiKey: 'example-openrouter-key' },
     proofs: JEV_PROOFS,
   },
+  notify: { proofs: {}, native: NOTIFY_NATIVE_PROOFS },
   outlook: { proofs: OUTLOOK_PROOFS, stored: OUTLOOK_STORED },
   slack: { proofs: SLACK_PROOFS },
   tavily: {
@@ -3482,10 +3573,14 @@ describe('a connector scenario fits its action and answers as the live call woul
   );
 });
 
-/** A store that answers the one method its native calls with the proof's
- * answer, and notes each method it was asked, as a live store would. */
-function proofStore(proof: NativeProof, asked: string[]): WebdavStore {
-  const answer = (call: NativeProof['call']): unknown => {
+/** What a store answers to a call: the value its proof gives for the one call
+ * the proof names, or the refusal it raises. Any other call has no answer. Each
+ * call is noted in `asked`, as a live store notes the calls it is made. */
+function answerOf(
+  proof: NativeProof,
+  asked: string[],
+): (call: NativeCall) => unknown {
+  return (call) => {
     asked.push(call);
     if (call !== proof.call) {
       throw new Error(`the proof gives no answer for ${call}`);
@@ -3498,6 +3593,12 @@ function proofStore(proof: NativeProof, asked: string[]): WebdavStore {
     }
     return proof.answer.returns;
   };
+}
+
+/** A document store that answers the one method its native calls with the
+ * proof's answer. */
+function proofStore(proof: NativeProof, asked: string[]): WebdavStore {
+  const answer = answerOf(proof, asked);
   return {
     list: async () =>
       answer('list') as Awaited<ReturnType<WebdavStore['list']>>,
@@ -3510,10 +3611,38 @@ function proofStore(proof: NativeProof, asked: string[]): WebdavStore {
   };
 }
 
-/** The context a native runs in: its organization, and no HTTP, which a
- * WebDAV native never makes. */
+/** A notification store that answers its one call with the proof's answer. */
+function notifyStoreOf(
+  proof: NativeProof,
+  asked: string[],
+): WorkflowNotifyStore {
+  const answer = answerOf(proof, asked);
+  return {
+    notify: async () =>
+      answer('notify') as Awaited<ReturnType<WorkflowNotifyStore['notify']>>,
+  };
+}
+
+/** The native backend each native connector's proofs run against: its own
+ * implementation, over the store the proof answers. */
+const NATIVE_BACKENDS: Partial<
+  Record<
+    ScenarioConnector,
+    (
+      proof: NativeProof,
+      asked: string[],
+    ) => Readonly<Record<string, NativeConnectorImpl>>
+  >
+> = {
+  notify: (proof, asked) => notifyNatives(notifyStoreOf(proof, asked)),
+  webdav: (proof, asked) => webdavNatives(proofStore(proof, asked)),
+};
+
+/** The context a native runs in: its organization, and no HTTP, which none of
+ * these natives makes. The caller is a step of a run, as the executor calls a
+ * native, which `notify.member` sends as. */
 function nativeContext(): NativeConnectorContext {
-  const noHttp = () => Promise.reject(new Error('no HTTP in a webdav native'));
+  const noHttp = () => Promise.reject(new Error('no HTTP in a native'));
   return {
     secrets: { get: () => '' },
     idempotencyKey: 'key_example',
@@ -3521,6 +3650,7 @@ function nativeContext(): NativeConnectorContext {
     organizationId: 'org_example',
     credentialId: 'cred_example',
     authMethod: 'basic',
+    caller: { kind: 'workflow', runId: 'run_example', nodeId: 'node_example' },
     http: {
       get: noHttp,
       post: noHttp,
@@ -3534,8 +3664,8 @@ function nativeContext(): NativeConnectorContext {
 }
 
 describe('a native scenario answers as its native action does [CONN-R33]', () => {
-  // Only WebDAV is a native connector with scenarios, so every native proof
-  // runs against its document store.
+  // Each native proof runs against its connector's own backend, over the store
+  // the proof answers.
   it.each(
     SCENARIO_CONNECTORS.flatMap((slug) =>
       Object.keys(nativeProofsOf(slug)).map(
@@ -3559,10 +3689,12 @@ describe('a native scenario answers as its native action does [CONN-R33]', () =>
           `${slug}.${actionName} has no native backend, or no ${scenarioName} scenario and proof`,
         );
       }
+      const backend = NATIVE_BACKENDS[slug];
+      if (backend === undefined) {
+        throw new Error(`${slug} has native proofs but no native backend`);
+      }
       const asked: string[] = [];
-      const native = webdavNatives(proofStore(proof, asked))[
-        action.backend.impl
-      ];
+      const native = backend(proof, asked)[action.backend.impl];
       if (native === undefined) {
         throw new Error(`${action.backend.impl} is not a native of ${slug}`);
       }
