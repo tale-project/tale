@@ -76,6 +76,7 @@ import {
   crawlHostRefusal,
   privateCrawlHostsAllowed,
 } from '../../../lib/net/crawl-host-policy';
+import { parseRetryAfterMs } from '../../../lib/net/retry-after';
 import {
   safeFetch,
   safeFetchBinary,
@@ -160,6 +161,11 @@ function fetchDelayMs(policy: RobotsPolicy): number {
 }
 /** Pause before the next continuation link. */
 const CONTINUATION_DELAY_MS = 5_000;
+/** The pause a site's `429 Too Many Requests` asks for when it names none
+ * in `Retry-After`, and the longest one honoured: a site that asks for more
+ * is asked again at this pace, and answers 429 again if it still means it. */
+const RATE_LIMIT_DEFAULT_PAUSE_MS = 60_000;
+const RATE_LIMIT_MAX_PAUSE_MS = 600_000;
 /** Chain-length backstop against a chain that stops making progress. Sized
  * so the URL cap, not this, is the binding limit for ordinary sites; a scan
  * it does cut off finishes early and the next interval resumes the frontier
@@ -415,6 +421,9 @@ export async function scanWebsiteImpl(
       // page it probed would only queue behind the same wait) and hands the
       // frontier to the next link after the longer pause.
       let renderDeferred = false;
+      /** Set once a page's site answered 429: the link stops fetching, and
+       * the next link is scheduled after the site's wait. */
+      let rateLimitWaitMs: number | null = null;
 
       /** The batch's render results, or null when the render capacity
        * stayed spent for the rest of the window (the batch is left unmarked
@@ -567,6 +576,13 @@ export async function scanWebsiteImpl(
             policy,
             scanStartedAt,
           );
+          if (typeof outcome === 'object' && outcome.kind === 'rate_limited') {
+            console.warn(
+              `[crawl] ${args.domain}: the site answered 429; pausing its requests for ${Math.ceil(outcome.waitMs / 1000)} s`,
+            );
+            rateLimitWaitMs = outcome.waitMs;
+            break;
+          }
           seen.requested += 1;
           if (outcome === 'not_modified') {
             seen.unchanged += 1;
@@ -593,6 +609,9 @@ export async function scanWebsiteImpl(
         // fold into one run), so the page counts move as pages land instead
         // of at the link's end (2026-09-14 evaluation, h5).
         await fanOutRowSync(ctx, sql, args.domain);
+        // A site that answered 429 ends the link here: what is queued is
+        // settled above, and the page stays due for the next link.
+        if (rateLimitWaitMs !== null) break;
       }
       if (seen.requested > 0) {
         console.log(
@@ -619,8 +638,10 @@ export async function scanWebsiteImpl(
         await fanOutRowSync(ctx, sql, args.domain);
         await ctx.scheduler.runAfter(
           // A link that waited on render capacity gives the other scans
-          // time to release a session before it asks again.
-          renderDeferred ? RENDER_CAPACITY_RETRY_MS : CONTINUATION_DELAY_MS,
+          // time to release a session before it asks again; a site that
+          // answered 429 is given the wait it asked for.
+          rateLimitWaitMs ??
+            (renderDeferred ? RENDER_CAPACITY_RETRY_MS : CONTINUATION_DELAY_MS),
           internal.knowledge.crawl_action.scanWebsite,
           {
             ...identity,
@@ -1407,7 +1428,22 @@ export type FetchOutcome =
       readonly outcome: StoreOutcome;
       readonly check: PageCheck;
     }
-  | { readonly kind: 'render'; readonly probe: PageProbe };
+  | { readonly kind: 'render'; readonly probe: PageProbe }
+  | {
+      /** The site answered 429: no failure is recorded and the page is left
+       * due, unmarked, to be asked again after `waitMs`. */
+      readonly kind: 'rate_limited';
+      readonly waitMs: number;
+    };
+
+/** How long a site that answered 429 asks the crawler to wait: its
+ * `Retry-After`, within the bounds above. */
+function rateLimitPauseMs(headers: Headers): number {
+  const asked =
+    parseRetryAfterMs(headers.get('retry-after')) ??
+    RATE_LIMIT_DEFAULT_PAUSE_MS;
+  return Math.min(Math.max(asked, FETCH_DELAY_MS), RATE_LIMIT_MAX_PAUSE_MS);
+}
 
 /** Whether a redirect landed on another host or path of the site — not
  * merely on the same address with another query string. */
@@ -1493,6 +1529,12 @@ export async function fetchAndStorePage(
     return 'failed';
   }
 
+  if (response.status === 429) {
+    // The site asked the crawler to come back later. The request is not a
+    // failure of the page, so nothing is charged; the scan ends its link
+    // here and asks again once the site's wait is over.
+    return { kind: 'rate_limited', waitMs: rateLimitPauseMs(response.headers) };
+  }
   if (response.status === 404 || response.status === 410) {
     const answer = `The page answered HTTP ${response.status}${
       response.statusText === '' ? '' : ` ${response.statusText}`

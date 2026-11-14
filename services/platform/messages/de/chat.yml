@@ -736,6 +736,7 @@ thinking:
     pageTooLarge: Die Seite ist zu umfangreich zum Lesen
     pageNotFound: Unter dieser Adresse gibt es keine Seite
     accessDenied: Die Website verweigert den Zugriff
+    rateLimited: Die Website bat, später erneut zu fragen
     httpError: Die Website hat mit einem Fehler geantwortet
     unsupportedType: Diese Art von Datei lässt sich hier nicht lesen
     pageEmpty: Die Seite enthält keinen Text

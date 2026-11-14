@@ -63,6 +63,7 @@ import {
   markedBotCheckOf,
   type BotCheck,
 } from '../../../lib/net/bot-check';
+import { parseRetryAfterMs } from '../../../lib/net/retry-after';
 import {
   SafeFetchError,
   isPrivateIp,
@@ -280,7 +281,19 @@ function fetchFailureReason(error: unknown): WebFetchFailureReason {
 function httpFailureReason(status: number): WebFetchFailureReason {
   if (status === 404 || status === 410) return 'page_not_found';
   if (status === 401 || status === 403) return 'access_denied';
+  if (status === 429) return 'rate_limited';
   return 'http_error';
+}
+
+/** What the model is told of a site's error status: the status, and for a
+ * 429 the wait the site asked for, when its `Retry-After` names one. The
+ * site's own words stay out of it. */
+function httpFailureMessage(status: number, headers: Headers): string {
+  if (status !== 429) return `The server answered ${status}.`;
+  const waitMs = parseRetryAfterMs(headers.get('retry-after'));
+  return waitMs === undefined
+    ? 'The server answered 429 (too many requests), so the page was not read.'
+    : `The server answered 429 (too many requests) and asked to wait ${Math.ceil(waitMs / 1000)} seconds before the next request, so the page was not read.`;
 }
 
 /** What web_fetch says rendering met when the rendered page still holds no
@@ -3190,7 +3203,7 @@ export function createChatToolExecutor(
         webFetchFailure(
           'error',
           httpFailureReason(response.status),
-          `The server answered ${response.status}.`,
+          httpFailureMessage(response.status, response.headers),
         ),
       );
     }

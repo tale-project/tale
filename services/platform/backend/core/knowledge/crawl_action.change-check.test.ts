@@ -1,5 +1,9 @@
 // @vitest-environment node
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -465,7 +469,10 @@ describe('scanWebsiteImpl — a page that changed', () => {
 
   /** The frontier holds `page` once; its stored text is already what the
    * browser shows, so storing it changes nothing in the index. */
-  function scanCorpus(page: Record<string, unknown>): {
+  function scanCorpus(
+    page: Record<string, unknown>,
+    due = 0,
+  ): {
     sql: Sql;
     statements: Statement[];
   } {
@@ -484,6 +491,9 @@ describe('scanWebsiteImpl — a page that changed', () => {
         if (handed) return Promise.resolve([]);
         handed = true;
         return Promise.resolve([page]);
+      }
+      if (statement.startsWith('SELECT count(*)::text AS n')) {
+        return Promise.resolve([{ n: String(due) }]);
       }
       if (statement.includes('bool_and(content_hash')) {
         return Promise.resolve([{ present: true, current: true }]);
@@ -545,6 +555,40 @@ describe('scanWebsiteImpl — a page that changed', () => {
     expect(frontier?.text).toContain(
       'c.content_hash IS DISTINCT FROM website_urls.content_hash ) AS indexed',
     );
+  });
+
+  it('ends the link, leaves the page due, and schedules the next link after the wait [KNOW-R22]', async () => {
+    // The link reads the operator's config root once it finishes; an empty
+    // one holds no embedding model, so nothing is embedded.
+    const configRoot = mkdtempSync(path.join(tmpdir(), 'crawl-429-'));
+    vi.stubEnv('TALE_CONFIG_DIR', configRoot);
+    try {
+      const { sql, statements } = scanCorpus(settled({}), 1);
+      vi.mocked(getKnowledgePoolForOrg).mockResolvedValue(sql);
+      answers({ status: 429, headers: { 'retry-after': '120' } });
+      const ctx = {
+        runMutation: vi.fn(async () => ({ paused: false })),
+        runQuery: vi.fn(),
+        scheduler: { runAfter: vi.fn() },
+      };
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only what the link reaches
+      await scanWebsiteImpl(ctx as unknown as ActionCtx, SCAN);
+
+      expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+        120_000,
+        expect.anything(),
+        expect.objectContaining({ continuation: 2 }),
+      );
+      expect(
+        statements.filter((statement) =>
+          statement.text.includes('fail_count = CASE'),
+        ),
+      ).toEqual([]);
+      expect(renderUrlsInSandbox).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(configRoot, { recursive: true, force: true });
+    }
   });
 
   it('opens no browser for a page that did not change [KNOW-R16]', async () => {
@@ -669,5 +713,41 @@ describe('scanWebsiteImpl — a page that changed', () => {
       null,
       null,
     ]);
+  });
+});
+
+describe('fetchAndStorePage — a site that answers 429 [KNOW-R22]', () => {
+  it('records no failure and asks for the page again after the wait the site names [KNOW-R22]', async () => {
+    answers({ status: 429, headers: { 'retry-after': '120' } });
+    const { sql, statements } = corpus();
+
+    await expect(
+      fetchAndStorePage(sql, DOMAIN, settled({}), EMPTY_ROBOTS_POLICY),
+    ).resolves.toEqual({ kind: 'rate_limited', waitMs: 120_000 });
+
+    expect(statements).toEqual([]);
+  });
+
+  it('waits a minute when the site names no wait [KNOW-R22]', async () => {
+    answers({ status: 429 });
+
+    await expect(probe(settled({}))).resolves.toEqual({
+      kind: 'rate_limited',
+      waitMs: 60_000,
+    });
+  });
+
+  it('never waits less than the fetch pause or more than ten minutes [KNOW-R22]', async () => {
+    answers({ status: 429, headers: { 'retry-after': '0' } });
+    await expect(probe(settled({}))).resolves.toEqual({
+      kind: 'rate_limited',
+      waitMs: 500,
+    });
+
+    answers({ status: 429, headers: { 'retry-after': '3600' } });
+    await expect(probe(settled({}))).resolves.toEqual({
+      kind: 'rate_limited',
+      waitMs: 600_000,
+    });
   });
 });

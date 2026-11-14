@@ -728,6 +728,7 @@ thinking:
     pageTooLarge: The page is too large to read
     pageNotFound: No page at this address
     accessDenied: The site refused access
+    rateLimited: The site asked Tale to wait
     httpError: The site answered with an error
     unsupportedType: This kind of file can't be read here
     pageEmpty: The page has no text
