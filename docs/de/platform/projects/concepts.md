@@ -17,7 +17,7 @@ Nutze ein Projekt, wenn mehrere Fragen oder Aufgaben auf denselben Unterlagen be
 
 Ein Projektchat beginnt mit den gespeicherten Projektanweisungen. Er kann die Dateien dieses Projekts und das zugängliche Wissen der Organisation durchsuchen. So haben auch spätere Gespräche eine gemeinsame Grundlage, ohne dass du jedes Mal ein Briefing einfügen musst. Dateien anderer Projekte gehören nicht zu diesem Suchbereich.
 
-Unter **Chats** auf **Allgemein** legt **Agent für neue Chats** fest, wer in den neuen Chats des Projekts antwortet. **Zuerst erstellter Agent**, die Voreinstellung, ist immer der älteste Agent, den das Projekt noch hat; du kannst auch einen der Agenten oder **Assistent** wählen. Im Nachrichtenfeld eines Chats kann die Person, der er gehört, weiterhin wechseln, und bestehende Chats behalten ihren Agenten. Redakteure und Admins ändern die Einstellung, solange das Projekt aktiv ist.
+Unter **Chats** auf **Allgemein** legt **Agent für neue Chats** fest, wer in den neuen Chats des Projekts antwortet. **Zuerst erstellter Agent**, die Voreinstellung, ist immer der älteste Agent, den das Projekt noch hat; du kannst auch einen der Agenten oder **Assistent** wählen. Im Nachrichtenfeld eines Chats kann die Person, der er gehört, weiterhin wechseln, und bestehende Chats behalten ihren Agenten. Redakteure, Entwickler, Admins und Inhaber ändern die Einstellung, solange das Projekt aktiv ist.
 
 <Frame caption="Unter Allgemein stehen Projektanweisungen und Freigabe. Speichere geänderte Felder anschließend.">
 

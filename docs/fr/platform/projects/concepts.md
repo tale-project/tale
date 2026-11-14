@@ -17,7 +17,7 @@ Utilise un projet lorsque plusieurs questions ou tâches reposent sur les mêmes
 
 Un chat de projet démarre avec les instructions enregistrées du projet. Il peut rechercher dans les fichiers de ce projet et les connaissances accessibles de l’organisation. Les conversations suivantes disposent ainsi d’un contexte commun sans recopier le brief dans chaque message. Les fichiers d’autres projets restent hors de ce périmètre de recherche.
 
-Sous **Chats**, sur **Général**, **Agent de chat par défaut** détermine qui répond dans les nouveaux chats du projet. **Premier agent créé**, le réglage par défaut, est toujours le plus ancien agent que le projet possède encore ; tu peux aussi choisir l’un des agents ou **Assistant**. Dans un chat, la personne à qui il appartient peut toujours changer d’agent depuis le champ de message, et les chats existants gardent le leur. Les Éditeurs et les Admins modifient ce réglage tant que le projet est actif.
+Sous **Chats**, sur **Général**, **Agent de chat par défaut** détermine qui répond dans les nouveaux chats du projet. **Premier agent créé**, le réglage par défaut, est toujours le plus ancien agent que le projet possède encore ; tu peux aussi choisir l’un des agents ou **Assistant**. Dans un chat, la personne à qui il appartient peut toujours changer d’agent depuis le champ de message, et les chats existants gardent le leur. Les Éditeurs, Développeurs, Admins et Propriétaires modifient ce réglage tant que le projet est actif.
 
 <Frame caption="Général réunit les instructions et le partage du projet. Enregistre les champs après modification.">
 
