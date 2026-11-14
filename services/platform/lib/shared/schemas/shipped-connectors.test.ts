@@ -23,15 +23,27 @@ import {
   MINIMUM_SCENARIO_KINDS,
   type Connector,
   type ConnectorAction,
+  type ConnectorScenario,
 } from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
+import type { NativeConnectorContext } from '../../connectors/dispatcher';
+import { ConnectorError } from '../../connectors/errors';
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import {
   base64Decode,
   base64Encode,
   toConnectorResponse,
 } from '../../connectors/live-host';
+import {
+  imapSmtpNatives,
+  type ImapSession,
+  type MailboxConfig,
+  type MailMessageBody,
+  type MailMessageSummary,
+  type MailTransport,
+  type SmtpSession,
+} from '../../connectors/natives/imap-smtp';
 import { connectorFailureOf } from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
@@ -84,6 +96,7 @@ const EXPECTED_SLUGS = [
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
   'gmail',
+  'imap-smtp',
   'jev',
   'slack',
   'tavily',
@@ -1771,21 +1784,205 @@ const GMAIL_STORED: Record<string, StoredFile[]> = {
   ],
 };
 
+/** What a native mail action's mailbox answers in one proof: the IMAP session
+ * it opens (`open` raises before any command, as an unreachable server does),
+ * its listing or its message, and the SMTP answers, one per send in order. An
+ * answer that is an `Error` is what the server raises. */
+interface MailProof {
+  imap?: {
+    open?: Error;
+    list?: readonly MailMessageSummary[] | Error;
+    message?: MailMessageBody | null;
+  };
+  smtp?: readonly (string | Error)[];
+}
+
+const IMAP_SMTP_CONFIG: MailboxConfig = {
+  imap: {
+    host: 'imap.example.com',
+    port: 993,
+    secure: true,
+    user: 'mailbox@example.com',
+    password: 'example-mailbox-password',
+  },
+  smtp: {
+    host: 'smtp.example.com',
+    port: 465,
+    secure: true,
+    user: 'mailbox@example.com',
+    password: 'example-mailbox-password',
+  },
+  from: 'mailbox@example.com',
+  connectTimeoutMs: 1000,
+  socketTimeoutMs: 2000,
+};
+
+const MAIL_ADDRESS = 'you@example.com';
+
+function mailBody(
+  uid: string,
+  parts: Partial<Pick<MailMessageBody, 'text' | 'html' | 'flags'>> & {
+    headers: MailMessageBody['headers'];
+    subject: string;
+    date: string;
+  },
+): MailMessageBody {
+  return {
+    uid,
+    messageId: parts.headers['message-id'] ?? `<synthetic-${uid}@example.com>`,
+    from: [{ address: 'sender@example.com' }],
+    to: [{ address: MAIL_ADDRESS }],
+    cc: [],
+    ...parts,
+  };
+}
+
+const IMAP_SMTP_PROOFS: Record<string, MailProof> = {
+  'list_messages/two_messages': {
+    imap: {
+      list: [
+        {
+          uid: '101',
+          from: 'sender@example.com',
+          subject: 'Synthetic invoice',
+          sentAt: 1767225600000,
+          receivedAt: 1767225601000,
+        },
+        {
+          uid: '102',
+          from: 'customer@example.org',
+          subject: 'Synthetic question',
+          sentAt: 1767229200000,
+        },
+      ],
+    },
+  },
+  'list_messages/empty_inbox': { imap: { list: [] } },
+  'list_messages/no_sent_folder': {
+    imap: {
+      list: new ConnectorError(
+        'LIVE_BODY_FAILED',
+        'this mail server publishes no Sent folder',
+        { connector: 'imap-smtp', action: 'list_messages' },
+      ),
+    },
+  },
+  'list_messages/server_unreachable': {
+    imap: { open: new Error('connect ETIMEDOUT imap.example.com:993') },
+  },
+  'get_message/text_and_html': {
+    imap: {
+      message: mailBody('101', {
+        subject: 'Synthetic invoice',
+        date: '2026-01-01T09:00:00.000Z',
+        text: 'Synthetic plain body.',
+        html: '<p>Synthetic HTML body.</p>',
+        flags: ['\\Seen'],
+        headers: {
+          'message-id': '<synthetic-101@example.com>',
+          'in-reply-to': '<synthetic-100@example.com>',
+          references: '<synthetic-100@example.com>',
+        },
+      }),
+    },
+  },
+  'get_message/no_body': {
+    imap: {
+      message: mailBody('102', {
+        subject: 'Synthetic empty message',
+        date: '2026-01-01T09:05:00.000Z',
+        flags: [],
+        headers: { 'message-id': '<synthetic-102@example.com>' },
+      }),
+    },
+  },
+  'get_message/uid_not_found': { imap: { message: null } },
+  'send/sent': { smtp: ['<synthetic-1@example.com>'] },
+  'send/recipient_refused': {
+    smtp: [
+      new Error(
+        '550 5.1.1 <nobody@example.org>: Recipient address rejected: User unknown in virtual mailbox table',
+      ),
+    ],
+  },
+  'send/sent_again': { smtp: ['<synthetic-2@example.com>'] },
+};
+
+/** A mailbox that answers `proof`: each session it opens answers as the
+ * proof says, and the SMTP sessions take the proof's sends in order. */
+function mailTransportOf(proof: MailProof): MailTransport {
+  const sends = [...(proof.smtp ?? [])];
+  return {
+    openImap: async (): Promise<ImapSession> => {
+      if (proof.imap?.open !== undefined) throw proof.imap.open;
+      return {
+        listMessages: async () => {
+          const listed = proof.imap?.list ?? [];
+          if (listed instanceof Error) throw listed;
+          return listed;
+        },
+        getMessage: async () => proof.imap?.message ?? null,
+        close: async () => {},
+      };
+    },
+    openSmtp: async (): Promise<SmtpSession> => ({
+      send: async () => {
+        const next = sends.shift();
+        if (next === undefined) {
+          throw new Error('the proof gives no SMTP answer for this send');
+        }
+        if (next instanceof Error) throw next;
+        return { messageId: next };
+      },
+      close: async () => {},
+    }),
+  };
+}
+
+/** The context a native mail action reads; a mail native makes no HTTP call,
+ * so none of its methods is ever reached. */
+function mailContext(): NativeConnectorContext {
+  const noHttp = (): Promise<never> =>
+    Promise.reject(new Error('no HTTP in a mail native'));
+  return {
+    secrets: { get: () => '' },
+    idempotencyKey: 'proof',
+    organizationId: 'example-org',
+    credentialId: 'example-credential',
+    authMethod: 'basic',
+    config: {},
+    http: {
+      get: noHttp,
+      post: noHttp,
+      put: noHttp,
+      patch: noHttp,
+      delete: noHttp,
+    },
+    base64Encode,
+    base64Decode,
+  };
+}
+
 /**
- * Every listed connector's proofs, with the secrets its credential holds —
- * synthetic, as every answer is — and, by proof, the files its body stores,
- * in their order; a proof it does not name stores none. A connector joins
- * `SCENARIO_CONNECTORS` with its proofs, or this does not type-check.
+ * Every listed connector's proofs. A connector whose actions call HTTP proves
+ * them with the answers its live body gets, and the secrets its credential
+ * holds — synthetic, as every answer is — and, by proof, the files its body
+ * stores, in their order; a proof it does not name stores none. A native
+ * connector proves its actions against the native implementation, with the
+ * mailbox each proof names. A connector joins `SCENARIO_CONNECTORS` with its
+ * proofs, or this does not type-check.
  */
-const SCENARIO_PROOFS: Record<
-  ScenarioConnector,
-  {
-    secrets?: Record<string, string>;
-    proofs: Record<string, ProofAnswers>;
-    stored?: Record<string, StoredFile[]>;
-  }
-> = {
+type ScenarioProofs =
+  | { natives: Record<string, MailProof> }
+  | {
+      secrets?: Record<string, string>;
+      proofs: Record<string, ProofAnswers>;
+      stored?: Record<string, StoredFile[]>;
+    };
+
+const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
+  'imap-smtp': { natives: IMAP_SMTP_PROOFS },
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
     proofs: JEV_PROOFS,
@@ -1889,6 +2086,70 @@ async function outcomeOf(run: Promise<unknown>): Promise<Outcome> {
   }
 }
 
+/** The keys of a connector's proofs: `<action>/<scenario>`. */
+function proofKeysOf(slug: ScenarioConnector): string[] {
+  const entry = SCENARIO_PROOFS[slug];
+  return Object.keys('natives' in entry ? entry.natives : entry.proofs);
+}
+
+/**
+ * A native action's scenario, run against its native implementation with the
+ * mailbox the proof names: the output it returns, or the error it throws. The
+ * error is the message verbatim and no status, since a native error carries
+ * none. The run's classification is compared by its reason alone: a native
+ * error is also classified by its own class and code, which a scenario does
+ * not name.
+ */
+async function expectNativeScenario(
+  slug: ScenarioConnector,
+  action: ConnectorAction,
+  scenario: ConnectorScenario,
+  proof: MailProof | undefined,
+): Promise<void> {
+  if (action.backend?.kind !== 'native') {
+    throw new Error(`${slug}.${action.name} has no native backend`);
+  }
+  if (proof === undefined) {
+    throw new Error(`${slug}.${action.name}/${scenario.name} has no proof`);
+  }
+  const natives = imapSmtpNatives({
+    transport: mailTransportOf(proof),
+    resolveConfig: () => IMAP_SMTP_CONFIG,
+    resolveAttachment: () =>
+      Promise.reject(new Error('no attachment in a proof')),
+  });
+  const impl = natives[action.backend.impl];
+  if (impl === undefined) {
+    throw new Error(`${slug}.${action.backend.impl} is not a native`);
+  }
+  const outcome = await outcomeOf(
+    impl({ ...action.exampleInput, ...scenario.when }, mailContext()),
+  );
+  if (scenario.error === undefined) {
+    expect(outcome).toEqual({ output: scenario.output });
+    return;
+  }
+  if (!('thrown' in outcome)) {
+    throw new Error(
+      `${slug}.${action.name}/${scenario.name} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+    );
+  }
+  const { thrown } = outcome;
+  expect(thrown).toBeInstanceOf(Error);
+  expect(thrown instanceof Error ? thrown.message : thrown).toBe(
+    scenario.error.message,
+  );
+  expect(scenario.error.status, 'a native error carries no status').toBe(
+    undefined,
+  );
+  expect(isRecord(thrown) ? thrown.status : undefined).toBeUndefined();
+  expect(isRecord(thrown) ? thrown.vendorStatus : undefined).toBeUndefined();
+  const simulated = new Error(scenario.error.message);
+  expect(
+    connectorFailureOf(thrown, slug, `${slug}.${action.name}`).reason,
+  ).toBe(connectorFailureOf(simulated, slug, `${slug}.${action.name}`).reason);
+}
+
 describe('a connector scenario fits its action and answers as the live call would [CONN-R33]', () => {
   it.each([...EXPECTED_SLUGS])(
     '%s: a when names only properties the action input declares',
@@ -1988,8 +2249,9 @@ describe('a connector scenario fits its action and answers as the live call woul
           (scenario) => `${action.name}/${scenario.name}`,
         ),
       );
-      const proofs = Object.keys(SCENARIO_PROOFS[slug].proofs);
-      const storing = Object.keys(SCENARIO_PROOFS[slug].stored ?? {});
+      const proofs = proofKeysOf(slug);
+      const entry = SCENARIO_PROOFS[slug];
+      const storing = 'natives' in entry ? [] : Object.keys(entry.stored ?? {});
       const shipped = new Set(scenarios);
       const proven = new Set(proofs);
       expect({
@@ -2006,9 +2268,7 @@ describe('a connector scenario fits its action and answers as the live call woul
   // that stands for either names the same status.
   it.each(
     SCENARIO_CONNECTORS.flatMap((slug) =>
-      Object.keys(SCENARIO_PROOFS[slug].proofs).map(
-        (key): [ScenarioConnector, string] => [slug, key],
-      ),
+      proofKeysOf(slug).map((key): [ScenarioConnector, string] => [slug, key]),
     ),
   )(
     '%s %s: the live body, given the answer the scenario stands for, returns its output or throws its error',
@@ -2017,12 +2277,20 @@ describe('a connector scenario fits its action and answers as the live call woul
       const connector = loadConnector(slug);
       const action = connector.actions.find((a) => a.name === actionName);
       const scenario = action?.scenarios?.find((s) => s.name === scenarioName);
-      if (action?.backend?.kind !== 'yaml-js' || scenario === undefined) {
+      if (action === undefined || scenario === undefined) {
         throw new Error(
-          `${slug}.${actionName} has no live body or no ${scenarioName} scenario`,
+          `${slug}.${actionName} has no ${scenarioName} scenario`,
         );
       }
-      const { secrets, proofs, stored: storing } = SCENARIO_PROOFS[slug];
+      const entry = SCENARIO_PROOFS[slug];
+      if ('natives' in entry) {
+        await expectNativeScenario(slug, action, scenario, entry.natives[key]);
+        return;
+      }
+      if (action.backend?.kind !== 'yaml-js') {
+        throw new Error(`${slug}.${actionName} has no live body`);
+      }
+      const { secrets, proofs, stored: storing } = entry;
       const answers = proofs[key];
       const { ctx, asked, stored } = proofHost(answers, secrets);
       const outcome = await outcomeOf(
