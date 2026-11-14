@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  spyOn,
-  test,
-} from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import {
   mkdirSync,
   mkdtempSync,
@@ -20,6 +12,7 @@ import { join } from 'node:path';
 import { FakeIncus } from '@tale/incus/fake';
 
 import { CliError } from '../../utils/fail';
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { logs } from '../actions/logs';
 import { status } from '../actions/status';
 import { setProjectId } from '../project/project-context';
@@ -825,11 +818,14 @@ class IncusBackedModel extends FakeRuntime {
   }
 }
 
-function contractSuite(): void {
+async function contractSuite(): Promise<void> {
+  // Even in a process of its own, the replaced command line goes back once
+  // the suite ends.
+  const { mockModule } = createModuleMocks(import.meta.dir);
   let model = new FakeRuntime();
   let cli = fakeDockerCli(model);
   let sent: string[][] = [];
-  mock.module('../docker/exec', () => ({
+  await mockModule('../docker/exec', () => ({
     exec: (
       command: string,
       args: string[],
@@ -970,5 +966,5 @@ if (!isolated) {
       throw new Error(output);
   }, 300_000);
 } else {
-  contractSuite();
+  await contractSuite();
 }

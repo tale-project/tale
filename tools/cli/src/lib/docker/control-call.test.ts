@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { setProjectId } from '../project/project-context';
 
 setProjectId('tale');
@@ -7,8 +8,11 @@ setProjectId('tale');
 const dockerMock = mock();
 const execMock = mock();
 
-mock.module('./docker', () => ({ docker: dockerMock }));
-mock.module('./exec', () => ({ exec: execMock }));
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('./docker', () => ({ docker: dockerMock }));
+await mockModule('./exec', () => ({ exec: execMock }));
 
 const {
   backendApiContainer,

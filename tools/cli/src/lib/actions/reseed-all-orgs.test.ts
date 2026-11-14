@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import {
   resolveOutputMode,
   setActiveOutputMode,
 } from '../../utils/output-mode';
 import { type ReseedDeps, reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
-mock.module('../../utils/logger', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../../utils/logger', () => ({
   info: mock(),
   error: mock(),
   warn: mock(),

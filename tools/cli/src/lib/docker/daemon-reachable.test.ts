@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { daemonReachable } from './daemon-reachable';
 
 const execMock = mock();
 
-mock.module('./exec', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('./exec', () => ({
   exec: execMock,
 }));
 
