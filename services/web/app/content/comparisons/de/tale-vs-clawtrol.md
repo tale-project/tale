@@ -4,7 +4,7 @@ description: "Vergleiche Tale und ClawTrol für Agentenboards und wiederkehrende
 competitor: "ClawTrol"
 slug: "tale-vs-clawtrol"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,13 +14,13 @@ Ein wiederkehrender Agentenauftrag braucht mehr als jeden Morgen ein neues Ergeb
 
 | Kriterium | Tale | ClawTrol |
 | --- | --- | --- |
-| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Agentenkoordination mit Aufgabenboards, Prüfung und wiederkehrender Ausführung |
-| Wiederkehrende Arbeit | Projektaufgaben neben separat konfigurierten, versionierten Automatisierungen | Factory-Loops mit ausdrücklichen Start-, Pause- und Stoppfunktionen |
-| Prüfung | Aufgabenprüfung und konfigurierte Konnektorfreigaben sind getrennte Entscheidungen | Dokumentierter Prüfablauf; Verhalten bei Wiederholungen und Fehlern testen |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Kanban-Boards für KI-Coding-Agenten mit Echtzeit-Aktualisierung |
+| Wiederkehrende Arbeit | Projektaufgaben neben separat konfigurierten, versionierten Automatisierungen | Wiederkehrende Aufgabenvorlagen und Factory Loops, die gestartet, pausiert und gestoppt werden können |
+| Prüfung | Aufgabenprüfung und konfigurierte Konnektorfreigaben sind getrennte Entscheidungen | Dokumentierter Status „in_review“; Zurückstellen erst nach ausdrücklicher menschlicher Freigabe |
 
 ## Wiederholung und Projektverantwortung vergleichen
 
-ClawTrol beschreibt im Repository eine Steuerungsanwendung für Agenten mit Aufgabenboards, Prüfung und wiederkehrender Ausführung. Dokumentiert sind auch Factory Loops mit ausdrücklichen Befehlen zum Starten, Pausieren und Stoppen. Diese Funktionen überschneiden sich mit Aufgabenkoordination. Ein Board allein unterscheidet Tale nicht. [ClawTrol-Repository](https://github.com/wolverin0/clawtrol).
+Das README von ClawTrol beschreibt ein quelloffenes, MIT-lizenziertes Kanban-Dashboard zur Steuerung von KI-Coding-Agenten. Dokumentiert sind Aufgabenboards, ein Prüfstatus, der eine menschliche Prüfung verlangt, wiederkehrende Aufgabenvorlagen sowie Factory Loops, die ein Agent durchläuft und die über API-Routen für Start, Pause und Stopp gesteuert werden. Diese Funktionen überschneiden sich mit Aufgabenkoordination. Ein Board allein unterscheidet Tale nicht. [ClawTrol-README](https://github.com/wolverin0/clawtrol/blob/main/README.md).
 
 Tale verbindet Projektaufgaben mit separat konfigurierten Automatisierungen. Ein Projektagent bearbeitet einen begrenzten Auftrag und liefert Bericht und Dateien zur Prüfung. Eine versionierte Automatisierung führt einen wiederholbaren Prozess über unterstützte Auslöser aus. Das Team legt fest, welcher Mechanismus den Auftrag übernimmt, statt jedes Gespräch als zeitgesteuerten Workflow zu behandeln.
 
@@ -32,4 +32,4 @@ Nutze einen wöchentlichen Marktüberblick. Verlange einen Bericht mit Quellen, 
 
 Ein Teammitglied soll die akzeptierte Version finden, Änderungen erklären und feststellen, ob der fehlgeschlagene Lauf außerhalb des Arbeitsbereichs etwas verändert hat. Vergleiche Wiederholungsversuche und den Aufwand zum Fortsetzen. In Tale steuern konfigurierte Connector-Freigaben bestimmte echte Schreibaktionen; die Aufgabenprüfung ist eine eigene Entscheidung. Prüfe beides vor automatischer Veröffentlichung oder Nachrichtenversand.
 
-Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/automations/concepts) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
+Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/automations/concepts) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf dem öffentlichen ClawTrol-README und Tales öffentlicher Dokumentation, geprüft am 14. November 2026, und ist kein praktischer Benchmark.
