@@ -4,7 +4,7 @@ description: "Compare Tale and LibreChat for AI collaboration. Explore agents, m
 competitor: "LibreChat"
 slug: "tale-vs-librechat"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Your team may need a flexible place to talk with AI, a place to manage delegated
 
 ## Conversation and task are different starting units
 
-LibreChat unifies AI conversations in a customizable interface. Its official overview includes multiple model providers, agents with file handling and API actions, code interpretation, artifacts, and MCP tools. It already covers work beyond text replies. [Explore LibreChat](https://www.librechat.ai/) and its [documentation](https://www.librechat.ai/docs).
+LibreChat unifies AI conversations in a customizable interface. Its official documentation describes [custom endpoints](https://www.librechat.ai/docs/quick_start/custom_endpoints) for multiple model providers, [agents](https://www.librechat.ai/docs/features/agents) with file handling and API actions, [code interpretation](https://www.librechat.ai/docs/features/code_interpreter), [artifacts](https://www.librechat.ai/docs/features/artifacts), and [MCP tools](https://www.librechat.ai/docs/features/mcp). It already covers work beyond text replies. [Explore LibreChat](https://www.librechat.ai/docs/features).
 
 Tale gives delegated work its own task, assignee, discussion, and deliverables inside a shared project. An agent can use a persistent workspace to develop a result over successive runs. Teammates can follow the board and inspect the files without becoming the original prompt author. Tale's ordinary chat is useful for reading and drafting; execution work moves to a project task. See [the task workflow](https://docs.tale.dev/platform/projects/tasks).
 
@@ -36,4 +36,4 @@ Shortlist LibreChat when a customizable conversation environment across provider
 
 [Try the scenario in a Tale demo](https://tale.dev/request-demo).
 
-Public documentation reviewed on 3 October 2026; no hands-on competitor benchmark.
+Public documentation reviewed on 14 November 2026; no hands-on competitor benchmark.

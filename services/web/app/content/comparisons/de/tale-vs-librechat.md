@@ -4,7 +4,7 @@ description: "Vergleiche Tale und LibreChat für die Zusammenarbeit mit KI: Agen
 competitor: "LibreChat"
 slug: "tale-vs-librechat"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Dein Team braucht vielleicht einen flexiblen Ort für KI-Gespräche, einen Ort f
 
 ## Gespräch und Aufgabe als Ausgangspunkt
 
-LibreChat bündelt KI-Gespräche in einer anpassbaren Oberfläche. Der offizielle Überblick nennt mehrere Modellanbieter, Agenten mit Dateiverarbeitung und API-Aktionen, Code-Ausführung, Artefakte und MCP-Werkzeuge. Das Angebot reicht damit über reine Textantworten hinaus. Siehe [LibreChat](https://www.librechat.ai/) und die [Dokumentation](https://www.librechat.ai/docs).
+LibreChat bündelt KI-Gespräche in einer anpassbaren Oberfläche. Die offizielle Dokumentation beschreibt [eigene Endpunkte](https://www.librechat.ai/docs/quick_start/custom_endpoints) für mehrere Modellanbieter, [Agenten](https://www.librechat.ai/docs/features/agents) mit Dateiverarbeitung und API-Aktionen, [Code-Ausführung](https://www.librechat.ai/docs/features/code_interpreter), [Artefakte](https://www.librechat.ai/docs/features/artifacts) und [MCP-Werkzeuge](https://www.librechat.ai/docs/features/mcp). Das Angebot reicht damit über reine Textantworten hinaus. Siehe [LibreChat](https://www.librechat.ai/docs/features).
 
 In Tale erhält delegierte Arbeit eine eigene Aufgabe mit Zuständigkeit, Diskussion und Ergebnissen im gemeinsamen Projekt. Ein Agent kann seinen dauerhaften Arbeitsbereich über mehrere Ausführungen hinweg nutzen. Teammitglieder verfolgen das Board und prüfen Dateien, ohne den ursprünglichen Auftrag selbst geschrieben zu haben. Tales normaler Chat dient zum Lesen und Formulieren; ausführende Arbeit geht an eine Projektaufgabe. Siehe [den Aufgabenablauf](https://docs.tale.dev/de/platform/projects/tasks).
 
@@ -36,4 +36,4 @@ Prüfe LibreChat, wenn du zunächst eine anpassbare Gesprächsumgebung für vers
 
 [Den Ablauf in einer Tale-Demo ausprobieren](https://tale.dev/de/request-demo).
 
-Öffentliche Dokumentation, geprüft am 3. Oktober 2026; kein praktischer Wettbewerbsvergleich.
+Öffentliche Dokumentation, geprüft am 14. November 2026; kein praktischer Wettbewerbsvergleich.

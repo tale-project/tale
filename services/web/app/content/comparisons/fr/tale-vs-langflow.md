@@ -4,7 +4,7 @@ description: "Compare Tale et Langflow pour le travail avec des agents : projet
 competitor: "Langflow"
 slug: "tale-vs-langflow"
 relationship: "framework"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,7 +12,7 @@ draft: false
 
 Un canevas visuel aide à exprimer le fonctionnement d’une application IA. Un espace projet aide une équipe à décider du travail à faire et à en suivre le résultat. Avant de choisir, identifie l’utilisateur immédiat : la personne qui construit l’application ou le collègue responsable d’un livrable.
 
-[Langflow](https://www.langflow.org/) propose des flux visuels, des composants réutilisables, la personnalisation en Python et des outils pour agents. Il décrit aussi l’exposition par API et le déploiement autonome ou cloud. C’est une option de développement d’applications à part entière ; le présenter comme une simple démonstration de chat serait réducteur.
+[Langflow](https://docs.langflow.org/concepts-overview) propose des [flux visuels](https://docs.langflow.org/concepts-flows), des [composants réutilisables](https://docs.langflow.org/components-custom-components), la personnalisation en Python et des [outils pour agents](https://docs.langflow.org/agents-tools). Il décrit aussi l’[exposition par API](https://docs.langflow.org/concepts-publish) et le [déploiement autonome ou cloud](https://docs.langflow.org/deployment-overview). C’est une option de développement d’applications à part entière ; le présenter comme une simple démonstration de chat serait réducteur.
 
 ## Comparaison en bref
 
@@ -33,3 +33,5 @@ Envisage Tale si ton équipe cherche l’environnement de travail lui-même : c
 Fournis une ancienne politique, une exigence révisée et trois questions de collègues. Demande à chaque solution de préparer une mise à jour, d’identifier les questions ouvertes et de recueillir les corrections d’une personne chargée de la relecture.
 
 Avec Langflow, évalue l’effort pour construire et exposer le flux. Avec Tale, examine la répartition du travail et la reprise par un collègue après le départ du responsable initial du pilote. Vérifie la justesse des réponses et la visibilité des tâches restantes. Sépare l’effort de conception des composants de celui nécessaire pour mener le projet chaque semaine. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec cette mise à jour.
+
+Documentation publique examinée le 14 novembre 2026 ; aucun test comparatif réalisé.
