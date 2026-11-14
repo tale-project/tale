@@ -75,6 +75,7 @@ blank:
   modelPlaceholder: Choose the model the agent calls
   modelSearchPlaceholder: Search models
   modelSearchEmpty: No models found
+  noModel: No model is available to you yet. Ask an admin to set up an AI provider or to give you access to a model.
   promptLabel: What should it do?
   promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
     new one.
