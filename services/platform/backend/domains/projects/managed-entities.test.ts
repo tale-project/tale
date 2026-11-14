@@ -262,6 +262,7 @@ describe('a declared agent is created with the runtime and model its declaration
         tools: ['task_get'],
         unknownSecrets: 'refuse',
         exactCredentialNames: true,
+        exactLabelNames: true,
       },
       { agentId: AGENT },
     );

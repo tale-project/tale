@@ -217,6 +217,7 @@ const managedProjectAgentSeedSchema = z.strictObject({
   modelProvider: managedAgentModelSchema.shape.modelProvider,
   instructions: managedAgentInstructionsSchema.shape.instructions.optional(),
   tools: managedAgentToolsSchema.shape.tools.optional(),
+  labelGrants: managedAgentToolsSchema.shape.labelGrants,
 });
 
 export const managedProjectAgentWriteSchema = z.strictObject({
@@ -277,6 +278,9 @@ export async function writeManagedProjectAgent(
         skills: config.skills ?? [],
         connectors: config.connectors ?? [],
         ...(args.seed.tools !== undefined ? { tools: args.seed.tools } : {}),
+        ...(args.seed.labelGrants !== undefined
+          ? { labelGrants: args.seed.labelGrants }
+          : {}),
         secrets: config.secrets ?? [],
         connectorCredentials: config.connectorCredentials ?? {},
         gitIdentity: config.gitIdentity ?? null,
@@ -286,6 +290,7 @@ export async function writeManagedProjectAgent(
         unknownSecrets: 'refuse',
         // A pin declared otherwise than stored would never converge.
         exactCredentialNames: true,
+        exactLabelNames: true,
       },
       { agentId: config.agentId },
     );

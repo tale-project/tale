@@ -20,6 +20,7 @@ import {
   projectTaskReviewerFromId,
   type SetProjectTaskReviewerInput,
 } from '@tale/shared/schemas/task-review';
+import { compareLabelNames } from '@tale/shared/task-label-order';
 import {
   TASK_LABEL_CHARS_MAX,
   TASK_LABELS_MAX,
@@ -90,7 +91,6 @@ import {
   loadActiveHolds,
 } from '../legal_holds/service.ts';
 import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
-import { compareLabelNames } from '../tasks/agent-labels.ts';
 import {
   cancelAgentRunsElsewhereInTx,
   retireTasksInTx,
@@ -1898,6 +1898,8 @@ function validateProjectAgentTools(tools: readonly string[]): string[] {
  * a grant never creates a label [PROJ-R25]. A name already granted stays
  * when its label has been renamed or deleted since, as a dispatch's label
  * filters do, so the dialog shows it and the admin can untick it.
+ * `exactNames` (the managed door) also refuses a spelling other than the
+ * project's, as credential pins do [PROJ-R25].
  */
 async function resolveLabelGrants(
   tx: TransactionSql,
@@ -1906,6 +1908,10 @@ async function resolveLabelGrants(
     projectId: string;
     requested: readonly string[];
     stored: readonly string[];
+    /** The managed door's rule: a name spelled otherwise than the project
+     * stores it is refused, since a declaration could never read back as
+     * declared. */
+    exactNames?: boolean;
   },
 ): Promise<string[]> {
   if (args.requested.length > TASK_LABELS_MAX)
@@ -1936,9 +1942,12 @@ async function resolveLabelGrants(
   const stored = new Map(args.stored.map((name) => [name.toLowerCase(), name]));
   const granted: string[] = [];
   const unknown: string[] = [];
+  const respelled: Array<[string, string]> = [];
   for (const [folded, name] of requested) {
     const spelled = catalog.get(folded) ?? stored.get(folded);
     if (spelled === undefined) unknown.push(name);
+    else if (args.exactNames === true && spelled !== name)
+      respelled.push([name, spelled]);
     else granted.push(spelled);
   }
   if (unknown.length > 0)
@@ -1947,6 +1956,15 @@ async function resolveLabelGrants(
       `Unknown labels: ${unknown.join(', ')}. An agent may be granted only labels its project has.`,
       400,
       { labels: unknown },
+    );
+  if (respelled.length > 0)
+    throw new ProjectError(
+      'PROJECT_AGENT_LABEL_UNKNOWN',
+      `Declare each granted label as the project spells it: ${respelled
+        .map(([name, held]) => `"${held}", not "${name}"`)
+        .join(', ')}.`,
+      400,
+      { labels: respelled.map(([name]) => name) },
     );
   return granted.sort(compareLabelNames);
 }
@@ -2554,6 +2572,7 @@ export type ProjectAgentConfigurationRow = Pick<
   | 'projectId'
   | 'instructions'
   | 'tools'
+  | 'labelGrants'
   | 'harness'
   | 'model'
   | 'modelProvider'
@@ -2575,14 +2594,23 @@ export function agentInstructionsSnapshot(
 
 /** An agent's tools as their managed configuration and its hash. */
 export function agentToolsSnapshot(
-  agent: Pick<ProjectAgentRow, 'id' | 'projectId' | 'tools'>,
+  agent: Pick<ProjectAgentRow, 'id' | 'projectId' | 'tools' | 'labelGrants'>,
 ) {
-  const config = {
+  const config = agentToolsConfiguration(agent);
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** An agent's tools and the labels its `task_set_labels` grant names, as
+ * the managed `agent-tools` configuration states them. */
+function agentToolsConfiguration(
+  agent: Pick<ProjectAgentRow, 'id' | 'projectId' | 'tools' | 'labelGrants'>,
+) {
+  return {
     projectId: agent.projectId,
     agentId: agent.id,
     tools: validateProjectAgentTools(agent.tools),
+    labelGrants: agent.labelGrants,
   };
-  return { config, hash: managedConfigurationHash(config) };
 }
 
 /** An agent's runtime, model and provider as their managed configuration
@@ -2615,6 +2643,7 @@ export async function listReadableProjectAgentsPage(
   const cursorId = options.cursor?.id ?? null;
   const rows = await sql<ProjectAgentConfigurationRow[]>`
     SELECT a.id, a.project_id AS "projectId", a.instructions, a.tools,
+           a.label_grants AS "labelGrants",
            a.harness, a.model, a.model_provider AS "modelProvider",
            a.created_at_ms::float8 AS "createdAt"
     FROM app.project_agents a
@@ -2744,7 +2773,12 @@ export async function updateAgentModelConfiguration(
 export async function updateAgentToolsConfiguration(
   tx: TransactionSql,
   auth: ProjectAuthContext,
-  config: { projectId: string; agentId: string; tools: string[] },
+  config: {
+    projectId: string;
+    agentId: string;
+    tools: string[];
+    labelGrants?: string[];
+  },
   expectedHash: string,
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, config.projectId);
@@ -2765,19 +2799,30 @@ export async function updateAgentToolsConfiguration(
     );
   const tools = validateProjectAgentTools(config.tools);
   const previousTools = validateProjectAgentTools(agent.tools);
-  const previous = {
-    projectId: config.projectId,
-    agentId: config.agentId,
-    tools: previousTools,
-  };
+  const previous = agentToolsConfiguration(agent);
   assertExpectedHash(managedConfigurationHash(previous), expectedHash);
+  // An omitted grant keeps what is stored; `[]` clears it. Declared names
+  // must be spelled as the project stores them, so the readback matches.
+  const labelGrants =
+    config.labelGrants === undefined
+      ? agent.labelGrants
+      : await resolveLabelGrants(tx, {
+          organizationId: auth.organizationId,
+          projectId: config.projectId,
+          requested: config.labelGrants,
+          stored: agent.labelGrants,
+          exactNames: true,
+        });
+  const sameStrings = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && a.every((value, index) => value === b[index]);
   if (
-    tools.length === previousTools.length &&
-    tools.every((tool, index) => tool === previousTools[index])
+    sameStrings(tools, previousTools) &&
+    sameStrings(labelGrants, agent.labelGrants)
   )
     return;
   await tx`
     UPDATE app.project_agents SET tools = ${tools},
+      label_grants = ${labelGrants}::text[],
       updated_at_ms = ${Math.max(Date.now(), agent.updatedAt + 1)}
     WHERE id = ${config.agentId} AND project_id = ${config.projectId}
       AND org_id = ${auth.organizationId}
@@ -2790,6 +2835,8 @@ export async function updateAgentToolsConfiguration(
         projectAgentId: config.agentId,
         previousTools,
         tools,
+        previousLabelGrants: agent.labelGrants,
+        labelGrants,
       },
     }),
   );
@@ -2818,6 +2865,9 @@ export async function createProjectAgent(
     /** Refuse a pin spelled otherwise than its credential's stored name,
      * rather than storing that spelling — the managed door's rule. */
     exactCredentialNames?: boolean;
+    /** Refuse a label grant spelled otherwise than its label — the managed
+     * door's rule, as for pins. */
+    exactLabelNames?: boolean;
   },
   options: {
     /** Managed configuration's caller-chosen stable UUID; no other door
@@ -2851,6 +2901,7 @@ export async function createProjectAgent(
     projectId: args.projectId,
     requested: args.labelGrants ?? [],
     stored: [],
+    exactNames: args.exactLabelNames === true,
   });
 
   const existing = await tx<{ count: string }[]>`

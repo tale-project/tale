@@ -368,7 +368,7 @@ describe('the readers that pick or count projects join the relation (#5193)', ()
 
 describe('the MCP project list and the settings lists read one page through the relation (#5203)', () => {
   const PROJECT_PAGE = `SELECT ? FROM app.projects JOIN ${RELATION} rp ON rp.project_id = app.projects.id WHERE org_id = ? AND (? OR (? AND archived_at_ms IS NOT NULL) OR (? AND archived_at_ms IS NULL)) AND (?::text IS NULL OR name ILIKE ?) AND (?::bigint IS NULL OR created_at_ms < ? OR (created_at_ms = ? AND id < ?)) ORDER BY created_at_ms DESC, id DESC LIMIT ?`;
-  const AGENT_PAGE = `SELECT a.id, a.project_id AS "projectId", a.instructions, a.tools, a.harness, a.model, a.model_provider AS "modelProvider", a.created_at_ms::float8 AS "createdAt" FROM app.project_agents a JOIN ${RELATION} rp ON rp.project_id = a.project_id WHERE a.org_id = ? AND (?::bigint IS NULL OR a.created_at_ms < ? OR (a.created_at_ms = ? AND a.id < ?)) ORDER BY a.created_at_ms DESC, a.id DESC LIMIT ?`;
+  const AGENT_PAGE = `SELECT a.id, a.project_id AS "projectId", a.instructions, a.tools, a.label_grants AS "labelGrants", a.harness, a.model, a.model_provider AS "modelProvider", a.created_at_ms::float8 AS "createdAt" FROM app.project_agents a JOIN ${RELATION} rp ON rp.project_id = a.project_id WHERE a.org_id = ? AND (?::bigint IS NULL OR a.created_at_ms < ? OR (a.created_at_ms = ? AND a.id < ?)) ORDER BY a.created_at_ms DESC, a.id DESC LIMIT ?`;
   /** The statement a page read runs, not the fragments it embeds. */
   const readOf = (
     statements: { text: string; values: unknown[] }[],

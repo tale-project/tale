@@ -467,6 +467,7 @@ const KEPT_WHEN_OMITTED: Readonly<
 > = {
   'knowledge-embedding': keptSettings,
   project: ['description', 'teamIds'],
+  'agent-tools': ['labelGrants'],
   'project-agent': [
     'connectors',
     'secrets',
@@ -523,8 +524,8 @@ export function sameEmbeddingModel(declared: object, current: unknown) {
  * Every resource compares whole, except the fields its kind keeps when a
  * declaration omits them ({@link keptWhenOmitted}): the embedding's
  * similarity floor and serving limits, a project's description and teams,
- * a project agent's equipment, a task's labels, assignee and priority, a
- * connector credential's endpoint and default.
+ * a project agent's equipment, an agent's label grant, a task's labels,
+ * assignee and priority, a connector credential's endpoint and default.
  */
 export function resourceConverged(
   resource: PlatformResource,
