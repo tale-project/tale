@@ -129,6 +129,7 @@ const SCENARIO_CONNECTORS = [
   'conversation',
   'discord',
   'gmail',
+  'google-drive',
   'http',
   'imap-smtp',
   'jev',
@@ -3372,6 +3373,180 @@ const SANDBOX_NATIVE_PROOFS: Record<string, NativeProof> = {
   },
 };
 
+const DRIVE = 'https://www.googleapis.com/drive/v3';
+const DRIVE_FOLDER = 'application/vnd.google-apps.folder';
+const DRIVE_EXAMPLE_ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz';
+
+/** The request a list_files body makes for a folder's children: a flat list
+ * leaves the folders out, a recursive walk lists them to descend into. */
+function driveList(folderId: string, recursive: boolean): string {
+  const parts = [`'${folderId}' in parents`, 'trashed = false'];
+  if (!recursive) parts.push(`mimeType != '${DRIVE_FOLDER}'`);
+  const q = encodeURIComponent(parts.join(' and '));
+  const fields = encodeURIComponent(
+    'nextPageToken, files(id, name, size, mimeType, modifiedTime, md5Checksum)',
+  );
+  return `GET ${DRIVE}/files?q=${q}&fields=${fields}&pageSize=200`;
+}
+
+/** The request a download_file body makes for a file's bytes. */
+function driveDownload(fileId: string): string {
+  return `GET ${DRIVE}/files/${encodeURIComponent(fileId)}?alt=media`;
+}
+
+/** Drive's answer to a file or folder it does not find, in Google's error
+ * body, as gmailError builds it. */
+function driveNotFound(id: string): ServiceAnswer {
+  return gmailError(404, 'NOT_FOUND', `File not found: ${id}.`, {
+    message: `File not found: ${id}.`,
+    domain: 'global',
+    reason: 'notFound',
+  });
+}
+
+const DRIVE_TOKEN_EXPIRED = gmailError(
+  401,
+  'UNAUTHENTICATED',
+  'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.',
+  {
+    message: 'Invalid Credentials',
+    domain: 'global',
+    reason: 'authError',
+    location: 'Authorization',
+    locationType: 'header',
+  },
+);
+
+const DRIVE_RATE_LIMITED = gmailError(
+  429,
+  'RESOURCE_EXHAUSTED',
+  'Rate Limit Exceeded',
+  {
+    message: 'Rate Limit Exceeded',
+    domain: 'usageLimits',
+    reason: 'rateLimitExceeded',
+  },
+);
+
+/** Drive's answer to a download of a Google Docs file, which has no bytes. */
+const DRIVE_NATIVE_FORMAT = gmailError(
+  403,
+  'PERMISSION_DENIED',
+  'Only files with binary content can be downloaded. Use Export with Docs Editors files to export.',
+  {
+    message:
+      'Only files with binary content can be downloaded. Use Export with Docs Editors files to export.',
+    domain: 'global',
+    reason: 'fileNotDownloadable',
+  },
+);
+
+const DRIVE_BUDGET = {
+  id: 'file-budget',
+  name: 'budget-2026.csv',
+  size: '1280',
+  mimeType: 'text/csv',
+  modifiedTime: '2026-10-14T09:30:00.000Z',
+  md5Checksum: '5d41402abc4b2a76b9719d911017c592',
+};
+
+const DRIVE_MINUTES = {
+  id: 'file-minutes',
+  name: 'board-minutes.pdf',
+  size: '46',
+  mimeType: 'application/pdf',
+  modifiedTime: '2026-10-15T08:00:00.000Z',
+  md5Checksum: '0cc175b9c0f1b6a831c399e269772661',
+};
+
+const DRIVE_REPORTS = {
+  id: 'folder-reports',
+  name: 'Reports 2026',
+  mimeType: DRIVE_FOLDER,
+  modifiedTime: '2026-10-01T09:00:00.000Z',
+};
+
+const DRIVE_Q3 = {
+  id: 'file-q3',
+  name: 'q3-summary.csv',
+  size: '512',
+  mimeType: 'text/csv',
+  modifiedTime: '2026-10-03T10:00:00.000Z',
+  md5Checksum: '9bb58f26192e4ba00f01e2e7b136bbd8',
+};
+
+/** The synthetic report a download fetches: 46 bytes, a PDF. */
+const DRIVE_REPORT_PDF = '%PDF-1.7\n% Synthetic report REP-2026-Q3\n%%EOF\n';
+
+/** The proof of every Google Drive scenario: Drive's answer to each request
+ * the action makes, in the order the body makes them. */
+const DRIVE_PROOFS: Record<string, ProofAnswers> = {
+  'list_files/two_files': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: {
+      status: 200,
+      body: { files: [DRIVE_BUDGET, DRIVE_MINUTES] },
+    },
+  },
+  'list_files/nested_folders': {
+    [driveList(DRIVE_EXAMPLE_ID, true)]: {
+      status: 200,
+      body: { files: [DRIVE_REPORTS, DRIVE_BUDGET] },
+    },
+    [driveList(DRIVE_REPORTS.id, true)]: {
+      status: 200,
+      body: { files: [DRIVE_Q3] },
+    },
+  },
+  'list_files/no_files': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: {
+      status: 200,
+      body: { kind: 'drive#fileList', incompleteSearch: false, files: [] },
+    },
+  },
+  'list_files/token_expired': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: DRIVE_TOKEN_EXPIRED,
+  },
+  'list_files/rate_limited': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: DRIVE_RATE_LIMITED,
+  },
+  'list_files/folder_not_found': {
+    [driveList('folder-missing', false)]: driveNotFound('folder-missing'),
+  },
+  'download_file/stored': {
+    [driveDownload(DRIVE_EXAMPLE_ID)]: {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+      body: DRIVE_REPORT_PDF,
+    },
+  },
+  'download_file/no_link': {
+    [driveDownload(DRIVE_EXAMPLE_ID)]: {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+      body: DRIVE_REPORT_PDF,
+    },
+  },
+  'download_file/file_not_found': {
+    [driveDownload('file-missing')]: driveNotFound('file-missing'),
+  },
+  'download_file/native_format': {
+    [driveDownload('doc-meeting-notes')]: DRIVE_NATIVE_FORMAT,
+  },
+  'download_file/rate_limited': {
+    [driveDownload('file-busy')]: DRIVE_RATE_LIMITED,
+  },
+};
+
+/** The files each Google Drive proof stores: a download keeps its bytes. */
+const DRIVE_STORED: Record<string, StoredFile[]> = {
+  'download_file/stored': [
+    gmailStored('report.pdf', 'application/pdf', DRIVE_REPORT_PDF),
+  ],
+  'download_file/no_link': [
+    gmailStored('report.pdf', 'application/pdf', DRIVE_REPORT_PDF),
+  ],
+};
+
 /**
  * Every listed connector's proofs. A connector whose actions call HTTP proves
  * them with the answers its live body gets, and the secrets its credential
@@ -3395,6 +3570,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   conversation: { proofs: {}, native: CONVERSATION_NATIVE_PROOFS },
   discord: { proofs: DISCORD_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
+  'google-drive': { proofs: DRIVE_PROOFS, stored: DRIVE_STORED },
   http: { proofs: HTTP_PROOFS },
   'imap-smtp': { natives: IMAP_SMTP_PROOFS },
   jev: {
@@ -3441,7 +3617,9 @@ function proofHost(
   ctx: Pick<
     ConnectorContext,
     'http' | 'secrets' | 'base64Encode' | 'base64Decode'
-  > & { files: Pick<NonNullable<ConnectorContext['files']>, 'store'> };
+  > & {
+    files: Pick<NonNullable<ConnectorContext['files']>, 'store' | 'download'>;
+  };
   asked: string[];
   stored: StoredFile[];
 } {
@@ -3462,6 +3640,20 @@ function proofHost(
         typeof body === 'string' ? body : JSON.stringify(body),
       );
     };
+  const store = async (
+    data: string,
+    { encoding, contentType, fileName }: Omit<StoredFile, 'data'>,
+  ) => {
+    stored.push({ fileName, contentType, encoding, data });
+    const n = String(stored.length).padStart(12, '0');
+    return {
+      id: `s3:example-org/00000000-0000-0000-0000-${n}`,
+      fileName,
+      contentType,
+      size: Buffer.from(data, encoding === 'base64' ? 'base64' : 'utf8')
+        .byteLength,
+    };
+  };
   const ctx = {
     http: {
       get: answer('GET'),
@@ -3472,19 +3664,26 @@ function proofHost(
     },
     secrets: { get: (name: string) => secrets[name] ?? '' },
     files: {
-      store: async (
-        data: string,
-        { encoding, contentType, fileName }: Omit<StoredFile, 'data'>,
-      ) => {
-        stored.push({ fileName, contentType, encoding, data });
-        const n = String(stored.length).padStart(12, '0');
-        return {
-          id: `s3:example-org/00000000-0000-0000-0000-${n}`,
+      store,
+      // As the live host downloads: the vendor's bytes are stored as they
+      // came, and a refusal raises the failed download with the vendor's
+      // status, the message the live host builds for it.
+      download: async (url: string, { fileName }: { fileName: string }) => {
+        const response = await answer('GET')(url);
+        if (response.status < 200 || response.status >= 300) {
+          throw Object.assign(
+            new Error(
+              `download of ${fileName} failed (${response.status}) from ${new URL(url).host}`,
+            ),
+            { status: response.status },
+          );
+        }
+        return store(Buffer.from(response.text()).toString('base64'), {
+          encoding: 'base64',
+          contentType:
+            response.headers['content-type'] ?? 'application/octet-stream',
           fileName,
-          contentType,
-          size: Buffer.from(data, encoding === 'base64' ? 'base64' : 'utf8')
-            .byteLength,
-        };
+        });
       },
     },
     base64Encode,
