@@ -110,6 +110,44 @@ actions:
         stderrPreview: '',
         durationMs: 1,
       };
+    scenarios:
+      - name: completed
+        kind: success
+        description: 'The script exits 0 inside the run''s session, writes its result.json and one report, and the platform harvests the report.'
+        output:
+          ok: true
+          status: completed
+          result:
+            status: ok
+            verdict: { passed: true, issues: [] }
+            period: { label: '2026Q1' }
+          files:
+            - { name: result.json, storageId: blob_example_result, size: 128, contentType: application/json }
+          exitCode: 0
+          stdoutPreview: 'Verified 2 transactions.'
+          stderrPreview: ''
+          durationMs: 1200
+      - name: outside_run
+        kind: refusal
+        description: 'The call comes from outside an automation run, so the platform refuses it: a script runs only in its run''s own sandbox session, so nothing is run.'
+        error:
+          message: "sandbox.run_script runs only inside an automation run — it executes in the run's own sandbox session"
+      - name: run_again
+        kind: duplicate
+        description: 'The platform does not de-duplicate a repeated script run, so the same entry runs a second time in the run''s session and answers its own result.'
+        output:
+          ok: true
+          status: completed
+          result:
+            status: ok
+            verdict: { passed: true, issues: [] }
+            period: { label: '2026Q1' }
+          files:
+            - { name: result.json, storageId: blob_example_result_again, size: 128, contentType: application/json }
+          exitCode: 0
+          stdoutPreview: 'Verified 2 transactions.'
+          stderrPreview: ''
+          durationMs: 980
     backend:
       kind: native
       impl: sandbox.run_script

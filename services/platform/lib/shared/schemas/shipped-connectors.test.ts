@@ -28,6 +28,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import type {
+  ConnectorCaller,
   NativeConnectorContext,
   NativeConnectorImpl,
 } from '../../connectors/dispatcher';
@@ -59,6 +60,11 @@ import {
   notifyNatives,
   type WorkflowNotifyStore,
 } from '../../connectors/natives/platform-notify';
+import {
+  sandboxScriptNatives,
+  type SandboxScriptOutcome,
+  type SandboxScriptRunner,
+} from '../../connectors/natives/sandbox-script';
 import {
   type WebdavEntry,
   type WebdavStore,
@@ -128,6 +134,7 @@ const SCENARIO_CONNECTORS = [
   'jev',
   'notify',
   'outlook',
+  'sandbox',
   'slack',
   'tavily',
   'teams',
@@ -2849,22 +2856,26 @@ type StoreAnswer =
   | { refuses: WebdavStoreErrorCode }
   | { throws: string };
 
-/** A store method a native case answers: each method of the stores the native
+/** A call a native case answers: each method of the stores the native
  * connectors read (WebDAV's document store, the notification store, the
- * conversation store). */
+ * conversation store), and the script runner the sandbox native calls. */
 type NativeCall =
   | keyof WebdavStore
   | keyof WorkflowNotifyStore
-  | keyof WorkflowConversationStore;
+  | keyof WorkflowConversationStore
+  | 'runScript';
 
-/** One case of a native action: the store method it calls, and what the store
- * answers. A native's service is its store, so the proof is that answer. A
- * case the native refuses on its input before its store is reached makes no
- * store call, and declares `storeCalls: 0` in place of a call; every other
- * case makes one. */
-type NativeProof =
+/** One case of a native action: the call it makes to its service, and what the
+ * service answers. A native's service is its store or its runner, so the proof
+ * is that answer. A case the native refuses on its input before its service is
+ * reached makes no call, and declares `storeCalls: 0` in place of a call; every
+ * other case makes one. A case whose caller is not the run's workflow caller
+ * names it in `caller`; a case that names none runs as the workflow caller that
+ * `nativeContext()` supplies. */
+type NativeProof = (
   | { call: NativeCall; answer: StoreAnswer; storeCalls?: 1 }
-  | { storeCalls: 0 };
+  | { storeCalls: 0 }
+) & { caller?: ConnectorCaller };
 
 /** The bytes a store holds for a file, as the store hands them over. */
 const storedBytes = (text: string): Uint8Array =>
@@ -3295,13 +3306,80 @@ const CONVERSATION_NATIVE_PROOFS: Record<string, NativeProof> = {
 };
 
 /**
+ * The sandbox's proofs, keyed `<action>/<scenario>`: what its script runner
+ * answers the native, given the action's example input with the scenario's
+ * `when` laid over it. A script that completed in the run's session, the same
+ * script run again, and a call made outside any run. Synthetic.
+ */
+const SANDBOX_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'run_script/completed': {
+    call: 'runScript',
+    answer: {
+      returns: {
+        ok: true,
+        status: 'completed',
+        result: {
+          status: 'ok',
+          verdict: { passed: true, issues: [] },
+          period: { label: '2026Q1' },
+        },
+        files: [
+          {
+            name: 'result.json',
+            storageId: 'blob_example_result',
+            size: 128,
+            contentType: 'application/json',
+          },
+        ],
+        exitCode: 0,
+        stdoutPreview: 'Verified 2 transactions.',
+        stderrPreview: '',
+        durationMs: 1200,
+      } satisfies SandboxScriptOutcome,
+    },
+  },
+  // The native refuses a call made outside an automation run before its runner
+  // is reached, so the case makes no runner call.
+  'run_script/outside_run': {
+    storeCalls: 0,
+    caller: { kind: 'user', userId: 'user_example' },
+  },
+  'run_script/run_again': {
+    call: 'runScript',
+    answer: {
+      returns: {
+        ok: true,
+        status: 'completed',
+        result: {
+          status: 'ok',
+          verdict: { passed: true, issues: [] },
+          period: { label: '2026Q1' },
+        },
+        files: [
+          {
+            name: 'result.json',
+            storageId: 'blob_example_result_again',
+            size: 128,
+            contentType: 'application/json',
+          },
+        ],
+        exitCode: 0,
+        stdoutPreview: 'Verified 2 transactions.',
+        stderrPreview: '',
+        durationMs: 980,
+      } satisfies SandboxScriptOutcome,
+    },
+  },
+};
+
+/**
  * Every listed connector's proofs. A connector whose actions call HTTP proves
  * them with the answers its live body gets, and the secrets its credential
  * holds — synthetic, as every answer is — and, by proof, the files its body
  * stores, in their order; a proof it does not name stores none. A native
  * connector proves its actions against the native implementation, with the
- * mailbox each proof names. A connector joins `SCENARIO_CONNECTORS` with its
- * proofs, or this does not type-check.
+ * service each proof names: a mailbox, a store, or a runner. A connector joins
+ * `SCENARIO_CONNECTORS` with its proofs, or this does not type-check.
  */
 type ScenarioProofs =
   | { natives: Record<string, MailProof> }
@@ -3325,6 +3403,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   },
   notify: { proofs: {}, native: NOTIFY_NATIVE_PROOFS },
   outlook: { proofs: OUTLOOK_PROOFS, stored: OUTLOOK_STORED },
+  sandbox: { proofs: {}, native: SANDBOX_NATIVE_PROOFS },
   slack: { proofs: SLACK_PROOFS },
   tavily: {
     secrets: { apiKey: 'example-tavily-key' },
@@ -3909,8 +3988,17 @@ function notifyStoreOf(
   };
 }
 
+/** A script runner that answers its one call with the proof's answer. */
+function sandboxRunnerOf(
+  proof: NativeProof,
+  asked: string[],
+): SandboxScriptRunner {
+  const answer = answerOf(proof, asked);
+  return async () => answer('runScript') as SandboxScriptOutcome;
+}
+
 /** The native backend each native connector's proofs run against: its own
- * implementation, over the store the proof answers. */
+ * implementation, over the store or runner the proof answers. */
 const NATIVE_BACKENDS: Partial<
   Record<
     ScenarioConnector,
@@ -3923,13 +4011,21 @@ const NATIVE_BACKENDS: Partial<
   conversation: (proof, asked) =>
     platformConversationNatives(conversationStoreOf(proof, asked)),
   notify: (proof, asked) => notifyNatives(notifyStoreOf(proof, asked)),
+  sandbox: (proof, asked) =>
+    sandboxScriptNatives(sandboxRunnerOf(proof, asked)),
   webdav: (proof, asked) => webdavNatives(proofStore(proof, asked)),
 };
 
 /** The context a native runs in: its organization, and no HTTP, which none of
  * these natives makes. The caller is a step of a run, as the executor calls a
- * native, which `notify.member` sends as. */
-function nativeContext(): NativeConnectorContext {
+ * native, which `notify.member` sends as, unless the case names another. */
+function nativeContext(
+  caller: ConnectorCaller = {
+    kind: 'workflow',
+    runId: 'run_example',
+    nodeId: 'node_example',
+  },
+): NativeConnectorContext {
   const noHttp = () => Promise.reject(new Error('no HTTP in a native'));
   return {
     secrets: { get: () => '' },
@@ -3938,7 +4034,7 @@ function nativeContext(): NativeConnectorContext {
     organizationId: 'org_example',
     credentialId: 'cred_example',
     authMethod: 'basic',
-    caller: { kind: 'workflow', runId: 'run_example', nodeId: 'node_example' },
+    caller,
     http: {
       get: noHttp,
       post: noHttp,
@@ -3987,11 +4083,14 @@ describe('a native scenario answers as its native action does [CONN-R33]', () =>
         throw new Error(`${action.backend.impl} is not a native of ${slug}`);
       }
       const outcome = await outcomeOf(
-        native({ ...action.exampleInput, ...scenario.when }, nativeContext()),
+        native(
+          { ...action.exampleInput, ...scenario.when },
+          nativeContext(proof.caller),
+        ),
       );
 
-      // The native made the one store call its proof answers, or none where
-      // its proof declares none: a refusal raised before the store.
+      // The native made the one call its proof answers, or none where its proof
+      // declares none: a refusal raised before its service is reached.
       expect(asked).toEqual(proof.storeCalls === 0 ? [] : [proof.call]);
       if (scenario.error === undefined) {
         expect(outcome).toEqual({ output: scenario.output });
