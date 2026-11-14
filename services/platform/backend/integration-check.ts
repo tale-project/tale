@@ -228,6 +228,7 @@ import { checkRenderFailedCreate } from './domains/websites/render-failed-create
 import { closeServerGracefully } from './http-shutdown.ts';
 import {
   AUDIT_WRITE_ORDER,
+  awaitOrgScaffold,
   connectSse,
   cookieHeaderFrom,
   ensureRetentionGovernance,
@@ -238,6 +239,7 @@ import {
   ITEST_RETENTION_POLICY,
   ITEST_VECTOR_WIDTH,
   itestObjectStore,
+  ORG_SCAFFOLD_SETTLE_BUDGET_MS,
   recordOpenStreams,
   recordSkip,
   requestedLanes,
@@ -640,6 +642,12 @@ async function checkTransactionalEnqueue(sql: Sql): Promise<void> {
   );
 }
 
+/** The worker pickup gate: LISTEN/NOTIFY wakes a worker within
+ * milliseconds of the enqueue committing, while the polling backstop alone
+ * would leave a job waiting up to its 2 s idle poll; the second tells the
+ * two apart and leaves the rest for a loaded runner. */
+const PICKUP_P95_TOLERANCE_MS = 1_000;
+
 async function checkPickupLatency(sql: Sql, boss: PgBoss): Promise<void> {
   const waiters = new Map<number, (latencyMs: number) => void>();
 
@@ -689,8 +697,8 @@ async function checkPickupLatency(sql: Sql, boss: PgBoss): Promise<void> {
   const p95 = percentile(valid, 95);
   record(
     'worker pickup latency',
-    valid.length === iterations && p95 < 1_000,
-    `n=${valid.length}/${iterations}, p50=${p50}ms, p95=${p95}ms (enqueue-tx-start → handler wake; gate p95<1000ms)`,
+    valid.length === iterations && p95 < PICKUP_P95_TOLERANCE_MS,
+    `n=${valid.length}/${iterations}, p50=${p50}ms, p95=${p95}ms (enqueue-tx-start → handler wake; gate p95<${PICKUP_P95_TOLERANCE_MS}ms)`,
   );
 }
 
@@ -1802,6 +1810,7 @@ async function checkIdentityDomains(
  * the catalog is cached in-process.
  */
 async function seedItestAgentProvider(args: {
+  sql: Sql;
   base: string;
   cookie: string;
   orgId: string;
@@ -1842,6 +1851,15 @@ async function seedItestAgentProvider(args: {
   const port =
     address !== null && typeof address === 'object' ? address.port : 0;
   process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+  // A new organization's scaffold empties its config tree first: written
+  // before that job ran, the provider file is gone by the time the lane
+  // names its model, which then reads as not served (#5433).
+  if (!(await awaitOrgScaffold(args.sql, args.orgSlug))) {
+    server.close();
+    throw new Error(
+      `org.scaffold for ${args.orgSlug} still pending after ${ORG_SCAFFOLD_SETTLE_BUDGET_MS} ms; the provider file would be deleted under the lane`,
+    );
+  }
   const providersDir = path.join(
     process.env.TALE_CONFIG_DIR ?? '',
     args.orgSlug,
@@ -1977,6 +1995,7 @@ async function checkProjects(
     SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
   `;
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -21408,6 +21427,7 @@ async function checkRestProjectAgents(sql: Sql, base: string): Promise<void> {
   // An agent's model is checked against what the organization can serve —
   // the agent check names `test-model` on `itestagent`.
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie: ctx.cookie,
     orgId: ctx.orgId,
@@ -26278,6 +26298,7 @@ async function checkProjectTail(
     SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
   `;
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -26872,6 +26893,7 @@ async function checkTasksCollabIntegrity(
   // The agents this lane creates run on `itestagent`, the one provider
   // the equipment check lets an agent be equipped with here.
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -42761,6 +42783,7 @@ async function checkTaskAgentTurnDrive(
 
   // The serving catalog: the org's `itestagent` provider + credential.
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -44070,6 +44093,7 @@ async function checkAutomationStepDestroyPending(
   const agentProvider = providerSeeded
     ? null
     : await seedItestAgentProvider({
+        sql,
         base,
         cookie,
         orgId,
@@ -46328,6 +46352,7 @@ async function checkSandboxSpawner(
     SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
   `;
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -47132,6 +47157,7 @@ async function checkTaskAgentRuns(
   // The agents this lane creates run on `itestagent`, the one provider
   // the equipment check lets an agent be equipped with here.
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -55765,6 +55791,14 @@ async function checkDataResidency(
   }
 }
 
+/** The bound on an object-storage backfill run settling, before its
+ * objects: the run is a job, picked up behind whatever earlier lanes left
+ * queued. */
+const BACKFILL_SETTLE_BUDGET_MS = 60_000;
+/** What the move's bound grows by per object it copies: a copy, a verifying
+ * read and a delete against the local object store. */
+const BACKFILL_PER_OBJECT_BUDGET_MS = 1_000;
+
 async function checkDataResidencyConfig(
   sql: Sql,
   base: string,
@@ -56022,7 +56056,8 @@ async function checkDataResidencyConfig(
     candidates: number;
     migrated: number;
   } | null = null;
-  for (let i = 0; i < 60; i++) {
+  const dryDeadline = Date.now() + BACKFILL_SETTLE_BUDGET_MS;
+  while (Date.now() < dryDeadline) {
     const res = z
       .object({
         status: z.union([
@@ -56066,7 +56101,15 @@ async function checkDataResidencyConfig(
     bytesMigrated: number;
     sample: Array<{ ref: string }>;
   } | null = null;
-  for (let i = 0; i < 120; i++) {
+  // The move copies every candidate the dry run counted, one object at a
+  // time, verifies each copy and retires its source: its bound grows with
+  // that count instead of a fixed thirty seconds a loaded runner outran
+  // (#5433). A finished run is read at once.
+  const realDeadline =
+    Date.now() +
+    BACKFILL_SETTLE_BUDGET_MS +
+    (dryStatus?.candidates ?? 0) * BACKFILL_PER_OBJECT_BUDGET_MS;
+  while (Date.now() < realDeadline) {
     const res = z
       .object({
         status: z.union([
@@ -59937,6 +59980,11 @@ async function checkTwoFactor(
   );
 }
 
+/** The bound on the live auto-retry cascade's four runs (a first run and
+ * three retries) all ending: each passes through the job queue twice, which
+ * a quiet machine does in a few seconds. */
+const AUTO_RETRY_CASCADE_SETTLE_BUDGET_MS = 120_000;
+
 /**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
@@ -59962,6 +60010,7 @@ async function checkAutoRetryAndKickPlan(
     SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
   `;
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -60099,27 +60148,31 @@ async function checkAutoRetryAndKickPlan(
   await post(`/api/app/tasks/${retryTask}/status?orgId=${orgId}`, {
     status: 'in_progress',
   });
-  let cascade: {
-    status: string;
-    trigger: string | null;
-    attempt: number | null;
-  }[] = [];
-  for (let i = 0; i < 60; i++) {
-    cascade = await sql<
-      { status: string; trigger: string | null; attempt: number | null }[]
-    >`
-      SELECT status, trigger, auto_retry_attempt AS attempt
-      FROM app.project_agent_runs
-      WHERE task_id = ${retryTask}
-      ORDER BY started_at_ms
+  // The cascade has settled when no run of the task is queued or running
+  // and no retry decision for it is left in the queue: a fifth run could
+  // only come from one. Each of the four runs passes through the job queue
+  // twice (its start, its retry), so a fixed count of short polls — once
+  // fifteen seconds — ended on a loaded runner while the last attempt was
+  // still queued (#5433); the budget below only bounds a cascade that never
+  // settles, and a settled one is read at once.
+  const cascadeSettled = await waitFor(async () => {
+    const runs = await sql<{ live: number; total: number }[]>`
+      SELECT count(*) FILTER (WHERE status IN ('queued', 'running'))::int AS live,
+             count(*)::int AS total
+      FROM app.project_agent_runs WHERE task_id = ${retryTask}
     `;
-    const live = cascade.some(
-      (r) => r.status === 'queued' || r.status === 'running',
+    const [pending] = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM pgboss.job
+      WHERE name IN ('task.agent_retry', 'task.agent_retry_recheck')
+        AND data ->> 'taskId' = ${retryTask}
+        AND state IN ('created', 'retry', 'active')
+    `;
+    return (
+      runs[0]?.live === 0 &&
+      (runs[0]?.total ?? 0) >= 4 &&
+      (pending?.count ?? 1) === 0
     );
-    if (!live && cascade.length >= 4) break;
-    await sleep(250);
-  }
-  await sleep(700); // budget_exhausted must add nothing after the cascade
+  }, AUTO_RETRY_CASCADE_SETTLE_BUDGET_MS);
   const finalCascade = await sql<
     {
       status: string;
@@ -60141,14 +60194,15 @@ async function checkAutoRetryAndKickPlan(
   const firstStarter = finalCascade[0]?.startedBy;
   record(
     'auto-retry cascade: 3 stamped attempts then budget exhausted',
-    finalCascade.length === 4 &&
+    cascadeSettled &&
+      finalCascade.length === 4 &&
       finalCascade.every((r) => r.status === 'failed') &&
       retries.length === 3 &&
       retries.map((r) => r.attempt).join(',') === '1,2,3' &&
       firstStarter !== undefined &&
       firstStarter !== '' &&
       finalCascade.every((r) => r.startedBy === firstStarter),
-    `runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')} startedBy=${finalCascade.map((r) => (r.startedBy === firstStarter ? 'first' : r.startedBy)).join(',')} (want every one the first run's)`,
+    `settled within ${AUTO_RETRY_CASCADE_SETTLE_BUDGET_MS} ms=${cascadeSettled}, runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')} startedBy=${finalCascade.map((r) => (r.startedBy === firstStarter ? 'first' : r.startedBy)).join(',')} (want every one the first run's)`,
   );
 
   // --- arm + guard negatives ---------------------------------------------
@@ -60231,6 +60285,7 @@ async function checkReviewArc(
   // The agents this lane creates run on `itestagent`, the one provider
   // the equipment check lets an agent be equipped with here.
   const agentProvider = await seedItestAgentProvider({
+    sql,
     base,
     cookie,
     orgId,
@@ -64577,15 +64632,9 @@ async function checkOrganizationLifecycle(
   // Creation asynchronously scaffolds each org with cleanFirst. Its worker
   // must finish before the markers below, or it can remove the very tree
   // this lane is checking while the retirement assertions run.
-  const scaffoldsDrained = await waitFor(async () => {
-    const rows = await sql<{ count: number }[]>`
-      SELECT count(*)::int AS count FROM pgboss.job
-      WHERE name = 'org.scaffold'
-        AND data ->> 'orgSlug' IN (${slugA}, ${slugB})
-        AND state IN ('created', 'retry', 'active', 'failed')
-    `;
-    return rows[0]?.count === 0;
-  }, 10_000);
+  const scaffoldsDrained =
+    (await awaitOrgScaffold(sql, slugA)) &&
+    (await awaitOrgScaffold(sql, slugB));
   if (!scaffoldsDrained)
     throw new Error('Organization lifecycle fixture scaffolds did not drain');
   const dirA = path.join(configRoot, slugA);
@@ -65858,6 +65907,7 @@ async function main(): Promise<void> {
           const owner = await signUpOrgOwner(baseUrl, 'chat-agents');
           return checkChatProjectAgents(sql, baseUrl, owner, record, () =>
             seedItestAgentProvider({
+              sql,
               base: baseUrl,
               cookie: owner.cookie,
               orgId: owner.orgId,

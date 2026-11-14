@@ -10,7 +10,10 @@ import { z } from 'zod';
 
 import { deleteOrganization } from '../domains/organizations/service.ts';
 import { findOrCreateSsoUser } from '../domains/sso/service.ts';
-import { cookieHeaderFrom } from '../integration-lane-helpers.ts';
+import {
+  awaitOrgScaffold,
+  cookieHeaderFrom,
+} from '../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
 import type { Auth } from './auth.ts';
 import {
@@ -695,6 +698,12 @@ export async function checkNativeIdentity(
     changedSubject.userId === null && changedEmail.userId === null,
   );
   const factorCode = await issue();
+  // The policy goes into the organization's tree once its scaffold, which
+  // empties that tree first, has run.
+  assert.ok(
+    await awaitOrgScaffold(sql, orgSlug),
+    `org.scaffold for ${orgSlug} settles`,
+  );
   const governance = path.join(
     process.env.TALE_CONFIG_DIR ?? '',
     orgSlug,

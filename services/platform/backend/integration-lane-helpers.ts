@@ -264,6 +264,46 @@ export async function signUpOrgOwner(
   return { ...user, orgId: org.id, orgSlug: org.slug };
 }
 
+/** The states in which a pg-boss job may still run. */
+const PENDING_JOB_STATES = new Set(['created', 'retry', 'active']);
+
+/**
+ * How long {@link awaitOrgScaffold} waits for a new organization's scaffold.
+ * The job copies the built-in catalog — a handful of files — and usually
+ * settles within a second of the create; the bound covers a worker busy
+ * with the jobs earlier lanes left queued on a shared CI runner.
+ */
+export const ORG_SCAFFOLD_SETTLE_BUDGET_MS = 30_000;
+
+/**
+ * Creating an organization queues its `org.scaffold` job, which empties the
+ * organization's config tree before it seeds the catalog: a file a lane
+ * wrote there first (a provider, a policy) is deleted under it, and the
+ * lane then reads a provider or a policy that is not there (#5433). True
+ * once no such job is left to run (it ran, or failed for good), false while
+ * one is still pending when {@link ORG_SCAFFOLD_SETTLE_BUDGET_MS} has
+ * passed.
+ */
+export async function awaitOrgScaffold(
+  sql: Sql,
+  orgSlug: string,
+): Promise<boolean> {
+  const deadline = Date.now() + ORG_SCAFFOLD_SETTLE_BUDGET_MS;
+  for (;;) {
+    const jobs = await sql<{ state: string }[]>`
+      SELECT state::text AS state FROM pgboss.job
+      WHERE name = 'org.scaffold'
+        AND singleton_key = ${`org-scaffold:${orgSlug}`}
+    `;
+    // The create queues the job before it answers, so an organization made
+    // through the door has one by now; one inserted directly has none, and
+    // nothing will empty its tree.
+    if (jobs.every((job) => !PENDING_JOB_STATES.has(job.state))) return true;
+    if (Date.now() >= deadline) return false;
+    await sleep(50);
+  }
+}
+
 /** A thrown value as `Name: message`, whatever was thrown. */
 export function errorText(error: unknown): string {
   return error instanceof Error

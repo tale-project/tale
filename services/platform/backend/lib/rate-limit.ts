@@ -297,6 +297,23 @@ export class RateLimitExceededError extends Error {
   }
 }
 
+/** The clock every charge reads: the wall clock, unless a test holds it. */
+let rateLimitNow: () => number = Date.now;
+
+/**
+ * Test seam: charges read `now` instead of the wall clock until the returned
+ * restore is called. A proof that a spent budget refuses, and serves again
+ * once its wait has passed, holds the clock still and moves it by exactly
+ * the wait, so how long the machine takes between two calls refills nothing.
+ */
+export function setRateLimitClockForTests(now: () => number): () => void {
+  const previous = rateLimitNow;
+  rateLimitNow = now;
+  return () => {
+    rateLimitNow = previous;
+  };
+}
+
 /**
  * Charge `count` against a rule. One atomic UPSERT; over-limit charges leave
  * the stored state untouched and report `retryAfter` (ms). Pass a
@@ -309,7 +326,7 @@ export async function limitRate(
 ): Promise<RateLimitResult> {
   const rule: RateLimitRule = RATE_LIMITS[name];
   const count = opts.count ?? 1;
-  const now = Date.now();
+  const now = rateLimitNow();
 
   if (rule.kind === 'token bucket') {
     if (count > rule.capacity) {
