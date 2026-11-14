@@ -4,7 +4,7 @@ description: "Compare Tale and Langflow for agent work. Evaluate shared project 
 competitor: "Langflow"
 slug: "tale-vs-langflow"
 relationship: "framework"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,7 +12,7 @@ draft: false
 
 A visual canvas helps a builder express how an AI application works. A project workspace helps a team decide what needs doing and follow the resulting work. Before choosing, identify whether the immediate user is an application builder or the colleague accountable for a deliverable.
 
-[Langflow](https://www.langflow.org/) provides visual flows, reusable components, Python customization, and agent tools for AI applications. It also describes API delivery and self-managed or cloud deployment. Its builder can be a serious application development choice; treating it as a simple chat demo would miss that scope.
+[Langflow](https://docs.langflow.org/concepts-overview) provides [visual flows](https://docs.langflow.org/concepts-flows), [reusable components](https://docs.langflow.org/components-custom-components) with Python customization, and [agent tools](https://docs.langflow.org/agents-tools) for AI applications. It also describes [API delivery](https://docs.langflow.org/concepts-publish) and [self-managed or cloud deployment](https://docs.langflow.org/deployment-overview). Its builder can be a serious application development choice; treating it as a simple chat demo would miss that scope.
 
 ## Compare at a glance
 
@@ -33,3 +33,5 @@ Consider Tale when the team needs the working environment itself: project contex
 Provide an old policy, a revised requirement, and three employee questions. Ask each candidate to support drafting an update, identifying unanswered questions, and collecting a reviewer's corrections.
 
 With Langflow, evaluate the effort to build and expose the required flow. With Tale, evaluate how the work is divided and how a colleague resumes it after the original owner leaves the pilot. Check both the accuracy of the answers and the clarity of the outstanding tasks. Keep component design effort separate from the effort to run the project each week. [Request a Tale demo](https://tale.dev/request-demo) with this policy update.
+
+Public documentation reviewed on 14 November 2026; no comparative benchmark was performed.

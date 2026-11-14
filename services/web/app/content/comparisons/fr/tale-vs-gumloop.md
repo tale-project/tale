@@ -4,7 +4,7 @@ description: "Compare Tale et Gumloop pour tes agents en équipe : partage, dél
 competitor: "Gumloop"
 slug: "tale-vs-gumloop"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,13 +14,13 @@ Les agents partagés, le travail en arrière-plan et les contrôles d'équipe ne
 
 | Critère | Tale | Gumloop |
 | --- | --- | --- |
-| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Agents partagés dans le produit ainsi que via Slack, Teams et Gmail |
-| Coordination | Agents de projet et délégation par gestionnaire selon la capacité configurée | Sous-agents en arrière-plan, évaluations et contrôles administratifs |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Agents partagés dans le produit ainsi que via Slack, Microsoft Teams et e-mail |
+| Coordination | Agents de projet et délégation par gestionnaire selon la capacité configurée | Sous-agents parallèles, évaluations et contrôles administratifs |
 | Configuration | Espace de travail open source et environnements pris en charge pour exploiter et adapter l’espace | Le déploiement VPC fait partie des options documentées |
 
 ## Reconnaître les points communs
 
-Gumloop documente les agents partagés, la collaboration via Slack, Teams et Gmail, les sous-agents en arrière-plan, les évaluations et les contrôles administratifs. L'offre comprend aussi un déploiement en VPC. Le choix dépasse donc une opposition entre automatisation hébergée et collaboration privée. [Découvrir Gumloop](https://www.gumloop.com/).
+Gumloop documente les [agents partagés](https://docs.gumloop.com/core-concepts/agent_access), la collaboration via [Slack, Microsoft Teams et e-mail](https://docs.gumloop.com/core-concepts/agents#channels), les [sous-agents parallèles](https://docs.gumloop.com/core-concepts/agents#subagents), les [évaluations](https://docs.gumloop.com/core-concepts/evaluations) et les [contrôles administratifs](https://docs.gumloop.com/enterprise-features/overview). L'offre comprend aussi un [déploiement en VPC](https://www.gumloop.com/enterprise). Le choix dépasse donc une opposition entre automatisation hébergée et collaboration privée. [Découvrir Gumloop](https://docs.gumloop.com/core-concepts/agents).
 
 Tale rassemble tâches, discussions, fichiers de travail et livrables dans des projets. Tu configures les agents, leur accordes des outils et peux confier la délégation des tâches prêtes à un agent responsable. Les sandboxes persistantes conservent le travail entre exécutions, avec un parallélisme limité par la capacité configurée. L'édition communautaire open source et les environnements compatibles comptent si ton équipe veut exploiter et adapter elle-même l'espace. Consulte la [configuration des agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents).
 
@@ -36,4 +36,4 @@ Observe comment tu réorientes les travaux en cours, informes les bonnes personn
 
 [Présenter ton processus de lancement à Tale](https://tale.dev/fr/request-demo).
 
-Documentation publique examinée le 3 octobre 2026 ; aucun test comparatif réalisé.
+Documentation publique examinée le 14 novembre 2026 ; aucun test comparatif réalisé.
