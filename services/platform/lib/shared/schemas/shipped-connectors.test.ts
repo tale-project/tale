@@ -112,6 +112,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'discord',
   'gmail',
   'http',
   'imap-smtp',
@@ -341,6 +342,283 @@ interface ServiceAnswer {
 /** The answers one proof gives, keyed `<METHOD> <url>` in the order the live
  * body makes its requests. */
 type ProofAnswers = Record<string, ServiceAnswer>;
+
+const DISCORD = 'https://discord.com/api/v10';
+const DISCORD_GUILD = `${DISCORD}/guilds/100000000000000001`;
+const DISCORD_CHANNEL = `${DISCORD}/channels/300000000000000001`;
+const DISCORD_USER = `${DISCORD}/users/200000000000000001`;
+
+/** A call Discord refused: the HTTP status, and the error body it answers
+ * with, which the live body reads only for a status it does not name. */
+function discordError(
+  status: number,
+  code: number,
+  message: string,
+): ServiceAnswer {
+  return { status, body: { code, message } };
+}
+
+/** A rate limit: 429, with the wait Discord names in its body. */
+const DISCORD_RATE_LIMITED: ServiceAnswer = {
+  status: 429,
+  body: {
+    message: 'You are being rate limited.',
+    retry_after: 1.5,
+    global: false,
+  },
+};
+
+/** Discord's answer to each request a Discord action makes, keyed
+ * `<action>/<scenario>`. A read's body hands the records on as they come; a
+ * write's body returns the three members the action declares. */
+const DISCORD_PROOFS: Record<string, ProofAnswers> = {
+  'list_guilds/two_guilds': {
+    [`GET ${DISCORD}/users/@me/guilds?limit=50`]: {
+      status: 200,
+      body: [
+        { id: '100000000000000001', name: 'Demo Server', owner: true },
+        { id: '100000000000000002', name: 'Demo Community', owner: false },
+      ],
+    },
+  },
+  'list_guilds/no_guilds': {
+    [`GET ${DISCORD}/users/@me/guilds?limit=50`]: { status: 200, body: [] },
+  },
+  'list_guilds/invalid_token': {
+    [`GET ${DISCORD}/users/@me/guilds?limit=50`]: discordError(
+      401,
+      0,
+      '401: Unauthorized',
+    ),
+  },
+  'list_guilds/rate_limited': {
+    [`GET ${DISCORD}/users/@me/guilds?limit=50`]: DISCORD_RATE_LIMITED,
+  },
+  'get_guild/guild': {
+    [`GET ${DISCORD_GUILD}`]: {
+      status: 200,
+      body: {
+        id: '100000000000000001',
+        name: 'Demo Server',
+        owner_id: '200000000000000001',
+        description: 'A demo server for the sales team.',
+      },
+    },
+  },
+  'get_guild/no_description': {
+    [`GET ${DISCORD_GUILD}`]: {
+      status: 200,
+      body: {
+        id: '100000000000000002',
+        name: 'Demo Community',
+        owner_id: '200000000000000001',
+        description: null,
+      },
+    },
+  },
+  'get_guild/guild_not_found': {
+    [`GET ${DISCORD_GUILD}`]: discordError(404, 10004, 'Unknown Guild'),
+  },
+  'get_guild/rate_limited': {
+    [`GET ${DISCORD_GUILD}`]: DISCORD_RATE_LIMITED,
+  },
+  'list_channels/two_channels': {
+    [`GET ${DISCORD_GUILD}/channels`]: {
+      status: 200,
+      body: [
+        {
+          id: '300000000000000001',
+          name: 'general',
+          type: 0,
+          position: 0,
+        },
+        {
+          id: '300000000000000002',
+          name: 'release-notes',
+          type: 0,
+          position: 1,
+        },
+      ],
+    },
+  },
+  'list_channels/no_channels': {
+    [`GET ${DISCORD_GUILD}/channels`]: { status: 200, body: [] },
+  },
+  'list_channels/guild_not_found': {
+    [`GET ${DISCORD_GUILD}/channels`]: discordError(
+      404,
+      10004,
+      'Unknown Guild',
+    ),
+  },
+  'list_channels/rate_limited': {
+    [`GET ${DISCORD_GUILD}/channels`]: DISCORD_RATE_LIMITED,
+  },
+  'list_messages/two_messages': {
+    [`GET ${DISCORD_CHANNEL}/messages?limit=20`]: {
+      status: 200,
+      body: [
+        {
+          id: '400000000000000001',
+          content: 'Hello from the mock channel.',
+          author: { id: '200000000000000001', username: 'demo-user' },
+          timestamp: '2024-01-01T00:00:00.000Z',
+        },
+        {
+          id: '400000000000000002',
+          content: 'Deploy finished.',
+          author: { id: '200000000000000002', username: 'demo-bot' },
+          timestamp: '2024-01-01T00:05:00.000Z',
+        },
+      ],
+    },
+  },
+  'list_messages/no_messages': {
+    [`GET ${DISCORD_CHANNEL}/messages?limit=20`]: { status: 200, body: [] },
+  },
+  'list_messages/channel_not_found': {
+    [`GET ${DISCORD_CHANNEL}/messages?limit=20`]: discordError(
+      404,
+      10003,
+      'Unknown Channel',
+    ),
+  },
+  'list_messages/no_read_permission': {
+    [`GET ${DISCORD_CHANNEL}/messages?limit=20`]: discordError(
+      403,
+      50001,
+      'Missing Access',
+    ),
+  },
+  'send_message/sent': {
+    [`POST ${DISCORD_CHANNEL}/messages`]: {
+      status: 200,
+      body: {
+        id: '400000000000000003',
+        channel_id: '300000000000000001',
+        content: 'Deploy finished ✅',
+        author: { id: '200000000000000003', username: 'demo-bot' },
+        timestamp: '2024-01-01T00:10:00.000Z',
+      },
+    },
+  },
+  'send_message/sent_again': {
+    [`POST ${DISCORD_CHANNEL}/messages`]: {
+      status: 200,
+      body: {
+        id: '400000000000000004',
+        channel_id: '300000000000000001',
+        content: 'Deploy finished ✅',
+        author: { id: '200000000000000003', username: 'demo-bot' },
+        timestamp: '2024-01-01T00:10:01.000Z',
+      },
+    },
+  },
+  'send_message/no_post_permission': {
+    [`POST ${DISCORD_CHANNEL}/messages`]: discordError(
+      403,
+      50013,
+      'Missing Permissions',
+    ),
+  },
+  'send_message/rate_limited': {
+    [`POST ${DISCORD_CHANNEL}/messages`]: DISCORD_RATE_LIMITED,
+  },
+  'get_user/user': {
+    [`GET ${DISCORD_USER}`]: {
+      status: 200,
+      body: {
+        id: '200000000000000001',
+        username: 'demo-user',
+        global_name: 'Demo User',
+        bot: false,
+      },
+    },
+  },
+  'get_user/no_display_name': {
+    [`GET ${DISCORD_USER}`]: {
+      status: 200,
+      body: {
+        id: '200000000000000002',
+        username: 'demo-bot',
+        global_name: null,
+        bot: true,
+      },
+    },
+  },
+  'get_user/user_not_found': {
+    [`GET ${DISCORD_USER}`]: discordError(404, 10013, 'Unknown User'),
+  },
+  'get_user/rate_limited': {
+    [`GET ${DISCORD_USER}`]: DISCORD_RATE_LIMITED,
+  },
+  'list_members/two_members': {
+    [`GET ${DISCORD_GUILD}/members?limit=100`]: {
+      status: 200,
+      body: [
+        {
+          user: { id: '200000000000000001', username: 'demo-user' },
+          nick: 'Demo',
+          roles: ['500000000000000001'],
+        },
+        {
+          user: { id: '200000000000000002', username: 'demo-bot' },
+          nick: null,
+          roles: [],
+        },
+      ],
+    },
+  },
+  'list_members/no_members': {
+    [`GET ${DISCORD_GUILD}/members?limit=100`]: { status: 200, body: [] },
+  },
+  'list_members/missing_members_intent': {
+    [`GET ${DISCORD_GUILD}/members?limit=100`]: discordError(
+      403,
+      50001,
+      'Missing Access',
+    ),
+  },
+  'list_members/guild_not_found': {
+    [`GET ${DISCORD_GUILD}/members?limit=100`]: discordError(
+      404,
+      10004,
+      'Unknown Guild',
+    ),
+  },
+  'create_channel/created': {
+    [`POST ${DISCORD_GUILD}/channels`]: {
+      status: 200,
+      body: {
+        id: '300000000000000003',
+        guild_id: '100000000000000001',
+        name: 'release-notes',
+        type: 0,
+      },
+    },
+  },
+  'create_channel/created_again': {
+    [`POST ${DISCORD_GUILD}/channels`]: {
+      status: 200,
+      body: {
+        id: '300000000000000004',
+        guild_id: '100000000000000001',
+        name: 'release-notes',
+        type: 0,
+      },
+    },
+  },
+  'create_channel/no_manage_channels': {
+    [`POST ${DISCORD_GUILD}/channels`]: discordError(
+      403,
+      50013,
+      'Missing Permissions',
+    ),
+  },
+  'create_channel/rate_limited': {
+    [`POST ${DISCORD_GUILD}/channels`]: DISCORD_RATE_LIMITED,
+  },
+};
 
 const SLACK_API = 'https://slack.com/api';
 const UPLOAD_URL = 'https://files.slack.com/upload/v1/EXAMPLE0000000001';
@@ -2705,6 +2983,7 @@ type ScenarioProofs =
     };
 
 const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
+  discord: { proofs: DISCORD_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   http: { proofs: HTTP_PROOFS },
   'imap-smtp': { natives: IMAP_SMTP_PROOFS },
