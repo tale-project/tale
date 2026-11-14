@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import sharp from 'sharp';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
@@ -103,5 +104,95 @@ describe('product image byte routes', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(response.headers.has('location')).toBe(false);
+  });
+  describe('variants', () => {
+    async function original(width: number): Promise<Uint8Array<ArrayBuffer>> {
+      return Uint8Array.from(
+        await sharp({
+          create: {
+            width,
+            height: width,
+            channels: 3,
+            background: { r: 10, g: 20, b: 30 },
+          },
+        })
+          .png()
+          .toBuffer(),
+      );
+    }
+    function storedAs(bytes: Uint8Array<ArrayBuffer>) {
+      readProductImage.mockResolvedValue({
+        storageRef: 's3:o1/image',
+        contentType: 'image/png',
+      });
+      openFileContent.mockResolvedValue({
+        status: 200,
+        headers: new Headers({
+          'content-type': 'image/png',
+          'content-length': String(bytes.byteLength),
+          etag: '"original"',
+        }),
+        body: new Response(bytes).body,
+      });
+    }
+
+    it('serves the card variant at 256 px as a cacheable WebP', async () => {
+      storedAs(await original(1200));
+      const response = await app().request('/images/f1?orgId=o1&variant=card');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe('image/webp');
+      expect(response.headers.get('cache-control')).toBe(
+        'private, max-age=3600',
+      );
+      expect(response.headers.has('etag')).toBe(false);
+      const meta = await sharp(
+        new Uint8Array(await response.arrayBuffer()),
+      ).metadata();
+      expect(meta.width).toBe(256);
+      expect(meta.format).toBe('webp');
+    });
+
+    it('serves the list variant at 160 px', async () => {
+      storedAs(await original(1200));
+      const response = await app().request('/images/f1?orgId=o1&variant=list');
+      const meta = await sharp(
+        new Uint8Array(await response.arrayBuffer()),
+      ).metadata();
+      expect(meta.width).toBe(160);
+    });
+
+    it('serves the original, uncached, when no variant is asked for', async () => {
+      const bytes = await original(1200);
+      storedAs(bytes);
+      const response = await app().request('/images/f1?orgId=o1');
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(response.headers.get('content-type')).toBe('image/png');
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+    });
+
+    it('serves an SVG unchanged even when a variant is asked for', async () => {
+      readProductImage.mockResolvedValue({
+        storageRef: 's3:o1/image',
+        contentType: 'image/svg+xml',
+      });
+      openFileContent.mockResolvedValue({
+        status: 200,
+        headers: new Headers(),
+        body: new Response('<svg/>').body,
+      });
+      const response = await app().request('/images/f1?orgId=o1&variant=card');
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(await response.text()).toBe('<svg/>');
+    });
+
+    it('serves the original when the stored bytes cannot be decoded', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      storedAs(new TextEncoder().encode('legacy, not decodable'));
+      const response = await app().request('/images/f1?orgId=o1&variant=list');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(await response.text()).toBe('legacy, not decodable');
+      warn.mockRestore();
+    });
   });
 });

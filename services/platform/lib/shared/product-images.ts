@@ -58,3 +58,24 @@ export function productImageUrlParts(
     ? { organizationId, fileId, basePath }
     : null;
 }
+
+/**
+ * The widths a product image is served at, in pixels: twice the CSS size of
+ * the slot it fills (DPR 2). `list` is the 80 px table cell, `card` the 128 px
+ * hover card. The original is served for everything else.
+ */
+export const PRODUCT_IMAGE_VARIANTS = { list: 160, card: 256 } as const;
+export type ProductImageVariant = keyof typeof PRODUCT_IMAGE_VARIANTS;
+
+/**
+ * The URL of one variant of a product image: the canonical app path with a
+ * `variant` query. Any other string (an external link, a legacy form) is
+ * returned unchanged, since only the managed upload has variants.
+ */
+export function productImageVariantUrl(
+  value: string,
+  variant: ProductImageVariant,
+): string {
+  if (productImageUrlParts(value) === null) return value;
+  return `${value}&variant=${variant}`;
+}
