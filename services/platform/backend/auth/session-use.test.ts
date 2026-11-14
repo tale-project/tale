@@ -46,36 +46,40 @@ describe('the write a session use costs, counted per kind of row', () => {
   });
 
   it.each([
-    [
-      'a single sign-on row, whose first slide is weeks away',
-      {
+    {
+      name: 'a single sign-on row, whose first slide is weeks away',
+      row: {
         updatedAt: new Date(NOW - 10 * MINUTE),
         expiresAt: new Date(NOW + 30 * DAY),
       },
-      1,
-    ],
-    [
-      'a "don\'t remember me" row, which Better Auth never slides',
-      {
+      expected: 1,
+    },
+    {
+      name: 'a "don\'t remember me" row, which Better Auth never slides',
+      row: {
         updatedAt: new Date(NOW - 10 * MINUTE),
         expiresAt: new Date(NOW + DAY),
       },
-      1,
-    ],
-    ['a regular row Better Auth has just refreshed', regularRow(NOW), 0],
-    [
-      'a regular row whose refresh is due in the future',
-      regularRow(NOW - 2 * MINUTE),
-      0,
-    ],
-    [
-      'a regular row whose refresh is overdue beyond the cookie cache',
-      regularRow(NOW - 10 * MINUTE),
-      1,
-    ],
+      expected: 1,
+    },
+    {
+      name: 'a regular row Better Auth has just refreshed',
+      row: regularRow(NOW),
+      expected: 0,
+    },
+    {
+      name: 'a regular row whose refresh is due in the future',
+      row: regularRow(NOW - 2 * MINUTE),
+      expected: 0,
+    },
+    {
+      name: 'a regular row whose refresh is overdue beyond the cookie cache',
+      row: regularRow(NOW - 10 * MINUTE),
+      expected: 1,
+    },
   ])(
-    'without the cookie cache, %s: %i write(s)',
-    async (_name, row, expected) => {
+    'without the cookie cache, $name: $expected write(s)',
+    async ({ row, expected }) => {
       const { sql, writes } = countingSql();
       await stampSessionUse(sql, 'session-a', row, NOW);
       expect(writes).toHaveLength(expected);
