@@ -177,6 +177,36 @@ actions:
           receivedAt: from + (i + 1) * 1000,
         })),
       };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'The mailbox holds two messages; the server lists both, oldest first.'
+        output:
+          messages:
+            - uid: '101'
+              from: sender@example.com
+              subject: Synthetic invoice
+              sentAt: 1767225600000
+              receivedAt: 1767225601000
+            - uid: '102'
+              from: customer@example.org
+              subject: Synthetic question
+              sentAt: 1767229200000
+      - name: empty_inbox
+        kind: empty
+        description: 'The mailbox holds no message, so the listing is empty.'
+        output: { messages: [] }
+      - name: no_sent_folder
+        kind: error
+        description: 'The server publishes no Sent folder, so the sent listing has nowhere to read.'
+        when: { mailbox: sent }
+        error:
+          message: 'this mail server publishes no Sent folder'
+      - name: server_unreachable
+        kind: error
+        description: 'The IMAP server does not answer the connection, so the listing never starts.'
+        error:
+          message: 'connect ETIMEDOUT imap.example.com:993'
     backend:
       kind: native
       impl: imap-smtp.list_messages
@@ -226,6 +256,49 @@ actions:
           },
         },
       };
+    scenarios:
+      - name: text_and_html
+        kind: success
+        description: 'The message carries a plain-text and an HTML part, and its threading headers.'
+        output:
+          uid: '101'
+          email:
+            uid: 101
+            messageId: '<synthetic-101@example.com>'
+            from: [{ address: sender@example.com }]
+            to: [{ address: you@example.com }]
+            cc: []
+            subject: Synthetic invoice
+            date: '2026-01-01T09:00:00.000Z'
+            text: Synthetic plain body.
+            html: '<p>Synthetic HTML body.</p>'
+            flags: ['\Seen']
+            headers:
+              message-id: '<synthetic-101@example.com>'
+              in-reply-to: '<synthetic-100@example.com>'
+              references: '<synthetic-100@example.com>'
+      - name: no_body
+        kind: empty
+        description: 'The message has headers and no body part and no attachment, so only its required members are set.'
+        output:
+          uid: '102'
+          email:
+            uid: 102
+            messageId: '<synthetic-102@example.com>'
+            from: [{ address: sender@example.com }]
+            to: [{ address: you@example.com }]
+            cc: []
+            subject: Synthetic empty message
+            date: '2026-01-01T09:05:00.000Z'
+            flags: []
+            headers:
+              message-id: '<synthetic-102@example.com>'
+      - name: uid_not_found
+        kind: error
+        description: 'No message in the mailbox has this UID, so the server returns nothing to read.'
+        when: { uid: '999' }
+        error:
+          message: 'no message with UID 999 in the requested mailbox'
     backend:
       kind: native
       impl: imap-smtp.get_message
@@ -285,6 +358,21 @@ actions:
     output: '{ messageId: string }'
     mock: |
       return { messageId: `mock-smtp-${input.to}-${input.subject.length}` };
+    scenarios:
+      - name: sent
+        kind: success
+        description: 'The SMTP server accepts the message for delivery and answers with its Message-ID.'
+        output: { messageId: '<synthetic-1@example.com>' }
+      - name: recipient_refused
+        kind: refusal
+        description: 'The SMTP server refuses the recipient as unknown, so nothing is delivered.'
+        when: { to: nobody@example.org }
+        error:
+          message: '550 5.1.1 <nobody@example.org>: Recipient address rejected: User unknown in virtual mailbox table'
+      - name: sent_again
+        kind: duplicate
+        description: 'SMTP does not de-duplicate, so the same message is accepted a second time under a new Message-ID.'
+        output: { messageId: '<synthetic-2@example.com>' }
     backend:
       kind: native
       impl: imap-smtp.send
