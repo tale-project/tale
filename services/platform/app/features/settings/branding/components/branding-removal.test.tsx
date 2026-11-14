@@ -46,9 +46,8 @@ vi.mock(
   }),
 );
 
-// Save the reader can press. Until the form's validity settles, invalid
-// fields hold Save back with a reason (`aria-disabled`, still focusable), so
-// a native `disabled` check alone passes before a click would land.
+// Save the reader can press: not natively disabled, and not held back with
+// a reason either (`aria-disabled` keeps that Save focusable but inert).
 function expectSaveReady() {
   const button = screen.getByRole('button', { name: 'Save' });
   expect(button).toBeEnabled();

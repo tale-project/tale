@@ -7,6 +7,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -333,6 +334,26 @@ describe('useFormEditor', () => {
     );
     expect(result.current.isValid).toBe(true);
     expect(result.current.invalidReason).toBeUndefined();
+  });
+
+  // RHF holds `isValid` false until its first judgement lands. An edit made
+  // before then is valid all along: the reason must not flash beside Save.
+  it('gives no reason for valid edits made before the first judgement lands', async () => {
+    const seen: ReactNode[] = [];
+    const { result } = renderHook(() => {
+      const editor = useFormEditor<Form>({
+        data: { name: 'A', color: '#FF0000' },
+        schema,
+        save: vi.fn().mockResolvedValue(undefined),
+      });
+      if (editor.isDirty) seen.push(editor.invalidReason);
+      return editor;
+    });
+    expect(result.current.isValid).toBe(false);
+    act(() => result.current.form.setValue('name', 'B', { shouldDirty: true }));
+    await waitFor(() => expect(result.current.isValid).toBe(true));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.filter((reason) => reason !== undefined)).toEqual([]);
   });
 
   // Regression (#5260): RHF judges what an input event writes, not what code
