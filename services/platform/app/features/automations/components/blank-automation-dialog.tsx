@@ -139,8 +139,12 @@ export function BlankAutomationDialog({
 
   // Step 1 — the agent.
   const [name, setName] = useState('');
-  const [model, setModel] = useState('');
-  const [modelProvider, setModelProvider] = useState('');
+  // The model the author picked; until they pick one, the agent starts on the
+  // default below.
+  const [modelPick, setModelPick] = useState<{
+    model: string;
+    modelProvider: string;
+  } | null>(null);
   const [prompt, setPrompt] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
@@ -169,8 +173,7 @@ export function BlankAutomationDialog({
     if (!open) return;
     setStep(0);
     setName('');
-    setModel('');
-    setModelProvider('');
+    setModelPick(null);
     setPrompt('');
     setBinding(EMPTY_BINDING);
     setSecretNames([]);
@@ -196,6 +199,24 @@ export function BlankAutomationDialog({
       ),
     [roster.data],
   );
+  // The starting model is the first direct-served entry on offer: the chat
+  // composer seeds a concrete model the same way when Auto is not on offer
+  // (`directServedModels`, then the first usable one). A subscription entry
+  // has no direct path, so it is only ever a deliberate pick here.
+  const startModel = useMemo(
+    () => offeredModels.find((option) => option.subscription === undefined),
+    [offeredModels],
+  );
+  const picked =
+    modelPick ??
+    (startModel === undefined
+      ? null
+      : {
+          model: startModel.id,
+          modelProvider: startModel.providerSlug,
+        });
+  const model = picked?.model ?? '';
+  const modelProvider = picked?.modelProvider ?? '';
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   const modelOptions = useMemo(
     () =>
@@ -498,6 +519,11 @@ export function BlankAutomationDialog({
             searchPlaceholder={t('blank.modelSearchPlaceholder')}
             emptyText={t('blank.modelSearchEmpty')}
             options={modelOptions}
+            description={
+              roster.data !== undefined && offeredModels.length === 0
+                ? t('blank.noModel')
+                : undefined
+            }
             value={
               selectedModel !== undefined
                 ? String(offeredModels.indexOf(selectedModel))
@@ -506,8 +532,10 @@ export function BlankAutomationDialog({
             onValueChange={(value) => {
               const option = offeredModels[Number(value)];
               if (option === undefined) return;
-              setModel(option.id);
-              setModelProvider(option.providerSlug);
+              setModelPick({
+                model: option.id,
+                modelProvider: option.providerSlug,
+              });
             }}
             modal
           />
