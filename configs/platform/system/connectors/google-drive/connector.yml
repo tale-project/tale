@@ -43,6 +43,93 @@ actions:
     output: '{ files: Array<{ id: string, name: string, size: number, mimeType: string, modifiedTime: string, md5Checksum?: string, subfolderPath: string }>, truncated: boolean }'
     mock: |
       return { files: [{ id: 'file-1', name: 'document.pdf', size: 1024, mimeType: 'application/pdf', modifiedTime: '2024-01-01T00:00:00.000Z', md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e', subfolderPath: '' }], truncated: false };
+    scenarios:
+      - name: two_files
+        kind: success
+        description: 'Drive lists the two files of the folder, which holds no subfolder, on a single page; neither is in a subfolder.'
+        output:
+          files:
+            - { id: file-budget, name: budget-2026.csv, size: 1280, mimeType: text/csv, modifiedTime: '2026-10-14T09:30:00.000Z', md5Checksum: 5d41402abc4b2a76b9719d911017c592, subfolderPath: '' }
+            - { id: file-minutes, name: board-minutes.pdf, size: 46, mimeType: application/pdf, modifiedTime: '2026-10-15T08:00:00.000Z', md5Checksum: 0cc175b9c0f1b6a831c399e269772661, subfolderPath: '' }
+          truncated: false
+      - name: nested_folders
+        kind: success
+        description: 'Drive lists the folder recursively: a file at its top, and one in a subfolder, which the list gives the path of. The subfolder has no size or checksum of its own, and is not listed.'
+        when: { recursive: true }
+        output:
+          files:
+            - { id: file-budget, name: budget-2026.csv, size: 1280, mimeType: text/csv, modifiedTime: '2026-10-14T09:30:00.000Z', md5Checksum: 5d41402abc4b2a76b9719d911017c592, subfolderPath: '' }
+            - { id: file-q3, name: q3-summary.csv, size: 512, mimeType: text/csv, modifiedTime: '2026-10-03T10:00:00.000Z', md5Checksum: 9bb58f26192e4ba00f01e2e7b136bbd8, subfolderPath: 'Reports 2026' }
+          truncated: false
+      - name: no_files
+        kind: empty
+        description: 'Drive finds no file in the folder, and its answer carries no file at all, so the list is empty and nothing is truncated.'
+        output:
+          files: []
+          truncated: false
+      - name: token_expired
+        kind: error
+        description: 'Drive rejects the access token with HTTP 401, as when it has expired.'
+        error:
+          message: |
+            Google Drive list_files failed (401): {
+              "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+                "errors": [
+                  {
+                    "message": "Invalid Credentials",
+                    "domain": "global",
+                    "reason": "authError",
+                    "location": "Authorization",
+                    "locationType": "header"
+                  }
+                ],
+                "status": "UNAUTHENTICATED"
+              }
+            }
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Drive rate-limits the user with HTTP 429, as when too many requests came in a short time.'
+        error:
+          message: |
+            Google Drive list_files failed (429): {
+              "error": {
+                "code": 429,
+                "message": "Rate Limit Exceeded",
+                "errors": [
+                  {
+                    "message": "Rate Limit Exceeded",
+                    "domain": "usageLimits",
+                    "reason": "rateLimitExceeded"
+                  }
+                ],
+                "status": "RESOURCE_EXHAUSTED"
+              }
+            }
+          status: 429
+      - name: folder_not_found
+        kind: error
+        description: 'Drive answers HTTP 404 for a folder ID that names no folder, as for a folder that was deleted or never shared with the account.'
+        when: { folderId: folder-missing }
+        error:
+          message: |
+            Google Drive list_files failed (404): {
+              "error": {
+                "code": 404,
+                "message": "File not found: folder-missing.",
+                "errors": [
+                  {
+                    "message": "File not found: folder-missing.",
+                    "domain": "global",
+                    "reason": "notFound"
+                  }
+                ],
+                "status": "NOT_FOUND"
+              }
+            }
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -143,6 +230,44 @@ actions:
     output: '{ fileId: string, fileName: string, contentType: string, size: number, url?: string }'
     mock: |
       return { fileId: 'file-' + input.fileId, fileName: input.fileName, contentType: input.contentType || 'application/octet-stream', size: 1024, url: 'https://files.example.com/file-' + input.fileId };
+    scenarios:
+      - name: stored
+        kind: success
+        description: 'Drive answers with the PDF bytes, which the file store keeps under a new file id, with the name the flow gave and the type Drive sent. The file store gives no link, so the output carries no url.'
+        output:
+          fileId: 's3:example-org/00000000-0000-0000-0000-000000000001'
+          fileName: report.pdf
+          contentType: application/pdf
+          size: 46
+      - name: no_link
+        kind: empty
+        description: 'The record with its optional member empty: the same stored file, with no url, which every download answers, as the file store never gives a link. A zero-byte file has no such record: the store refuses an empty blob, so it fails as an error and is not shipped here.'
+        output:
+          fileId: 's3:example-org/00000000-0000-0000-0000-000000000001'
+          fileName: report.pdf
+          contentType: application/pdf
+          size: 46
+      - name: file_not_found
+        kind: error
+        description: 'Drive answers HTTP 404 for a file ID that names no file, so the download fails as the live host raises a failed download, with the vendor status.'
+        when: { fileId: file-missing, fileName: missing.pdf }
+        error:
+          message: 'download of missing.pdf failed (404) from www.googleapis.com'
+          status: 404
+      - name: native_format
+        kind: error
+        description: 'Drive refuses a Google Docs file with HTTP 403: a native format has no bytes to download, and only an export of it has. The live host raises the failed download with that status.'
+        when: { fileId: doc-meeting-notes, fileName: meeting-notes }
+        error:
+          message: 'download of meeting-notes failed (403) from www.googleapis.com'
+          status: 403
+      - name: rate_limited
+        kind: error
+        description: 'Drive rate-limits the download with HTTP 429, so the live host raises the failed download with that status.'
+        when: { fileId: file-busy, fileName: busy.pdf }
+        error:
+          message: 'download of busy.pdf failed (429) from www.googleapis.com'
+          status: 429
     backend:
       kind: yaml-js
       live: |
