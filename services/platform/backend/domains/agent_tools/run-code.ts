@@ -24,12 +24,16 @@ import { wrapUntrusted } from '../../../lib/chat/untrusted-content.ts';
 import {
   describeStageSkips,
   drainSessionExecResilient,
+  ExecDiskFullError,
+  ExecOutputLimitError,
   sessionCancelExec,
   sessionListFiles,
   sessionReadFile,
   SessionFileTooLargeError,
   SessionNotFoundError,
   sessionStageFiles,
+  StageManifestError,
+  StageRequestError,
   SpawnerUnreachableError,
   type SessionExecResult,
   type SessionStageFile,
@@ -173,6 +177,33 @@ function sandboxUnavailable(
 ): ReturnType<typeof failure> {
   return { ...SANDBOX_UNAVAILABLE[kind] };
 }
+
+/**
+ * What the model reads when the sandbox refused the program's files as a
+ * whole, or ended the program's output itself. The step names the reason;
+ * the sandbox's own words stay in the server log.
+ */
+const STAGE_REFUSED = failure(
+  'error',
+  'The sandbox refused the files of the program as one request, so the program did not run. You may call run_code once more; if it fails again, tell the user the files could not be copied into the sandbox and answer without running code.',
+  'stage_refused',
+);
+
+const PROGRAM_ENDED_BY_SANDBOX: Record<
+  'disk_full' | 'output_limit',
+  ReturnType<typeof failure>
+> = {
+  disk_full: failure(
+    'unavailable',
+    'The sandbox host ran out of disk space while the program ran, so the program was stopped and its results were not kept. Tell the user that code cannot run on the sandbox host at the moment and answer without running code; do not call run_code again in this reply.',
+    'sandbox_disk_full',
+  ),
+  output_limit: failure(
+    'error',
+    `The program printed more output than a run keeps, so it was stopped. Tell the user the program printed too much; ask them to print a summary, or to write the results to a file in ${LIGHT_SANDBOX_PATHS.output}/ instead. Do not run the same program again unchanged.`,
+    'output_limit',
+  ),
+};
 
 /** How often the sandbox is asked to cancel a program it does not know yet,
  * and how long between the asks. */
@@ -554,7 +585,17 @@ async function runInSandbox(
     lease.sessionId,
     files,
     skillRoots.length > 0 ? { reuse: true, replaceRoots: skillRoots } : {},
-  );
+  ).catch((error: unknown) => {
+    if (
+      error instanceof StageRequestError ||
+      error instanceof StageManifestError
+    ) {
+      console.warn(`[run_code] the sandbox refused the files:`, error);
+      return null;
+    }
+    throw error;
+  });
+  if (stage === null) return { ...STAGE_REFUSED };
   if (stage.skipped.length > 0) {
     // A file too large stays too large: the same call would fail again.
     const advice = stage.skipped.some((entry) => entry.reason === 'too_large')
@@ -583,6 +624,21 @@ async function runInSandbox(
       signal === undefined ? deadline : AbortSignal.any([signal, deadline]),
     );
   } catch (error) {
+    // The sandbox ended the stream itself, over its disk or its output: the
+    // program must not run on unseen.
+    if (
+      !toldToStop() &&
+      (error instanceof ExecDiskFullError ||
+        error instanceof ExecOutputLimitError)
+    ) {
+      console.warn(`[run_code] the sandbox ended ${execId}:`, error);
+      await cancelProgram(lease.sessionId, execId);
+      return {
+        ...PROGRAM_ENDED_BY_SANDBOX[
+          error instanceof ExecDiskFullError ? 'disk_full' : 'output_limit'
+        ],
+      };
+    }
     // The platform's own deadline is the sandbox's plus a minute: it ends a
     // drain whose sandbox stopped answering about the program.
     const outOfTime = deadline.aborted && !toldToStop();

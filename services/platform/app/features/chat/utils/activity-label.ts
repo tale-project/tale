@@ -224,6 +224,9 @@ const FAILURE_REASON_KEYS: Record<string, string> = {
   render_busy: 'thinking.outcome.renderBusy',
   render_failed: 'thinking.outcome.renderFailed',
   render_empty: 'thinking.outcome.renderEmpty',
+  stage_refused: 'thinking.outcome.stageRefused',
+  sandbox_disk_full: 'thinking.outcome.sandboxDiskFull',
+  output_limit: 'thinking.outcome.outputLimit',
 };
 
 /** …and, for a result that names no cause, by its status. */

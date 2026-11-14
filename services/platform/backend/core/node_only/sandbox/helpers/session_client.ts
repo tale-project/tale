@@ -1699,7 +1699,10 @@ interface StageOptions {
   reuse?: boolean;
 }
 
-class StageRequestError extends Error {
+/** The sandbox refused a stage request as a whole: a non-busy failure of the
+ * request, or a 413 naming the one file it carried. Nothing of the request
+ * was staged. */
+export class StageRequestError extends Error {
   constructor(
     readonly status: number,
     /** The one file a refused request carried, named on a 413. */
@@ -1712,6 +1715,9 @@ class StageRequestError extends Error {
     );
   }
 }
+
+/** A stage manifest the request budget cannot carry: nothing was sent. */
+export class StageManifestError extends Error {}
 
 /** Client-side serialized-body budget per stage POST. Deliberately far under
  * the spawner's maxRequestBodyBytes (2 MiB historically, 8 MiB now) so a
@@ -1794,7 +1800,7 @@ export function chunkStageFiles(
     );
     if (STAGE_ENVELOPE_BYTES + entryBytes > maxBodyBytes) {
       if (STAGE_ENVELOPE_BYTES + entryBytes > singleFileBodyBytes) {
-        throw new Error(
+        throw new StageManifestError(
           `stage file "${file.path}" serializes to ${entryBytes} bytes — over the ` +
             `${singleFileBodyBytes}-byte request ceiling; it cannot be staged inline`,
         );
@@ -1846,7 +1852,9 @@ async function postStageFiles(
       ? STAGE_SINGLE_FILE_BODY_BYTES
       : STAGE_BODY_BUDGET_BYTES)
   ) {
-    throw new Error('Sandbox staging manifest exceeds the request budget');
+    throw new StageManifestError(
+      'Sandbox staging manifest exceeds the request budget',
+    );
   }
   const signal = AbortSignal.any([
     AbortSignal.timeout(30_000),
@@ -2498,6 +2506,15 @@ export class ExecDiskFullError extends ExecStreamProtocolError {
   }
 }
 
+/** The exec wrote more output than the sandbox keeps for one run (runnerd's
+ * `OUTPUT_LIMIT`), and the sandbox ended the exec. Reattaching cannot help. */
+export class ExecOutputLimitError extends ExecStreamProtocolError {
+  readonly code = 'OUTPUT_LIMIT';
+  constructor() {
+    super('the exec wrote more output than the sandbox keeps');
+  }
+}
+
 /**
  * POST /v1/sessions/:id/exec as SSE. Streams stdout/stderr deltas to the
  * callbacks (the progress-bridge action feeds these through the agent adapter
@@ -2946,7 +2963,8 @@ async function consumeExecSse(
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
-      if (parsed.code?.startsWith('REPLAY_') || parsed.code === 'OUTPUT_LIMIT')
+      if (parsed?.code === 'OUTPUT_LIMIT') throw new ExecOutputLimitError();
+      if (parsed.code?.startsWith('REPLAY_'))
         throw new ExecStreamProtocolError(message);
       throw new Error(message);
     }
