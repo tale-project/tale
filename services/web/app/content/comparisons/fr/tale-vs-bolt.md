@@ -4,7 +4,7 @@ description: "Compare Tale et Bolt.new pour lancer une app : hébergement intég
 competitor: "Bolt.new"
 slug: "tale-vs-bolt"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,15 +14,15 @@ Une application de réservation ne suffit pas à lancer un service. Il faut auss
 
 | Critère | Tale | Bolt.new |
 | --- | --- | --- |
-| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Créer sites et applications à partir de demandes en langage naturel |
-| Coordination | Délégation par gestionnaire et tâches parallèles selon la capacité configurée | Mode multijoueur avec projets publics et prompts traités à tour de rôle |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Construire un projet à partir des prompts envoyés |
+| Coordination | Délégation par gestionnaire et tâches parallèles selon la capacité configurée | Membres ayant accès au projet partagent un fil de discussion ; prompts traités un par un |
 | Livrables | Les résultats en sandbox nécessitent vérification et processus de publication adaptés | Bolt Cloud regroupe hébergement, bases de données, authentification et domaines |
 
 ## Compare création et coordination
 
-Bolt transforme des demandes en langage naturel en sites et applications. Il permet notamment de partir de Figma ou de GitHub. [Présentation de Bolt](https://bolt.new/). Bolt Cloud regroupe hébergement, bases de données, authentification et gestion des domaines. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).
+Bolt construit un projet à partir des prompts que tu envoies. [Créer avec Bolt](https://support.bolt.new/building). Bolt Cloud regroupe hébergement, bases de données, authentification et gestion des domaines. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).
 
-Bolt propose aussi des projets partagés. Son mode multijoueur documenté exige une visibilité publique du projet et traite les prompts à tour de rôle pour éviter les conflits. Le partage du projet et l’accès au site publié disposent de contrôles distincts. [Collaboration](https://support.bolt.new/building/using-bolt/collaborate).
+Bolt propose aussi des projets partagés. En mode multijoueur, les membres ayant accès au projet partagent un même fil de discussion ; Bolt traite un prompt à la fois et met les autres en file d’attente pour éviter les conflits. Le partage du projet et l’accès au site publié disposent de contrôles distincts. [Collaboration](https://support.bolt.new/building/using-bolt/collaborate).
 
 Dans Tale, ton équipe attribue des tâches à des personnes et à des agents configurés depuis un tableau de projet. Les agents travaillent dans des espaces sandbox persistants, signalent leur progression et produisent des fichiers à examiner. Un gestionnaire peut déléguer les tâches admissibles ; l’exécution parallèle dépend de la capacité configurée. Voir les [agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents). Le développement côtoie la recherche, le marketing et les opérations.
 
@@ -38,4 +38,4 @@ Ajoute une liste de lancement, les messages de confirmation et un guide pour le 
 
 [Prépare un essai de Tale avec ton équipe](https://tale.dev/fr/request-demo).
 
-Documentation publique consultée le 3 octobre 2026 ; aucun test comparatif pratique.
+Documentation publique consultée le 14 novembre 2026 ; aucun test comparatif pratique.

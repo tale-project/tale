@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Bolt.new für den Start einer App: integrierte
 competitor: "Bolt.new"
 slug: "tale-vs-bolt"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,15 +14,15 @@ Eine Buchungs-App ist nur ein Teil eines neuen Angebots. Jemand muss auch Anford
 
 | Kriterium | Tale | Bolt.new |
 | --- | --- | --- |
-| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Websites und Anwendungen aus natürlichsprachlichen Aufträgen erstellen |
-| Koordination | Manager-Delegation und parallele Aufgaben innerhalb der konfigurierten Kapazität | Multiplayer-Modus verlangt öffentliche Projekte und reiht Prompts zur Konfliktvermeidung ein |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Ein Projekt aus den Prompts erstellen, die du sendest |
+| Koordination | Manager-Delegation und parallele Aufgaben innerhalb der konfigurierten Kapazität | Mitglieder mit Projektzugriff teilen einen Chat; Prompts werden nacheinander verarbeitet |
 | Ergebnis | Sandbox-Ergebnisse brauchen einen passenden Prüf- und Veröffentlichungsprozess | Bolt Cloud umfasst Hosting, Datenbanken, Authentifizierung und Domainverwaltung |
 
 ## Entwicklung und Koordination vergleichen
 
-Bolt erstellt Websites und Anwendungen aus natürlichsprachlichen Anfragen. Als Ausgangspunkt lassen sich unter anderem Figma und GitHub nutzen. [Produktübersicht von Bolt](https://bolt.new/). Bolt Cloud integriert Hosting, Datenbanken, Anmeldung und Domainverwaltung. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).
+Bolt baut ein Projekt aus den Prompts, die du sendest. [Bauen mit Bolt](https://support.bolt.new/building). Bolt Cloud integriert Hosting, Datenbanken, Anmeldung und Domainverwaltung. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).
 
-Bolt unterstützt gemeinsame Projekte und Zusammenarbeit. Der dokumentierte Multiplayer-Modus setzt öffentliche Projektsichtbarkeit voraus und verarbeitet Prompts nacheinander, um Änderungskonflikte zu vermeiden. Die Projektfreigabe und der Zugriff auf die veröffentlichte Website werden getrennt gesteuert. [Zusammenarbeit](https://support.bolt.new/building/using-bolt/collaborate).
+Bolt unterstützt gemeinsame Projekte und Zusammenarbeit. Im Multiplayer-Modus teilen Mitglieder mit Projektzugriff einen Chatverlauf; Bolt verarbeitet jeweils einen Prompt und reiht weitere ein, um Änderungskonflikte zu vermeiden. Die Projektfreigabe und der Zugriff auf die veröffentlichte Website werden getrennt gesteuert. [Zusammenarbeit](https://support.bolt.new/building/using-bolt/collaborate).
 
 Tale bietet deinem Team ein Projektboard, auf dem du Menschen und eingerichteten Agenten Aufgaben zuweist. Agenten arbeiten in dauerhaften Sandbox-Arbeitsbereichen, melden Fortschritte und liefern Dateien zur Prüfung. Ein Manager kann geeignete Aufgaben delegieren; parallele Ausführung hängt von der konfigurierten Kapazität ab. Siehe [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents). Softwareentwicklung steht dabei neben Recherche, Marketing und operativen Aufgaben.
 
@@ -38,4 +38,4 @@ Prüfe Bolt, wenn du vor allem eine integrierte Umgebung für App-Entwicklung un
 
 [Plane einen Tale-Pilotversuch mit deinem Team](https://tale.dev/de/request-demo).
 
-Öffentliche Dokumentation geprüft am 3. Oktober 2026; kein praktischer Vergleichstest.
+Öffentliche Dokumentation geprüft am 14. November 2026; kein praktischer Vergleichstest.
