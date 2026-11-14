@@ -150,6 +150,9 @@ export const WEB_FETCH_FAILURE_REASONS = [
   'page_not_found',
   /** The site answered 401 or 403. */
   'access_denied',
+  /** The site answered 429: too many requests. It asked for a wait, which
+   * the tool does not hold for; the reply says so, and the step names it. */
+  'rate_limited',
   /** The site answered with another error status. */
   'http_error',
   /** The response is of a type the tool does not read. */

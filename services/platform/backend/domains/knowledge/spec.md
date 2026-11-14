@@ -417,6 +417,21 @@ exception: it is opened on every scan. **Scan now** asks the same way as a sched
 - **Example**: Noah selects **Scan now** → every page is asked once, and only the changed
   ones are opened in the browser.
 
+## How often the crawler asks
+
+### KNOW-R22 · A site that answers "too many requests" is asked again after the wait it names
+
+When a site answers `429 Too Many Requests`, the crawler asks it for nothing more until the wait
+the site names in `Retry-After` is over, and then asks for the same page again. The page is not
+marked as failed meanwhile, and no failure is counted against it. A site that names no wait is
+given a minute, and a wait longer than ten minutes is cut to ten. The other websites are not held
+back by it.
+
+- **Example**: `docs.example` answers `429` for `/pricing` with `Retry-After: 120` → the scan stops
+  asking that site, and two minutes later it asks for `/pricing` again; the page shows no failure.
+- **Example**: `docs.example` answers `429` with no `Retry-After` → the scan waits a minute before
+  it asks again.
+
 ## Not yet
 
 - **The knowledge settings**: who can change the embedding model and the knowledge database,

@@ -308,6 +308,9 @@ describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
       stepOutcomeLabel(t, { status: 'error', reason: 'bot_check_unrendered' }),
     ).toBe('thinking.outcome.botCheckUnrendered');
     expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'rate_limited' }),
+    ).toBe('thinking.outcome.rateLimited');
+    expect(
       stepOutcomeLabel(t, { status: 'error', reason: 'bot_check_captcha' }),
     ).toBe('thinking.outcome.botCheckCaptcha');
     expect(

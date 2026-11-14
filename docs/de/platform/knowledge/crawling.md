@@ -48,6 +48,8 @@ Der Crawler besucht die Seiten ohne Anmeldung. Eine URL macht private Inhalte ni
 
 Der Crawler hält sich an die `Disallow`-Regeln der `robots.txt` für den Agenten `*` auf jedem Weg, über den eine URL hereinkommen kann — die Sitemaps, der Linklauf und die Links, die eine gerenderte JavaScript-Seite preisgibt — und noch einmal vor jedem Abruf: Eine Seite, die eine Regel abdeckt, wird nie geholt, und eine Seite, die eine später hinzugekommene Regel abdeckt, verlässt den Index beim nächsten Scan. Ausdrücklich angegebene URLs filtern die Regeln nicht: Eine gelistete Adresse ist deine Anweisung. Liefert ein Abruf den HTTP-Header `X-Robots-Tag: noindex` oder `none` oder trägt die Seite ein HTML-Tag `<meta name="robots" content="noindex">`, wird der Inhalt nicht indexiert — auch bei einer URL-Liste —, und was ein früherer Scan von der Seite gespeichert hat, fällt weg. Diese Regeln sind Höflichkeit, kein Zugriffsschutz: Wenn du die Quellwebsite verwaltest, verlass dich nicht auf den Crawler als Zugangskontrolle.
 
+Antwortet eine Website mit `429 Too Many Requests`, fordert der Crawler sie so lange nicht mehr an, wie der Header `Retry-After` der Antwort verlangt, ohne Header eine Minute, höchstens zehn Minuten, und fragt danach dieselbe Seite erneut an. Die Seite gilt bis dahin nicht als fehlgeschlagen.
+
 Verwende HTTPS am Standardport und registriere einen Hostnamen: Adressen mit einem abweichenden Port wie `:8001` und nackte IP-Adressen werden abgewiesen — der Crawler wählt über den Hostnamen und prüft das Zertifikat dagegen. Private Adressen und Weiterleitungen in private Netze sind gesperrt, sofern der Betreiber solche internen Quellen nicht ausdrücklich für seine Installation freigegeben hat.
 
 ## Die Crawl-Grenzen berücksichtigen

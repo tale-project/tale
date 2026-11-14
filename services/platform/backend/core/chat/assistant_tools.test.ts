@@ -1475,6 +1475,34 @@ describe('web_fetch', () => {
       'http_error',
     ],
     [
+      'a 429 that names no wait',
+      { url: 'https://example.com/busy' },
+      () =>
+        safeFetchMock.mockResolvedValueOnce({
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers(),
+          body: '',
+          finalUrl: 'https://example.com/busy',
+        }),
+      'error',
+      'rate_limited',
+    ],
+    [
+      'a 429 that asks for a wait',
+      { url: 'https://example.com/busy' },
+      () =>
+        safeFetchMock.mockResolvedValueOnce({
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers({ 'retry-after': '120' }),
+          body: '',
+          finalUrl: 'https://example.com/busy',
+        }),
+      'error',
+      'rate_limited',
+    ],
+    [
       'a type it does not read',
       { url: 'https://example.com/file.pdf' },
       () =>
@@ -1496,6 +1524,38 @@ describe('web_fetch', () => {
       await expect(
         executor.execute({ id: 'call_1', name: 'web_fetch', input }),
       ).resolves.toMatchObject({ status, reason });
+    },
+  );
+
+  it.each([
+    [
+      'a wait the site names in seconds',
+      new Headers({ 'retry-after': '120' }),
+      'The server answered 429 (too many requests) and asked to wait 120 seconds before the next request, so the page was not read.',
+    ],
+    [
+      'no wait at all',
+      new Headers(),
+      'The server answered 429 (too many requests), so the page was not read.',
+    ],
+  ])(
+    'tells the model what a 429 said, for %s [CHAT-R51]',
+    async (_case, headers, message) => {
+      safeFetchMock.mockResolvedValueOnce({
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers,
+        body: '<html>site words that must not reach the model</html>',
+        finalUrl: 'https://example.com/busy',
+      });
+      const executor = await makeExecutor(createCtx().ctx);
+      await expect(
+        executor.execute({
+          id: 'call_1',
+          name: 'web_fetch',
+          input: { url: 'https://example.com/busy' },
+        }),
+      ).resolves.toMatchObject({ status: 'error', message });
     },
   );
 

@@ -665,6 +665,19 @@ session.
 - **Example**: The check the sandboxed browser meets asks it for a CAPTCHA → nothing is solved,
   and the step reads that the site asks for a CAPTCHA.
 
+### CHAT-R51 · A site that answers "too many requests" is not asked again at once
+
+A plain read that meets `429 Too Many Requests` reads nothing and is not asked again: the site
+asked for a wait, and another outbound proxy would be a way around it. The step says the site
+asked Mia's chat to wait, and the reply carries the wait the site named in `Retry-After`, in
+seconds, when it named one. Nothing of the site's own words reaches the model.
+
+- **Example**: Mia asks for a price list, and the site answers `429` with `Retry-After: 120` → the
+  step reads that the site asked to wait, and the assistant is told the site asked for 120 seconds
+  before the next request.
+- **Example**: The site answers `429` with no `Retry-After` → the step reads the same, and the
+  assistant is told only that the request was too many.
+
 ## Not yet
 
 - **An organization switch for the settings tools**: Governance cannot turn off the chat's

@@ -215,6 +215,7 @@ const FAILURE_REASON_KEYS: Record<string, string> = {
   page_too_large: 'thinking.outcome.pageTooLarge',
   page_not_found: 'thinking.outcome.pageNotFound',
   access_denied: 'thinking.outcome.accessDenied',
+  rate_limited: 'thinking.outcome.rateLimited',
   http_error: 'thinking.outcome.httpError',
   unsupported_type: 'thinking.outcome.unsupportedType',
   page_empty: 'thinking.outcome.pageEmpty',
