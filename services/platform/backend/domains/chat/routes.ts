@@ -10,6 +10,7 @@ import {
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { withoutRunningReply } from '../../../lib/shared/running-reply.ts';
 import { localeTagSchema } from '../../../lib/shared/utils/locale-tag.ts';
 import { CHOSEN_SKILLS_MAX, isSkillName } from '../../../lib/skills/slash.ts';
 import type { Auth } from '../../auth/auth.ts';
@@ -1163,6 +1164,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     // and is served the leaf the owner's view resolves to: the conversation
     // on the owner's screen, never the version an edit or retry replaced.
     let rowsThreadId = thread?.id;
+    let reader = false;
     if (thread === null) {
       const shared = await loadProjectSharedThread(
         deps.sql,
@@ -1173,16 +1175,21 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       if (shared !== null) {
         thread = await threadViewById(deps.sql, organizationId, shared.id);
         rowsThreadId = await projectSharedViewLeaf(deps.sql, shared);
+        reader = true;
       }
     }
     if (thread === null) {
       return c.json({ error: 'thread not found' }, 404);
     }
-    const messages = await listMessageViews(
+    const rows = await listMessageViews(
       deps.sql,
       organizationId,
       rowsThreadId ?? thread.id,
     );
+    // The reply a running turn is still writing is the owner's (CHAT-R2):
+    // a reader is served each reply once it settles, never the placeholder
+    // and the parts the turn has saved to it so far.
+    const messages = reader ? withoutRunningReply(rows) : rows;
     return c.json({ thread, messages });
   });
 

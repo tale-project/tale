@@ -45,10 +45,11 @@ stay absent (404).
 
 A reader reads a reply once it is written. The chat's live stream, which carries the reply a
 running turn is still writing, and the chat's video links answer a reader 404; a reader's view
-asks for neither. The reader's read of the messages carries the running turn's placeholder,
-with what the turn has saved to it so far, and their view leaves it out: while the owner's
-turn runs, the reader sees the conversation without that reply, and the finished reply the
-next time their view reads the chat.
+asks for neither. The server leaves the running reply out of the reader's read of the
+messages, with what the turn has saved to it so far, for every client and API caller, and
+their view leaves it out too: while the owner's turn runs, the reader sees the conversation
+without that reply, and the finished reply the next time their view reads the chat. The
+owner's read carries it.
 
 - **Example**: Mia files a chat in a project Noah can read and shares it with the project →
   Noah can open and read it. Mia chooses **Try again** on a reply → Noah now reads the new
