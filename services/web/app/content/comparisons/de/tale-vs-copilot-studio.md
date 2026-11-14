@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Microsoft Copilot Studio: gemeinsame Projektar
 competitor: "Microsoft Copilot Studio"
 slug: "tale-vs-copilot-studio"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -33,3 +33,5 @@ Prüfe Tale, wenn dein Team ein Projektboard als Ort für Zuweisung, Koordinatio
 Nutze eine fiktive Einkaufsanfrage außerhalb der genehmigten Richtlinie. Lass beide Kandidaten fehlenden Kontext sammeln, eine Empfehlung formulieren und einen Review vor der dokumentierten Entscheidung ermöglichen.
 
 Prüfe, wie anfragende und prüfende Personen dieselben Belege finden, wie eine abgelehnte Empfehlung überarbeitet wird und wo die Verantwortung für Folgearbeit sichtbar wird. Baue eine Zugriffsbeschränkung ein, um das konfigurierte Verhalten zu prüfen. Teste Copilot Studio im vorgesehenen veröffentlichten Kanal und Tale im Projektaufgabenablauf. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Ausnahmeprozess.
+
+Dieser Vergleich beruht auf öffentlich zugänglicher Dokumentation, geprüft am 14. November 2026; er ist kein praktischer Leistungstest.

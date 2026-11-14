@@ -4,7 +4,7 @@ description: "Compare Tale and Microsoft Copilot Studio. Evaluate shared project
 competitor: "Microsoft Copilot Studio"
 slug: "tale-vs-copilot-studio"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -33,3 +33,5 @@ Consider Tale when the team wants a project board as the place to assign work, c
 Use a fictional purchasing request that falls outside an approved policy. Ask each candidate to collect missing context, draft a recommendation, and obtain a review before the team records its decision.
 
 Check how the requester and reviewer find the same evidence, how a rejected recommendation is revised, and where follow-up responsibility becomes visible. Include one access restriction to verify the configured behavior. For Copilot Studio, run the case in the intended published channel; for Tale, use the project task flow. [Request a Tale demo](https://tale.dev/request-demo) with this exception process.
+
+This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.
