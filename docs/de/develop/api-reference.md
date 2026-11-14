@@ -60,7 +60,7 @@ Bei genau einer Organisation ist der Organisations-Header optional. Mit mehreren
 | Vorhandene Organisation ohne Mitgliedschaft oder mit deaktivierter Mitgliedschaft | `403 ORG_FORBIDDEN` |
 | Gültige Mitgliedschaft | Anfrage läuft mit Organisation und Rolle weiter |
 
-Jede dieser drei Ablehnungen nennt in `data.organizations` die Organisationen, die du wählen kannst, jeweils als Paar aus `slug` und `name`. Deaktivierte Mitgliedschaften fehlen darin; bleibt keine übrig, ist die Liste leer. Wiederhole die Anfrage mit einem der genannten Slugs.
+Jede dieser drei Ablehnungen nennt in `data.organizations` die Organisationen, die du wählen kannst, jeweils als Paar aus `slug` und `name`. Deaktivierte Mitgliedschaften fehlen darin, ebenso die Organisationen, die diesen Schlüssel gesperrt haben; bleibt keine übrig, ist die Liste leer. Wiederhole die Anfrage mit einem der genannten Slugs.
 
 `GET /api/v1/me` liefert die Mitgliedschaften auch als `organizations`; bei einem Schlüssel, der nur in einer Organisation gilt, ist das diese eine Organisation, mit der Rolle, als die der Schlüssel handelt. `key.expiresAt` enthält Unixzeit in Millisekunden oder `null` bei unbegrenzter Gültigkeit. Rotiere unbeaufsichtigte Zugangsdaten vor dem Ablauf, bevor `401` den Dienst unterbricht. `key.name` benennt den verwendeten Schlüssel, und `key.owner.kind` sagt, wem er gehört: `user` für den eigenen Schlüssel einer Person, `member`, `team`, `project` oder `organization`, mit dem Team oder Projekt unter `key.owner.team` und `key.owner.project`. Der Schlüssel eines Teams, eines Projekts oder der Organisation hat keine Adresse, deshalb ist sein `user.email` leer.
 
