@@ -297,8 +297,10 @@ export class RateLimitExceededError extends Error {
   }
 }
 
-/** The clock every charge reads: the wall clock, unless a test holds it. */
-let rateLimitNow: () => number = Date.now;
+/** The clock every charge reads: the wall clock, unless a test holds it.
+ * `Date.now` is looked up at each call, so a test that stubs it is still
+ * read. */
+let rateLimitNow: () => number = () => Date.now();
 
 /**
  * Test seam: charges read `now` instead of the wall clock until the returned

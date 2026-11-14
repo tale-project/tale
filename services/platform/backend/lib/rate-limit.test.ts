@@ -109,6 +109,20 @@ describe('the rate-limit clock', () => {
     ).toBe(true);
   });
 
+  test('with no clock held, a charge reads Date.now as it is at the call, so a stub of it is read', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(7_000);
+    try {
+      const stubbed = fakeSql([{ value: '1' }]);
+      await limitRate(stubbed.sql, 'automation:bench', {
+        key: 'org:o',
+        count: 1,
+      });
+      expect(stubbed.values[0]).toContain(7_000);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   test('a refusal names the wait from the held clock: no time passes while it is held', async () => {
     restore = setRateLimitClockForTests(() => 60_000);
     // The UPSERT changes nothing (over the limit); the bucket was emptied at
