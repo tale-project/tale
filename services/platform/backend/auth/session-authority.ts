@@ -353,13 +353,14 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       activeTeamOrganizationId: string | null;
       independentIdentityVerifiedAt: Date | null;
       updatedAt: Date;
+      expiresAt: Date;
       live: boolean;
       refused: boolean;
     }[]
   >`
     SELECT s."userId", s."trustedOrganizationId", s."trustedRole", s."signedInByProxy",
       s."activeOrganizationId", s."activeTeamId", t."organizationId" AS "activeTeamOrganizationId",
-      s."independentIdentityVerifiedAt", s."updatedAt", (s."expiresAt" > now()) AS live,
+      s."independentIdentityVerifiedAt", s."updatedAt", s."expiresAt", (s."expiresAt" > now()) AS live,
       (r.session_id IS NOT NULL) AS refused
     FROM "session" s LEFT JOIN app.auth_legacy_session_refusals r
       ON r.session_id = s."id" AND r.user_id = s."userId"
@@ -392,9 +393,10 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       },
     };
     if (sessionOrganizationId(current.session) === undefined) return null;
-    // The idle sweep reads the row's `updatedAt` as its last use, and Better
-    // Auth's refresh alone never writes it for a long-lived row (#5249).
-    await stampSessionUse(sql, bundle.session.id, row.updatedAt);
+    // The idle sweep reads the row's `updatedAt` as its last use. Better Auth's
+    // refresh alone never writes it in time for a long-lived row (#5249), so
+    // the stamp writes it where that refresh would not.
+    await stampSessionUse(sql, bundle.session.id, row);
     return current;
   }
 

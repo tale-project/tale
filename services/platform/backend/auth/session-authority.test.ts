@@ -115,6 +115,7 @@ describe('the production persisted authority adapter', () => {
           trustedRole: null,
           independentIdentityVerifiedAt: null,
           updatedAt: new Date(),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
           live: true,
           refused: false,
         },
@@ -138,6 +139,7 @@ describe('the production persisted authority adapter', () => {
         activeOrganizationId: 'org-b',
         independentIdentityVerifiedAt: null,
         updatedAt: new Date(),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
         live: true,
       },
     ]);
@@ -178,6 +180,7 @@ describe('the production persisted authority adapter', () => {
               independentIdentityVerifiedAt: null,
               activeOrganizationId: 'org-a',
               updatedAt: new Date(),
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
               live: true,
               refused: true,
             },
@@ -199,6 +202,7 @@ describe('the production persisted authority adapter', () => {
         independentIdentityVerifiedAt: new Date(0),
         activeOrganizationId: 'org-a',
         updatedAt: new Date(),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000),
         live: true,
       },
     ]);
@@ -262,6 +266,7 @@ describe('the production persisted authority adapter', () => {
 describe('every authorization records the use the idle sweep reads', () => {
   const NOW = Date.parse('2026-11-01T12:00:00Z');
   const MINUTE = 60_000;
+  const DAY = 24 * 60 * MINUTE;
   const row = (fields: object = {}) => ({
     userId: 'user-a',
     trustedOrganizationId: 'org-a',
@@ -271,6 +276,8 @@ describe('every authorization records the use the idle sweep reads', () => {
     activeTeamOrganizationId: null,
     independentIdentityVerifiedAt: null,
     updatedAt: new Date(NOW - 10 * MINUTE),
+    // A single sign-on row: Better Auth's first slide is weeks away.
+    expiresAt: new Date(NOW + 30 * DAY),
     live: true,
     refused: false,
     ...fields,
@@ -316,7 +323,13 @@ describe('every authorization records the use the idle sweep reads', () => {
   it('records a "don\'t remember me" session\'s use as well, which Better Auth never slides', async () => {
     const { sql, queries } = database((text) =>
       text.includes('FROM "session" s')
-        ? [row({ trustedOrganizationId: null, activeOrganizationId: null })]
+        ? [
+            row({
+              trustedOrganizationId: null,
+              activeOrganizationId: null,
+              expiresAt: new Date(NOW + DAY),
+            }),
+          ]
         : [],
     );
 
