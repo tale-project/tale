@@ -42,6 +42,26 @@ actions:
         ],
         truncated: false,
       };
+    scenarios:
+      - name: folder_with_entries
+        kind: success
+        description: 'The folder holds a note and a subfolder.'
+        output:
+          entries:
+            - { path: '/reports/notes.md', name: notes.md, isDir: false, size: 128 }
+            - { path: '/reports/archive', name: archive, isDir: true, size: 0 }
+          truncated: false
+      - name: empty_folder
+        kind: empty
+        description: 'The folder exists and holds nothing.'
+        when: { path: '/reports/empty' }
+        output: { entries: [], truncated: false }
+      - name: folder_not_found
+        kind: error
+        description: 'No file or folder exists at the path.'
+        when: { path: '/reports/missing' }
+        error:
+          message: 'no file or folder at "/reports/missing"'
     backend:
       kind: native
       impl: webdav.list
@@ -63,6 +83,22 @@ actions:
     output: '{ path: string, contentType: string, content: string }'
     mock: |
       return { path: input.path, contentType: 'text/plain', content: `Mock contents of ${input.path}.` };
+    scenarios:
+      - name: text_file
+        kind: success
+        description: 'The file holds UTF-8 text, and the store records its type.'
+        output: { path: '/reports/q3.md', contentType: 'text/markdown', content: 'Q3 revenue rose.' }
+      - name: empty_file
+        kind: empty
+        description: 'The file exists and holds no text.'
+        when: { path: '/reports/empty.md' }
+        output: { path: '/reports/empty.md', contentType: 'text/plain', content: '' }
+      - name: file_not_found
+        kind: error
+        description: 'No file exists at the path.'
+        when: { path: '/reports/missing.md' }
+        error:
+          message: 'no file or folder at "/reports/missing.md"'
     backend:
       kind: native
       impl: webdav.read
@@ -87,6 +123,21 @@ actions:
     output: '{ path: string, bytesWritten: number }'
     mock: |
       return { path: input.path, bytesWritten: input.content.length };
+    scenarios:
+      - name: file_written
+        kind: success
+        description: 'The store writes the file and the action reports its size in bytes.'
+        output: { path: '/reports/summary.md', bytesWritten: 9 }
+      - name: legal_hold
+        kind: refusal
+        description: 'A legal hold covers the file, so the store refuses to change it.'
+        when: { path: '/reports/held.md' }
+        error:
+          message: '"/reports/held.md" is under a legal hold and cannot be changed or deleted'
+      - name: file_overwritten
+        kind: duplicate
+        description: 'The same write comes again: the store overwrites the file and answers the same record.'
+        output: { path: '/reports/summary.md', bytesWritten: 9 }
     backend:
       kind: native
       impl: webdav.write
@@ -108,6 +159,22 @@ actions:
     output: '{ path: string, deleted: boolean }'
     mock: |
       return { path: input.path, deleted: true };
+    scenarios:
+      - name: file_deleted
+        kind: success
+        description: 'The store removes the file.'
+        output: { path: '/reports/old.md', deleted: true }
+      - name: legal_hold
+        kind: refusal
+        description: 'A legal hold covers the file, so the store refuses to delete it.'
+        when: { path: '/reports/held.md' }
+        error:
+          message: '"/reports/held.md" is under a legal hold and cannot be changed or deleted'
+      - name: already_gone
+        kind: duplicate
+        description: 'Nothing is at the path any more, so the store removes nothing and the action reports that.'
+        when: { path: '/reports/gone.md' }
+        output: { path: '/reports/gone.md', deleted: false }
     backend:
       kind: native
       impl: webdav.delete
