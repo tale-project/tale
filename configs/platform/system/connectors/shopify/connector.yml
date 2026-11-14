@@ -274,12 +274,12 @@ actions:
             type: string,
             description: 'Comma-separated list of fields to return.',
           }
-    output: '{ orders: Array<{ id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string, created_at: string }>, nextPageInfo: string }'
+    output: '{ orders: Array<{ id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string | null, created_at: string }>, nextPageInfo: string }'
     mock: |
       return {
         orders: [
           { id: 5001, name: '#1001', total_price: '49.90', financial_status: 'paid', fulfillment_status: 'fulfilled', created_at: '2025-01-15T09:00:00-05:00' },
-          { id: 5002, name: '#1002', total_price: '99.80', financial_status: 'pending', fulfillment_status: 'unfulfilled', created_at: '2025-01-14T09:00:00-05:00' },
+          { id: 5002, name: '#1002', total_price: '99.80', financial_status: 'pending', fulfillment_status: null, created_at: '2025-01-14T09:00:00-05:00' },
         ],
         nextPageInfo: '',
       };
@@ -317,7 +317,7 @@ actions:
             description: "The order's numeric Shopify ID (e.g. '5123456789012').",
           }
       required: [resourceId]
-    output: '{ order: { id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string, line_items: Array<{ id: number, title: string, quantity: number, price: string }> } }'
+    output: '{ order: { id: number, name: string, total_price: string, financial_status: string, fulfillment_status: string | null, line_items: Array<{ id: number, title: string, quantity: number, price: string }> } }'
     mock: |
       return {
         order: {

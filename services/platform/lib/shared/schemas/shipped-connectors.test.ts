@@ -20,6 +20,15 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
+import {
+  assignable,
+  elementOf,
+  lookup,
+  nullability,
+  shapeOfValue,
+  type Shape,
+} from '../../engine/core/typing/shape';
+import { parseSignature } from '../../engine/core/typing/signature';
 import { nodeVmRunner } from '../../engine/runners/node-vm';
 import { parseYamlOrThrow } from '../config/yaml';
 
@@ -290,5 +299,64 @@ describe('shipped connector catalog', () => {
     expect(requested).toEqual([
       'https://acme.myshopify.com/admin/api/2026-01/orders/count.json?status=any',
     ]);
+  });
+
+  // Shopify answers null for an order no line item has shipped for, so each
+  // order's fulfillment_status must admit null in the declared output, and the
+  // list_orders mock must answer that same null for its unfulfilled order.
+  describe('shopify orders: fulfillment_status admits null', () => {
+    function shopifyAction(actionName: string) {
+      const action = loadConnector('shopify').actions.find(
+        (a) => a.name === actionName,
+      );
+      if (!action)
+        throw new Error(`shopify.${actionName} is not in the catalog`);
+      return action;
+    }
+
+    function declaredShape(actionName: string): Shape {
+      const parsed = parseSignature(shopifyAction(actionName).output);
+      if (!('shape' in parsed)) {
+        throw new Error(
+          `shopify.${actionName} output does not read: ${parsed.error.message}`,
+        );
+      }
+      return parsed.shape;
+    }
+
+    function fulfillmentStatusOf(order: Shape): Shape {
+      const found = lookup(order, 'fulfillment_status');
+      if (found.kind !== 'found') {
+        throw new Error('fulfillment_status is not declared on the order');
+      }
+      return found.shape;
+    }
+
+    it('list_orders declares an order fulfillment_status that can be null', () => {
+      const orders = lookup(declaredShape('list_orders'), 'orders');
+      if (orders.kind !== 'found') throw new Error('orders is not declared');
+      expect(nullability(fulfillmentStatusOf(elementOf(orders.shape)))).toBe(
+        'maybe',
+      );
+    });
+
+    it('get_order declares an order fulfillment_status that can be null', () => {
+      const order = lookup(declaredShape('get_order'), 'order');
+      if (order.kind !== 'found') throw new Error('order is not declared');
+      expect(nullability(fulfillmentStatusOf(order.shape))).toBe('maybe');
+    });
+
+    it('the list_orders mock answers null for its unfulfilled order and fits the declared output', async () => {
+      const action = shopifyAction('list_orders');
+      const out = (await runner.runBody(
+        action.mock,
+        { input: action.exampleInput ?? {} },
+        LIMITS,
+      )) as { orders: Array<{ fulfillment_status: unknown }> };
+      expect(out.orders.map((o) => o.fulfillment_status)).toContain(null);
+      expect(
+        assignable(shapeOfValue(out), declaredShape('list_orders')),
+      ).toBeNull();
+    });
   });
 });
