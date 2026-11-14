@@ -42,6 +42,13 @@ import { ensureStandardAgent } from './standard-agent.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
 
+/** How long an alignment may take while another start holds the agent's
+ * row: it skips a locked row (`SKIP LOCKED`) rather than wait for it, so it
+ * returns in the time a few statements take, while one that waited would
+ * hold until the holder lets go below. The rest of the bound is a loaded
+ * runner's. */
+const HELD_ROW_SKIP_TOLERANCE_MS = 2_000;
+
 function codeOf(error: unknown): string {
   return typeof error === 'object' &&
     error !== null &&
@@ -277,12 +284,12 @@ export async function checkStandardAgent(
     record(
       'standard agent: a start aligns its row once, dropping a skill gone since, and skips a row another start holds',
       whileHeld === false &&
-        whileHeldMs < 2_000 &&
+        whileHeldMs < HELD_ROW_SKIP_TOLERANCE_MS &&
         healed &&
         !again &&
         aligned[0]?.model === 'healed-model' &&
         aligned[0].skills.join(',') === 'docx',
-      `whileHeld=${String(whileHeld)} in ${whileHeldMs}ms healed=${String(healed)} again=${String(again)} model=${aligned[0]?.model} skills=${aligned[0]?.skills.join(',')}`,
+      `whileHeld=${String(whileHeld)} in ${whileHeldMs}ms (want < ${HELD_ROW_SKIP_TOLERANCE_MS}) healed=${String(healed)} again=${String(again)} model=${aligned[0]?.model} skills=${aligned[0]?.skills.join(',')}`,
     );
 
     // Bulk removal advances each matched row's own revision, not one shared

@@ -19,6 +19,10 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import {
+  RATE_LIMITS,
+  setRateLimitClockForTests,
+} from '../../lib/rate-limit.ts';
 import { appOrigin } from '../../lib/write-origin.ts';
 import { admitBenchRuns } from './bench.ts';
 import { deleteAutomationCascade } from './store.ts';
@@ -678,26 +682,34 @@ export async function checkVersionDoors(
     );
 
     // The runs are charged to the organization's bench budget: spent, the
-    // next call is refused with the wait, and runs nothing.
-    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
-    (await admitBenchRuns(sql, orgId, 240))();
-    const spentTests = await tool('test_automation', { name: benchName });
-    const spentRun = await tool('run_automation', {
-      automation: benchDoc,
-      input: { n: 1 },
+    // next call is refused with the wait, and runs nothing; once that wait
+    // has passed it is served again. The budget refills two runs a second,
+    // so on the wall clock a slow machine refilled the three a suite needs
+    // between the spend and the call meant to be refused (#5433): the
+    // charges read a held clock, which moves by the wait named and nothing
+    // else.
+    const spentMcp = await onHeldBenchClock(sql, orgId, async (wait) => {
+      const spentTests = await tool('test_automation', { name: benchName });
+      const spentRun = await tool('run_automation', {
+        automation: benchDoc,
+        input: { n: 1 },
+      });
+      const retryAfterMs = isRecordOf(spentTests.value.data)?.retryAfterMs;
+      wait(typeof retryAfterMs === 'number' ? retryAfterMs : 0);
+      const refilled = await tool('test_automation', { name: benchName });
+      return { spentTests, spentRun, retryAfterMs, refilled };
     });
-    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
-    const refilled = await tool('test_automation', { name: benchName });
     record(
       'over MCP a suite or a run is refused with the wait once the organization’s budget for runs that are never stored is spent, and is served again after [MCP-R33]',
-      spentTests.isError &&
-        spentTests.value.code === 'RATE_LIMITED' &&
-        typeof isRecordOf(spentTests.value.data)?.retryAfterMs === 'number' &&
-        spentRun.isError &&
-        spentRun.value.code === 'RATE_LIMITED' &&
-        !refilled.isError &&
-        refilled.value.passed === 3,
-      `tests=${String(spentTests.value.code)}/${JSON.stringify(spentTests.value.data)}, run=${String(spentRun.value.code)}, after=${String(refilled.value.passed)}`,
+      spentMcp.spentTests.isError &&
+        spentMcp.spentTests.value.code === 'RATE_LIMITED' &&
+        typeof spentMcp.retryAfterMs === 'number' &&
+        spentMcp.retryAfterMs > 0 &&
+        spentMcp.spentRun.isError &&
+        spentMcp.spentRun.value.code === 'RATE_LIMITED' &&
+        !spentMcp.refilled.isError &&
+        spentMcp.refilled.value.passed === 3,
+      `tests=${String(spentMcp.spentTests.value.code)}/${JSON.stringify(spentMcp.spentTests.value.data)}, run=${String(spentMcp.spentRun.value.code)}, after the ${String(spentMcp.retryAfterMs)} ms named=${String(spentMcp.refilled.value.passed)}`,
     );
 
     // AUTO-R55 and AUTO-R56: the same automation's second version, saved with
@@ -810,14 +822,20 @@ export async function checkVersionDoors(
       `report=${JSON.stringify(storedReport).slice(0, 300)}`,
     );
 
-    // The same budget over REST: spent, the call is refused with the wait.
-    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
-    (await admitBenchRuns(sql, orgId, 240))();
-    const spentRest = await benchRest('/versions/2/tests', { method: 'POST' });
-    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
-    const refilledRest = await benchRest('/versions/2/tests', {
-      method: 'POST',
-    });
+    // The same budget over REST: spent, the call is refused with the wait,
+    // and served again once it has passed — on the held clock, as above.
+    const { spentRest, refilledRest } = await onHeldBenchClock(
+      sql,
+      orgId,
+      async (wait) => {
+        const spent = await benchRest('/versions/2/tests', { method: 'POST' });
+        wait(Number(spent.retryAfter ?? '0') * 1_000);
+        const refilled = await benchRest('/versions/2/tests', {
+          method: 'POST',
+        });
+        return { spentRest: spent, refilledRest: refilled };
+      },
+    );
     record(
       'over REST a suite is refused 429 with the wait once the organization’s budget for runs that are never stored is spent, and is served again after [AUTO-R55]',
       spentRest.status === 429 &&
@@ -912,6 +930,33 @@ export async function checkVersionDoors(
     // budgets.
     await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
     await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+  }
+}
+
+/**
+ * Runs `probe` with the organization's bench budget spent, on a rate-limit
+ * clock held still: no charge refills between two calls however long the
+ * machine takes, and `wait(ms)` moves the clock by exactly the wait a
+ * refusal named. The clock is the wall clock again afterwards, and the
+ * budget's row is dropped, stamped as it is at the held instant.
+ */
+async function onHeldBenchClock<T>(
+  sql: Sql,
+  orgId: string,
+  probe: (wait: (ms: number) => void) => Promise<T>,
+): Promise<T> {
+  let now = Date.now();
+  const restoreClock = setRateLimitClockForTests(() => now);
+  try {
+    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+    const capacity = RATE_LIMITS['automation:bench'].capacity;
+    (await admitBenchRuns(sql, orgId, capacity))();
+    return await probe((ms) => {
+      now += ms;
+    });
+  } finally {
+    restoreClock();
     await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
   }
 }

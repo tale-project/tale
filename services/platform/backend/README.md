@@ -225,6 +225,19 @@ ledger and held rows; a missing ledger cannot disable the fence.
 lane on the real schema while an unrelated earlier lane truncates the full run. The
 tally names the filter; a filtered run is never full coverage.
 
+The suite runs on shared runners whose speed varies from run to run, so a lane never
+lets the machine's speed decide its verdict (#5433). It waits for the state it reads,
+never for a count of short polls: a lane that writes into a new organization's
+configuration tree first awaits that organization's `org.scaffold` job
+(`awaitOrgScaffold`), which empties the tree before it seeds it. A lane that proves a
+budget refuses and refills holds the rate-limit clock (`setRateLimitClockForTests`)
+and moves it by the wait the refusal named. A bound that only stops a lane that never
+settles is a named budget sized for a loaded runner, and grows with the work it
+waits for. A check that judges elapsed time compares it with a named
+`…_TOLERANCE_MS` constant whose doc comment says what it tolerates;
+[`tests/guards/integration-elapsed-tolerance.guard.test.ts`](../tests/guards/integration-elapsed-tolerance.guard.test.ts)
+fails on a bare number.
+
 Set `DATABASE_URL` to the fresh `tale_app` database and `TALE_CONFIG_DIR` to the
 isolated test tree. Blob-backed probes also need a fresh S3-compatible service
 through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and can
