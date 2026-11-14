@@ -71,7 +71,6 @@ vi.mock('../hooks/queries', () => ({
     isFetching: false,
     refetch: state.refetch,
   }),
-  useOrgMembersForPicker: () => ({ data: [], isLoading: false }),
   useMyModelApiAccess: () => ({ data: undefined, isLoading: true }),
 }));
 vi.mock('../hooks/mutations', () => ({

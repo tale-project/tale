@@ -4,12 +4,15 @@ import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { useProjectSelect } from '@/app/features/projects/hooks/use-project-select';
-import { useOrgMembersForPicker } from '@/app/features/settings/governance/hooks/queries';
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
-import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
+import type { ReadState } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { roleRank } from '@/lib/shared/role-rank';
 
@@ -207,21 +210,11 @@ interface TargetPickerState {
   onClosed: (() => void) | undefined;
 }
 
-/** The picker's refusal and its hint under its trigger, and the check on
- * close. The hint stays beside the refusal: it says why the person looked
- * for was not listed, exactly when the picker is closed without a choice. */
-function targetPickerProps({
-  error,
-  onClosed,
-  hint,
-}: TargetPickerState & { hint?: string | undefined }) {
-  const description =
-    error !== undefined && hint !== undefined
-      ? `${error} ${hint}`
-      : (error ?? hint);
+/** The picker's refusal, under its trigger, and the check on close. */
+function targetPickerProps({ error, onClosed }: TargetPickerState) {
   return {
     error: error !== undefined,
-    ...(description !== undefined ? { description } : {}),
+    ...(error !== undefined ? { description: error } : {}),
     onOpenChange: (open: boolean) => {
       if (!open) onClosed?.();
     },
@@ -276,8 +269,7 @@ function TargetListField({
 
 /** The members a key may be made for: active, someone else, and below the
  * maker's role — making a key that acts as someone takes more authority
- * than they hold. The picker says so whenever it leaves someone out, not
- * only when it offers nobody. */
+ * than they hold. */
 function MemberPicker({
   organizationId,
   viewerUserId,
@@ -295,35 +287,38 @@ function MemberPicker({
 } & TargetPickerState) {
   const { t } = useT('settings');
   const { t: tRoles } = useT('roles');
-  const membersRead = useOrgMembersForPicker(organizationId);
-  const { data: members, refetch } = membersRead;
-  const others = useMemo(
-    () => (members ?? []).filter((member) => member.userId !== viewerUserId),
-    [members, viewerUserId],
-  );
-  const below = useMemo(
-    () =>
-      others.filter(
-        (member) => roleRank(member.role) < roleRank(viewerRole ?? ''),
-      ),
-    [others, viewerRole],
-  );
+  // The members a key may be made for are searched on the server as the
+  // maker types (MEMBER-R12), never read all at once; the chosen one is named
+  // by id, so the field shows who it holds. The search leaves disabled members
+  // out (`access: 'read'`), and the chosen one is named whatever its role, so
+  // the picker leaves disabled members out again.
+  const [query, setQuery] = useState('');
+  const people = useMemberChoices(organizationId, query, {
+    access: 'read',
+    chosen: value ? [value] : [],
+  });
   const options = useMemo(
     () =>
-      below.map((member) => ({
-        value: member.userId,
-        label: member.displayName,
-        description: `${member.email} · ${tRoles(member.role.toLowerCase())}`,
-      })),
-    [below, tRoles],
+      people.members
+        .filter(
+          (member) =>
+            member.userId !== viewerUserId &&
+            member.role.toLowerCase() !== 'disabled' &&
+            roleRank(member.role) < roleRank(viewerRole ?? ''),
+        )
+        .map((member) => ({
+          value: member.userId,
+          label: memberLabel(member),
+          description: `${member.email} · ${tRoles(member.role.toLowerCase())}`,
+        })),
+    [people.members, viewerUserId, viewerRole, tRoles],
   );
-  // Someone at or above the maker's role is left out: say why.
-  const hint =
-    below.length < others.length ? t('apiKeys.form.memberHidden') : undefined;
   const read: TargetListRead = {
-    answered: members !== undefined,
-    ...readStateOf(membersRead),
-    retry: () => void refetch(),
+    answered: people.answered,
+    unavailable: people.unavailable,
+    retrying: people.retrying,
+    failureCount: people.failureCount,
+    retry: people.retry,
   };
   return (
     <TargetListField
@@ -342,14 +337,21 @@ function MemberPicker({
             ? t('apiKeys.form.memberEmpty')
             : t('apiKeys.form.memberNoMatch')
         }
-        {...targetPickerProps({ error, onClosed, hint })}
+        {...targetPickerProps({ error, onClosed })}
         required
         disabled={!read.answered}
         value={value || null}
         onValueChange={(userId) => {
-          const member = below.find((option) => option.userId === userId);
-          onChange(userId, member?.displayName ?? userId, member?.role ?? '');
+          const member = people.members.find(
+            (person) => person.userId === userId,
+          );
+          onChange(
+            userId,
+            member ? memberLabel(member) : userId,
+            member?.role ?? '',
+          );
         }}
+        onSearchChange={setQuery}
         options={options}
       />
     </TargetListField>

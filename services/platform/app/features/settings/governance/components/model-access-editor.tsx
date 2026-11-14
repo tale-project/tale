@@ -44,7 +44,11 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import {
   type ModelInfoCapabilities,
@@ -159,7 +163,6 @@ interface RuleDialogProps {
   onSave: (rule: ModelAccessRule) => void;
   title: string;
   cannotManage: boolean;
-  memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
   allModelOptions: { value: string; label: string; tags: string[] }[];
   /** The chip of a stored model no option matches: kept, so the rule shows
@@ -179,7 +182,6 @@ function RuleDialog({
   onSave,
   title,
   cannotManage,
-  memberOptions,
   teamOptions,
   allModelOptions,
   unmatchedModelOption,
@@ -207,6 +209,22 @@ function RuleDialog({
   const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
   const [submitted, setSubmitted] = useState(false);
+  // The people a user rule may name are searched on the server as the admin
+  // types (MEMBER-R12); the one the rule names stays named.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    enabled: open && draft.scope === 'user',
+    chosen: draft.scope === 'user' && draft.scopeId ? [draft.scopeId] : [],
+  });
+  const memberOptions = useMemo(
+    () =>
+      members.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+        description: m.email && m.displayName ? m.email : undefined,
+      })),
+    [members.members],
+  );
   const targetError = submitted && !modelAccessRuleHasTarget(draft);
 
   useEffect(() => {
@@ -301,6 +319,7 @@ function RuleDialog({
             disabled={cannotManage}
             value={draft.scopeId ?? null}
             onValueChange={(value) => updateDraft({ scopeId: value })}
+            onSearchChange={setMemberQuery}
             options={memberOptions}
             searchPlaceholder={t('modelAccess.searchUsers')}
             emptyText={t('modelAccess.noUsersFound')}
@@ -409,19 +428,8 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     return parsed?.enabled ? parsed.rules : [];
   }, [defaultPolicy]);
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
-  const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
   const { providers, offered } = useListProviders(organizationId);
-
-  const memberOptions = useMemo(
-    () =>
-      (members ?? []).map((m) => ({
-        value: m.userId,
-        label: m.displayName || m.email || m.userId,
-        description: m.email && m.displayName ? m.email : undefined,
-      })),
-    [members],
-  );
 
   const teamOptions = useMemo(
     () =>
@@ -491,6 +499,20 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
+  // The people the rules name, looked up by id: the table names each one.
+  const namedMembers = useMemberLookup(
+    organizationId,
+    rules.flatMap((rule) =>
+      rule.scope === 'user' && rule.scopeId ? [{ userId: rule.scopeId }] : [],
+    ),
+  );
+  const memberNames = useMemo(
+    () =>
+      new Map(
+        namedMembers.members.map((m) => [m.userId, memberLabel(m)] as const),
+      ),
+    [namedMembers.members],
+  );
   const needsTargetRepair = rules.some(
     (rule) => !modelAccessRuleHasTarget(rule),
   );
@@ -776,10 +798,7 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
       switch (rule.scope) {
         case 'user': {
           if (!rule.scopeId) return '\u2014';
-          return (
-            memberOptions.find((o) => o.value === rule.scopeId)?.label ??
-            rule.scopeId
-          );
+          return memberNames.get(rule.scopeId) ?? rule.scopeId;
         }
         case 'team': {
           if (!rule.scopeId) return '\u2014';
@@ -801,7 +820,7 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
           return '\u2014';
       }
     },
-    [memberOptions, teamOptions, roleOptions, t],
+    [memberNames, teamOptions, roleOptions, t],
   );
 
   const resolveModelNames = useCallback(
@@ -1004,7 +1023,6 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
                 : t('modelAccess.editRule')
             }
             cannotManage={cannotManage}
-            memberOptions={memberOptions}
             teamOptions={teamOptions}
             allModelOptions={allModelOptions}
             unmatchedModelOption={unmatchedModelOption}

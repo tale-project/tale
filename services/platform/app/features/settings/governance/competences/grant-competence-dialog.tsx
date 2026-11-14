@@ -17,8 +17,11 @@ import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import * as z from 'zod';
 
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
-import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import {
   isPlatformCapability,
@@ -28,7 +31,7 @@ import {
 } from '@/lib/shared/competences';
 
 import { useGrantCompetence } from '../hooks/mutations';
-import { useMyModelApiAccess, useOrgMembersForPicker } from '../hooks/queries';
+import { useMyModelApiAccess } from '../hooks/queries';
 import { mapCompetenceError } from './competence-errors';
 import {
   EVIDENCE_MAX,
@@ -91,14 +94,6 @@ export function GrantCompetenceDialog({
   const { t } = useT('governance');
   const { toast } = useToast();
   const { mutateAsync, isPending } = useGrantCompetence();
-  const members = useOrgMembersForPicker(
-    open && fixed === undefined ? organizationId : undefined,
-  );
-  // Until the member list answers it offers nobody, and that never reads as
-  // nobody to grant to (#4586): a pending read masks the picker, a failed
-  // one names the list with Try again above it.
-  const membersAnswered = members.data !== undefined;
-  const membersRead = readStateOf(members);
   const teams = useOrgTeams(open && fixed === undefined);
   // A refusal the admin can act on stays in the form, beside the fields.
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -176,6 +171,18 @@ export function GrantCompetenceDialog({
   const teamId = watch('teamId');
   const competence = watch('competence');
   const expiry = watch('expiry');
+  // The members are searched on the server as the admin types (MEMBER-R12),
+  // never read all at once; the one granted to is named by id. Until the
+  // search answers it offers nobody, and that never reads as nobody to grant
+  // to (#4586): a pending read masks the picker, a failed one names the list
+  // with Try again above it.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    // Disabled members are nobody to grant to.
+    access: 'read',
+    enabled: open && fixed === undefined,
+    chosen: userId ? [userId] : [],
+  });
   // The switch as the server reads it for every surface (`readModelApiStanding`,
   // an unreadable policy reading as off); the settings rail already holds this
   // read. Only an answer says the endpoints are off (#4586), and the grant
@@ -186,17 +193,19 @@ export function GrantCompetenceDialog({
 
   const memberOptions = useMemo(
     () =>
-      (members.data ?? []).map((member) => ({
+      members.members.map((member) => ({
         value: member.userId,
-        label: member.displayName,
+        label: memberLabel(member),
         // The address tells two members with one name apart; it is dropped
         // when it is the name already.
         description:
-          member.email !== '' && member.email !== member.displayName
+          member.email !== undefined &&
+          member.email !== '' &&
+          member.email !== member.displayName
             ? member.email
             : undefined,
       })),
-    [members.data],
+    [members.members],
   );
 
   // A team an identity provider syncs is listed but cannot be chosen: its
@@ -395,12 +404,12 @@ export function GrantCompetenceDialog({
                 </Skeletonize>
               </>
             )}
-            {holder === 'member' && membersRead.unavailable && (
+            {holder === 'member' && members.unavailable && (
               <CatalogLoadError
                 message={t('competences.grantDialog.memberLoadFailed')}
-                failureKey={membersRead.failureCount}
-                isRetrying={membersRead.retrying}
-                onRetry={() => void members.refetch()}
+                failureKey={members.failureCount}
+                isRetrying={members.retrying}
+                onRetry={members.retry}
                 // A retry that brings the list takes the alert away: the focus
                 // it held goes to the picker, not the page.
                 onFocusLost={() =>
@@ -409,9 +418,7 @@ export function GrantCompetenceDialog({
               />
             )}
             {holder === 'member' && (
-              <Skeletonize
-                loading={!membersAnswered && !membersRead.unavailable}
-              >
+              <Skeletonize loading={!members.answered && !members.unavailable}>
                 <SearchableSelect
                   id="competence-member"
                   label={t('competences.grantDialog.memberLabel')}
@@ -419,7 +426,7 @@ export function GrantCompetenceDialog({
                   searchPlaceholder={t('competences.grantDialog.memberSearch')}
                   emptyText={t('competences.grantDialog.memberEmpty')}
                   required
-                  disabled={!membersAnswered}
+                  disabled={!members.answered}
                   value={userId || null}
                   onValueChange={(value) => {
                     // A refusal was about the previous choice; a new one clears it.
@@ -429,6 +436,7 @@ export function GrantCompetenceDialog({
                       shouldValidate: true,
                     });
                   }}
+                  onSearchChange={setMemberQuery}
                   options={memberOptions}
                   error={formState.errors.userId !== undefined}
                 />

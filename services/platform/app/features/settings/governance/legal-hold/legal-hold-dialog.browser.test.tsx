@@ -13,8 +13,19 @@ import '@/app/globals.css';
 vi.mock('../hooks/queries', () => ({
   useLegalHolds: () => ({ data: [], isLoading: false }),
   useLegalMatters: () => ({ data: [], isLoading: false }),
-  useOrgMembersForPicker: () => ({ data: [], isLoading: false }),
 }));
+// The user picker searches the members on the server; this org has none to
+// offer, so the search answers nobody.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => [],
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => [],
+  ),
+);
 vi.mock('../hooks/mutations', () => ({
   usePlaceLegalHold: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpsertLegalMatter: () => ({ mutateAsync: vi.fn(), isPending: false }),

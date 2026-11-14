@@ -65,9 +65,18 @@ vi.mock('../hooks/queries', () => ({
 const STABLE_MEMBERS = {
   members: [{ userId: 'member-proof', displayName: 'Proof member' }],
 };
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => STABLE_MEMBERS,
-}));
+// The organization's members, as the member search and the member lookup
+// answer them.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => STABLE_MEMBERS.members,
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => STABLE_MEMBERS.members,
+  ),
+);
 
 const STABLE_TEAMS = { teams: [{ id: 'team-proof', name: 'Proof team' }] };
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({

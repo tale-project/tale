@@ -11,12 +11,23 @@ import { ActiveHoldsSection } from './active-holds-section';
 vi.mock('../hooks/queries', () => ({
   useLegalHolds: () => ({ data: [], isLoading: false }),
   useLegalMatters: () => ({ data: [], isLoading: false }),
-  useOrgMembersForPicker: () => ({ data: [], isLoading: false }),
 }));
 
 // The place-hold dialog, the always-mounted UpsertMatterDialog (nested inside
 // it), and the always-mounted request-release dialog each resolve a mutation
 // hook at the top level regardless of open state.
+// The user picker searches the members on the server; this org has none to
+// offer, so the search answers nobody.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => [],
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => [],
+  ),
+);
 vi.mock('../hooks/mutations', () => ({
   usePlaceLegalHold: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpsertLegalMatter: () => ({ mutateAsync: vi.fn(), isPending: false }),

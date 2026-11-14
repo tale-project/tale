@@ -1368,7 +1368,6 @@ apiKeys:
     memberPlaceholder: Choose a member
     memberSearch: Search members...
     memberEmpty: No member whose role is below yours
-    memberHidden: Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.
     memberNoMatch: No member matches
     memberLoadFailed: Couldn't load the members.
     team: Team

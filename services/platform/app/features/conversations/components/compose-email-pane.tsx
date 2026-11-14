@@ -34,7 +34,10 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  type ChoiceMember,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -212,7 +215,17 @@ function ComposeEmailDraft({
   // Default the assignee to the creator once auth resolves (a fresh draft has no
   // stored value). Only admins can pick someone else or a team; the field is
   // read-only otherwise, and the server clamps a non-admin to self / no team.
-  const { members = [] } = useMembers(organizationId);
+  // The people offered are searched on the server as the admin types
+  // (MEMBER-R12), and disabled members are left out; the viewer and the
+  // assignee stay named by id, so the trigger and the list keep them.
+  const [assignQuery, setAssignQuery] = useState('');
+  const people = useMemberChoices(organizationId, assignQuery, {
+    enabled: assignOpen,
+    chosen: [user?.userId, assigneeUserId].filter(
+      (userId): userId is string => !!userId,
+    ),
+  });
+  const members: readonly ChoiceMember[] = people.members;
   const { teams = [] } = useOrgTeams();
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const canReassign =
@@ -552,6 +565,7 @@ function ComposeEmailDraft({
                 // controlled value — current picks are marked via optionAction.
                 value={null}
                 onValueChange={handleAssignChange}
+                onSearchChange={setAssignQuery}
                 options={assigneeOptions}
                 disabled={!canReassign || isSending}
                 open={assignOpen}

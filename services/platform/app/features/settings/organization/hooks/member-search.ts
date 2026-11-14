@@ -23,6 +23,11 @@ export interface MemberSearch extends ReadState {
   /** The members found, in the order they joined. While the search for a
    * new text loads, the ones found for the text before, in the same scope. */
   members: readonly FoundMember[];
+  /** The search has answered for some text, in this scope: a picker that
+   * waits for its first answer is not open to choose from yet. */
+  answered: boolean;
+  /** The error the latest search settled in, while it failed. */
+  error: unknown;
   /** More members match than were found: typing more narrows them. */
   more: boolean;
   /** What is shown does not answer what is typed now yet. */
@@ -67,6 +72,8 @@ export function useMemberSearch(
   );
   return {
     members: result.data?.members ?? NO_MEMBERS,
+    answered: result.data !== undefined,
+    error: result.error,
     more: result.data?.isDone === false,
     searching:
       enabled &&

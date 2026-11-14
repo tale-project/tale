@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import {
   act,
   fireEvent,
@@ -238,19 +239,26 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   }),
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      {
-        userId: 'usr-ada',
-        role: 'member',
-        displayName: 'Ada Lovelace',
-        email: 'ada@example.com',
-      },
-    ],
-    isLoading: false,
-  }),
-}));
+// The member the template's member question offers, searched and looked up on
+// the server; Ada is the one member of this organization.
+const ORG_MEMBERS: StandInMember[] = [
+  {
+    userId: 'usr-ada',
+    role: 'member',
+    displayName: 'Ada Lovelace',
+    email: 'ada@example.com',
+  },
+];
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => ORG_MEMBERS,
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => ORG_MEMBERS,
+  ),
+);
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,

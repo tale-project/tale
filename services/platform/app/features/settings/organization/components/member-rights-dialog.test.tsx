@@ -53,11 +53,6 @@ vi.mock('@/app/features/settings/governance/hooks/mutations', () => ({
 }));
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useMemberRights: () => state.rights,
-  useOrgMembersForPicker: () => ({
-    data: undefined,
-    isLoading: false,
-    isError: false,
-  }),
   useMyModelApiAccess: () => ({
     data: { enabled: true, allowed: true, models: [] },
     isLoading: false,

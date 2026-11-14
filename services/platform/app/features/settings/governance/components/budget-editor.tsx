@@ -56,7 +56,11 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { useProjectSelect } from '@/app/features/projects/hooks/use-project-select';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -524,7 +528,6 @@ interface RuleDialogProps {
   onSave: (rule: BudgetRule) => void;
   title: string;
   cannotManage: boolean;
-  memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
   teamsRead: TargetListRead;
   /** Whose projects the Project field offers. */
@@ -549,7 +552,6 @@ function RuleDialog({
   onSave,
   title,
   cannotManage,
-  memberOptions,
   teamOptions,
   teamsRead,
   organizationId,
@@ -573,6 +575,22 @@ function RuleDialog({
     [t],
   );
   const [draft, setDraft] = useState(initialRule);
+  // The people a user rule may name are searched on the server as the admin
+  // types (MEMBER-R12); the one the rule names stays named.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    enabled: open && draft.scope === 'user',
+    chosen: draft.scope === 'user' && draft.scopeId ? [draft.scopeId] : [],
+  });
+  const memberOptions = useMemo(
+    () =>
+      members.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+        description: m.email && m.displayName ? m.email : undefined,
+      })),
+    [members.members],
+  );
   // Reveal a field's error only once the user has touched it (or has attempted
   // to submit) so a freshly-opened dialog isn't pre-filled with red. Keyed by
   // field name; `limits` is the cross-field "at least one limit" group.
@@ -702,6 +720,7 @@ function RuleDialog({
             disabled={cannotManage}
             value={draft.scopeId ?? null}
             onValueChange={(value) => updateDraft({ scopeId: value })}
+            onSearchChange={setMemberQuery}
             options={memberOptions}
             searchPlaceholder={t('budgets.searchUsers')}
             emptyText={t('budgets.noUsersFound')}
@@ -935,7 +954,6 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     useGovernancePolicy(organizationId, 'project_budgets');
   const loading = budgetsLoading || projectBudgetsLoading;
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
-  const { members } = useMembers(organizationId);
   const { teams, ...teamsRead } = useOrgTeams();
   // The API keys an admin can attach a budget to: every member's live key,
   // not only the admin's own — a per-key cap is how an admin bounds one
@@ -951,16 +969,6 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     ...readStateOf(apiKeysQuery),
     retry: () => void apiKeysQuery.refetch(),
   };
-
-  const memberOptions = useMemo(
-    () =>
-      (members ?? []).map((m) => ({
-        value: m.userId,
-        label: m.displayName || m.email || m.userId,
-        description: m.email && m.displayName ? m.email : undefined,
-      })),
-    [members],
-  );
 
   const roleOptions = useMemo(
     () =>
@@ -1003,6 +1011,20 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   );
 
   const [rules, setRules] = useState<BudgetRule[]>([]);
+  // The people the rules name, looked up by id: the table names each one.
+  const namedMembers = useMemberLookup(
+    organizationId,
+    rules.flatMap((rule) =>
+      rule.scope === 'user' && rule.scopeId ? [{ userId: rule.scopeId }] : [],
+    ),
+  );
+  const memberNames = useMemo(
+    () =>
+      new Map(
+        namedMembers.members.map((m) => [m.userId, memberLabel(m)] as const),
+      ),
+    [namedMembers.members],
+  );
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1153,10 +1175,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
       switch (rule.scope) {
         case 'user': {
           if (!rule.scopeId) return '—';
-          return (
-            memberOptions.find((o) => o.value === rule.scopeId)?.label ??
-            rule.scopeId
-          );
+          return memberNames.get(rule.scopeId) ?? rule.scopeId;
         }
         case 'team': {
           if (!rule.scopeId) return '—';
@@ -1206,7 +1225,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, ruleProjects, roleOptions, apiKeyById, t],
+    [memberNames, teamOptions, ruleProjects, roleOptions, apiKeyById, t],
   );
 
   const onAddRule = openAddDialog;
@@ -1429,7 +1448,6 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           onSave={onDialogSave}
           title={dialogTitle}
           cannotManage={cannotManage}
-          memberOptions={memberOptions}
           teamOptions={teamOptions}
           teamsRead={teamsRead}
           organizationId={organizationId}

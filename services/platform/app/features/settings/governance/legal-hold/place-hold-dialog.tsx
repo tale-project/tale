@@ -15,12 +15,16 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as z from 'zod';
 
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { usePlaceLegalHold } from '../hooks/mutations';
-import { useLegalMatters, useOrgMembersForPicker } from '../hooks/queries';
+import { useLegalMatters } from '../hooks/queries';
 import { mapLegalHoldError } from './legal-hold-errors';
 import { UpsertMatterDialog } from './upsert-matter-dialog';
 
@@ -125,18 +129,11 @@ export function PlaceHoldDialog({
   const { toast } = useToast();
   const { mutateAsync, isPending } = usePlaceLegalHold();
   const matters = useLegalMatters(organizationId, { status: 'open' });
-  const members = useOrgMembersForPicker(organizationId);
-  const membersFailed = members.isError || readStateOf(members).unavailable;
   const mattersFailed = matters.isError || readStateOf(matters).unavailable;
   const [createMatterOpen, setCreateMatterOpen] = useState(false);
   const [orgConfirmText, setOrgConfirmText] = useState('');
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [matterPickerOpen, setMatterPickerOpen] = useState(false);
-
-  useEffect(() => {
-    if (membersFailed || members.isLoading) setUserPickerOpen(false);
-    if (mattersFailed || matters.isLoading) setMatterPickerOpen(false);
-  }, [membersFailed, members.isLoading, mattersFailed, matters.isLoading]);
 
   const targetTypeOptions = useMemo(
     () =>
@@ -155,16 +152,6 @@ export function PlaceHoldDialog({
         description: m.caseNumber,
       })),
     [matters.data],
-  );
-
-  const memberOptions = useMemo(
-    () =>
-      (members.data ?? []).map((m) => ({
-        value: m.userId,
-        label: m.displayName,
-        description: m.email !== m.displayName ? m.email : undefined,
-      })),
-    [members.data],
   );
 
   const schema = useMemo(
@@ -195,6 +182,33 @@ export function PlaceHoldDialog({
   const targetType = watch('targetType');
   const targetId = watch('targetId');
   const matterRef = watch('matterRef');
+  // The people a hold may name are searched on the server as the operator
+  // types (MEMBER-R12), never read all at once; the one named is looked up
+  // by id.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    access: 'read',
+    chosen:
+      targetType === 'userMembership' && targetId !== '' ? [targetId] : [],
+  });
+  // A failed search, or one whose refresh failed over the list it answered
+  // before, names the picker as failed: its cached options are not current.
+  const membersFailed = members.unavailable || members.stale;
+  const membersLoading = !members.answered && !membersFailed;
+  const memberOptions = useMemo(
+    () =>
+      members.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+        description: m.email !== m.displayName ? m.email : undefined,
+      })),
+    [members.members],
+  );
+
+  useEffect(() => {
+    if (membersFailed || membersLoading) setUserPickerOpen(false);
+    if (mattersFailed || matters.isLoading) setMatterPickerOpen(false);
+  }, [membersFailed, membersLoading, mattersFailed, matters.isLoading]);
 
   // Auto-fill targetId for org-scope so operators don't have to know
   // that the literal value must equal the organizationId; clear it back
@@ -309,12 +323,13 @@ export function PlaceHoldDialog({
                     shouldValidate: true,
                   })
                 }
+                onSearchChange={setMemberQuery}
                 options={memberOptions}
-                open={userPickerOpen && !membersFailed && !members.isLoading}
+                open={userPickerOpen && !membersFailed && !membersLoading}
                 onOpenChange={setUserPickerOpen}
-                disabled={members.isLoading || membersFailed}
+                disabled={membersLoading || membersFailed}
                 description={
-                  members.isLoading && !membersFailed
+                  membersLoading && !membersFailed
                     ? tCommon('actions.loading')
                     : undefined
                 }
@@ -325,10 +340,8 @@ export function PlaceHoldDialog({
                 <PickerReadFailure
                   message={t('legalHold.dialogs.placeHold.userPickerFailed')}
                   error={members.error}
-                  retrying={members.isFetching}
-                  onRetry={() => {
-                    void members.refetch();
-                  }}
+                  retrying={members.retrying}
+                  onRetry={members.retry}
                   pickerId="hold-user-target"
                 />
               )}

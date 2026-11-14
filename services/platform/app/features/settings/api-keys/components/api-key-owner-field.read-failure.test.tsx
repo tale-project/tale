@@ -76,25 +76,29 @@ const TARGETS = [
   {
     choice: 'member',
     picker: 'api-key-member',
-    door: /^GET \/api\/app\/members\?orgId=org-1$/,
+    // The members are searched on the server as the maker types (MEMBER-R12).
+    door: /^GET \/api\/app\/members\/search\?/,
     answer: () =>
       Response.json({
         members: [
           {
+            id: 'ada',
             userId: 'ada',
             role: 'admin',
-            joinedAt: 1,
+            createdAt: new Date(1).toISOString(),
             displayName: 'Ada',
             email: 'ada@example.test',
           },
           {
+            id: 'mia',
             userId: 'mia',
             role: 'member',
-            joinedAt: 2,
+            createdAt: new Date(2).toISOString(),
             displayName: 'Mia Keller',
             email: 'mia@example.test',
           },
         ],
+        isDone: true,
       }),
     candidate: /Mia Keller/,
     emptyKey: 'apiKeys.form.memberEmpty',

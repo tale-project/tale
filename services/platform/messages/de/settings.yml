@@ -1426,7 +1426,6 @@ apiKeys:
     memberPlaceholder: Mitglied auswählen
     memberSearch: Mitglieder suchen...
     memberEmpty: Kein Mitglied mit einer niedrigeren Rolle als deiner
-    memberHidden: Aufgeführt sind nur Mitglieder, deren Rolle unter deiner liegt. Ein Schlüssel handelt als sein Mitglied und wird deshalb nie für jemanden mit deiner oder einer höheren Rolle erstellt.
     memberNoMatch: Kein passendes Mitglied
     memberLoadFailed: Die Mitglieder konnten nicht geladen werden.
     team: Team

@@ -50,9 +50,16 @@ vi.mock('../hooks/queries', () => ({
   useDsarPolicyForUi: () => state.result,
   useGovernancePolicy: () => state.result,
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => members,
-}));
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => members.members,
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => members.members,
+  ),
+);
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => teams,
 }));

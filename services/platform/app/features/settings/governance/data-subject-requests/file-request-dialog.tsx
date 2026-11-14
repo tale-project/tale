@@ -15,8 +15,11 @@ import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import * as z from 'zod';
 
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
 import { failureDetail } from '@/app/lib/backend/adapters';
-import { readStateOf } from '@/app/lib/backend/read-state';
 import {
   ERASURE_REASON_CODES,
   type ErasureReasonCode,
@@ -25,7 +28,6 @@ import { useT } from '@/lib/i18n/client';
 
 import { mapDsrError } from './data-subject-requests-errors';
 import { useRequestErasure } from './hooks/mutations';
-import { useOrgMembersForErasurePicker } from './hooks/queries';
 import { LegalHoldBlockPanel } from './legal-hold-block-panel';
 
 /**
@@ -57,32 +59,10 @@ export function FileRequestDialog({
   const { toast } = useToast();
   const navigate = useNavigate();
   const { mutateAsync, isPending } = useRequestErasure();
-  const members = useOrgMembersForErasurePicker(organizationId);
   const [confirmText, setConfirmText] = useState('');
   const [legalHoldBlock, setLegalHoldBlock] = useState<{
     requestId: string;
   } | null>(null);
-
-  const memberOptions = useMemo(
-    () =>
-      (members.data ?? []).map((m) => ({
-        value: m.userId,
-        label: m.displayName,
-        description: m.email !== m.displayName ? m.email : undefined,
-      })),
-    [members.data],
-  );
-
-  // A settled failure that survives the reset a retry makes
-  // (`readStateOf(...).unavailable`) counts as unavailable too, so the alert
-  // and its Try again stay mounted while the retry is in flight.
-  const membersUnavailable =
-    members.isError ||
-    readStateOf(members).unavailable ||
-    (!members.isSuccess && members.errorUpdatedAt > 0);
-  const membersFailureDetail = membersUnavailable
-    ? failureDetail(members.error)
-    : undefined;
 
   const reasonCodeOptions = useMemo(
     () =>
@@ -121,8 +101,33 @@ export function FileRequestDialog({
   const { handleSubmit, register, formState, reset, watch, setValue } = form;
   const targetUserId = watch('targetUserId');
   const reasonCode = watch('reasonCode');
+  // The people a request may be filed against are searched on the server as
+  // the operator types (MEMBER-R12), never read all at once; the one chosen is
+  // looked up by id, so the field keeps naming them.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    access: 'read',
+    chosen: targetUserId === '' ? [] : [targetUserId],
+  });
+  const memberOptions = useMemo(
+    () =>
+      members.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+        description: m.email !== m.displayName ? m.email : undefined,
+      })),
+    [members.members],
+  );
+
+  // A failed search, or one whose refresh failed over the list it answered
+  // before, is named with Try again; the alert stays mounted while the retry
+  // is in flight.
+  const membersUnavailable = members.unavailable || members.stale;
+  const membersFailureDetail = membersUnavailable
+    ? failureDetail(members.error)
+    : undefined;
   const hasAvailableSubject =
-    members.isSuccess &&
+    members.answered &&
     !membersUnavailable &&
     memberOptions.some((option) => option.value === targetUserId);
 
@@ -206,15 +211,15 @@ export function FileRequestDialog({
             ]
               .filter(Boolean)
               .join(' ')}
-            onRetry={() => void members.refetch()}
-            isRetrying={members.isFetching}
-            failureKey={members.errorUpdatedAt}
+            onRetry={members.retry}
+            isRetrying={members.retrying}
+            failureKey={members.failureCount}
             onFocusLost={() =>
               document.getElementById('dsr-user-target')?.focus()
             }
           />
         )}
-        <Skeletonize loading={members.isLoading && !membersUnavailable}>
+        <Skeletonize loading={!members.answered && !membersUnavailable}>
           <SearchableSelect
             id="dsr-user-target"
             label={t('dataSubjectRequests.dialogs.fileRequest.userPickerLabel')}
@@ -229,8 +234,9 @@ export function FileRequestDialog({
                 shouldValidate: true,
               })
             }
+            onSearchChange={setMemberQuery}
             options={memberOptions}
-            disabled={members.data === undefined}
+            disabled={!members.answered}
             emptyText={
               membersUnavailable
                 ? t('dataSubjectRequests.dialogs.fileRequest.userPickerFailed')
