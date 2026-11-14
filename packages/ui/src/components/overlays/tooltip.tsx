@@ -3,8 +3,10 @@
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import {
   type ComponentPropsWithoutRef,
+  createContext,
   forwardRef,
   type ReactNode,
+  useContext,
 } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -21,7 +23,23 @@ export const TOOLTIP_SKIP_DELAY_MS = 300;
 export const tooltipContentClassName =
   'z-[60] max-w-xs overflow-hidden rounded-lg border bg-foreground p-2 py-1 text-xs text-wrap text-background shadow-md animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 duration-[var(--duration-short)] motion-reduce:animate-none';
 
-export const TooltipProvider = TooltipPrimitive.Provider;
+const TooltipProviderPresent = createContext(false);
+
+/** Radix's provider, marked so a tooltip can tell whether one wraps it. */
+export function TooltipProvider(
+  props: ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>,
+) {
+  return (
+    <TooltipProviderPresent.Provider value>
+      <TooltipPrimitive.Provider {...props} />
+    </TooltipProviderPresent.Provider>
+  );
+}
+
+/** Whether a `TooltipProvider` (AppShell's, normally) wraps the caller. */
+export function useHasTooltipProvider(): boolean {
+  return useContext(TooltipProviderPresent);
+}
 /**
  * The Radix root. Compose it with `TooltipTrigger` + `TooltipContent` when a
  * tip needs more than the convenience `Tooltip` offers (a custom trigger

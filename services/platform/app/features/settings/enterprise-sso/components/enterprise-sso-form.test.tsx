@@ -216,8 +216,6 @@ function Bare({ children }: { children: ReactNode }) {
 
 // Invalid fields hold Save back with a reason: `aria-disabled` keeps it
 // focusable so the reason can be read, so it is never natively disabled.
-// Both read Save afresh: the reason's tooltip wraps the button, so Save is a
-// new element each time the reason comes or goes.
 function expectSaveHeldWithReason() {
   const button = screen.getByRole('button', { name: /^save$/i });
   expect(button).toHaveAttribute('aria-disabled', 'true');

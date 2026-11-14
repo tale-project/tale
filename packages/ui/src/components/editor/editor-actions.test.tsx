@@ -207,6 +207,36 @@ describe('EditorActions — invalidReason', () => {
     expect(toastMock).not.toHaveBeenCalled();
   });
 
+  // The reason's tooltip must not remount Save: a keyboard user resting on
+  // Save would lose focus to the page each time the edits turn invalid or
+  // valid again.
+  it('keeps focus on Save as the reason appears and clears', async () => {
+    const actions = (controller: EditorController) => (
+      <TooltipProvider>
+        <EditorActions controller={controller} />
+      </TooltipProvider>
+    );
+    const { rerender } = render(actions(makeController()));
+    const save = screen.getByRole('button', { name: 'actions.save' });
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(save).toHaveFocus();
+
+    rerender(
+      actions(makeController({ isValid: false, invalidReason: REASON })),
+    );
+    expect(screen.getByRole('button', { name: 'actions.save' })).toBe(save);
+    expect(save).toHaveFocus();
+    expect(save).toHaveAttribute('aria-disabled', 'true');
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(REASON);
+
+    rerender(actions(makeController()));
+    expect(screen.getByRole('button', { name: 'actions.save' })).toBe(save);
+    expect(save).toHaveFocus();
+    expect(save).not.toHaveAttribute('aria-disabled');
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull());
+  });
+
   function pressSave(): KeyboardEvent {
     const event = new KeyboardEvent('keydown', {
       key: 's',

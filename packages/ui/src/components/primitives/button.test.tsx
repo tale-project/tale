@@ -1,3 +1,4 @@
+import { render as renderBare } from '@testing-library/react';
 import { Mail } from 'lucide-react';
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -391,6 +392,45 @@ describe('Button', () => {
       // …but is still announced as disabled to assistive tech.
       expect(button).toHaveAttribute('aria-disabled', 'true');
       expectFocusable(button);
+    });
+
+    it('stays one focused element as a reason comes and goes', () => {
+      const { rerender } = render(
+        <Button disabledReason={undefined}>Send</Button>,
+      );
+      const button = screen.getByRole('button');
+      button.focus();
+
+      rerender(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      expect(screen.getByRole('button')).toBe(button);
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(button).toHaveFocus();
+
+      rerender(<Button disabledReason={undefined}>Send</Button>);
+      expect(screen.getByRole('button')).toBe(button);
+      expect(button).not.toHaveAttribute('aria-disabled');
+      expect(button).toHaveFocus();
+    });
+
+    // The wrapper a `disabledReason` reserves is there before any reason, so
+    // it must not need AppShell's provider.
+    it('reserves its tooltip without a provider around it', () => {
+      const { rerender } = renderBare(
+        <Button disabledReason={undefined}>Send</Button>,
+      );
+      const button = screen.getByRole('button', { name: 'Send' });
+      expect(button).toBeEnabled();
+      rerender(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      expect(screen.getByRole('button', { name: 'Send' })).toBe(button);
+      expect(button).toHaveAttribute('aria-disabled', 'true');
     });
 
     it('surfaces the reason as a tooltip on focus', async () => {

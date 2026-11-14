@@ -8,7 +8,11 @@ import * as React from 'react';
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
 import { hasDisabledReason } from '../overlays/disabled-reason';
-import { TooltipContent } from '../overlays/tooltip';
+import {
+  TOOLTIP_DELAY_MS,
+  TooltipContent,
+  useHasTooltipProvider,
+} from '../overlays/tooltip';
 
 export const buttonVariants = cva(
   'focus-visible:ring-ring ring-offset-background inline-flex cursor-pointer items-center justify-center rounded-lg text-sm leading-none font-medium whitespace-nowrap transition-all duration-[var(--duration-short)] focus-visible:ring-1 focus-visible:outline-none active:scale-[var(--scale-pressed)] active:duration-[var(--duration-micro)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50 disabled:active:scale-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:opacity-50 aria-disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100',
@@ -122,6 +126,10 @@ interface ButtonOwnProps
    * Tooltip wire up `aria-describedby` — so the reason reaches pointer and
    * keyboard users alike. Overrides `tooltip`/`title` for the visible tip while
    * disabled. Has no effect under `asChild` (the button is a Radix `Slot`).
+   *
+   * Passing the prop at all, even as `undefined`, keeps the tooltip wrapper in
+   * place while no reason shows, so the button stays one DOM element as a
+   * reason comes and goes and keyboard focus stays on it.
    */
   disabledReason?: React.ReactNode;
 }
@@ -272,8 +280,8 @@ ButtonBase.displayName = 'ButtonBase';
  * asChild, retaining its responsive width, flex sizing and corner radius.
  */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
+  (buttonProps, ref) => {
+    const {
       tooltip,
       tooltipSide,
       tooltipOpen,
@@ -282,9 +290,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       disabledReason,
       'aria-label': ariaLabel,
       ...props
-    },
-    ref,
-  ) => {
+    } = buttonProps;
+    // A caller that passes `disabledReason` at all, even `undefined`, expects
+    // a reason to come and go: the tooltip wrapper then stays mounted with no
+    // tip, so the button is never remounted as one appears or clears.
+    const reservesTooltip = 'disabledReason' in buttonProps;
+    const hasTooltipProvider = useHasTooltipProvider();
     // `title` shows a tooltip for any button, and ALSO names icon-only buttons
     // (they have no visible text). Text buttons keep their accessible name from
     // their children — `title` must NOT override it there — so the name only
@@ -366,20 +377,32 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // No tooltip when `asChild` — the button is then a Radix `Slot` (typically
     // another overlay's trigger), and wrapping a Slot in a tooltip trigger
     // breaks that composition.
+    const hasTip = tip != null;
     const withTooltip =
-      tip == null || props.asChild ? (
+      (!hasTip && !reservesTooltip) || props.asChild ? (
         base
       ) : (
         <TooltipPrimitive.Root
-          open={isControlled ? tooltipOpen : uncontrolledOpen}
+          open={hasTip && (isControlled ? tooltipOpen : uncontrolledOpen)}
           onOpenChange={handleTooltipOpenChange}
         >
           <TooltipPrimitive.Trigger asChild>{base}</TooltipPrimitive.Trigger>
-          <TooltipPrimitive.Portal>
-            <TooltipContent side={tooltipSide}>{tip}</TooltipContent>
-          </TooltipPrimitive.Portal>
+          {hasTip && (
+            <TooltipPrimitive.Portal>
+              <TooltipContent side={tooltipSide}>{tip}</TooltipContent>
+            </TooltipPrimitive.Portal>
+          )}
         </TooltipPrimitive.Root>
       );
+    // A reserved wrapper renders while no tip shows, so it must not depend on
+    // AppShell's provider being there: outside one, it brings its own.
+    if (withTooltip !== base && reservesTooltip && !hasTooltipProvider) {
+      return (
+        <TooltipPrimitive.Provider delayDuration={TOOLTIP_DELAY_MS}>
+          {withTooltip}
+        </TooltipPrimitive.Provider>
+      );
+    }
     return withTooltip;
   },
 );

@@ -49,7 +49,7 @@ Set `type="submit"` for form submission and `type="button"` for other form actio
 
 Focus **Publish** with the keyboard to read why it is unavailable. When `disabled` and a nonempty `disabledReason` are present, the component uses `aria-disabled` instead of native `disabled`, preserves keyboard focus, and blocks clicks, Enter, and Space. A plain disabled button leaves the tab order.
 
-The reason only applies while `disabled` is true. Describe what would make the action available; use visible nearby text when the explanation is essential to completing the task. A disabled UI control is not an authorization check.
+The reason only applies while `disabled` is true. Pass `disabledReason` whenever a reason can come and go, even as `undefined` while there is none: the button then stays the same element as the reason appears and clears, so keyboard focus stays on it. Describe what would make the action available; use visible nearby text when the explanation is essential to completing the task. A disabled UI control is not an authorization check.
 
 ## Navigate with a link
 
