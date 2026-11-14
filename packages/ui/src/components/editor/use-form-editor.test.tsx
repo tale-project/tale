@@ -312,6 +312,29 @@ describe('useFormEditor', () => {
     await waitFor(() => expect(result.current.isValid).toBe(false));
   });
 
+  // Save is off over an invalid edit, and the field's own error stays hidden
+  // until the field is left: the reason is what says why Save waits.
+  it('supplies invalidReason while the schema fails, and none once it passes', async () => {
+    const { result } = mount({ name: 'A', color: '#FF0000' });
+    act(() => result.current.form.setValue('name', '', { shouldDirty: true }));
+    await waitFor(() =>
+      expect(result.current.invalidReason).toBe('editor.invalidFields'),
+    );
+    act(() => result.current.form.setValue('name', 'B', { shouldDirty: true }));
+    await waitFor(() => expect(result.current.invalidReason).toBeUndefined());
+  });
+
+  it('supplies no invalidReason without a schema', () => {
+    const { result } = renderHook(() =>
+      useFormEditor<Form>({
+        data: { name: '', color: '' },
+        save: vi.fn().mockResolvedValue(undefined),
+      }),
+    );
+    expect(result.current.isValid).toBe(true);
+    expect(result.current.invalidReason).toBeUndefined();
+  });
+
   // Regression (#5260): RHF judges what an input event writes, not what code
   // writes with `setValue` alone. Its stored `isValid` kept describing the
   // values before, so Save stayed off over values that had become valid (an

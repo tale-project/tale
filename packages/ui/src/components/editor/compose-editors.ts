@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from 'react';
 
+import { hasDisabledReason } from '../overlays/disabled-reason';
 import type { EditorController } from './types';
 
 /**
@@ -43,10 +44,17 @@ export function useComposedEditor(
   for (const editor of active)
     for (const key of editor.dirtyKeys) dirtyKeys.add(key);
 
+  // The reason of the first dirty section that blocks the save: the one the
+  // reader must fix. A blocked section with no reason adds none.
+  const blocking = active.find(
+    (e) => e.isDirty && !e.isValid && hasDisabledReason(e.invalidReason),
+  );
+
   return {
     isDirty: active.some((e) => e.isDirty),
     isSaving: active.some((e) => e.isSaving),
     isValid: active.every((e) => !e.isDirty || e.isValid),
+    ...(blocking && { invalidReason: blocking.invalidReason }),
     isLoading: active.some((e) => e.isLoading),
     dirtyKeys,
     save,

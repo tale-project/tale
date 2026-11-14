@@ -242,9 +242,18 @@ describe('EditorActions — invalidReason', () => {
     expect(screen.getByRole('button', { name: 'actions.save' })).toBeDisabled();
   });
 
-  it('gives no reason while a save or a load is under way', () => {
+  it('gives no reason while a load is under way', () => {
     renderActions({ isLoading: true });
     expect(screen.getByRole('button', { name: 'actions.save' })).toBeDisabled();
+    expect(screen.queryByText(REASON)).toBeNull();
+  });
+
+  it('gives no reason while a save is under way', () => {
+    renderActions({ isSaving: true }, { inlineReason: true });
+    expect(screen.queryByText(REASON)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'actions.save' }),
+    ).not.toHaveAttribute('aria-describedby');
   });
 
   it('stays a plain disabled Save without a reason', () => {

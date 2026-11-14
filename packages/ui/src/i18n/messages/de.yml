@@ -197,6 +197,7 @@ common:
   discardChangesConfirm: Ungespeicherte Änderungen verwerfen?
   editor:
     fixHighlightedFields: Bitte korrigiere die hervorgehobenen Felder und versuche es erneut.
+    invalidFields: Korrigiere die ungültigen Felder, um zu speichern.
   errors:
     contactSupport: kontaktiere den Support
     errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
