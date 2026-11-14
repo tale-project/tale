@@ -26,12 +26,19 @@ import {
 } from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
+import type { NativeConnectorContext } from '../../connectors/dispatcher';
+import { ConnectorError } from '../../connectors/errors';
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import {
   base64Decode,
   base64Encode,
   toConnectorResponse,
 } from '../../connectors/live-host';
+import {
+  platformDocumentNatives,
+  type WorkflowDocumentStore,
+  type WorkflowFolderFile,
+} from '../../connectors/natives/platform-documents';
 import { connectorFailureOf } from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
@@ -83,6 +90,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'document',
   'gmail',
   'jev',
   'slack',
@@ -1771,11 +1779,75 @@ const GMAIL_STORED: Record<string, StoredFile[]> = {
   ],
 };
 
+/** What a native's store answers for one case: what a call returns, or the
+ * error it throws. A call the proof does not name gives no answer. */
+type StoreAnswer<T> = { returns: T } | { throws: ConnectorError };
+
+/** A native's store answers for one case: the listing and the write it
+ * answers, each named only where the case calls it. */
+interface StoreProof {
+  listing?: StoreAnswer<WorkflowFolderListing | null>;
+  create?: StoreAnswer<{ documentId: string; action: string }>;
+}
+
+type WorkflowFolderListing = Awaited<
+  ReturnType<WorkflowDocumentStore['listFolder']>
+>;
+
+const DOCUMENT_FILES: WorkflowFolderFile[] = [
+  { name: 'invoice-001.pdf', storageId: 'blob_a' },
+  { name: 'summary.xlsx', storageId: 'blob_b' },
+];
+
+/** The store's answers to each scenario of `document`'s actions, keyed
+ * `<action>/<scenario>`. Each refusal is the error the store throws. */
+const DOCUMENT_PROOFS: Record<string, StoreProof> = {
+  'list/two_files': {
+    listing: { returns: { files: DOCUMENT_FILES, truncated: false } },
+  },
+  'list/empty': { listing: { returns: { files: [], truncated: false } } },
+  'list/missing_folder': { listing: { returns: null } },
+  'create/created': {
+    create: { returns: { documentId: 'doc_0002', action: 'created' } },
+  },
+  'create/updated': {
+    create: { returns: { documentId: 'doc_0001', action: 'updated' } },
+  },
+  'create/not_stored': {
+    create: {
+      throws: new ConnectorError(
+        'INPUT_INVALID',
+        'document.create: storageId is not a stored file of this organization ({"storageId":"blob_missing"})',
+      ),
+    },
+  },
+};
+
+/** A document store that answers each call as its proof does. */
+function documentStoreAnswering(proof: StoreProof): WorkflowDocumentStore {
+  const answering =
+    <T>(answer: StoreAnswer<T> | undefined) =>
+    async (): Promise<T> => {
+      if (answer === undefined) {
+        throw new Error('the proof gives no answer for this call');
+      }
+      if ('throws' in answer) throw answer.throws;
+      return answer.returns;
+    };
+  return {
+    listFolder: answering(proof.listing),
+    create: answering(proof.create),
+  };
+}
+
 /**
  * Every listed connector's proofs, with the secrets its credential holds —
  * synthetic, as every answer is — and, by proof, the files its body stores,
  * in their order; a proof it does not name stores none. A connector joins
  * `SCENARIO_CONNECTORS` with its proofs, or this does not type-check.
+ * A native connector has no live body to answer: its `natives` proofs give
+ * what its store answers in each case, and its native implementation runs
+ * against them.
  */
 const SCENARIO_PROOFS: Record<
   ScenarioConnector,
@@ -1783,8 +1855,10 @@ const SCENARIO_PROOFS: Record<
     secrets?: Record<string, string>;
     proofs: Record<string, ProofAnswers>;
     stored?: Record<string, StoredFile[]>;
+    natives?: Record<string, StoreProof>;
   }
 > = {
+  document: { proofs: {}, natives: DOCUMENT_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
@@ -1988,7 +2062,10 @@ describe('a connector scenario fits its action and answers as the live call woul
           (scenario) => `${action.name}/${scenario.name}`,
         ),
       );
-      const proofs = Object.keys(SCENARIO_PROOFS[slug].proofs);
+      const proofs = [
+        ...Object.keys(SCENARIO_PROOFS[slug].proofs),
+        ...Object.keys(SCENARIO_PROOFS[slug].natives ?? {}),
+      ];
       const storing = Object.keys(SCENARIO_PROOFS[slug].stored ?? {});
       const shipped = new Set(scenarios);
       const proven = new Set(proofs);
@@ -2066,6 +2143,60 @@ describe('a connector scenario fits its action and answers as the live call woul
         connectorFailureOf(thrown, slug, `${slug}.${actionName}`),
       ).toStrictEqual(
         connectorFailureOf(simulated, slug, `${slug}.${actionName}`),
+      );
+    },
+  );
+});
+
+describe('a native connector scenario answers as its implementation does [CONN-R33]', () => {
+  // A native has no live body: its implementation runs against the store's
+  // answer for the case. A native failure is a ConnectorError with a code and
+  // no HTTP status, so its scenario's error names a message and no status;
+  // the run classifies both by the same reason, as a failure with no status.
+  it.each(Object.keys(DOCUMENT_PROOFS))(
+    'document %s: the native, given the answer the scenario stands for, returns its output or throws its error',
+    async (key) => {
+      const [actionName, scenarioName] = key.split('/');
+      const connector = loadConnector('document');
+      const action = connector.actions.find((a) => a.name === actionName);
+      const scenario = action?.scenarios?.find((s) => s.name === scenarioName);
+      if (action?.backend?.kind !== 'native' || scenario === undefined) {
+        throw new Error(
+          `document.${actionName} has no native backend or no ${scenarioName} scenario`,
+        );
+      }
+      const impl = platformDocumentNatives(
+        documentStoreAnswering(DOCUMENT_PROOFS[key]),
+      )[action.backend.impl];
+      const ctx = { organizationId: 'org_example' } as NativeConnectorContext;
+      const outcome = await outcomeOf(
+        impl({ ...action.exampleInput, ...scenario.when }, ctx),
+      );
+
+      if (scenario.error === undefined) {
+        expect(outcome).toEqual({ output: scenario.output });
+        return;
+      }
+      if (!('thrown' in outcome)) {
+        throw new Error(
+          `document.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+        );
+      }
+      const { thrown } = outcome;
+      expect(thrown).toBeInstanceOf(ConnectorError);
+      expect(thrown instanceof Error ? thrown.message : thrown).toBe(
+        scenario.error.message,
+      );
+      expect(scenario.error.status).toBeUndefined();
+      expect(
+        thrown instanceof ConnectorError ? thrown.vendorStatus : undefined,
+      ).toBeUndefined();
+      const simulated = new Error(scenario.error.message);
+      expect(
+        connectorFailureOf(thrown, 'document', `document.${actionName}`).reason,
+      ).toBe(
+        connectorFailureOf(simulated, 'document', `document.${actionName}`)
+          .reason,
       );
     },
   );

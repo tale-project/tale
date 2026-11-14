@@ -121,6 +121,8 @@ Un scénario prouve ainsi ce que fait l’automatisation de cet échec.
 
 Le test du catalogue `services/platform/lib/shared/schemas/shipped-connectors.test.ts` vérifie chaque scénario de chaque connector fourni : un `when` ne nomme que des champs d’entrée de l’action, et un `output` respecte la sortie déclarée de l’action. Il tient aussi une liste des connectors dont les scénarios sont complets. Sur un connector de cette liste, chaque action fournit au moins ces types : une lecture fournit `success`, `empty` et `error`, une écriture `success`, `refusal` et `duplicate`. Un connector qui les fournit sur chaque action doit figurer sur la liste. Le test vérifie aussi les scénarios de chaque connector de la liste avec son corps réel : avec la réponse du service que représente un scénario, le corps réel renvoie la sortie du scénario ou lève son erreur. Slack est le modèle à suivre.
 
+Un connector natif, c’est-à-dire un connector que la plateforme exécute elle-même comme `document`, n’a pas de corps en direct. Le test exécute chacune de ses implémentations natives contre ce que son magasin répond pour le cas que représente un scénario, et vérifie que l’implémentation renvoie la sortie du scénario ou lève son erreur. L’échec d’une action native est une `ConnectorError` avec un code et sans statut HTTP ; l’erreur d’un scénario natif a donc un `message` et aucun `status`, et l’exécution la classe comme un échec sans statut.
+
 ### Sélectionner le bon compte
 
 L'identifiant est choisi au moment de l'appel : celui nommé explicitement, sinon celui par défaut du connector. Modifier le défaut peut donc changer le compte d'une exécution ultérieure. Nomme l'identifiant explicitement lorsque le compte fait partie du contrat de ton intégration.
