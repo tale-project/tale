@@ -151,6 +151,7 @@ const UNSEALED_ALARM_MS = 10 * 60_000;
 const orgScaffoldSchema = z.object({
   orgSlug: z.string().min(1),
   cleanFirst: z.boolean().optional(),
+  fillMissing: z.boolean().optional(),
 });
 
 const idleSessionReleaseSchema = z.object({

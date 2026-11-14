@@ -51,6 +51,10 @@ import {
 } from '../domains/audit_logs/user-scoped.ts';
 import { hasAnyOrganizations } from '../domains/organizations/has-any-organizations.ts';
 import {
+  clearOrgConfigLeftovers,
+  orgCreateScaffoldPayload,
+} from '../domains/organizations/scaffold.ts';
+import {
   assertOrgSlugNotRetiring,
   OrganizationError,
 } from '../domains/organizations/service.ts';
@@ -1596,6 +1600,19 @@ export function createAuth(config: AuthConfig) {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Better Auth's loose hook payload; projecting the normalized slug back (0.4 pattern)
             (data.organization as Record<string, unknown>).slug =
               normalizedSlug;
+            // Purge a leftover config tree for the slug NOW, while no
+            // organization owns it, instead of in the scaffold job: the job
+            // runs after the create returns, and a purge there wipes any
+            // config the new organization was already given. Non-fatal — the
+            // scaffold's fill keeps a refused purge's files either way.
+            try {
+              await clearOrgConfigLeftovers(normalizedSlug);
+            } catch (error) {
+              console.error(
+                '[beforeCreateOrganization] failed to clear leftover config',
+                error instanceof Error ? error.message : error,
+              );
+            }
           },
           beforeUpdateOrganization: async (data) => {
             // Re-run the create-time guards on update so a rename can't
@@ -1675,18 +1692,15 @@ export function createAuth(config: AuthConfig) {
           afterCreateOrganization: async (data) => {
             const slug = data.organization.slug;
             if (slug) {
-              // Scaffold is filesystem work → a worker job (idempotent
-              // per-domain, singletonKey dedupes create-path retries). The
-              // 0.4 follow-ups — configCache sync (dead in 0.5), default
-              // automations, starter content — land with their domains.
+              // Scaffold is filesystem work → a worker job (fills in only
+              // missing catalog files, singletonKey dedupes create-path
+              // retries). It never purges: beforeCreateOrganization already
+              // did, and config written before the job runs must survive.
               try {
                 await addJobInTx(
                   sql,
                   'org.scaffold',
-                  {
-                    orgSlug: slug,
-                    cleanFirst: true,
-                  },
+                  orgCreateScaffoldPayload(slug),
                   { singletonKey: `org-scaffold:${slug}` },
                 );
               } catch (error) {

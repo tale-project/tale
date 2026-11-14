@@ -154,6 +154,7 @@ import { checkMemberAccountAuthority } from './domains/members/authority.integra
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
+import { orgCreateScaffoldPayload } from './domains/organizations/scaffold.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
 import { checkManagedInstructions } from './domains/projects/managed-instructions.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
@@ -34906,10 +34907,9 @@ async function checkProvisioning(sql: Sql): Promise<void> {
       else process.env.TALE_PROVISIONING_DISABLED = before;
     }
   };
-  const scaffoldError = await runScaffold({
-    orgSlug: 'itest-provision',
-    cleanFirst: true,
-  });
+  const scaffoldError = await runScaffold(
+    orgCreateScaffoldPayload('itest-provision'),
+  );
   const automations = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.automations
     WHERE org_id = ${orgId}
@@ -64629,9 +64629,9 @@ async function checkOrganizationLifecycle(
   const slugB = `itest-life-b-${orgSuffix}`;
   const orgA = await createOrg(owner.cookie, 'Life A', slugA);
   const orgB = await createOrg(owner.cookie, 'Life B', slugB);
-  // Creation asynchronously scaffolds each org with cleanFirst. Its worker
-  // must finish before the markers below, or it can remove the very tree
-  // this lane is checking while the retirement assertions run.
+  // Creation asynchronously scaffolds each org. Let its worker settle the
+  // tree before the markers below, so the retirement assertions read a tree
+  // no job is still writing into.
   const scaffoldsDrained =
     (await awaitOrgScaffold(sql, slugA)) &&
     (await awaitOrgScaffold(sql, slugB));

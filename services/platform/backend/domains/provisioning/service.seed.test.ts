@@ -34,7 +34,8 @@ vi.mock('../tasks/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../tasks/service.ts')>()),
   createTask: h.createTask,
 }));
-vi.mock('../organizations/scaffold.ts', () => ({
+vi.mock('../organizations/scaffold.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../organizations/scaffold.ts')>()),
   scaffoldNewOrganization: h.scaffoldNewOrganization,
 }));
 vi.mock('../../jobs/enqueue.ts', async (importOriginal) => ({
@@ -44,6 +45,7 @@ vi.mock('../../jobs/enqueue.ts', async (importOriginal) => ({
 
 import { createTaskList } from '../../jobs/task-list.ts';
 import { provisionAllOrganizations } from '../control/service.ts';
+import { orgCreateScaffoldPayload } from '../organizations/scaffold.ts';
 import { seedStarterContent } from './service.ts';
 import { EXAMPLE_TASKS } from './starter-content.ts';
 
@@ -114,10 +116,10 @@ describe('a new organization', () => {
     expect(handler).toBeDefined();
 
     // What the organization's creation queues.
-    await handler?.({ orgSlug: 'ada', cleanFirst: true });
+    await handler?.(orgCreateScaffoldPayload('ada'));
 
     expect(h.scaffoldNewOrganization).toHaveBeenCalledWith(
-      expect.objectContaining({ orgSlug: 'ada', cleanFirst: true }),
+      expect.objectContaining({ orgSlug: 'ada', fillMissing: true }),
     );
     expect(h.createProject).toHaveBeenCalledTimes(1);
     expect(h.createTask).toHaveBeenCalledTimes(EXAMPLE_TASKS.length);
