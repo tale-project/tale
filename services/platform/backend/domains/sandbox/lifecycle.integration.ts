@@ -118,6 +118,14 @@ export async function checkSandboxLifecycle(
     await second<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
   )[0]?.pid;
   if (secondPid === undefined) throw new Error('missing lifecycle pool PID');
+  // This lane runs every pin delivery of its sessions by hand. A pin or
+  // reconcile queues a `sandbox.sync_pin` job due at once, and the real
+  // worker would take it too: its production spawner client fails without
+  // SANDBOX_TOKEN, but it holds the session's lifecycle lock meanwhile. The
+  // stale-pin reconcile only tries that lock, so a delivery landing on it
+  // read `skipped` instead of `unpinned`. No worker takes this lane's jobs;
+  // the cleanup deletes them before the worker starts again.
+  const restorePinWorker = await stopQueueWorker(sql, boss, 'sandbox.sync_pin');
   try {
     await sql`
       INSERT INTO app.sandbox_sessions (
@@ -397,6 +405,21 @@ export async function checkSandboxLifecycle(
         `outcome=${repaired}, remote=${remotePinned}, row=${retained?.status}`,
       );
     }
+    // The fence, observed: past a worker's fallback poll, every delivery
+    // this session queued is still waiting, none was taken.
+    await delay(2_500);
+    const handDriven = await sql<{ queued: number; taken: number }[]>`
+      SELECT count(*) FILTER (WHERE state = 'created')::int AS queued,
+             count(*) FILTER (WHERE state <> 'created')::int AS taken
+      FROM pgboss.job WHERE name = 'sandbox.sync_pin'
+        AND data ->> 'organizationId' = ${orgId}
+        AND data ->> 'sessionId' = ${sessionId}
+    `;
+    record(
+      'sandbox lifecycle: no real worker takes a pin delivery the lane runs by hand',
+      (handDriven[0]?.queued ?? 0) > 0 && handDriven[0]?.taken === 0,
+      `queued=${handDriven[0]?.queued}, taken=${handDriven[0]?.taken} (want >0, 0)`,
+    );
     await reset();
 
     // A delayed fixture is never picked up by the real worker. The
@@ -509,6 +532,7 @@ export async function checkSandboxLifecycle(
     await sql`DELETE FROM app.sandbox_session_ops WHERE org_id = ${orgId}`;
     await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${orgId}`;
     await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${orgId}`;
+    await restorePinWorker();
   }
 }
 
@@ -733,22 +757,31 @@ async function withoutDestroyWorker(
   boss: PgBoss,
   check: () => Promise<void>,
 ): Promise<void> {
-  const queue = 'sandbox.destroy_session';
-  const handler = createTaskList({ sql })[queue];
-  if (handler === undefined) throw new Error(`no handler for ${queue}`);
-  let fenced = false;
+  const restore = await stopQueueWorker(sql, boss, 'sandbox.destroy_session');
   try {
-    await boss.offWork(physicalTaskQueue(queue), { wait: true });
-    fenced = true;
     await check();
   } finally {
-    if (fenced)
-      await startWorker({
-        boss,
-        concurrency: 4,
-        taskList: { [queue]: handler },
-      });
+    await restore();
   }
+}
+
+/** Stop the real worker of one task queue; the returned function starts it
+ * again. Every other real worker stays available. */
+async function stopQueueWorker(
+  sql: Sql,
+  boss: PgBoss,
+  queue: 'sandbox.destroy_session' | 'sandbox.sync_pin',
+): Promise<() => Promise<void>> {
+  const handler = createTaskList({ sql })[queue];
+  if (handler === undefined) throw new Error(`no handler for ${queue}`);
+  await boss.offWork(physicalTaskQueue(queue), { wait: true });
+  return async () => {
+    await startWorker({
+      boss,
+      concurrency: 4,
+      taskList: { [queue]: handler },
+    });
+  };
 }
 
 /**
