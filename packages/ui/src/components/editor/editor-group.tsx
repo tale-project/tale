@@ -97,7 +97,7 @@ function GroupActiveRegistrar({
  * identically whether it is the only editor on a page or one of several.
  *
  * Mirrors `useRegisterActiveEditor`'s update contract: re-registers only when
- * the controller's status booleans change, while `save`/`reset` stay current
+ * the controller's status (its booleans and `invalidReason`) changes, while `save`/`reset` stay current
  * through the hooks' internal refs.
  */
 export function useRegisterGroupedEditor(
@@ -136,6 +136,7 @@ export function useRegisterGroupedEditor(
     controller.isSaving,
     controller.isValid,
     controller.isLoading,
+    controller.invalidReason,
   ]);
 
   // Cleanup on unmount AND whenever `enabled` flips false — its dep change
