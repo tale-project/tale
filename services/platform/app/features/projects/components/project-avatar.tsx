@@ -142,8 +142,12 @@ export interface ProjectAvatarProps {
    * in dense lists where many side-by-side colored chips would crowd the
    * eye (e.g. Home's project rows and chat markers, where the row is already
    * named and the icon is just a glanceable marker).
+   *
+   * `'inline'`: just the icon at the size of a toolbar icon (16 px) in the
+   * surrounding text colour, no background. Use inside a ghost button beside
+   * its other icons, so the glyph neither shrinks nor greys out.
    */
-  variant?: 'filled' | 'plain';
+  variant?: 'filled' | 'plain' | 'inline';
   className?: string;
 }
 
@@ -173,7 +177,11 @@ export function ProjectAvatar({
   const surfaceClasses =
     variant === 'plain'
       ? 'text-muted-foreground'
-      : cn(SIZE_CLASSES[size], resolveColor(color));
+      : variant === 'inline'
+        ? undefined
+        : cn(SIZE_CLASSES[size], resolveColor(color));
+  const iconSizeClass =
+    variant === 'inline' ? 'size-4' : ICON_SIZE_CLASSES[size];
   return (
     <span
       {...(label !== undefined
@@ -185,7 +193,7 @@ export function ProjectAvatar({
         className,
       )}
     >
-      <IconComponent className={ICON_SIZE_CLASSES[size]} />
+      <IconComponent className={iconSizeClass} />
     </span>
   );
 }
