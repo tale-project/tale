@@ -41,3 +41,5 @@ A dialog that closes after the request returns focus to the control that opened 
 ## Say why Save is off
 
 While a check reports errors, the host sets its editor controller's `isValid` to `false` and its `invalidReason` to a sentence such as "Fix 1 error to save". `EditorActions` keeps **Save** focusable and shows the reason as its tooltip on hover and keyboard focus. In a sheet or on a phone, where nothing hovers, pass `inlineReason`: the reason becomes a visible line before the buttons, and **Save** is described by it. The reason appears only when the edits are unsaved and no save or load is running, so it is never shown for an unchanged form.
+
+`useFormEditor` supplies the reason itself whenever its schema fails: "Fix the invalid fields to save." A field's own error stays hidden until the field is left, so that line is what tells the reader why Save is off. `useComposedEditor` (an `EditorGroup`) passes on the reason of the first dirty section that blocks the save.
