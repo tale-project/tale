@@ -565,6 +565,10 @@ describe('BlankAutomationDialog starting model', () => {
       'aria-disabled',
       'true',
     );
+    // Starts on the first direct-served entry on offer, not a subscription.
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveTextContent('anthropic/claude-fable-5');
     // Editable: the author can still pick another model.
     await user.click(screen.getByRole('button', { name: /Agent model/i }));
     await user.click(
