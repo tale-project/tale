@@ -60,13 +60,17 @@
 
 import { randomUUID } from 'node:crypto';
 import {
+  link,
   lstat,
+  mkdir,
+  open,
   readdir,
   readFile,
   realpath,
   rename,
   rm,
   stat,
+  unlink,
 } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -247,9 +251,21 @@ async function writeFileFromCatalog(
   src: string,
   dst: string,
   domain?: ConfigDomain,
+  keepExisting = false,
 ): Promise<void> {
   const buf = await readFile(src);
   const name = path.basename(src);
+  if (keepExisting) {
+    if (
+      (name.endsWith('.yml') || name.endsWith('.json')) &&
+      domain &&
+      !catalogConfigFileIsValid(domain, name, buf.toString('utf-8'))
+    ) {
+      return;
+    }
+    await publishIfAbsent(dst, buf);
+    return;
+  }
   if (name.endsWith('.yml') || name.endsWith('.json')) {
     const text = buf.toString('utf-8');
     if (domain && !catalogConfigFileIsValid(domain, name, text)) {
@@ -264,6 +280,62 @@ async function writeFileFromCatalog(
     await atomicWrite(dst, buf.toString('utf-8'));
   } else {
     await atomicWriteBuffer(dst, buf);
+  }
+}
+
+/**
+ * Write `content` to `dst` only if nothing is there, atomically: the bytes
+ * go to a temp file that is then hard-linked into place, and `link` refuses
+ * an existing target. A fill's existence check alone leaves a window in
+ * which a config writer (holding its per-domain lock, which the scaffold's
+ * `'org'` lock does not exclude) can save the same file and have it replaced
+ * by the catalog copy. A filesystem without hard links falls back to a
+ * re-check and a rename, which narrows that window but cannot close it.
+ */
+async function publishIfAbsent(dst: string, content: Buffer): Promise<void> {
+  const dir = path.dirname(dst);
+  await mkdir(dir, { recursive: true });
+  const tmpPath = path.join(
+    dir,
+    `.${path.basename(dst)}.${Date.now()}.${randomUUID().slice(0, 8)}.tmp`,
+  );
+  const fd = await open(tmpPath, 'wx');
+  let renamed = false;
+  try {
+    try {
+      await fd.writeFile(content);
+      await fd.sync();
+    } finally {
+      await fd.close();
+    }
+    try {
+      await link(tmpPath, dst);
+    } catch (err) {
+      const code = errnoCode(err);
+      if (code === 'EEXIST') return;
+      if (code !== 'EPERM' && code !== 'ENOTSUP' && code !== 'EOPNOTSUPP') {
+        throw err;
+      }
+      console.warn(
+        '[scaffold.publishIfAbsent] hard links unsupported, falling back to rename:',
+        dst,
+      );
+      if (await pathExists(dst)) return;
+      await rename(tmpPath, dst);
+      renamed = true;
+    }
+  } finally {
+    if (!renamed) {
+      await unlink(tmpPath).catch((err: unknown) => {
+        if (errnoCode(err) !== 'ENOENT') {
+          console.warn(
+            '[scaffold.publishIfAbsent] temp cleanup failed:',
+            tmpPath,
+            err,
+          );
+        }
+      });
+    }
   }
 }
 
@@ -352,7 +424,7 @@ async function copyTree(
     }
 
     if (!info.isFile()) continue;
-    await writeFileFromCatalog(src, dst, domain);
+    await writeFileFromCatalog(src, dst, domain, keepExisting);
   }
 }
 

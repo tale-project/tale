@@ -18,6 +18,24 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+/** Runs once just before the scaffold opens the temp file of a catalog
+ *  copy — the moment after its existence check, when a config writer can
+ *  still save the same file. */
+let beforeTempOpen: ((tmpPath: string) => Promise<void>) | undefined;
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  const open: typeof actual.open = async (...args) => {
+    const hook = beforeTempOpen;
+    if (hook && String(args[0]).endsWith('.tmp')) {
+      beforeTempOpen = undefined;
+      await hook(String(args[0]));
+    }
+    return actual.open(...args);
+  };
+  return { ...actual, default: { ...actual, open }, open };
+});
+
 import { scaffoldOrgFromCatalog } from '../../core/organizations/scaffold.ts';
 import {
   clearOrgConfigLeftovers,
@@ -70,6 +88,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  beforeTempOpen = undefined;
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
   await rm(root, { recursive: true, force: true });
@@ -99,6 +118,23 @@ describe('creating an organization', () => {
 
     await runCreateScaffold();
 
+    expect(await readOrNull(governanceFile('retention.yml'))).toBe(
+      'auditLog:\n  default: 90\n',
+    );
+  });
+
+  it('keeps a catalog-named file a writer saves while the scaffold job is copying it', async () => {
+    await clearOrgConfigLeftovers(SLUG);
+    beforeTempOpen = async () => {
+      await write(
+        governanceFile('retention.yml'),
+        'auditLog:\n  default: 90\n',
+      );
+    };
+
+    await runCreateScaffold();
+
+    expect(beforeTempOpen).toBeUndefined();
     expect(await readOrNull(governanceFile('retention.yml'))).toBe(
       'auditLog:\n  default: 90\n',
     );
