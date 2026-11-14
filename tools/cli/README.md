@@ -601,7 +601,9 @@ An `agent-tools` resource adopts an existing `projectId` and `agentId` with a
 complete desired `tools` array. Keep every existing grant you intend to retain:
 the array replaces the tool set. The native catalog validates every name, removes
 duplicates and orders grants consistently before hashing. Unknown names fail;
-they are never silently removed. For example, this declaration equips one
+they are never silently removed. An optional `labelGrants` names the project labels the
+agent's `task_set_labels` tool may set, each in the project's spelling; left out, it keeps what
+is stored. For example, this declaration equips one
 existing reviewer with task lookup and independent review:
 
 ```json
