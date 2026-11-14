@@ -4,7 +4,7 @@ description: "Compare Tale and Relevance AI for agent workforces. Evaluate proce
 competitor: "Relevance AI"
 slug: "tale-vs-relevance-ai"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,13 +14,13 @@ An agent workforce needs more than a set of prompts. Your team needs to decide w
 
 | Criterion | Tale | Relevance AI |
 | --- | --- | --- |
-| Starting point | A shared project board with tasks, owners, instructions, files and review. | Turning team expertise into automated systems and agent workforces. |
-| Coordination | Specialist agents, equipped manager agents and versioned automations for repeatable work. | Deployment and training assistance alongside evaluations, monitoring and governance. |
-| Pilot focus | Test how teammates change priorities and review individual task outputs. | Test who changes the recurring process and handles exceptions after training. |
+| Starting point | A shared project board with tasks, owners, instructions, files and review. | AI workforces built from your processes, with specialist agents managed by an orchestrating agent. |
+| Coordination | Specialist agents, equipped manager agents and versioned automations for repeatable work. | Specialist agents wired to triggers, with quality checks and monitoring against a bar you set. |
+| Pilot focus | Test how teammates change priorities and review individual task outputs. | Test who changes the recurring process and handles exceptions after the agents are live. |
 
 ## Start with the process you want to own
 
-Relevance AI's current offering emphasizes turning team expertise into automated systems and agent workforces. Its site describes assistance with deployment and training, alongside evaluations, monitoring, and governance. Examples include account research, meeting preparation, and sales follow-up. [Explore Relevance AI](https://relevanceai.com/).
+Relevance AI's Invent offering creates and optimizes AI workforces for business functions, with enterprise-class governance. It hires a specialist agent for each job, wires triggers and tools, and checks every agent against a quality bar before it touches live work. Its page describes sampling live runs and tuning an agent when its quality drifts. [Relevance AI Invent](https://relevanceai.com/invent).
 
 Tale provides a project board where your team can make the work explicit: tasks, owners, instructions, files, and review. You can configure specialist agents and give a manager the tools to delegate ready work. The team can inspect individual outputs and steer tasks as priorities change. Repeatable processes can be expressed as versioned automations. Read [Tale's task automation guide](https://docs.tale.dev/platform/projects/task-automation).
 
@@ -32,8 +32,8 @@ Assess who can change the process, how the exception reaches the right person, a
 
 ## Match the operating responsibility
 
-Evaluate Relevance AI if building departmental agent systems with deployment support is your preferred path. Evaluate Tale if you want to coordinate the fleet through shared projects and keep task ownership visible to the people doing the work. For either choice, agree on the operator, access rules, and success criteria before expanding the pilot; the number of agents is not a measure of a completed business outcome.
+Evaluate Relevance AI if building departmental agent systems with its managed orchestration is your preferred path. Evaluate Tale if you want to coordinate the fleet through shared projects and keep task ownership visible to the people doing the work. For either choice, agree on the operator, access rules, and success criteria before expanding the pilot; the number of agents is not a measure of a completed business outcome.
 
 [Explore agent coordination in a Tale demo](https://tale.dev/request-demo).
 
-Public documentation reviewed on 3 October 2026; no hands-on comparison or performance test.
+Public documentation reviewed on 14 November 2026; no hands-on comparison or performance test.

@@ -1,10 +1,10 @@
 ---
-title: "Tale vs Open WebUI — KI-Zugang und Projektarbeit"
-description: "Vergleiche Tale und Open WebUI für dein Team: Modellzugang, Erweiterungen, zugewiesene Projektarbeit und der Weg von einer Anfrage zum Ergebnis."
+title: "Tale vs Open WebUI — wähle deinen KI-Arbeitsbereich"
+description: "Vergleiche Tale und Open WebUI für die KI-Einführung im Team. Prüfe Modellzugang, Erweiterbarkeit, Projektarbeit und den Weg vom Prompt zum Ergebnis."
 competitor: "Open WebUI"
 slug: "tale-vs-open-webui"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,13 +14,13 @@ Eine gemeinsame Oberfläche für Modelle und ein gemeinsamer Ort für Agentenarb
 
 | Kriterium | Tale | Open WebUI |
 | --- | --- | --- |
-| Ausgangspunkt | Projektaufgaben mit Agentenzuweisung, Diskussionen und Ergebnisprüfung. | Eine selbst gehostete KI-Plattform für lokale und Cloud-Modelle. |
-| Ausführung | Konfigurierte Agenten bearbeiten Dateien in persistenten Arbeitsbereichen. | Retrieval, Tools, Python-Erweiterungen, Tool-Aufruf-Freigaben und Dateiarbeit im Terminal. |
+| Ausgangspunkt | Projektaufgaben mit Agentenzuweisung, Diskussionen und Ergebnisprüfung. | Eine selbst gehostete KI-Plattform, die Modelle verbindet und mit Werkzeugen und Python erweitert wird. |
+| Ausführung | Konfigurierte Agenten bearbeiten Dateien in persistenten Arbeitsbereichen. | Das Open Terminal führt Befehle aus und verwaltet Dateien für die KI, neben Werkzeugen und Python-Erweiterungen. |
 | Was du betreibst | Einen Projektablauf mit vorbereiteten Runtimes, Tools und Ausführungskapazität. | Eine gemeinsame Modelloberfläche mit gewählten Erweiterungen und Zugriffskontrollen. |
 
 ## Modellzugang oder Projektkoordination als Ausgangspunkt
 
-Open WebUI ist eine selbst gehostete KI-Plattform für lokale Modelle und Cloud-Modelle. Die Website beschreibt Wissensabruf, Werkzeuge, Python-Erweiterungen und Zugriffssteuerung für Unternehmen. Neuere Versionen nennen auch Freigaben für Werkzeugaufrufe und Dateiverwaltung im Terminal. Das Produkt ist mehr als eine einfache Chat-Oberfläche. Siehe [Open WebUI](https://openwebui.com/) und die [Dokumentation zur Ausführung](https://docs.openwebui.com/).
+Open WebUI verbindet Ollama, OpenAI, Anthropic und jeden OpenAI-kompatiblen Anbieter über eine Oberfläche. Die Dokumentation beschreibt Werkzeuge, Python-Erweiterungen und ein Open Terminal, in dem die KI Befehle ausführt und mit Dateien arbeitet. Der Betrieb ist mit Docker, Kubernetes, pip oder auf dem Host möglich; SSO, RBAC und feingranulare Zugriffskontrollen gelten für Modelle, Wissensbasen und Werkzeuge. Es ist mehr als eine einfache Chat-Oberfläche. Siehe [Funktionen von Open WebUI](https://docs.openwebui.com/features/) und [Authentifizierung und Zugriff](https://docs.openwebui.com/features/authentication-access/).
 
 Tale organisiert die Ausführung über Projekte und Aufgaben. Du kannst einen Agenten mit einer Tabellenanalyse, Dokumentation oder einem internen Werkzeug beauftragen und die Ergebnisse mit Kollegen besprechen und prüfen. Dauerhafte Arbeitsbereiche halten die Dateien zwischen Ausführungen vor. Ein Manager-Agent kann mit den erforderlichen Werkzeugen bereite Aufgaben delegieren; konfigurierte Grenzen bestimmen die Ausführung. Siehe [Aufgabenkoordination in Tale](https://docs.tale.dev/de/platform/projects/task-automation).
 
@@ -36,4 +36,4 @@ Prüfe Open WebUI, wenn du vor allem einen gemeinsamen Modellzugang kontrolliere
 
 [Tales Projektablauf in einer Demo ansehen](https://tale.dev/de/request-demo).
 
-Öffentliche Dokumentation, geprüft am 3. Oktober 2026; kein praktischer Leistungsvergleich.
+Öffentliche Dokumentation, geprüft am 14. November 2026; kein praktischer Leistungsvergleich.
