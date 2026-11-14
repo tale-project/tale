@@ -4,7 +4,7 @@ description: "Vergleiche Tale und OpenClaw auf der passenden Ebene: Assistenz-La
 competitor: "OpenClaw"
 slug: "tale-vs-openclaw"
 relationship: "runtime"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Tale und OpenClaw sind nicht immer Alternativen. Tale führt OpenClaw als unters
 
 ## Unterschiedliche Ebenen vergleichen
 
-OpenClaw stellt einen Assistenten über Nachrichtenkanäle mit Browser-, Datei- und Shell-Aktionen bereit. Die aktuelle Dokumentation beschreibt auch gemeinsame Gateway-Sitzungen, die Teammitglieder öffnen und steuern können. Eine Darstellung als ausschließlich persönlicher Assistent ohne Zusammenarbeit wäre zu eng. Siehe die [OpenClaw-Website](https://openclaw.ai/), den [Mehrbenutzermodus](https://docs.openclaw.ai/concepts/multi-user) und die [Dokumentation zum gemeinsamen Chat](https://docs.openclaw.ai/web/control-ui/chat).
+OpenClaw stellt einen Assistenten über Nachrichtenkanäle mit Browser-, Datei- und Shell-Aktionen bereit. Die [Kanal-Dokumentation](https://docs.openclaw.ai/channels) beschreibt diese Zugänge. Die aktuelle Dokumentation beschreibt auch gemeinsame Gateway-Sitzungen, die Teammitglieder öffnen und steuern können. Eine Darstellung als ausschließlich persönlicher Assistent ohne Zusammenarbeit wäre zu eng. Siehe den [Mehrbenutzermodus](https://docs.openclaw.ai/concepts/multi-user) und die [Dokumentation zum gemeinsamen Chat](https://docs.openclaw.ai/web/control-ui/chat). Die Seite zum Mehrbenutzermodus hält außerdem fest, dass jede Person, die einen Agenten bedienen kann, damit alles tun kann, was dieser Agent kann; Sitzungsbesitz und Anwesenheitsanzeigen sind Bedienhilfen, keine Sicherheitsgrenzen.
 
 Tale liefert Projekte, Aufgabenzuweisung, Agentenkonfiguration und die Prüfung von Berichten und Ergebnissen. Eine in Tale konfigurierte OpenClaw-Laufzeit folgt Tales unterstütztem Harness-Verhalten. Dadurch erscheinen nicht automatisch sämtliche OpenClaw-Kanäle oder Gateway-Funktionen in der Projektoberfläche. Prüfe Zugangsdaten, Tools und Sandbox-Verhalten für den geplanten Betrieb.
 
@@ -32,4 +32,4 @@ Teile eine Teamrecherche in Belegsammlung und Entscheidungsvorlage auf. Verwende
 
 Vergleiche Zuständigkeit, Sichtbarkeit und den Aufwand, das akzeptierte Ergebnis zu finden. Prüfe außerdem, was zwischen Läufen erhalten bleibt und welcher Kontext ausdrücklich übergeben wird. Tales Projektkontext und OpenClaws eigenes Gedächtnis sind unterschiedliche Konzepte. Eine kompatible Laufzeit belegt eine Anbindung, aber kein identisches Verhalten in jeder Ausführungsumgebung.
 
-Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/agents/harnesses) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
+Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/agents/harnesses) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 14. November 2026, und ist kein praktischer Benchmark.

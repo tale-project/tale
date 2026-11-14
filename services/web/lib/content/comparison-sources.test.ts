@@ -14,7 +14,12 @@ import { readMarketingContent } from './server';
  * every guide is listed, the list can go.
  */
 const SOURCED_GUIDES = [
+  'tale-vs-chatgpt',
+  'tale-vs-claude',
   'tale-vs-flowise',
+  'tale-vs-multica',
+  'tale-vs-openclaw',
+  'tale-vs-v0',
   'tale-vs-vellum',
   'tale-vs-vibe-kanban',
 ] as const;

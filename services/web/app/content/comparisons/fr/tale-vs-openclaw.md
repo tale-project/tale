@@ -1,10 +1,10 @@
 ---
 title: "Tale vs OpenClaw — assistant et projets d’équipe"
-description: "Compare Tale et OpenClaw au bon niveau : environnement d’assistant et espace de projet partagé, avec la possibilité de les utiliser ensemble."
+description: "Compare Tale et OpenClaw au bon niveau : environnement d’assistant et espace de projet partagé, avec la possibilité de les utiliser ensemble."
 competitor: "OpenClaw"
 slug: "tale-vs-openclaw"
 relationship: "runtime"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -16,11 +16,11 @@ Tale et OpenClaw ne sont pas toujours des alternatives. Tale inclut OpenClaw par
 | --- | --- | --- |
 | Niveau du produit | Un espace de projet partagé qui prend en charge OpenClaw comme runtime d’agent. | Un runtime d’assistant accessible via des canaux de messagerie et son propre environnement. |
 | Interaction en équipe | Attribution des tâches, configuration des agents et validation des rapports et livrables. | Sessions partagées de passerelle documentées, que les collègues peuvent ouvrir et piloter. |
-| Limite de compatibilité | Comportement de l’intégration prise en charge ; vérifier outils, identifiants et sandbox. | L’usage direct garde ses canaux et son modèle de mémoire ; Tale ne les importe pas automatiquement. |
+| Limite de compatibilité | Comportement de l’intégration prise en charge ; vérifier outils, identifiants et sandbox. | L’usage direct garde ses canaux et son modèle de mémoire ; Tale ne les importe pas automatiquement. |
 
 ## Comparer des couches différentes
 
-OpenClaw présente un assistant accessible par des canaux de messagerie, avec actions dans le navigateur, sur les fichiers et dans le shell. Sa documentation actuelle décrit aussi des sessions de gateway partagées que les collègues peuvent ouvrir et orienter. Le qualifier de strictement personnel ou sans collaboration serait réducteur. Consulte le [site OpenClaw](https://openclaw.ai/), le [mode multi-utilisateur](https://docs.openclaw.ai/concepts/multi-user) et la [documentation du chat partagé](https://docs.openclaw.ai/web/control-ui/chat).
+OpenClaw présente un assistant accessible par des canaux de messagerie, avec actions dans le navigateur, sur les fichiers et dans le shell. [La documentation des canaux](https://docs.openclaw.ai/channels) décrit ces points d’entrée. Sa documentation actuelle décrit aussi des sessions de gateway partagées que les collègues peuvent ouvrir et orienter. Le qualifier de strictement personnel ou sans collaboration serait réducteur. Consulte le [mode multi-utilisateur](https://docs.openclaw.ai/concepts/multi-user) et la [documentation du chat partagé](https://docs.openclaw.ai/web/control-ui/chat). La page sur le mode multi-utilisateur précise aussi que quiconque peut faire fonctionner un agent peut lui faire faire tout ce qu’il peut faire ; la propriété des sessions et la présence sont des aides d’usage, non des frontières de sécurité.
 
 Tale fournit projets, attribution des tâches, configuration des agents et examen des rapports et livrables. OpenClaw configuré dans Tale suit le comportement pris en charge par cette intégration. Cela n’importe pas automatiquement tous les canaux ou fonctions du gateway OpenClaw dans l’interface du projet. Vérifie accès, outils et comportement du sandbox pour le déploiement prévu.
 
@@ -32,4 +32,4 @@ Divise une recherche d’équipe en collecte de preuves et note de décision. Po
 
 Compare responsabilité, visibilité et effort pour retrouver le résultat accepté. Vérifie aussi ce qui persiste entre les exécutions et le contexte fourni explicitement. Le contexte de projet Tale et la mémoire propre à OpenClaw sont distincts. La compatibilité prouve une intégration, pas un comportement identique dans tous les environnements.
 
-Consulte le [guide Tale correspondant](https://docs.tale.dev/fr/platform/agents/harnesses) ou [demande une démo](https://tale.dev/fr/request-demo) avec ta propre tâche d’évaluation. Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.
+Consulte le [guide Tale correspondant](https://docs.tale.dev/fr/platform/agents/harnesses) ou [demande une démo](https://tale.dev/fr/request-demo) avec ta propre tâche d’évaluation. Cette comparaison s’appuie sur la documentation publique examinée le 14 novembre 2026, sans test comparatif pratique.
