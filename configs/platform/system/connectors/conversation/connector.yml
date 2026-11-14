@@ -80,6 +80,57 @@ actions:
           },
         ],
       };
+    scenarios:
+      - name: mail_read
+        kind: success
+        description: 'The mailbox has three new emails, two in the Inbox and one in Sent, and all three are read and stored.'
+        output:
+          listed: 3
+          inbound:
+            created: true
+            processedCount: 2
+            skippedCount: 0
+            conversationIds: [conv_example_1, conv_example_2]
+          sent:
+            created: false
+            processedCount: 1
+            skippedCount: 0
+            conversationIds: [conv_example_1]
+          mailboxes:
+            - mailbox: default
+              ok: true
+              listed: 3
+              fetched: 3
+              ingested: 3
+              duplicates: 0
+              skipped: 0
+              vanished: 0
+              capped: false
+      - name: already_read
+        kind: duplicate
+        description: 'A second pass reads the same two Inbox emails again, and stores neither of them twice.'
+        output:
+          listed: 2
+          inbound:
+            created: false
+            processedCount: 0
+            skippedCount: 0
+            conversationIds: []
+          mailboxes:
+            - mailbox: default
+              ok: true
+              listed: 2
+              fetched: 2
+              ingested: 0
+              duplicates: 2
+              skipped: 0
+              vanished: 0
+              capped: false
+      - name: no_mailbox
+        kind: refusal
+        description: 'No imap-smtp mailbox is connected to the organization, so the pass has nothing to read.'
+        error:
+          message: 'conversation.sync_mailbox: no active imap-smtp mailbox is connected; connect one in Settings › Connectors'
     backend:
       kind: native
       impl: conversation.sync_mailbox
@@ -123,6 +174,28 @@ actions:
           },
         ],
       };
+    scenarios:
+      - name: messages_listed
+        kind: success
+        description: 'The mailbox answers its newest inbox message, which carries its sender and subject.'
+        output:
+          messages:
+            - id: msg_example_1
+              uid: msg_example_1
+              subject: Example order question
+              from: customer@example.com
+              sentAt: 1767225600000
+              credentialName: default
+      - name: no_messages
+        kind: empty
+        description: 'The mailbox has no inbox messages to list.'
+        output:
+          messages: []
+      - name: mailbox_failed
+        kind: error
+        description: 'The only imap-smtp mailbox fails its listing when the mail server closes the connection.'
+        error:
+          message: 'conversation.list_mailbox_messages: every imap-smtp mailbox failed (default: the server closed the connection)'
     backend:
       kind: native
       impl: conversation.list_mailbox_messages
@@ -170,6 +243,32 @@ actions:
           },
         ],
       };
+    scenarios:
+      - name: waiting_conversation
+        kind: success
+        description: 'One open conversation is waiting on the team, and its newest message is the customer''s question.'
+        output:
+          conversations:
+            - conversationId: conv_example_1
+              subject: Example order question
+              contact:
+                name: Example Customer
+                email: customer@example.com
+              lastInboundAt: '2026-01-01T00:00:00.000Z'
+              lastInboundText: Example question about a delivery date.
+              unreadCount: 1
+              assigned: false
+              url: /dashboard/org/conversations/open?conversation=conv_example_1
+      - name: nothing_waiting
+        kind: empty
+        description: 'No open conversation is waiting on the team.'
+        output:
+          conversations: []
+      - name: database_lost
+        kind: error
+        description: 'The Inbox database drops its connection before it answers the query.'
+        error:
+          message: 'write CONNECTION_ENDED db.example.internal:5432'
     backend:
       kind: native
       impl: conversation.list_untriaged
@@ -217,6 +316,28 @@ actions:
     mock: |
       const verdicts = Array.isArray(input.verdicts) ? input.verdicts : [];
       return { recorded: verdicts.length, prioritized: verdicts.filter((v) => v && v.priority).length, unknown: [] };
+    scenarios:
+      - name: verdicts_recorded
+        kind: success
+        description: 'The verdict is stamped on the conversation, and its priority is set because no person has set one.'
+        output:
+          recorded: 1
+          prioritized: 1
+          unknown: []
+      - name: verdict_repeated
+        kind: duplicate
+        description: 'The same verdict comes again: it is stamped again, and the priority a person or the first pass set stays.'
+        output:
+          recorded: 1
+          prioritized: 0
+          unknown: []
+      - name: no_verdicts
+        kind: refusal
+        description: 'The call carries no verdict at all, which the Inbox refuses.'
+        when:
+          verdicts: []
+        error:
+          message: A triage record needs at least one verdict
     backend:
       kind: native
       impl: conversation.record_triage
@@ -263,6 +384,30 @@ actions:
         skippedCount: 0,
         conversationIds: ['conv_mock'],
       };
+    scenarios:
+      - name: email_stored
+        kind: success
+        description: 'The email starts a new conversation in the Inbox.'
+        output:
+          created: true
+          processedCount: 1
+          skippedCount: 0
+          conversationIds: [conv_example_1]
+      - name: email_already_stored
+        kind: duplicate
+        description: 'The same email comes again, and the Inbox skips it: its Message-ID is stored already.'
+        output:
+          created: false
+          processedCount: 0
+          skippedCount: 1
+          conversationIds: [conv_example_1]
+      - name: email_refused
+        kind: refusal
+        description: 'The call names emails that are neither an email nor a list of them, so the action refuses it before the ingest runs.'
+        when:
+          emails: not an email
+        error:
+          message: 'conversation.ingest_emails: emails Invalid input'
     backend:
       kind: native
       impl: conversation.ingest_emails
@@ -311,6 +456,30 @@ actions:
         skippedCount: 0,
         conversationIds: ['conv_mock'],
       };
+    scenarios:
+      - name: sent_stored
+        kind: success
+        description: 'The sent email joins an existing conversation in the Inbox.'
+        output:
+          created: false
+          processedCount: 1
+          skippedCount: 0
+          conversationIds: [conv_example_2]
+      - name: sent_already_stored
+        kind: duplicate
+        description: 'The same sent email comes again, and the Inbox skips it: its Message-ID is stored already.'
+        output:
+          created: false
+          processedCount: 0
+          skippedCount: 1
+          conversationIds: [conv_example_2]
+      - name: sent_refused
+        kind: refusal
+        description: 'The call names emails that are neither an email nor a list of them, so the action refuses it before the ingest runs.'
+        when:
+          emails: not an email
+        error:
+          message: 'conversation.ingest_sent_emails: emails Invalid input'
     backend:
       kind: native
       impl: conversation.ingest_sent_emails
@@ -363,6 +532,24 @@ actions:
     output: '{ approvalId: string, created: boolean }'
     mock: |
       return { approvalId: 'apr_mock_' + String(input.conversationId), created: true };
+    scenarios:
+      - name: draft_created
+        kind: success
+        description: 'The reply is drafted on the conversation as a pending message for a person to send.'
+        output:
+          approvalId: apr_example_1
+          created: true
+      - name: draft_pending
+        kind: duplicate
+        description: 'The conversation already carries a pending draft, so the call answers that draft and drafts nothing new.'
+        output:
+          approvalId: apr_example_1
+          created: false
+      - name: other_organization
+        kind: refusal
+        description: 'The conversation belongs to another organization, so the Inbox refuses the draft.'
+        error:
+          message: Conversation does not belong to organization
     backend:
       kind: native
       impl: conversation.draft_reply
@@ -393,6 +580,24 @@ actions:
     output: '{ since: number | null, messageId: string | null }'
     mock: |
       return { since: null, messageId: null };
+    scenarios:
+      - name: cursor_found
+        kind: success
+        description: 'The newest delivered inbound message of the mailbox is the one the cursor holds.'
+        output:
+          since: 1767225600000
+          messageId: '<msg_example_1@example.com>'
+      - name: no_cursor
+        kind: empty
+        description: 'The mailbox has never delivered an inbound message, so the cursor holds nothing.'
+        output:
+          since: null
+          messageId: null
+      - name: database_lost
+        kind: error
+        description: 'The Inbox database drops its connection before it answers the query.'
+        error:
+          message: 'write CONNECTION_ENDED db.example.internal:5432'
     backend:
       kind: native
       impl: conversation.query_sync_cursor

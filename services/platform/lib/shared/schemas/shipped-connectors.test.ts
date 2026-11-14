@@ -52,6 +52,10 @@ import {
   type SmtpSession,
 } from '../../connectors/natives/imap-smtp';
 import {
+  platformConversationNatives,
+  type WorkflowConversationStore,
+} from '../../connectors/natives/platform-conversations';
+import {
   notifyNatives,
   type WorkflowNotifyStore,
 } from '../../connectors/natives/platform-notify';
@@ -116,6 +120,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'conversation',
   'discord',
   'gmail',
   'http',
@@ -2836,20 +2841,30 @@ function mailContext(): NativeConnectorContext {
 }
 
 /** What a native action's store answers in one case: the value a store method
- * returns, or the refusal it raises. A store's answer that is a value, such as
+ * returns, the refusal it raises, or the error it raises with its message
+ * alone, which names no HTTP status. A store's answer that is a value, such as
  * `notify`'s delivered-or-refused result, is returned as it is. */
-type StoreAnswer = { returns: unknown } | { refuses: WebdavStoreErrorCode };
+type StoreAnswer =
+  | { returns: unknown }
+  | { refuses: WebdavStoreErrorCode }
+  | { throws: string };
 
 /** A store method a native case answers: each method of the stores the native
- * connectors read (WebDAV's document store, the notification store). */
-type NativeCall = keyof WebdavStore | keyof WorkflowNotifyStore;
+ * connectors read (WebDAV's document store, the notification store, the
+ * conversation store). */
+type NativeCall =
+  | keyof WebdavStore
+  | keyof WorkflowNotifyStore
+  | keyof WorkflowConversationStore;
 
 /** One case of a native action: the store method it calls, and what the store
- * answers. A native's service is its store, so the proof is that answer. */
-interface NativeProof {
-  call: NativeCall;
-  answer: StoreAnswer;
-}
+ * answers. A native's service is its store, so the proof is that answer. A
+ * case the native refuses on its input before its store is reached makes no
+ * store call, and declares `storeCalls: 0` in place of a call; every other
+ * case makes one. */
+type NativeProof =
+  | { call: NativeCall; answer: StoreAnswer; storeCalls?: 1 }
+  | { storeCalls: 0 };
 
 /** The bytes a store holds for a file, as the store hands them over. */
 const storedBytes = (text: string): Uint8Array =>
@@ -3053,6 +3068,232 @@ const NOTIFY_NATIVE_PROOFS: Record<string, NativeProof> = {
   },
 };
 
+/** The lost connection a database driver throws when it cannot answer. */
+const DATABASE_LOST = 'write CONNECTION_ENDED db.example.internal:5432';
+
+/**
+ * The conversation natives' proofs, keyed `<action>/<scenario>`: what the Inbox
+ * store answers in each case, synthetic as every answer is. A refusal the
+ * native makes on its input before the store has no store call.
+ */
+const CONVERSATION_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'list_mailbox_messages/messages_listed': {
+    call: 'listMailboxMessages',
+    answer: {
+      returns: {
+        messages: [
+          {
+            id: 'msg_example_1',
+            uid: 'msg_example_1',
+            subject: 'Example order question',
+            from: 'customer@example.com',
+            sentAt: 1767225600000,
+            credentialName: 'default',
+          },
+        ],
+      },
+    },
+  },
+  'list_mailbox_messages/no_messages': {
+    call: 'listMailboxMessages',
+    answer: { returns: { messages: [] } },
+  },
+  'list_mailbox_messages/mailbox_failed': {
+    call: 'listMailboxMessages',
+    answer: {
+      throws:
+        'conversation.list_mailbox_messages: every imap-smtp mailbox failed (default: the server closed the connection)',
+    },
+  },
+  'list_untriaged/waiting_conversation': {
+    call: 'listUntriagedConversations',
+    answer: {
+      returns: {
+        conversations: [
+          {
+            conversationId: 'conv_example_1',
+            subject: 'Example order question',
+            contact: {
+              name: 'Example Customer',
+              email: 'customer@example.com',
+            },
+            lastInboundAt: '2026-01-01T00:00:00.000Z',
+            lastInboundText: 'Example question about a delivery date.',
+            unreadCount: 1,
+            assigned: false,
+            url: '/dashboard/org/conversations/open?conversation=conv_example_1',
+          },
+        ],
+      },
+    },
+  },
+  'list_untriaged/nothing_waiting': {
+    call: 'listUntriagedConversations',
+    answer: { returns: { conversations: [] } },
+  },
+  'list_untriaged/database_lost': {
+    call: 'listUntriagedConversations',
+    answer: { throws: DATABASE_LOST },
+  },
+  'query_sync_cursor/cursor_found': {
+    call: 'querySyncCursor',
+    answer: {
+      returns: {
+        since: 1767225600000,
+        messageId: '<msg_example_1@example.com>',
+      },
+    },
+  },
+  'query_sync_cursor/no_cursor': {
+    call: 'querySyncCursor',
+    answer: { returns: { since: null, messageId: null } },
+  },
+  'query_sync_cursor/database_lost': {
+    call: 'querySyncCursor',
+    answer: { throws: DATABASE_LOST },
+  },
+  'sync_mailbox/mail_read': {
+    call: 'syncMailbox',
+    answer: {
+      returns: {
+        listed: 3,
+        inbound: {
+          created: true,
+          processedCount: 2,
+          skippedCount: 0,
+          conversationIds: ['conv_example_1', 'conv_example_2'],
+        },
+        sent: {
+          created: false,
+          processedCount: 1,
+          skippedCount: 0,
+          conversationIds: ['conv_example_1'],
+        },
+        mailboxes: [
+          {
+            mailbox: 'default',
+            ok: true,
+            listed: 3,
+            fetched: 3,
+            ingested: 3,
+            duplicates: 0,
+            skipped: 0,
+            vanished: 0,
+            capped: false,
+          },
+        ],
+      },
+    },
+  },
+  'sync_mailbox/already_read': {
+    call: 'syncMailbox',
+    answer: {
+      returns: {
+        listed: 2,
+        inbound: {
+          created: false,
+          processedCount: 0,
+          skippedCount: 0,
+          conversationIds: [],
+        },
+        mailboxes: [
+          {
+            mailbox: 'default',
+            ok: true,
+            listed: 2,
+            fetched: 2,
+            ingested: 0,
+            duplicates: 2,
+            skipped: 0,
+            vanished: 0,
+            capped: false,
+          },
+        ],
+      },
+    },
+  },
+  'sync_mailbox/no_mailbox': {
+    call: 'syncMailbox',
+    answer: {
+      throws:
+        'conversation.sync_mailbox: no active imap-smtp mailbox is connected; connect one in Settings › Connectors',
+    },
+  },
+  'ingest_emails/email_stored': {
+    call: 'ingestEmails',
+    answer: {
+      returns: {
+        created: true,
+        processedCount: 1,
+        skippedCount: 0,
+        conversationIds: ['conv_example_1'],
+      },
+    },
+  },
+  'ingest_emails/email_already_stored': {
+    call: 'ingestEmails',
+    answer: {
+      returns: {
+        created: false,
+        processedCount: 0,
+        skippedCount: 1,
+        conversationIds: ['conv_example_1'],
+      },
+    },
+  },
+  // The native refuses an `emails` that is neither an email nor a list of
+  // them before the store is reached, so the case has no store call.
+  'ingest_emails/email_refused': { storeCalls: 0 },
+  'ingest_sent_emails/sent_stored': {
+    call: 'ingestSentEmails',
+    answer: {
+      returns: {
+        created: false,
+        processedCount: 1,
+        skippedCount: 0,
+        conversationIds: ['conv_example_2'],
+      },
+    },
+  },
+  'ingest_sent_emails/sent_already_stored': {
+    call: 'ingestSentEmails',
+    answer: {
+      returns: {
+        created: false,
+        processedCount: 0,
+        skippedCount: 1,
+        conversationIds: ['conv_example_2'],
+      },
+    },
+  },
+  // Refused before the store, as `ingest_emails/email_refused` is.
+  'ingest_sent_emails/sent_refused': { storeCalls: 0 },
+  'record_triage/verdicts_recorded': {
+    call: 'recordTriage',
+    answer: { returns: { recorded: 1, prioritized: 1, unknown: [] } },
+  },
+  'record_triage/verdict_repeated': {
+    call: 'recordTriage',
+    answer: { returns: { recorded: 1, prioritized: 0, unknown: [] } },
+  },
+  'record_triage/no_verdicts': {
+    call: 'recordTriage',
+    answer: { throws: 'A triage record needs at least one verdict' },
+  },
+  'draft_reply/draft_created': {
+    call: 'draftReply',
+    answer: { returns: { approvalId: 'apr_example_1', created: true } },
+  },
+  'draft_reply/draft_pending': {
+    call: 'draftReply',
+    answer: { returns: { approvalId: 'apr_example_1', created: false } },
+  },
+  'draft_reply/other_organization': {
+    call: 'draftReply',
+    answer: { throws: 'Conversation does not belong to organization' },
+  },
+};
+
 /**
  * Every listed connector's proofs. A connector whose actions call HTTP proves
  * them with the answers its live body gets, and the secrets its credential
@@ -3073,6 +3314,7 @@ type ScenarioProofs =
     };
 
 const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
+  conversation: { proofs: {}, native: CONVERSATION_NATIVE_PROOFS },
   discord: { proofs: DISCORD_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   http: { proofs: HTTP_PROOFS },
@@ -3582,7 +3824,7 @@ function answerOf(
 ): (call: NativeCall) => unknown {
   return (call) => {
     asked.push(call);
-    if (call !== proof.call) {
+    if (!('answer' in proof) || call !== proof.call) {
       throw new Error(`the proof gives no answer for ${call}`);
     }
     if ('refuses' in proof.answer) {
@@ -3591,7 +3833,51 @@ function answerOf(
         `the store refuses: ${proof.answer.refuses}`,
       );
     }
+    if ('throws' in proof.answer) throw new Error(proof.answer.throws);
     return proof.answer.returns;
+  };
+}
+
+/** A conversation store that answers each of its methods with the proof's
+ * answer for the one call the proof names, as the Inbox answers in that case. */
+function conversationStoreOf(
+  proof: NativeProof,
+  asked: string[],
+): WorkflowConversationStore {
+  const answer = answerOf(proof, asked);
+  return {
+    ingestEmails: async () =>
+      answer('ingestEmails') as Awaited<
+        ReturnType<WorkflowConversationStore['ingestEmails']>
+      >,
+    ingestSentEmails: async () =>
+      answer('ingestSentEmails') as Awaited<
+        ReturnType<WorkflowConversationStore['ingestSentEmails']>
+      >,
+    querySyncCursor: async () =>
+      answer('querySyncCursor') as Awaited<
+        ReturnType<WorkflowConversationStore['querySyncCursor']>
+      >,
+    syncMailbox: async () =>
+      answer('syncMailbox') as Awaited<
+        ReturnType<WorkflowConversationStore['syncMailbox']>
+      >,
+    listMailboxMessages: async () =>
+      answer('listMailboxMessages') as Awaited<
+        ReturnType<WorkflowConversationStore['listMailboxMessages']>
+      >,
+    listUntriagedConversations: async () =>
+      answer('listUntriagedConversations') as Awaited<
+        ReturnType<WorkflowConversationStore['listUntriagedConversations']>
+      >,
+    recordTriage: async () =>
+      answer('recordTriage') as Awaited<
+        ReturnType<WorkflowConversationStore['recordTriage']>
+      >,
+    draftReply: async () =>
+      answer('draftReply') as Awaited<
+        ReturnType<WorkflowConversationStore['draftReply']>
+      >,
   };
 }
 
@@ -3634,6 +3920,8 @@ const NATIVE_BACKENDS: Partial<
     ) => Readonly<Record<string, NativeConnectorImpl>>
   >
 > = {
+  conversation: (proof, asked) =>
+    platformConversationNatives(conversationStoreOf(proof, asked)),
   notify: (proof, asked) => notifyNatives(notifyStoreOf(proof, asked)),
   webdav: (proof, asked) => webdavNatives(proofStore(proof, asked)),
 };
@@ -3702,8 +3990,9 @@ describe('a native scenario answers as its native action does [CONN-R33]', () =>
         native({ ...action.exampleInput, ...scenario.when }, nativeContext()),
       );
 
-      // The native made the one store call its proof answers.
-      expect(asked).toEqual([proof.call]);
+      // The native made the one store call its proof answers, or none where
+      // its proof declares none: a refusal raised before the store.
+      expect(asked).toEqual(proof.storeCalls === 0 ? [] : [proof.call]);
       if (scenario.error === undefined) {
         expect(outcome).toEqual({ output: scenario.output });
         return;
