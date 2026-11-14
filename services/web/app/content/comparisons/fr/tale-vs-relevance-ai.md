@@ -1,10 +1,10 @@
 ---
-title: "Tale vs Relevance AI — organiser une équipe d’agents"
-description: "Compare Tale et Relevance AI pour tes agents : conception des processus, responsabilités de projet, interventions et suivi du travail récurrent."
+title: "Tale vs Relevance AI — organiser une équipe d'agents"
+description: "Compare Tale et Relevance AI pour les équipes d'agents. Évalue la conception des processus, la responsabilité, l'intervention humaine et le travail récurrent."
 competitor: "Relevance AI"
 slug: "tale-vs-relevance-ai"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,13 +14,13 @@ Une équipe d'agents a besoin de plus que d'une collection de prompts. Il faut d
 
 | Critère | Tale | Relevance AI |
 | --- | --- | --- |
-| Point de départ | Un tableau de projet partagé avec tâches, responsables, consignes, fichiers et validation. | Transformer l’expertise des équipes en systèmes automatisés et équipes d’agents. |
-| Coordination | Agents spécialisés, agents de coordination équipés et automatisations versionnées pour le travail reproductible. | Accompagnement au déploiement et à la formation, avec évaluations, suivi et gouvernance. |
-| Point à tester | Tester comment les collègues changent les priorités et valident les résultats de chaque tâche. | Tester qui modifie le processus récurrent et traite les exceptions après la formation. |
+| Point de départ | Un tableau de projet partagé avec tâches, responsables, consignes, fichiers et validation. | Des équipes d’agents IA construites à partir de tes processus, avec des agents spécialisés pilotés par un agent d’orchestration. |
+| Coordination | Agents spécialisés, agents de coordination équipés et automatisations versionnées pour le travail reproductible. | Agents spécialisés reliés à des déclencheurs, avec contrôles qualité et suivi par rapport à un seuil défini. |
+| Point à tester | Tester comment les collègues changent les priorités et valident les résultats de chaque tâche. | Tester qui modifie le processus récurrent et traite les exceptions une fois les agents en service. |
 
 ## Partir du processus à maîtriser
 
-L'offre actuelle de Relevance AI met l'accent sur la transformation de l'expertise métier en systèmes automatisés et équipes d'agents. Son site décrit un accompagnement au déploiement et à la formation, des évaluations, du suivi et de la gouvernance. Il cite notamment la recherche client et la préparation commerciale. [Découvrir Relevance AI](https://relevanceai.com/).
+L'offre Invent de Relevance AI crée et optimise des équipes d'agents IA pour des fonctions métier, avec une gouvernance de niveau entreprise. Elle attribue un agent spécialisé à chaque tâche, relie déclencheurs et outils, et contrôle chaque agent par rapport à un seuil de qualité avant qu'il ne touche un travail réel. La page décrit l'échantillonnage des exécutions en direct et l'ajustement d'un agent lorsque sa qualité baisse. [Relevance AI Invent](https://relevanceai.com/invent).
 
 Tale rend le travail explicite dans un tableau de projet : tâches, responsables, consignes, fichiers et examen des résultats. Tu configures des agents spécialisés et peux donner à un agent responsable les outils pour déléguer les tâches prêtes. L'équipe examine les livrables et réoriente le travail lorsque les priorités changent. Les processus récurrents peuvent devenir des automatisations versionnées. Consulte le guide d'[automatisation des tâches](https://docs.tale.dev/fr/platform/projects/task-automation).
 
@@ -32,8 +32,8 @@ Observe qui peut modifier le processus, comment l'exception arrive à la bonne p
 
 ## Répartir la responsabilité d'exploitation
 
-Évalue Relevance AI si tu souhaites construire des systèmes d'agents par service avec un accompagnement au déploiement. Évalue Tale si tu veux coordonner la flotte dans des projets communs et rendre les responsabilités visibles. Dans les deux cas, définis les responsables, les accès et les critères de réussite avant d'élargir le test. Le nombre d'agents ne mesure pas le résultat métier obtenu.
+Évalue Relevance AI si tu souhaites construire des systèmes d'agents par service avec une orchestration gérée. Évalue Tale si tu veux coordonner la flotte dans des projets communs et rendre les responsabilités visibles. Dans les deux cas, définis les responsables, les accès et les critères de réussite avant d'élargir le test. Le nombre d'agents ne mesure pas le résultat métier obtenu.
 
 [Découvrir la coordination dans une démo Tale](https://tale.dev/fr/request-demo).
 
-Documentation publique examinée le 3 octobre 2026 ; aucun essai comparatif ni test de performance.
+Documentation publique examinée le 14 novembre 2026 ; aucun essai comparatif ni test de performance.

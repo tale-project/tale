@@ -1,10 +1,10 @@
 ---
-title: "Tale vs Onyx — vom Firmenwissen zur Projektarbeit"
-description: "Vergleiche Tale und Onyx anhand eines echten Auftrags: Wissenssuche, Aufgabenübergabe, dauerhafte Dateien und gemeinsame Ergebnisprüfung."
+title: "Tale vs Onyx — vom Unternehmenskontext zur Projektarbeit"
+description: "Vergleiche Tale und Onyx für Unternehmenswissen und Agentenarbeit. Teste Abruf, Übergaben, dauerhafte Dateien und Teamprüfung mit einem echten Auftrag."
 competitor: "Onyx"
 slug: "tale-vs-onyx"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,13 +14,13 @@ Wenn Informationen über viele Anwendungen verteilt sind, gehören Wissenssuche 
 
 | Kriterium | Tale | Onyx |
 | --- | --- | --- |
-| Ausgangspunkt | Verantwortete Projektaufgaben mit Briefings, Dateien, Diskussionen und geprüften Ergebnissen. | Eine Wissensebene für Unternehmen mit berechtigungsabhängiger Indexierung über Anwendungen hinweg. |
-| Agentenarbeit | Agenten erstellen Berichte, Dokumente oder Software in persistenten Arbeitsbereichen. | Eigene Agenten, Deep Research, MCP-Aktionen und Sandbox-Ausführung mit Artefakten. |
+| Ausgangspunkt | Verantwortete Projektaufgaben mit Briefings, Dateien, Diskussionen und geprüften Ergebnissen. | Eine Wissensebene für Unternehmen, die Anwendungen indexiert und deren Berechtigungen übernimmt. |
+| Agentenarbeit | Agenten erstellen Berichte, Dokumente oder Software in persistenten Arbeitsbereichen. | Eigene Agenten, vertiefte Recherche, MCP-Aktionen und Sandbox-Ausführung mit herunterladbaren Artefakten. |
 | Fokus des Tests | Verantwortung und Übergabe vom Quellenmaterial bis zum akzeptierten Projektergebnis testen. | Quellenrecherche und Berechtigungen zusammen mit Ausführung und Übergabe testen. |
 
 ## Kontext und Ausführung zählen
 
-Onyx beschreibt sich als Kontextschicht über Unternehmensanwendungen. Das Repository dokumentiert eine Indexierung mit Zugriffsrechten, eigene Agenten, vertiefte Recherche, externe Aktionen über MCP und Sandbox-Ausführung mit erzeugten Dateien. Auch Selbsthosting ist vorgesehen. Onyx auf Suche zu reduzieren würde dem Produkt nicht gerecht. [Onyx-Überblick lesen](https://github.com/onyx-dot-app/onyx).
+Onyx indexiert Wissen aus mehr als 50 Anwendungen. Das README beschreibt eine Indexierung, die Daten mit Metadaten und Berechtigungen übernimmt, eigene Agenten, mehrstufige Deep-Research-Abläufe, externe Aktionen über MCP sowie eine Sandbox für Code, die Zwischenartefakte verarbeitet und herunterladbare Dokumente erzeugt. Auch selbst gehosteter Betrieb ist vorgesehen. Onyx auf Suche zu reduzieren würde dem Produkt nicht gerecht. [Onyx-README lesen](https://github.com/onyx-dot-app/onyx/blob/main/README.md).
 
 In Tale beginnt Projektarbeit mit einer Aufgabenbeschreibung, einer zugewiesenen Person oder einem Agenten und einer sichtbaren Aufgabe. Zugehörige Dateien und Diskussionen bleiben im Projekt. Agenten bearbeiten Berichte, Dokumentation oder Software in dauerhaften Arbeitsbereichen; das Team steuert nach und prüft die Ergebnisse. Tale ist besonders prüfenswert, wenn die Koordination nach dem Finden relevanter Informationen schwierig wird. Siehe [Aufgaben und Prüfung](https://docs.tale.dev/de/platform/projects/tasks).
 
@@ -36,4 +36,4 @@ Prüfe Onyx, wenn die Erschließung von Unternehmenswissen die Grundlage der Ein
 
 [Dein Projekt in einer Tale-Demo besprechen](https://tale.dev/de/request-demo).
 
-Öffentliche Dokumentation, geprüft am 3. Oktober 2026; kein praktischer Wettbewerbsvergleich.
+Öffentliche Dokumentation, geprüft am 14. November 2026; kein praktischer Wettbewerbsvergleich.

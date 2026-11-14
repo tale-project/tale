@@ -37,6 +37,11 @@ const SOURCED_GUIDES = [
   'tale-vs-bolt',
   'tale-vs-dust',
   'tale-vs-lindy',
+  'tale-vs-n8n',
+  'tale-vs-onyx',
+  'tale-vs-open-webui',
+  'tale-vs-paperclip',
+  'tale-vs-relevance-ai',
 ] as const;
 
 const REVIEW_DATE_LOCALES = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR' } as const;
