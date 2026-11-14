@@ -65508,6 +65508,24 @@ async function runLanes(
   };
 }
 
+/** A port no socket is bound to now, as the kernel picks one for a listener
+ * on every interface — where the harness's server binds it moments later. */
+async function freeListenPort(): Promise<number> {
+  const { createServer } = await import('node:net');
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, () => {
+      const address = probe.address();
+      const port =
+        address !== null && typeof address === 'object' ? address.port : 0;
+      probe.close(() => {
+        resolve(port);
+      });
+    });
+  });
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -65587,9 +65605,11 @@ async function main(): Promise<void> {
   process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
 
   // Better Auth validates the request Host against baseURL, so the server
-  // port must be known BEFORE the auth instance is created — pick one
-  // deterministically instead of binding port 0.
-  const port = 30_000 + (process.pid % 20_000);
+  // port must be known BEFORE the auth instance is created: the kernel names
+  // one free now, and the server binds it below. A port derived from the
+  // process id was at times held by another process on a shared machine,
+  // and the run died with EADDRINUSE before its first lane (#5433).
+  const port = await freeListenPort();
   const baseUrl = `http://127.0.0.1:${port}`;
   // The production pool factory — the pg-boss tx adapter depends on its
   // json serializer semantics, so the harness must not use a bare pool.
