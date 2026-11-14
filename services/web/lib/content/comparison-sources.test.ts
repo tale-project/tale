@@ -17,6 +17,11 @@ const SOURCED_GUIDES = [
   'tale-vs-flowise',
   'tale-vs-vellum',
   'tale-vs-vibe-kanban',
+  'tale-vs-copilot-studio',
+  'tale-vs-cursor',
+  'tale-vs-devin',
+  'tale-vs-google-workspace',
+  'tale-vs-langgraph',
 ] as const;
 
 const REVIEW_DATE_LOCALES = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR' } as const;

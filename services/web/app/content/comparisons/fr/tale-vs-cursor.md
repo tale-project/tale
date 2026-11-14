@@ -4,7 +4,7 @@ description: "Compare l’éditeur, les agents cloud et le travail en équipe de
 competitor: "Cursor"
 slug: "tale-vs-cursor"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -32,4 +32,4 @@ Choisis une petite modification du site et une note de recherche sur son public.
 
 Observe où restent visibles les exigences, les précisions et la validation. Privilégie Cursor si son parcours logiciel correspond au travail attendu. Privilégie Tale si la responsabilité partagée de tâches variées est essentielle, en intégrant la configuration des runtimes à l’essai.
 
-Consulte le [guide Tale correspondant](https://docs.tale.dev/fr/platform/agents/harnesses) ou [demande une démo](https://tale.dev/fr/request-demo) avec ta propre tâche d’évaluation. Cette comparaison repose sur la documentation publique consultée le 3 octobre 2026 ; ce n’est pas un test pratique des performances.
+Consulte le [guide Tale correspondant](https://docs.tale.dev/fr/platform/agents/harnesses) ou [demande une démo](https://tale.dev/fr/request-demo) avec ta propre tâche d’évaluation. Cette comparaison repose sur la documentation publique consultée le 14 novembre 2026 ; ce n’est pas un test pratique des performances.

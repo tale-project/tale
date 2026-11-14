@@ -4,7 +4,7 @@ description: "Compare Cursor’s editor, team workflows and cloud agents with Ta
 competitor: "Cursor"
 slug: "tale-vs-cursor"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -32,4 +32,4 @@ Use a small website update plus a research brief explaining its audience. Ask on
 
 Observe where requirements, clarification and acceptance remain visible. Favor Cursor when its software workflow fits the work you need to deliver. Favor Tale when shared ownership across varied agent tasks is the main requirement, and include runtime setup in the trial.
 
-Continue with [Tale’s related guide](https://docs.tale.dev/platform/agents/harnesses), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
+Continue with [Tale’s related guide](https://docs.tale.dev/platform/agents/harnesses), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.

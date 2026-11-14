@@ -4,7 +4,7 @@ description: "Compare Tale et Google Workspace avec Gemini : IA dans les applic
 competitor: "Google Workspace with Gemini"
 slug: "tale-vs-google-workspace"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -33,3 +33,5 @@ Envisage Tale s’il manque une structure projet commune pour planifier, attribu
 Prends des notes d’atelier fictives demandant une FAQ client, une checklist de lancement et une décision encore ouverte. Fais produire les deux livrables, attribuer la décision et relire les résultats après un changement d’exigence en milieu de semaine.
 
 Vérifie où les responsabilités apparaissent, si la personne qui relit retrouve le contexte initial et comment les tâches de suivi persistent après la réunion. Inclus l’effort pour déplacer ou connecter les documents sans multiplier les versions de référence. Compare le cycle hebdomadaire complet. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce projet.
+
+Cette comparaison repose sur la documentation publique consultée le 14 novembre 2026 ; ce n’est pas un test pratique des performances.

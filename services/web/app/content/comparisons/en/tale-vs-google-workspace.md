@@ -4,7 +4,7 @@ description: "Compare Tale and Google Workspace with Gemini. Evaluate AI inside 
 competitor: "Google Workspace with Gemini"
 slug: "tale-vs-google-workspace"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -33,3 +33,5 @@ Consider Tale when the missing piece is a shared project structure for planning,
 Use fictional workshop notes that call for a customer FAQ, a launch checklist, and one unresolved decision. Ask the team to produce the two deliverables, assign the decision, and review the results after a midweek requirement change.
 
 Check where ownership is visible, whether the reviewer can find the original context, and how follow-up tasks survive beyond the meeting. Include the effort to move or connect documents without duplicating the source of truth. Compare the complete weekly cycle in each setup. [Request a Tale demo](https://tale.dev/request-demo) with this delivery project.
+
+This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.
