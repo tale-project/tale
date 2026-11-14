@@ -121,6 +121,8 @@ So belegt ein Szenario, was die Automatisierung mit diesem Fehler tut.
 
 Der Katalogtest `services/platform/lib/shared/schemas/shipped-connectors.test.ts` prüft jedes Szenario jedes mitgelieferten Connectors: Ein `when` nennt nur Eingabefelder der Aktion, und ein `output` passt zur deklarierten Ausgabe der Aktion. Außerdem führt er eine Liste der Connectors, deren Szenarien vollständig sind. Bei einem Connector auf dieser Liste liefert jede Aktion mindestens diese Arten mit: eine Leseaktion `success`, `empty` und `error`, eine Schreibaktion `success`, `refusal` und `duplicate`. Ein Connector, der sie bei jeder Aktion mitliefert, muss auf der Liste stehen. Der Test prüft die Szenarien jedes Connectors auf der Liste zusätzlich gegen seinen Live-Body: Mit der Antwort des Dienstes, für die ein Szenario steht, gibt der Live-Body die Ausgabe des Szenarios zurück oder wirft dessen Fehler. Slack ist das Vorbild.
 
+Eine native Aktion hat keinen Live-Body, den der Test ausführen könnte. Deshalb führt der Test ihre native Implementierung aus, gegen das Postfach, das jeder Nachweis nennt, und prüft, ob sie die Ausgabe des Szenarios zurückgibt oder dessen Fehler wirft. Ein nativer Fehler trägt die Meldung, die die native Implementierung wirft, und keinen `status`, weil ein nativer Fehler keinen trägt.
+
 ### Das richtige Konto auswählen
 
 Der Zugang wird beim Aufruf bestimmt: der ausdrücklich benannte, sonst der Standardzugang des Connectors. Ein geänderter Standard kann daher beeinflussen, welches Konto ein späterer Lauf nutzt. Benenne den Zugang ausdrücklich, wenn das Konto Teil deines Integrationsvertrags ist.

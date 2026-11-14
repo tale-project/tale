@@ -121,6 +121,8 @@ So a scenario proves what the automation does with that failure.
 
 The catalog test `services/platform/lib/shared/schemas/shipped-connectors.test.ts` checks every scenario of every shipped connector: a `when` names only the action's input properties, and an `output` fits the action's declared output. It also keeps a list of connectors whose scenarios are complete. On a connector on that list, every action ships at least these kinds: a read ships `success`, `empty` and `error`, and a write ships `success`, `refusal` and `duplicate`. A connector that ships them on every action must be on the list. The test also proves the scenarios of every connector on the list against its live body: given the service's answer that a scenario stands for, the live body returns the scenario's output or throws its error. Slack is the reference to follow.
 
+A native action has no live body to run, so the test runs its native implementation instead, against the mailbox each proof names, and checks that it returns the scenario's output or throws its error. A native error carries the message the native throws and no `status`, since a native error carries none.
+
 ### Resolve the right account
 
 Credentials are selected at call time: the one named by the caller, otherwise the connector's default. Changing a default can therefore change which account a later run uses. Name the credential explicitly when the account is part of your integration's contract.
