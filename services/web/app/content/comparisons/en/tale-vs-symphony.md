@@ -4,7 +4,7 @@ description: "Compare Tale with OpenAI Symphony for agent task coordination. Dec
 competitor: "OpenAI Symphony"
 slug: "tale-vs-symphony"
 relationship: "framework"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Symphony and Tale meet at the task-to-agent boundary, but they are different kin
 
 ## Keep the product layer in view
 
-OpenAI describes Symphony as a specification and experimental reference implementation that turns tracked work into isolated agent runs. The repository's example watches a Linear board and returns evidence such as CI and review feedback. It labels the project an engineering preview for trusted environments. [Symphony repository](https://github.com/openai/symphony).
+OpenAI describes Symphony as a specification and experimental reference implementation that turns tracked work into isolated agent runs. The repository's example watches a Linear board and returns evidence such as CI and review feedback. It labels the project an engineering preview for trusted environments. [Symphony README](https://github.com/openai/symphony/blob/main/README.md) and [specification](https://github.com/openai/symphony/blob/main/SPEC.md).
 
 Tale supplies the project workspace people use to create and assign tasks, discuss progress and inspect reports and files. Project agents have configured runtimes, instructions and tools. A manager agent can start eligible work within delegation and capacity limits; a successful task returns for review. This can support a code change, a research brief or a set of campaign documents in one project.
 
@@ -32,4 +32,4 @@ Use one bounded repository task with a failing test and a clear acceptance crite
 
 Then ask what your team would maintain: tracker integration and orchestration behavior, or a configured application deployment. Compare the daily responsibilities and handoffs, not an invented score for which system is more autonomous. Tale's task review is also separate from connector approval policies; define both explicitly if the task can change external systems.
 
-Continue with [Tale’s related guide](https://docs.tale.dev/platform/projects/task-automation), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
+Continue with [Tale’s related guide](https://docs.tale.dev/platform/projects/task-automation), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.

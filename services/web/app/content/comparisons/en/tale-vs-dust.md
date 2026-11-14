@@ -4,7 +4,7 @@ description: "Compare Tale and Dust for shared AI work. Evaluate project task ow
 competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Tale and Dust both put people and agents in shared work, including assigned task
 
 ## Two approaches to shared AI work
 
-Dust connects company sources and tools to shared agents. Its Pods combine conversations, files, and tasks that people or agents can assign, start, and complete. Task-linked conversations let teammates follow and redirect work. This overlaps directly with Tale. [Explore Dust](https://dust.tt/) and [Pod tasks](https://docs.dust.tt/docs/user-documentation/pods/tasks).
+Dust connects company sources and tools to shared agents. Its Pods combine conversations, files, and tasks that people or agents can assign, start, and complete. Task-linked conversations let teammates follow and redirect work. This overlaps directly with Tale. [Dust documentation](https://docs.dust.tt/docs/intro) and [Pod tasks](https://docs.dust.tt/docs/user-documentation/pods/tasks).
 
 Tale gives a team a project space for tasks, discussion, files, and agent assignments. A marketing lead can brief a campaign, delegate research and copy tasks, then inspect the outputs with teammates. Agents work in persistent sandbox workspaces; configured capacity determines how much runs concurrently. The board provides a place to track what still needs attention after an answer has been produced. See [project agents](https://docs.tale.dev/platform/projects/project-agents).
 
@@ -36,4 +36,4 @@ Shortlist Dust if its shared agents, connected company context, and Pod task lif
 
 [Explore Tale with your team](https://tale.dev/request-demo).
 
-Based on public product documentation reviewed on 3 October 2026; not a hands-on benchmark.
+Based on public product documentation reviewed on 14 November 2026; not a hands-on benchmark.

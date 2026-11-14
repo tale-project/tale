@@ -4,7 +4,7 @@ description: "Compare Tale and Sim for shared AI work. Evaluate a project board 
 competitor: "Sim"
 slug: "tale-vs-sim"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -15,16 +15,16 @@ A shared AI workspace can mean a place to build agent systems or a place to mana
 | Criterion | Tale | Sim |
 | --- | --- | --- |
 | Work surface | A project board for assigned tasks, agent instructions and review. | An AI workspace for building agents visually, conversationally or with code. |
-| Shared context | Project briefs, discussions and working files support assigned agents. | Knowledge, files, structured tables, logs and centralized controls. |
-| Repeatable work | Versioned automations handle recurring steps alongside owned project tasks. | Reusable agents and workflows, with an own-cloud deployment option. |
+| Shared context | Project briefs, discussions and working files support assigned agents. | Knowledge bases, structured tables and run logs. |
+| Repeatable work | Versioned automations handle recurring steps alongside owned project tasks. | Reusable agents and workflows, with a self-hosted deployment option. |
 
 ## Building a system and coordinating its work
 
-Sim presents an AI workspace for building agents visually, conversationally or with code. Its published product includes workflows, knowledge, files, structured tables, logs and centralized controls, with operation in your own cloud. Shared context and governance are therefore not exclusive to Tale. [Sim product overview](https://www.sim.ai/).
+Sim presents an AI workspace for building agents visually, conversationally or with code. Its documentation covers the [workflow builder](https://docs.sim.ai/workflows), [chat-based building](https://docs.sim.ai/chat) and [CLI access for coding agents](https://docs.sim.ai/cli). It also documents [knowledge bases](https://docs.sim.ai/knowledgebase), [tables](https://docs.sim.ai/tables) and [run logs](https://docs.sim.ai/logs-debugging), and [self-hosting with Docker or Kubernetes](https://docs.sim.ai/platform/self-hosting) on your own infrastructure. Shared context is therefore not exclusive to Tale.
 
 Tale centers teamwork on projects and assigned tasks. People prepare a brief, give agents the necessary tools and sources, start the tasks and inspect reports and files for review. Tale also has versioned automations for repeatable processes. The project board and automation definition serve different jobs: one organizes owned work, while the other describes an executable process.
 
-Evaluate Sim when your priority is constructing, deploying and governing reusable agent systems. Evaluate Tale when the main adoption goal is giving teammates a shared project space for delegation and review. Both may be relevant to the same organization; the decision should follow the first workflow and the people responsible for it.
+Evaluate Sim when your priority is constructing and deploying reusable agent systems. Evaluate Tale when the main adoption goal is giving teammates a shared project space for delegation and review. Both may be relevant to the same organization; the decision should follow the first workflow and the people responsible for it.
 
 ## Trial a campaign and its repeatable process
 
@@ -32,4 +32,4 @@ Prepare a campaign with audience research, message drafts and an internal checkl
 
 Compare where one-off decisions live and how the repeated step is configured, changed and inspected. Record which people need builder access and which can participate as reviewers. Also test the actual sources and integrations your workflow needs instead of comparing headline integration counts. A system that generates a draft still needs a clear team decision about whether that draft is ready for use.
 
-Continue with [Tale’s related guide](https://docs.tale.dev/platform/automations/concepts), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
+Continue with [Tale’s related guide](https://docs.tale.dev/platform/automations/concepts), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.

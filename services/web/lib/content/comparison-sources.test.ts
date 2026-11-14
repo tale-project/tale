@@ -27,6 +27,11 @@ const SOURCED_GUIDES = [
   'tale-vs-devin',
   'tale-vs-google-workspace',
   'tale-vs-langgraph',
+  'tale-vs-sim',
+  'tale-vs-symphony',
+  'tale-vs-bolt',
+  'tale-vs-dust',
+  'tale-vs-lindy',
 ] as const;
 
 const REVIEW_DATE_LOCALES = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR' } as const;

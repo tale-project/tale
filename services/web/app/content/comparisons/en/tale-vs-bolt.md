@@ -4,7 +4,7 @@ description: "Compare Tale and Bolt.new for a team launching an app. Evaluate bu
 competitor: "Bolt.new"
 slug: "tale-vs-bolt"
 relationship: "adjacent"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -14,15 +14,15 @@ A booking app is only part of launching a new service. Someone also needs to res
 
 | Criterion | Tale | Bolt.new |
 | --- | --- | --- |
-| Working surface | Shared projects with assigned tasks, files, and review | Build websites and applications from natural-language requests |
-| Coordination | Manager delegation and parallel tasks within configured capacity | Multiplayer requires public projects and queues prompts to prevent conflicts |
+| Working surface | Shared projects with assigned tasks, files, and review | Builds a project from the prompts you send |
+| Coordination | Manager delegation and parallel tasks within configured capacity | Collaborators with project access share one chat; prompts queue one at a time |
 | Delivery | Sandbox results need an appropriate review and release process | Bolt Cloud includes hosting, databases, authentication, and domain management |
 
 ## Compare building and coordinating
 
-Bolt turns natural-language requests into websites and applications. It supports starting from sources such as Figma and GitHub. [Bolt product overview](https://bolt.new/). Bolt Cloud brings hosting, databases, authentication, and domain management into the product. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).
+Bolt builds a project from the prompts you send. [Building in Bolt](https://support.bolt.new/building). Bolt Cloud brings hosting, databases, authentication, and domain management into the product. [Bolt Cloud](https://support.bolt.new/cloud/bolt-cloud).
 
-Bolt also supports shared projects and collaboration. Its documented multiplayer mode requires public project visibility and queues prompts to avoid conflicting changes. Project sharing and access to the published site are separate controls. [Collaboration](https://support.bolt.new/building/using-bolt/collaborate).
+Bolt also supports shared projects and collaboration. Collaborators with project access share one chat thread, and Bolt processes one prompt at a time, queuing others to avoid conflicting changes. Project sharing and access to the published site are separate controls. [Collaboration](https://support.bolt.new/building/using-bolt/collaborate).
 
 Tale gives a team a project board for assigning tasks to people and configured agents. Agents can work in persistent sandbox workspaces, report progress, and produce files for review. A manager can delegate eligible tasks; parallel execution depends on configured capacity. See [project agents](https://docs.tale.dev/platform/projects/project-agents). Building software is one use alongside research, marketing, and operations.
 
@@ -38,4 +38,4 @@ Evaluate Bolt when an integrated app-building and hosting environment is your ma
 
 [Plan a Tale pilot with your team](https://tale.dev/request-demo).
 
-Public documentation reviewed on 3 October 2026; no hands-on comparative benchmark.
+Public documentation reviewed on 14 November 2026; no hands-on comparative benchmark.

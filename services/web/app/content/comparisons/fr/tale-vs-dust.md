@@ -4,7 +4,7 @@ description: "Compare Tale et Dust pour travailler avec des agents IA : tâches 
 competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Tale et Dust réunissent personnes et agents autour du travail, y compris des t�
 
 ## Deux façons de travailler avec des agents
 
-Dust relie sources et outils métier à des agents partagés. Ses Pods rassemblent conversations, fichiers et tâches que personnes ou agents attribuent, lancent et terminent. Les conversations liées aux tâches permettent de suivre et réorienter le travail. Voir [Dust](https://dust.tt/) et les [tâches des Pods](https://docs.dust.tt/docs/user-documentation/pods/tasks).
+Dust relie sources et outils métier à des agents partagés. Ses Pods rassemblent conversations, fichiers et tâches que personnes ou agents attribuent, lancent et terminent. Les conversations liées aux tâches permettent de suivre et réorienter le travail. Voir la [documentation de Dust](https://docs.dust.tt/docs/intro) et les [tâches des Pods](https://docs.dust.tt/docs/user-documentation/pods/tasks).
 
 Dans Tale, un projet rassemble tâches, discussions, fichiers et affectations d'agents. Une responsable marketing peut définir une campagne, déléguer la recherche et les textes, puis examiner les résultats avec son équipe. Les agents disposent d'espaces de travail persistants dans des sandboxes ; la capacité configurée détermine les exécutions parallèles. Le tableau permet de suivre le travail restant après la première réponse. Consulte le guide des [agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents).
 
@@ -36,4 +36,4 @@ Observe comment chacun retrouve les consignes à jour, identifie les responsabil
 
 [Découvrir Tale avec ton équipe](https://tale.dev/fr/request-demo).
 
-Comparaison documentaire au 3 octobre 2026, sans test pratique comparatif.
+Comparaison documentaire au 14 novembre 2026, sans test pratique comparatif.

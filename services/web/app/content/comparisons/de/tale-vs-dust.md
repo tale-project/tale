@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Dust für gemeinsame KI-Arbeit: Aufgaben im Pr
 competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Tale und Dust bringen Menschen und Agenten bei der Arbeit zusammen, auch über z
 
 ## Zwei Ansätze für gemeinsame KI-Arbeit
 
-Dust verbindet Unternehmensquellen und Werkzeuge mit gemeinsamen Agenten. Pods bündeln Gespräche, Dateien und Aufgaben, die Menschen oder Agenten zuweisen, starten und abschließen können. Verknüpfte Gespräche erlauben es, die Arbeit zu verfolgen und umzulenken. Die Überschneidung mit Tale ist direkt. Siehe [Dust](https://dust.tt/) und [Pod-Aufgaben](https://docs.dust.tt/docs/user-documentation/pods/tasks).
+Dust verbindet Unternehmensquellen und Werkzeuge mit gemeinsamen Agenten. Pods bündeln Gespräche, Dateien und Aufgaben, die Menschen oder Agenten zuweisen, starten und abschließen können. Verknüpfte Gespräche erlauben es, die Arbeit zu verfolgen und umzulenken. Die Überschneidung mit Tale ist direkt. Siehe [Dust-Dokumentation](https://docs.dust.tt/docs/intro) und [Pod-Aufgaben](https://docs.dust.tt/docs/user-documentation/pods/tasks).
 
 Tale bündelt Aufgaben, Diskussionen, Dateien und Agentenzuweisungen in Projekten. Eine Marketingleitung kann eine Kampagne beschreiben, Recherche und Texte delegieren und die Ergebnisse mit dem Team prüfen. Agenten arbeiten in dauerhaften Sandbox-Arbeitsbereichen; die konfigurierte Kapazität bestimmt, wie viel parallel läuft. Auf dem Board bleibt sichtbar, was nach einer ersten Antwort noch zu tun ist. Mehr dazu unter [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents).
 
@@ -30,10 +30,10 @@ Nutze für beide Tests dieselbe freigegebene Produktbeschreibung, Gesprächsnoti
 
 Beobachte, wie das Team die aktuelle Aufgabenbeschreibung findet, Zuständigkeiten erkennt und eine Überarbeitung anfordert. Prüfe Quellen und fertige Dateien, nicht nur die erste Antwort. Halte fest, wie aufwendig die Einrichtung war und wie viel Kontext Teammitglieder erneut erklären mussten. So testest du einen Ablauf, der im Alltag regelmäßig vorkommt.
 
-## Was passt zu eurem Arbeitsalltag?
+## Was passt zu deinem Arbeitsalltag?
 
-Prüfe Dust, wenn gemeinsame Agenten, verbundener Unternehmenskontext und der Aufgabenablauf in Pods zu euch passen. Prüfe Tale, wenn Aufgabenkoordination, dauerhafte Sandbox-Arbeitsbereiche sowie Kontrolle über Betrieb und unterstützte Laufzeiten eure Anforderungen erfüllen. Vergleiche diese Kombinationen mit derselben Arbeit. Bei beiden musst du Zugriffsrechte einrichten und Ergebnisse beurteilen.
+Prüfe Dust, wenn gemeinsame Agenten, verbundener Unternehmenskontext und der Aufgabenablauf in Pods zu dir und deinem Team passen. Prüfe Tale, wenn Aufgabenkoordination, dauerhafte Sandbox-Arbeitsbereiche sowie Kontrolle über Betrieb und unterstützte Laufzeiten deine Anforderungen erfüllen. Vergleiche diese Kombinationen mit derselben Arbeit. Bei beiden musst du Zugriffsrechte einrichten und Ergebnisse beurteilen.
 
 [Tale mit deinem Team kennenlernen](https://tale.dev/de/request-demo).
 
-Grundlage sind öffentliche Produktinformationen, geprüft am 3. Oktober 2026. Kein praktischer Vergleichstest.
+Grundlage sind öffentliche Produktinformationen, geprüft am 14. November 2026. Kein praktischer Vergleichstest.
