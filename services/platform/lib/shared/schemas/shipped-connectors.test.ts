@@ -53,6 +53,11 @@ import {
   type SmtpSession,
 } from '../../connectors/natives/imap-smtp';
 import {
+  platformAutomationNatives,
+  type PositionSave,
+  type WorkflowAutomationPositions,
+} from '../../connectors/natives/platform-automation';
+import {
   platformConversationNatives,
   type WorkflowConversationStore,
 } from '../../connectors/natives/platform-conversations';
@@ -126,6 +131,7 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'automation',
   'confluence',
   'conversation',
   'discord',
@@ -2996,11 +3002,13 @@ type StoreAnswer =
 
 /** A call a native case answers: each method of the stores the native
  * connectors read (WebDAV's document store, the notification store, the
- * conversation store), and the script runner the sandbox native calls. */
+ * conversation store, the automation position store), and the script runner
+ * the sandbox native calls. */
 type NativeCall =
   | keyof WebdavStore
   | keyof WorkflowNotifyStore
   | keyof WorkflowConversationStore
+  | keyof WorkflowAutomationPositions
   | 'runScript';
 
 /** One case of a native action: the call it makes to its service, and what the
@@ -3510,6 +3518,56 @@ const SANDBOX_NATIVE_PROOFS: Record<string, NativeProof> = {
   },
 };
 
+const AUTOMATION_PLACE = { until: 1791000000000 };
+
+/**
+ * The automation native's proofs, keyed `<action>/<scenario>`: what its
+ * position store answers in each case. A read or save is a step of the run the
+ * case names, which is the workflow caller `nativeContext()` supplies, unless
+ * the case names another caller.
+ */
+const AUTOMATION_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'read_position/saved_place': {
+    call: 'read',
+    answer: { returns: { value: AUTOMATION_PLACE, revision: '3' } },
+  },
+  'read_position/nothing_saved': {
+    call: 'read',
+    answer: { returns: { value: null, revision: '0' } },
+  },
+  // A read made outside any run is refused before the store is reached, so the
+  // case makes no store call.
+  'read_position/not_a_step': {
+    storeCalls: 0,
+    caller: { kind: 'user', userId: 'user_example' },
+  },
+  'save_position/place_saved': {
+    call: 'save',
+    answer: {
+      returns: {
+        saved: true,
+        conflict: false,
+        revision: '4',
+      } satisfies PositionSave,
+    },
+  },
+  // The store answers null when the run is gone, and the native refuses it.
+  'save_position/run_gone': {
+    call: 'save',
+    answer: { returns: null },
+  },
+  'save_position/saved_again': {
+    call: 'save',
+    answer: {
+      returns: {
+        saved: false,
+        conflict: true,
+        revision: '4',
+      } satisfies PositionSave,
+    },
+  },
+};
+
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_FOLDER = 'application/vnd.google-apps.folder';
 const DRIVE_EXAMPLE_ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz';
@@ -3706,6 +3764,7 @@ type ScenarioProofs =
     };
 
 const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
+  automation: { proofs: {}, native: AUTOMATION_NATIVE_PROOFS },
   confluence: {
     endpoint: CONFLUENCE_ORIGIN,
     proofs: CONFLUENCE_PROOFS,
@@ -4333,6 +4392,24 @@ function notifyStoreOf(
   };
 }
 
+/** A position store that answers its one call with the proof's answer. */
+function automationStoreOf(
+  proof: NativeProof,
+  asked: string[],
+): WorkflowAutomationPositions {
+  const answer = answerOf(proof, asked);
+  return {
+    read: async () =>
+      answer('read') as Awaited<
+        ReturnType<WorkflowAutomationPositions['read']>
+      >,
+    save: async () =>
+      answer('save') as Awaited<
+        ReturnType<WorkflowAutomationPositions['save']>
+      >,
+  };
+}
+
 /** A script runner that answers its one call with the proof's answer. */
 function sandboxRunnerOf(
   proof: NativeProof,
@@ -4353,6 +4430,8 @@ const NATIVE_BACKENDS: Partial<
     ) => Readonly<Record<string, NativeConnectorImpl>>
   >
 > = {
+  automation: (proof, asked) =>
+    platformAutomationNatives(automationStoreOf(proof, asked)),
   conversation: (proof, asked) =>
     platformConversationNatives(conversationStoreOf(proof, asked)),
   notify: (proof, asked) => notifyNatives(notifyStoreOf(proof, asked)),
