@@ -116,6 +116,7 @@ const SCENARIO_CONNECTORS = [
   'http',
   'imap-smtp',
   'jev',
+  'outlook',
   'slack',
   'tavily',
   'teams',
@@ -611,6 +612,575 @@ const JEV_PROOFS: Record<string, ProofAnswers> = {
   'decide/rate_limited': {
     [JEV_DECIDE]: openRouterError(429, 'Rate limit exceeded'),
   },
+};
+
+/** Microsoft Graph's answers to the Outlook bodies, keyed `<action>/<scenario>`
+ * and then `<METHOD> <url>`. The bodies read the signed-in account's `/me`
+ * (no mailbox is configured), and every message, event and contact is made up. */
+const OUTLOOK_ME = 'https://graph.microsoft.com/v1.0/me';
+
+/** The base64 of a made-up file, which the bodies hand `ctx.files.store`. */
+const OUTLOOK_INVOICE = 'UXVhcnRlcmx5IGZpZ3VyZXMsIGV4YW1wbGUgb25seS4=';
+
+/** Graph's answer to a call it refuses: the status, its error body, and any headers. */
+function outlookError(
+  status: number,
+  code: string,
+  message: string,
+  headers: Record<string, string> = {},
+): ServiceAnswer {
+  return { status, headers, body: { error: { code, message } } };
+}
+
+/** The 429 every listing answers with the wait Graph names, in Retry-After. */
+const OUTLOOK_RATE_LIMITED = outlookError(
+  429,
+  'TooManyRequests',
+  'Too many requests',
+  { 'retry-after': '30' },
+);
+
+/** The sign-in Graph refuses: an expired or revoked token. */
+const OUTLOOK_REFUSED_SIGN_IN = outlookError(
+  401,
+  'InvalidAuthenticationToken',
+  'Access token has expired or is not yet valid.',
+);
+
+const OUTLOOK_LIST_MESSAGES = `GET ${OUTLOOK_ME}/messages?$top=25&$orderby=receivedDateTime%20desc&$filter=isDraft%20eq%20false&$select=id%2CinternetMessageId%2Csubject%2Cfrom%2CtoRecipients%2CreceivedDateTime%2CisRead%2ChasAttachments%2CbodyPreview`;
+const OUTLOOK_SEARCH_MESSAGES = `GET ${OUTLOOK_ME}/messages?$top=25&$search="invoice"&$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview`;
+const OUTLOOK_GET_MESSAGE = `GET ${OUTLOOK_ME}/messages/AAMkAGI2THk...?$select=id,conversationId,internetMessageId,internetMessageHeaders,subject,bodyPreview,body,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,hasAttachments,isRead,isDraft,importance`;
+const OUTLOOK_MESSAGE_ATTACHMENTS = `GET ${OUTLOOK_ME}/messages/AAMkAGI2THkMSG1/attachments`;
+const OUTLOOK_GET_ATTACHMENTS = `GET ${OUTLOOK_ME}/messages/AAMkAGI2THk.../attachments`;
+const OUTLOOK_SEND_DRAFT = `POST ${OUTLOOK_ME}/messages`;
+const OUTLOOK_PROFILE = `GET ${OUTLOOK_ME}?$select=mail,userPrincipalName`;
+const OUTLOOK_LIST_EVENTS = `GET ${OUTLOOK_ME}/events?$top=25&$orderby=start%2FdateTime&$select=id,subject,start,end,location,organizer,isAllDay,bodyPreview&$filter=start%2FdateTime%20ge%20'2025-06-01T00%3A00%3A00'%20and%20end%2FdateTime%20le%20'2025-06-30T23%3A59%3A59'`;
+const OUTLOOK_GET_EVENT = `GET ${OUTLOOK_ME}/events/AAMkAGI2TG93...`;
+const OUTLOOK_CREATE_EVENT = `POST ${OUTLOOK_ME}/events`;
+const OUTLOOK_LIST_CONTACTS = `GET ${OUTLOOK_ME}/contacts?$top=25&$orderby=displayName&$select=id,displayName,givenName,surname,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle&$filter=startsWith(displayName%2C'Ada')%20or%20startsWith(givenName%2C'Ada')%20or%20startsWith(surname%2C'Ada')`;
+const OUTLOOK_GET_CONTACT = `GET ${OUTLOOK_ME}/contacts/AAMkAGI2TGuc...`;
+
+/** The send's two calls: the draft, then its send, which answers 202 and no body. */
+function outlookSent(draftId: string, internetMessageId: string): ProofAnswers {
+  return {
+    [OUTLOOK_SEND_DRAFT]: {
+      status: 201,
+      body: { id: draftId, internetMessageId },
+    },
+    [`POST ${OUTLOOK_ME}/messages/${draftId}/send`]: { status: 202, body: '' },
+  };
+}
+
+/**
+ * The proof of every Outlook scenario. Each lists the requests its body makes,
+ * in order, with the answer Graph gives, so the body returns the scenario's
+ * output or throws its error.
+ */
+const OUTLOOK_PROOFS: Record<string, ProofAnswers> = {
+  'list_messages/two_messages': {
+    [OUTLOOK_LIST_MESSAGES]: {
+      status: 200,
+      body: {
+        value: [
+          {
+            id: 'AAMkAGI2THkMSG1',
+            internetMessageId: '<msg-1@example.com>',
+            subject: 'Quarterly report',
+            from: {
+              emailAddress: {
+                name: 'Ada Lovelace',
+                address: 'ada@example.com',
+              },
+            },
+            toRecipients: [
+              { emailAddress: { name: 'You', address: 'you@example.com' } },
+            ],
+            receivedDateTime: '2025-01-15T09:00:00Z',
+            isRead: false,
+            hasAttachments: false,
+            bodyPreview: 'The quarterly report is ready.',
+          },
+          {
+            id: 'AAMkAGI2THkMSG2',
+            internetMessageId: '<msg-2@example.com>',
+            subject: 'Lunch on Friday?',
+            from: {
+              emailAddress: {
+                name: 'Grace Hopper',
+                address: 'grace@example.com',
+              },
+            },
+            toRecipients: [
+              { emailAddress: { name: 'You', address: 'you@example.com' } },
+            ],
+            receivedDateTime: '2025-01-14T12:30:00Z',
+            isRead: true,
+            hasAttachments: true,
+            bodyPreview: 'Are you free on Friday?',
+          },
+        ],
+      },
+    },
+  },
+  'list_messages/no_messages': {
+    [OUTLOOK_LIST_MESSAGES]: { status: 200, body: { value: [] } },
+  },
+  'list_messages/rate_limited': {
+    [OUTLOOK_LIST_MESSAGES]: OUTLOOK_RATE_LIMITED,
+  },
+  'get_message/with_attachment': {
+    [OUTLOOK_GET_MESSAGE]: {
+      status: 200,
+      body: {
+        id: 'AAMkAGI2THkMSG1',
+        conversationId: 'AAQkAGI2THkCONV1',
+        internetMessageId: '<msg-1@example.com>',
+        subject: 'Quarterly report',
+        bodyPreview: 'The quarterly report is ready.',
+        body: {
+          contentType: 'text',
+          content: 'The quarterly report is ready.',
+        },
+        from: {
+          emailAddress: { name: 'Ada Lovelace', address: 'ada@example.com' },
+        },
+        sender: {
+          emailAddress: { name: 'Ada Lovelace', address: 'ada@example.com' },
+        },
+        toRecipients: [
+          { emailAddress: { name: 'You', address: 'you@example.com' } },
+        ],
+        ccRecipients: [],
+        bccRecipients: [],
+        replyTo: [],
+        receivedDateTime: '2025-01-15T09:00:00Z',
+        sentDateTime: '2025-01-15T08:59:12Z',
+        hasAttachments: true,
+        isRead: false,
+        isDraft: false,
+        importance: 'normal',
+      },
+    },
+    [OUTLOOK_MESSAGE_ATTACHMENTS]: {
+      status: 200,
+      body: {
+        value: [
+          {
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            id: 'AAMkAGI2THkATT1',
+            name: 'invoice-2026-10.pdf',
+            contentType: 'application/pdf',
+            size: 2048,
+            contentBytes: OUTLOOK_INVOICE,
+          },
+        ],
+      },
+    },
+  },
+  'get_message/no_attachments': {
+    [OUTLOOK_GET_MESSAGE]: {
+      status: 200,
+      body: {
+        id: 'AAMkAGI2THkMSG2',
+        conversationId: 'AAQkAGI2THkCONV2',
+        internetMessageId: '<msg-2@example.com>',
+        subject: 'Lunch on Friday?',
+        bodyPreview: '',
+        body: { contentType: 'text', content: '' },
+        from: {
+          emailAddress: { name: 'Grace Hopper', address: 'grace@example.com' },
+        },
+        sender: {
+          emailAddress: { name: 'Grace Hopper', address: 'grace@example.com' },
+        },
+        toRecipients: [
+          { emailAddress: { name: 'You', address: 'you@example.com' } },
+        ],
+        ccRecipients: [],
+        bccRecipients: [],
+        replyTo: [],
+        receivedDateTime: '2025-01-14T12:30:00Z',
+        sentDateTime: '2025-01-14T12:29:40Z',
+        hasAttachments: false,
+        isRead: true,
+        isDraft: false,
+        importance: 'normal',
+      },
+    },
+  },
+  'get_message/not_found': {
+    [OUTLOOK_GET_MESSAGE]: outlookError(
+      404,
+      'ErrorItemNotFound',
+      'The specified object was not found in the store.',
+    ),
+  },
+  'get_attachments/with_attachment': {
+    [OUTLOOK_GET_ATTACHMENTS]: {
+      status: 200,
+      body: {
+        value: [
+          {
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            id: 'AAMkAGI2THkATT1',
+            name: 'invoice-2026-10.pdf',
+            contentType: 'application/pdf',
+            size: 2048,
+            contentBytes: OUTLOOK_INVOICE,
+          },
+        ],
+      },
+    },
+  },
+  'get_attachments/no_attachments': {
+    [OUTLOOK_GET_ATTACHMENTS]: { status: 200, body: { value: [] } },
+  },
+  'get_attachments/not_found': {
+    [OUTLOOK_GET_ATTACHMENTS]: outlookError(
+      404,
+      'ErrorItemNotFound',
+      'The specified object was not found in the store.',
+    ),
+  },
+  'search_messages/two_results': {
+    [OUTLOOK_SEARCH_MESSAGES]: {
+      status: 200,
+      body: {
+        value: [
+          {
+            id: 'AAMkAGI2THkSRCH1',
+            internetMessageId: '<invoice-1@example.com>',
+            subject: 'Invoice 2026-10',
+            from: {
+              emailAddress: {
+                name: 'Accounts',
+                address: 'accounts@example.com',
+              },
+            },
+            toRecipients: [
+              { emailAddress: { name: 'You', address: 'you@example.com' } },
+            ],
+            receivedDateTime: '2025-10-02T10:15:00Z',
+            isRead: false,
+            hasAttachments: true,
+            bodyPreview: 'Please find the invoice for October attached.',
+          },
+          {
+            id: 'AAMkAGI2THkSRCH2',
+            internetMessageId: '<invoice-2@example.com>',
+            subject: 'Re: invoice question',
+            from: {
+              emailAddress: {
+                name: 'Ada Lovelace',
+                address: 'ada@example.com',
+              },
+            },
+            toRecipients: [
+              { emailAddress: { name: 'You', address: 'you@example.com' } },
+            ],
+            receivedDateTime: '2025-09-18T08:05:00Z',
+            isRead: true,
+            hasAttachments: false,
+            bodyPreview: 'Thanks, the invoice question is answered.',
+          },
+        ],
+      },
+    },
+  },
+  'search_messages/no_results': {
+    [OUTLOOK_SEARCH_MESSAGES]: { status: 200, body: { value: [] } },
+  },
+  'search_messages/rate_limited': {
+    [OUTLOOK_SEARCH_MESSAGES]: OUTLOOK_RATE_LIMITED,
+  },
+  'send_message/sent': outlookSent('AAMkAGI2THkDRAFT1', '<sent-1@example.com>'),
+  'send_message/missing_send_scope': {
+    [OUTLOOK_SEND_DRAFT]: {
+      status: 201,
+      body: {
+        id: 'AAMkAGI2THkDRAFT1',
+        internetMessageId: '<sent-1@example.com>',
+      },
+    },
+    [`POST ${OUTLOOK_ME}/messages/AAMkAGI2THkDRAFT1/send`]: outlookError(
+      403,
+      'ErrorAccessDenied',
+      'Access is denied. Check credentials and try again.',
+    ),
+  },
+  'send_message/sent_again': outlookSent(
+    'AAMkAGI2THkDRAFT2',
+    '<sent-2@example.com>',
+  ),
+  'get_profile/mailbox_address': {
+    [OUTLOOK_PROFILE]: {
+      status: 200,
+      body: {
+        mail: 'you@example.com',
+        userPrincipalName: 'you@example.onmicrosoft.com',
+      },
+    },
+  },
+  'get_profile/no_address': {
+    [OUTLOOK_PROFILE]: {
+      status: 200,
+      body: { mail: null, userPrincipalName: null },
+    },
+  },
+  'get_profile/refused_sign_in': {
+    [OUTLOOK_PROFILE]: OUTLOOK_REFUSED_SIGN_IN,
+  },
+  'list_events/two_events': {
+    [OUTLOOK_LIST_EVENTS]: {
+      status: 200,
+      body: {
+        value: [
+          {
+            id: 'AAMkAGI2TGEV1',
+            subject: 'Weekly sync',
+            start: { dateTime: '2025-06-03T09:00:00.0000000', timeZone: 'UTC' },
+            end: { dateTime: '2025-06-03T10:00:00.0000000', timeZone: 'UTC' },
+            location: { displayName: 'Room 1' },
+            organizer: {
+              emailAddress: {
+                name: 'Ada Lovelace',
+                address: 'ada@example.com',
+              },
+            },
+            isAllDay: false,
+            bodyPreview: 'Agenda: last week, this week, blockers.',
+          },
+          {
+            id: 'AAMkAGI2TGEV2',
+            subject: 'Design review',
+            start: { dateTime: '2025-06-10T14:00:00.0000000', timeZone: 'UTC' },
+            end: { dateTime: '2025-06-10T15:00:00.0000000', timeZone: 'UTC' },
+            location: { displayName: 'Room 2' },
+            organizer: {
+              emailAddress: {
+                name: 'Grace Hopper',
+                address: 'grace@example.com',
+              },
+            },
+            isAllDay: false,
+            bodyPreview: 'Review the draft of the release notes.',
+          },
+        ],
+      },
+    },
+  },
+  'list_events/no_events': {
+    [OUTLOOK_LIST_EVENTS]: { status: 200, body: { value: [] } },
+  },
+  'list_events/missing_scope': {
+    [OUTLOOK_LIST_EVENTS]: outlookError(
+      403,
+      'ErrorAccessDenied',
+      'Access is denied.',
+    ),
+  },
+  'get_event/one_event': {
+    [OUTLOOK_GET_EVENT]: {
+      status: 200,
+      body: {
+        id: 'AAMkAGI2TG93',
+        subject: 'Weekly sync',
+        start: { dateTime: '2025-06-03T09:00:00.0000000', timeZone: 'UTC' },
+        end: { dateTime: '2025-06-03T10:00:00.0000000', timeZone: 'UTC' },
+        location: { displayName: 'Room 1' },
+        attendees: [
+          {
+            type: 'required',
+            status: { response: 'accepted', time: '2025-06-01T08:00:00Z' },
+            emailAddress: {
+              name: 'Grace Hopper',
+              address: 'grace@example.com',
+            },
+          },
+        ],
+        organizer: {
+          emailAddress: { name: 'Ada Lovelace', address: 'ada@example.com' },
+        },
+        isAllDay: false,
+        bodyPreview: 'Agenda: last week, this week, blockers.',
+        body: {
+          contentType: 'text',
+          content: 'Agenda: last week, this week, blockers.',
+        },
+        webLink: 'https://outlook.office.com/calendar/item/AAMkAGI2TG93',
+      },
+    },
+  },
+  'get_event/no_attendees': {
+    [OUTLOOK_GET_EVENT]: {
+      status: 200,
+      body: {
+        id: 'AAMkAGI2TG94',
+        subject: 'Focus time',
+        start: { dateTime: '2025-06-04T13:00:00.0000000', timeZone: 'UTC' },
+        end: { dateTime: '2025-06-04T15:00:00.0000000', timeZone: 'UTC' },
+        location: { displayName: '' },
+        attendees: [],
+        organizer: {
+          emailAddress: { name: 'Ada Lovelace', address: 'ada@example.com' },
+        },
+        isAllDay: false,
+        bodyPreview: '',
+        body: { contentType: 'text', content: '' },
+        webLink: 'https://outlook.office.com/calendar/item/AAMkAGI2TG94',
+      },
+    },
+  },
+  'get_event/not_found': {
+    [OUTLOOK_GET_EVENT]: outlookError(
+      404,
+      'ErrorItemNotFound',
+      'The specified object was not found in the store.',
+    ),
+  },
+  'create_event/created': {
+    [OUTLOOK_CREATE_EVENT]: {
+      status: 201,
+      body: {
+        id: 'AAMkAGI2TGEVT1',
+        subject: 'Design review',
+        start: {
+          dateTime: '2025-06-15T09:00:00.0000000',
+          timeZone: 'Europe/Berlin',
+        },
+        end: {
+          dateTime: '2025-06-15T10:00:00.0000000',
+          timeZone: 'Europe/Berlin',
+        },
+        webLink: 'https://outlook.office.com/calendar/item/AAMkAGI2TGEVT1',
+      },
+    },
+  },
+  'create_event/missing_scope': {
+    [OUTLOOK_CREATE_EVENT]: outlookError(
+      403,
+      'ErrorAccessDenied',
+      'Access is denied.',
+    ),
+  },
+  'create_event/created_again': {
+    [OUTLOOK_CREATE_EVENT]: {
+      status: 201,
+      body: {
+        id: 'AAMkAGI2TGEVT2',
+        subject: 'Design review',
+        start: {
+          dateTime: '2025-06-15T09:00:00.0000000',
+          timeZone: 'Europe/Berlin',
+        },
+        end: {
+          dateTime: '2025-06-15T10:00:00.0000000',
+          timeZone: 'Europe/Berlin',
+        },
+        webLink: 'https://outlook.office.com/calendar/item/AAMkAGI2TGEVT2',
+      },
+    },
+  },
+  'list_contacts/two_contacts': {
+    [OUTLOOK_LIST_CONTACTS]: {
+      status: 200,
+      body: {
+        value: [
+          {
+            id: 'AAMkAGI2TGuc1',
+            displayName: 'Ada Lovelace',
+            givenName: 'Ada',
+            surname: 'Lovelace',
+            emailAddresses: [
+              { name: 'Ada Lovelace', address: 'ada@example.com' },
+            ],
+            businessPhones: ['+49 30 000000'],
+            mobilePhone: null,
+            companyName: 'Example GmbH',
+            jobTitle: 'Engineer',
+          },
+          {
+            id: 'AAMkAGI2TGuc2',
+            displayName: 'Adam Smith',
+            givenName: 'Adam',
+            surname: 'Smith',
+            emailAddresses: [
+              { name: 'Adam Smith', address: 'adam@example.com' },
+            ],
+            businessPhones: [],
+            mobilePhone: '+49 170 0000000',
+            companyName: '',
+            jobTitle: '',
+          },
+        ],
+      },
+    },
+  },
+  'list_contacts/no_contacts': {
+    [OUTLOOK_LIST_CONTACTS]: { status: 200, body: { value: [] } },
+  },
+  'list_contacts/rate_limited': {
+    [OUTLOOK_LIST_CONTACTS]: OUTLOOK_RATE_LIMITED,
+  },
+  'get_contact/one_contact': {
+    [OUTLOOK_GET_CONTACT]: {
+      status: 200,
+      body: {
+        id: 'AAMkAGI2TGuc',
+        displayName: 'Ada Lovelace',
+        givenName: 'Ada',
+        surname: 'Lovelace',
+        emailAddresses: [{ name: 'Ada Lovelace', address: 'ada@example.com' }],
+        businessPhones: ['+49 30 000000'],
+        mobilePhone: '+49 170 0000000',
+        companyName: 'Example GmbH',
+        jobTitle: 'Engineer',
+      },
+    },
+  },
+  'get_contact/sparse_contact': {
+    [OUTLOOK_GET_CONTACT]: {
+      status: 200,
+      body: {
+        id: 'AAMkAGI2TGud',
+        displayName: 'Grace Hopper',
+        givenName: 'Grace',
+        surname: 'Hopper',
+        emailAddresses: [],
+        businessPhones: [],
+        mobilePhone: null,
+        companyName: '',
+        jobTitle: '',
+      },
+    },
+  },
+  'get_contact/not_found': {
+    [OUTLOOK_GET_CONTACT]: outlookError(
+      404,
+      'ErrorItemNotFound',
+      'The specified object was not found in the store.',
+    ),
+  },
+};
+
+/** The file each Outlook body that stores an attachment hands `ctx.files.store`. */
+const OUTLOOK_STORED: Record<string, StoredFile[]> = {
+  'get_message/with_attachment': [
+    {
+      fileName: 'invoice-2026-10.pdf',
+      contentType: 'application/pdf',
+      encoding: 'base64',
+      data: OUTLOOK_INVOICE,
+    },
+  ],
+  'get_attachments/with_attachment': [
+    {
+      fileName: 'invoice-2026-10.pdf',
+      contentType: 'application/pdf',
+      encoding: 'base64',
+      data: OUTLOOK_INVOICE,
+    },
+  ],
 };
 
 /** The one request each Tavily action makes: a POST that carries the API key
@@ -2142,6 +2712,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
     secrets: { apiKey: 'example-openrouter-key' },
     proofs: JEV_PROOFS,
   },
+  outlook: { proofs: OUTLOOK_PROOFS, stored: OUTLOOK_STORED },
   slack: { proofs: SLACK_PROOFS },
   tavily: {
     secrets: { apiKey: 'example-tavily-key' },

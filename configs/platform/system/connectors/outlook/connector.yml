@@ -210,6 +210,43 @@ actions:
         }],
         nextLink: '',
       };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'Graph returns the two newest messages in the mailbox, neither of them a draft.'
+        output:
+          messages:
+            - id: AAMkAGI2THkMSG1
+              internetMessageId: '<msg-1@example.com>'
+              subject: Quarterly report
+              from: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+              toRecipients: [{ emailAddress: { name: You, address: you@example.com } }]
+              receivedDateTime: '2025-01-15T09:00:00Z'
+              isRead: false
+              hasAttachments: false
+              bodyPreview: The quarterly report is ready.
+            - id: AAMkAGI2THkMSG2
+              internetMessageId: '<msg-2@example.com>'
+              subject: Lunch on Friday?
+              from: { emailAddress: { name: Grace Hopper, address: grace@example.com } }
+              toRecipients: [{ emailAddress: { name: You, address: you@example.com } }]
+              receivedDateTime: '2025-01-14T12:30:00Z'
+              isRead: true
+              hasAttachments: true
+              bodyPreview: Are you free on Friday?
+          nextLink: ''
+      - name: no_messages
+        kind: empty
+        description: 'The mailbox holds no message that is not a draft, so Graph returns an empty list.'
+        output:
+          messages: []
+          nextLink: ''
+      - name: rate_limited
+        kind: error
+        description: 'Graph rate-limits the listing with HTTP 429 and names a wait of 30 seconds.'
+        error:
+          message: 'Outlook list_messages failed: rate limited by Microsoft Graph (retry after 30s) — retry later.'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -328,6 +365,62 @@ actions:
         },
         attachments: [],
       };
+    scenarios:
+      - name: with_attachment
+        kind: success
+        description: 'Graph returns the message with one file attachment, which the body stores and returns with its file ID.'
+        output:
+          message:
+            id: AAMkAGI2THkMSG1
+            conversationId: AAQkAGI2THkCONV1
+            internetMessageId: '<msg-1@example.com>'
+            subject: Quarterly report
+            bodyPreview: The quarterly report is ready.
+            body: { contentType: text, content: The quarterly report is ready. }
+            from: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+            sender: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+            toRecipients: [{ emailAddress: { name: You, address: you@example.com } }]
+            ccRecipients: []
+            bccRecipients: []
+            replyTo: []
+            receivedDateTime: '2025-01-15T09:00:00Z'
+            sentDateTime: '2025-01-15T08:59:12Z'
+            hasAttachments: true
+            isRead: false
+            isDraft: false
+            importance: normal
+          attachments:
+            - { id: AAMkAGI2THkATT1, name: invoice-2026-10.pdf, contentType: application/pdf, size: 2048, fileId: 's3:example-org/00000000-0000-0000-0000-000000000001' }
+      - name: no_attachments
+        kind: empty
+        description: 'Graph returns a message with no attachments and an empty body, so nothing is stored and the list is empty.'
+        output:
+          message:
+            id: AAMkAGI2THkMSG2
+            conversationId: AAQkAGI2THkCONV2
+            internetMessageId: '<msg-2@example.com>'
+            subject: Lunch on Friday?
+            bodyPreview: ''
+            body: { contentType: text, content: '' }
+            from: { emailAddress: { name: Grace Hopper, address: grace@example.com } }
+            sender: { emailAddress: { name: Grace Hopper, address: grace@example.com } }
+            toRecipients: [{ emailAddress: { name: You, address: you@example.com } }]
+            ccRecipients: []
+            bccRecipients: []
+            replyTo: []
+            receivedDateTime: '2025-01-14T12:30:00Z'
+            sentDateTime: '2025-01-14T12:29:40Z'
+            hasAttachments: false
+            isRead: true
+            isDraft: false
+            importance: normal
+          attachments: []
+      - name: not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no message has this ID, so nothing is fetched.'
+        error:
+          message: 'Outlook get_message failed: message AAMkAGI2THk... not found.'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -380,6 +473,24 @@ actions:
       return {
         attachments: [{ id: 'att-1', name: 'report.pdf', contentType: 'application/pdf', size: 2048, fileId: 'file-att-1', url: 'https://files.example.com/file-att-1' }],
       };
+    scenarios:
+      - name: with_attachment
+        kind: success
+        description: 'Graph lists one file attachment on the message, which the body stores and returns with its file ID.'
+        output:
+          attachments:
+            - { id: AAMkAGI2THkATT1, name: invoice-2026-10.pdf, contentType: application/pdf, size: 2048, fileId: 's3:example-org/00000000-0000-0000-0000-000000000001' }
+      - name: no_attachments
+        kind: empty
+        description: 'Graph lists no attachment on the message, so there is nothing to store.'
+        output:
+          attachments: []
+      - name: not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no message has this ID, so there are no attachments to list.'
+        error:
+          message: 'Outlook get_attachments failed: message AAMkAGI2THk... not found.'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -448,6 +559,43 @@ actions:
         }],
         nextLink: '',
       };
+    scenarios:
+      - name: two_results
+        kind: success
+        description: 'Graph finds two messages that mention the keyword, and returns them newest first.'
+        output:
+          messages:
+            - id: AAMkAGI2THkSRCH1
+              internetMessageId: '<invoice-1@example.com>'
+              subject: 'Invoice 2026-10'
+              from: { emailAddress: { name: Accounts, address: accounts@example.com } }
+              toRecipients: [{ emailAddress: { name: You, address: you@example.com } }]
+              receivedDateTime: '2025-10-02T10:15:00Z'
+              isRead: false
+              hasAttachments: true
+              bodyPreview: 'Please find the invoice for October attached.'
+            - id: AAMkAGI2THkSRCH2
+              internetMessageId: '<invoice-2@example.com>'
+              subject: 'Re: invoice question'
+              from: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+              toRecipients: [{ emailAddress: { name: You, address: you@example.com } }]
+              receivedDateTime: '2025-09-18T08:05:00Z'
+              isRead: true
+              hasAttachments: false
+              bodyPreview: 'Thanks, the invoice question is answered.'
+          nextLink: ''
+      - name: no_results
+        kind: empty
+        description: 'No message mentions the keyword, so Graph returns an empty list.'
+        output:
+          messages: []
+          nextLink: ''
+      - name: rate_limited
+        kind: error
+        description: 'Graph rate-limits the search with HTTP 429 and names a wait of 30 seconds.'
+        error:
+          message: 'Outlook search_messages failed: rate limited by Microsoft Graph (retry after 30s) — retry later.'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -498,6 +646,29 @@ actions:
     mock: |
       const to = (Array.isArray(input.to) ? input.to : [input.to]).filter((x) => x != null && x !== '');
       return { sent: true, messageId: `<sent-${input.subject.length}@example.com>`, to, subject: input.subject };
+    scenarios:
+      - name: sent
+        kind: success
+        description: 'Graph creates the draft, which holds no attachment, and sends it: the message goes out under the internet message ID the draft got.'
+        output:
+          sent: true
+          messageId: '<sent-1@example.com>'
+          to: [user@example.com]
+          subject: Hello from Tale
+      - name: missing_send_scope
+        kind: refusal
+        description: 'Graph refuses the send with HTTP 403 because the app lacks the Mail.Send scope, so the draft is written but not sent.'
+        error:
+          message: 'Outlook send_message failed during send: permission denied — verify the app has the Mail.Send Microsoft Graph scope.'
+          status: 403
+      - name: sent_again
+        kind: duplicate
+        description: 'Graph does not de-duplicate a repeated send, so the same message is sent a second time as a new draft under an internet message ID of its own.'
+        output:
+          sent: true
+          messageId: '<sent-2@example.com>'
+          to: [user@example.com]
+          subject: Hello from Tale
     backend:
       kind: yaml-js
       live: |
@@ -553,6 +724,23 @@ actions:
     output: '{ emailAddress: string }'
     mock: |
       return { emailAddress: 'mailbox@example.com' };
+    scenarios:
+      - name: mailbox_address
+        kind: success
+        description: 'Graph answers the signed-in account with its mail address.'
+        output:
+          emailAddress: you@example.com
+      - name: no_address
+        kind: empty
+        description: 'Graph answers the signed-in account with neither a mail address nor a principal name, so the address is empty.'
+        output:
+          emailAddress: ''
+      - name: refused_sign_in
+        kind: error
+        description: 'Graph answers HTTP 401 because the access token has expired or been revoked.'
+        error:
+          message: 'Outlook get_profile failed: Microsoft Graph refused the sign-in — reconnect the account, or for an app sign-in replace its client secret in Settings → Connectors.'
+          status: 401
     backend:
       kind: yaml-js
       live: |
@@ -602,6 +790,41 @@ actions:
         }],
         nextLink: '',
       };
+    scenarios:
+      - name: two_events
+        kind: success
+        description: 'Graph returns the two events that fall in the date range, earliest first.'
+        output:
+          events:
+            - id: AAMkAGI2TGEV1
+              subject: Weekly sync
+              start: { dateTime: '2025-06-03T09:00:00.0000000', timeZone: UTC }
+              end: { dateTime: '2025-06-03T10:00:00.0000000', timeZone: UTC }
+              location: { displayName: Room 1 }
+              organizer: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+              isAllDay: false
+              bodyPreview: 'Agenda: last week, this week, blockers.'
+            - id: AAMkAGI2TGEV2
+              subject: Design review
+              start: { dateTime: '2025-06-10T14:00:00.0000000', timeZone: UTC }
+              end: { dateTime: '2025-06-10T15:00:00.0000000', timeZone: UTC }
+              location: { displayName: Room 2 }
+              organizer: { emailAddress: { name: Grace Hopper, address: grace@example.com } }
+              isAllDay: false
+              bodyPreview: Review the draft of the release notes.
+          nextLink: ''
+      - name: no_events
+        kind: empty
+        description: 'The calendar holds no event in the date range, so Graph returns an empty list.'
+        output:
+          events: []
+          nextLink: ''
+      - name: missing_scope
+        kind: error
+        description: 'Graph refuses the listing with HTTP 403 because the access token lacks the Calendars.Read scope.'
+        error:
+          message: 'Outlook list_events failed: permission denied — verify the app has the Calendars.Read Microsoft Graph scope.'
+          status: 403
     backend:
       kind: yaml-js
       live: |
@@ -661,6 +884,46 @@ actions:
           isAllDay: false,
         },
       };
+    scenarios:
+      - name: one_event
+        kind: success
+        description: 'Graph returns the event with its attendees, location and body.'
+        output:
+          event:
+            id: AAMkAGI2TG93
+            subject: Weekly sync
+            start: { dateTime: '2025-06-03T09:00:00.0000000', timeZone: UTC }
+            end: { dateTime: '2025-06-03T10:00:00.0000000', timeZone: UTC }
+            location: { displayName: Room 1 }
+            attendees:
+              - { type: required, status: { response: accepted, time: '2025-06-01T08:00:00Z' }, emailAddress: { name: Grace Hopper, address: grace@example.com } }
+            organizer: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+            isAllDay: false
+            bodyPreview: 'Agenda: last week, this week, blockers.'
+            body: { contentType: text, content: 'Agenda: last week, this week, blockers.' }
+            webLink: https://outlook.office.com/calendar/item/AAMkAGI2TG93
+      - name: no_attendees
+        kind: empty
+        description: 'Graph returns an event nobody is invited to and that has no body, so its attendees and preview are empty.'
+        output:
+          event:
+            id: AAMkAGI2TG94
+            subject: Focus time
+            start: { dateTime: '2025-06-04T13:00:00.0000000', timeZone: UTC }
+            end: { dateTime: '2025-06-04T15:00:00.0000000', timeZone: UTC }
+            location: { displayName: '' }
+            attendees: []
+            organizer: { emailAddress: { name: Ada Lovelace, address: ada@example.com } }
+            isAllDay: false
+            bodyPreview: ''
+            body: { contentType: text, content: '' }
+            webLink: https://outlook.office.com/calendar/item/AAMkAGI2TG94
+      - name: not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no event has this ID, so nothing is fetched.'
+        error:
+          message: 'Outlook get_event failed: event AAMkAGI2TG93... not found.'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -718,6 +981,31 @@ actions:
         end: input.endDateTime,
         webLink: `https://outlook.office.com/calendar/item/event-${input.subject.length}`,
       };
+    scenarios:
+      - name: created
+        kind: success
+        description: 'Graph creates the event in the calendar and returns its ID, its times and its web link.'
+        output:
+          id: AAMkAGI2TGEVT1
+          subject: Design review
+          start: '2025-06-15T09:00:00.0000000'
+          end: '2025-06-15T10:00:00.0000000'
+          webLink: https://outlook.office.com/calendar/item/AAMkAGI2TGEVT1
+      - name: missing_scope
+        kind: refusal
+        description: 'Graph refuses the event with HTTP 403 because the access token lacks the Calendars.ReadWrite scope, so no event is created.'
+        error:
+          message: 'Outlook create_event failed: permission denied — verify the app has the Calendars.ReadWrite Microsoft Graph scope.'
+          status: 403
+      - name: created_again
+        kind: duplicate
+        description: 'Graph does not de-duplicate a repeated create, so the same event is created a second time under an ID of its own.'
+        output:
+          id: AAMkAGI2TGEVT2
+          subject: Design review
+          start: '2025-06-15T09:00:00.0000000'
+          end: '2025-06-15T10:00:00.0000000'
+          webLink: https://outlook.office.com/calendar/item/AAMkAGI2TGEVT2
     backend:
       kind: yaml-js
       live: |
@@ -786,6 +1074,43 @@ actions:
         }],
         nextLink: '',
       };
+    scenarios:
+      - name: two_contacts
+        kind: success
+        description: 'Graph returns the two contacts whose names start with the search text, ordered by display name.'
+        output:
+          contacts:
+            - id: AAMkAGI2TGuc1
+              displayName: Ada Lovelace
+              givenName: Ada
+              surname: Lovelace
+              emailAddresses: [{ name: Ada Lovelace, address: ada@example.com }]
+              businessPhones: ['+49 30 000000']
+              mobilePhone: null
+              companyName: Example GmbH
+              jobTitle: Engineer
+            - id: AAMkAGI2TGuc2
+              displayName: Adam Smith
+              givenName: Adam
+              surname: Smith
+              emailAddresses: [{ name: Adam Smith, address: adam@example.com }]
+              businessPhones: []
+              mobilePhone: '+49 170 0000000'
+              companyName: ''
+              jobTitle: ''
+          nextLink: ''
+      - name: no_contacts
+        kind: empty
+        description: 'No contact name starts with the search text, so Graph returns an empty list.'
+        output:
+          contacts: []
+          nextLink: ''
+      - name: rate_limited
+        kind: error
+        description: 'Graph rate-limits the listing with HTTP 429 and names a wait of 30 seconds.'
+        error:
+          message: 'Outlook list_contacts failed: rate limited by Microsoft Graph (retry after 30s) — retry later.'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -837,6 +1162,41 @@ actions:
           jobTitle: 'Engineer',
         },
       };
+    scenarios:
+      - name: one_contact
+        kind: success
+        description: 'Graph returns the contact with its addresses, phone numbers and work details.'
+        output:
+          contact:
+            id: AAMkAGI2TGuc
+            displayName: Ada Lovelace
+            givenName: Ada
+            surname: Lovelace
+            emailAddresses: [{ name: Ada Lovelace, address: ada@example.com }]
+            businessPhones: ['+49 30 000000']
+            mobilePhone: '+49 170 0000000'
+            companyName: Example GmbH
+            jobTitle: Engineer
+      - name: sparse_contact
+        kind: empty
+        description: 'Graph returns a contact that holds only a name, so its addresses, phone numbers and work details are empty.'
+        output:
+          contact:
+            id: AAMkAGI2TGud
+            displayName: Grace Hopper
+            givenName: Grace
+            surname: Hopper
+            emailAddresses: []
+            businessPhones: []
+            mobilePhone: null
+            companyName: ''
+            jobTitle: ''
+      - name: not_found
+        kind: error
+        description: 'Graph answers HTTP 404 because no contact has this ID, so nothing is fetched.'
+        error:
+          message: 'Outlook get_contact failed: contact AAMkAGI2TGuc... not found.'
+          status: 404
     backend:
       kind: yaml-js
       live: |
