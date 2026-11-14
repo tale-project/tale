@@ -4,7 +4,7 @@ description: "Compare Tale et Mastra pour tes projets d’agents : adopter un e
 competitor: "Mastra"
 slug: "tale-vs-mastra"
 relationship: "framework"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,14 +12,14 @@ draft: false
 
 Pour une équipe TypeScript, intégrer des agents dans un produit existant peut être un choix cohérent. Pour les collègues qui les utilisent, le besoin immédiat peut plutôt être un projet partagé avec des responsables clairs et des livrables à vérifier. Détermine lequel de ces résultats ton initiative doit fournir.
 
-[Mastra](https://mastra.ai/) est un framework TypeScript pour agents et applications IA. Il propose agents, workflows, mémoire, espaces de travail, observabilité et outils d’évaluation, avec intégration dans des applications frontend ou backend. C’est une base de développement : le choix porte donc sur la création d’une application ou l’adoption de l’espace projet de Tale.
+La [documentation des agents Mastra](https://mastra.ai/docs/agents/overview) décrit des agents qui utilisent des LLM et des outils, et la [documentation des workflows](https://mastra.ai/en/docs/workflows/overview) des enchaînements d’étapes combinés aux agents. Les agents peuvent conserver une mémoire ; agents et workflows enregistrés utilisent des fonctions de journalisation et d’observabilité. C’est une base de développement : le choix porte donc sur la création d’une application ou l’adoption de l’espace projet de Tale.
 
 ## Comparaison en bref
 
 | Critère | Tale | Mastra |
 | --- | --- | --- |
-| Niveau du produit | Un espace d’équipe existant pour les tâches du projet et l’exécution des agents. | Un framework TypeScript pour développer des agents et des applications. |
-| Éléments principaux | Tâches, consignes, fichiers de projet, agents équipés et validation. | Agents, workflows, mémoire, espaces de travail, observabilité et évaluations. |
+| Niveau du produit | Un espace d’équipe existant pour les tâches du projet et l’exécution des agents. | Une base de développement pour agents, workflows et mémoire dans le code applicatif. |
+| Éléments principaux | Tâches, consignes, fichiers de projet, agents équipés et validation. | Agents, workflows, mémoire, journalisation et observabilité. |
 | Travail d’exploitation | Configurer les runtimes, les outils et les accès au déploiement pour l’équipe. | Intégrer le framework à l’application que ton équipe développe. |
 
 ## Inclus la maintenance dans le choix
@@ -33,3 +33,5 @@ Envisage Tale si l’entreprise a besoin de planifier le travail, de déléguer 
 Prends une version fictive avec un journal des modifications, des notes de test et deux problèmes ouverts. Demande une synthèse de préparation, attribue des investigations et fais exiger une correction par le responsable produit avant acceptation.
 
 Dans le prototype Mastra, inclus l’interface et les commandes nécessaires aux non-développeurs. Dans Tale, vérifie l’adéquation du modèle de tâches et de validation. Sépare le travail de développement de l’effort de la personne qui pilote le lancement. Recommence avec un nouveau collègue pour vérifier la compréhension des responsabilités. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ton processus.
+
+Cette comparaison s’appuie sur des pages publiques des éditeurs, examinées le 14 novembre 2026, sans test comparatif pratique.

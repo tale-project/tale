@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Mission Control von Builderz Labs für Agenten
 competitor: "Mission Control (Builderz Labs)"
 slug: "tale-vs-mission-control"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Wenn sich Agentenaktivität auf mehrere Laufzeiten verteilt, kann die Betriebsü
 
 ## Betriebsübersicht und Arbeitsalltag unterscheiden
 
-Builderz Labs beschreibt Mission Control als selbst gehostete Steuerungsebene mit Aufgabenverteilung, Prüfung, Laufzeitkoordination, Logs und Ausgabenansichten. Das Repository dokumentiert auch Wissens- und Governance-Funktionen und kennzeichnet die Software als Alpha. Der Funktionsumfang der Adapter hängt von der Laufzeit ab. [Mission-Control-Repository](https://github.com/builderz-labs/mission-control).
+Builderz Labs beschreibt Mission Control als selbst gehostete Steuerungsebene mit Aufgabenverteilung, Prüfung, Laufzeitkoordination, Logs und Ausgabenansichten. Das Repository dokumentiert auch Wissens- und Governance-Funktionen und kennzeichnet die Software als Alpha. Das README nennt Laufzeiten wie OpenClaw, Claude Code und Codex. [Mission-Control-Repository](https://github.com/builderz-labs/mission-control/blob/main/README.md).
 
 Tale organisiert dieselbe übergeordnete Herausforderung in Projekten für Teammitglieder und ausgestattete Agenten. Ein Projekt enthält Aufgabenboard, Anweisungen und Referenzdateien. Menschen verfolgen den Fortschritt und prüfen Berichte und Ergebnisse. Recherche, Richtlinienentwurf und die Verbesserung eines internen Tools können zu einem Projekt gehören, statt in unverbundenen Agentensitzungen zu landen.
 
@@ -32,4 +32,4 @@ Starte eine kleine Recherche und eine Dokumentaufgabe mit den tatsächlich gepla
 
 Prüfe, ob beide das zuletzt akzeptierte Ergebnis und die offene Prüfentscheidung finden. Vergleiche den Einrichtungsaufwand je Laufzeit, statt dich auf Logos zu verlassen. Berücksichtige Updates und Betreuung: Der Alpha-Status von Mission Control verlangt eine Prüfung eurer Änderungsbereitschaft. Auch eine selbst gehostete Tale-Installation braucht eine verantwortliche Person für den Betrieb.
 
-Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/projects/overview) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
+Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/projects/overview) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 14. November 2026, und ist kein praktischer Benchmark.

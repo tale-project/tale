@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Microsoft Agent Framework: gemeinsamer Projekt
 competitor: "Microsoft Agent Framework"
 slug: "tale-vs-microsoft-agent-framework"
 relationship: "framework"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,14 +12,14 @@ draft: false
 
 Ein Unternehmen mit Plattformteam möchte seine Agentenarchitektur möglicherweise selbst gestalten. Ein anderes Team braucht ein Produkt, in dem Menschen Aufgaben zuweisen und Ergebnisse prüfen können. Entscheidend sind die Anwendung, die du betreiben willst, und das Team, das sie bereitstellt.
 
-[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) unterstützt Multi-Agenten-Workflows in Python und .NET sowie über ein separates Go-SDK. Das Repository beschreibt sequenzielle und parallele Abläufe, Übergaben, Gruppenarbeit, Checkpoints und menschliche Eingriffe. Es ist ein Anwendungsframework und unterscheidet sich damit von Microsofts fertigen Assistenzprodukten sowie von Tales Team-Workspace.
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework/blob/main/python/README.md) unterstützt Multi-Agenten-Workflows in Python und .NET. Die Python-README verweist auf Beispiele für sequenzielle, parallele, Gruppen- und Übergabe-Orchestrierung, und ein [Go-SDK](https://github.com/microsoft/agent-framework/blob/main/go/README.md) liegt in einem separaten Repository. Es ist ein Anwendungsframework und unterscheidet sich damit von Microsofts fertigen Assistenzprodukten sowie von Tales Team-Workspace.
 
 ## Vergleich auf einen Blick
 
 | Kriterium | Tale | Microsoft Agent Framework |
 | --- | --- | --- |
 | Produktebene | Eine gemeinsame Anwendung für Projektaufgaben, Agenten und Prüfung. | Ein Agenten-Framework für Python und .NET mit separatem Go-SDK. |
-| Koordination | Konfigurierte Manager-Agenten können bereite Aufgaben innerhalb der Ausführungs- und Prüfregeln delegieren. | Sequenzielle, parallele, Übergabe- und Gruppenmuster mit Checkpoints und menschlichen Eingriffen. |
+| Koordination | Konfigurierte Manager-Agenten können bereite Aufgaben innerhalb der Ausführungs- und Prüfregeln delegieren. | Sequenzielle, parallele, Gruppen- und Übergabe-Orchestrierung. |
 | Verantwortung für die Einrichtung | Runtime-Zugriff, Tools und die Bereitstellung für das Team vorbereiten. | Anwendungsoberfläche, Identität und Hosting entwickeln und betreiben. |
 
 ## Wähle deine Implementierungsverantwortung
@@ -33,3 +33,5 @@ Prüfe Tale, wenn die benötigte Anwendung ein gemeinsamer Projektraum für Team
 Erstelle einen fiktiven Vorfall mit Zeitverlauf, zwei Untersuchungssträngen und einem Entwurf für die Kundenkommunikation. Lass beide Kandidaten parallele Untersuchungen im konfigurierten Rahmen, eine gemeinsame Empfehlung und eine Nachfrage nach weiteren Belegen unterstützen.
 
 Bewerte, wie Entwickler Fortschritt und Unterbrechungen in einer Framework-Anwendung darstellen und wie Tales Aufgabenablauf dieselbe Arbeit abbildet. Lass einen Kollegen, der die Einrichtung nicht kennt, eine offene Aufgabe übernehmen. Erfasse neben den Agentenergebnissen auch den Aufwand für eine verständliche Übergabe. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Nachbereitungsprojekt.
+
+Dieser Vergleich beruht auf öffentlichen Anbieterseiten, geprüft am 14. November 2026; er ist kein praktischer Benchmark.

@@ -4,7 +4,7 @@ description: "Compare Tale et Microsoft Agent Framework : adopter un espace pro
 competitor: "Microsoft Agent Framework"
 slug: "tale-vs-microsoft-agent-framework"
 relationship: "framework"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,14 +12,14 @@ draft: false
 
 Une organisation disposant d’une équipe plateforme peut vouloir définir directement son architecture d’agents. Une autre équipe cherche peut-être un produit où les personnes peuvent commencer à attribuer des tâches et à vérifier le travail. Le choix concerne l’application à exploiter et l’équipe responsable de sa livraison.
 
-[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) permet de développer des workflows multi-agents en Python et .NET, avec un SDK Go distinct. Le dépôt décrit parcours séquentiels et concurrents, transmissions, travail en groupe, points de reprise et intervention humaine. C’est un framework applicatif, distinct des assistants prêts à utiliser de Microsoft et de l’espace d’équipe de Tale.
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework/blob/main/python/README.md) permet de développer des workflows multi-agents en Python et .NET. Son README Python renvoie vers des exemples d’orchestrations séquentielles, concurrentes, de groupe et de transfert, et un [SDK Go](https://github.com/microsoft/agent-framework/blob/main/go/README.md) est disponible dans un dépôt distinct. C’est un framework applicatif, distinct des assistants prêts à utiliser de Microsoft et de l’espace d’équipe de Tale.
 
 ## Comparaison en bref
 
 | Critère | Tale | Microsoft Agent Framework |
 | --- | --- | --- |
 | Niveau du produit | Une application partagée pour les tâches du projet, les agents et la validation. | Un framework d’agents pour Python et .NET, avec un SDK Go distinct. |
-| Coordination | Des agents de coordination configurés peuvent déléguer les tâches prêtes selon les règles d’exécution et de validation. | Schémas séquentiels, parallèles, de transfert et de groupe avec points de reprise et intervention humaine. |
+| Coordination | Des agents de coordination configurés peuvent déléguer les tâches prêtes selon les règles d’exécution et de validation. | Orchestrations séquentielles, concurrentes, de groupe et de transfert. |
 | Responsabilité de configuration | Préparer l’accès aux runtimes, les outils et le déploiement de l’équipe. | Développer et exploiter l’interface applicative, l’identité et l’hébergement. |
 
 ## Choisis ta responsabilité d’implémentation
@@ -33,3 +33,5 @@ Envisage Tale si l’application recherchée est un espace projet commun aux col
 Crée un incident fictif avec sa chronologie, deux pistes d’investigation et un brouillon de communication client. Demande à chaque solution de soutenir des investigations parallèles selon sa configuration, une recommandation commune et une demande de preuves supplémentaires lors de la relecture.
 
 Examine comment les développeurs rendent visibles l’avancement et les interruptions dans leur application, puis comment le cycle des tâches de Tale représente le même travail. Fais reprendre une tâche ouverte par un collègue qui n’a pas construit la configuration. Note l’effort pour rendre cette transmission compréhensible, en plus des résultats des agents. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce projet.
+
+Cette comparaison s’appuie sur des pages publiques des éditeurs, examinées le 14 novembre 2026, sans test comparatif pratique.
