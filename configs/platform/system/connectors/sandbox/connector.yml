@@ -113,7 +113,7 @@ actions:
     scenarios:
       - name: completed
         kind: success
-        description: 'The script exits 0 inside the run''s session, writes its result.json and one report, and the platform harvests the report.'
+        description: 'The script exits 0 inside the run''s session, writes its result.json, and the platform harvests that file.'
         output:
           ok: true
           status: completed
