@@ -60,7 +60,7 @@ A user with exactly one organization can omit the organization header. With seve
 | Existing organization without membership, or with a disabled one | `403 ORG_FORBIDDEN` |
 | Valid membership | Request proceeds under that organization and role |
 
-Each of the three refusals lists the organizations you can select in `data.organizations`, as `slug` and `name` pairs. Disabled memberships are left out, so the list is empty when none remains. Retry with one of the listed slugs.
+Each of the three refusals lists the organizations you can select in `data.organizations`, as `slug` and `name` pairs. Disabled memberships are left out, and so are the organizations that blocked this key, so the list is empty when none remains. Retry with one of the listed slugs.
 
 `GET /api/v1/me` also returns the membership list as `organizations`; for a key that works in one organization only, that is the one organization, with the role the key acts with. Its `key.expiresAt` is epoch milliseconds, or `null` for a non-expiring key: rotate unattended credentials before expiry causes `401`. `key.name` identifies the credential in use, and `key.owner.kind` says whose it is: `user` for a person's own key, `member`, `team`, `project`, or `organization`, with the team or project under `key.owner.team` and `key.owner.project`. A team's, a project's, or the organization's key has no address, so its `user.email` is empty.
 

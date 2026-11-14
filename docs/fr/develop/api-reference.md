@@ -60,7 +60,7 @@ Une personne appartenant à une seule organisation peut omettre l'en-tête d'org
 | Organisation existante sans appartenance, ou avec une appartenance désactivée | `403 ORG_FORBIDDEN` |
 | Appartenance valide | La requête continue avec cette organisation et ce rôle |
 
-Chacun de ces trois refus liste dans `data.organizations` les organisations que tu peux sélectionner, sous forme de paires `slug` et `name`. Les appartenances désactivées en sont exclues ; s'il n'en reste aucune, la liste est vide. Relance la requête avec l'un des slugs listés.
+Chacun de ces trois refus liste dans `data.organizations` les organisations que tu peux sélectionner, sous forme de paires `slug` et `name`. Les appartenances désactivées en sont exclues, ainsi que les organisations qui ont bloqué cette clé ; s'il n'en reste aucune, la liste est vide. Relance la requête avec l'un des slugs listés.
 
 `GET /api/v1/me` renvoie aussi les appartenances sous `organizations` ; pour une clé qui ne fonctionne que dans une organisation, c’est cette seule organisation, avec le rôle avec lequel la clé agit. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée, et `key.owner.kind` indique à qui elle appartient : `user` pour la clé personnelle d’une personne, `member`, `team`, `project` ou `organization`, avec l’équipe ou le projet sous `key.owner.team` et `key.owner.project`. La clé d’une équipe, d’un projet ou de l’organisation n’a pas d’adresse : son `user.email` est vide.
 

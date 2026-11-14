@@ -19,10 +19,7 @@ import {
 } from '../auth/auth.ts';
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
-import {
-  isApiKeyBlockedInOrg,
-  listBlockingOrgSlugs,
-} from '../domains/api_keys/block-check.ts';
+import { isApiKeyBlockedInOrg } from '../domains/api_keys/block-check.ts';
 import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
 import { withApiKeyAuditActor } from '../domains/audit_logs/request-actor.ts';
 import { isModelApiDoorPath } from '../domains/model_api/wire.ts';
@@ -420,6 +417,7 @@ export function createRestV1Routes(deps: {
             organizations: await listSelectableOrganizations(
               deps.sql,
               session.user.id,
+              apiKeyId,
             ),
           },
         },
@@ -430,6 +428,7 @@ export function createRestV1Routes(deps: {
     try {
       resolved = await resolveUserOrganization(deps.sql, {
         userId: session.user.id,
+        apiKeyId,
         ...(orgSlugHeader ? { orgSlug: orgSlugHeader } : {}),
         // A machine call must never follow the dashboard's last-active
         // pointer across tenants — multi-org keys say which org they mean,
@@ -464,21 +463,13 @@ export function createRestV1Routes(deps: {
             organizations: await listSelectableOrganizations(
               deps.sql,
               session.user.id,
+              apiKeyId,
             ),
           },
         },
         403,
       );
     }
-    // Where this key still works, for the refusal below to list: the
-    // holder's organizations that have not blocked this one.
-    const organizationsWhereKeyWorks = async () => {
-      const [organizations, blocking] = await Promise.all([
-        listSelectableOrganizations(deps.sql, session.user.id),
-        listBlockingOrgSlugs(deps.sql, apiKeyId),
-      ]);
-      return organizations.filter((org) => !blocking.has(org.slug));
-    };
     // An Owner or Admin may block a person's own key in their organization
     // and only there (APIKEY-R11): the key keeps working in the holder's
     // other organizations, which the refusal lists.
@@ -489,7 +480,13 @@ export function createRestV1Routes(deps: {
         {
           error: `Organization "${resolved.orgSlug}" has blocked this API key; it works only in the organizations listed.`,
           code: 'API_KEY_BLOCKED',
-          data: { organizations: await organizationsWhereKeyWorks() },
+          data: {
+            organizations: await listSelectableOrganizations(
+              deps.sql,
+              session.user.id,
+              apiKeyId,
+            ),
+          },
         },
         403,
       );
