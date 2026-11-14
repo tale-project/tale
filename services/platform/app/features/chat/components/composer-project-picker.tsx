@@ -91,7 +91,7 @@ export function ComposerProjectPicker({
               icon={project.icon}
               color={project.color}
               size={16}
-              variant="plain"
+              variant="inline"
             />
           ) : (
             <FolderInput aria-hidden className="size-4 shrink-0" />

@@ -79,6 +79,29 @@ describe('ProjectAvatar', () => {
     }
   });
 
+  it('inline: the glyph is the toolbar size, in the text colour, with no chip', () => {
+    // A ghost toolbar button sets the text colour; the inline glyph must take
+    // it (no muted tone, no background) and stay 16 px like its neighbours.
+    const { container } = render(
+      <ProjectAvatar icon="Rocket" color="blue" size={16} variant="inline" />,
+    );
+    const glyph = container.querySelector('svg');
+    expect(glyph).toHaveClass('size-4');
+    expect(glyph).not.toHaveClass('size-3');
+    expect(container.firstElementChild).not.toHaveClass(
+      'text-muted-foreground',
+    );
+    expect(container.firstElementChild).not.toHaveClass('bg-blue-500');
+  });
+
+  it('plain stays muted and 12 px at size 16 for the dense lists', () => {
+    const { container } = render(
+      <ProjectAvatar icon="Rocket" size={16} variant="plain" />,
+    );
+    expect(container.firstElementChild).toHaveClass('text-muted-foreground');
+    expect(container.querySelector('svg')).toHaveClass('size-3');
+  });
+
   it('with a label, is an image a screen reader announces by that name', () => {
     render(<ProjectAvatar label="Q2 Sales Hiring" icon="Briefcase" />);
     expect(
