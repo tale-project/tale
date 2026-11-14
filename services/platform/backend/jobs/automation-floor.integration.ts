@@ -33,6 +33,11 @@ import {
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
 
+/** How long the session-loss proof lets a terminated backend take to exit:
+ * a backend idle in its transaction leaves at once, and the bound stays
+ * under the 8 s statement timeout every connection here runs with. */
+const TERMINATE_WAIT_MS = 5_000;
+
 async function ledgerValue(reader: Pick<Sql, 'unsafe'>): Promise<unknown> {
   const rows = await reader.unsafe(AUTOMATION_LEDGER_QUERY).values();
   if (rows.length !== 1 || rows[0].length !== 1)
@@ -226,26 +231,44 @@ async function checkCutover(
   });
   let revoked = false;
   let lost = false;
+  let terminated = false;
+  // postgres.js rejects the transaction the moment its connection closes,
+  // while the body is still running: the verdict below then read `revoked`
+  // before the body had set it, and whether the close or the probe came
+  // first decided the check (#5433). The body is awaited on its own.
+  let body: Promise<void> = Promise.resolve();
   try {
-    await db.begin(AUTOMATION_CUTOVER_ISOLATION, async (tx) => {
-      await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
-      await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
-      const [owner] = await tx`SELECT pg_backend_pid() AS pid`;
-      await peer`SELECT pg_terminate_backend(${owner.pid})`;
-      try {
-        const result = await tx.unsafe(AUTOMATION_CUTOVER_PROBE_SQL).values();
-        revoked = !cutoverLockOwned(JSON.stringify(result[0]?.[0]));
-      } catch {
-        revoked = true;
-      }
+    await db.begin(AUTOMATION_CUTOVER_ISOLATION, (tx) => {
+      body = (async () => {
+        await tx.unsafe(AUTOMATION_CUTOVER_SESSION_SQL);
+        await tx.unsafe(AUTOMATION_CUTOVER_LOCK_SQL);
+        const [owner] = await tx`SELECT pg_backend_pid() AS pid`;
+        // With a timeout pg_terminate_backend returns once the backend has
+        // exited (false if it had not within the bound), so the probe below
+        // asks a session that is gone, never one still on its way out.
+        const [ended] = await peer<{ ended: boolean }[]>`
+          SELECT pg_terminate_backend(${owner.pid}, ${TERMINATE_WAIT_MS}) AS ended
+        `;
+        terminated = ended?.ended ?? false;
+        try {
+          const result = await tx.unsafe(AUTOMATION_CUTOVER_PROBE_SQL).values();
+          revoked = !cutoverLockOwned(JSON.stringify(result[0]?.[0]));
+        } catch {
+          revoked = true;
+        }
+      })();
+      return body;
     });
   } catch {
     lost = true;
   }
+  await body.catch((error: unknown) => {
+    console.warn('[itest] cutover session-loss probe failed:', error);
+  });
   record(
     'automation cutover session loss revokes its lock proof',
-    revoked && lost,
-    'terminated only this owned transaction; no stale zero is authority',
+    terminated && revoked && lost,
+    `terminated only this owned transaction (gone within ${TERMINATE_WAIT_MS} ms=${terminated}, proof revoked=${revoked}, transaction lost=${lost}); no stale zero is authority`,
   );
 }
 

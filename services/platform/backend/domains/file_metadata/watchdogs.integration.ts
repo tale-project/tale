@@ -49,6 +49,16 @@ import {
 
 type Record = (name: string, ok: boolean, detail: string) => void;
 
+/** How long a tick may take while another transaction holds one of its rows:
+ * the settle waits for that row's lock for its 2 s lock timeout and moves on,
+ * so a tick that took far longer waited on the lock it should have skipped.
+ * The rest of the bound is a loaded runner's. */
+const LOCKED_TICK_TOLERANCE_MS = 10_000;
+/** How long the lane waits for that tick at all before it reads the tick as
+ * stuck behind the lock: past the tolerance, so a slow tick is reported with
+ * its time rather than as one that never returned. */
+const LOCKED_TICK_WAIT_MS = 15_000;
+
 /** One more settled failure than a tick reads (`RAG_MAX_PER_RUN`). */
 const SETTLED_ROWS = 201;
 const SETTLED_ERROR =
@@ -333,7 +343,7 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
     const returned = await Promise.race([
       sweep.then(() => true),
       new Promise<boolean>((resolve) => {
-        setTimeout(() => resolve(false), 15_000);
+        setTimeout(() => resolve(false), LOCKED_TICK_WAIT_MS);
       }),
     ]);
     const elapsedMs = Date.now() - started;
@@ -356,12 +366,12 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
     record(
       'rag watchdog: a row lock held past the settle lock timeout defers that row alone',
       returned &&
-        elapsedMs < 10_000 &&
+        elapsedMs < LOCKED_TICK_TOLERANCE_MS &&
         waiting?.count === '0' &&
         statusOf('first.pdf') === 'failed' &&
         statusOf('locked.pdf') === 'running' &&
         statusOf('after.pdf') === 'failed',
-      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < 10000), still waiting on the lock=${waiting?.count} (want 0), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
+      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < ${LOCKED_TICK_TOLERANCE_MS}), still waiting on the lock=${waiting?.count} (want 0), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
     );
   } finally {
     release();

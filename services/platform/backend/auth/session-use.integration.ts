@@ -6,7 +6,6 @@
  * idle past the window is revoked. */
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -14,6 +13,7 @@ import { z } from 'zod';
 import { buildSessionCookie } from '../core/enterprise_sso/login/finish_login.ts';
 import { createSsoUserSession } from '../domains/sso/service.ts';
 import {
+  awaitOrgScaffold,
   cookieHeaderFrom,
   ITEST_PASSWORD,
   type RecordCheck,
@@ -34,33 +34,6 @@ interface SessionRow {
   expiresAt: Date;
 }
 
-/** The states in which a pg-boss job may still run. */
-const PENDING_JOB_STATES = new Set(['created', 'retry', 'active']);
-const SCAFFOLD_WAIT_MS = 10_000;
-
-/** Creating an organization queues its `org.scaffold` job, which empties
- * the organization's config tree before it seeds the catalog: a policy the
- * lane wrote there first would be deleted under it. True once that job has
- * run (or failed for good), false while it is still pending at the deadline. */
-async function waitForOrgScaffold(sql: Sql, orgSlug: string): Promise<boolean> {
-  const deadline = Date.now() + SCAFFOLD_WAIT_MS;
-  for (;;) {
-    const jobs = await sql<{ state: string }[]>`
-      SELECT state::text AS state FROM pgboss.job
-      WHERE name = 'org.scaffold'
-        AND singleton_key = ${`org-scaffold:${orgSlug}`}
-    `;
-    if (
-      jobs.length > 0 &&
-      jobs.every((job) => !PENDING_JOB_STATES.has(job.state))
-    ) {
-      return true;
-    }
-    if (Date.now() >= deadline) return false;
-    await sleep(50);
-  }
-}
-
 export async function checkSessionUseUnderIdleWindow(
   sql: Sql,
   base: string,
@@ -68,7 +41,7 @@ export async function checkSessionUseUnderIdleWindow(
   record: RecordCheck,
 ): Promise<void> {
   const owner = await signUpOrgOwner(base, 'session-use');
-  const scaffolded = await waitForOrgScaffold(sql, owner.orgSlug);
+  const scaffolded = await awaitOrgScaffold(sql, owner.orgSlug);
   const governanceDir = path.join(
     process.env.TALE_CONFIG_DIR ?? '',
     owner.orgSlug,

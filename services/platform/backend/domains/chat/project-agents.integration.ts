@@ -124,19 +124,9 @@ export async function checkChatProjectAgents(
     return rows[0]?.agentId ?? null;
   };
 
-  // The new organization's scaffold lays out its configuration tree; the
-  // provider file goes in once that has settled, or the scaffold's tree
-  // replaces the directory it was written to.
-  const settleBy = Date.now() + 30_000;
-  while (Date.now() < settleBy) {
-    const [pending] = await sql<{ count: number }[]>`
-      SELECT count(*)::int AS count FROM pgboss.job
-      WHERE name = 'org.scaffold'
-        AND state IN ('created', 'retry', 'active')
-    `;
-    if ((pending?.count ?? 0) === 0) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  // The provider file goes in once the new organization's scaffold has
+  // settled (`seedItestAgentProvider` waits for it), or the scaffold would
+  // empty the directory it was written to.
   const provider = await seedAgentProvider();
   try {
     const projectId = await createProject(`Chat agents ${suffix}`);
