@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { setProjectId } from '../project/project-context';
 
 // Seed the shared project-context singleton instead of mocking load-env —
@@ -11,14 +12,17 @@ const stopContainerMock = mock();
 const removeContainerMock = mock();
 const loggerWarnMock = mock();
 
-mock.module('../docker/docker', () => ({ docker: dockerMock }));
-mock.module('../docker/stop-container', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../docker/docker', () => ({ docker: dockerMock }));
+await mockModule('../docker/stop-container', () => ({
   stopContainer: stopContainerMock,
 }));
-mock.module('../docker/remove-container', () => ({
+await mockModule('../docker/remove-container', () => ({
   removeContainer: removeContainerMock,
 }));
-mock.module('../../utils/logger', () => ({
+await mockModule('../../utils/logger', () => ({
   info: mock(),
   error: mock(),
   warn: loggerWarnMock,

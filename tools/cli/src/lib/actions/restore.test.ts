@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { DeploymentEnv } from '../../utils/load-env';
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import {
   resolveOutputMode,
   setActiveOutputMode,
@@ -40,13 +41,16 @@ const loggerNoticeMock = mock();
 const loggerWarnMock = mock();
 const loggerTableMock = mock();
 
-mock.module('../docker/ensure-volumes', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
   volumeExists: mock(),
 }));
-mock.module('../docker/exec', () => ({ exec: execMock }));
-mock.module('../../utils/prompt', () => ({ confirm: confirmMock }));
-mock.module('../../utils/logger', () => ({
+await mockModule('../docker/exec', () => ({ exec: execMock }));
+await mockModule('../../utils/prompt', () => ({ confirm: confirmMock }));
+await mockModule('../../utils/logger', () => ({
   info: loggerInfoMock,
   error: mock(),
   warn: loggerWarnMock,
