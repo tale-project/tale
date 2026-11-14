@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Manus für delegierte Arbeit: Ergebnisse erste
 competitor: "Manus"
 slug: "tale-vs-manus"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,14 +12,14 @@ draft: false
 
 Ein Agent, der aus einem Briefing ein nutzbares Arbeitsergebnis erstellt, kann einen erheblichen Teil der Arbeit übernehmen. Ein Teamprojekt braucht zusätzlich Einigkeit über den Auftrag, verteilte Zuständigkeiten und eine Entscheidung über die Abnahme. Vergleiche deshalb den gesamten Ablauf, wenn du den Ort für Agentenarbeit wählst.
 
-[Manus](https://manus.im/) betont die Erstellung von Präsentationen, Websites, Spielen, Videos und Designs. Die offizielle Website nennt außerdem Recherche, Browserbedienung, Slack-Integration, API und ein Teamangebot. Manus ist damit eine relevante Alternative für delegierte Arbeit. Der Vergleich setzt keine Beschränkung auf Einzelnutzer voraus.
+[Manus](https://manus.im/features) betont die Erstellung von Präsentationen, Websites, Spielen, Videos und Designs. Die Funktionsseite nennt außerdem Recherche in großem Umfang, einen Browser-Operator und eine Slack-Integration und verweist auf einen Team-Tarif. Manus ist damit eine relevante Alternative für delegierte Arbeit. Der Vergleich setzt keine Beschränkung auf Einzelnutzer voraus.
 
 ## Vergleich auf einen Blick
 
 | Kriterium | Tale | Manus |
 | --- | --- | --- |
 | Dokumentierter Umfang | Projektaufgaben für Recherche, Dokumente und Software mit konfigurierten Agenten. | Recherche und Browserarbeit neben Präsentationen, Websites, Spielen, Video und Design. |
-| Teamarbeit | Aufgabenverantwortung, Diskussionen, gemeinsame Dateien und Ergebnisprüfung. | Ein Teamangebot mit Zugängen über Slack und API. |
+| Teamarbeit | Aufgabenverantwortung, Diskussionen, gemeinsame Dateien und Ergebnisprüfung. | Ein Team-Tarif mit Slack-Integration. |
 | Zu prüfende Ergebnisse | Die benötigten Tools und Formate für jedes Ergebnis abklären. | Den benötigten Erstellungsablauf testen und die gelieferten Artefakte prüfen. |
 
 ## Definiere den Teil der Arbeit, den du einkaufst
@@ -33,3 +33,5 @@ Prüfe Tale, wenn ein gemeinsames Projekt für Teammitglieder und konfigurierte 
 Nutze ein fiktives Veranstaltungsbriefing für eine Zielgruppenrecherche, einen Ankündigungsentwurf und eine Präsentationsgliederung. Ändere die Zielgruppe nach dem ersten Entwurf und lass einen Kollegen eine unbelegte Aussage zurückweisen.
 
 Verfolge bei beiden Kandidaten, wie die Änderung in alle Ergebnisse einfließt und wie ein zweites Teammitglied offene Arbeit übernimmt. Bewerte die Nutzbarkeit der Ergebnisse getrennt von der Klarheit der Verantwortung. Damit lässt sich entscheiden, ob Ergebniserstellung oder laufende Projektkoordination der wichtigste Bedarf ist. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit dieser Testkampagne.
+
+Dieser Vergleich beruht auf öffentlichen Anbieterseiten, geprüft am 14. November 2026; er ist kein praktischer Benchmark.

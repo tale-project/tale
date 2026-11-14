@@ -4,7 +4,7 @@ description: "Compare Tale et Manus pour le travail délégué : création de l
 competitor: "Manus"
 slug: "tale-vs-manus"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -12,14 +12,14 @@ draft: false
 
 Un agent capable de transformer un brief en livrable utile peut prendre en charge une part importante du travail. Un projet collectif demande aussi un accord sur le brief, une répartition des responsabilités et une décision sur l’acceptation du résultat. Compare le parcours complet avant de choisir où faire travailler les agents.
 
-[Manus](https://manus.im/) met en avant la création de présentations, sites web, jeux, vidéos et contenus graphiques. Son site officiel mentionne aussi recherche, navigation, intégration Slack, API et offre pour les équipes. C’est donc une alternative pour le travail délégué dont le périmètre ne se limite pas à l’usage individuel.
+[Manus](https://manus.im/features) met en avant la création de présentations, sites web, jeux, vidéos et contenus graphiques. Sa page de fonctionnalités mentionne aussi la recherche approfondie, un opérateur de navigateur et l’intégration Slack, et renvoie vers une offre pour les équipes. C’est donc une alternative pour le travail délégué dont le périmètre ne se limite pas à l’usage individuel.
 
 ## Comparaison en bref
 
 | Critère | Tale | Manus |
 | --- | --- | --- |
 | Périmètre documenté | Tâches de recherche, de documentation et de logiciel avec des agents configurés. | Recherche et travail dans le navigateur, mais aussi présentations, sites, jeux, vidéo et design. |
-| Travail en équipe | Responsabilités par tâche, discussions, fichiers partagés et validation des livrables. | Une offre d’équipe avec des points d’entrée via Slack et l’API. |
+| Travail en équipe | Responsabilités par tâche, discussions, fichiers partagés et validation des livrables. | Une offre d’équipe avec intégration Slack. |
 | Livrables à vérifier | Vérifier les outils et formats nécessaires à chaque livrable demandé. | Essayer le processus de création requis et examiner les fichiers produits. |
 
 ## Définis la partie du travail que tu veux couvrir
@@ -33,3 +33,5 @@ Envisage Tale si tu cherches d’abord un projet commun aux collègues et aux ag
 Prends un brief événementiel fictif demandant une note sur le public, un brouillon d’annonce et un plan de présentation. Change le public visé après la première version et fais rejeter une affirmation sans preuve par un collègue.
 
 Dans les deux solutions, observe comment le changement atteint chaque livrable et comment une seconde personne reprend le travail inachevé. Évalue séparément l’utilité des résultats et la clarté des responsabilités. Tu pourras ainsi déterminer si la production de livrables ou la coordination continue est prioritaire. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec cette campagne pilote.
+
+Cette comparaison s’appuie sur des pages publiques des éditeurs, examinées le 14 novembre 2026, sans test comparatif pratique.
