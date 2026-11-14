@@ -26,23 +26,29 @@ import {
 
 /** How fast this lane's cache reads the log; production reads every 200 ms. */
 const LANE_POLL_MS = 50;
-/** The promise the lane holds the cache to. */
-const WITHIN_MS = 1_000;
+/** The promise the lane holds the cache to: a change reaches the next
+ * request within a second. The lane's cache reads the log every
+ * {@link LANE_POLL_MS}, so the second leaves the rest for a loaded runner. */
+const INVALIDATION_TOLERANCE_MS = 1_000;
+/** How long the cache may take to start serving: its first read of the log,
+ * on a machine still busy with the lanes before this one. */
+const SERVING_TOLERANCE_MS = 5_000;
 
 interface LogRow {
   kind: string;
   subjectId: string;
 }
 
-/** Poll `probe` until it holds or `ms` pass; how long it took, or null. */
+/** Poll `probe` until it holds or `toleranceMs` pass; how long it took, or
+ * null. */
 async function heldWithin(
-  ms: number,
+  toleranceMs: number,
   probe: () => Promise<boolean>,
 ): Promise<number | null> {
   const started = performance.now();
   for (;;) {
     if (await probe()) return Math.round(performance.now() - started);
-    if (performance.now() - started > ms) return null;
+    if (performance.now() - started > toleranceMs) return null;
     await sleep(20);
   }
 }
@@ -140,7 +146,7 @@ export async function checkAuthRequestCache(
   );
   try {
     if (cache === null) throw new Error('itest: the auth cache did not start');
-    const serving = await heldWithin(5_000, async () =>
+    const serving = await heldWithin(SERVING_TOLERANCE_MS, async () =>
       Promise.resolve(cache.stats().serving),
     );
     const projects = async (): Promise<number> =>
@@ -176,24 +182,24 @@ export async function checkAuthRequestCache(
     const refusedBefore = await adminRead();
     await sql`UPDATE "member" SET role = 'admin' WHERE id = ${member.memberId}`;
     const promoted = await heldWithin(
-      WITHIN_MS,
+      INVALIDATION_TOLERANCE_MS,
       async () => (await adminRead()) === 200,
     );
     await sql`UPDATE "member" SET role = 'member' WHERE id = ${member.memberId}`;
     const demoted = await heldWithin(
-      WITHIN_MS,
+      INVALIDATION_TOLERANCE_MS,
       async () => (await adminRead()) === 403,
     );
     await sql`
       UPDATE "member" SET role = 'disabled' WHERE id = ${member.memberId}
     `;
     const disabled = await heldWithin(
-      WITHIN_MS,
+      INVALIDATION_TOLERANCE_MS,
       async () => (await projects()) === 403,
     );
     await sql`UPDATE "member" SET role = 'member' WHERE id = ${member.memberId}`;
     const restored = await heldWithin(
-      WITHIN_MS,
+      INVALIDATION_TOLERANCE_MS,
       async () => (await projects()) === 200,
     );
     record(
@@ -203,7 +209,7 @@ export async function checkAuthRequestCache(
         demoted !== null &&
         disabled !== null &&
         restored !== null,
-      `admin-only read before=${refusedBefore} (want 403); promoted→200 in ${promoted} ms, demoted→403 in ${demoted} ms, disabled→403 in ${disabled} ms, restored→200 in ${restored} ms (want each ≤ ${WITHIN_MS})`,
+      `admin-only read before=${refusedBefore} (want 403); promoted→200 in ${promoted} ms, demoted→403 in ${demoted} ms, disabled→403 in ${disabled} ms, restored→200 in ${restored} ms (want each ≤ ${INVALIDATION_TOLERANCE_MS})`,
     );
 
     // The refresh: once due, the request goes to Better Auth, which slides
@@ -231,13 +237,13 @@ export async function checkAuthRequestCache(
     await projects();
     await sql`DELETE FROM "session" WHERE id = ${sessionId}`;
     const refused = await heldWithin(
-      WITHIN_MS,
+      INVALIDATION_TOLERANCE_MS,
       async () => (await projects()) === 401,
     );
     record(
       'auth cache: a session deleted in the database is refused within a second',
       refused !== null,
-      `401 after ${refused} ms (want ≤ ${WITHIN_MS})`,
+      `401 after ${refused} ms (want ≤ ${INVALIDATION_TOLERANCE_MS})`,
     );
   } finally {
     await stopAuthRequestCache();

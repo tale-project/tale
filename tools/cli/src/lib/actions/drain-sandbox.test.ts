@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { setProjectId } from '../project/project-context';
 
 setProjectId('tale');
@@ -9,11 +10,14 @@ const isContainerRunningMock = mock();
 const loggerWarnMock = mock();
 const loggerInfoMock = mock();
 
-mock.module('../docker/docker', () => ({ docker: dockerMock }));
-mock.module('../docker/is-container-running', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../docker/docker', () => ({ docker: dockerMock }));
+await mockModule('../docker/is-container-running', () => ({
   isContainerRunning: isContainerRunningMock,
 }));
-mock.module('../../utils/logger', () => ({
+await mockModule('../../utils/logger', () => ({
   info: loggerInfoMock,
   warn: loggerWarnMock,
   step: mock(),

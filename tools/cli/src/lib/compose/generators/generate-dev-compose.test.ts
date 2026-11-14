@@ -5,9 +5,15 @@ import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
-const warnMock = mock();
+import { createModuleMocks } from '../../../utils/module-mock-fixture';
+import { setProjectId } from '../../project/project-context';
+import { generateDevCompose } from './generate-dev-compose';
 
-mock.module('../../../utils/logger', () => ({
+const warnMock = mock();
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real logger.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../../../utils/logger', () => ({
   info: mock(),
   warn: warnMock,
   error: mock(),
@@ -21,9 +27,6 @@ mock.module('../../../utils/logger', () => ({
   table: mock(),
   bannerText: mock(() => ''),
 }));
-
-import { setProjectId } from '../../project/project-context';
-import { generateDevCompose } from './generate-dev-compose';
 
 setProjectId('testproj');
 

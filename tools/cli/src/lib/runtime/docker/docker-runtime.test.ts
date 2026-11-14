@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,
@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
+import { createModuleMocks } from '../../../utils/module-mock-fixture';
 import { REQUIRED_VOLUMES } from '../../compose/generators/constants';
 import { setProjectId } from '../../project/project-context';
 import { getCurrentColor } from '../../state/get-current-color';
@@ -65,7 +66,7 @@ if (!isolated) {
     }
   }, 300_000);
 } else {
-  isolatedSuite();
+  await isolatedSuite();
 }
 
 const PROJECT = 'demo-abc123';
@@ -426,11 +427,14 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
 /** The fake `docker` on the `PATH` is a POSIX shell script. */
 const testPosix = test.skipIf(process.platform === 'win32');
 
-function isolatedSuite(): void {
+async function isolatedSuite(): Promise<void> {
+  // Even in a process of its own, the replaced command line goes back once
+  // the suite ends.
+  const { mockModule } = createModuleMocks(import.meta.dir);
   let fake = new FakeRuntime();
   let cli = fakeDockerCli(fake);
   let calls: RecordedCall[] = [];
-  mock.module('../../docker/exec', () => ({
+  await mockModule('../../docker/exec', () => ({
     exec: async (
       command: string,
       args: string[],

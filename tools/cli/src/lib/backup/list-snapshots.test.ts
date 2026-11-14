@@ -1,17 +1,21 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
+import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { listSnapshots } from './list-snapshots';
 
 const execMock = mock();
 const volumeExistsMock = mock();
 const loggerWarnMock = mock();
 
-mock.module('../docker/exec', () => ({ exec: execMock }));
-mock.module('../docker/ensure-volumes', () => ({
+// Bun's module mocks are process-wide: each one is put back once this suite
+// ends, so a later suite in the same process meets the real module.
+const { mockModule } = createModuleMocks(import.meta.dir);
+await mockModule('../docker/exec', () => ({ exec: execMock }));
+await mockModule('../docker/ensure-volumes', () => ({
   ensureVolumes: mock(),
   volumeExists: volumeExistsMock,
 }));
-mock.module('../../utils/logger', () => ({
+await mockModule('../../utils/logger', () => ({
   info: mock(),
   error: mock(),
   warn: loggerWarnMock,
