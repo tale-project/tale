@@ -26,13 +26,28 @@ import {
 } from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
+import type {
+  ConnectorCaller,
+  NativeConnectorContext,
+  NativeConnectorImpl,
+} from '../../connectors/dispatcher';
+import { ConnectorError } from '../../connectors/errors';
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import {
   base64Decode,
   base64Encode,
   toConnectorResponse,
 } from '../../connectors/live-host';
-import { connectorFailureOf } from '../../engine/core/record/failure';
+import {
+  sandboxScriptNatives,
+  type SandboxScriptOutcome,
+  type SandboxScriptRun,
+  type SandboxScriptRunner,
+} from '../../connectors/natives/sandbox-script';
+import {
+  connectorFailureOf,
+  type FailureCause,
+} from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
   ConnectorHttpResponse,
@@ -85,6 +100,7 @@ const EXPECTED_SLUGS = [
 const SCENARIO_CONNECTORS = [
   'gmail',
   'jev',
+  'sandbox',
   'slack',
   'tavily',
   'teams',
@@ -1771,24 +1787,82 @@ const GMAIL_STORED: Record<string, StoredFile[]> = {
   ],
 };
 
+const SCRIPT_CALLER: ConnectorCaller = {
+  kind: 'workflow',
+  runId: 'run_example',
+  nodeId: 'node_example',
+};
+
+/** The sandbox's answers: a script that completed in the run's session, the
+ * same script run again, and a call made outside any run. Synthetic. */
+const SANDBOX_PROOFS: Record<string, NativeProof> = {
+  'run_script/completed': {
+    caller: SCRIPT_CALLER,
+    runner: {
+      ok: true,
+      status: 'completed',
+      result: {
+        status: 'ok',
+        verdict: { passed: true, issues: [] },
+        period: { label: '2026Q1' },
+      },
+      files: [
+        {
+          name: 'result.json',
+          storageId: 'blob_example_result',
+          size: 128,
+          contentType: 'application/json',
+        },
+      ],
+      exitCode: 0,
+      stdoutPreview: 'Verified 2 transactions.',
+      stderrPreview: '',
+      durationMs: 1200,
+    },
+  },
+  'run_script/outside_run': {
+    caller: { kind: 'user', userId: 'user_example' },
+  },
+  'run_script/run_again': {
+    caller: SCRIPT_CALLER,
+    runner: {
+      ok: true,
+      status: 'completed',
+      result: {
+        status: 'ok',
+        verdict: { passed: true, issues: [] },
+        period: { label: '2026Q1' },
+      },
+      files: [
+        {
+          name: 'result.json',
+          storageId: 'blob_example_result_again',
+          size: 128,
+          contentType: 'application/json',
+        },
+      ],
+      exitCode: 0,
+      stdoutPreview: 'Verified 2 transactions.',
+      stderrPreview: '',
+      durationMs: 980,
+    },
+  },
+};
+
 /**
  * Every listed connector's proofs, with the secrets its credential holds —
  * synthetic, as every answer is — and, by proof, the files its body stores,
  * in their order; a proof it does not name stores none. A connector joins
  * `SCENARIO_CONNECTORS` with its proofs, or this does not type-check.
  */
-const SCENARIO_PROOFS: Record<
-  ScenarioConnector,
-  {
-    secrets?: Record<string, string>;
-    proofs: Record<string, ProofAnswers>;
-    stored?: Record<string, StoredFile[]>;
-  }
-> = {
+const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProof> = {
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
     proofs: JEV_PROOFS,
+  },
+  sandbox: {
+    native: { natives: sandboxScriptNatives, proofs: SANDBOX_PROOFS },
   },
   slack: { proofs: SLACK_PROOFS },
   tavily: {
@@ -1798,6 +1872,45 @@ const SCENARIO_PROOFS: Record<
   teams: { proofs: TEAMS_PROOFS },
   twilio: { secrets: { username: TWILIO_ACCOUNT }, proofs: TWILIO_PROOFS },
 };
+
+/** A connector with a live body: its proofs answer each request the body
+ * makes, and hand the body its credential's secrets. */
+type LiveScenarioProof = {
+  secrets?: Record<string, string>;
+  proofs: Record<string, ProofAnswers>;
+  stored?: Record<string, StoredFile[]>;
+};
+
+/** A connector whose action is native: its proofs answer through the runner
+ * the native implementation calls, with the caller the dispatch hands it. */
+type NativeScenarioProof = {
+  natives: (
+    runner: SandboxScriptRunner,
+  ) => Readonly<Record<string, NativeConnectorImpl>>;
+  proofs: Record<string, NativeProof>;
+};
+
+type ScenarioProof = LiveScenarioProof | { native: NativeScenarioProof };
+
+/** What a native action's services answer in one case: the caller the
+ * dispatch hands the action, and what its runner answers — absent when the
+ * action refuses the call before it reaches the runner. */
+interface NativeProof {
+  caller: ConnectorCaller;
+  runner?: SandboxScriptOutcome;
+}
+
+/** The proof keys of `slug`, whichever kind of proof it carries. */
+function proofKeysOf(slug: ScenarioConnector): string[] {
+  const entry = SCENARIO_PROOFS[slug];
+  return Object.keys('native' in entry ? entry.native.proofs : entry.proofs);
+}
+
+/** The keys of the files a live proof stores, in their proof. */
+function storingKeysOf(slug: ScenarioConnector): string[] {
+  const entry = SCENARIO_PROOFS[slug];
+  return 'native' in entry ? [] : Object.keys(entry.stored ?? {});
+}
 
 /** A file a live body handed `ctx.files.store`, as it handed it over. */
 interface StoredFile {
@@ -1988,8 +2101,8 @@ describe('a connector scenario fits its action and answers as the live call woul
           (scenario) => `${action.name}/${scenario.name}`,
         ),
       );
-      const proofs = Object.keys(SCENARIO_PROOFS[slug].proofs);
-      const storing = Object.keys(SCENARIO_PROOFS[slug].stored ?? {});
+      const proofs = proofKeysOf(slug);
+      const storing = storingKeysOf(slug);
       const shipped = new Set(scenarios);
       const proven = new Set(proofs);
       expect({
@@ -2005,11 +2118,15 @@ describe('a connector scenario fits its action and answers as the live call woul
   // `ok: false`), so a run classifies a live 429 as unavailable; the scenario
   // that stands for either names the same status.
   it.each(
-    SCENARIO_CONNECTORS.flatMap((slug) =>
-      Object.keys(SCENARIO_PROOFS[slug].proofs).map(
-        (key): [ScenarioConnector, string] => [slug, key],
-      ),
-    ),
+    SCENARIO_CONNECTORS.flatMap((slug) => {
+      const entry = SCENARIO_PROOFS[slug];
+      return 'native' in entry
+        ? []
+        : Object.keys(entry.proofs).map((key): [ScenarioConnector, string] => [
+            slug,
+            key,
+          ]);
+    }),
   )(
     '%s %s: the live body, given the answer the scenario stands for, returns its output or throws its error',
     async (slug, key) => {
@@ -2022,7 +2139,11 @@ describe('a connector scenario fits its action and answers as the live call woul
           `${slug}.${actionName} has no live body or no ${scenarioName} scenario`,
         );
       }
-      const { secrets, proofs, stored: storing } = SCENARIO_PROOFS[slug];
+      const entry = SCENARIO_PROOFS[slug];
+      if ('native' in entry) {
+        throw new Error(`${slug} has native proofs, not a live body's`);
+      }
+      const { secrets, proofs, stored: storing } = entry;
       const answers = proofs[key];
       const { ctx, asked, stored } = proofHost(answers, secrets);
       const outcome = await outcomeOf(
@@ -2069,4 +2190,124 @@ describe('a connector scenario fits its action and answers as the live call woul
       );
     },
   );
+
+  // A native action has no live body: its implementation is run with a
+  // runner that answers as the scenario's service would, and the caller the
+  // scenario's case names. The run must return the scenario's output, or
+  // throw the native's error with the scenario's message and HTTP status
+  // (none, where the error carries none), classified the same way a run
+  // classifies a failure. The native's own code, which a scenario does not
+  // name, is left out of that classification.
+  it.each(
+    SCENARIO_CONNECTORS.flatMap((slug) => {
+      const entry = SCENARIO_PROOFS[slug];
+      return 'native' in entry
+        ? Object.keys(entry.native.proofs).map(
+            (key): [ScenarioConnector, string] => [slug, key],
+          )
+        : [];
+    }),
+  )(
+    '%s %s: the native, given the answer the scenario stands for, returns its output or throws its error',
+    async (slug, key) => {
+      const [actionName, scenarioName] = key.split('/');
+      const connector = loadConnector(slug);
+      const action = connector.actions.find((a) => a.name === actionName);
+      const scenario = action?.scenarios?.find((s) => s.name === scenarioName);
+      const entry = SCENARIO_PROOFS[slug];
+      if (
+        action?.backend?.kind !== 'native' ||
+        scenario === undefined ||
+        !('native' in entry)
+      ) {
+        throw new Error(
+          `${slug}.${actionName} has no native backend or no ${scenarioName} scenario`,
+        );
+      }
+      const proof = entry.native.proofs[key];
+      const runs: SandboxScriptRun[] = [];
+      const runner: SandboxScriptRunner = async (run) => {
+        runs.push(run);
+        if (proof.runner === undefined) {
+          throw new Error(`the proof gives no runner answer for ${key}`);
+        }
+        return proof.runner;
+      };
+      const impl = entry.native.natives(runner)[action.backend.impl];
+      if (impl === undefined) {
+        throw new Error(
+          `${slug}: no native implementation ${action.backend.impl}`,
+        );
+      }
+      const outcome = await outcomeOf(
+        impl(
+          { ...action.exampleInput, ...scenario.when },
+          nativeContextOf(proof.caller),
+        ),
+      );
+
+      // The runner is reached exactly when the action does not refuse first.
+      expect(runs).toHaveLength(proof.runner === undefined ? 0 : 1);
+      if (scenario.error === undefined) {
+        expect(outcome).toEqual({ output: scenario.output });
+        return;
+      }
+      if (!('thrown' in outcome)) {
+        throw new Error(
+          `${slug}.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+        );
+      }
+      const { thrown } = outcome;
+      const { message, status } = scenario.error;
+      expect(thrown).toBeInstanceOf(ConnectorError);
+      expect(thrown instanceof Error ? thrown.message : thrown).toBe(message);
+      const label = `${slug}.${actionName}`;
+      const simulated = Object.assign(
+        new Error(message),
+        status !== undefined ? { status } : {},
+      );
+      expect(
+        withoutErrorClass(connectorFailureOf(thrown, slug, label)),
+      ).toEqual(withoutErrorClass(connectorFailureOf(simulated, slug, label)));
+    },
+  );
 });
+
+/** A failure's cause with the error class the native's own code adds
+ * (`errorName`, `errorCode`), which a scenario does not name. */
+function withoutErrorClass(cause: FailureCause): FailureCause {
+  return {
+    ...cause,
+    params: Object.fromEntries(
+      Object.entries(cause.params).filter(
+        ([key]) => key !== 'errorName' && key !== 'errorCode',
+      ),
+    ),
+  };
+}
+
+/** The context a native implementation runs in for a caller: no HTTP, no
+ * secrets, and the run's organization. */
+function nativeContextOf(caller: ConnectorCaller): NativeConnectorContext {
+  const notReached = (): never => {
+    throw new Error('the sandbox native performs no HTTP');
+  };
+  return {
+    organizationId: 'org_example',
+    credentialId: 'platform',
+    authMethod: 'platform',
+    caller,
+    secrets: { get: () => '' },
+    idempotencyKey: 'run_example:node_example:0',
+    config: {},
+    http: {
+      get: notReached,
+      post: notReached,
+      put: notReached,
+      patch: notReached,
+      delete: notReached,
+    },
+    base64Encode,
+    base64Decode,
+  };
+}
