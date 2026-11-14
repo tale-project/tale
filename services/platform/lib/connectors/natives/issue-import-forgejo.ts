@@ -38,6 +38,7 @@ import {
   parse,
   position,
   requireSuccess,
+  rowLabelNames,
   rows,
   sourceTime,
   storable,
@@ -156,23 +157,7 @@ function forgejoIssue(
  * open item, so the reader checks each row itself. */
 function carriesLabels(row: unknown, names: readonly string[]): boolean {
   if (names.length === 0) return true;
-  const labels =
-    typeof row === 'object' &&
-    row !== null &&
-    'labels' in row &&
-    Array.isArray(row.labels)
-      ? row.labels
-      : [];
-  const carried = new Set<string>();
-  for (const label of labels) {
-    if (
-      typeof label === 'object' &&
-      label !== null &&
-      'name' in label &&
-      typeof label.name === 'string'
-    )
-      carried.add(label.name.toLowerCase());
-  }
+  const carried = new Set(rowLabelNames(row).map((name) => name.toLowerCase()));
   return names.every((name) => carried.has(name.toLowerCase()));
 }
 

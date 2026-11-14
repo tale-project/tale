@@ -24,7 +24,9 @@ import type {
   WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
 import {
+  IssueSyncLabelRefusal,
   IssueSyncProjectRefusal,
+  mirroredProjectLabels,
   syncIssueSources,
   type IssueWrite,
   type LinkedIssueQuery,
@@ -78,6 +80,7 @@ import {
   waitSyncPosition,
   type ImportCursorKey,
 } from '../tasks/import-cursors.ts';
+import { missingProjectLabels } from '../tasks/label-mirror.ts';
 import {
   agentUpdateTaskStatusTrusted,
   assertTaskCreatable,
@@ -1226,7 +1229,16 @@ export function pgTaskStore(
         }
         return held.answer.value;
       };
-      await inProject(async () => undefined);
+      // A label a source mirrors must be the project's before any tracker
+      // is read: the sync never creates one (TASK-R98).
+      const missing = await inProject((tx) =>
+        missingProjectLabels(tx, {
+          organizationId,
+          projectId,
+          names: mirroredProjectLabels(sources),
+        }),
+      );
+      if (missing.length > 0) throw new IssueSyncLabelRefusal(missing);
       const position = (key: SyncPositionKey): ImportCursorKey => ({
         organizationId,
         projectId,
@@ -1313,15 +1325,21 @@ export function pgTaskStore(
                   const previous = taskExternalIssueSchema.safeParse(
                     before[0]?.externalIssue,
                   );
+                  // The labels the issue wears reach the task through the
+                  // mirror alone.
+                  const { sourceLabels: _sourceLabels, ...imported } = issue;
                   const result = await persistIssue(
                     tx,
                     organizationId,
                     caller,
                     scope,
                     {
-                      ...issue,
+                      ...imported,
                       ...(written?.labels !== undefined && {
                         labels: written.labels,
+                      }),
+                      ...(written?.mirror !== undefined && {
+                        mirrorLabels: written.mirror,
                       }),
                     },
                   );
@@ -1330,6 +1348,7 @@ export function pgTaskStore(
                     taskId: result.taskId,
                     created: result.created,
                     previous: previous.success ? previous.data : null,
+                    labelsChanged: result.labelsChanged === true,
                   };
                 } catch (error) {
                   throw markRetryQueueKey(error, queueKey);

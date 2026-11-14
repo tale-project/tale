@@ -140,6 +140,52 @@ describe('GitHub live issue intake', () => {
     fetchPage.mockResolvedValue(response(rows));
     await expect(run('github')).rejects.toThrow();
   });
+
+  it('names the labels a listed issue wears only when asked for them', async () => {
+    fetchPage.mockResolvedValue(
+      response([
+        {
+          ...githubIssue(1),
+          labels: [{ name: 'Bug' }, 'docs', { name: '' }, { id: 7 }],
+        },
+      ]),
+    );
+    await expect(run('github', { withLabels: true })).resolves.toMatchObject({
+      issues: [{ externalId: 'example/web#1', sourceLabels: ['Bug', 'docs'] }],
+    });
+    await expect(run('github')).resolves.toMatchObject({
+      issues: [
+        expect.not.objectContaining({ sourceLabels: expect.anything() }),
+      ],
+    });
+  });
+
+  it('names the labels a refreshed issue wears only when asked for them', async () => {
+    fetchPage.mockResolvedValue(
+      response({ ...githubIssue(1), labels: [{ name: 'feat' }] }),
+    );
+    const refreshOne = (input: Record<string, unknown>) =>
+      issueImportNatives()['github.refresh_import_issues']?.(
+        {
+          repositoryId: 10,
+          issues: [{ externalId: 'example/web#1', externalIssue: null }],
+          ...input,
+        },
+        { http: { get: fetchPage } } as never,
+      );
+    await expect(refreshOne({ withLabels: true })).resolves.toMatchObject([
+      { externalId: 'example/web#1', sourceLabels: ['feat'] },
+    ]);
+    await expect(refreshOne({})).resolves.toEqual([
+      expect.not.objectContaining({ sourceLabels: expect.anything() }),
+    ]);
+    await expect(
+      issueImportNatives()['glitchtip.refresh_import_issues']?.(
+        { issues: [], withLabels: true },
+        { endpoint, http: { get: fetchPage } } as never,
+      ),
+    ).rejects.toThrow();
+  });
 });
 
 describe('GlitchTip 6 issue intake', () => {

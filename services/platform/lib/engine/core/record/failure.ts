@@ -57,6 +57,7 @@ export const STEP_FAILURE_REASONS = [
   'KNOWLEDGE_UNAVAILABLE',
   'TASK_PROJECT_NOT_BOUND',
   'TASK_ASSIGNEE_UNKNOWN',
+  'TASK_LABEL_UNKNOWN',
   'NOTIFY_NOT_A_MEMBER',
   'NOTIFY_RUN_LIMIT',
   'LLM_OUTPUT_INVALID',
@@ -163,6 +164,13 @@ export const STEP_FAILURE_META: Readonly<
     technical: ['projectId'],
   },
   TASK_ASSIGNEE_UNKNOWN: { params: ['assignee'] },
+  // The labels an issue sync mirrors that its project does not have, as one
+  // list; the project, an id, stays with the technical details.
+  TASK_LABEL_UNKNOWN: {
+    params: ['labels'],
+    optional: ['projectId'],
+    technical: ['projectId'],
+  },
   // The first recipient the step named who is not a member.
   NOTIFY_NOT_A_MEMBER: { params: ['recipient'] },
   NOTIFY_RUN_LIMIT: { params: ['limit'] },
