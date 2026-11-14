@@ -4,7 +4,7 @@ description: "Compare Tale and OpenClaw at the right layer: an assistant runtime
 competitor: "OpenClaw"
 slug: "tale-vs-openclaw"
 relationship: "runtime"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Tale and OpenClaw are not always alternatives. Tale lists OpenClaw among its sup
 
 ## Compare different layers
 
-OpenClaw presents an assistant accessed through messaging channels, with browser, file and shell actions. Its current documentation also describes shared gateway sessions that teammates can open and steer. Calling it a strictly personal or non-collaborative assistant would miss that scope. See the [OpenClaw website](https://openclaw.ai/), [multi-user mode](https://docs.openclaw.ai/concepts/multi-user) and [shared chat documentation](https://docs.openclaw.ai/web/control-ui/chat).
+OpenClaw presents an assistant accessed through messaging channels, with browser, file and shell actions. Its [channel documentation](https://docs.openclaw.ai/channels) covers those entry points. Its current documentation also describes shared gateway sessions that teammates can open and steer. Calling it a strictly personal or non-collaborative assistant would miss that scope. See [multi-user mode](https://docs.openclaw.ai/concepts/multi-user) and [shared chat documentation](https://docs.openclaw.ai/web/control-ui/chat). The multi-user page also says that anyone who can operate an agent can make it do anything that agent can do, and that session ownership and presence are usability features rather than security boundaries.
 
 Tale supplies projects, task assignment, agent configuration and review of reports and deliverables. An OpenClaw runtime configured in Tale executes within Tale's supported harness behavior; do not assume this imports every OpenClaw channel or gateway capability into the project UI. Check credentials, tools and sandbox behavior for the deployment you will use.
 
@@ -32,4 +32,4 @@ Take a team research request and split it into evidence collection and a decisio
 
 Compare task ownership, visibility and the effort to find the accepted result. Also check what persists between runs and what context is explicitly supplied. Tale's project context and OpenClaw's own memory behavior are distinct concepts. A compatible runtime is useful evidence of integration, not a promise of identical behavior in every execution environment.
 
-Continue with [Tale’s related guide](https://docs.tale.dev/platform/agents/harnesses), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
+Continue with [Tale's related guide](https://docs.tale.dev/platform/agents/harnesses), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.

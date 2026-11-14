@@ -4,7 +4,7 @@ description: "Compare Tale and Multica for shared task boards, agent execution a
 competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Both products deserve a place on your shortlist when teammates need to assign wo
 
 ## Compare the daily work
 
-Multica describes a shared human-and-agent task system with progress updates, reusable skills and connected local or cloud runtimes. Its examples emphasize coding agents handling issues and returning work for review. Those are substantial overlaps with Tale, not features unique to either product. [Multica product overview](https://multica.ai/).
+Multica describes a shared human-and-agent task system with progress updates, reusable skills and connected local or cloud runtimes. Its examples emphasize coding agents handling issues and returning work for review. Those are substantial overlaps with Tale, not features unique to either product. See [Multica core concepts](https://multica.ai/docs/concepts) and the [daemon and runtime documentation](https://multica.ai/docs/daemon-runtimes).
 
 In Tale, a project brings tasks, instructions, reference files and project agents together. A marketing lead can coordinate a campaign brief, a research report and a landing-page change on the same board. Assign the tasks, explicitly start the agents, then inspect their reports and files. An equipped manager agent can start other ready tasks within the project's delegation and capacity limits.
 
@@ -32,4 +32,4 @@ Use a launch with three tasks: research a customer segment, draft the announceme
 
 Also check operating terms. Multica's current license allows internal use and adds conditions for hosting it for others and embedding it commercially. Read those conditions against your intended deployment. [Multica licensing](https://multica.ai/licensing).
 
-Continue with [Tale’s related guide](https://docs.tale.dev/platform/projects/task-automation), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
+Continue with [Tale's related guide](https://docs.tale.dev/platform/projects/task-automation), or [request a demo](https://tale.dev/request-demo) using your own evaluation task. This comparison describes public documentation reviewed on 14 November 2026; it is not a hands-on benchmark.

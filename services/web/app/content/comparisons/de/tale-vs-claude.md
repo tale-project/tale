@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Claude Enterprise für Teamprojekte: Delegatio
 competitor: "Claude Enterprise"
 slug: "tale-vs-claude"
 relationship: "adjacent"
-reviewed: '2026-10-03'
+reviewed: '2026-11-14'
 draft: false
 ---
 
@@ -35,3 +35,5 @@ Tale kann kompatible Anthropic-Abonnements über Claude Code für Aufgaben und A
 Nutze ein fiktives Launch-Briefing mit Quellen, einem Ankündigungsentwurf und einer Review-Checkliste. Fordere eine überarbeitete Ankündigung und eine separate Aufgabe für eine unbelegte Aussage an. Lass ein anderes Teammitglied diese Aufgabe nach dem ersten Review übernehmen.
 
 Bewerte, wie jede Einrichtung das Briefing erhält, die aktuelle Verantwortung sichtbar macht und Feedback für die nächste Person nutzbar hält. Beziehe die administrative Arbeit zum Erteilen der nötigen Zugriffe ein. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit dieser Kampagnenübergabe.
+
+Öffentliche Dokumentation geprüft am 14. November 2026; kein praktischer Vergleichstest.

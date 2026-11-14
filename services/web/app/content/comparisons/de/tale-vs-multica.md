@@ -4,7 +4,7 @@ description: "Vergleiche Tale und Multica für Aufgabenboards, Agentenarbeit und
 competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
-reviewed: "2026-10-03"
+reviewed: "2026-11-14"
 draft: false
 ---
 
@@ -20,7 +20,7 @@ Beide Produkte gehören auf die Auswahlliste, wenn dein Team Aufgaben an KI-Agen
 
 ## Den Arbeitsalltag vergleichen
 
-Multica beschreibt ein gemeinsames Aufgabensystem für Menschen und Agenten mit Fortschrittsmeldungen, wiederverwendbaren Skills sowie lokalen und Cloud-Laufzeiten. Die Beispiele zeigen Coding-Agenten, die Issues bearbeiten und Ergebnisse zur Prüfung zurückgeben. Das sind deutliche Gemeinsamkeiten mit Tale. [Produktübersicht von Multica](https://multica.ai/).
+Multica beschreibt ein gemeinsames Aufgabensystem für Menschen und Agenten mit Fortschrittsmeldungen, wiederverwendbaren Skills und angebundenen lokalen oder Cloud-Runtimes. Die Beispiele zeigen Coding-Agenten, die Issues bearbeiten und Ergebnisse zur Prüfung zurückgeben. Das sind deutliche Gemeinsamkeiten mit Tale. Siehe [Multica-Kernkonzepte](https://multica.ai/docs/concepts) und [Daemon und Runtimes](https://multica.ai/docs/daemon-runtimes).
 
 In Tale bündelt ein Projekt Aufgaben, Anweisungen, Referenzdateien und Projektagenten. Eine Marketingverantwortliche kann einen Kampagnenbrief, einen Recherchebericht und eine Änderung an der Landingpage auf demselben Board koordinieren. Du weist die Aufgaben zu, startest die Agenten ausdrücklich und prüfst anschließend Berichte und Dateien. Ein entsprechend ausgestatteter Manager-Agent kann weitere startbereite Aufgaben innerhalb der Delegations- und Kapazitätsgrenzen des Projekts starten.
 
@@ -32,4 +32,4 @@ Wähle einen Launch mit drei Aufgaben: ein Kundensegment recherchieren, die Ank�
 
 Prüfe auch die Betriebsbedingungen. Multicas aktuelle Lizenz erlaubt interne Nutzung und enthält zusätzliche Bedingungen für Hosting für Dritte und die kommerzielle Einbettung. Gleiche sie mit eurem geplanten Betrieb ab. [Multicas Lizenzbedingungen](https://multica.ai/licensing).
 
-Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/projects/task-automation) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
+Lies den [passenden Tale-Leitfaden](https://docs.tale.dev/de/platform/projects/task-automation) oder [frage eine Demo an](https://tale.dev/de/request-demo), in der ihr eure eigene Testaufgabe verwendet. Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 14. November 2026, und ist kein praktischer Benchmark.
