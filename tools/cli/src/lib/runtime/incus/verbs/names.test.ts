@@ -4,7 +4,9 @@ import { goldenTarget } from '../apply/apply-fixture';
 import {
   colourDocument,
   compileInput,
+  expectEdgeRefusal,
   statefulDocument,
+  STATEFUL_AND_BLUE_EDGE_REFUSALS,
 } from '../compile/compile-fixture';
 import { compileStackTarget } from '../compile/stack-target';
 import {
@@ -196,52 +198,14 @@ describe('the resolvers read what the plan names (design D-16, 5.4)', () => {
   });
 
   test('the resolvers run dnsmasq under /init from the egress digest; every instance asks names, the spawner names-sessions', () => {
-    const result = compileStackTarget(
-      compileInput('workspace', [
-        { compose: statefulDocument() },
-        { compose: colourDocument('blue'), colour: 'blue' },
-      ]),
+    expectEdgeRefusal(
+      compileStackTarget(
+        compileInput('workspace', [
+          { compose: statefulDocument() },
+          { compose: colourDocument('blue'), colour: 'blue' },
+        ]),
+      ),
+      STATEFUL_AND_BLUE_EDGE_REFUSALS,
     );
-    if (result.target === null)
-      throw new Error(JSON.stringify(result.refusals));
-    const target = result.target;
-    const egress = target.instances.find(
-      (instance) => instance.service === 'sandbox-egress',
-    );
-    for (const [name, address, view] of [
-      ['names', '10.30.1.2', 'stack'],
-      ['names-sessions', '10.30.1.3', 'sessions'],
-    ] as const) {
-      const resolver = target.instances.find(
-        (instance) => instance.name === name,
-      );
-      expect(resolver?.address).toBe(address);
-      expect(resolver?.image).toBe(egress?.image ?? '');
-      expect(resolver?.config['oci.entrypoint']).toMatch(
-        new RegExp(
-          `^/init --single-child .*-- dnsmasq --keep-in-foreground --no-hosts --hostsdir=/names/${view}/hosts --conf-file=/names/${view}/dnsmasq\\.conf$`,
-        ),
-      );
-      // Their own resolv.conf names the gateway (R3-09).
-      expect(resolver?.config['oci.dns.nameservers']).toBe('10.30.0.1');
-      expect(resolver?.devices[NAMES_VOLUME]).toMatchObject({
-        source: NAMES_VOLUME,
-        path: '/names',
-        readonly: 'true',
-      });
-    }
-    for (const instance of target.instances)
-      if (instance.service !== 'names' && instance.service !== 'names-sessions')
-        expect(instance.config['oci.dns.nameservers']).toBe('10.30.1.2');
-    const spawner = target.instances.find(
-      (instance) => instance.service === 'sandbox',
-    );
-    expect(spawner?.config['environment.SANDBOX_INCUS_DNS']).toBe('10.30.1.3');
-    // The colour's names answer each of its replicas.
-    expect(target.names.stack['platform-blue']).toEqual([
-      '10.30.1.64',
-      '10.30.1.65',
-    ]);
-    expect(target.names.stack.platform).toEqual(['10.30.1.5']);
   });
 });
