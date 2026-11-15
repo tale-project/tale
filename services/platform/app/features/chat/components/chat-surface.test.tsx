@@ -2054,6 +2054,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
           // A pair is the owner's to read: the caller's list holds both
           // conversations.
           vi.mocked(useChatThreads).mockReturnValue({
+            ...LAST_THREAD_PAGE,
             status: 'ready',
             data: ['thread-a', 'thread-b'].map((id) => ({
               id,
@@ -3305,7 +3306,11 @@ describe('ChatSurface — the reads only the owner makes [CHAT-R2]', () => {
 
   it('opens no lane and reads no jobs for a project reader, and shows the conversation without the running reply', async () => {
     // Someone else's conversation is never a row of the reader's own list.
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useChatThread).mockReturnValue({
       status: 'ready',
       data: { ...SUMMARY, viewerIsOwner: false },
@@ -3326,7 +3331,10 @@ describe('ChatSurface — the reads only the owner makes [CHAT-R2]', () => {
   });
 
   it('makes none of them while the ownership has not answered', async () => {
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'loading' });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'loading',
+    });
     vi.mocked(useChatThread).mockReturnValue({ status: 'loading' });
 
     render(<ChatSurface organizationId="org-1" threadId={THREAD} />);
@@ -3344,6 +3352,7 @@ describe('ChatSurface — the reads only the owner makes [CHAT-R2]', () => {
     'opens the lane and reads the jobs for the owner — %s',
     async (_label, listed) => {
       vi.mocked(useChatThreads).mockReturnValue({
+        ...LAST_THREAD_PAGE,
         status: 'ready',
         data: listed ? [{ ...SUMMARY, viewerIsOwner: true }] : [],
       });
