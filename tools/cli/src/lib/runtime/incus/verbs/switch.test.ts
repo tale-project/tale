@@ -102,8 +102,8 @@ describe('the switch lists every slot once (design 5.3, R3-02)', () => {
 describe('an image of another line is refused (R3-23)', () => {
   /** The stack with the edge's image declaring `labels`. The image is the
    * Traefik edge as services/proxy/Dockerfile builds it: its volume is
-   * `/data`, and it names no infra format (the switch role is not ported
-   * onto the edge, tale-project/tale#5282). */
+   * `/data`, and it names no infra format, since the Incus switch role does
+   * not run on the edge yet. */
   const edge = (labels: Record<string, string>) => {
     const input = compileInput('workspace', [{ compose: statefulDocument() }]);
     const images = Object.fromEntries(
