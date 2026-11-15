@@ -697,6 +697,41 @@ describe('ApiKeyCreateDialog', () => {
       ).toBeInTheDocument();
     });
 
+    it('offers a member with no email by name and role, without the word null [APIKEY-R3]', async () => {
+      // Ines has no email. The picker names her and her role, and prints
+      // neither the word null nor a stray separator.
+      setRead('members', {
+        rows: [
+          ...MEMBERS.filter(
+            (member) => member.userId !== 'olav' && member.userId !== 'ines',
+          ),
+          { userId: 'ines', displayName: 'Ines', email: null, role: 'admin' },
+        ],
+      });
+      const owner = render(
+        <ApiKeyCreateDialog
+          open
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+          canCreateForOthers
+          viewerUserId="olav"
+          viewerRole="owner"
+        />,
+      );
+      await owner.user.click(
+        screen.getByRole('combobox', { name: 'Belongs to' }),
+      );
+      await owner.user.click(
+        screen.getByRole('option', { name: 'Another member' }),
+      );
+      await owner.user.click(screen.getByRole('button', { name: /^Member/ }));
+      const ines = screen
+        .getAllByRole('option')
+        .find((option) => option.textContent?.includes('Ines'));
+      expect(ines?.textContent).toContain('Ines');
+      expect(ines?.textContent).not.toMatch(/null|undefined|·/);
+    });
+
     it('makes a key for a member and says to hand it to them [APIKEY-R2]', async () => {
       const { user } = renderForAdmin();
       await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));

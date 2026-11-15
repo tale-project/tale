@@ -309,7 +309,9 @@ function MemberPicker({
         .map((member) => ({
           value: member.userId,
           label: memberLabel(member),
-          description: `${member.email} · ${tRoles(member.role.toLowerCase())}`,
+          description: member.email
+            ? `${member.email} · ${tRoles(member.role.toLowerCase())}`
+            : tRoles(member.role.toLowerCase()),
         })),
     [people.members, viewerUserId, viewerRole, tRoles],
   );
