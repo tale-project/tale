@@ -729,7 +729,7 @@ describe('ApiKeyCreateDialog', () => {
         expect(screen.queryByText(line)).not.toBeInTheDocument();
       });
 
-      it('says a member’s key calls them only while the member holds the competence', async () => {
+      it('says a member’s key calls them only while the member holds the right', async () => {
         const { user } = renderWith(ON);
         await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
         await user.click(
@@ -741,7 +741,7 @@ describe('ApiKeyCreateDialog', () => {
         await user.click(screen.getByRole('option', { name: /Mia Keller/ }));
         // A polite status: announced as it changes, since nobody tabs to it.
         expect(screen.getByRole('status')).toHaveTextContent(
-          'This key calls the model endpoints only while Mia Keller holds the Call models over the API competence, which an Admin grants.',
+          'This key calls the model endpoints only while Mia Keller holds the Call models over the API right, which an Admin grants.',
         );
       });
     });
