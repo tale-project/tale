@@ -285,12 +285,13 @@ function dockerConfig(env: Env): Readonly<Record<string, string>> {
 /** An egress proxy as this backend needs it: an http URL whose host is an
  * IPv4 literal (a session resolves no name before it reaches the proxy). */
 function checkedEgressProxy(what: string, value: string): string {
-  const refusal = `${what} must be an http URL whose host is an IPv4 address (such as http://10.20.0.2:3128): a session resolves no name before it reaches the proxy; got: ${JSON.stringify(value)}`;
+  const refusal = (shown: string) =>
+    `${what} must be an http URL whose host is an IPv4 address (such as http://10.20.0.2:3128): a session resolves no name before it reaches the proxy; got: ${JSON.stringify(shown)}`;
   let url: URL;
   try {
     url = new URL(value);
   } catch (error) {
-    throw new Error(refusal, { cause: error });
+    throw new Error(refusal(value), { cause: error });
   }
   if (
     url.protocol !== 'http:' ||
@@ -301,7 +302,15 @@ function checkedEgressProxy(what: string, value: string): string {
     url.search !== '' ||
     url.hash !== ''
   ) {
-    throw new Error(refusal);
+    // A proxy URL may carry a password: the refusal never repeats it.
+    const shown = new URL(url.href);
+    if (shown.username !== '' || shown.password !== '') {
+      shown.username = 'redacted';
+      shown.password = '';
+    }
+    throw new Error(
+      refusal(url.username === '' && url.password === '' ? value : shown.href),
+    );
   }
   return value;
 }

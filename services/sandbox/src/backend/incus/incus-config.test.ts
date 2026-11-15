@@ -461,6 +461,14 @@ describe('several hosts (SANDBOX_INCUS_ENDPOINTS)', () => {
     ).toContain('egressProxy must be an http URL whose host is an IPv4');
   });
 
+  test('never repeats the password of a proxy it refuses', () => {
+    const said = refusal(
+      several([{ ...NODE, egressProxy: 'http://user:s3cret@10.20.0.2:3128' }]),
+    );
+    expect(said).toContain('egressProxy must be an http URL');
+    expect(said).not.toContain('s3cret');
+  });
+
   test('warns when every host is drained', () => {
     const { warnings } = read(several([{ ...NODE, drained: true }]));
     expect(warnings).toEqual([
