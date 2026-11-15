@@ -448,6 +448,7 @@ variables are named at once.
 | `SANDBOX_INCUS_CLIENT_KEY_FILE`         | required           | Absolute path of its unencrypted private key (PEM).                                                                                  |
 | `SANDBOX_INCUS_SERVER_CERT_FILE`        | required           | Absolute path of the node's pinnable server certificate (PEM).                                                                       |
 | `SANDBOX_INCUS_ENDPOINTS`               | unset              | Several hosts instead of one: a JSON array with an entry per host, in place of the endpoint and the three certificate files ([below](#several-hosts)). |
+| `SANDBOX_INCUS_STATE_DIR`               | `/var/lib/tale-sandbox/incus` | With several hosts: the persistent directory of the record of each session's host ([below](#several-hosts)).            |
 | `SANDBOX_INCUS_POOL_SIZE`               | `0`                | Warm standbys kept ready (0 turns the pool off); at most `SANDBOX_MAX_SESSIONS`.                                                     |
 | `SANDBOX_INCUS_WORKSPACE_SIZE`          | `10GiB`            | Quota of a workspace volume (`10g`, `512m` and Incus sizes).                                                                         |
 | `SANDBOX_INCUS_DNS`                     | the egress proxy   | Comma-separated IPv4 resolvers handed to a session.                                                                                  |
@@ -571,6 +572,22 @@ SANDBOX_INCUS_ENDPOINTS='[
 Everything else (`SANDBOX_INCUS_WORKSPACE_SIZE`, the image source, the Docker
 config, the registry caches, the API timeout) is shared by every host.
 
+**Every host gives a session the same shape.** A session's memory and
+workspace size come from the shared settings, and a new session's need is
+judged once against every host: set up each host's profile the same way (the
+same limits, the same devices), so that a session is the same wherever it
+lands.
+
+**The placement record.** With several hosts the spawner keeps a record of the
+host each session lives on in `SANDBOX_INCUS_STATE_DIR` (default
+`/var/lib/tale-sandbox/incus`, the file `placement.json`). Give that directory
+a persistent volume of the spawner's own: the record must outlive the
+container. The spawner reads it at start, writes it whole and atomically (a
+temporary file, synced, then renamed), and records a new session's host
+before the session is created. It does not start when the record can be
+neither read nor written. An unreadable record is kept aside as
+`placement.json.unreadable-<time>` and rebuilt as on a first start.
+
 **Placement.** A new session goes to the host with the **most headroom** once it
 is there: the smallest share left of the host's session cap, of its project's
 `limits.memory`, and of its disk (the project's `limits.disk` or
@@ -592,15 +609,29 @@ minute; boot fails only when no host passes), its own warm pool, its own
 sweep, and Incus enforces its project limits. `SANDBOX_MAX_SESSIONS` stays the
 cap of the whole spawner, judged over the sessions of every host.
 
-**A session stays on its host.** Its workspace volume is there, so a resume
-goes back to the host that holds it, even a drained one, within that host's
-cap. Where each session lives is recorded when it is made, listed or found,
-and a session the record does not hold is looked for on every host; the Incus
-objects stay the source of truth, so a restarted spawner rebuilds the record
-from the listings.
+**A session stays on its host.** Its workspace volume is there, so a session
+the record names is only ever resumed on that host, even a drained one,
+within that host's cap. While that host does not answer, or is no longer
+declared, the session is refused with `503 session_unavailable`: it is never
+started elsewhere, where it would come back with an empty workspace. A
+session the record does not name is new, and is placed freely. A listing
+never moves a session the record names: a workspace of the same id on another
+host is logged, and left alone. A destroy, or a workspace deletion that has
+finished, takes the session out of the record.
+
+**The first start with the record** (no record on the volume) rebuilds it from
+every host's listings of its sessions and workspaces. Until every host has
+been listed once, a session the record does not name may live on a host not
+yet listed, so it is refused with `503` too; the hosts already listed are
+kept in the record, so a restart in the middle goes on where it stopped. A
+host appended later is taken to be empty.
 
 **A host that does not answer** is skipped for new sessions and not asked
-again for 30 seconds, with its reason logged. Its sessions stay listed as they
+again for 30 seconds, with its reason logged. Each Incus request has its own
+timeout (`SANDBOX_INCUS_API_TIMEOUT_MS`), and only a failed connection (refused,
+reset, unroutable, a failed TLS handshake) or a request with no answer within
+it counts: a slow host that answers each request in time, or one that answers
+with an Incus error, is not skipped. Its sessions stay listed as they
 were last seen, so a blip does not end them, and a call for one of them fails
 for the platform to retry; a session whose workspace is there is not started
 elsewhere. A host that has not answered since the spawner started shows no
@@ -609,7 +640,9 @@ checks answers, and names each host.
 
 **Drain a host** by setting `"drained": true` and restarting the spawner: the
 host takes no new session, its warm standbys are removed, and its sessions run
-until they end. Once the platform reports none on it, remove the entry.
+until they end. Once the platform reports none on it and it holds no
+workspace, remove the entry: a session the record still names on a removed
+host is refused until the entry is back.
 **Add a host** by setting it up as above and appending an entry.
 
 **Network.** The spawner reaches every host's API and every session's runnerd

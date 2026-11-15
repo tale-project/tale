@@ -253,6 +253,10 @@ export interface IncusConfig {
    * config per entry (backend/incus/incus-endpoints.ts).
    */
   endpoints?: readonly IncusEndpointConfig[];
+  /** With several hosts: the directory of the durable record of which host
+   * each session lives on (SANDBOX_INCUS_STATE_DIR), a persistent volume of
+   * the spawner's own. Absent for one host, which needs no record. */
+  stateDir?: string;
   /** The name of the endpoint this config is the per-host view of; absent
    * for the single host of SANDBOX_INCUS_ENDPOINT. */
   endpointName?: string;

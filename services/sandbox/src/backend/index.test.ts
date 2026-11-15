@@ -56,12 +56,15 @@ describe('loadBackends', () => {
     });
     const cfg = incusTestConfig({
       endpoints: [host('node-1'), host('node-2')],
+      stateDir: '/var/lib/tale-sandbox/incus',
     });
     const backends = await loadBackends(cfg);
     expect(backends.host).toBeInstanceOf(MultiIncusBackend);
     expect(backends.createSession()).toBeInstanceOf(MultiIncusSessionBackend);
     const set = getIncusEndpointSet(cfg);
     expect(set.endpoints.map((e) => e.name)).toEqual(['node-1', 'node-2']);
+    // Nothing is read or written before init: made, the set touches no disk.
+    expect(set.recordComplete).toBe(false);
     for (const endpoint of set.endpoints) {
       expect(endpoint.host).toBeInstanceOf(IncusBackend);
       expect(endpoint.session).toBeInstanceOf(IncusSessionBackend);

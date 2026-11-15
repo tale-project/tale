@@ -9,25 +9,36 @@
 //    their boot checks and hold the runtime image. A host passed over is
 //    logged with its reason, once per change of reason.
 //  - A session stays on the host it was created on: its workspace volume is
-//    there. Where it lives is recorded here when it is made, listed or
-//    found; a call for a session the record does not hold asks every host
-//    whether it holds the session's workspace or instance. A resume goes back
-//    to that host, even a drained one (its session is one the host already
-//    holds), within the host's cap.
-//  - A host that does not answer is skipped for new sessions, with the
-//    reason logged, and not asked again for UNREACHABLE_RETRY_MS. Its
-//    sessions are listed as last seen, so a blip does not read as their end;
-//    a call for one of them fails, and the caller retries. A host that is
-//    down from boot shows no session until it answers.
-//  - The Incus objects stay the source of truth: the record is a cache of
-//    where each session was last seen, and a restarted spawner rebuilds it
-//    from the hosts' listings.
+//    there. Where it lives is a durable record (incus-placement-record.ts) on
+//    the spawner's own data volume, written before the session is created,
+//    so a restarted spawner knows it too. A recorded session is only ever
+//    resumed on its recorded host, even a drained one (its session is one
+//    the host already holds), within the host's cap; while that host does
+//    not answer, or is no longer declared, the session is refused as
+//    unavailable (503), never started elsewhere. A session the record does
+//    not hold is new, and is placed freely.
+//  - The record is rebuilt from every host's listings when there is none
+//    (the first start with it). Until every host has been listed once, a
+//    session the record does not hold may live on a host not yet listed, so
+//    it is refused as unavailable too.
+//  - A host that does not connect is skipped for new sessions, with the
+//    reason logged, and not asked again for UNREACHABLE_RETRY_MS. A host that
+//    answers, however slowly or with an error, is not: each Incus request
+//    has its own timeout (SANDBOX_INCUS_API_TIMEOUT_MS), and only a failure
+//    to connect, or a request with no answer within it, marks the host
+//    unreachable. Its sessions are listed as last seen, so a blip does not
+//    read as their end; a call for one of them fails, and the caller
+//    retries. A host that is down from boot shows no session until it
+//    answers.
+//  - Every host must give a session the same shape (memory, disk): a new
+//    session's need is judged once, by the first declared host's view.
 //
 // Every per-host check stays where it was: SANDBOX_MAX_SESSIONS is the whole
 // spawner's cap, judged by the route layer over the union of the hosts'
 // listings; each host's own cap, memory and disk are judged here; each
 // project's limits are enforced by Incus itself.
 
+import { IncusApiError } from '@tale/incus/api';
 import { incusSizeBytes } from '@tale/incus/units';
 
 import type { SpawnerConfig } from '../../types.ts';
@@ -48,6 +59,11 @@ import {
 } from '../types.ts';
 import { IncusBackend } from './incus-backend.ts';
 import { endpointLabel, incusEndpointConfigs } from './incus-endpoints.ts';
+import {
+  FilePlacementStore,
+  type PlacementRecord,
+  type PlacementStore,
+} from './incus-placement-record.ts';
 import {
   chooseEndpoint,
   type EndpointCandidate,
@@ -107,17 +123,70 @@ type Home =
   | { endpoint: Endpoint }
   | { none: true }
   | {
+      /** The hosts that may hold it and cannot be asked now. */
       unknown: readonly string[];
-      /** The host the session was last seen on is among them. */
+      /** The record names its host (else: a host not yet listed may hold
+       * it). */
       recorded: boolean;
+      /** Why it cannot be served now, for the refusal. */
+      why: string;
     };
 
 export interface EndpointSetDeps {
+  /** Where the record of each session's host is kept. */
+  record: PlacementStore;
   now?: () => number;
 }
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Error codes of a connection that was never made, or broke: refused,
+ * reset, unroutable, unresolvable, or a TLS handshake that failed (Node's
+ * and Bun's spellings). */
+const CONNECTION_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+  'ConnectionRefused',
+  'ConnectionClosed',
+  'ConnectionReset',
+  'FailedToOpenSocket',
+]);
+
+/**
+ * The host did not answer: the connection failed (a fetch's TypeError, a
+ * network or TLS error code), or a request got no answer within its own
+ * timeout. An Incus API error is an answer, and so is any error the backend
+ * raises itself (a refusal, a missing object): the host is up. Follows the
+ * `cause` chain of a wrapped error.
+ */
+export function isConnectionFailure(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    if (current instanceof IncusApiError) return false;
+    if (current.name === 'TimeoutError' || current instanceof TypeError) {
+      return true;
+    }
+    const code = 'code' in current ? current.code : undefined;
+    if (typeof code === 'string' && CONNECTION_CODES.has(code)) return true;
+    if (
+      typeof code === 'string' &&
+      /^(?:CERT_|ERR_TLS_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/.test(code)
+    ) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
 }
 
 /** The pair of backends of every host, made from the config. */
@@ -162,8 +231,18 @@ function endpointPartsOf(cfg: SpawnerConfig): EndpointParts[] {
  */
 export class IncusEndpointSet {
   readonly endpoints: readonly Endpoint[];
-  /** Session id → the name of the host it was last seen on. */
+  /** Session id → the name of the host it lives on: the durable record, as
+   * read at start and kept since. */
   private readonly placement = new Map<string, string>();
+  /** Every host has been listed once since the record was made. */
+  private complete = false;
+  /** The hosts listed so far while the record is not complete. */
+  private readonly listed = new Set<string>();
+  private readonly store: PlacementStore;
+  private loaded: Promise<void> | null = null;
+  /** The record's writes, one after the other. */
+  private writes: Promise<void> = Promise.resolve();
+  private completing: Promise<void> | null = null;
   /** Session ids being placed, per host: counted before its listing shows
    * them. */
   private readonly placing = new Map<string, Set<string>>();
@@ -173,7 +252,7 @@ export class IncusEndpointSet {
   private stopped = false;
   private imageMissing: ((detail: string) => void) | null = null;
 
-  constructor(parts: readonly EndpointParts[], deps: EndpointSetDeps = {}) {
+  constructor(parts: readonly EndpointParts[], deps: EndpointSetDeps) {
     if (parts.length === 0) {
       throw new Error('the Incus backend needs at least one endpoint');
     }
@@ -186,31 +265,186 @@ export class IncusEndpointSet {
       this.placing.set(endpoint.name, new Set());
     }
     this.now = deps.now ?? Date.now;
+    this.store = deps.record;
   }
 
   byName(name: string): Endpoint | undefined {
     return this.endpoints.find((endpoint) => endpoint.name === name);
   }
 
-  /** Where a session was last seen, if anywhere (for tests and logs). */
+  /** The host the record names for a session, if any (for tests and logs). */
   placementOf(sessionId: string): string | undefined {
     return this.placement.get(sessionId);
   }
 
-  record(sessionId: string, endpoint: Endpoint): void {
-    const previous = this.placement.get(sessionId);
-    if (previous !== undefined && previous !== endpoint.name) {
-      console.warn(
-        `[sandbox.incus] session ${sessionId} was on ${previous} and is now seen on ${endpoint.name}`,
-      );
-    }
-    this.placement.set(sessionId, endpoint.name);
+  /** Every host has been listed once since the record was made. */
+  get recordComplete(): boolean {
+    return this.complete;
   }
 
-  forget(sessionId: string, endpoint: Endpoint): void {
-    if (this.placement.get(sessionId) === endpoint.name) {
-      this.placement.delete(sessionId);
+  // ---- the durable record --------------------------------------------------
+
+  /** Reads the record once; a spawner without one starts rebuilding it.
+   * THROWS when the record can be neither read nor written: the spawner
+   * does not serve sessions it cannot keep on their hosts. */
+  ensureLoaded(): Promise<void> {
+    this.loaded ??= this.loadRecord().catch((error: unknown) => {
+      this.loaded = null;
+      throw error;
+    });
+    return this.loaded;
+  }
+
+  private async loadRecord(): Promise<void> {
+    const record = await this.store.load();
+    if (record === undefined) {
+      console.log(
+        `[sandbox.incus] no placement record yet: it is rebuilt from the listings of ${this.endpoints.map((e) => e.name).join(', ')}; until each has been listed, a session it does not name is refused`,
+      );
+    } else {
+      for (const [sessionId, name] of Object.entries(record.sessions)) {
+        this.placement.set(sessionId, name);
+      }
+      this.complete = record.complete;
+      for (const name of record.listed) this.listed.add(name);
+      const gone = [...new Set(this.placement.values())].filter(
+        (name) => this.byName(name) === undefined,
+      );
+      if (gone.length > 0) {
+        console.warn(
+          `[sandbox.incus] the placement record names sessions on ${gone.join(', ')}, which is no longer declared: those sessions are refused until it is again`,
+        );
+      }
     }
+    // Written at once: a record that cannot be written fails the boot, not
+    // the first create.
+    await this.persist();
+  }
+
+  private snapshot(): PlacementRecord {
+    return {
+      complete: this.complete,
+      listed: this.complete ? [] : [...this.listed].sort(),
+      sessions: Object.fromEntries(
+        [...this.placement].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      ),
+    };
+  }
+
+  /** Writes the record as it is now, after the writes before it. */
+  private persist(): Promise<void> {
+    const next = this.writes.then(() => this.store.save(this.snapshot()));
+    this.writes = next.catch(() => undefined);
+    return next;
+  }
+
+  /** persist(), with a failure logged rather than thrown: the record keeps
+   * an entry it no longer needs, or misses one a listing adds again. */
+  private async persistOrWarn(what: string): Promise<void> {
+    try {
+      await this.persist();
+    } catch (error) {
+      console.warn(
+        `[sandbox.incus] the placement record could not be written after ${what}:`,
+        message(error),
+      );
+    }
+  }
+
+  /** A session seen on a host: recorded there unless the record already
+   * names a host for it, which it keeps (the session is resumed only
+   * there). True when the record changed. */
+  private observe(sessionId: string, endpoint: Endpoint): boolean {
+    const recorded = this.placement.get(sessionId);
+    if (recorded === endpoint.name) return false;
+    if (recorded !== undefined) {
+      console.warn(
+        `[sandbox.incus] session ${sessionId} is recorded on ${recorded} and is also seen on ${endpoint.name}; it stays on ${recorded}`,
+      );
+      return false;
+    }
+    this.placement.set(sessionId, endpoint.name);
+    return true;
+  }
+
+  /** Sessions seen on a host, recorded and written when any is new. */
+  async observeAll(
+    endpoint: Endpoint,
+    sessionIds: Iterable<string>,
+  ): Promise<void> {
+    let changed = false;
+    for (const sessionId of sessionIds) {
+      if (this.observe(sessionId, endpoint)) changed = true;
+    }
+    if (changed) await this.persistOrWarn(`a listing of ${endpoint.name}`);
+  }
+
+  /** A session's workspace is gone from its host: the record lets go. */
+  async forget(sessionId: string, endpoint: Endpoint): Promise<void> {
+    if (this.placement.get(sessionId) !== endpoint.name) return;
+    this.placement.delete(sessionId);
+    await this.persistOrWarn(`${sessionId} ended`);
+  }
+
+  /** The hosts not yet listed while the record is being rebuilt. */
+  private pendingHosts(): Endpoint[] {
+    return this.complete
+      ? []
+      : this.endpoints.filter((endpoint) => !this.listed.has(endpoint.name));
+  }
+
+  /**
+   * Rebuilds the record from the hosts not listed yet: each one's sessions
+   * and workspaces are recorded where they are. Once every host has been
+   * listed, the record is complete. A host that does not answer is tried
+   * again on the next call.
+   */
+  completeRecord(): Promise<void> {
+    this.completing ??= this.listPending().finally(() => {
+      this.completing = null;
+    });
+    return this.completing;
+  }
+
+  private async listPending(): Promise<void> {
+    await this.ensureLoaded();
+    const pending = this.pendingHosts().filter(
+      (endpoint) => this.backingOff(endpoint) === undefined,
+    );
+    if (pending.length === 0) return;
+    const results = await Promise.allSettled(
+      pending.map(async (endpoint) => {
+        const [sessions, workspaces] = await Promise.all([
+          this.ask(endpoint, 'the session listing', () =>
+            endpoint.session.listSessions(),
+          ),
+          this.ask(endpoint, 'the workspace listing', () =>
+            endpoint.session.listWorkspaces(),
+          ),
+        ]);
+        endpoint.lastSessions = sessions;
+        for (const { sessionId } of [...sessions, ...workspaces]) {
+          this.observe(sessionId, endpoint);
+        }
+        this.listed.add(endpoint.name);
+      }),
+    );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.warn(
+          `[sandbox.incus] ${pending[index]?.name} could not be listed for the placement record; it is tried again:`,
+          message(result.reason),
+        );
+      }
+    });
+    if (this.pendingHosts().length === 0) {
+      this.complete = true;
+      this.listed.clear();
+      console.log(
+        `[sandbox.incus] the placement record is complete: ${this.placement.size} session(s) on their hosts`,
+      );
+    }
+    await this.persistOrWarn('listing hosts for the placement record');
   }
 
   // ---- reachability ------------------------------------------------------
@@ -224,8 +458,18 @@ export class IncusEndpointSet {
     return `unreachable: ${endpoint.failure ?? 'no answer'}`;
   }
 
-  /** A read of the host, bounded by its API budget; a failure marks the host
-   * unreachable for UNREACHABLE_RETRY_MS, and an answer clears the mark. */
+  private answered(endpoint: Endpoint, what: string): void {
+    if (endpoint.failedAtMs === undefined) return;
+    console.log(`[sandbox.incus] ${endpoint.name} answers again (${what})`);
+    endpoint.failedAtMs = undefined;
+    endpoint.failure = undefined;
+  }
+
+  /** A read of the host, each of its Incus requests bounded by its own
+   * timeout (the client's, SANDBOX_INCUS_API_TIMEOUT_MS). A failure to
+   * connect, or a request with no answer, marks the host unreachable for
+   * UNREACHABLE_RETRY_MS; any other failure is the host's answer, and is
+   * thrown without the mark, as an answer clears it. */
   async ask<T>(
     endpoint: Endpoint,
     what: string,
@@ -233,27 +477,19 @@ export class IncusEndpointSet {
   ): Promise<T> {
     const backoff = this.backingOff(endpoint);
     if (backoff !== undefined) throw new Error(`${endpoint.name} ${backoff}`);
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const budgetMs = incusOf(endpoint.cfg).apiTimeoutMs;
     try {
-      const value = await Promise.race([
-        read(),
-        new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(
-            () =>
-              reject(new Error(`no answer to ${what} within ${budgetMs} ms`)),
-            budgetMs,
-          );
-        }),
-      ]);
-      if (endpoint.failedAtMs !== undefined) {
-        console.log(`[sandbox.incus] ${endpoint.name} answers again (${what})`);
-        endpoint.failedAtMs = undefined;
-        endpoint.failure = undefined;
-      }
+      const value = await read();
+      this.answered(endpoint, what);
       return value;
     } catch (error) {
       const reason = message(error);
+      if (!isConnectionFailure(error)) {
+        this.answered(endpoint, what);
+        console.warn(
+          `[sandbox.incus] ${endpoint.name} answered ${what} with a failure: ${reason}`,
+        );
+        throw error;
+      }
       if (endpoint.failedAtMs === undefined || endpoint.failure !== reason) {
         console.warn(
           `[sandbox.incus] ${endpoint.name} did not answer ${what}; it is skipped for ${UNREACHABLE_RETRY_MS / 1000} s: ${reason}`,
@@ -262,8 +498,6 @@ export class IncusEndpointSet {
       endpoint.failedAtMs = this.now();
       endpoint.failure = reason;
       throw error;
-    } finally {
-      if (timer !== undefined) clearTimeout(timer);
     }
   }
 
@@ -301,6 +535,7 @@ export class IncusEndpointSet {
   /** Every host at once. Fatal only when none passes: a spawner with one
    * host it can use serves, and checks the others again on a timer. */
   async init(): Promise<void> {
+    await this.ensureLoaded();
     const results = await Promise.allSettled(
       this.endpoints.map((endpoint) => this.initEndpoint(endpoint)),
     );
@@ -324,6 +559,7 @@ export class IncusEndpointSet {
         .join(', ')}; ${usable.length} take new sessions`,
     );
     if (failed.length > 0) this.scheduleInitRetry();
+    await this.completeRecord();
   }
 
   /** Checks again, on a timer, each host that failed its boot checks or
@@ -399,47 +635,59 @@ export class IncusEndpointSet {
   }
 
   /**
-   * The host that holds the session: the one it was last seen on when that
-   * host still holds it, else whichever host answers that it does. `none`
-   * only when every host answered; `unknown` names the ones that did not.
+   * The host that holds the session. A session the record names lives on
+   * that host and nowhere else: `unknown` while the host does not answer or
+   * is no longer declared, `none` when it answers that it holds neither the
+   * workspace nor the instance. A session the record does not name is new
+   * (`none`), once every host has been listed for the record; until then a
+   * host not yet listed may hold it (`unknown`).
    */
   async home(sessionId: string): Promise<Home> {
-    const hinted = this.byName(this.placement.get(sessionId) ?? '');
-    if (hinted !== undefined) {
-      try {
-        if (await this.holds(hinted, sessionId)) return { endpoint: hinted };
-        this.forget(sessionId, hinted);
-      } catch (error) {
-        console.warn(
-          `[sandbox.incus] cannot tell whether ${hinted.name} still holds ${sessionId}:`,
-          message(error),
-        );
-        return { unknown: [hinted.name], recorded: true };
+    await this.ensureLoaded();
+    const recorded = this.placement.get(sessionId);
+    if (recorded !== undefined) return this.recordedHome(sessionId, recorded);
+    if (!this.complete) {
+      await this.completeRecord();
+      const found = this.placement.get(sessionId);
+      if (found !== undefined) return this.recordedHome(sessionId, found);
+      const pending = this.pendingHosts().map((endpoint) => endpoint.name);
+      if (pending.length > 0) {
+        return {
+          unknown: pending,
+          recorded: false,
+          why: `session ${sessionId} may live on ${pending.join(', ')}, which has not been listed since the placement record was started`,
+        };
       }
     }
-    const asked = this.endpoints.filter((endpoint) => endpoint !== hinted);
-    const answers = await Promise.allSettled(
-      asked.map((endpoint) => this.holds(endpoint, sessionId)),
-    );
-    const found: Endpoint[] = [];
-    const unknown: string[] = [];
-    answers.forEach((answer, index) => {
-      const endpoint = asked[index];
-      if (endpoint === undefined) return;
-      if (answer.status === 'rejected') unknown.push(endpoint.name);
-      else if (answer.value) found.push(endpoint);
-    });
-    const [first, ...others] = found;
-    if (first !== undefined) {
-      if (others.length > 0) {
-        console.warn(
-          `[sandbox.incus] session ${sessionId} has a workspace or instance on ${found.map((e) => e.name).join(' and ')}; ${first.name} serves it`,
-        );
-      }
-      this.record(sessionId, first);
-      return { endpoint: first };
+    return { none: true };
+  }
+
+  private async recordedHome(sessionId: string, name: string): Promise<Home> {
+    const endpoint = this.byName(name);
+    if (endpoint === undefined) {
+      return {
+        unknown: [name],
+        recorded: true,
+        why: `session ${sessionId} lives on ${name}, which is no longer declared`,
+      };
     }
-    return unknown.length > 0 ? { unknown, recorded: false } : { none: true };
+    try {
+      if (await this.holds(endpoint, sessionId)) return { endpoint };
+    } catch (error) {
+      console.warn(
+        `[sandbox.incus] cannot tell whether ${name} still holds ${sessionId}:`,
+        message(error),
+      );
+      return {
+        unknown: [name],
+        recorded: true,
+        why: `session ${sessionId} lives on ${name}, which does not answer: ${message(error)}`,
+      };
+    }
+    // Neither its workspace nor its instance is left there. The entry stays
+    // until the session's end is reported (a create in flight may be about
+    // to make the workspace); a new create records the host it is placed on.
+    return { none: true };
   }
 
   // ---- placing a new session ----------------------------------------------
@@ -529,13 +777,10 @@ export class IncusEndpointSet {
   async place(spec: SessionSpec): Promise<Endpoint> {
     const home = await this.home(spec.sessionId);
     if ('endpoint' in home) return this.placeAtHome(home.endpoint, spec);
-    if ('unknown' in home && home.recorded) {
-      // Its workspace is on a host that does not answer: starting it
+    if ('unknown' in home) {
+      // Its workspace may be on a host that cannot be asked: starting it
       // elsewhere would hand the user an empty one.
-      throw new SessionPlacementError(
-        'unavailable',
-        `session ${spec.sessionId} lives on ${home.unknown.join(', ')}, which does not answer`,
-      );
+      throw new SessionPlacementError('unavailable', home.why);
     }
 
     const asked = this.endpoints.filter(
@@ -566,7 +811,7 @@ export class IncusEndpointSet {
         return {
           name: endpoint.name,
           drained: false,
-          unavailable: `unreachable: ${message(read.reason)}`,
+          unavailable: `${isConnectionFailure(read.reason) ? 'unreachable' : 'its room could not be read'}: ${message(read.reason)}`,
         };
       }
       return this.candidate(endpoint, read.value, this.need(endpoint, spec));
@@ -598,14 +843,7 @@ export class IncusEndpointSet {
         `no Incus endpoint can take session ${spec.sessionId} now (${why})`,
       );
     }
-    if ('unknown' in home) {
-      // A host that did not answer may hold an older workspace of this id;
-      // the session starts fresh here, and the log keeps the trace.
-      console.warn(
-        `[sandbox.incus] placing ${spec.sessionId} on ${chosen.name} without word from ${home.unknown.join(', ')}, which may hold an earlier workspace of it`,
-      );
-    }
-    this.hold(chosen, spec.sessionId);
+    await this.hold(chosen, spec.sessionId);
     return chosen;
   }
 
@@ -648,14 +886,33 @@ export class IncusEndpointSet {
         `[sandbox.incus] ${spec.sessionId} resumes on drained ${endpoint.name}, which holds its workspace`,
       );
     }
-    this.hold(endpoint, spec.sessionId);
+    await this.hold(endpoint, spec.sessionId);
     return endpoint;
   }
 
-  private hold(endpoint: Endpoint, sessionId: string): void {
+  /** Counts the session on the host at once (the caller places right after
+   * reading the room), and records it there durably before its create may
+   * make a workspace. THROWS SessionPlacementError when the record cannot be
+   * written: a session the record does not hold could be started elsewhere
+   * after a restart. */
+  private async hold(endpoint: Endpoint, sessionId: string): Promise<void> {
     this.placing.get(endpoint.name)?.add(sessionId);
-    // The workspace may exist from here on, whatever the create's outcome.
-    this.record(sessionId, endpoint);
+    const previous = this.placement.get(sessionId);
+    if (previous === endpoint.name) return;
+    this.placement.set(sessionId, endpoint.name);
+    try {
+      await this.persist();
+    } catch (error) {
+      this.release(endpoint, sessionId);
+      if (this.placement.get(sessionId) === endpoint.name) {
+        if (previous === undefined) this.placement.delete(sessionId);
+        else this.placement.set(sessionId, previous);
+      }
+      throw new SessionPlacementError(
+        'unavailable',
+        `session ${sessionId} could not be recorded on ${endpoint.name}: ${message(error)}`,
+      );
+    }
   }
 
   release(endpoint: Endpoint, sessionId: string): void {
@@ -670,7 +927,10 @@ export class IncusEndpointSet {
       endpoint.session.listSessions(),
     );
     endpoint.lastSessions = sessions;
-    for (const session of sessions) this.record(session.sessionId, endpoint);
+    await this.observeAll(
+      endpoint,
+      sessions.map((session) => session.sessionId),
+    );
     return sessions;
   }
 }
@@ -681,7 +941,15 @@ const sets = new WeakMap<SpawnerConfig, IncusEndpointSet>();
 export function getIncusEndpointSet(cfg: SpawnerConfig): IncusEndpointSet {
   let set = sets.get(cfg);
   if (set === undefined) {
-    set = new IncusEndpointSet(endpointPartsOf(cfg));
+    const stateDir = incusOf(cfg).stateDir;
+    if (stateDir === undefined) {
+      throw new Error(
+        'several Incus endpoints need SANDBOX_INCUS_STATE_DIR for the placement record',
+      );
+    }
+    set = new IncusEndpointSet(endpointPartsOf(cfg), {
+      record: new FilePlacementStore(stateDir),
+    });
     sets.set(cfg, set);
   }
   return set;
@@ -825,9 +1093,7 @@ export class MultiIncusSessionBackend implements SessionBackend {
     const home = await this.set.home(sessionId);
     if ('endpoint' in home) return home.endpoint;
     if ('unknown' in home) {
-      throw new Error(
-        `cannot ${what} ${sessionId}: ${home.unknown.join(', ')} did not answer, and may hold it`,
-      );
+      throw new Error(`cannot ${what} ${sessionId}: ${home.why}`);
     }
     const any = this.set.endpoints.find(
       (endpoint) => this.set.backingOff(endpoint) === undefined,
@@ -859,7 +1125,7 @@ export class MultiIncusSessionBackend implements SessionBackend {
     if ('endpoint' in home) return true;
     if ('none' in home) return false;
     throw new Error(
-      `cannot tell whether ${sessionId} has a workspace: ${home.unknown.join(', ')} did not answer`,
+      `cannot tell whether ${sessionId} has a workspace: ${home.why}`,
     );
   }
 
@@ -878,7 +1144,11 @@ export class MultiIncusSessionBackend implements SessionBackend {
 
   async destroySession(sessionId: string): Promise<boolean> {
     const endpoint = await this.route(sessionId, 'destroy');
-    return endpoint.session.destroySession(sessionId);
+    const destroyed = await endpoint.session.destroySession(sessionId);
+    // Its workspace is deleted (a failure throws above): the session may be
+    // made again, on any host.
+    await this.set.forget(sessionId, endpoint);
+    return destroyed;
   }
 
   /** The host that held the workspace answers; with no record of one, every
@@ -893,8 +1163,8 @@ export class MultiIncusSessionBackend implements SessionBackend {
     const answers = await Promise.all(
       asked.map((endpoint) =>
         endpoint.session.workspaceDeletion(sessionId, waitMs).then(
-          (answer) => {
-            if (answer === 'done') this.set.forget(sessionId, endpoint);
+          async (answer) => {
+            if (answer === 'done') await this.set.forget(sessionId, endpoint);
             return answer;
           },
           (error: unknown): WorkspaceDeletion => {
@@ -992,14 +1262,15 @@ export class MultiIncusSessionBackend implements SessionBackend {
         : new Error('no Incus endpoint answers');
     }
     const out: BackendWorkspace[] = [];
-    results.forEach((result, index) => {
+    for (const [index, result] of results.entries()) {
       const endpoint = this.set.endpoints[index];
-      if (result.status !== 'fulfilled' || endpoint === undefined) return;
-      for (const workspace of result.value) {
-        this.set.record(workspace.sessionId, endpoint);
-        out.push(workspace);
-      }
-    });
+      if (result.status !== 'fulfilled' || endpoint === undefined) continue;
+      await this.set.observeAll(
+        endpoint,
+        result.value.map((workspace) => workspace.sessionId),
+      );
+      out.push(...result.value);
+    }
     return out;
   }
 

@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   DEFAULT_INCUS_DOCKER_CONFIG,
+  DEFAULT_INCUS_STATE_DIR,
   readIncusConfig,
   type IncusConfigContext,
 } from './incus-config.ts';
@@ -524,6 +525,27 @@ describe('several hosts (SANDBOX_INCUS_ENDPOINTS)', () => {
     const message = refusal(several([item]));
     expect(message).toContain('SANDBOX_INCUS_ENDPOINTS entry 0');
     expect(message).toContain(words);
+  });
+
+  test('keeps the placement record in SANDBOX_INCUS_STATE_DIR, by default under the session root', () => {
+    expect(read(several([NODE])).config.stateDir).toBe(DEFAULT_INCUS_STATE_DIR);
+    expect(DEFAULT_INCUS_STATE_DIR).toBe('/var/lib/tale-sandbox/incus');
+    expect(
+      read(several([NODE], { SANDBOX_INCUS_STATE_DIR: '/data/spawner' })).config
+        .stateDir,
+    ).toBe('/data/spawner');
+    expect(
+      refusal(several([NODE], { SANDBOX_INCUS_STATE_DIR: 'state' })),
+    ).toContain('SANDBOX_INCUS_STATE_DIR must be an absolute directory path');
+  });
+
+  test('a single host needs no placement record, and says so when one is named', () => {
+    expect('stateDir' in read().config).toBe(false);
+    expect(read({ SANDBOX_INCUS_STATE_DIR: '/data/spawner' }).warnings).toEqual(
+      [
+        'SANDBOX_INCUS_STATE_DIR has no effect with one Incus host: only SANDBOX_INCUS_ENDPOINTS records where each session lives',
+      ],
+    );
   });
 
   test('refuses two entries of one name, or of one project on one host', () => {

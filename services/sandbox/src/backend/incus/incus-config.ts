@@ -81,6 +81,10 @@ const REQUIRED_NAMES = [
 ] as const;
 
 const ENDPOINTS = 'SANDBOX_INCUS_ENDPOINTS';
+const STATE_DIR = 'SANDBOX_INCUS_STATE_DIR';
+/** Where the record of each session's host lives with several hosts: a
+ * directory the operator gives a persistent volume. */
+export const DEFAULT_INCUS_STATE_DIR = '/var/lib/tale-sandbox/incus';
 /** More hosts than this is a typo or a list meant for something else. */
 const MAX_ENDPOINTS = 64;
 const ENDPOINT_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -125,6 +129,16 @@ function checkedPath(what: string, value: string): string {
   if (!isAbsolute(value) || value.includes('\0')) {
     throw new Error(
       `${what} must be an absolute path to a PEM file; got: ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
+}
+
+function stateDir(env: Env): string {
+  const value = text(env, STATE_DIR) ?? DEFAULT_INCUS_STATE_DIR;
+  if (!isAbsolute(value) || value.includes('\0')) {
+    throw new Error(
+      `Env var ${STATE_DIR} must be an absolute directory path; got: ${JSON.stringify(value)}`,
     );
   }
   return value;
@@ -625,7 +639,12 @@ export function readIncusConfig(
       min: 1_000,
       max: 300_000,
     }),
-    ...(endpoints === undefined ? {} : { endpoints }),
+    ...(endpoints === undefined ? {} : { endpoints, stateDir: stateDir(env) }),
   };
+  if (endpoints === undefined && text(env, STATE_DIR) !== undefined) {
+    warnings.push(
+      `${STATE_DIR} has no effect with one Incus host: only ${ENDPOINTS} records where each session lives`,
+    );
+  }
   return { config, warnings };
 }
