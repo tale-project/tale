@@ -233,4 +233,30 @@ describe('where the variables come from, per path (R-11)', () => {
     });
     expect(source.variables).toEqual({ IMAGE_TAG: '2' });
   });
+
+  test('a stack interpolates the Compose project it runs under, over the environment and .env', () => {
+    // The edge's project list reads the project name the compose names.
+    const documents = [
+      {
+        services: {
+          proxy: {
+            environment: {
+              TALE_PROXY_PROJECTS: '${COMPOSE_PROJECT_NAME:-tale}',
+            },
+          },
+        },
+      },
+    ];
+    const stack = interpolationSource('workspace', {
+      dotenv: 'COMPOSE_PROJECT_NAME=from-file\n',
+      processEnvironment: { COMPOSE_PROJECT_NAME: 'from-shell' },
+      documents,
+      project: 'acme',
+    });
+    expect(stack.variables).toEqual({ COMPOSE_PROJECT_NAME: 'acme' });
+    // Without a project, the name is whatever the environment or .env gives,
+    // and Compose's own default stands when neither does.
+    const bare = interpolationSource('managed', { dotenv: '', documents });
+    expect(bare.variables).toEqual({});
+  });
 });

@@ -61,6 +61,7 @@ export function compileIncusStack(input: CompileIncusStackInput): StackTarget {
   const { variables } = interpolationSource('managed', {
     dotenv: input.dotenv,
     documents: [input.compose],
+    project: input.stack,
   });
   const runtime = [...input.facts.values()].find((facts) =>
     /\/tale-sandbox-runtime@sha256:[a-f0-9]{64}$/.test(facts.reference),
