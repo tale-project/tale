@@ -81,7 +81,6 @@ const TEST_ENV = {
   HEALTH_CHECK_TIMEOUT: 5,
   DRAIN_TIMEOUT: 1,
   DEPLOY_DIR: '',
-  BACKEND_UPSTREAM: 'backend-api:3005',
 };
 
 /**
