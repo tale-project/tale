@@ -63,6 +63,7 @@ const SAMPLE: StepFailure['params'] = {
   assignee: 'nobody@example.com',
   projectId: 'prj_relaunch',
   recipient: 'noah@example.com',
+  labels: 'release-blocked, nightly',
 };
 
 /** The run-level code each reason's failure carries. */
