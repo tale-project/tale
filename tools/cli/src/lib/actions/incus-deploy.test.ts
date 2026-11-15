@@ -741,9 +741,15 @@ describePosix('--services rolls one replica at a time', () => {
 });
 
 describePosix('the restore guard (R3-22)', () => {
-  // The guard reads the journal before the workspace compiles, so this runs
-  // with no deploy first: a deploy is refused on the Traefik edge.
+  // The serving colour is seeded on the fake rather than deployed: a first
+  // deploy is refused on the Traefik edge. The guard reads only the journal,
+  // and runs before any compile, so each refusal below is the guard's own.
   test('deploy, --services and rollback refuse while a restore is pending', async () => {
+    for (const name of Object.keys(COLOUR_ROLES('blue')))
+      setup.fake.seedInstance(name, {
+        'user.tale.stack': 'tale',
+        'user.tale.version': N,
+      });
     await setRestorePending(setup.deployDir, 'tale', {
       id: 'snap',
       startedAt: '2026-11-13T10:00:00.000Z',
@@ -752,6 +758,7 @@ describePosix('the restore guard (R3-22)', () => {
       holders: {},
     });
     const before = census();
+    expect(before).toEqual(COLOUR_ROLES('blue'));
     for (const run of [
       () => deploy(NEXT),
       () => deploy(NEXT, { services: ['platform'] }),
