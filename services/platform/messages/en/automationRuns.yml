@@ -409,6 +409,31 @@ runtime:
       explanation: Tale couldn't tell why. The technical details have the engine's own words.
       cause: The step stopped with an error Tale has no words for.
       fix: Read the technical details, or run again.
+  agentCauses:
+    sandbox_unreachable:
+      title: The sandbox service couldn't be reached
+      explanation: The agent's sandbox service didn't answer when the turn was to start, so the agent never started.
+      fix: Ask an admin to check the sandbox service, then run again.
+    sandbox_lost:
+      title: The sandbox service stopped answering
+      explanation: The agent's sandbox service couldn't be reached during the turn for longer than Tale waits, so the turn was stopped.
+      fix: Run again. If it keeps happening, ask an admin to check the sandbox service.
+    resource_exhausted:
+      title: The agent ran out of memory
+      explanation: The sandbox's memory limit ended the agent's turn, so its work was stopped.
+      fix: Run again. If it keeps happening, ask an admin to give agents more memory.
+    turn_stalled:
+      title: The agent stopped responding
+      explanation: It printed nothing and did almost no work for a long time, so its sandbox stopped it.
+      fix: Run again. If it stops again, check the step's input and the agent's setup.
+    sandbox_destroying:
+      title: The run's workspace is being deleted
+      explanation: An admin deleted the workspace this run works in, so the agent couldn't start in it.
+      fix: Run the automation again from its first step. The files earlier steps left in the workspace are gone.
+    endpoint_refused:
+      title: The model access policy stopped the agent
+      explanation: Under the organization's EU/EEA processing rule, the agent's model isn't served from an endpoint that processes prompts there, so no prompt was sent.
+      fix: Choose a model whose provider processes prompts in the EU/EEA, or ask an administrator to serve it through such an endpoint.
 runFailure:
   codes:
     node_error:

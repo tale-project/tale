@@ -21,6 +21,7 @@ import type { ActionCtx } from '../lib/ctx.ts';
 import {
   SessionMemoryBusyError,
   SpawnerBusyError,
+  SpawnerUnreachableError,
 } from '../node_only/sandbox/helpers/session_client.ts';
 import {
   SANDBOX_WORKSPACE_DESTROYED_CODE,
@@ -502,6 +503,23 @@ describe('classifyWorkflowStartFailure', () => {
     ).toMatchObject({
       failureCode: 'sandbox_capacity',
       retryAtMs: NOW + 15_000,
+    });
+  });
+
+  it('settles a sandbox service that took no connection at the start as sandbox_unreachable', () => {
+    const unreachable = new SpawnerUnreachableError(
+      'POST',
+      '/v1/sessions/wf-run-1/acquire',
+      'http://localhost:8003',
+      new TypeError('fetch failed', {
+        cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:8003'), {
+          code: 'ECONNREFUSED',
+        }),
+      }),
+    );
+    expect(classifyWorkflowStartFailure(unreachable, NOW)).toEqual({
+      reason: `the agent turn could not start: ${unreachable.message}`,
+      failureCode: 'sandbox_unreachable',
     });
   });
 

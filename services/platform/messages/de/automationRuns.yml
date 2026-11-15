@@ -409,6 +409,31 @@ runtime:
       explanation: Tale konnte den Grund nicht bestimmen. Die technischen Details enthalten den Wortlaut der Engine.
       cause: Der Schritt endete mit einem Fehler, für den Tale keine Worte hat.
       fix: Lies die technischen Details oder führe den Lauf erneut aus.
+  agentCauses:
+    sandbox_unreachable:
+      title: Der Sandbox-Dienst war nicht erreichbar
+      explanation: Der Sandbox-Dienst des Agenten hat beim Start des Durchlaufs nicht geantwortet, deshalb hat der Agent nie begonnen.
+      fix: Frag einen Admin, ob der Sandbox-Dienst läuft, und führe den Lauf dann erneut aus.
+    sandbox_lost:
+      title: Der Sandbox-Dienst hat nicht mehr geantwortet
+      explanation: Der Sandbox-Dienst des Agenten war während des Durchlaufs länger nicht erreichbar, als Tale wartet, deshalb wurde der Durchlauf beendet.
+      fix: Führe den Lauf erneut aus. Tritt das wieder auf, frag einen Admin nach dem Sandbox-Dienst.
+    resource_exhausted:
+      title: Dem Agenten ist der Arbeitsspeicher ausgegangen
+      explanation: Das Speicherlimit der Sandbox hat den Durchlauf des Agenten beendet, deshalb wurde seine Arbeit gestoppt.
+      fix: Führe den Lauf erneut aus. Tritt das wieder auf, frag einen Admin, ob Agenten mehr Speicher bekommen können.
+    turn_stalled:
+      title: Der Agent hat nicht mehr reagiert
+      explanation: Er hat lange nichts ausgegeben und kaum gearbeitet, deshalb hat seine Sandbox ihn beendet.
+      fix: Führe den Lauf erneut aus. Hört er wieder auf, prüfe die Eingabe des Schritts und die Einrichtung des Agenten.
+    sandbox_destroying:
+      title: Der Arbeitsbereich des Laufs wird gelöscht
+      explanation: Ein Admin hat den Arbeitsbereich gelöscht, in dem dieser Lauf arbeitet, deshalb konnte der Agent darin nicht starten.
+      fix: Starte die Automatisierung ab ihrem ersten Schritt neu. Die Dateien früherer Schritte im Arbeitsbereich sind verloren.
+    endpoint_refused:
+      title: Die Richtlinie für den Modellzugriff hat den Agenten angehalten
+      explanation: Nach der EU/EEA-Verarbeitungsregel der Organisation wird das Modell des Agenten nicht über einen Endpunkt bereitgestellt, der Prompts dort verarbeitet, deshalb wurde kein Prompt gesendet.
+      fix: Wähle ein Modell, dessen Anbieter Prompts im EU/EEA-Raum verarbeitet, oder bitte einen Administrator, es über einen solchen Endpunkt bereitzustellen.
 runFailure:
   codes:
     node_error:

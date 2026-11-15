@@ -22,7 +22,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
-import { RUN_FAILURE_DERIVED_PARAMS } from '@/app/features/automations/lib/run-failure';
+import {
+  AGENT_CAUSE_CODES,
+  RUN_FAILURE_DERIVED_PARAMS,
+} from '@/app/features/automations/lib/run-failure';
 import { RUN_FAILURE_CODES } from '@/backend/core/automations/failure';
 import {
   STEP_FAILURE_META,
@@ -67,7 +70,36 @@ function allowedParams(reason: StepFailureReason): Set<string> {
 }
 
 const REASON_PARTS = ['title', 'explanation', 'cause', 'fix'] as const;
+const AGENT_CAUSE_PARTS = ['title', 'explanation', 'fix'] as const;
 const CODE_PARTS = ['title', 'explanation', 'fix'] as const;
+
+describe('automationRuns — one entry per named agent cause', () => {
+  for (const [locale, messages] of Object.entries(LOCALES)) {
+    const causes = branch(messages, 'automationRuns', 'runtime', 'agentCauses');
+
+    it(`${locale}: describes every named cause, and no cause that is gone`, () => {
+      expect(Object.keys(causes).sort()).toEqual([...AGENT_CAUSE_CODES].sort());
+    });
+
+    for (const code of AGENT_CAUSE_CODES) {
+      it(`${locale}: ${code} has its title, explanation and fix, and reads no param`, () => {
+        const entry = causes[code];
+        expect(isTree(entry), `runtime.agentCauses.${code}`).toBe(true);
+        if (!isTree(entry)) return;
+        expect(Object.keys(entry).sort()).toEqual(
+          [...AGENT_CAUSE_PARTS].sort(),
+        );
+        for (const part of AGENT_CAUSE_PARTS) {
+          const value = entry[part];
+          expect(typeof value, `${code}.${part}`).toBe('string');
+          if (typeof value !== 'string') continue;
+          expect(value.trim(), `${code}.${part}`).not.toBe('');
+          expect([...icuArguments(value)], `${code}.${part}`).toEqual([]);
+        }
+      });
+    }
+  }
+});
 
 describe('automationRuns — one entry per step failure reason', () => {
   it('derives params for exactly the engine reasons', () => {

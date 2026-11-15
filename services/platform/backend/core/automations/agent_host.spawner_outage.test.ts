@@ -325,7 +325,8 @@ describe('an automation agent turn whose spawner goes away', () => {
     expect(settled(mutations)).toHaveLength(1);
     expect(settled(mutations)[0]?.args.result).toMatchObject({
       errored: true,
-      failureCode: 'turn_crashed',
+      // Named as the outage it was, folded to `turn_crashed` on the wire.
+      failureCode: 'sandbox_lost',
       reason: expect.stringContaining('could not be reached for 10 minutes'),
     });
 

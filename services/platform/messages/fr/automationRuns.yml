@@ -409,6 +409,31 @@ runtime:
       explanation: Tale n’a pas pu déterminer pourquoi. Les détails techniques donnent le message exact du moteur.
       cause: L’étape s’est arrêtée sur une erreur que Tale ne sait pas décrire.
       fix: Lis les détails techniques, ou relance.
+  agentCauses:
+    sandbox_unreachable:
+      title: Le service bac à sable est injoignable
+      explanation: Le service bac à sable de l’agent n’a pas répondu au démarrage du tour, donc l’agent n’a jamais démarré.
+      fix: Demande à un admin de vérifier le service bac à sable, puis relance.
+    sandbox_lost:
+      title: Le service bac à sable ne répond plus
+      explanation: Le service bac à sable de l’agent est resté injoignable pendant le tour, plus longtemps que Tale n’attend, donc le tour a été arrêté.
+      fix: Relance. Si cela se reproduit, demande à un admin de vérifier le service bac à sable.
+    resource_exhausted:
+      title: L’agent a manqué de mémoire
+      explanation: La limite de mémoire du bac à sable a mis fin au tour de l’agent, donc son travail a été arrêté.
+      fix: Relance. Si cela se reproduit, demande à un admin de donner plus de mémoire aux agents.
+    turn_stalled:
+      title: L’agent ne répond plus
+      explanation: Il n’a rien affiché et presque rien fait pendant longtemps, donc son bac à sable l’a arrêté.
+      fix: Relance. S’il s’arrête encore, vérifie l’entrée de l’étape et la configuration de l’agent.
+    sandbox_destroying:
+      title: L’espace de travail de l’exécution est en cours de suppression
+      explanation: Un admin a supprimé l’espace de travail où cette exécution travaille, donc l’agent n’a pas pu y démarrer.
+      fix: Relance l’automatisation depuis sa première étape. Les fichiers laissés par les étapes précédentes sont perdus.
+    endpoint_refused:
+      title: La politique d’accès aux modèles a arrêté l’agent
+      explanation: Selon la règle de traitement UE/EEE de l’organisation, le modèle de l’agent n’est pas servi par un point d’accès qui traite les prompts là-bas, donc aucun prompt n’a été envoyé.
+      fix: Choisis un modèle dont le fournisseur traite les prompts dans l’UE/EEE, ou demande à un administrateur de le servir par un tel point d’accès.
 runFailure:
   codes:
     node_error:

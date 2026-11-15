@@ -89,6 +89,7 @@ import {
   sessionCancelExec,
   sessionDeleteFiles,
   SessionMemoryBusyError,
+  SpawnerUnreachableError,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -1502,7 +1503,11 @@ export function classifyWorkflowStartFailure(
   return {
     reason: `the agent turn could not start: ${runFailureMessage(err)}`,
     failureCode:
-      retryAtMs !== undefined ? 'credential_cooldown' : 'start_failed',
+      retryAtMs !== undefined
+        ? 'credential_cooldown'
+        : err instanceof SpawnerUnreachableError
+          ? 'sandbox_unreachable'
+          : 'start_failed',
     ...(retryAtMs !== undefined ? { retryAtMs } : {}),
   };
 }
@@ -2888,7 +2893,7 @@ async function continueOrSettle(
       errored: true,
       reason: `the agent turn stopped unexpectedly: the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes`,
       // Past the deadline it is the deadline, as for a drain that died there.
-      failureCode: Date.now() > args.deadlineAt ? 'deadline' : 'turn_crashed',
+      failureCode: Date.now() > args.deadlineAt ? 'deadline' : 'sandbox_lost',
       text: '',
       files: [],
     });
