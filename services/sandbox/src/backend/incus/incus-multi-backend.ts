@@ -243,6 +243,9 @@ export class IncusEndpointSet {
   /** The record's writes, one after the other. */
   private writes: Promise<void> = Promise.resolve();
   private completing: Promise<void> | null = null;
+  /** The sessions seen on a host other than their recorded one, as logged
+   * (once each, not at every listing). */
+  private readonly conflicts = new Set<string>();
   /** Session ids being placed, per host: counted before its listing shows
    * them. */
   private readonly placing = new Map<string, Set<string>>();
@@ -358,9 +361,13 @@ export class IncusEndpointSet {
     const recorded = this.placement.get(sessionId);
     if (recorded === endpoint.name) return false;
     if (recorded !== undefined) {
-      console.warn(
-        `[sandbox.incus] session ${sessionId} is recorded on ${recorded} and is also seen on ${endpoint.name}; it stays on ${recorded}`,
-      );
+      const conflict = `${sessionId} ${endpoint.name}`;
+      if (!this.conflicts.has(conflict)) {
+        this.conflicts.add(conflict);
+        console.warn(
+          `[sandbox.incus] session ${sessionId} is recorded on ${recorded} and is also seen on ${endpoint.name}; it stays on ${recorded}`,
+        );
+      }
       return false;
     }
     this.placement.set(sessionId, endpoint.name);

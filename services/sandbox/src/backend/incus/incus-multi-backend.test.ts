@@ -662,14 +662,16 @@ describe('the placement record', () => {
     );
     await backend.listSessions();
     await backend.listWorkspaces();
+    await backend.listSessions();
     expect(set.placementOf('twice')).toBe('node-2');
+    // Said once, not at every listing.
     expect(
-      warnings().some((line) =>
+      warnings().filter((line) =>
         line.includes(
           'session twice is recorded on node-2 and is also seen on node-1; it stays on node-2',
         ),
       ),
-    ).toBe(true);
+    ).toHaveLength(1);
   });
 
   test('a destroy clears the session from the record', async () => {
