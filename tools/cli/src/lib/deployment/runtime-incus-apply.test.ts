@@ -41,7 +41,7 @@ import {
   SANDBOX_PLACEMENT_SENTENCES,
 } from './runtime-sandbox-placement';
 import {
-  commitRepositorySource,
+  commitRepositoryProtocol,
   fakeRegistry,
   runtimeFixture,
   type RuntimeFixture,
@@ -131,9 +131,12 @@ function readyIncus(registries: string[]): FakeIncus {
 /** Prepare an Incus bundle of the runtime fixture and a state directory
  * holding both credential directories. */
 async function setup(declared: { egressProxy?: string } = {}): Promise<Setup> {
-  // The repository's own compose file and proxy, as a release carries them.
+  // A v0.5 revision: the fixture's own compose file and Caddy edge, with the
+  // repository's automation protocol. The managed runtime cannot prepare the
+  // repository's Traefik edge yet, so its own source is not what these cases
+  // prepare.
   const fixture = runtimeFixture({}, { resolved: true });
-  commitRepositorySource(fixture);
+  commitRepositoryProtocol(fixture);
   const registry = fakeRegistry(() => fixture.revision);
   const docker: string[] = [];
   const bundle = await prepareRuntime(
