@@ -13,7 +13,7 @@ import { FakeIncus } from '@tale/incus/fake';
 import { parse } from 'yaml';
 
 import { waitForHealthy } from '../docker/wait-for-healthy';
-import { setRestorePending } from '../runtime/incus/apply/journal';
+import { readJournal, setRestorePending } from '../runtime/incus/apply/journal';
 import type { IncusDeclaration } from '../runtime/incus/compile/stack-target';
 import { createIncusRuntime } from '../runtime/incus/incus-runtime';
 import { registryHosts } from '../runtime/incus/verbs/images';
@@ -37,11 +37,18 @@ import {
 import { prepareRuntime } from './runtime-prepare';
 import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
 import {
+  SANDBOX_HOST_MOVE_SENTENCES,
+  SANDBOX_PLACEMENT_SENTENCES,
+} from './runtime-sandbox-placement';
+import {
   commitRepositorySource,
   fakeRegistry,
   runtimeFixture,
   type RuntimeFixture,
 } from './runtime-test-helper';
+
+/** One declared sandbox host. */
+type SandboxHost = NonNullable<IncusDeclaration['sandboxHosts']>[number];
 
 // Managed bundles and the Incus runtime need a POSIX host and are refused on
 // Windows (assertManagedPlatform, assertIncusPlatform): their plan key,
@@ -622,6 +629,267 @@ describePosix('applying a managed bundle on Incus', () => {
       INCUS_APPLY_SENTENCES.docker,
     );
     expect(fake.instances.size).toBe(0);
+  });
+
+  test("several sandbox hosts need each host's credentials before the first call to the node", async () => {
+    const { fake, options, dependencies } = await setup();
+    const requests = fake.requests.length;
+    await expect(
+      applyIncusRuntime(
+        {
+          ...options,
+          incus: {
+            ...options.incus,
+            sandboxHosts: [
+              {
+                name: 'node-2',
+                endpoint: 'https://10.0.0.2:8443',
+                egressProxy: 'http://10.20.2.2:3128',
+                dns: ['10.20.2.2'],
+              },
+              {
+                name: 'node-3',
+                endpoint: 'https://10.0.0.3:8443',
+                egressProxy: 'http://10.20.3.2:3128',
+                dns: ['10.20.3.2'],
+              },
+            ],
+          },
+        },
+        dependencies,
+      ),
+    ).rejects.toThrow(
+      `Incus sandbox credentials of node-2 directory ${join(options.stateDirectory, 'sandbox-incus', 'node-2')} is missing`,
+    );
+    expect(fake.requests.length).toBe(requests);
+  });
+
+  test("leaving the list form with the spawner's placement record kept is refused unless the operator clears it", async () => {
+    const { fake, options, dependencies } = await setup();
+    await applyIncusRuntime(options, dependencies);
+    // The record a spawner of the list form left on its data volume.
+    fake.seedVolume('sandbox-state', {
+      'user.tale.stack': options.composeProject,
+      'user.tale.kind': 'data',
+      'user.tale.volume': 'sandbox-state',
+    });
+    const instances = new Map(
+      [...fake.instances].map(([name, instance]) => [name, instance.config]),
+    );
+    for (const dryRun of [true, false])
+      await expect(
+        applyIncusRuntime({ ...options, dryRun }, dependencies),
+      ).rejects.toThrow(SANDBOX_PLACEMENT_SENTENCES.kept);
+    expect(
+      new Map(
+        [...fake.instances].map(([name, instance]) => [name, instance.config]),
+      ),
+    ).toEqual(instances);
+    expect(fake.volumes.has('sandbox-state')).toBe(true);
+
+    // A plan with the flag names the deletion and keeps the record.
+    await applyIncusRuntime(
+      { ...options, dryRun: true, clearSandboxPlacement: true },
+      dependencies,
+    );
+    expect(fake.volumes.has('sandbox-state')).toBe(true);
+    // The deploy with it deletes the record the spawner no longer mounts.
+    await applyIncusRuntime(
+      { ...options, clearSandboxPlacement: true },
+      dependencies,
+    );
+    expect(fake.volumes.has('sandbox-state')).toBe(false);
+    // Then the single form deploys as before.
+    await applyIncusRuntime(options, dependencies);
+  });
+
+  /** A list entry of the sandbox hosts, its credentials written. */
+  function listedHost(
+    made: Setup,
+    name: string,
+    endpoint: string,
+    project?: string,
+  ): SandboxHost {
+    const directory = join(made.options.stateDirectory, 'sandbox-incus', name);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    for (const file of SANDBOX_INCUS_FILES)
+      writeFileSync(join(directory, file), `${file}\n`, { mode: 0o600 });
+    return {
+      name,
+      endpoint,
+      ...(project === undefined ? {} : { project }),
+      egressProxy: 'http://10.20.2.2:3128',
+      dns: ['10.20.2.2'],
+    };
+  }
+
+  /** The bundle prepared again for the list of `hosts`. */
+  async function prepareList(
+    made: Setup,
+    hosts: SandboxHost[],
+  ): Promise<IncusDeclaration> {
+    const declaration: IncusDeclaration = {
+      ...DECLARATION,
+      sandboxHosts: hosts,
+    };
+    rmSync(made.fixture.options.bundleDirectory, {
+      recursive: true,
+      force: true,
+    });
+    await prepareRuntime({
+      repoRoot: made.fixture.repoRoot,
+      revision: made.fixture.revision,
+      output: made.fixture.options.bundleDirectory,
+      platform: 'linux/amd64',
+      incus: {
+        declaration,
+        stack: made.fixture.options.composeProject,
+        registry: made.registry,
+      },
+    });
+    return declaration;
+  }
+
+  /** A stack whose spawner names its sessions' project, as a deployment
+   * declares it in `environment`. */
+  async function setupWithProject(): Promise<Setup> {
+    const made = await setup();
+    made.options = {
+      ...made.options,
+      environment: {
+        ...made.options.environment,
+        SANDBOX_INCUS_PROJECT: 'tale-sessions',
+      },
+    };
+    return made;
+  }
+
+  const spawnerOf = (made: Setup) =>
+    [...made.fake.instances.values()].find(
+      (instance) => instance.config['user.tale.service'] === 'sandbox',
+    );
+
+  test('a stack that ran with the one host takes the list through an entry of its endpoint and project, its record starting empty', async () => {
+    const made = await setupWithProject();
+    await applyIncusRuntime(made.options, made.dependencies);
+    // The one host: the declared network's gateway, the stack's sessions
+    // project, which the entry takes by default.
+    const declaration = await prepareList(made, [
+      listedHost(made, 'node-1', 'https://10.30.0.1:8443/'),
+      listedHost(made, 'node-2', 'https://10.0.0.2:8443'),
+    ]);
+    await applyIncusRuntime(
+      { ...made.options, incus: declaration },
+      made.dependencies,
+    );
+    expect(made.fake.volumes.has('sandbox-state')).toBe(true);
+    const spawner = spawnerOf(made);
+    expect(
+      spawner?.config['environment.SANDBOX_INCUS_ENDPOINTS'],
+    ).toBeDefined();
+    expect(
+      Object.values(spawner?.devices ?? {}).map((device) => device.source),
+    ).toContain('sandbox-state');
+  });
+
+  test('a stack that ran with the one host is refused a list without its endpoint and project, plan and deploy alike, and nothing changes', async () => {
+    const made = await setupWithProject();
+    await applyIncusRuntime(made.options, made.dependencies);
+    const project =
+      spawnerOf(made)?.config['environment.SANDBOX_INCUS_PROJECT'] ?? '';
+    expect(project).toBe('tale-sessions');
+    const sentence = SANDBOX_HOST_MOVE_SENTENCES.unmatched({
+      endpoint: 'https://10.30.0.1:8443',
+      project,
+    });
+    const census = () => ({
+      instances: new Map(
+        [...made.fake.instances].map(([name, instance]) => [
+          name,
+          instance.config,
+        ]),
+      ),
+      volumes: [...made.fake.volumes.keys()].sort(),
+    });
+    const before = census();
+    // Another host, and the same host in another project.
+    for (const hosts of [
+      [listedHost(made, 'node-2', 'https://10.0.0.2:8443')],
+      [listedHost(made, 'node-1', 'https://10.30.0.1:8443', 'other-sessions')],
+    ]) {
+      const declaration = await prepareList(made, hosts);
+      for (const dryRun of [true, false])
+        await expect(
+          applyIncusRuntime(
+            { ...made.options, incus: declaration, dryRun },
+            made.dependencies,
+          ),
+        ).rejects.toThrow(sentence);
+      expect(census()).toEqual(before);
+    }
+  });
+
+  test('the one host is kept in the journal, so a list is held to it while no spawner runs', async () => {
+    const made = await setupWithProject();
+    await applyIncusRuntime(made.options, made.dependencies);
+    // A second deploy reads the one host off the running spawner.
+    await applyIncusRuntime(made.options, made.dependencies);
+    const recorded = (await readJournal(made.options.stateDirectory))
+      ?.sandboxHost;
+    expect(recorded?.endpoint).toBe('https://10.30.0.1:8443');
+    // A crash between the spawner's removal and its replacement.
+    const spawner = spawnerOf(made);
+    if (spawner === undefined) throw new Error('no spawner');
+    made.fake.instances.delete(spawner.name);
+    const declaration = await prepareList(made, [
+      listedHost(made, 'node-2', 'https://10.0.0.2:8443'),
+    ]);
+    await expect(
+      applyIncusRuntime(
+        { ...made.options, incus: declaration },
+        made.dependencies,
+      ),
+    ).rejects.toThrow(
+      SANDBOX_HOST_MOVE_SENTENCES.unmatched({
+        endpoint: 'https://10.30.0.1:8443',
+        project: recorded?.project ?? '',
+      }),
+    );
+  });
+
+  test('a placement record the running spawner still mounts is kept, and the next deploy refuses again', async () => {
+    const { fake, options, dependencies } = await setup();
+    await applyIncusRuntime(options, dependencies);
+    fake.seedVolume('sandbox-state', {
+      'user.tale.stack': options.composeProject,
+      'user.tale.kind': 'data',
+      'user.tale.volume': 'sandbox-state',
+    });
+    // An instance that still mounts it, as a spawner the apply did not
+    // replace would.
+    fake.seedInstance(
+      'holder',
+      {},
+      {
+        status: 'Stopped',
+        devices: {
+          state: {
+            type: 'disk',
+            pool: DECLARATION.pool,
+            source: 'sandbox-state',
+            path: '/state',
+          },
+        },
+      },
+    );
+    await applyIncusRuntime(
+      { ...options, clearSandboxPlacement: true },
+      dependencies,
+    );
+    expect(fake.volumes.has('sandbox-state')).toBe(true);
+    await expect(applyIncusRuntime(options, dependencies)).rejects.toThrow(
+      SANDBOX_PLACEMENT_SENTENCES.kept,
+    );
   });
 
   test('environment of the Incus shape stays the CLI own', async () => {

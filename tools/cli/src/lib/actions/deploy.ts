@@ -172,6 +172,10 @@ interface DeployOptions {
   runtime?: StackRuntime;
   /** `--plan <file>` on Incus: apply only what this reviewed plan holds. */
   plan?: WorkspacePlan;
+  /** `--clear-sandbox-placement` on Incus: leaving
+   * `runtime.incus.sandboxHosts`, delete the spawner's record of each
+   * session's host. */
+  clearSandboxPlacement?: boolean;
   /** The caller holds the deploy lock already (`tale runtime migrate`). */
   lockHeld?: boolean;
 }
@@ -289,6 +293,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
           ...(options.skipBackup === undefined
             ? {}
             : { skipBackup: options.skipBackup }),
+          ...(options.clearSandboxPlacement
+            ? { clearSandboxPlacement: true }
+            : {}),
         });
         await finish();
         return;

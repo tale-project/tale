@@ -11,14 +11,27 @@ import {
 /**
  * Hold the credentials of a bundle that declares the Incus sandbox to the same
  * custody the CLI applies to its other private files, before Docker is touched.
- * The directory is `<state>/sandbox-incus`; `assertCredentialCustody` says
- * what holds.
+ * The directory is `<state>/sandbox-incus`; with several hosts (`hosts`, their
+ * names) each host's three files are in `<state>/sandbox-incus/<name>/`.
+ * `assertCredentialCustody` says what holds.
  */
-export function assertIncusCredentials(stateDirectory: string): void {
-  assertCredentialCustody(join(stateDirectory, SANDBOX_INCUS_DIRECTORY), {
-    label: 'Incus sandbox credentials',
-    missing: `place ${SANDBOX_INCUS_FILES.join(', ')} in it before applying`,
-  });
+export function assertIncusCredentials(
+  stateDirectory: string,
+  hosts?: readonly string[],
+): void {
+  const directory = join(stateDirectory, SANDBOX_INCUS_DIRECTORY);
+  if (hosts === undefined) {
+    assertCredentialCustody(directory, {
+      label: 'Incus sandbox credentials',
+      missing: `place ${SANDBOX_INCUS_FILES.join(', ')} in it before applying`,
+    });
+    return;
+  }
+  for (const host of hosts)
+    assertCredentialCustody(join(directory, host), {
+      label: `Incus sandbox credentials of ${host}`,
+      missing: `place the host's ${SANDBOX_INCUS_FILES.join(', ')} in it before applying`,
+    });
 }
 
 /**

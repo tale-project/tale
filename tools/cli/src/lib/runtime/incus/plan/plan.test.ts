@@ -657,6 +657,35 @@ describe('a missing data volume (R3-22)', () => {
     expect(resource(runtime, 'volume/names-config').effects).toEqual([]);
   });
 
+  test('only the sandbox placement record is made empty on a stack that ran before', () => {
+    // A stack that takes runtime.incus.sandboxHosts: its spawner mounts the
+    // record, which the stack never held.
+    const listed = desiredOf({
+      ...desired.target,
+      volumes: [
+        ...desired.target.volumes,
+        {
+          name: 'sandbox-state',
+          kind: 'data',
+          pool: desired.target.pool,
+          config: {},
+        },
+      ],
+    });
+    const made = plan(listed, withoutDb(converged), FULL);
+    expect(resource(made, 'volume/sandbox-state')).toMatchObject({
+      action: 'create',
+      effects: [],
+    });
+    expect(resource(made, 'volume/sandbox-state').hint).toBeUndefined();
+    // Any other data volume missing beside it is still refused.
+    expect(resource(made, 'volume/db-data')).toMatchObject({
+      action: 'create',
+      effects: ['data'],
+      hint: MISSING_DATA_HINT,
+    });
+  });
+
   test('the first deploy after a recorded reset creates it, and only that one', () => {
     const reset: Readback = {
       ...emptyReadback(desired),

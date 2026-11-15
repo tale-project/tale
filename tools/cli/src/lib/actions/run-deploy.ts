@@ -51,6 +51,9 @@ interface RunDeployOptions {
   planOnly?: boolean;
   /** Incus: `--plan <file>`, apply only what this reviewed plan holds. */
   plan?: string;
+  /** Incus: leaving `runtime.incus.sandboxHosts`, delete the spawner's
+   * record of each session's host. */
+  clearSandboxPlacement?: boolean;
 }
 
 /**
@@ -132,6 +135,10 @@ export async function runDeploy(
   )
     throw usageError(
       '--plan-only and --plan plan Incus resources: this workspace runs on Docker Compose (use --dry-run).',
+    );
+  if (runtime.engine !== 'incus' && options.clearSandboxPlacement)
+    throw usageError(
+      '--clear-sandbox-placement clears the Incus sandbox spawner record: this workspace runs on Docker Compose.',
     );
   const reviewedPlan =
     options.plan === undefined ? undefined : readWorkspacePlan(options.plan);
@@ -246,5 +253,6 @@ export async function runDeploy(
     skipBackup: options.skipBackup,
     runtime,
     ...(reviewedPlan === undefined ? {} : { plan: reviewedPlan }),
+    ...(options.clearSandboxPlacement ? { clearSandboxPlacement: true } : {}),
   });
 }

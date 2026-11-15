@@ -426,7 +426,12 @@ describePosix('fresh native receipt custody', () => {
         run.dependencies,
       ),
     ).rejects.toThrow('does not combine with --configuration-only');
-    for (const flags of [{ planOnly: true }, { stop: true }, { plan: 'x' }])
+    for (const flags of [
+      { planOnly: true },
+      { stop: true },
+      { plan: 'x' },
+      { clearSandboxPlacement: true },
+    ])
       await expect(
         applyDeployment({ bundle: run.bundle, ...flags }, run.dependencies),
       ).rejects.toThrow('apply to a bundle for the Incus runtime');

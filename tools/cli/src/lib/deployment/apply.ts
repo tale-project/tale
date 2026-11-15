@@ -77,6 +77,9 @@ export interface ApplyDeploymentOptions {
   planOnly?: boolean;
   /** Incus runtime: the reviewed plan file to apply exactly. */
   plan?: string;
+  /** Incus runtime: leaving `runtime.incus.sandboxHosts`, delete the
+   * spawner's record of each session's host. */
+  clearSandboxPlacement?: boolean;
 }
 
 type Dependencies = {
@@ -604,10 +607,13 @@ async function applyVerifiedDeployment(
     engine === 'incus' ? incusDeclarationOf(bundle.spec) : undefined;
   if (
     incus === undefined &&
-    (options.stop || options.planOnly || options.plan !== undefined)
+    (options.stop ||
+      options.planOnly ||
+      options.plan !== undefined ||
+      options.clearSandboxPlacement)
   )
     throw preconditionError(
-      '--stop, --plan-only and --plan apply to a bundle for the Incus runtime.',
+      '--stop, --plan-only, --plan and --clear-sandbox-placement apply to a bundle for the Incus runtime.',
     );
   const runtimeBundle = readRuntimeBundle(join(directory, 'runtime')).bundle;
   const declared = bundle.spec.sandbox;
@@ -676,6 +682,9 @@ async function applyVerifiedDeployment(
             ? {}
             : { egressProxy: declared.egressProxy }),
           ...(options.stop ? { stop: true } : {}),
+          ...(options.clearSandboxPlacement
+            ? { clearSandboxPlacement: true }
+            : {}),
           ...(options.plan === undefined
             ? {}
             : { plan: readReviewedPlan(options.plan) }),

@@ -45,6 +45,20 @@ export class SessionExistsError extends Error {
   }
 }
 
+/** A create that no host may take now: every host is drained, at its cap,
+ * short of memory or disk (`full`), or cannot be asked (`unavailable`): an
+ * unreachable host, or the one that holds the session's workspace. Nothing
+ * was made; the caller retries later. */
+export class SessionPlacementError extends Error {
+  constructor(
+    readonly reason: 'full' | 'unavailable',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'SessionPlacementError';
+  }
+}
+
 export interface SweepOptions {
   /** Reap runtimes whose start time is older than this epoch-ms threshold. */
   staleBeforeMs: number;

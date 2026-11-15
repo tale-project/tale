@@ -13,7 +13,9 @@ writes session state under the host session root mounted at
 off unless selected) holds no socket: it reaches one restricted project of an
 Incus node over the REST API with a restricted client certificate, and keeps a
 session's files in a quota'd storage volume (see
-[Incus session instances](#incus-session-instances)).
+[Incus session instances](#incus-session-instances)). Given several hosts
+(`SANDBOX_INCUS_ENDPOINTS`), it places each new session on the host with the
+most headroom and keeps it there ([docs/incus.md](docs/incus.md#several-hosts)).
 
 ```bash
 bun run --filter @tale/sandbox dev    # bun --hot src/server.ts (local session root in /tmp)

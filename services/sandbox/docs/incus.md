@@ -131,7 +131,9 @@ client.crt --restricted --projects <project>`. A restricted certificate has
   names a project it was not given.
 - **One certificate and one project per environment** (a `pr` spawner reaches
   only `sandbox-pr`, a `te` spawner only `sandbox-te`). The backend uses
-  exactly one project, so this needs no code, only discipline.
+  exactly one project per host, so this needs no code, only discipline. With
+  [several hosts](#several-hosts), each host has its own certificate,
+  restricted to that host's project, and its own pinned server certificate.
 - The project is **restricted** (`restricted=true`), so even a compromised
   spawner cannot ask for a privileged container, a host path, raw LXC config
   or a NIC of its own: the checks below refuse a project that is not.
@@ -445,6 +447,8 @@ variables are named at once.
 | `SANDBOX_INCUS_CLIENT_CERT_FILE`        | required           | Absolute path of the restricted client certificate (PEM).                                                                            |
 | `SANDBOX_INCUS_CLIENT_KEY_FILE`         | required           | Absolute path of its unencrypted private key (PEM).                                                                                  |
 | `SANDBOX_INCUS_SERVER_CERT_FILE`        | required           | Absolute path of the node's pinnable server certificate (PEM).                                                                       |
+| `SANDBOX_INCUS_ENDPOINTS`               | unset              | Several hosts instead of one: a JSON array with an entry per host, in place of the endpoint and the three certificate files ([below](#several-hosts)). |
+| `SANDBOX_INCUS_STATE_DIR`               | `/var/lib/tale-sandbox/incus` | With several hosts: the persistent directory of the record of each session's host ([below](#several-hosts)).            |
 | `SANDBOX_INCUS_POOL_SIZE`               | `0`                | Warm standbys kept ready (0 turns the pool off); at most `SANDBOX_MAX_SESSIONS`.                                                     |
 | `SANDBOX_INCUS_WORKSPACE_SIZE`          | `10GiB`            | Quota of a workspace volume (`10g`, `512m` and Incus sizes).                                                                         |
 | `SANDBOX_INCUS_DNS`                     | the egress proxy   | Comma-separated IPv4 resolvers handed to a session.                                                                                  |
@@ -493,7 +497,9 @@ cold start gives a standby's slot back first. The signed capacity endpoint
 reports the project's running and starting sessions; CPU and memory stay
 unavailable because a restricted certificate does not see the node's resources,
 so admission has no memory or disk floor here: size `SANDBOX_MAX_SESSIONS` and
-the per-session limits so that the sum of the limits fits the node.
+the per-session limits so that the sum of the limits fits the node. With
+[several hosts](#several-hosts), each host also has its own cap, and its
+project's memory and disk limits steer and bound where a session goes.
 
 ### A full workspace
 
@@ -525,6 +531,142 @@ quota), for a Docker container a `--cpu-shares` value whose cgroup weight is
 above 100. Better still, keep the sum of `SANDBOX_MAX_SESSIONS` times
 `SANDBOX_AGENT_CPUS` within the node's cores plus the headroom you accept, so
 that contention is the exception.
+
+## Several hosts
+
+One spawner can spread its sessions over several Incus hosts. Each host is set
+up exactly as above (its own project, profile, sandbox network with its ACL,
+pool, image alias, and a restricted client certificate of its own), and the
+spawner is given the list in `SANDBOX_INCUS_ENDPOINTS` instead of
+`SANDBOX_INCUS_ENDPOINT` and the three certificate files, which must then be
+unset. Without the list nothing changes: one host, one pair of backends, as
+before.
+
+```
+SANDBOX_INCUS_ENDPOINTS='[
+  {"name":"node-2","endpoint":"https://10.0.0.2:8443",
+   "clientCertFile":"/run/incus/node-2/client.crt",
+   "clientKeyFile":"/run/incus/node-2/client.key",
+   "serverCertFile":"/run/incus/node-2/server.crt",
+   "egressProxy":"http://10.20.2.2:3128","maxSessions":25},
+  {"name":"node-3","endpoint":"https://10.0.0.3:8443",
+   "clientCertFile":"/run/incus/node-3/client.crt",
+   "clientKeyFile":"/run/incus/node-3/client.key",
+   "serverCertFile":"/run/incus/node-3/server.crt",
+   "egressProxy":"http://10.20.3.2:3128","maxSessions":25,"drained":true}
+]'
+```
+
+| Key              | Default                          | Meaning                                                                                                   |
+| ---------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `name`           | required                         | The host's name in logs, `/health` and the placement: lowercase letters, digits and dashes, unique.       |
+| `endpoint`       | required                         | `https://host:8443`, the host's Incus API.                                                                |
+| `clientCertFile`, `clientKeyFile`, `serverCertFile` | required      | Absolute paths of the host's restricted client certificate, its key, and its pinnable server certificate. |
+| `project`, `profile`, `network`, `storagePool`, `image` | the `SANDBOX_INCUS_*` variable | The host's objects, where they are named otherwise than the default. One project of one host is one entry. |
+| `maxSessions`    | `SANDBOX_MAX_SESSIONS`           | The host's own session cap; its warm pool stays within it.                                                |
+| `poolSize`       | `SANDBOX_INCUS_POOL_SIZE`        | The host's warm standbys, at most its `maxSessions`.                                                      |
+| `egressProxy`    | `SANDBOX_EGRESS_PROXY`           | The egress proxy on the host's sandbox network, an `http://` URL whose host is an IPv4 address.            |
+| `dns`            | `SANDBOX_INCUS_DNS`, else the host's egress proxy | The resolvers handed to the host's sessions, an array of IPv4 addresses.                   |
+| `drained`        | `false`                          | `true`: the host takes no new session; the sessions it holds carry on and resume there.                   |
+
+Everything else (`SANDBOX_INCUS_WORKSPACE_SIZE`, the image source, the Docker
+config, the registry caches, the API timeout) is shared by every host.
+
+**Every host gives a session the same shape.** A session's memory and
+workspace size come from the shared settings, and a new session's need is
+judged once against every host: set up each host's profile the same way (the
+same limits, the same devices), so that a session is the same wherever it
+lands.
+
+**The placement record.** With several hosts the spawner keeps a record of the
+host each session lives on in `SANDBOX_INCUS_STATE_DIR` (default
+`/var/lib/tale-sandbox/incus`, the file `placement.json`). Give that directory
+a persistent volume of the spawner's own: the record must outlive the
+container. The spawner reads it at start, writes it whole and atomically (a
+temporary file, synced, then renamed), and records a new session's host
+before the session is created. It does not start when the record can be
+neither read nor written. An unreadable record is kept aside as
+`placement.json.unreadable-<time>` and rebuilt as on a first start.
+
+**Placement.** A new session goes to the host with the **most headroom** once it
+is there: the smallest share left of the host's session cap, of its project's
+`limits.memory`, and of its disk (the project's `limits.disk` or
+`limits.disk.pool.<pool>`, and the pool's free space where the certificate may
+read it). A restricted certificate sees no node resources, so a bound the
+project does not set is left out, never guessed: set the project limits for
+memory and disk to have them weigh in. The memory of the host's ready warm
+standbys counts as free, since a create takes one over or removes one for its
+slot. A host is passed over, with its reason
+logged once each time the reason changes, when it is drained, did not pass its
+boot checks, has no runtime image, does not answer, is at its cap, or is short
+of the session's memory or workspace size. When no host can take a session the
+create answers `429 session_quota` (all full or drained) or `503
+session_unavailable` (none answers), and the platform tries again.
+
+**Every per-host check stays.** Each host has its own pair of backends: its own
+boot checks (a host that fails them takes no session and is checked again every
+minute; boot fails only when no host passes), its own warm pool, its own
+sweep, and Incus enforces its project limits. `SANDBOX_MAX_SESSIONS` stays the
+cap of the whole spawner, judged over the sessions of every host.
+
+**A session stays on its host.** Its workspace volume is there, so a session
+the record names is only ever resumed on that host, even a drained one,
+within that host's cap. While that host does not answer, or is no longer
+declared, the session is refused with `503 session_unavailable`: it is never
+started elsewhere, where it would come back with an empty workspace. A
+session the record does not name is new, and is placed freely. A listing
+never moves a session the record names: a workspace of the same id on another
+host is logged, and left alone. A destroy, or a workspace deletion that has
+finished, takes the session out of the record.
+
+**The first start with the record** (no record on the volume) rebuilds it from
+every host's listings of its sessions and workspaces. Until every host has
+been listed once, a session the record does not name may live on a host not
+yet listed, so it is refused with `503` too; the hosts already listed are
+kept in the record, so a restart in the middle goes on where it stopped. A
+host declared later is listed the same way before a session the record does
+not name is placed: it may hold workspaces made without the record.
+
+**A host that does not answer** is skipped for new sessions and not asked
+again for 30 seconds, with its reason logged. Each Incus request has its own
+timeout (`SANDBOX_INCUS_API_TIMEOUT_MS`), and only a failed connection (refused,
+reset, unroutable, timed out, a failed TLS handshake: the error codes Bun's and
+undici's fetch give, on the error or its cause) or a request with no answer
+within it counts: a slow host that answers each request in time, one that
+answers with an Incus error, or one whose reply does not parse, is not
+skipped. Its sessions stay listed as they
+were last seen, so a blip does not end them, and a call for one of them fails
+for the platform to retry; a session whose workspace is there is not started
+elsewhere. A host that has not answered since the spawner started shows no
+session until it does. `/health` holds while one host that passed its boot
+checks answers, and names each host.
+
+**Drain a host** by setting `"drained": true` and restarting the spawner: the
+host takes no new session, its warm standbys are removed, and its sessions run
+until they end. Once the platform reports none on it and it holds no
+workspace, remove the entry: a session the record still names on a removed
+host is refused until the entry is back.
+**Add a host** by setting it up as above and appending an entry.
+**Down to one host, keep the list**: it takes a single entry, and the record
+stays in use. Going back to `SANDBOX_INCUS_ENDPOINT` leaves the record
+behind, and the sessions the one host then makes are missing from it, so a
+later list could place one of them on another host with an empty workspace.
+Delete the record (`placement.json`) when you leave the list form; the Tale CLI
+refuses to drop `runtime.incus.sandboxHosts` while the stack keeps the
+`sandbox-state` volume, unless `tale deploy --clear-sandbox-placement` deletes
+it.
+
+**Network.** The spawner reaches every host's API and every session's runnerd
+(tcp 8200 at the session's own address), so each host's sandbox network needs
+an address range of its own that the spawner can route to, and each host's ACL
+names the spawner's address as seen from that host. Each host needs its own
+egress proxy and resolvers on its own sandbox network (`egressProxy`, `dns`;
+the defaults are the first host's, which the Tale CLI therefore requires on
+every host it declares), and its sessions must
+reach the platform's LLM gateway and backend from that host (the ACL rules and
+the names of [Give the sessions the platform's names](#what-the-operator-creates-on-the-node)).
+The spawner follows a moved egress proxy (`egressAddress`) only while every
+host pins the same address.
 
 ## Package registry caches
 

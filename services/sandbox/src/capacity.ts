@@ -188,6 +188,9 @@ interface CapacityDependencies {
   client?: K8sClient;
   /** The Incus API client, instead of the one the config's runtime makes. */
   incus?: IncusClient;
+  /** With several Incus hosts: the client of each host's view of the
+   * config, instead of the one its runtime makes. */
+  incusFor?: (view: SpawnerConfig) => IncusClient;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -211,6 +214,7 @@ export class CapacityReader {
   private readonly sleep: (ms: number) => Promise<void>;
   private client: K8sClient | undefined;
   private readonly incus: IncusClient | undefined;
+  private readonly incusFor: ((view: SpawnerConfig) => IncusClient) | undefined;
 
   constructor(
     private readonly cfg: SpawnerConfig,
@@ -226,6 +230,7 @@ export class CapacityReader {
       ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.client = deps.client;
     this.incus = deps.incus;
+    this.incusFor = deps.incusFor;
   }
 
   async forOrganization(organizationId: string): Promise<SandboxCapacity> {
@@ -370,21 +375,50 @@ export class CapacityReader {
     };
   }
 
-  /** The sessions of an Incus project, from the labels on its instances. A
+  /** The sessions of the Incus project(s), from the labels on their instances. A
    * restricted client certificate does not see the node's CPU and memory, so
    * those stay unknown rather than being guessed. A listing that fails throws:
    * it must never read as an empty project. */
   private async observeIncus(): Promise<InfrastructureSnapshot> {
     // The Incus modules are loaded only where they are used.
-    const [{ getIncusRuntime }, naming, lifecycle] = await Promise.all([
-      import('./backend/incus/incus-runtime.ts'),
-      import('./backend/incus/incus-naming.ts'),
-      import('./backend/incus/incus-lifecycle.ts'),
-    ]);
-    const client =
-      this.incus ?? (await getIncusRuntime(this.cfg).connect()).client;
+    const [{ getIncusRuntime }, { incusEndpointConfigs }, naming, lifecycle] =
+      await Promise.all([
+        import('./backend/incus/incus-runtime.ts'),
+        import('./backend/incus/incus-endpoints.ts'),
+        import('./backend/incus/incus-naming.ts'),
+        import('./backend/incus/incus-lifecycle.ts'),
+      ]);
+    // One listing per host. With several hosts (SANDBOX_INCUS_ENDPOINTS), one
+    // that does not answer is left out and said; none answering throws.
+    const views = incusEndpointConfigs(this.cfg);
+    const listings = await Promise.allSettled(
+      views.map(async (view) =>
+        (
+          this.incusFor?.(view) ??
+          (views.length === 1 ? this.incus : undefined) ??
+          (await getIncusRuntime(view).connect()).client
+        ).listInstances(),
+      ),
+    );
+    const instances = [];
+    for (const [index, listing] of listings.entries()) {
+      if (listing.status === 'fulfilled') {
+        instances.push(...listing.value);
+        continue;
+      }
+      if (views.length === 1) throw listing.reason;
+      console.warn(
+        `[sandbox.capacity] the sessions of Incus endpoint ${views[index]?.incus?.endpointName ?? index} are left out: it does not answer:`,
+        listing.reason instanceof Error
+          ? listing.reason.message
+          : listing.reason,
+      );
+    }
+    if (listings.every((listing) => listing.status === 'rejected')) {
+      throw new Error('no Incus endpoint answers its session listing');
+    }
     const sessions: RuntimeObservation[] = [];
-    for (const instance of await client.listInstances()) {
+    for (const instance of instances) {
       if (!naming.isSessionInstance(instance.config, this.cfg.instance)) {
         continue;
       }

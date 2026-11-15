@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   DEFAULT_INCUS_DOCKER_CONFIG,
+  DEFAULT_INCUS_STATE_DIR,
   readIncusConfig,
   type IncusConfigContext,
 } from './incus-config.ts';
@@ -353,5 +354,206 @@ describe('the registry caches', () => {
     });
     expect(message).toContain('SANDBOX_INCUS_PYPI_INDEX');
     expect(message).toContain('IPv4 address');
+  });
+});
+
+describe('several hosts (SANDBOX_INCUS_ENDPOINTS)', () => {
+  const NODE = {
+    name: 'node-2',
+    endpoint: 'https://10.0.0.2:8443',
+    clientCertFile: '/run/incus/node-2/client.crt',
+    clientKeyFile: '/run/incus/node-2/client.key',
+    serverCertFile: '/run/incus/node-2/server.crt',
+  };
+  /** The minimal setup with the endpoint list instead of the one host. */
+  function several(
+    entries: unknown,
+    extra: Record<string, string | undefined> = {},
+  ): Record<string, string | undefined> {
+    return {
+      SANDBOX_INCUS_ENDPOINT: undefined,
+      SANDBOX_INCUS_CLIENT_CERT_FILE: undefined,
+      SANDBOX_INCUS_CLIENT_KEY_FILE: undefined,
+      SANDBOX_INCUS_SERVER_CERT_FILE: undefined,
+      SANDBOX_INCUS_ENDPOINTS: JSON.stringify(entries),
+      ...extra,
+    };
+  }
+
+  test('a single host keeps reading SANDBOX_INCUS_ENDPOINT, with no endpoint list', () => {
+    const { config } = read();
+    expect(config.endpoint).toBe('https://incus.example:8443');
+    expect('endpoints' in config).toBe(false);
+  });
+
+  test('reads each host, the rest from the variables of the same meaning', () => {
+    const { config, warnings } = read(
+      several([
+        NODE,
+        {
+          ...NODE,
+          name: 'node-3',
+          endpoint: 'https://10.0.0.3:8443/',
+          project: 'sandbox-pr-3',
+          network: 'sbx3',
+          maxSessions: 12,
+          poolSize: 2,
+          egressProxy: 'http://10.30.0.2:3128',
+          drained: true,
+        },
+      ]),
+    );
+    expect(warnings).toEqual([]);
+    expect(config.endpoints).toEqual([
+      {
+        ...NODE,
+        project: 'sandbox-pr',
+        profile: 'sandbox',
+        network: 'sbx0',
+        storagePool: 'tank',
+        image: 'tale-sandbox-runtime',
+        maxSessions: 32,
+        poolSize: 0,
+        egressProxy: 'http://10.20.0.2:3128',
+        dns: ['10.20.0.2'],
+        drained: false,
+      },
+      {
+        ...NODE,
+        name: 'node-3',
+        endpoint: 'https://10.0.0.3:8443',
+        project: 'sandbox-pr-3',
+        profile: 'sandbox',
+        network: 'sbx3',
+        storagePool: 'tank',
+        image: 'tale-sandbox-runtime',
+        maxSessions: 12,
+        // A drained host keeps no standby.
+        poolSize: 0,
+        egressProxy: 'http://10.30.0.2:3128',
+        // Each host's sessions resolve through its own proxy by default.
+        dns: ['10.30.0.2'],
+        drained: true,
+      },
+    ]);
+    // The flat connection mirrors the first host.
+    expect(config.endpoint).toBe(NODE.endpoint);
+    expect(config.clientCertFile).toBe(NODE.clientCertFile);
+  });
+
+  test('SANDBOX_INCUS_DNS, when set, is every host default', () => {
+    const { config } = read(
+      several([NODE], { SANDBOX_INCUS_DNS: '10.20.0.1' }),
+    );
+    expect(config.endpoints?.[0]?.dns).toEqual(['10.20.0.1']);
+  });
+
+  test('a per-host proxy may stand in for a global name the backend cannot use', () => {
+    const { config } = read(
+      several([{ ...NODE, egressProxy: 'http://10.20.0.2:3128' }]),
+      { egressProxy: 'http://sandbox-egress:3128', maxSessions: 8 },
+    );
+    expect(config.endpoints?.[0]?.egressProxy).toBe('http://10.20.0.2:3128');
+    expect(
+      refusal(several([NODE]), {
+        egressProxy: 'http://sandbox-egress:3128',
+        maxSessions: 8,
+      }),
+    ).toContain('egressProxy must be an http URL whose host is an IPv4');
+  });
+
+  test('never repeats the password of a proxy it refuses', () => {
+    const said = refusal(
+      several([{ ...NODE, egressProxy: 'http://user:s3cret@10.20.0.2:3128' }]),
+    );
+    expect(said).toContain('egressProxy must be an http URL');
+    expect(said).not.toContain('s3cret');
+  });
+
+  test('warns when every host is drained', () => {
+    const { warnings } = read(several([{ ...NODE, drained: true }]));
+    expect(warnings).toEqual([
+      'every endpoint of SANDBOX_INCUS_ENDPOINTS is drained: the spawner serves the sessions they hold and starts no new one',
+    ]);
+  });
+
+  test('refuses the one-host connection beside the list', () => {
+    expect(
+      refusal({
+        SANDBOX_INCUS_ENDPOINTS: JSON.stringify([NODE]),
+      }),
+    ).toContain(
+      "SANDBOX_INCUS_ENDPOINTS names every host's connection, so SANDBOX_INCUS_ENDPOINT, SANDBOX_INCUS_CLIENT_CERT_FILE, SANDBOX_INCUS_CLIENT_KEY_FILE, SANDBOX_INCUS_SERVER_CERT_FILE must be unset beside it",
+    );
+  });
+
+  test.each([
+    ['not JSON', '[{', 'is not valid JSON'],
+    ['an object', '{}', 'must be a JSON array of 1 to 64 objects'],
+    ['empty', '[]', 'must be a JSON array of 1 to 64 objects'],
+  ])('refuses a list that is %s', (_what, raw, words) => {
+    expect(
+      refusal({
+        ...several([]),
+        SANDBOX_INCUS_ENDPOINTS: raw,
+      }),
+    ).toContain(words);
+  });
+
+  test.each([
+    [{ ...NODE, name: 'Node 2' }, 'name must be lowercase letters'],
+    [{ ...NODE, port: 8443 }, '"port" is not a key of an endpoint'],
+    [{ ...NODE, endpoint: 'http://10.0.0.2:8443' }, 'https origin'],
+    [
+      { ...NODE, clientKeyFile: 'client.key' },
+      'clientKeyFile must be an absolute path',
+    ],
+    [{ name: 'node-2', endpoint: NODE.endpoint }, 'needs clientCertFile'],
+    [{ ...NODE, maxSessions: 0 }, 'maxSessions must be a whole number'],
+    [
+      { ...NODE, maxSessions: 2, poolSize: 3 },
+      'poolSize (3) cannot exceed its maxSessions (2)',
+    ],
+    [{ ...NODE, drained: 'yes' }, 'drained must be true or false'],
+    [{ ...NODE, dns: ['resolver'] }, 'dns must be a non-empty array of IPv4'],
+    [
+      { ...NODE, egressProxy: 'http://proxy:3128' },
+      'egressProxy must be an http URL',
+    ],
+    [{ ...NODE, project: 'bad project' }, 'project is not an Incus name'],
+  ])('refuses an entry: %j', (item, words) => {
+    const message = refusal(several([item]));
+    expect(message).toContain('SANDBOX_INCUS_ENDPOINTS entry 0');
+    expect(message).toContain(words);
+  });
+
+  test('keeps the placement record in SANDBOX_INCUS_STATE_DIR, by default under the session root', () => {
+    expect(read(several([NODE])).config.stateDir).toBe(DEFAULT_INCUS_STATE_DIR);
+    expect(DEFAULT_INCUS_STATE_DIR).toBe('/var/lib/tale-sandbox/incus');
+    expect(
+      read(several([NODE], { SANDBOX_INCUS_STATE_DIR: '/data/spawner' })).config
+        .stateDir,
+    ).toBe('/data/spawner');
+    expect(
+      refusal(several([NODE], { SANDBOX_INCUS_STATE_DIR: 'state' })),
+    ).toContain('SANDBOX_INCUS_STATE_DIR must be an absolute directory path');
+  });
+
+  test('a single host needs no placement record, and says so when one is named', () => {
+    expect('stateDir' in read().config).toBe(false);
+    expect(read({ SANDBOX_INCUS_STATE_DIR: '/data/spawner' }).warnings).toEqual(
+      [
+        'SANDBOX_INCUS_STATE_DIR has no effect with one Incus host: only SANDBOX_INCUS_ENDPOINTS records where each session lives',
+      ],
+    );
+  });
+
+  test('refuses two entries of one name, or of one project on one host', () => {
+    expect(refusal(several([NODE, NODE]))).toContain(
+      'the name node-2 is given twice',
+    );
+    expect(refusal(several([NODE, { ...NODE, name: 'node-2b' }]))).toContain(
+      'project sandbox-pr at https://10.0.0.2:8443 is already another entry',
+    );
   });
 });

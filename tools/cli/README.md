@@ -528,6 +528,23 @@ Incus variables an earlier declaration left in the managed `.env` file, unless t
 `environment` declares them. See the
 [Incus sandbox guide](../../docs/en/self-hosted/install/cli-install.md#managed-incus-sandbox).
 
+When the whole stack runs on Incus, `runtime.incus.sandboxHosts` declares the
+Incus hosts for the spawner (one to 64, each with its own `egressProxy` and `dns`
+on its own sandbox network): the compiled spawner then gets
+`SANDBOX_INCUS_ENDPOINTS` in place of `SANDBOX_INCUS_ENDPOINT` and the three
+certificate paths, each host's three files from `sandbox-incus/<name>/`, and a
+`sandbox-state` data volume at `/var/lib/tale-sandbox/incus` for its record of the
+host each session lives on. A stack that ran without the list takes it on a later
+deploy: the volume starts empty and the spawner rebuilds its record from every
+host's listing. It takes it only with an entry of the one host's endpoint and
+project (`project` defaults to `SANDBOX_INCUS_PROJECT`), which the CLI reads off the
+running spawner and keeps in the Incus journal: without one, the deploy (plan
+included) is refused before anything changes, naming that host; no flag overrides
+it, and `tale reset --all` leaves those sessions on purpose. Without the list the spawner drives the one host, as before. A stack down to one host keeps the list of one; dropping the list while
+the `sandbox-state` volume is kept is refused unless `tale deploy
+--clear-sandbox-placement` deletes the record (once the spawner no longer mounts
+it).
+
 ### Run the whole stack on Incus (experimental)
 
 With `runtime.engine` `incus` and a `runtime.incus` block, a managed deployment

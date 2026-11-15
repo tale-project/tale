@@ -60,6 +60,11 @@ import type { RunOrigin } from '../config/dev-origin';
 import { stableJson } from '../config/releases/identity';
 import { incusRuntimeAccess } from '../deployment/runtime-access-incus';
 import { SANDBOX_INCUS_DIRECTORY } from '../deployment/runtime-sandbox';
+import {
+  admitSandboxHostMove,
+  admitSandboxPlacement,
+  clearSandboxPlacement,
+} from '../deployment/runtime-sandbox-placement';
 import { drainSpawner } from '../deployment/runtime-spawner';
 import type { ImageFacts } from '../oci/image-facts';
 import { applyIncusPlan, type ApplyHooks } from '../runtime/incus/apply/apply';
@@ -867,6 +872,9 @@ export interface DeployOnIncusOptions {
   override?: boolean;
   overrideAll?: boolean;
   skipBackup?: boolean;
+  /** `--clear-sandbox-placement`: leaving `runtime.incus.sandboxHosts`,
+   * delete the spawner's record of each session's host. */
+  clearSandboxPlacement?: boolean;
 }
 
 /** The scopes a deploy would apply, planned against the node as it is. */
@@ -923,6 +931,13 @@ export async function deployOnIncus(
   const inPlace = options.services !== undefined && options.services.length > 0;
   const pending = await admission(workspace, inPlace ? 'services' : 'deploy');
   await workspace.probe();
+  // Leaving the list form with the spawner's record of each session's host
+  // kept is refused unless the operator clears that record.
+  const clearPlacement = await admitSandboxPlacement(
+    runtime,
+    runtime.declaration.sandboxHosts !== undefined,
+    options.clearSandboxPlacement === true,
+  );
   const currentColor = await getCurrentColor(workspace.deployDir);
   const firstDeploy = currentColor === null && pending === null;
   const runningVersion =
@@ -942,8 +957,14 @@ export async function deployOnIncus(
       stateful: version,
       colours: { [currentColor]: version },
     };
+    await admitSandboxHostMove(
+      runtime,
+      await workspace.compile(versions),
+      options.dryRun,
+    );
     if (options.dryRun) {
       printPlan(await planDeploy(workspace, versions, currentColor, services));
+      if (clearPlacement) await clearSandboxPlacement(runtime, true);
       return;
     }
     await rollInPlace(workspace, {
@@ -961,6 +982,7 @@ export async function deployOnIncus(
       await setPreviousVersion(workspace.deployDir, runningVersion);
       logger.info(`Previous version saved: ${runningVersion}`);
     }
+    if (clearPlacement) await clearSandboxPlacement(runtime, false);
     return;
   }
 
@@ -979,8 +1001,16 @@ export async function deployOnIncus(
     flip.phase === 'starting' ? { ...flip, version } : flip,
     version,
   );
+  // A spawner that ran with the one host keeps its sessions in the list only
+  // through an entry of that host's endpoint and project.
+  await admitSandboxHostMove(
+    runtime,
+    await workspace.compile(versions),
+    options.dryRun,
+  );
   if (options.dryRun) {
     printPlan(await planDeploy(workspace, versions, flip.promoting));
+    if (clearPlacement) await clearSandboxPlacement(runtime, true);
     return;
   }
   if (pending !== null) logger.info(INCUS_DEPLOY_SENTENCES.resume(pending));
@@ -1026,6 +1056,9 @@ export async function deployOnIncus(
   await workspace.recordFlip(started);
   await workspace.step('flip-recorded');
   await runFlip(workspace, started, version, runningVersion, reviewed);
+  // The spawner runs without the list now: the record it no longer mounts
+  // goes, as the operator asked.
+  if (clearPlacement) await clearSandboxPlacement(runtime, false);
   if (started.version !== version)
     logger.warn(
       `The interrupted flip onto ${started.version} finished; run tale deploy again to deploy ${version}.`,

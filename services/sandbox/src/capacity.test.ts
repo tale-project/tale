@@ -665,6 +665,69 @@ describe('Incus project capacity', () => {
     ]);
   });
 
+  test('with several hosts, counts each host and leaves out one that does not answer', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const fakes = new Map([
+        ['node-1', new FakeIncus()],
+        ['node-2', new FakeIncus()],
+      ]);
+      fakes.get('node-1')?.seedInstance('tale-sbx-ses-1', labels('one', 'a'));
+      fakes.get('node-2')?.seedInstance('tale-sbx-ses-2', labels('two', 'a'));
+      const base = incusTestConfig();
+      const entry = (name: string) => ({
+        name,
+        endpoint: `https://${name}:8443`,
+        clientCertFile: '/run/incus/client.crt',
+        clientKeyFile: '/run/incus/client.key',
+        serverCertFile: '/run/incus/server.crt',
+        project: 'sandbox-pr',
+        profile: 'sandbox',
+        network: 'sbx0',
+        storagePool: 'tank',
+        image: 'tale-sandbox-runtime',
+        maxSessions: 10,
+        poolSize: 0,
+        egressProxy: base.egressProxy,
+        dns: ['10.9.0.2'],
+        drained: false,
+      });
+      const cfg = incusTestConfig({
+        endpoints: [entry('node-1'), entry('node-2')],
+      });
+      const reader = (down: string | undefined) =>
+        new CapacityReader(cfg, () => new Map(), {
+          incusFor: (view) => {
+            const name = view.incus?.endpointName ?? '';
+            if (name === down) {
+              const fake = new FakeIncus();
+              fake.fail({
+                match: 'GET /1.0/instances',
+                status: 500,
+                message: 'unreachable',
+                times: 5,
+              });
+              return fake.client();
+            }
+            const fake = fakes.get(name);
+            if (fake === undefined) throw new Error(`no host ${name}`);
+            return fake.client();
+          },
+        });
+      const both = await reader(undefined).forOrganization('a');
+      expect(both.sessions.running).toBe(2);
+      const one = await reader('node-2').forOrganization('a');
+      expect(one.runtimeSessions).toEqual([
+        { sessionId: 'one', state: 'running' },
+      ]);
+      expect(
+        warn.mock.calls.some((call) => String(call[0]).includes('node-2')),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('a failed listing does not become an empty project', async () => {
     const fake = new FakeIncus();
     fake.fail({

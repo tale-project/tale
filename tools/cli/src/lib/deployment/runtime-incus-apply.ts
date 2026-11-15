@@ -141,6 +141,11 @@ import {
   SANDBOX_OWNED_VARIABLES,
 } from './runtime-sandbox';
 import { assertIncusCredentials } from './runtime-sandbox-credentials';
+import {
+  admitSandboxHostMove,
+  admitSandboxPlacement,
+  clearSandboxPlacement,
+} from './runtime-sandbox-placement';
 import { drainSpawner } from './runtime-spawner';
 
 /** The sentences the managed Incus path speaks. */
@@ -323,6 +328,10 @@ export interface ApplyIncusRuntimeOptions extends ApplyRuntimeOptions {
   /** `--plan <file>`: the reviewed plan; the apply refuses unless the node
    * still needs exactly it. */
   plan?: unknown;
+  /** `--clear-sandbox-placement`: leaving the list form
+   * (`runtime.incus.sandboxHosts`), delete the spawner's record of each
+   * session's host once it no longer mounts it. */
+  clearSandboxPlacement?: boolean;
 }
 
 export interface IncusRuntimeDependencies extends RuntimeDependencies {
@@ -520,8 +529,12 @@ export async function applyIncusRuntime(
     ),
     'Managed runtime environment names a variable the Incus sandbox shape sets itself.',
   );
-  // The spawner's credentials, before the first call to the node.
-  assertIncusCredentials(options.stateDirectory);
+  // The spawner's credentials, before the first call to the node: each
+  // declared sandbox host's, or the one host's.
+  assertIncusCredentials(
+    options.stateDirectory,
+    options.incus.sandboxHosts?.map((host) => host.name),
+  );
   const runtime =
     dependencies.incusRuntime ??
     (await managedIncusRuntime({
@@ -551,6 +564,13 @@ export async function applyIncusRuntime(
   );
 
   const { receipt: found, instances } = await admission(options, runtime);
+  // Leaving the list form with the spawner's record of each session's host
+  // kept is refused unless the operator clears that record.
+  const clearPlacement = await admitSandboxPlacement(
+    runtime,
+    options.incus.sandboxHosts !== undefined,
+    options.clearSandboxPlacement === true,
+  );
   let receipt = found;
   const inputSha256 = receiptInput(options);
   const sourceDirectory = join(options.stateDirectory, 'src');
@@ -627,6 +647,9 @@ export async function applyIncusRuntime(
   requireRuntime(prepared !== undefined, INCUS_APPLY_SENTENCES.notIncus);
   assertPreparedStack(target, prepared);
   runtime.useTarget(target);
+  // A spawner that ran with the one host keeps its sessions in the list only
+  // through an entry of that host's endpoint and project.
+  await admitSandboxHostMove(runtime, target, options.dryRun === true);
 
   // The node against the stack's contract, as the restricted certificate
   // reads it; forwarding is judged by `tale incus check`'s probes.
@@ -782,10 +805,12 @@ export async function applyIncusRuntime(
       : instanceIdentity(runtime.client.project, before);
   if (options.dryRun) {
     for (const line of planLines) logger.info(line);
+    if (clearPlacement) await clearSandboxPlacement(runtime, true);
     return result(backendId);
   }
   if (!changed) {
     await waitHealthyAll(runtime, target);
+    if (clearPlacement) await clearSandboxPlacement(runtime, false);
     return result(backendId);
   }
   for (const line of planLines) logger.info(line);
@@ -865,6 +890,9 @@ export async function applyIncusRuntime(
     );
   receipt = { ...receipt, phase: 'ready' };
   atomicRuntimeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+  // The spawner runs without the list now: the record it no longer mounts
+  // goes, as the operator asked.
+  if (clearPlacement) await clearSandboxPlacement(runtime, false);
   const api = after.instances.find(
     (instance) =>
       instance.custody.verdict === 'stack' &&

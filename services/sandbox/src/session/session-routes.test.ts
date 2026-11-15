@@ -20,6 +20,7 @@ import { getEventListeners } from 'node:events';
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import {
   SessionExistsError,
+  SessionPlacementError,
   SessionIncarnationChangedError,
   type BackendSession,
   type SessionBackend,
@@ -8481,6 +8482,46 @@ describe('Incus project admission', () => {
     expect(routes.sessionCount()).toBe(0);
     expect((await create(routes, 'after')).status).toBe(429);
     expect(created.size).toBe(0);
+  });
+
+  test('a create no Incus host can take is refused for a later retry, and nothing is registered', async () => {
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      let reason: 'full' | 'unavailable' = 'full';
+      const routes = new SessionRoutes(
+        { ...projectCfg, session: { ...projectCfg.session, maxSessions: 4 } },
+        {
+          ...fakeBackend,
+          kind: 'incus',
+          async createSession() {
+            throw new SessionPlacementError(
+              reason,
+              'no Incus endpoint can take session placed now (node-1: drained)',
+            );
+          },
+          async listSessions() {
+            return [];
+          },
+        },
+      );
+      const full = await create(routes, 'placed');
+      expect(full.status).toBe(429);
+      expect(full.headers.get('retry-after')).toBe('15');
+      expect(await full.json()).toEqual({
+        error: 'session_quota',
+        message:
+          'no Incus endpoint can take session placed now (node-1: drained)',
+      });
+      reason = 'unavailable';
+      const down = await create(routes, 'placed');
+      expect(down.status).toBe(503);
+      expect(await down.json()).toMatchObject({
+        error: 'session_unavailable',
+      });
+      expect(routes.sessionCount()).toBe(0);
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   test('an ended instance frees room, but a project that cannot be listed does not', async () => {

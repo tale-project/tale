@@ -244,6 +244,55 @@ export interface IncusConfig {
   registryCaches?: RegistryCaches;
   /** Budget of one Incus API request. */
   apiTimeoutMs: number;
+  /**
+   * Several Incus hosts (SANDBOX_INCUS_ENDPOINTS), each with its own
+   * certificates and per-host settings; absent for the single host of
+   * SANDBOX_INCUS_ENDPOINT. When present, the flat connection fields above
+   * mirror the first entry and nothing connects through them: the backends
+   * and the capacity reader go through `incusEndpointConfigs`, one spawner
+   * config per entry (backend/incus/incus-endpoints.ts).
+   */
+  endpoints?: readonly IncusEndpointConfig[];
+  /** With several hosts: the directory of the durable record of which host
+   * each session lives on (SANDBOX_INCUS_STATE_DIR), a persistent volume of
+   * the spawner's own. Absent for one host, which needs no record. */
+  stateDir?: string;
+  /** The name of the endpoint this config is the per-host view of; absent
+   * for the single host of SANDBOX_INCUS_ENDPOINT. */
+  endpointName?: string;
+}
+
+/**
+ * One Incus host of SANDBOX_INCUS_ENDPOINTS. Every field the entry left out
+ * holds the value of its SANDBOX_INCUS_* (or SANDBOX_EGRESS_PROXY,
+ * SANDBOX_MAX_SESSIONS) variable.
+ */
+export interface IncusEndpointConfig {
+  /** Stable name, used in logs and in the session placement. */
+  name: string;
+  /** Origin of the host's Incus REST API, `https://host:port`. */
+  endpoint: string;
+  /** The restricted client certificate for this host, its key, and the
+   * host's pinnable server certificate (PEM files). */
+  clientCertFile: string;
+  clientKeyFile: string;
+  serverCertFile: string;
+  project: string;
+  profile: string;
+  network: string;
+  storagePool: string;
+  image: string;
+  /** Sessions this host holds at most (its warm pool within them). */
+  maxSessions: number;
+  /** Warm standbys kept on this host; 0 on a drained one. */
+  poolSize: number;
+  /** The egress proxy of this host's sandbox network, an IPv4 literal URL. */
+  egressProxy: string;
+  /** Nameservers handed to a session on this host. */
+  dns: readonly string[];
+  /** Declared drained: no new session is placed here, while the sessions it
+   * holds keep running and resume here. */
+  drained: boolean;
 }
 
 /**
