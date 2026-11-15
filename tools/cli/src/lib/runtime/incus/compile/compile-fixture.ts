@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CliError, ExitCode } from '../../../../utils/fail';
 import { buildColorCompose } from '../../../compose/generators/generate-color-compose';
 import { buildStatefulCompose } from '../../../compose/generators/generate-stateful-compose';
 import type { ComposeConfig, ServiceConfig } from '../../../compose/types';
@@ -14,7 +15,13 @@ import {
   interpolationSource,
   type InterpolationPath,
 } from './interpolate';
-import type { CompileInput, IncusDeclaration } from './stack-target';
+import { REFUSAL_REASONS } from './refusals';
+import {
+  requireStackTarget,
+  type CompileInput,
+  type CompileResult,
+  type IncusDeclaration,
+} from './stack-target';
 import { PATCHED_INIT } from './translate';
 
 /**
@@ -318,4 +325,93 @@ export function expectGolden(name: string, value: unknown): void {
   ).toBe(true);
   // Parsed, so the formatter's layout of the file never matters.
   expect(value).toEqual(JSON.parse(readFileSync(file, 'utf8')));
+}
+
+/** One refusal of a service's `labels`: the Traefik edge reads them, and the
+ * Incus runtime does not run that edge yet. */
+function labelsRefusal(service: string): string {
+  return `${service}.labels: "labels" is set; the routes it declares are read by the Traefik edge, which the Incus runtime does not run yet (tale-project/tale#5282), so the route would be served by nothing. ${REFUSAL_REASONS['refused-key']}`;
+}
+
+/** The Traefik edge's refusals of the stateful document, one line each as the
+ * translator words them. The edge is refused fail-closed on the Incus
+ * workspace path until the switch-role port lands. */
+export const STATEFUL_EDGE_REFUSALS: readonly string[] = [
+  labelsRefusal('object-store'),
+  `proxy.networks: "docker-api" is no network of the stack. ${REFUSAL_REASONS.network}`,
+  `docker-api.security_opt: "security_opt" is set; Incus takes no per-instance security options in a restricted project. ${REFUSAL_REASONS['refused-key']}`,
+  `docker-api.volumes: "/var/run/docker.sock:/var/run/docker.sock:ro" mounts a host path. ${REFUSAL_REASONS['bind-mount']}`,
+  `docker-api.volumes: The image declares the volume /data. ${REFUSAL_REASONS['image-volume-uncovered']}`,
+  `docker-api.networks: "docker-api" is no network of the stack. ${REFUSAL_REASONS.network}`,
+  labelsRefusal('sandbox'),
+];
+
+/** A colour's refusals: its platform and backend-api labels. Blue and green
+ * name the same two services, so they carry the same two lines. */
+export const COLOUR_EDGE_REFUSALS: readonly string[] = [
+  labelsRefusal('platform'),
+  labelsRefusal('backend-api'),
+];
+
+/** The stateful document and blue: nine refusals. */
+export const STATEFUL_AND_BLUE_EDGE_REFUSALS: readonly string[] = [
+  ...STATEFUL_EDGE_REFUSALS,
+  ...COLOUR_EDGE_REFUSALS,
+];
+
+/** The stateful document and both colours: eleven refusals. */
+export const STATEFUL_AND_BOTH_EDGE_REFUSALS: readonly string[] = [
+  ...STATEFUL_AND_BLUE_EDGE_REFUSALS,
+  ...COLOUR_EDGE_REFUSALS,
+];
+
+/** What `run` throws, or undefined when it returns. */
+function thrownBy(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+/** The error `requireStackTarget` raises for `lines`: a precondition error,
+ * held to its exit code, its summary, and every line of its cause. */
+export function expectRefusalError(
+  error: unknown,
+  lines: readonly string[],
+): void {
+  expect(error).toBeInstanceOf(CliError);
+  const info = (error as CliError).info;
+  expect(info.code).toBe(ExitCode.Precondition);
+  expect(info.summary).toBe(
+    `The stack cannot run on Incus as declared (${lines.length} refusals).`,
+  );
+  expect(info.cause).toBe(lines.join('\n'));
+}
+
+/** Hold `result` to a refusal with exactly `lines`: no target, and the error a
+ * caller of `requireStackTarget` gets. */
+export function expectEdgeRefusal(
+  result: CompileResult,
+  lines: readonly string[],
+): void {
+  expect(result.target).toBeNull();
+  expect(result.refusals).toHaveLength(lines.length);
+  expectRefusalError(
+    thrownBy(() => requireStackTarget(result)),
+    lines,
+  );
+}
+
+/** The sentence a managed prepare raises for the repository's own source,
+ * whose edge is Traefik. */
+export const MANAGED_EDGE_REFUSAL =
+  'This revision runs its edge on Traefik, which the managed runtime cannot prepare yet (tale-project/tale#5282); select a v0.5 Tale revision.';
+
+/** Hold a managed prepare's error to the Traefik edge's refusal. */
+export function expectManagedEdgeRefusal(error: unknown): void {
+  expect(error).toBeInstanceOf(CliError);
+  expect((error as CliError).info.code).toBe(ExitCode.Precondition);
+  expect((error as CliError).info.summary).toBe(MANAGED_EDGE_REFUSAL);
 }
