@@ -1,6 +1,7 @@
 import { preconditionError } from '../../../../utils/fail';
 import { STOP_GATED_SERVICES } from '../../../compose/types';
 import { stableJson } from '../../../config/releases/identity';
+import { SANDBOX_STATE_VOLUME } from '../../../deployment/runtime-sandbox';
 import {
   assertCustody,
   deployedBefore,
@@ -111,6 +112,14 @@ export const DEFERRED_STOP_GATED_HINT =
   'Keeps running as it is until a deploy with --stop replaces it.';
 export const MISSING_DATA_HINT =
   'The stack ran before: restore this volume (tale restore) or start over (tale reset).';
+/** Data volumes whose owner rebuilds an empty one by itself, so a stack that
+ * ran before may make one empty: the spawner's record of each session's
+ * host, rebuilt from every host's listing before it places a new session. A
+ * stack that takes runtime.incus.sandboxHosts, or takes it again after
+ * --clear-sandbox-placement, makes it so. */
+const SELF_REBUILT_DATA_VOLUMES: ReadonlySet<string> = new Set([
+  SANDBOX_STATE_VOLUME,
+]);
 
 function isRuntimeKey(key: string): boolean {
   return (
@@ -638,7 +647,9 @@ export function plan(
       revision: null,
     };
     if (observed === undefined)
-      return volume.kind === 'data' && refuseData
+      return volume.kind === 'data' &&
+        refuseData &&
+        !SELF_REBUILT_DATA_VOLUMES.has(volume.name)
         ? {
             ...base,
             action: 'create',

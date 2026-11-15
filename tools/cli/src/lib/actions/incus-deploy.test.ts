@@ -150,6 +150,7 @@ interface Setup {
   workspace(
     dependencies?: IncusDeployDependencies,
     stop?: boolean,
+    declaration?: IncusDeclaration,
   ): IncusWorkspace;
   /** Write the image facts every image the registry served has. */
   seedFacts(): void;
@@ -203,10 +204,10 @@ beforeEach(() => {
     registry: served,
     execs,
     steps,
-    workspace(dependencies = {}, stop = false) {
+    workspace(dependencies = {}, stop = false, declaration = DECLARATION) {
       const runtime = createIncusRuntime({
         client: fake.client(),
-        declaration: DECLARATION,
+        declaration,
         stack: 'tale',
         stateRoot: deployDir,
         registry: served,
@@ -288,10 +289,15 @@ async function deploy(
     services?: Parameters<typeof deployOnIncus>[0]['services'];
     stop?: boolean;
     clearSandboxPlacement?: boolean;
+    declaration?: IncusDeclaration;
   } = {},
 ): Promise<void> {
   await deployOnIncus({
-    workspace: setup.workspace(options.dependencies, options.stop),
+    workspace: setup.workspace(
+      options.dependencies,
+      options.stop,
+      options.declaration,
+    ),
     version,
     dryRun: false,
     skipBackup: true,
@@ -639,6 +645,41 @@ describePosix(
       await deploy(NEXT, { clearSandboxPlacement: true });
       expect(setup.fake.volumes.has('sandbox-state')).toBe(false);
       expect(await getCurrentColor(setup.deployDir)).toBe('green');
+    });
+
+    test('a stack that ran with the one host takes the list, leaves it with the flag and takes it again', async () => {
+      const hosts = [
+        {
+          name: 'node-2',
+          endpoint: 'https://10.0.0.2:8443',
+          egressProxy: 'http://10.20.2.2:3128',
+          dns: ['10.20.2.2'],
+        },
+      ];
+      const directory = join(setup.deployDir, '.tale', 'sandbox-incus');
+      mkdirSync(join(directory, 'node-2'), { recursive: true, mode: 0o700 });
+      for (const file of ['client.crt', 'client.key', 'server.crt'])
+        writeFileSync(join(directory, 'node-2', file), `${file}\n`, {
+          mode: 0o600,
+        });
+      const listed: IncusDeclaration = { ...DECLARATION, sandboxHosts: hosts };
+      const mounts = () =>
+        Object.values(
+          [...setup.fake.instances.values()].find(
+            (instance) => instance.config['user.tale.service'] === 'sandbox',
+          )?.devices ?? {},
+        ).map((device) => device.source);
+      await allowRegistries();
+      await deploy(N);
+      // The record starts empty: the spawner rebuilds it from the hosts.
+      await deploy(NEXT, { declaration: listed });
+      expect(setup.fake.volumes.has('sandbox-state')).toBe(true);
+      expect(mounts()).toContain('sandbox-state');
+      await deploy(N, { clearSandboxPlacement: true });
+      expect(setup.fake.volumes.has('sandbox-state')).toBe(false);
+      expect(mounts()).not.toContain('sandbox-state');
+      await deploy(NEXT, { declaration: listed });
+      expect(setup.fake.volumes.has('sandbox-state')).toBe(true);
     });
   },
 );

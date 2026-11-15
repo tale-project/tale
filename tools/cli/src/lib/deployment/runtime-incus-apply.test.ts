@@ -697,6 +697,55 @@ describePosix('applying a managed bundle on Incus', () => {
     await applyIncusRuntime(options, dependencies);
   });
 
+  test('a stack that ran with the one host takes the list, its record starting empty', async () => {
+    const made = await setup();
+    await applyIncusRuntime(made.options, made.dependencies);
+    const hosts = [
+      {
+        name: 'node-2',
+        endpoint: 'https://10.0.0.2:8443',
+        egressProxy: 'http://10.20.2.2:3128',
+        dns: ['10.20.2.2'],
+      },
+    ];
+    const directory = join(made.options.stateDirectory, 'sandbox-incus');
+    mkdirSync(join(directory, 'node-2'), { recursive: true, mode: 0o700 });
+    for (const name of SANDBOX_INCUS_FILES)
+      writeFileSync(join(directory, 'node-2', name), `${name}\n`, {
+        mode: 0o600,
+      });
+    const declaration: IncusDeclaration = {
+      ...DECLARATION,
+      sandboxHosts: hosts,
+    };
+    rmSync(made.fixture.options.bundleDirectory, {
+      recursive: true,
+      force: true,
+    });
+    await prepareRuntime({
+      repoRoot: made.fixture.repoRoot,
+      revision: made.fixture.revision,
+      output: made.fixture.options.bundleDirectory,
+      platform: 'linux/amd64',
+      incus: {
+        declaration,
+        stack: made.fixture.options.composeProject,
+        registry: made.registry,
+      },
+    });
+    await applyIncusRuntime(
+      { ...made.options, incus: declaration },
+      made.dependencies,
+    );
+    expect(made.fake.volumes.has('sandbox-state')).toBe(true);
+    const spawner = [...made.fake.instances.values()].find(
+      (instance) => instance.config['user.tale.service'] === 'sandbox',
+    );
+    expect(
+      Object.values(spawner?.devices ?? {}).map((device) => device.source),
+    ).toContain('sandbox-state');
+  });
+
   test('a placement record the running spawner still mounts is kept, and the next deploy refuses again', async () => {
     const { fake, options, dependencies } = await setup();
     await applyIncusRuntime(options, dependencies);
