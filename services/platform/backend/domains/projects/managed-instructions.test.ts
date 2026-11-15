@@ -81,6 +81,7 @@ const agent = {
   skills: ['skill-a'],
   connectors: ['connector-a'],
   tools: ['tool-a'],
+  labelGrants: [] as string[],
   secrets: ['PRIVATE_TOKEN'],
   updatedAt: 1,
 };
@@ -114,6 +115,8 @@ function database(
     project?: Partial<typeof project>;
     agent?: Partial<typeof agent>;
     task?: Partial<typeof task>;
+    /** The project's label names, in their spelling. */
+    labels?: string[];
   } = {},
 ) {
   const p = { ...project, ...overrides.project };
@@ -136,6 +139,18 @@ function database(
     if (text.includes('FROM app.tasks WHERE id = ?'))
       return Promise.resolve(
         values.includes(t.id) && values.includes(t.organizationId) ? [t] : [],
+      );
+    if (text.includes('FROM app.task_labels'))
+      // Matched case-folded, as the catalog lookup does.
+      return Promise.resolve(
+        (overrides.labels ?? [])
+          .filter((name) =>
+            values.some(
+              (value) =>
+                Array.isArray(value) && value.includes(name.toLowerCase()),
+            ),
+          )
+          .map((name) => ({ name })),
       );
     if (text.startsWith('INSERT INTO app.task_activity'))
       return Promise.resolve([{ id: 'activity-a' }]);
@@ -180,6 +195,7 @@ describe('tools-only managed agent configuration [PROJ-R17]', () => {
     projectId: project.id,
     agentId: agent.id,
     tools: ['task_get'],
+    labelGrants: [] as string[],
   };
   const desired = {
     ...toolsConfig,
@@ -191,7 +207,10 @@ describe('tools-only managed agent configuration [PROJ-R17]', () => {
     const db = database({
       agent: { tools: ['task_review', 'task_get', 'task_review'] },
     });
-    const canonical = { ...toolsConfig, tools: ['task_get', 'task_review'] };
+    const canonical = {
+      ...toolsConfig,
+      tools: ['task_get', 'task_review'],
+    };
     expect(
       await readAgentToolsConfiguration(db.tx, auth, project.id, agent.id),
     ).toEqual({
@@ -213,7 +232,7 @@ describe('tools-only managed agent configuration [PROJ-R17]', () => {
       );
       expect(db.writes()).toHaveLength(1);
       expect(db.writes()[0]!.text).toMatch(
-        /^UPDATE app.project_agents SET tools = \?, updated_at_ms = \? WHERE id = \? AND project_id = \? AND org_id = \?$/,
+        /^UPDATE app.project_agents SET tools = \?, label_grants = \?::text\[\], updated_at_ms = \? WHERE id = \? AND project_id = \? AND org_id = \?$/,
       );
       expect(db.writes()[0]!.values[0]).toEqual(['task_get', 'task_review']);
       expect(createAuditLog).toHaveBeenCalledTimes(1);
@@ -235,7 +254,7 @@ describe('tools-only managed agent configuration [PROJ-R17]', () => {
         desired,
         hash(toolsConfig),
       );
-      expect(db.writes()[0]!.values[1]).toBe(
+      expect(db.writes()[0]!.values[2]).toBe(
         Math.max(now, agent.updatedAt + 1),
       );
     },
@@ -256,6 +275,102 @@ describe('tools-only managed agent configuration [PROJ-R17]', () => {
       updateAgentToolsConfiguration(db.tx, auth, toolsConfig, '0'.repeat(64)),
     ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
     expect(db.writes()).toEqual([]);
+  });
+
+  it('reads the label grant as the project spells it [PROJ-R25]', async () => {
+    const db = database({
+      labels: ['Optional-CI'],
+      agent: { tools: toolsConfig.tools, labelGrants: ['Optional-CI'] },
+    });
+    await expect(
+      readAgentToolsConfiguration(db.tx, auth, project.id, agent.id),
+    ).resolves.toMatchObject({
+      config: { ...toolsConfig, labelGrants: ['Optional-CI'] },
+    });
+  });
+
+  it('declares the label grant in the project spelling, in one order [PROJ-R25]', async () => {
+    const db = database({
+      labels: ['Optional-CI', 'nightly'],
+      agent: { tools: toolsConfig.tools },
+    });
+    await updateAgentToolsConfiguration(
+      db.tx,
+      auth,
+      { ...toolsConfig, labelGrants: ['Optional-CI', 'nightly'] },
+      hash(toolsConfig),
+    );
+    expect(db.writes()).toHaveLength(1);
+    expect(db.writes()[0]!.values[1]).toEqual(['nightly', 'Optional-CI']);
+    expect(JSON.stringify(vi.mocked(createAuditLog).mock.calls)).toContain(
+      '"labelGrants":["nightly","Optional-CI"]',
+    );
+  });
+
+  it('refuses a label the project does not have, naming it, and saves nothing [PROJ-R25]', async () => {
+    const db = database({
+      labels: ['Optional-CI'],
+      agent: { tools: toolsConfig.tools },
+    });
+    await expect(
+      updateAgentToolsConfiguration(
+        db.tx,
+        auth,
+        { ...toolsConfig, labelGrants: ['Optional-CI', 'nightly'] },
+        hash(toolsConfig),
+      ),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_LABEL_UNKNOWN',
+      data: { labels: ['nightly'] },
+    });
+    expect(db.writes()).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a declared spelling other than the project stores [PROJ-R25]', async () => {
+    const db = database({
+      labels: ['Optional-CI'],
+      agent: { tools: toolsConfig.tools },
+    });
+    await expect(
+      updateAgentToolsConfiguration(
+        db.tx,
+        auth,
+        { ...toolsConfig, labelGrants: ['optional-ci'] },
+        hash(toolsConfig),
+      ),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_LABEL_UNKNOWN',
+      message: expect.stringContaining('"Optional-CI", not "optional-ci"'),
+    });
+    expect(db.writes()).toEqual([]);
+  });
+
+  it('keeps a stored label grant the declaration omits, and clears it on []', async () => {
+    const stored = { ...toolsConfig, labelGrants: ['Optional-CI'] };
+    const omitted = database({
+      labels: ['Optional-CI'],
+      agent: { tools: toolsConfig.tools, labelGrants: ['Optional-CI'] },
+    });
+    await updateAgentToolsConfiguration(
+      omitted.tx,
+      auth,
+      { projectId: project.id, agentId: agent.id, tools: ['task_review'] },
+      hash(stored),
+    );
+    expect(omitted.writes()[0]!.values[1]).toEqual(['Optional-CI']);
+
+    const cleared = database({
+      labels: ['Optional-CI'],
+      agent: { tools: toolsConfig.tools, labelGrants: ['Optional-CI'] },
+    });
+    await updateAgentToolsConfiguration(
+      cleared.tx,
+      auth,
+      { ...stored, labelGrants: [] },
+      hash(stored),
+    );
+    expect(cleared.writes()[0]!.values[1]).toEqual([]);
   });
 
   it('allows member read access but never grants tool writes', async () => {

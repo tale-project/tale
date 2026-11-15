@@ -88,6 +88,40 @@ describe('managed agent tool declarations', () => {
     });
   });
 
+  it('reads the label grant in one order, each name in its spelling, and leaves it out when omitted [PROJ-R25]', () => {
+    expect(
+      managedAgentToolsSchema.parse({
+        ...identity,
+        tools: [],
+        labelGrants: ['Optional-CI', 'alpha', 'nightly'],
+      }),
+    ).toEqual({
+      ...identity,
+      tools: [],
+      labelGrants: ['alpha', 'nightly', 'Optional-CI'],
+    });
+    expect(
+      managedAgentToolsSchema.parse({ ...identity, tools: [] }),
+    ).not.toHaveProperty('labelGrants');
+  });
+
+  it('refuses one label named twice in any case, and an untrimmed name [PROJ-R25]', () => {
+    expect(() =>
+      managedAgentToolsSchema.parse({
+        ...identity,
+        tools: [],
+        labelGrants: ['Bug', 'bug'],
+      }),
+    ).toThrow('A label is one label whatever its case');
+    expect(() =>
+      managedAgentToolsSchema.parse({
+        ...identity,
+        tools: [],
+        labelGrants: [' Bug'],
+      }),
+    ).toThrow();
+  });
+
   it.each([
     { tools: ['task_review', 'unknown_tool'] },
     { tools: ['generate_image'] },

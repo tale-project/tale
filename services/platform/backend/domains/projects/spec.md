@@ -246,12 +246,16 @@ other settings while its pins stay as they are, and may set its commit identity.
 The labels an agent's `task_set_labels` grant names (`labelGrants`) are its project's, matched
 whatever their case and stored in the project's spelling; a save naming any other is refused,
 naming it (`PROJECT_AGENT_LABEL_UNKNOWN`), and nothing is saved: a grant never creates a label.
-A save that leaves the grant out keeps it, and so does a declaration, which has no such field;
-only an explicit empty list clears it. A name granted before its label was renamed or deleted
-stays until it is removed, so the dialog can show it.
+A save that leaves the grant out keeps it, and so does a declaration that omits `labelGrants`;
+only an explicit empty list clears it. A declaration names each label in the project's own
+spelling, and one spelled otherwise is refused, since it could never read back as declared. A
+name granted before its label was renamed or deleted stays until it is removed, so the dialog
+can show it.
 
 - **Example**: Ada grants the Manager `Optional-CI` → stored as `optional-ci`, the label's name.
-  She grants `nightly`, which the project has no label for → refused, naming `nightly`.
+  She grants `nightly`, which the project has no label for → refused, naming `nightly`. A
+  declaration of the Manager's `agent-tools` that names `Optional-CI` as the project spells it
+  → stored and read back as declared; one that names `optional-ci` → refused, naming the spelling.
 
 ## Deleting a project
 

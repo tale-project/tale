@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { AGENT_TOOL_CATALOG, normalizeToolGrants } from '../agent-tool-grants';
 import { isValidAutomationName } from '../automation-name';
+import { compareLabelNames } from '../task-label-order';
 import {
   TASK_DESCRIPTION_MAX,
   TASK_LABEL_CHARS_MAX,
@@ -64,6 +65,20 @@ export const managedAgentToolsSchema = z.strictObject({
     .array(z.enum(AGENT_TOOL_CATALOG.map((tool) => tool.name)))
     .max(PROJECT_AGENT_BINDINGS_MAX)
     .transform((tools) => normalizeToolGrants(tools)),
+  /** The project labels the agent's `task_set_labels` grant names, each in
+   * its project's spelling (the readback states it so); a list left out keeps
+   * what is stored. */
+  labelGrants: z
+    .array(storedText(TASK_LABEL_CHARS_MAX))
+    .max(TASK_LABELS_MAX)
+    .refine(
+      (labels) =>
+        new Set(labels.map((label) => label.toLowerCase())).size ===
+        labels.length,
+      'A label is one label whatever its case',
+    )
+    .transform((labels) => [...labels].sort(compareLabelNames))
+    .optional(),
 });
 /** Model adoption selects one explicit provider; native observations may retain
  * an older unpinned provider without silently choosing one during the read. */

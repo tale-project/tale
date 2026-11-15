@@ -213,6 +213,7 @@ vi.mock('./service.ts', async (original) => {
         projectId,
         agentId,
         tools: agentOf(projectId, agentId).tools,
+        labelGrants: agentOf(projectId, agentId).labelGrants,
       }),
     readAgentModelConfiguration: async (
       _sql: unknown,
@@ -262,7 +263,12 @@ vi.mock('./service.ts', async (original) => {
       async (
         _tx: unknown,
         _auth: unknown,
-        config: { projectId: string; agentId: string; tools: string[] },
+        config: {
+          projectId: string;
+          agentId: string;
+          tools: string[];
+          labelGrants?: string[];
+        },
         expected: string,
       ) => {
         const entry = agentOf(config.projectId, config.agentId);
@@ -271,12 +277,16 @@ vi.mock('./service.ts', async (original) => {
             projectId: config.projectId,
             agentId: config.agentId,
             tools: entry.tools,
+            labelGrants: entry.labelGrants,
           },
           expected,
         );
         agents.set(`${config.projectId}/${config.agentId}`, {
           ...entry,
           tools: config.tools,
+          ...(config.labelGrants !== undefined
+            ? { labelGrants: config.labelGrants }
+            : {}),
         });
       },
     ),
@@ -380,6 +390,7 @@ function agent(
   agents.set(key, {
     instructions: '',
     tools: [],
+    labelGrants: [],
     managed: false,
     harness: 'claude-code',
     model: 'model-a',
@@ -566,7 +577,12 @@ describe('reading project settings', () => {
       expect.objectContaining({ key: 'agent-tools/p-1/a-2' }),
       expect.objectContaining({
         key: 'agent-tools/p-1/a-1',
-        config: { projectId: 'p-1', agentId: 'a-1', tools: ['task_find'] },
+        config: {
+          projectId: 'p-1',
+          agentId: 'a-1',
+          tools: ['task_find'],
+          labelGrants: [],
+        },
       }),
     ]);
   });
@@ -686,6 +702,7 @@ describe('changing project settings', () => {
       projectId: 'p-1',
       agentId: 'a-1',
       tools: [],
+      labelGrants: [],
     });
     const refused = await planSettings(contextOf('editor'), registry, [
       {

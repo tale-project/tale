@@ -1,3 +1,4 @@
+import { compareLabelNames } from '@tale/shared/task-label-order';
 import type { Sql, TransactionSql } from 'postgres';
 
 /** What the label read needs of a task: the ids it wears, and the project
@@ -47,14 +48,4 @@ export async function readAgentTaskLabels(
       return [task.id, [...names].sort(compareLabelNames)];
     }),
   );
-}
-
-/** Case-folded first, so `blocked` comes before `Hold`; the spelling breaks a
- * tie. Code-unit order, the same whatever the database's collation. */
-export function compareLabelNames(a: string, b: string): number {
-  const left = a.toLowerCase();
-  const right = b.toLowerCase();
-  if (left !== right) return left < right ? -1 : 1;
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
 }
