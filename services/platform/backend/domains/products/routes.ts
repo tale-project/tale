@@ -86,13 +86,17 @@ const productAppInputSchema = productInputSchema.extend({
   imageUrl: productAppImageUrlSchema.nullable().optional(),
 });
 
+/** Whether a string names a product image variant. */
+function isProductImageVariant(value: string): value is ProductImageVariant {
+  return Object.hasOwn(PRODUCT_IMAGE_VARIANTS, value);
+}
+
 /** The `variant` query: a known variant, or null for the original. */
 function productImageVariantParam(
   value: string | undefined,
 ): ProductImageVariant | null {
-  if (value === undefined || !Object.hasOwn(PRODUCT_IMAGE_VARIANTS, value))
-    return null;
-  return value as ProductImageVariant;
+  if (value === undefined || !isProductImageVariant(value)) return null;
+  return value;
 }
 
 function handleError<E extends OrgEnv>(
