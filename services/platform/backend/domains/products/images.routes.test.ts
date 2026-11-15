@@ -136,7 +136,7 @@ describe('product image byte routes', () => {
       });
     }
 
-    it('serves the card variant at 256 px as a cacheable WebP', async () => {
+    it('serves the card variant at 256 px as a cacheable WebP [PROD-R14]', async () => {
       storedAs(await original(1200));
       const response = await app().request('/images/f1?orgId=o1&variant=card');
       expect(response.status).toBe(200);
@@ -152,7 +152,7 @@ describe('product image byte routes', () => {
       expect(meta.format).toBe('webp');
     });
 
-    it('serves the list variant at 160 px', async () => {
+    it('serves the list variant at 160 px [PROD-R14]', async () => {
       storedAs(await original(1200));
       const response = await app().request('/images/f1?orgId=o1&variant=list');
       const meta = await sharp(
@@ -161,7 +161,7 @@ describe('product image byte routes', () => {
       expect(meta.width).toBe(160);
     });
 
-    it('serves the original, uncached, when no variant is asked for', async () => {
+    it('serves the original, uncached, when no variant is asked for [PROD-R14]', async () => {
       const bytes = await original(1200);
       storedAs(bytes);
       const response = await app().request('/images/f1?orgId=o1');
@@ -170,7 +170,7 @@ describe('product image byte routes', () => {
       expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
     });
 
-    it('serves an SVG unchanged even when a variant is asked for', async () => {
+    it('serves an SVG unchanged even when a variant is asked for [PROD-R14]', async () => {
       readProductImage.mockResolvedValue({
         storageRef: 's3:o1/image',
         contentType: 'image/svg+xml',
@@ -185,7 +185,7 @@ describe('product image byte routes', () => {
       expect(await response.text()).toBe('<svg/>');
     });
 
-    it('serves the original when the stored bytes cannot be decoded', async () => {
+    it('serves the original when the stored bytes cannot be decoded [PROD-R14]', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       storedAs(new TextEncoder().encode('legacy, not decodable'));
       const response = await app().request('/images/f1?orgId=o1&variant=list');
