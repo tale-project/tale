@@ -21,6 +21,7 @@ import type { RegistryClient, ResolvedImage } from '../oci/registry';
 import { factsFor } from '../runtime/incus/compile/compile-fixture';
 import {
   AUTOMATION_PROTOCOL_LABEL,
+  AUTOMATION_PROTOCOL_MIGRATION,
   AUTOMATION_PROTOCOL_SOURCE,
 } from './automation-model';
 import { RUNTIME_SECRET_KEYS } from './runtime-env';
@@ -95,6 +96,22 @@ export function runtimeFixture(
         name === 'backend-worker'
           ? { disable: true }
           : { test: ['CMD', 'true'] },
+    };
+  // The stack's network attachments and the backend's database URL, as the
+  // repository's compose file gives them: the translator refuses a service on
+  // any other network, and reads the bundled database from that URL.
+  const attachments: Record<string, string[]> = {
+    'backend-api': ['internal', 'sandbox'],
+    'sandbox-egress': ['sandbox', 'internal'],
+    sandbox: ['internal', 'sandbox'],
+    'sandbox-llm-gateway': ['internal', 'sandbox'],
+  };
+  for (const name of RUNTIME_SERVICES)
+    source.services[name].networks = attachments[name] ?? ['internal'];
+  for (const name of ['backend-api', 'backend-worker'])
+    source.services[name].environment = {
+      DATABASE_URL:
+        '${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}',
     };
   source.services.db.volumes = [
     'db-data:/var/lib/postgresql/data',
@@ -294,6 +311,31 @@ export function commitRepositorySandbox(fixture: RuntimeFixture): void {
   );
   fixture.git('add', '.');
   fixture.git('commit', '-qm', "the repository's own sandbox environment");
+  fixture.revision = fixture.git('rev-parse', 'HEAD');
+}
+
+/**
+ * Commit this repository's automation protocol and the migration that a
+ * protocol-2 revision must carry, over the fixture's, beside the fixture's
+ * edge: the release images write the protocol the revision reads, and the
+ * managed runtime cannot prepare the repository's Traefik edge yet.
+ */
+export function commitRepositoryProtocol(fixture: RuntimeFixture): void {
+  for (const file of [
+    AUTOMATION_PROTOCOL_SOURCE,
+    `${SOURCE_MIGRATION_ROOTS[0]}${AUTOMATION_PROTOCOL_MIGRATION}`,
+  ]) {
+    mkdirSync(join(fixture.repoRoot, file, '..'), { recursive: true });
+    writeFileSync(
+      join(fixture.repoRoot, file),
+      readFileSync(
+        fileURLToPath(new URL(`../../../../../${file}`, import.meta.url)),
+        'utf8',
+      ).replace(/\r\n/g, '\n'),
+    );
+  }
+  fixture.git('add', '.');
+  fixture.git('commit', '-qm', "the repository's automation protocol");
   fixture.revision = fixture.git('rev-parse', 'HEAD');
 }
 

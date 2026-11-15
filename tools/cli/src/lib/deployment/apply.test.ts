@@ -46,7 +46,7 @@ import { INCUS_APPLY_SENTENCES } from './runtime-incus-apply';
 import { readRuntimeBundle } from './runtime-model';
 import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
 import {
-  commitRepositorySource,
+  commitRepositoryProtocol,
   fakeRegistry,
   installLegacy,
   RuntimeDockerFixture,
@@ -442,7 +442,7 @@ describePosix('fresh native receipt custody', () => {
       undefined,
       true,
     );
-    commitRepositorySource(run.fixture);
+    commitRepositoryProtocol(run.fixture);
     writeFileSync(
       run.preparation.sourcesFile,
       JSON.stringify({
