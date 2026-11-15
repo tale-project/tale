@@ -759,10 +759,10 @@ describePosix(
           project: 'tale-sessions',
         }),
       );
-      // tale reset --all removes it on purpose: its sessions are left.
+      // tale reset --all removes it on purpose, even with the spawner a
+      // crash took already: its sessions are left.
       setup.seedFacts();
-      await deploy(NEXT);
-      await setup.workspace().runtime.remove('tale-sandbox');
+      expect(await setup.workspace().runtime.remove('tale-sandbox')).toBe(true);
       expect((await readJournal(setup.deployDir))?.sandboxHost).toBeNull();
       await deploy(N, { declaration });
       expect(

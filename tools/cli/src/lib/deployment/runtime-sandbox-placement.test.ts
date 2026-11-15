@@ -149,15 +149,31 @@ describe('a stack that ran with the one sandbox host taking the list', () => {
     }
   });
 
-  test('is refused without one, naming the host, and a plan writes no journal', async () => {
+  test('is refused without one, naming the host, and neither a plan nor a deploy writes the journal', async () => {
     for (const entry of [
       { endpoint: 'https://10.0.0.2:8443' },
       { endpoint: 'https://10.30.0.1:8443', project: 'other' },
-    ]) {
-      const runtime = hostRuntime(SINGLE);
-      await expect(
-        admitSandboxHostMove(runtime, listTarget([entry]), true),
-      ).rejects.toThrow(SANDBOX_HOST_MOVE_SENTENCES.unmatched(OLD));
+    ])
+      for (const dryRun of [true, false]) {
+        const runtime = hostRuntime(SINGLE);
+        await expect(
+          admitSandboxHostMove(runtime, listTarget([entry]), dryRun),
+        ).rejects.toThrow(SANDBOX_HOST_MOVE_SENTENCES.unmatched(OLD));
+        expect(await readJournal(runtime.stateRoot)).toBeNull();
+      }
+  });
+
+  test('a spawner whose one endpoint is no https origin never ran a session, and holds the list to nothing', async () => {
+    for (const endpoint of ['10.30.0.1:8443', 'http://10.30.0.1:8443']) {
+      const runtime = hostRuntime({
+        ...SINGLE,
+        'environment.SANDBOX_INCUS_ENDPOINT': endpoint,
+      });
+      await admitSandboxHostMove(
+        runtime,
+        listTarget([{ endpoint: 'https://10.0.0.2:8443' }]),
+        false,
+      );
       expect(await readJournal(runtime.stateRoot)).toBeNull();
     }
   });

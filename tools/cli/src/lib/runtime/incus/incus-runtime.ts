@@ -775,7 +775,10 @@ export class IncusRuntime implements StackRuntime {
    * purpose (`tale reset --all`), whose sessions a later list may leave. */
   async remove(name: string): Promise<boolean> {
     const instance = this.instanceName(name);
+    // By name too: a crash may have taken the spawner already, and reset
+    // --all must still let a later list leave its host.
     const spawner =
+      instance === this.instanceName(`${this.stack}-sandbox`) ||
       (await this.client.getInstance(instance))?.instance.config[
         'user.tale.service'
       ] === 'sandbox';

@@ -103,12 +103,22 @@ function origin(endpoint: string): string {
   return URL.canParse(endpoint) ? new URL(endpoint).origin : endpoint;
 }
 
+/** Whether a spawner could have run with `endpoint`: it boots only with an
+ * https origin, so one with another made no session. */
+function bootable(endpoint: string): boolean {
+  return URL.canParse(endpoint) && new URL(endpoint).protocol === 'https:';
+}
+
 /** The one host a spawner's config names, or null for the list form. */
 function singleHostOf(
   config: Readonly<Record<string, string>>,
 ): SingleSandboxHost | null {
   const endpoint = config[ENDPOINT_KEY];
-  if (config[ENDPOINTS_KEY] !== undefined || endpoint === undefined)
+  if (
+    config[ENDPOINTS_KEY] !== undefined ||
+    endpoint === undefined ||
+    !bootable(endpoint)
+  )
     return null;
   return { endpoint: origin(endpoint), project: config[PROJECT_KEY] ?? '' };
 }
@@ -148,33 +158,31 @@ export async function admitSandboxHostMove(
       instance.config['user.tale.stack'] === runtime.stack &&
       instance.config['user.tale.service'] === SPAWNER_SERVICE,
   );
-  let previous: SingleSandboxHost | null;
-  if (running.length === 0)
-    previous = (await readJournal(runtime.stateRoot))?.sandboxHost ?? null;
-  else {
+  const recorded = (await readJournal(runtime.stateRoot))?.sandboxHost ?? null;
+  let previous = recorded;
+  if (running.length > 0) {
     const hosts = running.map((instance) => singleHostOf(instance.config));
     previous = hosts.includes(null) ? null : (hosts[0] ?? null);
-    const recorded = (await readJournal(runtime.stateRoot))?.sandboxHost;
-    if (!dryRun && stableJson(recorded ?? null) !== stableJson(previous))
-      await updateJournal(runtime.stateRoot, runtime.stack, (journal) => {
-        journal.sandboxHost = previous;
-      });
   }
-  if (previous === null) return;
+  const old = previous;
   const spawner = target.instances.find(
     (instance) => instance.service === SPAWNER_SERVICE,
   );
   const listed =
     spawner === undefined ? undefined : listedHostsOf(spawner.config);
-  if (listed === undefined) return;
-  const old = previous;
   if (
-    listed.some(
+    old !== null &&
+    listed !== undefined &&
+    !listed.some(
       (host) => host.endpoint === old.endpoint && host.project === old.project,
     )
   )
-    return;
-  throw preconditionError(SANDBOX_HOST_MOVE_SENTENCES.unmatched(old), [
-    ...SANDBOX_HOST_MOVE_SENTENCES.unmatchedRemedy(old),
-  ]);
+    throw preconditionError(SANDBOX_HOST_MOVE_SENTENCES.unmatched(old), [
+      ...SANDBOX_HOST_MOVE_SENTENCES.unmatchedRemedy(old),
+    ]);
+  // Recorded only once admitted: a refusal changes nothing.
+  if (!dryRun && stableJson(recorded) !== stableJson(previous))
+    await updateJournal(runtime.stateRoot, runtime.stack, (journal) => {
+      journal.sandboxHost = previous;
+    });
 }
