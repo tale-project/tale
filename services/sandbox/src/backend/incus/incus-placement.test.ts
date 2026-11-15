@@ -11,6 +11,7 @@ import {
   type EndpointCandidate,
   judgeRoom,
   readProjectRoom,
+  withStandbysFreed,
 } from './incus-placement.ts';
 import { rejection } from './incus-test-support.ts';
 
@@ -150,5 +151,34 @@ describe("a host's room", () => {
       readProjectRoom(fake.client(), 'tank', 'node-1'),
     );
     expect(err.message).toContain('down');
+  });
+});
+
+describe('the warm standbys of a host', () => {
+  test('give their memory back to the sessions: a full pool leaves the host its cap', () => {
+    // A cap of 10 at 2 GiB each, the project limited to 20 GiB: 8 sessions
+    // and 2 standbys fill it, yet a create takes a standby over.
+    const memory = { free: 0, limit: 20 * GIB };
+    const before = judgeRoom({ sessions: 8, maxSessions: 10, memory }, NEED);
+    expect('reason' in before ? before.reason : '').toContain('memory left');
+    const freed = withStandbysFreed(memory, 2, 2 * GIB);
+    expect(freed).toEqual({ free: 4 * GIB, limit: 20 * GIB });
+    const after = judgeRoom(
+      { sessions: 8, maxSessions: 10, memory: freed },
+      NEED,
+    );
+    expect('headroom' in after ? after.headroom : -1).toBeCloseTo(0.1);
+  });
+
+  test('never free more than the limit, and leave an unlimited project unbounded', () => {
+    expect(
+      withStandbysFreed({ free: 18 * GIB, limit: 20 * GIB }, 3, 2 * GIB),
+    ).toEqual({
+      free: 20 * GIB,
+      limit: 20 * GIB,
+    });
+    expect(withStandbysFreed(undefined, 3, 2 * GIB)).toBeUndefined();
+    const room = { free: GIB, limit: 20 * GIB };
+    expect(withStandbysFreed(room, 0, 2 * GIB)).toBe(room);
   });
 });

@@ -54,16 +54,17 @@ import {
   type PlacementNeed,
   readProjectRoom,
   type Room,
+  withStandbysFreed,
 } from './incus-placement.ts';
 import { getIncusRuntime } from './incus-runtime.ts';
 import { IncusSessionBackend } from './incus-session-backend.ts';
-import { incusOf, sessionShape } from './incus-session-spec.ts';
+import { incusOf, poolShape, sessionShape } from './incus-session-spec.ts';
 
 /** A host that did not answer is left alone this long. */
 export const UNREACHABLE_RETRY_MS = 30_000;
 /** A host whose boot checks failed, or whose runtime image could not be made
  * present, is tried again this often. */
-export const INIT_RETRY_MS = 60_000;
+const INIT_RETRY_MS = 60_000;
 
 /** The session backend of one host, with the calls this layer needs. */
 export type EndpointSessionBackend = SessionBackend &
@@ -120,7 +121,7 @@ function message(error: unknown): string {
 }
 
 /** The pair of backends of every host, made from the config. */
-export function endpointPartsOf(cfg: SpawnerConfig): EndpointParts[] {
+function endpointPartsOf(cfg: SpawnerConfig): EndpointParts[] {
   const entries = incusOf(cfg).endpoints ?? [];
   return incusEndpointConfigs(cfg).map((view, index) => {
     const runtime = getIncusRuntime(view);
@@ -132,12 +133,16 @@ export function endpointPartsOf(cfg: SpawnerConfig): EndpointParts[] {
       drained: entries[index]?.drained ?? false,
       host: new IncusBackend(view, { runtime }),
       session: new IncusSessionBackend(view, { runtime }),
-      room: async () =>
-        readProjectRoom(
-          (await runtime.connect()).client,
-          incus.storagePool,
-          name,
-        ),
+      room: async () => {
+        const { client, pool } = await runtime.connect();
+        const room = await readProjectRoom(client, incus.storagePool, name);
+        const memory = withStandbysFreed(
+          room.memory,
+          pool.readyCount(),
+          incusSizeBytes(poolShape(view).limits.memory) ?? 0,
+        );
+        return { ...room, ...(memory === undefined ? {} : { memory }) };
+      },
       inFlight: () => runtime.inFlight,
       retireStandbys: async () => {
         const report = await (await runtime.connect()).pool.reconcile();

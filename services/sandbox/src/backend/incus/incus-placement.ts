@@ -136,6 +136,26 @@ export function chooseEndpoint(
     : { chosen: best.name, headroom: best.headroom, skipped };
 }
 
+/**
+ * The project's memory room with the warm standbys' memory counted as free. A
+ * standby runs under its project's `limits.memory`, and the pool keeps its
+ * standbys within the host's session cap, so a host whose limit is sized to
+ * its cap reads as full once the pool is: yet a create takes a standby over,
+ * or removes one to make its slot (IncusPool.claim, makeRoom), so the memory
+ * they hold is the sessions' to take.
+ */
+export function withStandbysFreed(
+  memory: Room | undefined,
+  standbys: number,
+  eachBytes: number,
+): Room | undefined {
+  if (memory === undefined || standbys <= 0 || eachBytes <= 0) return memory;
+  return {
+    free: Math.min(memory.limit, memory.free + standbys * eachBytes),
+    limit: memory.limit,
+  };
+}
+
 /** The tighter of two rooms: the one with less left. */
 function tighter(a: Room | undefined, b: Room | undefined): Room | undefined {
   if (a === undefined) return b;

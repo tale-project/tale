@@ -577,7 +577,9 @@ is there: the smallest share left of the host's session cap, of its project's
 `limits.disk.pool.<pool>`, and the pool's free space where the certificate may
 read it). A restricted certificate sees no node resources, so a bound the
 project does not set is left out, never guessed: set the project limits for
-memory and disk to have them weigh in. A host is passed over, with its reason
+memory and disk to have them weigh in. The memory of the host's ready warm
+standbys counts as free, since a create takes one over or removes one for its
+slot. A host is passed over, with its reason
 logged once each time the reason changes, when it is drained, did not pass its
 boot checks, has no runtime image, does not answer, is at its cap, or is short
 of the session's memory or workspace size. When no host can take a session the
