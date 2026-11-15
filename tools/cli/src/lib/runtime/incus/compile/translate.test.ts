@@ -380,6 +380,25 @@ describe('what every instance carries (r3)', () => {
     ).toEqual(['client.crt', 'client.key', 'server.crt']);
   });
 
+  test('one declared sandbox host: a host list from .env never renders beside its endpoint', () => {
+    const input = managedInput();
+    const sandbox = compiled({
+      ...input,
+      envFiles: {
+        '.env': `${input.envFiles['.env'] ?? ''}\nSANDBOX_INCUS_ENDPOINTS=[{"name":"stray","endpoint":"https://10.0.0.9:8443"}]\nSANDBOX_INCUS_STATE_DIR=/tmp/stray\n`,
+      },
+    }).instances.find((instance) => instance.name === 'sandbox');
+    expect(sandbox?.config['environment.SANDBOX_INCUS_ENDPOINT']).toBe(
+      'https://10.30.0.1:8443',
+    );
+    expect(
+      sandbox?.config['environment.SANDBOX_INCUS_ENDPOINTS'],
+    ).toBeUndefined();
+    expect(
+      sandbox?.config['environment.SANDBOX_INCUS_STATE_DIR'],
+    ).toBeUndefined();
+  });
+
   test("the sessions' image is pulled through the mirror declared for its registry", () => {
     const input = managedInput();
     const sandbox = compiled({

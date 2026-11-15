@@ -1332,9 +1332,13 @@ export function translateService(
       context.egressProxy ??
       `http://${context.plan.singleton('sandbox-egress')}:3128`;
     environment.SANDBOX_INCUS_DNS = context.plan.singleton('names-sessions');
-    if (context.sandboxHosts === undefined)
+    if (context.sandboxHosts === undefined) {
+      // The declaration names the one host: a list from `.env` beside it
+      // would be both forms, which the spawner refuses at boot.
+      delete environment[SANDBOX_INCUS_ENDPOINTS_VARIABLE];
+      delete environment.SANDBOX_INCUS_STATE_DIR;
       environment.SANDBOX_INCUS_ENDPOINT = context.endpoint;
-    else {
+    } else {
       // The list replaces the one host's connection, which the spawner
       // refuses beside it.
       for (const variable of SANDBOX_SINGLE_HOST_VARIABLES)
