@@ -2,7 +2,11 @@
 import { act, render } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { ActiveEditorProvider, useActiveEditor } from './active-editor-context';
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+  useRegisterActiveEditor,
+} from './active-editor-context';
 import { EditorGroup, useRegisterGroupedEditor } from './editor-group';
 import type { EditorController } from './types';
 
@@ -166,5 +170,57 @@ describe('EditorGroup', () => {
 
     rerender(page([edited, makeController({ isDirty: true, isValid: false })]));
     expect(lastActive(onActive)?.isValid).toBe(false);
+  });
+
+  // A section can hold Save back for a reason of its own (a total over
+  // capacity) while its fields change from invalid to valid: `isValid` stays
+  // false throughout, but the reason must follow the fields, not the first
+  // value it had.
+  describe('follows a reason that changes while Save stays held back', () => {
+    const held = (invalidReason?: string) =>
+      makeController({
+        isDirty: true,
+        isValid: false,
+        ...(invalidReason !== undefined && { invalidReason }),
+      });
+
+    function ActiveSection({ controller }: { controller: EditorController }) {
+      useRegisterActiveEditor(controller);
+      return null;
+    }
+
+    it.each([
+      [
+        'in a group',
+        (c: EditorController) => (
+          <EditorGroup>
+            <Section controller={c} />
+          </EditorGroup>
+        ),
+      ],
+      ['without a group', (c: EditorController) => <Section controller={c} />],
+      [
+        'registered as the active editor',
+        (c: EditorController) => <ActiveSection controller={c} />,
+      ],
+    ])('%s', (_where, section) => {
+      const onActive = vi.fn();
+      const page = (controller: EditorController) => (
+        <ActiveEditorProvider>
+          <ActiveProbe onActive={onActive} />
+          {section(controller)}
+        </ActiveEditorProvider>
+      );
+
+      const { rerender } = render(page(held('Fix the fields')));
+      expect(lastActive(onActive)?.invalidReason).toBe('Fix the fields');
+
+      rerender(page(held()));
+      expect(lastActive(onActive)?.isValid).toBe(false);
+      expect(lastActive(onActive)?.invalidReason).toBeUndefined();
+
+      rerender(page(held('Fix the other fields')));
+      expect(lastActive(onActive)?.invalidReason).toBe('Fix the other fields');
+    });
   });
 });

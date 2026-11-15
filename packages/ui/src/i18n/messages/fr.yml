@@ -197,6 +197,7 @@ common:
   discardChangesConfirm: Abandonner les modifications non enregistrées ?
   editor:
     fixHighlightedFields: Corrige les champs surlignés et réessaie.
+    invalidFields: Corrige les champs invalides pour enregistrer.
   errors:
     contactSupport: contacter le support
     errorLoadingPage: Une erreur s'est produite lors du chargement de cette page. Tu peux réessayer ou naviguer vers une autre section.

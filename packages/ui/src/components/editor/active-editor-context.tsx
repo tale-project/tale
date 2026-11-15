@@ -62,7 +62,7 @@ export function useActiveEditorSetter(): Dispatch<
 /**
  * Registers the calling component's controller as "active" for as long as
  * it stays mounted. Re-registers only when controller STATE (isDirty,
- * isSaving, isValid, isLoading) actually changes — not on every render —
+ * isSaving, isValid, isLoading, invalidReason) actually changes — not on every render —
  * because the controller object literal returned by `useFormEditor` /
  * `useJsonConfigEditor` is fresh on every render and registering on
  * reference inequality would loop infinitely. A ref keeps the registered
@@ -83,6 +83,7 @@ export function useRegisterActiveEditor(controller: EditorController): void {
     controller.isSaving,
     controller.isValid,
     controller.isLoading,
+    controller.invalidReason,
   ]);
 
   useEffect(

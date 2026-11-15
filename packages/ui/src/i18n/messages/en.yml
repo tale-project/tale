@@ -197,6 +197,7 @@ common:
   discardChangesConfirm: Discard unsaved changes?
   editor:
     fixHighlightedFields: Fix the highlighted fields and try again.
+    invalidFields: Fix the invalid fields to save.
   errors:
     contactSupport: contact support
     errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.

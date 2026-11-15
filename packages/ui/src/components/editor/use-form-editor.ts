@@ -266,6 +266,16 @@ export function useFormEditor<T extends FieldValues>({
   }, [form, judgesValidity]);
 
   const isValid = schema ? form.formState.isValid : true;
+  // Why Save waits while the schema fails. The blocking field's own error
+  // stays hidden until the field is left (`onTouched`), so the reason is what
+  // tells the reader Save is off and why. `EditorActions` shows it only while
+  // the invalid edits hold Save back. RHF holds `isValid` false until its
+  // first judgement lands, so the reason also needs the current values to
+  // fail the schema: an early edit to valid values flashes no reason.
+  const invalidReason =
+    schema && !isValid && !schema.safeParse(form.getValues()).success
+      ? t('editor.invalidFields')
+      : undefined;
 
   // Register with the page-level DirtyBlockerProvider so navigation away
   // prompts before discarding unsaved edits.
@@ -326,6 +336,7 @@ export function useFormEditor<T extends FieldValues>({
     isDirty,
     isSaving: form.formState.isSubmitting,
     isValid,
+    invalidReason,
     isLoading: data === undefined,
     dirtyKeys,
     save: doSave,
