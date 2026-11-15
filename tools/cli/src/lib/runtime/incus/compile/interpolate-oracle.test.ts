@@ -175,6 +175,7 @@ describe.skipIf(!available && !required)(
           dotenv: ORACLE_DOTENV,
           processEnvironment: WORKSPACE_PROCESS,
           documents: [document],
+          project: 'tale-oracle',
         });
         if (path === 'workspace') expect(source.shadowed).toContain('SHADOWED');
         // The path's map is exactly what Compose sees: the workspace's
