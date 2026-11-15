@@ -27,6 +27,12 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('../hooks/mutations', () => ({
   useDeleteProjectAgent: () => ({ mutateAsync: vi.fn() }),
 }));
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeamNames: () => ({
+    nameOf: (id: string) => ({ 'team-sales': 'Sales' })[id],
+    isLoading: false,
+  }),
+}));
 vi.mock('../hooks/use-unpinned-serving-preview', () => ({
   useUnpinnedServingPreview: () => ({ data: undefined }),
 }));
