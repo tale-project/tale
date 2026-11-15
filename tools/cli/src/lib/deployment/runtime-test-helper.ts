@@ -18,7 +18,10 @@ import { parse, stringify } from 'yaml';
 import { BUILDKITD_MIRROR_IMAGE } from '../compose/types';
 import type { exec } from '../docker/exec';
 import type { RegistryClient, ResolvedImage } from '../oci/registry';
-import { factsFor } from '../runtime/incus/compile/compile-fixture';
+import {
+  factsFor,
+  type ReleaseLine,
+} from '../runtime/incus/compile/compile-fixture';
 import {
   AUTOMATION_PROTOCOL_LABEL,
   AUTOMATION_PROTOCOL_MIGRATION,
@@ -723,10 +726,13 @@ export function installLegacy(
 }
 
 /** A registry serving every repository the fixture names, by digest of its
- * repository, with the image shapes the compiler's fixtures use. */
+ * repository, with the image shapes of `line`. The fixture's own edge is the
+ * v0.5 Caddy image, so v0.5 is the default; a fixture that commits the
+ * repository's own source runs the feature line's Traefik edge instead. */
 export function fakeRegistry(
   revision: () => string,
   digests: Record<string, string> = {},
+  line: ReleaseLine = 'v0.5',
 ): RegistryClient & { reads: string[] } {
   const reads: string[] = [];
   return {
@@ -745,7 +751,7 @@ export function fakeRegistry(
       const tale = repository.includes('/tale-project/tale/');
       let facts;
       try {
-        facts = factsFor(`${repository}@${digest}`);
+        facts = factsFor(`${repository}@${digest}`, {}, line);
       } catch {
         facts = {
           labels: {},

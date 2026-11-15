@@ -104,7 +104,8 @@ interface ImageShape {
   labels?: Record<string, string>;
 }
 
-/** What each repository's image declares (services/<name>/Dockerfile). */
+/** What each repository's image declares on the feature line
+ * (services/<name>/Dockerfile). */
 const IMAGE_SHAPES: Record<string, ImageShape> = {
   'tale-db': {
     entrypoint: ['/usr/local/bin/docker-entrypoint.sh'],
@@ -118,19 +119,14 @@ const IMAGE_SHAPES: Record<string, ImageShape> = {
     cmd: ['/app/docker-entrypoint.sh'],
     init: true,
   },
+  // The feature line's edge: the Traefik image of services/proxy/Dockerfile.
+  // It declares one volume, its entrypoint and command, and no infra format.
   'tale-proxy': {
-    entrypoint: ['/usr/local/bin/docker-entrypoint.sh'],
-    cmd: [
-      'caddy',
-      'run',
-      '--config',
-      '/config/Caddyfile',
-      '--adapter',
-      'caddyfile',
-    ],
-    volumes: ['/config', '/data'],
+    entrypoint: ['tale-proxy'],
+    cmd: ['edge'],
+    stopSignal: 'SIGTERM',
+    volumes: ['/data'],
     init: true,
-    labels: { 'dev.tale.infra-formats': 'switch-upstreams/1' },
   },
   'tale-sandbox': {
     entrypoint: ['/docker-entrypoint.sh'],
@@ -160,10 +156,36 @@ const IMAGE_SHAPES: Record<string, ImageShape> = {
   },
 };
 
+/** The v0.5 line's images where they differ: its edge is the Caddy image,
+ * with its two volumes, its entrypoint and command, and the switch format
+ * the v0.5 edge reads. */
+const V05_IMAGE_SHAPES: Record<string, ImageShape> = {
+  ...IMAGE_SHAPES,
+  'tale-proxy': {
+    entrypoint: ['/usr/local/bin/docker-entrypoint.sh'],
+    cmd: [
+      'caddy',
+      'run',
+      '--config',
+      '/config/Caddyfile',
+      '--adapter',
+      'caddyfile',
+    ],
+    volumes: ['/config', '/data'],
+    init: true,
+    labels: { 'dev.tale.infra-formats': 'switch-upstreams/1' },
+  },
+};
+
+/** The release line whose images a fixture runs. Its proxy differs: Traefik
+ * on the feature line, Caddy on v0.5. */
+export type ReleaseLine = 'feature' | 'v0.5';
+
 /** Image facts for `reference`, as the registry reader would return them. */
 export function factsFor(
   reference: string,
   overrides: Partial<ImageFacts> = {},
+  line: ReleaseLine = 'feature',
 ): ImageFacts {
   const at = reference.indexOf('@');
   const repository = (at === -1 ? reference : reference.slice(0, at)).replace(
@@ -175,7 +197,7 @@ export function factsFor(
       ? `sha256:${createHash('sha256').update(reference).digest('hex')}`
       : reference.slice(at + 1);
   const name = repository.slice(repository.lastIndexOf('/') + 1);
-  const shape = IMAGE_SHAPES[name];
+  const shape = (line === 'v0.5' ? V05_IMAGE_SHAPES : IMAGE_SHAPES)[name];
   if (shape === undefined) throw new Error(`No image shape for ${reference}.`);
   const tale = name.startsWith('tale-');
   const labels: Record<string, string> = {
