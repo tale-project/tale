@@ -133,87 +133,98 @@ function listTarget(entries: { endpoint: string; project?: string }[]) {
 
 const OLD = { endpoint: 'https://10.30.0.1:8443', project: 'tale-sessions' };
 
-describe('a stack that ran with the one sandbox host taking the list', () => {
-  test('passes with an entry of its endpoint and project, either as written or by default', async () => {
-    for (const entry of [
-      { endpoint: 'https://10.30.0.1:8443/' },
-      { endpoint: 'https://10.30.0.1:8443', project: 'tale-sessions' },
-    ]) {
-      const runtime = hostRuntime(SINGLE);
-      await admitSandboxHostMove(
-        runtime,
-        listTarget([{ endpoint: 'https://10.0.0.2:8443' }, entry]),
-        false,
-      );
-      expect((await readJournal(runtime.stateRoot))?.sandboxHost).toEqual(OLD);
-    }
-  });
+// The Incus runtime needs a POSIX host and is refused on Windows
+// (assertIncusPlatform): the journal that keeps the one host is held by
+// owner and mode, which Windows files do not carry, so it reads back there
+// as a custody refusal.
+const describePosix = describe.skipIf(process.platform === 'win32');
 
-  test('is refused without one, naming the host, and neither a plan nor a deploy writes the journal', async () => {
-    for (const entry of [
-      { endpoint: 'https://10.0.0.2:8443' },
-      { endpoint: 'https://10.30.0.1:8443', project: 'other' },
-    ])
-      for (const dryRun of [true, false]) {
+describePosix(
+  'a stack that ran with the one sandbox host taking the list',
+  () => {
+    test('passes with an entry of its endpoint and project, either as written or by default', async () => {
+      for (const entry of [
+        { endpoint: 'https://10.30.0.1:8443/' },
+        { endpoint: 'https://10.30.0.1:8443', project: 'tale-sessions' },
+      ]) {
         const runtime = hostRuntime(SINGLE);
-        await expect(
-          admitSandboxHostMove(runtime, listTarget([entry]), dryRun),
-        ).rejects.toThrow(SANDBOX_HOST_MOVE_SENTENCES.unmatched(OLD));
+        await admitSandboxHostMove(
+          runtime,
+          listTarget([{ endpoint: 'https://10.0.0.2:8443' }, entry]),
+          false,
+        );
+        expect((await readJournal(runtime.stateRoot))?.sandboxHost).toEqual(
+          OLD,
+        );
+      }
+    });
+
+    test('is refused without one, naming the host, and neither a plan nor a deploy writes the journal', async () => {
+      for (const entry of [
+        { endpoint: 'https://10.0.0.2:8443' },
+        { endpoint: 'https://10.30.0.1:8443', project: 'other' },
+      ])
+        for (const dryRun of [true, false]) {
+          const runtime = hostRuntime(SINGLE);
+          await expect(
+            admitSandboxHostMove(runtime, listTarget([entry]), dryRun),
+          ).rejects.toThrow(SANDBOX_HOST_MOVE_SENTENCES.unmatched(OLD));
+          expect(await readJournal(runtime.stateRoot)).toBeNull();
+        }
+    });
+
+    test('a spawner whose one endpoint is no https origin never ran a session, and holds the list to nothing', async () => {
+      for (const endpoint of ['10.30.0.1:8443', 'http://10.30.0.1:8443']) {
+        const runtime = hostRuntime({
+          ...SINGLE,
+          'environment.SANDBOX_INCUS_ENDPOINT': endpoint,
+        });
+        await admitSandboxHostMove(
+          runtime,
+          listTarget([{ endpoint: 'https://10.0.0.2:8443' }]),
+          false,
+        );
         expect(await readJournal(runtime.stateRoot)).toBeNull();
       }
-  });
+    });
 
-  test('a spawner whose one endpoint is no https origin never ran a session, and holds the list to nothing', async () => {
-    for (const endpoint of ['10.30.0.1:8443', 'http://10.30.0.1:8443']) {
-      const runtime = hostRuntime({
-        ...SINGLE,
-        'environment.SANDBOX_INCUS_ENDPOINT': endpoint,
+    test('a spawner of the list form, or none ever recorded, holds the list to nothing', async () => {
+      const listed = hostRuntime({
+        'environment.SANDBOX_INCUS_ENDPOINTS': '[]',
+      });
+      // The one host a deploy before the list recorded.
+      await updateJournal(listed.stateRoot, 'tale', (journal) => {
+        journal.sandboxHost = OLD;
       });
       await admitSandboxHostMove(
-        runtime,
+        listed,
         listTarget([{ endpoint: 'https://10.0.0.2:8443' }]),
         false,
       );
-      expect(await readJournal(runtime.stateRoot)).toBeNull();
-    }
-  });
-
-  test('a spawner of the list form, or none ever recorded, holds the list to nothing', async () => {
-    const listed = hostRuntime({
-      'environment.SANDBOX_INCUS_ENDPOINTS': '[]',
+      expect((await readJournal(listed.stateRoot))?.sandboxHost).toBeNull();
+      await admitSandboxHostMove(
+        hostRuntime(),
+        listTarget([{ endpoint: 'https://10.0.0.2:8443' }]),
+        false,
+      );
     });
-    // The one host a deploy before the list recorded.
-    await updateJournal(listed.stateRoot, 'tale', (journal) => {
-      journal.sandboxHost = OLD;
-    });
-    await admitSandboxHostMove(
-      listed,
-      listTarget([{ endpoint: 'https://10.0.0.2:8443' }]),
-      false,
-    );
-    expect((await readJournal(listed.stateRoot))?.sandboxHost).toBeNull();
-    await admitSandboxHostMove(
-      hostRuntime(),
-      listTarget([{ endpoint: 'https://10.0.0.2:8443' }]),
-      false,
-    );
-  });
 
-  test('the single form stays free to move its one host', async () => {
-    const runtime = hostRuntime(SINGLE);
-    await admitSandboxHostMove(
-      runtime,
-      {
-        instances: [
-          {
-            service: 'sandbox',
-            config: {
-              'environment.SANDBOX_INCUS_ENDPOINT': 'https://10.0.0.2:8443',
+    test('the single form stays free to move its one host', async () => {
+      const runtime = hostRuntime(SINGLE);
+      await admitSandboxHostMove(
+        runtime,
+        {
+          instances: [
+            {
+              service: 'sandbox',
+              config: {
+                'environment.SANDBOX_INCUS_ENDPOINT': 'https://10.0.0.2:8443',
+              },
             },
-          },
-        ],
-      } as unknown as Parameters<typeof admitSandboxHostMove>[1],
-      false,
-    );
-  });
-});
+          ],
+        } as unknown as Parameters<typeof admitSandboxHostMove>[1],
+        false,
+      );
+    });
+  },
+);
