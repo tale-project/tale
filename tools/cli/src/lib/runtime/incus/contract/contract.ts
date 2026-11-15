@@ -164,6 +164,7 @@ function contractCompileInput(source: ContractSource): CompileInput {
     dotenv: source.dotenv,
     processEnvironment: source.processEnvironment ?? {},
     documents: source.documents.map((document) => document.compose),
+    project: source.stack,
   });
   const lookup = (name: string): string | undefined =>
     Object.hasOwn(variables, name) ? variables[name] : undefined;

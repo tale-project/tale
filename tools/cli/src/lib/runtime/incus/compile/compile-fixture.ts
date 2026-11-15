@@ -252,6 +252,7 @@ export function compileInput(
     dotenv: DOTENV,
     processEnvironment: {},
     documents: documents.map((document) => document.compose),
+    project: PROJECT_ID,
   });
   return {
     path,

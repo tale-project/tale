@@ -402,6 +402,7 @@ export class IncusWorkspace {
       dotenv,
       processEnvironment: this.options.environment ?? process.env,
       documents: documents.map((document) => document.compose),
+      project: this.runtime.stack,
     });
     const images: Record<string, ImageFacts> = {};
     for (const { compose } of documents)

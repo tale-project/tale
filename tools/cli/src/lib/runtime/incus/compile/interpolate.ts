@@ -405,6 +405,10 @@ export interface InterpolationSource {
  *   with that environment. The snapshot keeps only the names the documents
  *   and `.env` reference, and reports a process variable that shadows a
  *   `.env` key.
+ *
+ * `project` is the Compose project the stack runs under. `docker compose -p`
+ * names it, and that name wins over the environment and `.env`, so it is
+ * what `COMPOSE_PROJECT_NAME` interpolates to.
  */
 export function interpolationSource(
   path: InterpolationPath,
@@ -412,6 +416,7 @@ export function interpolationSource(
     dotenv: string;
     processEnvironment?: Readonly<Record<string, string | undefined>>;
     documents: readonly unknown[];
+    project?: string;
   },
 ): InterpolationSource {
   const ambient =
@@ -432,6 +437,8 @@ export function interpolationSource(
         shadowed.push(name);
     } else if (name in fileValues) variables[name] = fileValues[name] ?? '';
   }
+  if (options.project !== undefined)
+    variables.COMPOSE_PROJECT_NAME = options.project;
   return { variables, shadowed };
 }
 
