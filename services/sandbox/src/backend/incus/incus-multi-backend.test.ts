@@ -160,7 +160,11 @@ function makeHost(
     signal: () => operationSignal(),
     requestTimeoutMs: base.incus?.apiTimeoutMs,
     fetch: async (url, init) => {
-      if (host.down) throw new TypeError(`connect ECONNREFUSED ${name}`);
+      // As Bun's fetch fails a refused connection: the code on the error.
+      if (host.down)
+        throw Object.assign(new TypeError(`connect ECONNREFUSED ${name}`), {
+          code: 'ECONNREFUSED',
+        });
       if (host.latencyMs > 0) await delay(host.latencyMs, init.signal);
       if (host.failStatus !== undefined) {
         return Response.json(
@@ -870,7 +874,53 @@ describe('the reachability of a host', () => {
   });
 
   test('tells a failed connection from an answer', () => {
-    expect(isConnectionFailure(new TypeError('Unable to connect'))).toBe(true);
+    // Bun's fetch: a TypeError with the code on it.
+    const bunRefused = Object.assign(new TypeError('Unable to connect'), {
+      code: 'ConnectionRefused',
+    });
+    expect(isConnectionFailure(bunRefused)).toBe(true);
+    expect(
+      isConnectionFailure(
+        Object.assign(new TypeError('unknown certificate verification error'), {
+          code: 'UNKNOWN_CERTIFICATE_VERIFICATION_ERROR',
+        }),
+      ),
+    ).toBe(true);
+    // undici's fetch: a TypeError whose cause carries the code.
+    for (const code of [
+      'ECONNREFUSED',
+      'ECONNRESET',
+      'EHOSTUNREACH',
+      'ENETUNREACH',
+      'ETIMEDOUT',
+      'UND_ERR_CONNECT_TIMEOUT',
+      'ERR_TLS_CERT_ALTNAME_INVALID',
+      'ERR_SSL_WRONG_VERSION_NUMBER',
+    ])
+      expect(
+        isConnectionFailure(
+          new TypeError('fetch failed', {
+            cause: Object.assign(new Error(code), { code }),
+          }),
+        ),
+      ).toBe(true);
+    // A TypeError without a connection code is an answer that did not
+    // parse, or a fault of the caller's: the host is up.
+    expect(isConnectionFailure(new TypeError('Unable to connect'))).toBe(false);
+    expect(
+      isConnectionFailure(
+        new TypeError("Cannot read properties of undefined (reading 'name')"),
+      ),
+    ).toBe(false);
+    expect(
+      isConnectionFailure(
+        new TypeError('fetch failed', {
+          cause: Object.assign(new Error('bad header'), {
+            code: 'UND_ERR_INVALID_ARG',
+          }),
+        }),
+      ),
+    ).toBe(false);
     const refused = Object.assign(new Error('refused'), {
       code: 'ECONNREFUSED',
     });

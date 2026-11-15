@@ -145,29 +145,40 @@ function message(error: unknown): string {
 }
 
 /** Error codes of a connection that was never made, or broke: refused,
- * reset, unroutable, unresolvable, or a TLS handshake that failed (Node's
- * and Bun's spellings). */
+ * reset, unroutable, unresolvable or timed out (Node's and undici's, and
+ * Bun's spellings). A TLS handshake that failed is `TLS_CODE`. */
 const CONNECTION_CODES: ReadonlySet<string> = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
+  'ECONNABORTED',
   'EHOSTUNREACH',
   'ENETUNREACH',
   'ETIMEDOUT',
   'ENOTFOUND',
   'EAI_AGAIN',
   'EPIPE',
+  'EPROTO',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_SOCKET',
   'ConnectionRefused',
   'ConnectionClosed',
   'ConnectionReset',
   'FailedToOpenSocket',
 ]);
 
+/** A TLS handshake that failed: the pinned certificate refused, or the
+ * handshake broken (OpenSSL's, Node's and Bun's spellings). */
+const TLS_CODE =
+  /^(?:CERT_|ERR_TLS_|ERR_SSL_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_|UNKNOWN_CERTIFICATE_)/;
+
 /**
- * The host did not answer: the connection failed (a fetch's TypeError, a
- * network or TLS error code), or a request got no answer within its own
- * timeout. An Incus API error is an answer, and so is any error the backend
- * raises itself (a refusal, a missing object): the host is up. Follows the
- * `cause` chain of a wrapped error.
+ * The host did not answer: the connection failed (a network or TLS error
+ * code, on the error or its `cause` as undici wraps it in a fetch's
+ * TypeError), or a request got no answer within its own timeout. Anything
+ * else is an answer: an Incus API error, any error the backend raises itself
+ * (a refusal, a missing object), and a TypeError without such a code (a reply
+ * that does not parse); the host is up. Follows the `cause` chain of a
+ * wrapped error.
  */
 export function isConnectionFailure(error: unknown): boolean {
   const seen = new Set<unknown>();
@@ -175,17 +186,13 @@ export function isConnectionFailure(error: unknown): boolean {
   while (current instanceof Error && !seen.has(current)) {
     seen.add(current);
     if (current instanceof IncusApiError) return false;
-    if (current.name === 'TimeoutError' || current instanceof TypeError) {
-      return true;
-    }
+    if (current.name === 'TimeoutError') return true;
     const code = 'code' in current ? current.code : undefined;
-    if (typeof code === 'string' && CONNECTION_CODES.has(code)) return true;
     if (
       typeof code === 'string' &&
-      /^(?:CERT_|ERR_TLS_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/.test(code)
-    ) {
+      (CONNECTION_CODES.has(code) || TLS_CODE.test(code))
+    )
       return true;
-    }
     current = current.cause;
   }
   return false;
