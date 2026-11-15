@@ -518,7 +518,12 @@ export async function stageTaskInputs(
     organizationId: string;
     sessionId: string;
     taskId: string;
-    attachments: Array<{ fileId: string; fileName: string; withheld?: string; fileSize?: number }>;
+    attachments: Array<{
+      fileId: string;
+      fileName: string;
+      withheld?: string;
+      fileSize?: number;
+    }>;
     outputs: Array<{ fileId: string; fileName: string; fileSize?: number }>;
   },
 ): Promise<StagedTaskInputs> {
