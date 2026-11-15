@@ -25,6 +25,7 @@ const { agents, projects, uncallable } = vi.hoisted(() => ({
     {
       instructions: string;
       tools: string[];
+      labelGrants: string[];
       managed: boolean;
       harness: string;
       model: string;
