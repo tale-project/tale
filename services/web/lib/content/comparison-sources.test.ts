@@ -19,8 +19,14 @@ const SOURCED_GUIDES = [
   'tale-vs-autogpt',
   'tale-vs-claw-empire',
   'tale-vs-flowise',
+  'tale-vs-lovable',
+  'tale-vs-openhands',
+  'tale-vs-replit',
+  'tale-vs-stackai',
+  'tale-vs-taskade',
   'tale-vs-vellum',
   'tale-vs-vibe-kanban',
+  'tale-vs-zapier-agents',
 ] as const;
 
 const REVIEW_DATE_LOCALES = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR' } as const;
