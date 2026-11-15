@@ -69,7 +69,6 @@ import {
 import {
   SafeFetchError,
   isPrivateIp,
-  safeFetch,
   safeFetchBinary,
   type SafeFetchBinaryResponse,
   type OutboundProxyRef,
