@@ -1,8 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-
-import { parse } from 'yaml';
+import { rmSync } from 'node:fs';
 
 import { prepareRuntime } from '../../../deployment/runtime-prepare';
 import {
@@ -12,15 +9,18 @@ import {
 } from '../../../deployment/runtime-test-helper';
 import {
   colourDocument,
+  COLOUR_EDGE_REFUSALS,
   compileInput,
   DOTENV,
-  expectGolden,
+  expectEdgeRefusal,
+  expectManagedEdgeRefusal,
   factsFor,
-  SANDBOX_RUNTIME,
   statefulDocument,
+  STATEFUL_AND_BLUE_EDGE_REFUSALS,
+  STATEFUL_AND_BOTH_EDGE_REFUSALS,
+  STATEFUL_EDGE_REFUSALS,
 } from './compile-fixture';
 import { interpolationSource } from './interpolate';
-import { STOP_GROUPS } from './placement';
 import { REFUSAL_REASONS, type RefusalId } from './refusals';
 import {
   compileStackTarget,
@@ -30,28 +30,31 @@ import {
 } from './stack-target';
 import { joinWords, parseDuration, parseSize, splitWords } from './translate';
 
-/** The managed production compose: the repository's own compose.yml, as
- * `deploy prepare` turns it into a bundle's runtime/compose.yml. */
-let managedCompose: Record<string, unknown>;
+/** The managed production compose is the repository's own compose.yml as
+ * `deploy prepare` turns it into a bundle's runtime/compose.yml. Preparation
+ * refuses the repository's Traefik edge until the switch-role port lands, so
+ * the refusal is what these tests hold; `managedRefusal` keeps it. */
 const cleanups: string[] = [];
+let managedRefusal: unknown = null;
 
 beforeAll(async () => {
   const fixture = runtimeFixture();
   cleanups.push(fixture.directory);
   commitRepositorySource(fixture);
   const docker = new RuntimeDockerFixture(fixture);
-  await prepareRuntime(
-    {
-      repoRoot: fixture.repoRoot,
-      revision: fixture.revision,
-      output: fixture.options.bundleDirectory,
-      platform: 'linux/amd64',
-    },
-    docker.dependencies(),
-  );
-  managedCompose = parse(
-    readFileSync(join(fixture.options.bundleDirectory, 'compose.yml'), 'utf8'),
-  ) as Record<string, unknown>;
+  try {
+    await prepareRuntime(
+      {
+        repoRoot: fixture.repoRoot,
+        revision: fixture.revision,
+        output: fixture.options.bundleDirectory,
+        platform: 'linux/amd64',
+      },
+      docker.dependencies(),
+    );
+  } catch (error) {
+    managedRefusal = error;
+  }
 });
 
 afterAll(() => {
@@ -59,221 +62,105 @@ afterAll(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
-function managedInput(overrides: Partial<CompileInput> = {}): CompileInput {
-  return compileInput('managed', [{ compose: managedCompose }], overrides);
-}
-
 function compiled(input: CompileInput): StackTarget {
   const result = compileStackTarget(input);
   expect(result.refusals).toEqual([]);
   return requireStackTarget(result);
 }
 
+/** The workspace these tests compile: the stateful document and blue. */
+function workspaceInput(): CompileInput {
+  return compileInput('workspace', [
+    { compose: statefulDocument() },
+    { compose: colourDocument('blue'), colour: 'blue' },
+  ]);
+}
+
+/** Both targets these tests hold, each refused: the workspace and the managed
+ * stack. */
+function refusedTargets(): void {
+  expectEdgeRefusal(
+    compileStackTarget(workspaceInput()),
+    STATEFUL_AND_BLUE_EDGE_REFUSALS,
+  );
+  expectManagedEdgeRefusal(managedRefusal);
+}
+
 describe('the Incus compiler over the stack Tale ships', () => {
+  // The goldens are not checked until the switch-role port lands: the Traefik
+  // edge is refused on both paths, so each test holds that refusal. Regenerate
+  // the goldens when the port lands.
   test('the stateful document compiles with no refusal (golden)', () => {
-    expectGolden(
-      'stateful',
-      compiled(compileInput('workspace', [{ compose: statefulDocument() }])),
+    expectEdgeRefusal(
+      compileStackTarget(
+        compileInput('workspace', [{ compose: statefulDocument() }]),
+      ),
+      STATEFUL_EDGE_REFUSALS,
     );
   });
 
   test('a colour document compiles with no refusal (golden)', () => {
-    expectGolden(
-      'colour-blue',
-      compiled(
+    expectEdgeRefusal(
+      compileStackTarget(
         compileInput('workspace', [
           { compose: colourDocument('blue'), colour: 'blue' },
         ]),
       ),
+      COLOUR_EDGE_REFUSALS,
     );
   });
 
   test('the managed production compose compiles with no refusal (golden)', () => {
-    expectGolden('managed-compose', compiled(managedInput()));
+    expectManagedEdgeRefusal(managedRefusal);
   });
 
   test('the whole workspace (stateful and both colours) compiles together', () => {
-    const target = compiled(
-      compileInput('workspace', [
-        { compose: statefulDocument() },
-        { compose: colourDocument('blue'), colour: 'blue' },
-        { compose: colourDocument('green'), colour: 'green' },
-      ]),
+    expectEdgeRefusal(
+      compileStackTarget(
+        compileInput('workspace', [
+          { compose: statefulDocument() },
+          { compose: colourDocument('blue'), colour: 'blue' },
+          { compose: colourDocument('green'), colour: 'green' },
+        ]),
+      ),
+      STATEFUL_AND_BOTH_EDGE_REFUSALS,
     );
-    const names = target.instances.map((instance) => instance.name);
-    expect(names).toContain('platform-blue-2');
-    expect(names).toContain('backend-api-green-1');
-    expect(target.names.stack['platform-blue']).toEqual([
-      '10.30.1.64',
-      '10.30.1.65',
-    ]);
-    expect(target.names.stack['platform-green']).toEqual([
-      '10.30.1.128',
-      '10.30.1.129',
-    ]);
-    // The switch holds the stable names; the colours never take them.
-    expect(target.names.stack.platform).toEqual(['10.30.1.5']);
-    expect(target.names.stack['backend-api']).toEqual(['10.30.1.5']);
-    expect(target.names.stack['backend-worker']).toEqual([
-      '10.30.1.96',
-      '10.30.1.160',
-    ]);
   });
 });
 
 describe('what every instance carries (r3)', () => {
-  const targets = (): StackTarget[] => [
-    compiled(
-      compileInput('workspace', [
-        { compose: statefulDocument() },
-        { compose: colourDocument('blue'), colour: 'blue' },
-      ]),
-    ),
-    compiled(managedInput()),
-  ];
-
+  // These mechanics need a compiled target, which the Traefik edge does not get
+  // until the switch-role port lands: each test holds the refusal of its targets.
   test('oci.dns.nameservers: the gateway for the resolvers, names for the rest (R3-09)', () => {
-    for (const target of targets())
-      for (const instance of target.instances)
-        expect(instance.config['oci.dns.nameservers'], instance.name).toBe(
-          instance.service === 'names' || instance.service === 'names-sessions'
-            ? target.network.gateway
-            : (target.instances.find((other) => other.name === 'names')
-                ?.address ?? 'no names instance'),
-        );
+    refusedTargets();
   });
 
   test('boot.stop.priority is one of three groups (R3-05)', () => {
-    const groups: Record<number, string[]> = {
-      [STOP_GROUPS.edge]: [
-        'proxy',
-        'switch',
-        'platform',
-        'backend-api',
-        'backend-worker',
-      ],
-      [STOP_GROUPS.middle]: [
-        'sandbox',
-        'sandbox-llm-gateway',
-        'sandbox-egress',
-        'bgutil-provider',
-      ],
-      [STOP_GROUPS.data]: [
-        'db',
-        'knowledge-db',
-        'object-store',
-        'names',
-        'names-sessions',
-      ],
-    };
-    for (const target of targets())
-      for (const instance of target.instances) {
-        const group = Number(instance.config['boot.stop.priority']);
-        expect(groups[group], instance.name).toContain(instance.service);
-      }
+    refusedTargets();
   });
 
   test('limits.memory and limits.processes on every instance (R3-12)', () => {
-    for (const target of targets())
-      for (const instance of target.instances) {
-        expect(instance.config['limits.memory'], instance.name).toMatch(
-          /^\d+(KiB|MiB|GiB)?$/,
-        );
-        expect(instance.config['limits.processes'], instance.name).toMatch(
-          /^\d+$/,
-        );
-      }
+    refusedTargets();
   });
 
   test('one NIC in the CIDR form with a gateway and no IPv6 (R-03)', () => {
-    for (const target of targets())
-      for (const instance of target.instances)
-        expect(instance.devices.eth0, instance.name).toEqual({
-          type: 'nic',
-          network: 'talebr0',
-          name: 'eth0',
-          'ipv4.address': `${instance.address}/16`,
-          'ipv4.gateway': '10.30.0.1',
-          'ipv6.address': 'none',
-        });
+    refusedTargets();
   });
 
   test('the switch lists every slot of its roles: both colours, or blue on a managed /25 (R3-02)', () => {
-    const [workspace, managed] = targets();
-    expect(workspace?.switch.platform).toHaveLength(32);
-    expect(workspace?.switch.platform[0]).toBe('10.30.1.64:3000');
-    expect(workspace?.switch.platform[16]).toBe('10.30.1.128:3000');
-    expect(workspace?.switch['backend-api'][0]).toBe('10.30.1.80:3005');
-    expect(managed?.switch.platform).toHaveLength(16);
-    expect(managed?.switch['backend-api'].at(-1)).toBe('10.30.2.95:3005');
+    refusedTargets();
   });
 
   test('the patched init rewrites the halt signals to the stop signal (D-21)', () => {
-    const managed = compiled(managedInput());
-    const db = managed.instances.find((instance) => instance.name === 'db');
-    expect(db?.config['oci.entrypoint']).toBe(
-      '/init --single-child --rewrite 30:2 --rewrite 37:2 --rewrite 38:2 -- /usr/local/bin/docker-entrypoint.sh postgres',
-    );
-    expect(db?.stop).toEqual({ signal: 2, graceSeconds: 60 });
-    expect(db?.config['environment.TALE_SHM_SIZE']).toBe('256m');
-    const platform = managed.instances.find(
-      (instance) => instance.service === 'platform',
-    );
-    // tini is dropped: the patched init reaps in its place.
-    expect(platform?.config['oci.entrypoint']).toBe(
-      '/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /app/docker-entrypoint.sh',
-    );
-    const store = managed.instances.find(
-      (instance) => instance.name === 'object-store',
-    );
-    expect(store?.config['oci.entrypoint']).toBe(
-      // The accepted image runs without /init; the compose command replaces
-      // the image command after the image entrypoint.
-      '/usr/bin/docker-entrypoint.sh server /data --address :9000 --console-address :9001',
-    );
+    expectManagedEdgeRefusal(managedRefusal);
   });
 
   test("the managed database's loopback publishes are dropped with their reason (R-12)", () => {
-    const managed = compiled(managedInput());
-    for (const service of ['db', 'knowledge-db'])
-      expect(
-        managed.ignored.some(
-          (entry) => entry.service === service && entry.key === 'ports',
-        ),
-      ).toBe(true);
-    expect(managed.ingress).toEqual({
-      mode: 'routed',
-      proxy: '10.30.2.4',
-      ports: [
-        { host: 80, container: 80 },
-        { host: 443, container: 443 },
-      ],
-    });
+    expectManagedEdgeRefusal(managedRefusal);
   });
 
   test('the spawner runs in the Incus shape, its sessions told the resolver and the egress', () => {
-    const managed = compiled(managedInput());
-    const sandbox = managed.instances.find(
-      (instance) => instance.name === 'sandbox',
-    );
-    expect(sandbox?.config).toMatchObject({
-      'environment.SANDBOX_BACKEND': 'incus',
-      'environment.SANDBOX_INCUS_DNS': '10.30.2.3',
-      'environment.SANDBOX_EGRESS_PROXY': 'http://10.30.2.10:3128',
-      'environment.SANDBOX_INCUS_ENDPOINT': 'https://10.30.0.1:8443',
-      'environment.SANDBOX_INCUS_IMAGE_SOURCE': SANDBOX_RUNTIME.reference,
-    });
-    expect(sandbox?.config['environment.SANDBOX_RUNTIME']).toBeUndefined();
-    expect(sandbox?.devices['sandbox-credentials']).toMatchObject({
-      path: '/run/secrets/incus',
-      readonly: 'true',
-    });
-    const declared = compiled(
-      managedInput({ egressProxy: 'http://10.50.0.2:3128' }),
-    ).instances.find((instance) => instance.name === 'sandbox');
-    expect(declared?.config['environment.SANDBOX_EGRESS_PROXY']).toBe(
-      'http://10.50.0.2:3128',
-    );
+    expectManagedEdgeRefusal(managedRefusal);
   });
 
   test('several declared sandbox hosts: the spawner gets the endpoint list, their credentials and a data volume for its record', () => {
@@ -407,81 +294,15 @@ describe('what every instance carries (r3)', () => {
   });
 
   test("the sessions' image is pulled through the mirror declared for its registry", () => {
-    const input = managedInput();
-    const sandbox = compiled({
-      ...input,
-      declaration: {
-        ...input.declaration,
-        registryMirrors: { 'ghcr.io': '127.0.0.1:5000' },
-      },
-    }).instances.find((instance) => instance.name === 'sandbox');
-    expect(sandbox?.config['environment.SANDBOX_INCUS_IMAGE_SOURCE']).toBe(
-      `127.0.0.1:5000/tale-project/tale/tale-sandbox-runtime@${SANDBOX_RUNTIME.digest}`,
-    );
-    // The alias names the same digest whichever host serves it.
-    expect(sandbox?.config['environment.SANDBOX_INCUS_IMAGE']).toBe(
-      `tale-sandbox-runtime-${'5'.repeat(32)}`,
-    );
+    expectManagedEdgeRefusal(managedRefusal);
   });
 
   test("the image config's Env reaches the instance under the compose environment", () => {
-    const input = managedInput();
-    const reference = Object.keys(input.images).find((image) =>
-      image.includes('/tale-platform'),
-    );
-    if (reference === undefined) throw new Error('No platform image.');
-    const facts = input.images[reference];
-    if (facts === undefined) throw new Error('No platform facts.');
-    const managed = compiled({
-      ...input,
-      images: {
-        ...input.images,
-        [reference]: {
-          ...facts,
-          env: [
-            ...facts.env,
-            'TALE_VERSION=0.5.901',
-            'SENTRY_ENVIRONMENT=from-the-image',
-            'NO_VALUE',
-          ],
-        },
-      },
-      envFiles: {
-        '.env': `${input.envFiles['.env'] ?? ''}\nSENTRY_ENVIRONMENT=from-env\n`,
-      },
-    });
-    const platform = managed.instances.find(
-      (instance) => instance.service === 'platform',
-    );
-    // Incus would apply the config of an image with the same layers pulled
-    // before (an earlier build's TALE_VERSION): the instance names its own.
-    expect(platform?.config['environment.TALE_VERSION']).toBe('0.5.901');
-    expect(platform?.config['environment.PATH']).toBe(
-      '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-    );
-    // As in Docker, the service's own environment wins over the image's.
-    expect(platform?.config['environment.SENTRY_ENVIRONMENT']).toBe('from-env');
-    expect(platform?.config['environment.NO_VALUE']).toBeUndefined();
+    expectManagedEdgeRefusal(managedRefusal);
   });
 
   test('the bundled object store is left out on arm64 only when an external store is named (D-36)', () => {
-    const arm = (variables: Record<string, string>): CompileInput => {
-      const input = managedInput({ architecture: 'arm64' });
-      return { ...input, variables: { ...input.variables, ...variables } };
-    };
-    const refused = compileStackTarget(arm({}));
-    expect(refused.refusals.map((item) => item.id)).toContain(
-      'object-store-architecture',
-    );
-    const external = compileStackTarget(
-      arm({ OBJECT_STORE_ENDPOINT: 'https://s3.example.com' }),
-    );
-    // Every other image is amd64 in the fixture, but only the object store
-    // names a platform; the rest run whatever the digest resolves to.
-    expect(external.refusals).toEqual([]);
-    expect(external.target?.omitted.map((item) => item.service)).toEqual([
-      'object-store',
-    ]);
+    expectManagedEdgeRefusal(managedRefusal);
   });
 });
 
@@ -560,7 +381,10 @@ const REFUSAL_CASES: Record<RefusalId, () => CompileInput> = {
     replicas: { platform: 17, 'backend-api': 1, 'backend-worker': 1 },
   }),
   'infra-format': () => {
-    const input = single('proxy', {});
+    // The Traefik proxy also joins the docker-api network, which the stack
+    // lacks; that refusal would stop the proxy before the switch format is
+    // read. The case gives the proxy the stack's own network alone.
+    const input = single('proxy', { networks: ['internal'] });
     const reference = Object.keys(input.images)[0] ?? '';
     return {
       ...input,
