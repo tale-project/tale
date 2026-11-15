@@ -27,7 +27,10 @@ import {
 } from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
-import type { NativeConnectorContext } from '../../connectors/dispatcher';
+import type {
+  NativeConnectorContext,
+  NativeConnectorImpl,
+} from '../../connectors/dispatcher';
 import { ConnectorError } from '../../connectors/errors';
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import {
@@ -51,7 +54,14 @@ import {
   WebdavStoreError,
   webdavNatives,
 } from '../../connectors/natives/webdav';
-import { connectorFailureOf } from '../../engine/core/record/failure';
+import {
+  httpNatives,
+  type HttpNativeDeps,
+} from '../../connectors/natives/http';
+import {
+  connectorFailureOf,
+  failureCauseOf,
+} from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
   ConnectorHttpResponse,
@@ -103,6 +113,7 @@ const EXPECTED_SLUGS = [
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
   'gmail',
+  'http',
   'imap-smtp',
   'jev',
   'slack',
@@ -1986,6 +1997,53 @@ interface NativeProof {
 const storedBytes = (text: string): Uint8Array =>
   new TextEncoder().encode(text);
 
+
+const HTTP_OPEN_ORDERS = 'GET https://api.example.com/orders?status=open';
+const HTTP_ORDERS = 'POST https://api.example.com/orders';
+
+/** The HTTP connector's proofs are native: its implementation answers each
+ * request from these, so a proof answers the request the native makes. */
+const HTTP_PROOFS: Record<string, ProofAnswers> = {
+  'get/orders_found': {
+    [HTTP_OPEN_ORDERS]: {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [{ id: 'ord_1001', status: 'open', total: 42.5 }],
+    },
+  },
+  'get/no_orders': {
+    [HTTP_OPEN_ORDERS]: { status: 204, body: '' },
+  },
+  'get/order_not_found': {
+    [HTTP_OPEN_ORDERS]: {
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+      body: { error: 'no such order' },
+    },
+  },
+  'send/order_created': {
+    [HTTP_ORDERS]: {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+      body: { id: 'ord_1002', status: 'open', item: 'A-1', quantity: 2 },
+    },
+  },
+  'send/quantity_refused': {
+    [HTTP_ORDERS]: {
+      status: 422,
+      headers: { 'content-type': 'application/json' },
+      body: { error: 'quantity must be positive' },
+    },
+  },
+  'send/order_exists': {
+    [HTTP_ORDERS]: {
+      status: 409,
+      headers: { 'content-type': 'application/json' },
+      body: { error: 'order ord_1002 already exists' },
+    },
+  },
+};
+
 /**
  * The proof of every WebDAV scenario, keyed `<action>/<scenario>`: the answer
  * the organization's document store gives the native, given the action's
@@ -2079,6 +2137,7 @@ type ScenarioProofs =
 
 const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
+  http: { proofs: HTTP_PROOFS },
   'imap-smtp': { natives: IMAP_SMTP_PROOFS },
   jev: {
     secrets: { apiKey: 'example-openrouter-key' },
@@ -2254,6 +2313,121 @@ async function expectNativeScenario(
   ).toBe(connectorFailureOf(simulated, slug, `${slug}.${action.name}`).reason);
 }
 
+/** The outbound client a native action is given in a proof: it answers
+ * each request from `answers`, keyed `<METHOD> <url>`, and notes it. */
+function nativeFetchOf(
+  answers: ProofAnswers,
+  asked: string[],
+): NonNullable<HttpNativeDeps['fetch']> {
+  return async (url, options) => {
+    const request = `${options.method ?? 'GET'} ${url}`;
+    asked.push(request);
+    if (!Object.hasOwn(answers, request)) {
+      throw new Error(`the proof gives no answer for ${request}`);
+    }
+    const { status, headers = {}, body } = answers[request];
+    return {
+      status,
+      statusText: '',
+      headers: new Headers(headers),
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+      finalUrl: url,
+    };
+  };
+}
+
+/** The implementations a listed native connector proves its scenarios
+ * against, given the outbound client their answers come through. */
+const NATIVE_PROOF_IMPLS: Partial<
+  Record<
+    ScenarioConnector,
+    (
+      fetch: NonNullable<HttpNativeDeps['fetch']>,
+    ) => Record<string, NativeConnectorImpl>
+  >
+> = {
+  http: (fetch) => httpNatives({ fetch, privateHostsAllowed: () => false }),
+};
+
+/** A native action's context: no credential and no live host, since the
+ * proof's outbound client answers every request the implementation makes. */
+function nativeContextOf(): NativeConnectorContext {
+  const refuse = () =>
+    Promise.reject(
+      new Error('the proof gives no live host to a native action'),
+    );
+  return {
+    secrets: { get: () => '' },
+    idempotencyKey: 'proof-key',
+    config: {},
+    organizationId: 'example-org',
+    credentialId: 'none',
+    authMethod: 'none',
+    http: {
+      get: refuse,
+      post: refuse,
+      put: refuse,
+      patch: refuse,
+      delete: refuse,
+    },
+    base64Encode,
+    base64Decode,
+  };
+}
+
+/** The HTTP status a native action's failure carries in its cause, if any. */
+function nativeStatusOf(thrown: unknown): number | undefined {
+  const cause = failureCauseOf(thrown);
+  if (cause?.reason !== 'HTTP_STATUS') return undefined;
+  const { status } = cause.params;
+  return typeof status === 'number' ? status : undefined;
+}
+
+/** A native action whose proof gives its outbound answers: the native
+ * implementation runs with them, makes each request the proof answers in its
+ * order, and returns the scenario's output or throws its error. */
+async function expectFetchNativeScenario(
+  slug: ScenarioConnector,
+  action: ConnectorAction,
+  scenario: ConnectorScenario,
+  answers: ProofAnswers,
+  key: string,
+): Promise<void> {
+  const backend = action.backend;
+  if (backend?.kind !== 'native') {
+    throw new Error(`${slug}.${action.name} has no native backend`);
+  }
+  const asked: string[] = [];
+  const impl = NATIVE_PROOF_IMPLS[slug]?.(nativeFetchOf(answers, asked))[
+    backend.impl
+  ];
+  if (impl === undefined) {
+    throw new Error(`${slug}.${backend.impl} has no native proof`);
+  }
+  const outcome = await outcomeOf(
+    impl({ ...action.exampleInput, ...scenario.when }, nativeContextOf()),
+  );
+  expect(asked).toEqual(Object.keys(answers));
+  if (scenario.error === undefined) {
+    expect(outcome).toEqual({ output: scenario.output });
+    return;
+  }
+  if (!('thrown' in outcome)) {
+    throw new Error(
+      `${slug}.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+    );
+  }
+  const { thrown } = outcome;
+  expect(thrown).toBeInstanceOf(Error);
+  expect(thrown instanceof Error ? thrown.message : thrown).toBe(
+    scenario.error.message,
+  );
+  // A native failure carries its own cause, and the status it names is the one
+  // the scenario's error carries.
+  expect(failureCauseOf(thrown), `${slug}.${key} names its cause`).toBeDefined();
+  expect(nativeStatusOf(thrown)).toBe(scenario.error.status);
+}
+
 describe('a connector scenario fits its action and answers as the live call would [CONN-R33]', () => {
   it.each([...EXPECTED_SLUGS])(
     '%s: a when names only properties the action input declares',
@@ -2392,6 +2566,16 @@ describe('a connector scenario fits its action and answers as the live call woul
       const entry = SCENARIO_PROOFS[slug];
       if ('natives' in entry) {
         await expectNativeScenario(slug, action, scenario, entry.natives[key]);
+        return;
+      }
+      if (action.backend?.kind === 'native') {
+        await expectFetchNativeScenario(
+          slug,
+          action,
+          scenario,
+          entry.proofs[key],
+          key,
+        );
         return;
       }
       if (action.backend?.kind !== 'yaml-js') {
