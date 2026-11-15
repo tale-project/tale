@@ -40,6 +40,10 @@ import { INCUS_PLAN_ACTIONS } from '../plan/plan-model';
  *   `tale restore --resume` or `--abort` clears it.
  * - `flip`: a workspace colour flip that has not finished, with its phase,
  *   so the next deploy or rollback resumes it from there (design 7.3).
+ * - `sandboxHost`: the one Incus host (endpoint and project) the stack's
+ *   sandbox spawner last ran with, null once it runs the list form
+ *   (`runtime.incus.sandboxHosts`), so a deploy that takes the list holds it
+ *   to that host even while no spawner runs.
  *
  * The caller holds the deploy lock; the journal is written whole, atomically,
  * 0600.
@@ -167,6 +171,14 @@ export const journalSchema = z.strictObject({
   restorePending: restorePendingSchema.nullable(),
   /** A colour flip of a workspace that has not finished (design 7.3). */
   flip: flipSchema.nullable().optional(),
+  /** The one Incus host the sandbox spawner last ran with, or null. */
+  sandboxHost: z
+    .strictObject({
+      endpoint: z.string().min(1).max(2048),
+      project: z.string().max(128),
+    })
+    .nullable()
+    .optional(),
 });
 export type IncusJournal = z.infer<typeof journalSchema>;
 

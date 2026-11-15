@@ -61,6 +61,7 @@ import { stableJson } from '../config/releases/identity';
 import { incusRuntimeAccess } from '../deployment/runtime-access-incus';
 import { SANDBOX_INCUS_DIRECTORY } from '../deployment/runtime-sandbox';
 import {
+  admitSandboxHostMove,
   admitSandboxPlacement,
   clearSandboxPlacement,
 } from '../deployment/runtime-sandbox-placement';
@@ -956,6 +957,11 @@ export async function deployOnIncus(
       stateful: version,
       colours: { [currentColor]: version },
     };
+    await admitSandboxHostMove(
+      runtime,
+      await workspace.compile(versions),
+      options.dryRun,
+    );
     if (options.dryRun) {
       printPlan(await planDeploy(workspace, versions, currentColor, services));
       if (clearPlacement) await clearSandboxPlacement(runtime, true);
@@ -994,6 +1000,13 @@ export async function deployOnIncus(
     workspace,
     flip.phase === 'starting' ? { ...flip, version } : flip,
     version,
+  );
+  // A spawner that ran with the one host keeps its sessions in the list only
+  // through an entry of that host's endpoint and project.
+  await admitSandboxHostMove(
+    runtime,
+    await workspace.compile(versions),
+    options.dryRun,
   );
   if (options.dryRun) {
     printPlan(await planDeploy(workspace, versions, flip.promoting));

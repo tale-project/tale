@@ -12,7 +12,10 @@ import {
   setActiveOutputMode,
 } from '../../utils/output-mode';
 import { AUTOMATION_PROTOCOL_LABEL } from '../deployment/automation-model';
-import { SANDBOX_PLACEMENT_SENTENCES } from '../deployment/runtime-sandbox-placement';
+import {
+  SANDBOX_HOST_MOVE_SENTENCES,
+  SANDBOX_PLACEMENT_SENTENCES,
+} from '../deployment/runtime-sandbox-placement';
 import type { RegistryClient, ResolvedImage } from '../oci/registry';
 import { setProjectId } from '../project/project-context';
 import {
@@ -39,6 +42,9 @@ import {
   type IncusDeployDependencies,
 } from './incus-deploy';
 import { status as showStatus } from './status';
+
+/** One declared sandbox host. */
+type SandboxHost = NonNullable<IncusDeclaration['sandboxHosts']>[number];
 
 // The Incus runtime needs a POSIX host and is refused on Windows
 // (assertIncusPlatform): its plan key, journal, credentials and copies are
@@ -290,6 +296,7 @@ async function deploy(
     stop?: boolean;
     clearSandboxPlacement?: boolean;
     declaration?: IncusDeclaration;
+    dryRun?: boolean;
   } = {},
 ): Promise<void> {
   await deployOnIncus({
@@ -299,7 +306,7 @@ async function deploy(
       options.declaration,
     ),
     version,
-    dryRun: false,
+    dryRun: options.dryRun ?? false,
     skipBackup: true,
     ...(options.services === undefined ? {} : { services: options.services }),
     ...(options.clearSandboxPlacement ? { clearSandboxPlacement: true } : {}),
@@ -647,28 +654,41 @@ describePosix(
       expect(await getCurrentColor(setup.deployDir)).toBe('green');
     });
 
-    test('a stack that ran with the one host takes the list, leaves it with the flag and takes it again', async () => {
-      const hosts = [
-        {
-          name: 'node-2',
-          endpoint: 'https://10.0.0.2:8443',
-          egressProxy: 'http://10.20.2.2:3128',
-          dns: ['10.20.2.2'],
-        },
-      ];
-      const directory = join(setup.deployDir, '.tale', 'sandbox-incus');
-      mkdirSync(join(directory, 'node-2'), { recursive: true, mode: 0o700 });
+    /** A list entry of the sandbox hosts, its credentials written. */
+    function listedHost(
+      name: string,
+      endpoint: string,
+      project?: string,
+    ): SandboxHost {
+      const directory = join(setup.deployDir, '.tale', 'sandbox-incus', name);
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
       for (const file of ['client.crt', 'client.key', 'server.crt'])
-        writeFileSync(join(directory, 'node-2', file), `${file}\n`, {
-          mode: 0o600,
-        });
-      const listed: IncusDeclaration = { ...DECLARATION, sandboxHosts: hosts };
+        writeFileSync(join(directory, file), `${file}\n`, { mode: 0o600 });
+      return {
+        name,
+        endpoint,
+        ...(project === undefined ? {} : { project }),
+        egressProxy: 'http://10.20.2.2:3128',
+        dns: ['10.20.2.2'],
+      };
+    }
+    const spawner = () =>
+      [...setup.fake.instances.values()].find(
+        (instance) => instance.config['user.tale.service'] === 'sandbox',
+      );
+
+    test('a stack that ran with the one host takes the list through an entry of its endpoint and project, leaves it with the flag and takes it again', async () => {
+      // The one host: the declared network's gateway, the stack's sessions
+      // project, which the entry takes by default.
+      const listed: IncusDeclaration = {
+        ...DECLARATION,
+        sandboxHosts: [
+          listedHost('node-1', 'https://10.30.0.1:8443'),
+          listedHost('node-2', 'https://10.0.0.2:8443'),
+        ],
+      };
       const mounts = () =>
-        Object.values(
-          [...setup.fake.instances.values()].find(
-            (instance) => instance.config['user.tale.service'] === 'sandbox',
-          )?.devices ?? {},
-        ).map((device) => device.source);
+        Object.values(spawner()?.devices ?? {}).map((device) => device.source);
       await allowRegistries();
       await deploy(N);
       // The record starts empty: the spawner rebuilds it from the hosts.
@@ -680,6 +700,74 @@ describePosix(
       expect(mounts()).not.toContain('sandbox-state');
       await deploy(NEXT, { declaration: listed });
       expect(setup.fake.volumes.has('sandbox-state')).toBe(true);
+    });
+
+    test('a stack that ran with the one host is refused a list without its endpoint and project, plan, deploy and --services alike, and nothing changes', async () => {
+      await allowRegistries();
+      await deploy(N);
+      const project =
+        spawner()?.config['environment.SANDBOX_INCUS_PROJECT'] ?? '';
+      expect(project).toBe('tale-sessions');
+      const sentence = SANDBOX_HOST_MOVE_SENTENCES.unmatched({
+        endpoint: 'https://10.30.0.1:8443',
+        project,
+      });
+      const before = census();
+      const volumes = [...setup.fake.volumes.keys()].sort();
+      for (const hosts of [
+        [listedHost('node-2', 'https://10.0.0.2:8443')],
+        [listedHost('node-1', 'https://10.30.0.1:8443', 'other-sessions')],
+      ]) {
+        const declaration: IncusDeclaration = {
+          ...DECLARATION,
+          sandboxHosts: hosts,
+        };
+        for (const dryRun of [true, false]) {
+          await expect(deploy(NEXT, { declaration, dryRun })).rejects.toThrow(
+            sentence,
+          );
+          await expect(
+            deploy(NEXT, { declaration, dryRun, services: ['sandbox'] }),
+          ).rejects.toThrow(sentence);
+        }
+        expect(census()).toEqual(before);
+        expect([...setup.fake.volumes.keys()].sort()).toEqual(volumes);
+        expect(spawner()?.config['environment.SANDBOX_INCUS_ENDPOINT']).toBe(
+          'https://10.30.0.1:8443',
+        );
+      }
+      expect(await getCurrentColor(setup.deployDir)).toBe('blue');
+    });
+
+    test('the one host is kept in the journal while no spawner runs, and a spawner removed on purpose lets the list leave it', async () => {
+      const declaration: IncusDeclaration = {
+        ...DECLARATION,
+        sandboxHosts: [listedHost('node-2', 'https://10.0.0.2:8443')],
+      };
+      await allowRegistries();
+      await deploy(N);
+      await deploy(NEXT);
+      expect((await readJournal(setup.deployDir))?.sandboxHost).toEqual({
+        endpoint: 'https://10.30.0.1:8443',
+        project: 'tale-sessions',
+      });
+      // A crash between the spawner's removal and its replacement.
+      setup.fake.instances.delete('sandbox');
+      await expect(deploy(N, { declaration })).rejects.toThrow(
+        SANDBOX_HOST_MOVE_SENTENCES.unmatched({
+          endpoint: 'https://10.30.0.1:8443',
+          project: 'tale-sessions',
+        }),
+      );
+      // tale reset --all removes it on purpose: its sessions are left.
+      setup.seedFacts();
+      await deploy(NEXT);
+      await setup.workspace().runtime.remove('tale-sandbox');
+      expect((await readJournal(setup.deployDir))?.sandboxHost).toBeNull();
+      await deploy(N, { declaration });
+      expect(
+        spawner()?.config['environment.SANDBOX_INCUS_ENDPOINTS'],
+      ).toBeDefined();
     });
   },
 );

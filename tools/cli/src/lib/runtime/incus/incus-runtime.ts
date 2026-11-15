@@ -771,20 +771,30 @@ export class IncusRuntime implements StackRuntime {
   }
 
   /** Remove the instance; a withdrawal marker the journal holds for it
-   * goes with it. */
+   * goes with it, and so does the one host of a sandbox spawner removed on
+   * purpose (`tale reset --all`), whose sessions a later list may leave. */
   async remove(name: string): Promise<boolean> {
     const instance = this.instanceName(name);
+    const spawner =
+      (await this.client.getInstance(instance))?.instance.config[
+        'user.tale.service'
+      ] === 'sandbox';
     const removed = await removeStackInstance(
       this.client,
       this.stack,
       instance,
     );
     const journal = await readJournal(this.stateRoot);
-    if (journal?.withdrawn.some((entry) => entry.instance === instance))
+    const withdrawn = journal?.withdrawn.some(
+      (entry) => entry.instance === instance,
+    );
+    const host = spawner && (journal?.sandboxHost ?? null) !== null;
+    if (withdrawn || host)
       await updateJournal(this.stateRoot, this.stack, (next) => {
         next.withdrawn = next.withdrawn.filter(
           (entry) => entry.instance !== instance,
         );
+        if (host) next.sandboxHost = null;
       });
     return removed;
   }

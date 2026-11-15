@@ -142,6 +142,7 @@ import {
 } from './runtime-sandbox';
 import { assertIncusCredentials } from './runtime-sandbox-credentials';
 import {
+  admitSandboxHostMove,
   admitSandboxPlacement,
   clearSandboxPlacement,
 } from './runtime-sandbox-placement';
@@ -646,6 +647,9 @@ export async function applyIncusRuntime(
   requireRuntime(prepared !== undefined, INCUS_APPLY_SENTENCES.notIncus);
   assertPreparedStack(target, prepared);
   runtime.useTarget(target);
+  // A spawner that ran with the one host keeps its sessions in the list only
+  // through an entry of that host's endpoint and project.
+  await admitSandboxHostMove(runtime, target, options.dryRun === true);
 
   // The node against the stack's contract, as the restricted certificate
   // reads it; forwarding is judged by `tale incus check`'s probes.
