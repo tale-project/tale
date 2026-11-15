@@ -1023,7 +1023,11 @@ describe('GET /my/api-keys', () => {
         sql,
         auth: {} as never,
       }).request('/my/api-keys?orgId=o1');
-      expect(await res.json()).toEqual({ mayCreate, holdsKeys: false });
+      expect(await res.json()).toEqual({
+        mayCreate,
+        holdsKeys: false,
+        personalKeys: 'admitted',
+      });
       // A role or a grant in another organization never counts: a key made
       // from this session works here alone.
       expect(mayConnectAgentIn).toHaveBeenCalledWith(expect.anything(), {
