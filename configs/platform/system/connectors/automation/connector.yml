@@ -48,6 +48,20 @@ actions:
           maxLength: 200
           description: The step's name for the place, such as window or a repository.
     output: '{ value: unknown, revision: string }'
+    scenarios:
+      - name: saved_place
+        kind: success
+        description: 'The run reads the place its last save wrote, with the revision that save landed under.'
+        output: { value: { until: 1791000000000 }, revision: '3' }
+      - name: nothing_saved
+        kind: empty
+        description: 'No run has saved the place yet, so it answers null at revision 0, as on the first run.'
+        output: { value: null, revision: '0' }
+      - name: not_a_step
+        kind: error
+        description: 'The call comes from outside an automation run, which keeps no place to read.'
+        error:
+          message: 'automation.read_position keeps the place of the automation it runs in, and this call is not a step of one'
     mock: |
       return { value: null, revision: '0' };
     backend:
@@ -90,6 +104,20 @@ actions:
           pattern: '^[0-9]{1,19}$'
           description: The revision read_position answered in this run.
     output: '{ saved: boolean, conflict: boolean, revision: string }'
+    scenarios:
+      - name: place_saved
+        kind: success
+        description: 'The place still holds the revision the run read, so the save lands and answers the new revision.'
+        output: { saved: true, conflict: false, revision: '4' }
+      - name: run_gone
+        kind: refusal
+        description: 'The run the step belongs to no longer exists, so there is no automation whose place to move.'
+        error:
+          message: 'The run no longer exists, so there is no automation to keep the place of'
+      - name: saved_again
+        kind: duplicate
+        description: 'The same save comes again after it landed: the place holds a newer revision, so it answers conflict and changes nothing.'
+        output: { saved: false, conflict: true, revision: '4' }
     mock: |
       return { saved: true, conflict: false, revision: String(Number(input.revision) + 1) };
     backend:

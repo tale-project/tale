@@ -134,9 +134,9 @@ ships them on every action is put on the list, and none is taken off, since test
 by name. Each scenario of a listed connector is held against its live call: given the answer its
 service sends, the live call returns the scenario's output, or fails with its error, its status
 and the same cause. A native action has no live call, so it is held against its native
-implementation on the mailbox each proof names, and its error carries no status, since a native
-error carries none. A scenario is data, never code, and made up: it names no real person,
-workspace or customer.
+implementation: on the mailbox each proof names for a mail native, and on the answer its store or
+its runner gives for every other native. Its error carries no status, since a native error carries
+none. A scenario is data, never code, and made up: it names no real person, workspace or customer.
 
 - **Example**: Lena adds an action that sends a message to a connector on the list, with a
   success and a refusal but no duplicate → the catalog check fails, naming the action and the

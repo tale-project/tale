@@ -28,6 +28,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import type {
+  ConnectorCaller,
   NativeConnectorContext,
   NativeConnectorImpl,
 } from '../../connectors/dispatcher';
@@ -52,13 +53,28 @@ import {
   type SmtpSession,
 } from '../../connectors/natives/imap-smtp';
 import {
+  platformAutomationNatives,
+  type PositionSave,
+  type WorkflowAutomationPositions,
+} from '../../connectors/natives/platform-automation';
+import {
   platformConversationNatives,
   type WorkflowConversationStore,
 } from '../../connectors/natives/platform-conversations';
 import {
+  platformDocumentNatives,
+  type WorkflowDocumentStore,
+  type WorkflowFolderFile,
+} from '../../connectors/natives/platform-documents';
+import {
   notifyNatives,
   type WorkflowNotifyStore,
 } from '../../connectors/natives/platform-notify';
+import {
+  sandboxScriptNatives,
+  type SandboxScriptOutcome,
+  type SandboxScriptRunner,
+} from '../../connectors/natives/sandbox-script';
 import {
   type WebdavEntry,
   type WebdavStore,
@@ -120,14 +136,19 @@ const EXPECTED_SLUGS = [
  * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
  * never removed: tests pick its scenarios by name, so the list only grows. */
 const SCENARIO_CONNECTORS = [
+  'automation',
+  'confluence',
   'conversation',
   'discord',
+  'document',
   'gmail',
+  'google-drive',
   'http',
   'imap-smtp',
   'jev',
   'notify',
   'outlook',
+  'sandbox',
   'slack',
   'tavily',
   'teams',
@@ -2211,6 +2232,142 @@ const TWILIO_PROOFS: Record<string, ProofAnswers> = {
   },
 };
 
+/** The Confluence site the credential names: a synthetic Atlassian origin,
+ * which the bodies build every URL from (`ctx.endpoint`). */
+const CONFLUENCE_ORIGIN = 'https://example.atlassian.net';
+
+/** The one search each list makes: the pages of space ENG, whose current
+ * pages come first and whose archived pages follow in a second search. */
+const CONFLUENCE_SEARCH = `${CONFLUENCE_ORIGIN}/wiki/rest/api/content/search?cql=space%3D%22ENG%22%20and%20type%3Dpage`;
+const CONFLUENCE_CURRENT = `GET ${CONFLUENCE_SEARCH}&expand=version,ancestors,space&limit=100`;
+const CONFLUENCE_ARCHIVED = `GET ${CONFLUENCE_SEARCH}&cqlcontext=%7B%22contentStatuses%22%3A%5B%22archived%22%5D%7D&limit=100`;
+
+/** The request get_page makes for a page: its rendered body and its storage
+ * body, which the body reads for the page's text. */
+function confluencePage(id: string): string {
+  return `GET ${CONFLUENCE_ORIGIN}/wiki/rest/api/content/${id}?expand=body.export_view,body.storage`;
+}
+
+/** A search's answer: the results on this page and the link base the body
+ * builds each page's web address from. A last page carries no next link. */
+function confluenceList(results: unknown[]): ServiceAnswer {
+  return {
+    status: 200,
+    body: {
+      results,
+      size: results.length,
+      _links: { base: `${CONFLUENCE_ORIGIN}/wiki` },
+    },
+  };
+}
+
+/** Confluence's answers to a bad account and to a rate limit: the status and
+ * the error body as Confluence sends it, which the body puts in its message. */
+const CONFLUENCE_UNAUTHORIZED: ServiceAnswer = {
+  status: 401,
+  body: '{"statusCode":401,"message":"Client must be authenticated to access this resource."}',
+};
+const CONFLUENCE_RATE_LIMITED: ServiceAnswer = {
+  status: 429,
+  headers: { 'retry-after': '30' },
+  body: '{"statusCode":429,"message":"Rate limit exceeded."}',
+};
+
+const CONFLUENCE_HANDBOOK = {
+  id: '1001',
+  title: 'Handbook',
+  version: { number: 3, when: '2026-10-02T09:00:00.000Z' },
+  ancestors: [],
+  space: { key: 'ENG' },
+  _links: { webui: '/spaces/ENG/pages/1001/Handbook' },
+};
+
+const CONFLUENCE_ONBOARDING = {
+  id: '1002',
+  title: 'Onboarding',
+  version: { number: 1, when: '2026-10-03T10:00:00.000Z' },
+  ancestors: [{ id: '1001', title: 'Handbook' }],
+  space: { key: 'ENG' },
+  _links: { webui: '/spaces/ENG/pages/1002/Onboarding' },
+};
+
+const CONFLUENCE_ARCHIVED_PAGE = {
+  id: '1003',
+  title: 'Old runbook',
+  version: { number: 2, when: '2026-09-20T08:00:00.000Z' },
+  ancestors: [],
+  space: { key: 'ENG' },
+  _links: { webui: '/spaces/ENG/pages/1003/Old+runbook' },
+};
+
+/** A page's rendered body and storage body, as get_page reads them. */
+function confluenceBody(html: string): ServiceAnswer {
+  return {
+    status: 200,
+    body: {
+      id: '123456',
+      title: 'Onboarding',
+      body: { export_view: { value: html }, storage: { value: html } },
+    },
+  };
+}
+
+/**
+ * The proof of every Confluence scenario, keyed as Slack's are: Confluence's
+ * answer to each request the action makes, in the order the body makes them.
+ * An answer carries the members the action's output names; the bodies hand
+ * the pages on as they come, and throw a refusal with its status.
+ */
+const CONFLUENCE_PROOFS: Record<string, ProofAnswers> = {
+  'list_pages/two_pages': {
+    [CONFLUENCE_CURRENT]: confluenceList([
+      CONFLUENCE_HANDBOOK,
+      CONFLUENCE_ONBOARDING,
+    ]),
+    [CONFLUENCE_ARCHIVED]: confluenceList([CONFLUENCE_ARCHIVED_PAGE]),
+  },
+  'list_pages/no_pages': {
+    [CONFLUENCE_CURRENT]: confluenceList([]),
+    [CONFLUENCE_ARCHIVED]: confluenceList([]),
+  },
+  'list_pages/invalid_credentials': {
+    [CONFLUENCE_CURRENT]: CONFLUENCE_UNAUTHORIZED,
+  },
+  'list_pages/rate_limited': {
+    [CONFLUENCE_CURRENT]: CONFLUENCE_RATE_LIMITED,
+  },
+  'get_page/one_page': {
+    [confluencePage('123456')]: confluenceBody(
+      '<p>Welcome to the team.</p><p>Read the handbook first.</p>',
+    ),
+  },
+  // An image-only page: its text is empty, so nothing is stored.
+  'get_page/no_text': {
+    [confluencePage('123456')]: confluenceBody(
+      '<p><ac:image><ri:attachment ri:filename="diagram.png" /></ac:image></p>',
+    ),
+  },
+  'get_page/page_not_found': {
+    [confluencePage('999999')]: {
+      status: 404,
+      body: '{"statusCode":404,"message":"No content found with id: ContentId{id=999999}"}',
+    },
+  },
+};
+
+/** The file each Confluence proof stores: the page's text, as the body
+ * converts it. */
+const CONFLUENCE_STORED: Record<string, StoredFile[]> = {
+  'get_page/one_page': [
+    {
+      fileName: 'Onboarding.txt',
+      contentType: 'text/plain',
+      encoding: 'utf-8',
+      data: 'Welcome to the team.\n\nRead the handbook first.',
+    },
+  ],
+};
+
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
 /** The message of the Gmail actions' example input, which starts its own
@@ -2849,22 +3006,29 @@ type StoreAnswer =
   | { refuses: WebdavStoreErrorCode }
   | { throws: string };
 
-/** A store method a native case answers: each method of the stores the native
+/** A call a native case answers: each method of the stores the native
  * connectors read (WebDAV's document store, the notification store, the
- * conversation store). */
+ * conversation store, the automation position store), and the script runner
+ * the sandbox native calls. */
 type NativeCall =
   | keyof WebdavStore
   | keyof WorkflowNotifyStore
-  | keyof WorkflowConversationStore;
+  | keyof WorkflowConversationStore
+  | keyof WorkflowAutomationPositions
+  | keyof WorkflowDocumentStore
+  | 'runScript';
 
-/** One case of a native action: the store method it calls, and what the store
- * answers. A native's service is its store, so the proof is that answer. A
- * case the native refuses on its input before its store is reached makes no
- * store call, and declares `storeCalls: 0` in place of a call; every other
- * case makes one. */
-type NativeProof =
+/** One case of a native action: the call it makes to its service, and what the
+ * service answers. A native's service is its store or its runner, so the proof
+ * is that answer. A case the native refuses on its input before its service is
+ * reached makes no call, and declares `storeCalls: 0` in place of a call; every
+ * other case makes one. A case whose caller is not the run's workflow caller
+ * names it in `caller`; a case that names none runs as the workflow caller that
+ * `nativeContext()` supplies. */
+type NativeProof = (
   | { call: NativeCall; answer: StoreAnswer; storeCalls?: 1 }
-  | { storeCalls: 0 };
+  | { storeCalls: 0 }
+) & { caller?: ConnectorCaller };
 
 /** The bytes a store holds for a file, as the store hands them over. */
 const storedBytes = (text: string): Uint8Array =>
@@ -3295,17 +3459,350 @@ const CONVERSATION_NATIVE_PROOFS: Record<string, NativeProof> = {
 };
 
 /**
+ * The sandbox's proofs, keyed `<action>/<scenario>`: what its script runner
+ * answers the native, given the action's example input with the scenario's
+ * `when` laid over it. A script that completed in the run's session, the same
+ * script run again, and a call made outside any run. Synthetic.
+ */
+const SANDBOX_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'run_script/completed': {
+    call: 'runScript',
+    answer: {
+      returns: {
+        ok: true,
+        status: 'completed',
+        result: {
+          status: 'ok',
+          verdict: { passed: true, issues: [] },
+          period: { label: '2026Q1' },
+        },
+        files: [
+          {
+            name: 'result.json',
+            storageId: 'blob_example_result',
+            size: 128,
+            contentType: 'application/json',
+          },
+        ],
+        exitCode: 0,
+        stdoutPreview: 'Verified 2 transactions.',
+        stderrPreview: '',
+        durationMs: 1200,
+      } satisfies SandboxScriptOutcome,
+    },
+  },
+  // The native refuses a call made outside an automation run before its runner
+  // is reached, so the case makes no runner call.
+  'run_script/outside_run': {
+    storeCalls: 0,
+    caller: { kind: 'user', userId: 'user_example' },
+  },
+  'run_script/run_again': {
+    call: 'runScript',
+    answer: {
+      returns: {
+        ok: true,
+        status: 'completed',
+        result: {
+          status: 'ok',
+          verdict: { passed: true, issues: [] },
+          period: { label: '2026Q1' },
+        },
+        files: [
+          {
+            name: 'result.json',
+            storageId: 'blob_example_result_again',
+            size: 128,
+            contentType: 'application/json',
+          },
+        ],
+        exitCode: 0,
+        stdoutPreview: 'Verified 2 transactions.',
+        stderrPreview: '',
+        durationMs: 980,
+      } satisfies SandboxScriptOutcome,
+    },
+  },
+};
+
+const DOCUMENT_FILES = [
+  { name: 'invoice-001.pdf', storageId: 'blob_a' },
+  { name: 'summary.xlsx', storageId: 'blob_b' },
+] satisfies WorkflowFolderFile[];
+
+/**
+ * The document native's proofs, keyed `<action>/<scenario>`: what its document
+ * store answers in each case. A refusal the store raises is the message the
+ * native's error carries, and the native passes it on unchanged.
+ */
+const DOCUMENT_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'list/two_files': {
+    call: 'listFolder',
+    answer: { returns: { files: DOCUMENT_FILES, truncated: false } },
+  },
+  'list/empty': {
+    call: 'listFolder',
+    answer: { returns: { files: [], truncated: false } },
+  },
+  'list/missing_folder': {
+    call: 'listFolder',
+    answer: { returns: null },
+  },
+  'create/created': {
+    call: 'create',
+    answer: { returns: { documentId: 'doc_0002', action: 'created' } },
+  },
+  'create/updated': {
+    call: 'create',
+    answer: { returns: { documentId: 'doc_0001', action: 'updated' } },
+  },
+  'create/not_stored': {
+    call: 'create',
+    answer: {
+      throws:
+        'document.create: storageId is not a stored file of this organization ({"storageId":"blob_missing"})',
+    },
+  },
+};
+
+const AUTOMATION_PLACE = { until: 1791000000000 };
+
+/**
+ * The automation native's proofs, keyed `<action>/<scenario>`: what its
+ * position store answers in each case. A read or save is a step of the run the
+ * case names, which is the workflow caller `nativeContext()` supplies, unless
+ * the case names another caller.
+ */
+const AUTOMATION_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'read_position/saved_place': {
+    call: 'read',
+    answer: { returns: { value: AUTOMATION_PLACE, revision: '3' } },
+  },
+  'read_position/nothing_saved': {
+    call: 'read',
+    answer: { returns: { value: null, revision: '0' } },
+  },
+  // A read made outside any run is refused before the store is reached, so the
+  // case makes no store call.
+  'read_position/not_a_step': {
+    storeCalls: 0,
+    caller: { kind: 'user', userId: 'user_example' },
+  },
+  'save_position/place_saved': {
+    call: 'save',
+    answer: {
+      returns: {
+        saved: true,
+        conflict: false,
+        revision: '4',
+      } satisfies PositionSave,
+    },
+  },
+  // The store answers null when the run is gone, and the native refuses it.
+  'save_position/run_gone': {
+    call: 'save',
+    answer: { returns: null },
+  },
+  'save_position/saved_again': {
+    call: 'save',
+    answer: {
+      returns: {
+        saved: false,
+        conflict: true,
+        revision: '4',
+      } satisfies PositionSave,
+    },
+  },
+};
+
+const DRIVE = 'https://www.googleapis.com/drive/v3';
+const DRIVE_FOLDER = 'application/vnd.google-apps.folder';
+const DRIVE_EXAMPLE_ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz';
+
+/** The request a list_files body makes for a folder's children: a flat list
+ * leaves the folders out, a recursive walk lists them to descend into. */
+function driveList(folderId: string, recursive: boolean): string {
+  const parts = [`'${folderId}' in parents`, 'trashed = false'];
+  if (!recursive) parts.push(`mimeType != '${DRIVE_FOLDER}'`);
+  const q = encodeURIComponent(parts.join(' and '));
+  const fields = encodeURIComponent(
+    'nextPageToken, files(id, name, size, mimeType, modifiedTime, md5Checksum)',
+  );
+  return `GET ${DRIVE}/files?q=${q}&fields=${fields}&pageSize=200`;
+}
+
+/** The request a download_file body makes for a file's bytes. */
+function driveDownload(fileId: string): string {
+  return `GET ${DRIVE}/files/${encodeURIComponent(fileId)}?alt=media`;
+}
+
+/** Drive's answer to a file or folder it does not find, in Google's error
+ * body, as gmailError builds it. */
+function driveNotFound(id: string): ServiceAnswer {
+  return gmailError(404, 'NOT_FOUND', `File not found: ${id}.`, {
+    message: `File not found: ${id}.`,
+    domain: 'global',
+    reason: 'notFound',
+  });
+}
+
+const DRIVE_TOKEN_EXPIRED = gmailError(
+  401,
+  'UNAUTHENTICATED',
+  'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.',
+  {
+    message: 'Invalid Credentials',
+    domain: 'global',
+    reason: 'authError',
+    location: 'Authorization',
+    locationType: 'header',
+  },
+);
+
+const DRIVE_RATE_LIMITED = gmailError(
+  429,
+  'RESOURCE_EXHAUSTED',
+  'Rate Limit Exceeded',
+  {
+    message: 'Rate Limit Exceeded',
+    domain: 'usageLimits',
+    reason: 'rateLimitExceeded',
+  },
+);
+
+/** Drive's answer to a download of a Google Docs file, which has no bytes. */
+const DRIVE_NATIVE_FORMAT = gmailError(
+  403,
+  'PERMISSION_DENIED',
+  'Only files with binary content can be downloaded. Use Export with Docs Editors files to export.',
+  {
+    message:
+      'Only files with binary content can be downloaded. Use Export with Docs Editors files to export.',
+    domain: 'global',
+    reason: 'fileNotDownloadable',
+  },
+);
+
+const DRIVE_BUDGET = {
+  id: 'file-budget',
+  name: 'budget-2026.csv',
+  size: '1280',
+  mimeType: 'text/csv',
+  modifiedTime: '2026-10-14T09:30:00.000Z',
+  md5Checksum: '5d41402abc4b2a76b9719d911017c592',
+};
+
+const DRIVE_MINUTES = {
+  id: 'file-minutes',
+  name: 'board-minutes.pdf',
+  size: '46',
+  mimeType: 'application/pdf',
+  modifiedTime: '2026-10-15T08:00:00.000Z',
+  md5Checksum: '0cc175b9c0f1b6a831c399e269772661',
+};
+
+const DRIVE_REPORTS = {
+  id: 'folder-reports',
+  name: 'Reports 2026',
+  mimeType: DRIVE_FOLDER,
+  modifiedTime: '2026-10-01T09:00:00.000Z',
+};
+
+const DRIVE_Q3 = {
+  id: 'file-q3',
+  name: 'q3-summary.csv',
+  size: '512',
+  mimeType: 'text/csv',
+  modifiedTime: '2026-10-03T10:00:00.000Z',
+  md5Checksum: '9bb58f26192e4ba00f01e2e7b136bbd8',
+};
+
+/** The synthetic report a download fetches: 46 bytes, a PDF. */
+const DRIVE_REPORT_PDF = '%PDF-1.7\n% Synthetic report REP-2026-Q3\n%%EOF\n';
+
+/** The proof of every Google Drive scenario: Drive's answer to each request
+ * the action makes, in the order the body makes them. */
+const DRIVE_PROOFS: Record<string, ProofAnswers> = {
+  'list_files/two_files': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: {
+      status: 200,
+      body: { files: [DRIVE_BUDGET, DRIVE_MINUTES] },
+    },
+  },
+  'list_files/nested_folders': {
+    [driveList(DRIVE_EXAMPLE_ID, true)]: {
+      status: 200,
+      body: { files: [DRIVE_REPORTS, DRIVE_BUDGET] },
+    },
+    [driveList(DRIVE_REPORTS.id, true)]: {
+      status: 200,
+      body: { files: [DRIVE_Q3] },
+    },
+  },
+  'list_files/no_files': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: {
+      status: 200,
+      body: { kind: 'drive#fileList', incompleteSearch: false, files: [] },
+    },
+  },
+  'list_files/token_expired': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: DRIVE_TOKEN_EXPIRED,
+  },
+  'list_files/rate_limited': {
+    [driveList(DRIVE_EXAMPLE_ID, false)]: DRIVE_RATE_LIMITED,
+  },
+  'list_files/folder_not_found': {
+    [driveList('folder-missing', false)]: driveNotFound('folder-missing'),
+  },
+  'download_file/stored': {
+    [driveDownload(DRIVE_EXAMPLE_ID)]: {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+      body: DRIVE_REPORT_PDF,
+    },
+  },
+  'download_file/no_link': {
+    [driveDownload(DRIVE_EXAMPLE_ID)]: {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+      body: DRIVE_REPORT_PDF,
+    },
+  },
+  'download_file/file_not_found': {
+    [driveDownload('file-missing')]: driveNotFound('file-missing'),
+  },
+  'download_file/native_format': {
+    [driveDownload('doc-meeting-notes')]: DRIVE_NATIVE_FORMAT,
+  },
+  'download_file/rate_limited': {
+    [driveDownload('file-busy')]: DRIVE_RATE_LIMITED,
+  },
+};
+
+/** The files each Google Drive proof stores: a download keeps its bytes. */
+const DRIVE_STORED: Record<string, StoredFile[]> = {
+  'download_file/stored': [
+    gmailStored('report.pdf', 'application/pdf', DRIVE_REPORT_PDF),
+  ],
+  'download_file/no_link': [
+    gmailStored('report.pdf', 'application/pdf', DRIVE_REPORT_PDF),
+  ],
+};
+
+/**
  * Every listed connector's proofs. A connector whose actions call HTTP proves
  * them with the answers its live body gets, and the secrets its credential
  * holds — synthetic, as every answer is — and, by proof, the files its body
  * stores, in their order; a proof it does not name stores none. A native
  * connector proves its actions against the native implementation, with the
- * mailbox each proof names. A connector joins `SCENARIO_CONNECTORS` with its
- * proofs, or this does not type-check.
+ * service each proof names: a mailbox, a store, or a runner. A connector joins
+ * `SCENARIO_CONNECTORS` with its proofs, or this does not type-check.
  */
 type ScenarioProofs =
   | { natives: Record<string, MailProof> }
   | {
+      /** The endpoint the credential names, which a body reads as `ctx.endpoint`. */
+      endpoint?: string;
       secrets?: Record<string, string>;
       proofs: Record<string, ProofAnswers>;
       /** A native connector's cases, proven against its store instead. */
@@ -3314,9 +3811,17 @@ type ScenarioProofs =
     };
 
 const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
+  automation: { proofs: {}, native: AUTOMATION_NATIVE_PROOFS },
+  confluence: {
+    endpoint: CONFLUENCE_ORIGIN,
+    proofs: CONFLUENCE_PROOFS,
+    stored: CONFLUENCE_STORED,
+  },
   conversation: { proofs: {}, native: CONVERSATION_NATIVE_PROOFS },
   discord: { proofs: DISCORD_PROOFS },
+  document: { proofs: {}, native: DOCUMENT_NATIVE_PROOFS },
   gmail: { proofs: GMAIL_PROOFS, stored: GMAIL_STORED },
+  'google-drive': { proofs: DRIVE_PROOFS, stored: DRIVE_STORED },
   http: { proofs: HTTP_PROOFS },
   'imap-smtp': { natives: IMAP_SMTP_PROOFS },
   jev: {
@@ -3325,6 +3830,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   },
   notify: { proofs: {}, native: NOTIFY_NATIVE_PROOFS },
   outlook: { proofs: OUTLOOK_PROOFS, stored: OUTLOOK_STORED },
+  sandbox: { proofs: {}, native: SANDBOX_NATIVE_PROOFS },
   slack: { proofs: SLACK_PROOFS },
   tavily: {
     secrets: { apiKey: 'example-tavily-key' },
@@ -3358,11 +3864,14 @@ interface StoredFile {
 function proofHost(
   answers: ProofAnswers,
   secrets: Record<string, string> = {},
+  endpoint?: string,
 ): {
   ctx: Pick<
     ConnectorContext,
-    'http' | 'secrets' | 'base64Encode' | 'base64Decode'
-  > & { files: Pick<NonNullable<ConnectorContext['files']>, 'store'> };
+    'endpoint' | 'http' | 'secrets' | 'base64Encode' | 'base64Decode'
+  > & {
+    files: Pick<NonNullable<ConnectorContext['files']>, 'store' | 'download'>;
+  };
   asked: string[];
   stored: StoredFile[];
 } {
@@ -3383,7 +3892,22 @@ function proofHost(
         typeof body === 'string' ? body : JSON.stringify(body),
       );
     };
+  const store = async (
+    data: string,
+    { encoding, contentType, fileName }: Omit<StoredFile, 'data'>,
+  ) => {
+    stored.push({ fileName, contentType, encoding, data });
+    const n = String(stored.length).padStart(12, '0');
+    return {
+      id: `s3:example-org/00000000-0000-0000-0000-${n}`,
+      fileName,
+      contentType,
+      size: Buffer.from(data, encoding === 'base64' ? 'base64' : 'utf8')
+        .byteLength,
+    };
+  };
   const ctx = {
+    ...(endpoint !== undefined && { endpoint }),
     http: {
       get: answer('GET'),
       post: answer('POST'),
@@ -3393,19 +3917,26 @@ function proofHost(
     },
     secrets: { get: (name: string) => secrets[name] ?? '' },
     files: {
-      store: async (
-        data: string,
-        { encoding, contentType, fileName }: Omit<StoredFile, 'data'>,
-      ) => {
-        stored.push({ fileName, contentType, encoding, data });
-        const n = String(stored.length).padStart(12, '0');
-        return {
-          id: `s3:example-org/00000000-0000-0000-0000-${n}`,
+      store,
+      // As the live host downloads: the vendor's bytes are stored as they
+      // came, and a refusal raises the failed download with the vendor's
+      // status, the message the live host builds for it.
+      download: async (url: string, { fileName }: { fileName: string }) => {
+        const response = await answer('GET')(url);
+        if (response.status < 200 || response.status >= 300) {
+          throw Object.assign(
+            new Error(
+              `download of ${fileName} failed (${response.status}) from ${new URL(url).host}`,
+            ),
+            { status: response.status },
+          );
+        }
+        return store(Buffer.from(response.text()).toString('base64'), {
+          encoding: 'base64',
+          contentType:
+            response.headers['content-type'] ?? 'application/octet-stream',
           fileName,
-          contentType,
-          size: Buffer.from(data, encoding === 'base64' ? 'base64' : 'utf8')
-            .byteLength,
-        };
+        });
       },
     },
     base64Encode,
@@ -3766,9 +4297,9 @@ describe('a connector scenario fits its action and answers as the live call woul
       if (action.backend?.kind !== 'yaml-js') {
         throw new Error(`${slug}.${actionName} has no live body`);
       }
-      const { secrets, proofs, stored: storing } = entry;
+      const { endpoint, secrets, proofs, stored: storing } = entry;
       const answers = proofs[key];
-      const { ctx, asked, stored } = proofHost(answers, secrets);
+      const { ctx, asked, stored } = proofHost(answers, secrets, endpoint);
       const outcome = await outcomeOf(
         inProcessLiveRunner().runBody(
           connectorLiveBody(connector, action.backend.live),
@@ -3909,8 +4440,51 @@ function notifyStoreOf(
   };
 }
 
+/** A document store that answers the one call its proof names. */
+function documentStoreOf(
+  proof: NativeProof,
+  asked: string[],
+): WorkflowDocumentStore {
+  const answer = answerOf(proof, asked);
+  return {
+    listFolder: async () =>
+      answer('listFolder') as Awaited<
+        ReturnType<WorkflowDocumentStore['listFolder']>
+      >,
+    create: async () =>
+      answer('create') as Awaited<ReturnType<WorkflowDocumentStore['create']>>,
+  };
+}
+
+/** A position store that answers its one call with the proof's answer. */
+function automationStoreOf(
+  proof: NativeProof,
+  asked: string[],
+): WorkflowAutomationPositions {
+  const answer = answerOf(proof, asked);
+  return {
+    read: async () =>
+      answer('read') as Awaited<
+        ReturnType<WorkflowAutomationPositions['read']>
+      >,
+    save: async () =>
+      answer('save') as Awaited<
+        ReturnType<WorkflowAutomationPositions['save']>
+      >,
+  };
+}
+
+/** A script runner that answers its one call with the proof's answer. */
+function sandboxRunnerOf(
+  proof: NativeProof,
+  asked: string[],
+): SandboxScriptRunner {
+  const answer = answerOf(proof, asked);
+  return async () => answer('runScript') as SandboxScriptOutcome;
+}
+
 /** The native backend each native connector's proofs run against: its own
- * implementation, over the store the proof answers. */
+ * implementation, over the store or runner the proof answers. */
 const NATIVE_BACKENDS: Partial<
   Record<
     ScenarioConnector,
@@ -3920,16 +4494,28 @@ const NATIVE_BACKENDS: Partial<
     ) => Readonly<Record<string, NativeConnectorImpl>>
   >
 > = {
+  automation: (proof, asked) =>
+    platformAutomationNatives(automationStoreOf(proof, asked)),
   conversation: (proof, asked) =>
     platformConversationNatives(conversationStoreOf(proof, asked)),
+  document: (proof, asked) =>
+    platformDocumentNatives(documentStoreOf(proof, asked)),
   notify: (proof, asked) => notifyNatives(notifyStoreOf(proof, asked)),
+  sandbox: (proof, asked) =>
+    sandboxScriptNatives(sandboxRunnerOf(proof, asked)),
   webdav: (proof, asked) => webdavNatives(proofStore(proof, asked)),
 };
 
 /** The context a native runs in: its organization, and no HTTP, which none of
  * these natives makes. The caller is a step of a run, as the executor calls a
- * native, which `notify.member` sends as. */
-function nativeContext(): NativeConnectorContext {
+ * native, which `notify.member` sends as, unless the case names another. */
+function nativeContext(
+  caller: ConnectorCaller = {
+    kind: 'workflow',
+    runId: 'run_example',
+    nodeId: 'node_example',
+  },
+): NativeConnectorContext {
   const noHttp = () => Promise.reject(new Error('no HTTP in a native'));
   return {
     secrets: { get: () => '' },
@@ -3938,7 +4524,7 @@ function nativeContext(): NativeConnectorContext {
     organizationId: 'org_example',
     credentialId: 'cred_example',
     authMethod: 'basic',
-    caller: { kind: 'workflow', runId: 'run_example', nodeId: 'node_example' },
+    caller,
     http: {
       get: noHttp,
       post: noHttp,
@@ -3987,11 +4573,14 @@ describe('a native scenario answers as its native action does [CONN-R33]', () =>
         throw new Error(`${action.backend.impl} is not a native of ${slug}`);
       }
       const outcome = await outcomeOf(
-        native({ ...action.exampleInput, ...scenario.when }, nativeContext()),
+        native(
+          { ...action.exampleInput, ...scenario.when },
+          nativeContext(proof.caller),
+        ),
       );
 
-      // The native made the one store call its proof answers, or none where
-      // its proof declares none: a refusal raised before the store.
+      // The native made the one call its proof answers, or none where its proof
+      // declares none: a refusal raised before its service is reached.
       expect(asked).toEqual(proof.storeCalls === 0 ? [] : [proof.call]);
       if (scenario.error === undefined) {
         expect(outcome).toEqual({ output: scenario.output });
