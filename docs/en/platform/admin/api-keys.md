@@ -39,7 +39,7 @@ A sign-in through your organization's SSO, through its authenticating proxy, or 
 
 Owners and Admins choose under **Belongs to** whom a new key is for:
 
-- **Another member**: the key acts as that member, with their current role and teams, in this organization only, and its usage counts toward their limits. You can choose a member whose role is below yours; whenever the **Member** picker leaves someone out, it says why. The key works only while you are still an Owner or Admin above that member: it stops if you leave, lose that role, or the member reaches your role. The member gets a notification, sees the key in their list, and can revoke it. Hand the secret to them through a secure channel.
+- **Another member**: the key acts as that member, with their current role and teams, in this organization only, and its usage counts toward their limits. You can choose a member whose role is below yours. The key works only while you are still an Owner or Admin above that member: it stops if you leave, lose that role, or the member reaches your role. The member gets a notification, sees the key in their list, and can revoke it. Hand the secret to them through a secure channel.
 - **A team**, **A project**, or **The organization**: the key belongs to that team, project, or organization rather than to a person, and keeps working after you leave. It acts with the role you choose under **Acts as**: Member, Editor, or Developer, and Admin for the organization's key only. The role can't be above your own.
 
 <Frame caption="A key for the organization itself acts with the role chosen under Acts as.">
