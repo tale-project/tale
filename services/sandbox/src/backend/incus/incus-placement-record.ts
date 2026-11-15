@@ -11,7 +11,9 @@
 // once since it was first made. A spawner that starts without a record (the
 // first start with it, or a record that could not be read) rebuilds it from
 // every host's listings; `listed` names the hosts already listed, so a
-// restart in the middle of that goes on where it stopped.
+// restart in the middle of that goes on where it stopped, and a host declared
+// later, which it does not name, is listed before the record is complete
+// again.
 
 import { mkdir, open, readFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -22,7 +24,7 @@ export const PLACEMENT_RECORD_FILE = 'placement.json';
 export interface PlacementRecord {
   /** Every declared host has been listed once since the record was made. */
   complete: boolean;
-  /** The hosts listed so far, while the record is not complete. */
+  /** The hosts listed once since the record was made. */
   listed: readonly string[];
   /** Session id → the name of the host it lives on. */
   sessions: Readonly<Record<string, string>>;

@@ -18,9 +18,11 @@
 //    unavailable (503), never started elsewhere. A session the record does
 //    not hold is new, and is placed freely.
 //  - The record is rebuilt from every host's listings when there is none
-//    (the first start with it). Until every host has been listed once, a
-//    session the record does not hold may live on a host not yet listed, so
-//    it is refused as unavailable too.
+//    (the first start with it), and a host it has never listed (one declared
+//    since) is listed before a session the record does not hold is placed.
+//    Until every declared host has been listed once, a session the record
+//    does not hold may live on a host not yet listed, so it is refused as
+//    unavailable too.
 //  - A host that does not connect is skipped for new sessions, with the
 //    reason logged, and not asked again for UNREACHABLE_RETRY_MS. A host that
 //    answers, however slowly or with an error, is not: each Incus request
@@ -234,9 +236,11 @@ export class IncusEndpointSet {
   /** Session id → the name of the host it lives on: the durable record, as
    * read at start and kept since. */
   private readonly placement = new Map<string, string>();
-  /** Every host has been listed once since the record was made. */
+  /** Every declared host has been listed once since the record was made. */
   private complete = false;
-  /** The hosts listed so far while the record is not complete. */
+  /** The declared hosts listed once since the record was made. Kept once
+   * the record is complete: a host declared later is not among them, so it
+   * is listed before the record counts as complete again. */
   private readonly listed = new Set<string>();
   private readonly store: PlacementStore;
   private loaded: Promise<void> | null = null;
@@ -308,8 +312,21 @@ export class IncusEndpointSet {
       for (const [sessionId, name] of Object.entries(record.sessions)) {
         this.placement.set(sessionId, name);
       }
-      this.complete = record.complete;
-      for (const name of record.listed) this.listed.add(name);
+      // A host the record has not listed (one declared since, or one
+      // declared again after it was removed) may hold sessions made without
+      // the record: it is listed before an unnamed session is placed.
+      for (const name of record.listed) {
+        if (this.byName(name) !== undefined) this.listed.add(name);
+      }
+      const unlisted = this.endpoints.filter(
+        (endpoint) => !this.listed.has(endpoint.name),
+      );
+      this.complete = unlisted.length === 0;
+      if (record.complete && unlisted.length > 0) {
+        console.log(
+          `[sandbox.incus] the placement record has not listed ${unlisted.map((e) => e.name).join(', ')}: until it has, a session it does not name is refused`,
+        );
+      }
       const gone = [...new Set(this.placement.values())].filter(
         (name) => this.byName(name) === undefined,
       );
@@ -327,7 +344,7 @@ export class IncusEndpointSet {
   private snapshot(): PlacementRecord {
     return {
       complete: this.complete,
-      listed: this.complete ? [] : [...this.listed].sort(),
+      listed: [...this.listed].sort(),
       sessions: Object.fromEntries(
         [...this.placement].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
       ),
@@ -446,7 +463,6 @@ export class IncusEndpointSet {
     });
     if (this.pendingHosts().length === 0) {
       this.complete = true;
-      this.listed.clear();
       console.log(
         `[sandbox.incus] the placement record is complete: ${this.placement.size} session(s) on their hosts`,
       );

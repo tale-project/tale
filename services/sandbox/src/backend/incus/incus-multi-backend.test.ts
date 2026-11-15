@@ -656,7 +656,7 @@ describe('the placement record', () => {
       undefined,
       new MemoryPlacementStore({
         complete: true,
-        listed: [],
+        listed: ['node-1', 'node-2'],
         sessions: { twice: 'node-2' },
       }),
     );
@@ -710,9 +710,56 @@ describe('the first start with the placement record', () => {
     expect(set.recordComplete).toBe(true);
     expect(fresh.saved).toEqual({
       complete: true,
-      listed: [],
+      listed: ['node-1', 'node-2'],
       sessions: { a: 'node-1', b: 'node-2' },
     });
+  });
+
+  test('lists a host declared later before it places a session it has no record of', async () => {
+    const f = await fleet({ 'node-1': {}, 'node-2': {}, 'node-3': {} });
+    // A record of node-1 and node-2 alone; node-3 holds a stopped session
+    // made without the record (a host declared later, or one served by a
+    // single-host spawner in the meantime).
+    await f.hosts['node-3']!.parts.session.createSession(specOf('old'));
+    await f.hosts['node-3']!.parts.session.stopSession('old');
+    await f.hosts['node-1']!.parts.session.createSession(specOf('busy'));
+    const record = new MemoryPlacementStore({
+      complete: true,
+      listed: ['node-1', 'node-2'],
+      sessions: { busy: 'node-1' },
+    });
+
+    // While node-3 does not answer, a session the record does not name may
+    // be there: refused, never started on node-2.
+    f.hosts['node-3']!.down = true;
+    const down = await f.restart(undefined, record);
+    expect(down.set.recordComplete).toBe(false);
+    const refused = await rejection(down.backend.createSession(specOf('old')));
+    expect(refused).toBeInstanceOf(SessionPlacementError);
+    expect(refused.message).toContain('may live on node-3');
+    expect(f.holderOf('old')).toEqual(['node-3']);
+
+    // Once it answers, it is listed, and the session resumes there.
+    f.hosts['node-3']!.down = false;
+    clock.now += UNREACHABLE_RETRY_MS;
+    const resumed = await down.backend.createSession(specOf('old'));
+    expect(resumed.resumed).toBe(true);
+    expect(f.holderOf('old')).toEqual(['node-3']);
+    expect(record.saved).toMatchObject({
+      complete: true,
+      listed: ['node-1', 'node-2', 'node-3'],
+    });
+  });
+
+  test('forgets a host that is no longer declared, so it is listed again if it comes back', async () => {
+    const f = await fleet({ 'node-1': {}, 'node-2': {}, 'node-3': {} });
+    const record = new MemoryPlacementStore({
+      complete: true,
+      listed: ['node-1', 'node-2', 'node-3'],
+      sessions: {},
+    });
+    await f.restart(['node-1', 'node-2'], record);
+    expect(record.saved?.listed).toEqual(['node-1', 'node-2']);
   });
 
   test('refuses a session it has no record of until every host has been listed once', async () => {
@@ -769,7 +816,11 @@ describe('the reachability of a host', () => {
     // asking whether node-1 holds it takes several requests in a row.
     const f = await fleet({ 'node-1': {}, 'node-2': {} }, 100, {
       incus: { apiTimeoutMs: 100 },
-      record: { complete: true, listed: [], sessions: { ghost: 'node-1' } },
+      record: {
+        complete: true,
+        listed: ['node-1', 'node-2'],
+        sessions: { ghost: 'node-1' },
+      },
     });
     f.hosts['node-1']!.latencyMs = 60;
     const before = f.hosts['node-1']!.fake.requests.length;

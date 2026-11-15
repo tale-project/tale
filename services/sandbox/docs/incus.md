@@ -624,7 +624,8 @@ every host's listings of its sessions and workspaces. Until every host has
 been listed once, a session the record does not name may live on a host not
 yet listed, so it is refused with `503` too; the hosts already listed are
 kept in the record, so a restart in the middle goes on where it stopped. A
-host appended later is taken to be empty.
+host declared later is listed the same way before a session the record does
+not name is placed: it may hold workspaces made without the record.
 
 **A host that does not answer** is skipped for new sessions and not asked
 again for 30 seconds, with its reason logged. Each Incus request has its own
