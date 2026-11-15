@@ -23,6 +23,9 @@ const INCUS = [
   '/incus/src/client.ts',
 ];
 
+/** The layer over several Incus hosts (SANDBOX_INCUS_ENDPOINTS). */
+const MULTI = '/backend/incus/incus-multi-backend.ts';
+
 async function loadedHeavyModules(
   env: Record<string, string>,
   afterBoot = '',
@@ -111,4 +114,29 @@ test('the Incus backend loads when it is the one selected, and not the Kubernete
   expect(boot).toEqual(INCUS);
   const { boot: heavy } = await loadedHeavyModules(env);
   expect(heavy).toEqual([]);
-}, 60_000);
+  // One host (SANDBOX_INCUS_ENDPOINT) runs the one-host backends as before;
+  // the multi-host layer loads only for SANDBOX_INCUS_ENDPOINTS.
+  const { boot: multi } = await loadedHeavyModules(env, '', [MULTI]);
+  expect(multi).toEqual([]);
+  const { boot: several } = await loadedHeavyModules(
+    {
+      ...env,
+      SANDBOX_INCUS_ENDPOINT: '',
+      SANDBOX_INCUS_CLIENT_CERT_FILE: '',
+      SANDBOX_INCUS_CLIENT_KEY_FILE: '',
+      SANDBOX_INCUS_SERVER_CERT_FILE: '',
+      SANDBOX_INCUS_ENDPOINTS: JSON.stringify([
+        {
+          name: 'node-1',
+          endpoint: 'https://127.0.0.1:9',
+          clientCertFile: '/nonexistent/client.crt',
+          clientKeyFile: '/nonexistent/client.key',
+          serverCertFile: '/nonexistent/server.crt',
+        },
+      ]),
+    },
+    '',
+    [...INCUS, MULTI],
+  );
+  expect(several).toEqual([...INCUS, MULTI].sort());
+}, 90_000);

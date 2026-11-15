@@ -1,6 +1,7 @@
 // Backend selection. Chosen once at boot from `cfg.backend` (env
 // SANDBOX_BACKEND, default 'docker'): the Docker Compose path, the native
-// Kubernetes Pod-per-session path, or the Incus instance-per-session path.
+// Kubernetes Pod-per-session path, or the Incus instance-per-session path
+// (on one host, or on several behind the placement of incus-multi-backend.ts).
 //
 // The Kubernetes backends are imported only when selected: they pull in
 // @kubernetes/client-node, about 100 MiB resident and a few hundred
@@ -30,6 +31,17 @@ export async function loadBackends(cfg: SpawnerConfig): Promise<Backends> {
     return {
       host: new KubernetesBackend(cfg),
       createSession: () => new KubernetesSessionBackend(cfg),
+    };
+  }
+  if (cfg.backend === 'incus' && cfg.incus?.endpoints !== undefined) {
+    // Several hosts (SANDBOX_INCUS_ENDPOINTS): one pair of backends per host
+    // behind the placement layer.
+    const { getIncusEndpointSet, MultiIncusBackend, MultiIncusSessionBackend } =
+      await import('./incus/incus-multi-backend.ts');
+    const set = getIncusEndpointSet(cfg);
+    return {
+      host: new MultiIncusBackend(set),
+      createSession: () => new MultiIncusSessionBackend(set),
     };
   }
   if (cfg.backend === 'incus') {

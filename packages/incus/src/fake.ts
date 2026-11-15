@@ -825,10 +825,16 @@ export class FakeIncus {
     const limit = (key: string) => {
       const value = this.projectConfig[key];
       if (value === undefined || value === '') return -1;
-      return key === 'limits.disk'
+      return key === 'limits.disk' || key === 'limits.memory'
         ? (incusSizeBytes(value) ?? -1)
         : Number(value);
     };
+    // Incus counts each instance's own `limits.memory` against the project's.
+    const memory = [...this.instances.values()].reduce(
+      (sum, instance) =>
+        sum + (incusSizeBytes(instance.config['limits.memory'] ?? '') ?? 0),
+      0,
+    );
     const disk = [...this.volumes.values()].reduce(
       (sum, volume) => sum + (incusSizeBytes(volume.config.size ?? '') ?? 0),
       0,
@@ -840,6 +846,7 @@ export class FakeIncus {
           usage: this.instances.size,
         },
         disk: { limit: limit('limits.disk'), usage: disk },
+        memory: { limit: limit('limits.memory'), usage: memory },
         // Incus names a pool quota `disk.<pool>` and counts each volume's
         // `size` on that pool against it.
         ...Object.fromEntries(

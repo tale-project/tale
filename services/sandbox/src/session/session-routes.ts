@@ -6,6 +6,7 @@
 import {
   SessionExistsError,
   SessionIncarnationChangedError,
+  SessionPlacementError,
   type BackendSession,
   type CreateSessionResult,
   type SessionBackend,
@@ -156,6 +157,9 @@ const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
  * inspect; a Docker daemon too slow for it checks nothing for a moved proxy
  * this time rather than hold up the idle reaper behind it. */
 const EGRESS_READ_BUDGET_MS = 5_000;
+/** When a create no Incus host could take asks again: a host frees a slot
+ * as a session ends, and an unreachable one is asked again after 30 s. */
+const PLACEMENT_RETRY_SECONDS = 15;
 
 /** Why a sweep leaves a session whose egress proxy moved running for now. */
 const BUSY_DRIFT = 'it is in use, and is recycled once it is released and idle';
@@ -2649,6 +2653,25 @@ export class SessionRoutes {
             { error: 'duplicate', message: err.message },
             409,
           );
+        }
+        // No host may take it now (several Incus hosts, each at its cap,
+        // drained or not answering): nothing was made, so the caller waits
+        // and asks again, as it does for a full spawner.
+        if (err instanceof SessionPlacementError) {
+          console.warn(
+            `[sandbox.session] refusing ${req.sessionId}: ${err.message}`,
+          );
+          return err.reason === 'full'
+            ? jsonResponse(
+                { error: 'session_quota', message: err.message },
+                429,
+                { 'retry-after': String(PLACEMENT_RETRY_SECONDS) },
+              )
+            : jsonResponse(
+                { error: 'session_unavailable', message: err.message },
+                503,
+                { 'retry-after': String(PLACEMENT_RETRY_SECONDS) },
+              );
         }
         // handleCreate answers it as a failed create. An answer returned
         // here once the budget has ended would be replaced by the bare
