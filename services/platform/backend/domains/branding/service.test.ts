@@ -3,9 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Sql } from 'postgres';
+import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveBrandingFilePath } from '../../core/branding/file_utils.ts';
+import {
+  resolveBrandingFilePath,
+  resolveImagesDir,
+} from '../../core/branding/file_utils.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   BrandingError,
@@ -20,6 +24,19 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 
 function toBase64(text: string): string {
   return Buffer.from(text, 'utf8').toString('base64');
+}
+
+/** A real raster image of one flat colour, as the bytes a client uploads. */
+async function rasterImage(
+  format: 'png' | 'jpeg' | 'webp',
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  return sharp({
+    create: { width, height, channels: 3, background: '#2f6bff' },
+  })
+    .toFormat(format)
+    .toBuffer();
 }
 
 /**
@@ -143,13 +160,18 @@ describe('saveBrandingImage — SVG active-content intake gate [BRAND-R1]', () =
       vi.stubEnv('TALE_CONFIG_DIR', configDir);
       // A raster payload whose bytes happen to contain handler-shaped text
       // must pass — the gate is specific to the scriptable SVG document
-      // format.
+      // format. The PNG decoder stops at its end marker, so the text after
+      // it is ignored.
+      const png = await rasterImage('png', 32, 32);
       const result = await saveBrandingImage(
         fakeSql(),
         'acme',
         {
           type: 'favicon-light',
-          base64: toBase64('PNGDATA onload="x" <script>'),
+          base64: Buffer.concat([
+            png,
+            Buffer.from('onload="x" <script>'),
+          ]).toString('base64'),
           mimeType: 'image/png',
         },
         ACTOR,
@@ -318,6 +340,119 @@ describe('saveBranding — the audit row', () => {
   });
 });
 
+describe('a logo or icon is stored at the size the product shows it [BRAND-R7]', () => {
+  /** The stored image's pixel size, read back from the branding directory. */
+  async function storedSize(filename: string) {
+    const bytes = await readFile(join(resolveImagesDir('acme'), filename));
+    const { width, height, format } = await sharp(bytes).metadata();
+    return { width, height, format };
+  }
+
+  it('scales a large logo into the logo box, keeping its proportions [BRAND-R7]', async () => {
+    await withConfigDir(async () => {
+      const upload = await rasterImage('jpeg', 1200, 800);
+      const result = await saveBrandingImage(
+        fakeSql(),
+        'acme',
+        {
+          type: 'logo',
+          base64: upload.toString('base64'),
+          mimeType: 'image/jpeg',
+        },
+        ACTOR,
+      );
+      expect(result.filename).toBe('logo.png');
+      expect(await storedSize('logo.png')).toEqual({
+        width: 72,
+        height: 48,
+        format: 'png',
+      });
+      expect(audited()[0]).toMatchObject({
+        action: 'branding.image_uploaded',
+        metadata: {
+          type: 'logo',
+          filename: 'logo.png',
+          bytes: expect.any(Number),
+        },
+      });
+    });
+  });
+
+  it('scales a large favicon into the icon box [BRAND-R7]', async () => {
+    await withConfigDir(async () => {
+      const result = await saveBrandingImage(
+        fakeSql(),
+        'acme',
+        {
+          type: 'favicon-dark',
+          base64: (await rasterImage('png', 1000, 1000)).toString('base64'),
+          mimeType: 'image/png',
+        },
+        ACTOR,
+      );
+      expect(result.filename).toBe('favicon-dark.png');
+      expect(await storedSize('favicon-dark.png')).toEqual({
+        width: 64,
+        height: 64,
+        format: 'png',
+      });
+    });
+  });
+
+  it('keeps an image already within its box at its own size [BRAND-R7]', async () => {
+    await withConfigDir(async () => {
+      await saveBrandingImage(
+        fakeSql(),
+        'acme',
+        {
+          type: 'favicon-light',
+          base64: (await rasterImage('webp', 16, 16)).toString('base64'),
+          mimeType: 'image/webp',
+        },
+        ACTOR,
+      );
+      expect(await storedSize('favicon-light.png')).toMatchObject({
+        width: 16,
+        height: 16,
+      });
+    });
+  });
+
+  it('stores an SVG logo as it came [BRAND-R7]', async () => {
+    await withConfigDir(async () => {
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300"/></svg>';
+      const result = await saveBrandingImage(
+        fakeSql(),
+        'acme',
+        { type: 'logo', base64: toBase64(svg), mimeType: 'image/svg+xml' },
+        ACTOR,
+      );
+      expect(result.filename).toBe('logo.svg');
+      expect(
+        await readFile(join(resolveImagesDir('acme'), 'logo.svg'), 'utf8'),
+      ).toBe(svg);
+    });
+  });
+
+  it('refuses a file that is not a readable raster image, storing nothing [BRAND-R7]', async () => {
+    await withConfigDir(async () => {
+      await expect(
+        saveBrandingImage(
+          fakeSql(),
+          'acme',
+          { type: 'logo', base64: toBase64('PNGDATA'), mimeType: 'image/png' },
+          ACTOR,
+        ),
+      ).rejects.toMatchObject({
+        name: 'BrandingError',
+        code: 'IMAGE_MIME_UNSUPPORTED',
+      });
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe('changedBrandingFields', () => {
   it('names added, removed and changed keys, sorted [BRAND-R4]', () => {
     expect(
@@ -341,7 +476,7 @@ async function withConfigDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-const PNG = toBase64('PNGDATA');
+const PNG = (await rasterImage('png', 32, 32)).toString('base64');
 const SVG = toBase64('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 
 describe('an image write sent against a version [BRAND-R6]', () => {

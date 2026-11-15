@@ -25,6 +25,8 @@ The organization name supplies the text wordmark when there is no logo. To chang
 
 Use the corresponding upload field and select the image. Uploading or removing an image takes effect immediately; it is not held until you select Save. The preview and organization branding refresh after the operation succeeds.
 
+Tale stores a PNG, JPG, or WebP logo scaled to fit 148 × 48 pixels, and a favicon scaled to fit 64 × 64 pixels, both as PNG, so an oversized upload does not slow every page load. An SVG is kept as uploaded.
+
 When no explicit favicon is configured, Tale can derive one from the uploaded logo. If someone chooses a favicon while Tale is still deriving one, on this page or in another window, that choice stays and the derived favicon is not saved. Provide an explicit icon when the full logo becomes hard to recognize at tab size. Check the tab icon and sidebar after uploading, including in the other theme.
 
 <Note>

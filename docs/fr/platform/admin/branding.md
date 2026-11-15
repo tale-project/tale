@@ -25,6 +25,8 @@ En l’absence de logo, le nom de l’organisation sert de marque textuelle. Pou
 
 Sélectionne l’image dans le champ correspondant. Le chargement ou le retrait d’une image prend effet immédiatement, sans attendre Enregistrer. L’aperçu et l’apparence de l’organisation se mettent à jour lorsque l’opération aboutit.
 
+Tale enregistre un logo PNG, JPG ou WebP réduit pour tenir dans 148 × 48 pixels, et une favicon réduite pour tenir dans 64 × 64 pixels, les deux au format PNG. Un envoi trop lourd ne ralentit ainsi pas chaque chargement de page. Un SVG est conservé tel qu’envoyé.
+
 Sans favicon explicite, Tale peut en créer une à partir du logo chargé. Si quelqu’un choisit une favicon pendant que Tale en crée encore une, sur cette page ou dans une autre fenêtre, ce choix est conservé et la favicon créée n’est pas enregistrée. Fournis une icône dédiée si le logo complet devient difficile à reconnaître dans un onglet. Après le chargement, vérifie l’icône et la barre latérale, y compris dans l’autre thème.
 
 <Note>
