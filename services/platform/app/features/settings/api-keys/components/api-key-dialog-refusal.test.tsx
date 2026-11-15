@@ -189,20 +189,20 @@ describe('API-key refusal feedback', () => {
   it.each([
     [
       'en',
-      'Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one: Call models over the API, Export notifications, or Act for another member.',
+      'Creating an API key takes the Owner, Admin or Developer role, or a right an Admin grants for one: Call models over the API, Export notifications, or Act for another member.',
     ],
     [
       'de',
-      'Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“.',
+      'Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder ein Recht, das ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“.',
     ],
     [
       'fr',
       // The matcher reads the no-break spaces of French punctuation as spaces.
-      "Créer une clé API demande le rôle de propriétaire, d'admin ou de développeur, ou une compétence qu'un admin attribue pour cela : « Appeler les modèles par l'API », « Exporter les notifications » ou « Agir pour un autre membre ».",
+      "Créer une clé API demande le rôle de propriétaire, d'admin ou de développeur, ou un droit qu'un admin attribue pour cela : « Appeler les modèles par l'API », « Exporter les notifications » ou « Agir pour un autre membre ».",
     ],
     [
       'de-CH',
-      'Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“.',
+      'Zum Erstellen eines API-Schlüssels brauchst du die Rolle Inhaber, Admin oder Entwickler oder ein Recht, das ein Admin dafür zuweist: „Modelle über die API aufrufen“, „Benachrichtigungen exportieren“ oder „Für ein anderes Mitglied handeln“.',
     ],
   ])(
     'words the create rule’s refusal in %s, never in the server’s English',
