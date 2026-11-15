@@ -39,6 +39,10 @@ import {
   toConnectorResponse,
 } from '../../connectors/live-host';
 import {
+  httpNatives,
+  type HttpNativeDeps,
+} from '../../connectors/natives/http';
+import {
   imapSmtpNatives,
   type ImapSession,
   type MailboxConfig,
@@ -54,10 +58,6 @@ import {
   WebdavStoreError,
   webdavNatives,
 } from '../../connectors/natives/webdav';
-import {
-  httpNatives,
-  type HttpNativeDeps,
-} from '../../connectors/natives/http';
 import {
   connectorFailureOf,
   failureCauseOf,
@@ -1997,7 +1997,6 @@ interface NativeProof {
 const storedBytes = (text: string): Uint8Array =>
   new TextEncoder().encode(text);
 
-
 const HTTP_OPEN_ORDERS = 'GET https://api.example.com/orders?status=open';
 const HTTP_ORDERS = 'POST https://api.example.com/orders';
 
@@ -2424,7 +2423,10 @@ async function expectFetchNativeScenario(
   );
   // A native failure carries its own cause, and the status it names is the one
   // the scenario's error carries.
-  expect(failureCauseOf(thrown), `${slug}.${key} names its cause`).toBeDefined();
+  expect(
+    failureCauseOf(thrown),
+    `${slug}.${key} names its cause`,
+  ).toBeDefined();
   expect(nativeStatusOf(thrown)).toBe(scenario.error.status);
 }
 
