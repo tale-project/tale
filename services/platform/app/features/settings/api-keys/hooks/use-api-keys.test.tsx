@@ -334,8 +334,12 @@ describe('account-wide key changes across organizations', () => {
         { wrapper },
       );
       const panel = renderHook(() => useApiKeys('org-c'), { wrapper });
-      await waitFor(() => expect(orgB.result.current.keys.data?.keys).toEqual(keys));
-      await waitFor(() => expect(panel.result.current.data?.keys).toEqual(keys));
+      await waitFor(() =>
+        expect(orgB.result.current.keys.data?.keys).toEqual(keys),
+      );
+      await waitFor(() =>
+        expect(panel.result.current.data?.keys).toEqual(keys),
+      );
       const derivedKeys = ['org-a', 'org-b'].flatMap((org) => [
         ['backend', org, 'api_key', 'org-list'],
         ['backend', org, 'api_key', 'my-access'],
@@ -355,7 +359,9 @@ describe('account-wide key changes across organizations', () => {
         }
       });
 
-      await waitFor(() => expect(panel.result.current.data?.keys).toEqual(keys));
+      await waitFor(() =>
+        expect(panel.result.current.data?.keys).toEqual(keys),
+      );
       expect(orgB.result.current.keys.data?.keys).toEqual(keys);
       expect(
         client.getQueryState(['backend', 'org-a', 'api_key', 'settings-list'])
@@ -369,7 +375,9 @@ describe('account-wide key changes across organizations', () => {
       expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
 
       const returnedA = renderHook(() => useApiKeys('org-a'), { wrapper });
-      await waitFor(() => expect(returnedA.result.current.data?.keys).toEqual(keys));
+      await waitFor(() =>
+        expect(returnedA.result.current.data?.keys).toEqual(keys),
+      );
       expect(backendFetch).toHaveBeenCalledTimes(6);
     },
   );
