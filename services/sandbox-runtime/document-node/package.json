@@ -5,8 +5,8 @@
   "dependencies": {
     "docx": "9.7.1",
     "pptxgenjs": "4.0.1",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "react-icons": "5.7.0",
     "sharp": "0.35.5"
   },
