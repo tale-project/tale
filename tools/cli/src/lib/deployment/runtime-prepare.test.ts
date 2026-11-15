@@ -470,11 +470,11 @@ describe('committed source runtime preparation', () => {
   // gain, or the release's own CLI refuses the release (v0.5.62 shipped the
   // device hub's 127.0.0.1:8004 and refused it). This repository's edge is
   // Traefik, routed by the labels its services declare, which the managed
-  // runtime cannot prepare yet: it refuses the revision by name until
-  // tale-project/tale#5282 teaches it, and that issue brings back the cases
-  // this suite and the apply suite ran on the repository's own source (a
-  // plain deployment, a container prefix, additional origins with
-  // organization creators, an apply on a fresh host).
+  // runtime cannot prepare yet: it refuses the revision by name until it
+  // learns the Traefik edge. Then the cases this suite and the apply suite ran
+  // on the repository's own source come back (a plain deployment, a container
+  // prefix, additional origins with organization creators, an apply on a
+  // fresh host).
   test("refuses the repository's own runtime source, whose edge is Traefik, naming the issue", async () => {
     const { fixture, prepare } = create();
     commitRepositorySource(fixture);

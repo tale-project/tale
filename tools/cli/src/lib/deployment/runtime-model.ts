@@ -56,8 +56,7 @@ export type RuntimeFile =
 /**
  * The file whose presence tells a revision runs its edge on Traefik, routed by
  * the labels its services declare. The managed runtime renders the edge's
- * Caddyfile, so it refuses such a revision until it learns the Traefik edge
- * (tale-project/tale#5282).
+ * Caddyfile, so it refuses such a revision until it learns the Traefik edge.
  */
 export const TRAEFIK_EDGE_MARKER = 'services/proxy/render/config.js';
 export const hash = (bytes: string | Buffer): string =>
@@ -453,7 +452,7 @@ export function parseCompose(
       db: ['["5432:5432"]', '["127.0.0.1:5432:5432"]'],
       'knowledge-db': ['["5433:5432"]', '["127.0.0.1:5433:5432"]'],
       proxy: ['["80:80","443:443"]'],
-      // The spawner's API, and since tale#3504 the device hub beside it
+      // The spawner's API, and the device hub beside it
       // (connected machines reach it through the proxy's /sandbox/tunnel);
       // both loopback only. A runtime from before the hub publishes 8003 alone.
       // The managed bundle publishes neither (`[]`): the backend and the proxy
