@@ -88,6 +88,10 @@ export const RULES = {
     action: 'ignore',
     rule: 'Incus keeps the console log of the instance',
   },
+  labels: {
+    action: 'refuse',
+    rule: 'the routes it declares are read by the Traefik edge, which the Incus runtime does not run yet (tale-project/tale#5282), so the route would be served by nothing',
+  },
   networks: {
     action: 'map',
     rule: 'one NIC on the stack bridge with a static address; aliases become names of the stack resolver',
