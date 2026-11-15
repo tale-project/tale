@@ -274,6 +274,30 @@ describe('tale logs on Incus', () => {
     expect(fixture.fake.seen('GET /1.0/instances/web/console')).toHaveLength(1);
   });
 
+  test('--follow ends cleanly when the instance goes away between its state read and its console read', async () => {
+    seedStackInstance(fixture.fake, 'api');
+    const client = fixture.context.client;
+    const going = Object.assign(Object.create(client) as typeof client, {
+      readConsole: async () => {
+        fixture.fake.instances.delete('api');
+        throw new IncusApiError(
+          'Incus GET console answered 404: Instance not found',
+          404,
+        );
+      },
+    });
+    const out = collect();
+    const exitCode = await readInstanceLogs(
+      { ...fixture.context, client: going },
+      'api',
+      { follow: true, consume: true },
+      out.onLine,
+      { warn: out.warn, pollMs: 1, sleep: async () => {} },
+    );
+    expect(exitCode).toBe(0);
+    expect(out.lines).toEqual([]);
+  });
+
   test('--follow shows each line once when the stopped console hands out the whole run again (TI-20, measured)', async () => {
     const api = seedStackInstance(fixture.fake, 'api');
     api.consoleLog = 'a\nb\n';

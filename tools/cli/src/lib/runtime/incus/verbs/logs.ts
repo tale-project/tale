@@ -218,9 +218,7 @@ export async function readInstanceLogs(
       // The service ended between the state read and the console read, and
       // its console went with it (Incus answers 500, "connection refused"),
       // while its state may still read Running for a moment: what no read
-      // took is in the console the stopped instance keeps. Any other
-      // failure is one.
-      if (!consoleJustEnded(error)) throw error;
+      // took is in the console the stopped instance keeps.
       for (let attempt = 0; attempt < ENDED_STATE_READS; attempt += 1) {
         const after = await context.client.getInstance(name);
         if (after === undefined) {
