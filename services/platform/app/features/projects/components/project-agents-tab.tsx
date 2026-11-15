@@ -6,6 +6,8 @@ import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
+import { Row } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Bot, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
