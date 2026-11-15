@@ -272,6 +272,7 @@ const ADMITTED = [
   "domains/tasks/review-repair.ts 'TASK_COMMENT_INVALID' refusal",
   "domains/tasks/service.ts 'TASK_DESCRIPTION_INVALID' refusal",
   "domains/tasks/service.ts 'TASK_LABELS_INVALID' countRefusal",
+  "domains/tasks/label-mirror.ts 'TASK_LABELS_INVALID' refusal",
   "domains/tasks/service.ts 'TASK_LABELS_INVALID' refusal",
   "domains/tasks/service.ts 'TASK_TITLE_INVALID' refusal",
   // A constant.

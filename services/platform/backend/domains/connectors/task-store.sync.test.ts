@@ -1,7 +1,10 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { IssueSyncProjectRefusal } from '../../../lib/connectors/natives/issue-sync.ts';
+import {
+  IssueSyncLabelRefusal,
+  IssueSyncProjectRefusal,
+} from '../../../lib/connectors/natives/issue-sync.ts';
 import { getRun, resolveRunProject } from '../automations/store.ts';
 import { loadProjectOrThrow, ProjectError } from '../projects/service.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
@@ -315,6 +318,77 @@ describe('pgTaskStore.syncIssues', () => {
       pgTaskStore(sql, { runConnector }).syncIssues(sync),
     ).rejects.toBeInstanceOf(IssueSyncProjectRefusal);
     expect(runConnector).not.toHaveBeenCalled();
+  });
+
+  it('stops the step, without reading a tracker, when the project lacks a label a source mirrors [TASK-R98]', async () => {
+    let checked: unknown[] = [];
+    tx.mockImplementation(async (strings, ...values) => {
+      if (!strings.join('?').includes('NOT EXISTS')) return [];
+      checked = values;
+      return [{ name: 'perf' }] as never[];
+    });
+    const runConnector = vi.fn();
+    const refusal = await pgTaskStore(sql, { runConnector })
+      .syncIssues({
+        ...sync,
+        sources: [
+          {
+            kind: 'github',
+            owner: 'example',
+            repo: 'web',
+            mirrorLabels: { bug: 'bug', perf: 'perf', speed: 'Perf' },
+          },
+        ],
+      })
+      .catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(IssueSyncLabelRefusal);
+    expect(refusal).toMatchObject({ labels: ['perf'] });
+    // Each project label is looked up once, without regard to case.
+    expect(checked).toContainEqual(['bug', 'perf']);
+    expect(runConnector).not.toHaveBeenCalled();
+    expect(readSyncPosition).not.toHaveBeenCalled();
+  });
+
+  it('reads the labels each issue wears for a source that mirrors them, and hands the mirror to the task domain with each issue [TASK-R98]', async () => {
+    const runConnector = vi.fn().mockResolvedValue({
+      status: 'ok',
+      output: {
+        issues: [{ ...imported(1), sourceLabels: ['Bug', 'question'] }],
+        truncated: false,
+        nextCursor: null,
+        repositoryId: 10,
+      },
+    });
+    vi.mocked(upsertTaskByExternalRef).mockResolvedValue({
+      taskId: 'task-1',
+      created: true,
+      title: 'Issue 1',
+    });
+    await pgTaskStore(sql, { runConnector }).syncIssues({
+      ...sync,
+      sources: [
+        {
+          kind: 'github',
+          owner: 'example',
+          repo: 'web',
+          credential: 'GitHub work',
+          mirrorLabels: { bug: 'bug' },
+        },
+      ],
+    });
+    expect(runConnector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'list_import_issues',
+        input: { owner: 'example', repo: 'web', limit: 100, withLabels: true },
+      }),
+    );
+    const written = vi.mocked(upsertTaskByExternalRef).mock.calls[0]?.[1];
+    expect(written).toMatchObject({
+      externalId: 'example/web#1',
+      mirrorLabels: { managed: ['bug'], carried: ['bug'] },
+    });
+    // The labels the issue wears reach the task through the mirror alone.
+    expect(written).not.toHaveProperty('sourceLabels');
   });
 
   it('passes a database failure on instead of writing it into a receipt', async () => {

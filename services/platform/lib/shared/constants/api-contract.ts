@@ -986,5 +986,18 @@
  * that is empty, longer than 50 or holds anything but names is refused as
  * `INVALID_ARGUMENTS`, and a test that gives one fails the document check
  * (`TESTS_INVALID`). Additive: a single name answers as it did.
+ *
+ * 3.60.0 — 2026-11-14: a GitHub source of the `task.sync_issues` automation
+ * step can name `mirrorLabels`, a map from an issue label to a label of the
+ * step's project (at most 50, issue labels matched without regard to case):
+ * a task the source creates or reads again wears exactly the mapped labels
+ * its issue wears and keeps its other labels, each change on the task's
+ * timeline and in the audit log as the automation's. The sync never creates
+ * a label: a run whose project lacks a mapped label fails before it reads
+ * any tracker, with the step failure reason `TASK_LABEL_UNKNOWN` (the
+ * missing names under `params.labels`), which `StepFailure.reason` gains.
+ * The GitHub connector's `list_import_issues`, `get_import_issue` and
+ * `refresh_import_issues` take `withLabels`, and then answer the label names
+ * of each issue as `sourceLabels`. Additive.
  */
-export const API_CONTRACT_VERSION = '3.59.0';
+export const API_CONTRACT_VERSION = '3.60.0';

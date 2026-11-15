@@ -23,7 +23,9 @@
  * that asks (`failOn: any`) fails as soon as one source did, for a schedule
  * that should count one dead source. A task a source creates can be given
  * labels of the source's own (`taskLabels`), so a shared board shows where
- * it came from.
+ * it came from; a GitHub source can also mirror the issue's own labels onto
+ * labels of the project (`mirrorLabels`), so its task wears the kind people
+ * set on the tracker, on its create and on every read after.
  *
  * Pure orchestration: the trackers are read through the connector door, the
  * positions and the tasks through the task domain, all injected — the unit
@@ -43,6 +45,7 @@ import { z } from 'zod';
 
 import {
   TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
   taskLabelNameRefusal,
 } from '../../../backend/core/tasks/helpers';
 import type { FailureCause } from '../../engine/core/record/failure';
@@ -72,20 +75,70 @@ import {
  * empty answer for a person who has one connection. */
 const credential = z.string().trim().max(200).optional();
 
+/** A label name as Tale's catalog takes it. */
+const projectLabel = z
+  .string()
+  .trim()
+  .refine((name) => taskLabelNameRefusal(name) === null, {
+    message: `is a label name of 1 to ${TASK_LABEL_CHARS_MAX} UTF-16 code units`,
+  });
+
 /** The labels a task the source creates is given, so a board shared by
  * several sources shows where each task came from (`source:glitchtip`,
  * `repo:ops`). Distinct from a tracker's `labels`, which narrows what is
  * read. A task the sync made before keeps the labels it has. */
-const taskLabels = z
-  .array(
+const taskLabels = z.array(projectLabel).max(10).optional();
+
+/** A label as a tracker and Tale's catalog both tell one from another:
+ * without regard to case or the spaces around it. */
+function labelKey(name: string): string {
+  return name.normalize('NFC').trim().toLowerCase();
+}
+
+/** The longest issue label a mirror maps. */
+const ISSUE_LABEL_CHARS_MAX = 100;
+
+/** The issue labels a GitHub source mirrors onto its tasks, each mapped to a
+ * label of the project (TASK-R98): a task wears exactly the mapped labels
+ * its issue wears, on its create and on every read after, and keeps every
+ * other label it has. Issue labels match without regard to case, as GitHub
+ * names them, and several may map to one project label. The sync never
+ * creates a label: a run whose project lacks one refuses before it reads a
+ * tracker (`TASK_LABEL_UNKNOWN`). */
+const mirrorLabels = z
+  .record(
     z
       .string()
-      .trim()
-      .refine((name) => taskLabelNameRefusal(name) === null, {
-        message: `is a label name of 1 to ${TASK_LABEL_CHARS_MAX} UTF-16 code units`,
-      }),
+      .refine(
+        (name) =>
+          name.trim() !== '' && name.trim().length <= ISSUE_LABEL_CHARS_MAX,
+        {
+          message: `is an issue label name of 1 to ${ISSUE_LABEL_CHARS_MAX} characters`,
+        },
+      ),
+    projectLabel,
   )
-  .max(10)
+  .superRefine((map, ctx) => {
+    const names = Object.keys(map);
+    if (names.length > TASK_LABELS_MAX) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `maps at most ${TASK_LABELS_MAX} issue labels`,
+      });
+    }
+    const seen = new Set<string>();
+    for (const name of names) {
+      if (seen.has(labelKey(name))) {
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'maps an issue label it already maps (names match without regard to case)',
+          path: [name],
+        });
+      }
+      seen.add(labelKey(name));
+    }
+  })
   .optional();
 
 /** Who opened an item, or empty for anyone (a template's blank answer). */
@@ -122,8 +175,24 @@ const githubSourceSchema = z
     author: author(GITHUB_LOGIN),
     credential,
     taskLabels,
+    mirrorLabels,
   })
-  .strict();
+  .strict()
+  .superRefine((source, ctx) => {
+    // A label the source gives every task it creates is not one the issue
+    // can take away.
+    const given = new Set((source.taskLabels ?? []).map(labelKey));
+    const both = [...new Set(Object.values(source.mirrorLabels ?? {}))].filter(
+      (name) => given.has(labelKey(name)),
+    );
+    if (both.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `mirrors ${both.join(', ')}, which taskLabels gives every task the source creates`,
+        path: ['mirrorLabels'],
+      });
+    }
+  });
 
 const githubSecuritySourceSchema = z
   .object({
@@ -262,6 +331,7 @@ const importedIssueSchema = z
     title: z.string().min(1),
     description: z.string(),
     externalIssue: taskExternalIssueSchema,
+    sourceLabels: z.array(z.string().max(1000)).max(100).optional(),
   })
   .passthrough();
 
@@ -351,6 +421,13 @@ const ISSUE_ACTIONS = {
   refresh: 'refresh_import_issues',
 } as const;
 
+/** Whether a GitHub source mirrors labels, so its listing and its refresh
+ * read the labels each issue wears. Not part of its filter: a source that
+ * starts mirroring carries on with the pass it has. */
+function mirrorsLabels(source: GithubSource): boolean {
+  return Object.keys(source.mirrorLabels ?? {}).length > 0;
+}
+
 const githubAdapter: IssueSourceAdapter<GithubSource> = {
   kind: 'github',
   connector: 'github',
@@ -358,7 +435,10 @@ const githubAdapter: IssueSourceAdapter<GithubSource> = {
   actions: ISSUE_ACTIONS,
   name: (source) => `${source.owner}/${source.repo}`,
   filter: codeHostFilter,
-  listInput: codeHostListInput,
+  listInput: (source, batch) => ({
+    ...codeHostListInput(source, batch),
+    ...(mirrorsLabels(source) && { withLabels: true }),
+  }),
   listed: (source, output) => {
     const repositoryId =
       output.repositoryId ?? missingIdentity('repository id');
@@ -371,7 +451,10 @@ const githubAdapter: IssueSourceAdapter<GithubSource> = {
           legacyPrefixes: output.legacyPrefixes,
         }),
       },
-      refreshInput: { repositoryId },
+      refreshInput: {
+        repositoryId,
+        ...(mirrorsLabels(source) && { withLabels: true }),
+      },
     };
   },
 };
@@ -537,6 +620,47 @@ function positionKey(source: IssueSource): string {
   return `${name}~${digest}`;
 }
 
+/** The project labels the sources mirror (TASK-R98), each named once
+ * without regard to case, in the order they first appear: the labels the
+ * step's project must have before a run reads a tracker. */
+export function mirroredProjectLabels(
+  sources: readonly IssueSource[],
+): string[] {
+  const names = new Map<string, string>();
+  for (const source of sources) {
+    if (source.kind !== 'github') continue;
+    for (const name of Object.values(source.mirrorLabels ?? {})) {
+      if (!names.has(labelKey(name))) names.set(labelKey(name), name);
+    }
+  }
+  return [...names.values()];
+}
+
+/** The labels one issue's task mirrors: every project label the source maps,
+ * and those of them the issue wears. None for a source that maps none, or
+ * for an issue whose labels were not read — one its tracker no longer
+ * answers for keeps the labels its task has. An issue label the source does
+ * not map is no business of the sync's. */
+function labelMirror(
+  source: IssueSource,
+  issue: ImportedIssue,
+): IssueLabelMirror | undefined {
+  if (source.kind !== 'github' || issue.sourceLabels === undefined) {
+    return undefined;
+  }
+  const mapped = new Map<string, string>();
+  for (const [from, to] of Object.entries(source.mirrorLabels ?? {})) {
+    mapped.set(labelKey(from), to);
+  }
+  if (mapped.size === 0) return undefined;
+  const carried = new Set<string>();
+  for (const name of issue.sourceLabels) {
+    const to = mapped.get(labelKey(name));
+    if (to !== undefined) carried.add(to);
+  }
+  return { managed: [...new Set(mapped.values())], carried: [...carried] };
+}
+
 // -------------------------------------------------------------------- input
 
 /** The most sources one step syncs. */
@@ -636,7 +760,8 @@ export interface IssueSourceReceipt {
   /** Open issues the batch read. */
   discovered: number;
   created: number;
-  /** Tasks whose issue changed upstream since they were last read. */
+  /** Tasks whose issue changed upstream since they were last read, or
+   * whose mirrored labels followed the issue's (TASK-R98). */
   refreshed: number;
   /** Tasks whose issue was read again and had not changed. */
   unchanged: number;
@@ -707,6 +832,13 @@ export interface LinkedIssue {
   externalIssue: TaskExternalIssue | null;
 }
 
+/** The labels a write mirrors onto an issue's task (TASK-R98), by project
+ * label name: every one the source maps, and those the issue wears. */
+export interface IssueLabelMirror {
+  managed: string[];
+  carried: string[];
+}
+
 /** One issue written into its task — or why it was not. */
 export type IssueWrite =
   | {
@@ -715,6 +847,8 @@ export type IssueWrite =
       created: boolean;
       /** The source snapshot the task carried before. */
       previous: TaskExternalIssue | null;
+      /** The mirror changed the labels of a task that already existed. */
+      labelsChanged?: boolean;
     }
   | { ok: false; reason: string };
 
@@ -723,6 +857,17 @@ export class IssueSyncProjectRefusal extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'IssueSyncProjectRefusal';
+  }
+}
+
+/** The step's project has no label of these names, which a source mirrors:
+ * the run refuses before it reads a tracker, and never creates one. */
+export class IssueSyncLabelRefusal extends Error {
+  readonly labels: string[];
+  constructor(labels: string[]) {
+    super(`the project has no label named ${labels.join(', ')}`);
+    this.name = 'IssueSyncLabelRefusal';
+    this.labels = labels;
   }
 }
 
@@ -756,10 +901,11 @@ export interface IssueSyncDeps {
     query: LinkedIssueQuery & { limit: number },
   ): Promise<{ issues: LinkedIssue[]; hasMore: boolean }>;
   /** Write one issue into its task, in a transaction of its own; a task
-   * the write creates is given `labels`. */
+   * the write creates is given `labels`, and the task wears the mapped
+   * labels of `mirror` its issue wears. */
   write(
     issue: ImportedIssue,
-    options?: { labels?: string[] },
+    options?: { labels?: string[]; mirror?: IssueLabelMirror },
   ): Promise<IssueWrite>;
   now(): number;
   /** The step's stop: the server is shutting down. */
@@ -1069,11 +1215,20 @@ async function syncSource(
   });
   const labels =
     source.taskLabels !== undefined && source.taskLabels.length > 0
-      ? { labels: source.taskLabels }
+      ? source.taskLabels
       : undefined;
   for (const issue of items) {
     throwIfStopped(deps.signal);
-    const result = await deps.write(issue, labels);
+    const mirror = labelMirror(source, issue);
+    const result = await deps.write(
+      issue,
+      labels === undefined && mirror === undefined
+        ? undefined
+        : {
+            ...(labels !== undefined && { labels }),
+            ...(mirror !== undefined && { mirror }),
+          },
+    );
     if (!result.ok) {
       skip(issue.externalId, result.reason);
       continue;
@@ -1086,7 +1241,7 @@ async function syncSource(
     const before =
       result.previous ?? previousOf.get(issue.externalIssue.id) ?? null;
     const move = upstreamMove(before, issue.externalIssue);
-    if (move.changed) receipt.refreshed++;
+    if (move.changed || result.labelsChanged === true) receipt.refreshed++;
     else receipt.unchanged++;
     if (move.closed) receipt.closedUpstream++;
     if (move.reopened) receipt.reopenedUpstream++;

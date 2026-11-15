@@ -27,6 +27,11 @@ import { describeLegacyQuarantine } from '../automations/legacy-quarantine.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { emitEvent } from '../events/emit.ts';
+import {
+  resolveMirroredLabels,
+  withMirroredLabels,
+  type LabelMirror,
+} from './label-mirror.ts';
 import { endRepeatForAutomationOwner } from './repeat.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
@@ -228,6 +233,12 @@ export interface UpsertTaskByExternalRefArgs {
    * keeps a non-empty one (background re-syncs must not clobber). */
   descriptionMode?: 'set' | 'preserve';
   labels?: string[];
+  /** The labels an issue sync mirrors from the issue (TASK-R98), with a
+   * source snapshot alone: of the project labels it manages, the task wears
+   * exactly the ones the issue carries — on its create, and on every
+   * reconcile that stores a newer snapshot of an unarchived task — and
+   * keeps every other label. Never mints one (`TASK_LABEL_UNKNOWN`). */
+  mirrorLabels?: LabelMirror;
   priority?: TaskRow['priority'];
   externalState?: 'open' | 'closed';
   /** The workflow a create launches; when deployed, it derives app ownership. */
@@ -267,6 +278,9 @@ export interface UpsertTaskByExternalRefResult {
    * alone (a source-snapshot reconcile, an archived task). With no task,
    * the title a create would have stored. */
   title: string;
+  /** Set when the label mirror (`mirrorLabels`) changed the labels of a
+   * task that already existed. */
+  labelsChanged?: true;
 }
 
 /**
@@ -400,8 +414,10 @@ export async function upsertTaskByExternalRef(
    * reopen) neither moves the hidden card nor mints a review gate a
    * reviewer would be belled for on no board. The ref still resolves, so
    * the intake does not create a duplicate. Answers the title the task
-   * carries afterwards. */
-  const reconcileExisting = async (existing: TaskRow): Promise<string> => {
+   * carries afterwards, and whether the label mirror changed its labels. */
+  const reconcileExisting = async (
+    existing: TaskRow,
+  ): Promise<{ title: string; labelsChanged?: true }> => {
     if (source !== undefined) {
       // Archived cards still report what happened upstream; archival and
       // every Tale field stay untouched. An older overlapping observation
@@ -438,24 +454,64 @@ export async function upsertTaskByExternalRef(
         }
         throw error;
       }
-      if (updated.length > 0) {
-        await emitHintInTx(tx, {
-          orgId: args.organizationId,
-          entity: 'task',
-          entityId: existing.id,
-        });
-        await externalRefAudit(tx, {
-          organizationId: args.organizationId,
+      if (updated.length === 0) return { title: existing.title };
+      // The labels a sync mirrors follow the issue on a read newer than the
+      // one stored, as the snapshot does, and never on an archived task.
+      const labelIds =
+        args.mirrorLabels !== undefined && existing.archivedAt === null
+          ? withMirroredLabels(
+              existing.labelIds,
+              await resolveMirroredLabels(tx, {
+                organizationId: args.organizationId,
+                projectId: existing.projectId,
+                mirror: args.mirrorLabels,
+              }),
+            )
+          : existing.labelIds;
+      const labelsChanged = labelSetChanged(existing.labelIds, labelIds);
+      if (labelsChanged) {
+        await tx`
+          UPDATE app.tasks SET label_ids = ${labelIds}
+          WHERE id = ${existing.id} AND org_id = ${args.organizationId}
+        `;
+        const [fromValue, toValue] = await Promise.all([
+          resolveLabelNames(tx, existing.projectId, existing.labelIds),
+          resolveLabelNames(tx, existing.projectId, labelIds),
+        ]);
+        await recordActivity(tx, {
+          task: existing,
+          actorType: args.creatorType === 'user' ? 'user' : 'agent',
           actorId: args.actorId,
-          action: TASK_AUDIT_ACTIONS.updated,
-          taskId: existing.id,
-          title: existing.title,
-          metadata: { externalSystem, externalId, sourceId: source.id },
+          action: 'labels.changed',
+          fromValue,
+          toValue,
         });
       }
-      return existing.title;
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: 'task',
+        entityId: existing.id,
+      });
+      await externalRefAudit(tx, {
+        organizationId: args.organizationId,
+        actorId: args.actorId,
+        action: TASK_AUDIT_ACTIONS.updated,
+        taskId: existing.id,
+        title: existing.title,
+        metadata: { externalSystem, externalId, sourceId: source.id },
+        ...(labelsChanged
+          ? {
+              previousState: { labelIds: existing.labelIds },
+              newState: { labelIds },
+            }
+          : {}),
+      });
+      return {
+        title: existing.title,
+        ...(labelsChanged && { labelsChanged: true as const }),
+      };
     }
-    if (existing.archivedAt !== null) return existing.title;
+    if (existing.archivedAt !== null) return { title: existing.title };
     const preserveDescription =
       args.descriptionMode === 'preserve' &&
       existing.description !== null &&
@@ -681,7 +737,7 @@ export async function upsertTaskByExternalRef(
           }
         : {}),
     });
-    return title;
+    return { title };
   };
 
   const existing = await findExisting();
@@ -690,7 +746,7 @@ export async function upsertTaskByExternalRef(
     return {
       taskId: existing.id,
       created: false,
-      title: await reconcileExisting(existing),
+      ...(await reconcileExisting(existing)),
     };
   }
 
@@ -733,7 +789,7 @@ export async function upsertTaskByExternalRef(
         )
       : null);
   const createdByUser = args.creatorType === 'user';
-  const labelIds =
+  const givenLabelIds =
     (await resolveProjectLabels(tx, {
       organizationId: args.organizationId,
       projectId,
@@ -741,6 +797,17 @@ export async function upsertTaskByExternalRef(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  const labelIds =
+    source !== undefined && args.mirrorLabels !== undefined
+      ? withMirroredLabels(
+          givenLabelIds,
+          await resolveMirroredLabels(tx, {
+            organizationId: args.organizationId,
+            projectId,
+            mirror: args.mirrorLabels,
+          }),
+        )
+      : givenLabelIds;
   const storedDescription =
     description === undefined
       ? null
@@ -797,7 +864,7 @@ export async function upsertTaskByExternalRef(
     return {
       taskId: winner.id,
       created: false,
-      title: await reconcileExisting(winner),
+      ...(await reconcileExisting(winner)),
     };
   }
   // Read the bucket from the INSERTED state, never assume "create ⇒ open":

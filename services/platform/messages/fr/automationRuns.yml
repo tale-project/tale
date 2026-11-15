@@ -329,6 +329,11 @@ runtime:
       explanation: Une tâche va à un membre de l’organisation ou à un agent de son projet.
       cause: 'Aucun membre ni agent du projet n’est {assignee}, ou il ne peut pas y travailler.'
       fix: Nomme l’e-mail ou l’identifiant d’un membre, ou un agent du projet.
+    TASK_LABEL_UNKNOWN:
+      title: Une étiquette n’appartient pas au projet
+      explanation: Une synchronisation d’issues ne pose sur ses tâches que des étiquettes que le projet a déjà, et n’en crée jamais.
+      cause: 'Le projet n’a aucune étiquette nommée {labels}.'
+      fix: Crée les étiquettes dans le projet, ou retire-les du mirrorLabels de la source.
     NOTIFY_NOT_A_MEMBER:
       title: Une personne destinataire n’est pas membre
       explanation: Une automatisation n’envoie de messages qu’aux membres de l’organisation, et n’envoie rien si une personne qu’elle nomme n’en est pas.

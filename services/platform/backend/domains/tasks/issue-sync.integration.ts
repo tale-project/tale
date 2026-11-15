@@ -13,8 +13,11 @@
  * one; a repository's issues and its pull requests keep their own tasks,
  * each source reading again only its own kind; two security sources of
  * one repository read again only the alerts of their own kinds; a source's
- * task labels are given to the tasks it creates and never again; and an
- * archived project stops the step before any tracker is read. */
+ * task labels are given to the tasks it creates and never again; a source
+ * that mirrors issue labels refuses a project that lacks one it maps, and
+ * keeps each task's mapped labels in step with its issue's, every change on
+ * the timeline and in the audit log; and an archived project stops the step
+ * before any tracker is read. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
@@ -29,6 +32,7 @@ import {
   IssueSourceHttpError,
 } from '../../../lib/connectors/natives/issue-import.ts';
 import {
+  IssueSyncLabelRefusal,
   IssueSyncProjectRefusal,
   type IssueSourceReceipt,
 } from '../../../lib/connectors/natives/issue-sync.ts';
@@ -50,6 +54,7 @@ const callInput = z
     labels: z.string().optional(),
     limit: z.number().optional(),
     cursor: z.string().optional(),
+    withLabels: z.boolean().optional(),
     issues: z
       .array(z.object({ externalId: z.string() }).passthrough())
       .optional(),
@@ -88,6 +93,8 @@ interface FakeRepository {
   refuseRefresh: Set<number>;
   /** Issues whose title carries a NUL character, which Postgres refuses. */
   nulTitles: Set<number>;
+  /** The labels each issue wears, answered when a call asks for them. */
+  labels: Map<number, string[]>;
 }
 
 const ok = (output: unknown): ConnectorDispatchResult => ({
@@ -118,6 +125,7 @@ export async function checkIssueSync(
     repo: string;
     cursor?: string;
     ids?: string[];
+    withLabels?: true;
   }> = [];
   const caller: ConnectorCaller = {
     kind: 'system',
@@ -133,13 +141,19 @@ export async function checkIssueSync(
       limitedUntil: null,
       refuseRefresh: new Set(),
       nulTitles: new Set(),
+      labels: new Map(),
     };
     repositories.set(repo, created);
     return created;
   };
   // A pull request shares the issues' numbers on GitHub: the stand-in
   // numbers its pull requests from 101 and links them to `/pull/<n>`.
-  const issue = (repo: string, at: FakeRepository, n: number) => {
+  const issue = (
+    repo: string,
+    at: FakeRepository,
+    n: number,
+    withLabels = false,
+  ) => {
     const url = `https://github.com/${owner}/${repo}/${n > 100 ? 'pull' : 'issues'}/${n}`;
     const title = at.nulTitles.has(n)
       ? `Broken\u0000 issue ${n}`
@@ -160,6 +174,7 @@ export async function checkIssueSync(
         repositoryId: at.repositoryId,
         number: n,
       },
+      ...(withLabels && { sourceLabels: at.labels.get(n) ?? [] }),
     };
   };
   // A security alert of the stand-in: `1..total` of each kind.
@@ -242,6 +257,7 @@ export async function checkIssueSync(
         action: args.action,
         repo,
         ...(input.cursor !== undefined && { cursor: input.cursor }),
+        ...(input.withLabels === true && { withLabels: true as const }),
       });
       if (at.hold !== undefined) await at.hold;
       if (at.limitedUntil !== null) {
@@ -284,7 +300,7 @@ export async function checkIssueSync(
       const issues = [];
       const first = input.type === 'pulls' ? 100 : 0;
       for (let n = offset + 1; n <= end; n++)
-        issues.push(issue(repo, at, first + n));
+        issues.push(issue(repo, at, first + n, input.withLabels === true));
       return ok({
         issues,
         truncated: end < at.total,
@@ -310,13 +326,16 @@ export async function checkIssueSync(
           status: 403,
         });
       } else {
-        refreshed.push(issue(at[0], at[1], Number(number)));
+        refreshed.push(
+          issue(at[0], at[1], Number(number), input.withLabels === true),
+        );
       }
     }
     calls.push({
       action: args.action,
       repo: 'refresh',
       ids: (input.issues ?? []).map((linked) => linked.externalId),
+      ...(input.withLabels === true && { withLabels: true as const }),
     });
     return ok({ issues: refreshed, failed, notRead: 0, retryAfter: null });
   };
@@ -818,6 +837,176 @@ export async function checkIssueSync(
       alertRefreshes.join('|') ===
         'code-scanning#1,code-scanning#2|dependabot#1,dependabot#2,secret-scanning#1,secret-scanning#2',
     JSON.stringify({ created: firstAlerts.created, alertRefreshes }),
+  );
+
+  // 15. A source that mirrors issue labels refuses a project that lacks a
+  // label it maps before it reads the tracker. With the labels in place,
+  // each task wears the mapped labels its issue wears, matched without
+  // regard to case on both sides, and a later read keeps them in step with
+  // the issue's while the task's other labels stay: the change is on the
+  // timeline and in the audit log as the automation's, and a read that
+  // changes no label writes none (TASK-R98).
+  const mirrorRepository = repository('mirror', 2);
+  mirrorRepository.labels.set(1, ['Bug', 'question']);
+  mirrorRepository.labels.set(2, ['feat']);
+  const mirrorMap = { bug: 'bug', feat: 'feature' };
+  const mirrorSync = (mirrorLabels: Record<string, string>) =>
+    store.syncIssues({
+      organizationId: orgId,
+      caller,
+      projectId,
+      sources: [
+        {
+          kind: 'github' as const,
+          owner,
+          repo: 'mirror',
+          taskLabels: ['source:mirror'],
+          mirrorLabels,
+        },
+      ],
+      limit: 10,
+      refreshLimit: 10,
+    });
+  for (const name of ['bug', 'Feature', 'hold']) {
+    await sql`
+      INSERT INTO app.task_labels (org_id, project_id, name, color,
+        created_by, created_at_ms, updated_at_ms)
+      VALUES (${orgId}, ${projectId}, ${name}, '#64748b', ${userId},
+              ${now}, ${now})
+    `;
+  }
+  const refusedFrom = calls.length;
+  let lacking: string[] = [];
+  try {
+    await mirrorSync({ ...mirrorMap, perf: 'perf' });
+  } catch (error) {
+    if (!(error instanceof IssueSyncLabelRefusal)) throw error;
+    lacking = error.labels;
+  }
+  const refusedCalls = calls.length - refusedFrom;
+  const mirrorTasks = () =>
+    sql<{ id: string; externalId: string; labels: string[] }[]>`
+      SELECT t.id, t.external_id AS "externalId",
+             ARRAY(SELECT l.name
+                   FROM unnest(t.label_ids) WITH ORDINALITY AS u(id, at)
+                   JOIN app.task_labels l ON l.id = u.id
+                   ORDER BY u.at) AS labels
+      FROM app.tasks t
+      WHERE t.org_id = ${orgId} AND t.project_id = ${projectId}
+        AND t.external_system = 'github'
+        AND t.external_id LIKE ${`${owner}/mirror#%`.toLowerCase()}
+      ORDER BY t.external_id
+    `;
+  const labelsOf = (rows: Array<{ labels: string[] }>) =>
+    rows.map((row) => row.labels.join('+')).join(',');
+  const createdMirror = await mirrorSync(mirrorMap);
+  const createdRows = await mirrorTasks();
+  const [mirrorTask, steadyTask] = createdRows;
+  // A person puts a label of their own on the first task; upstream, its
+  // issue trades `Bug` for `FEAT`, and the second issue stays as it was.
+  await sql`
+    UPDATE app.tasks SET label_ids = label_ids || ARRAY(
+      SELECT id FROM app.task_labels
+      WHERE org_id = ${orgId} AND project_id = ${projectId} AND name = 'hold'
+    )
+    WHERE org_id = ${orgId} AND id = ${mirrorTask?.id ?? ''}
+  `;
+  mirrorRepository.labels.set(1, ['FEAT']);
+  const readAgainFrom = calls.length;
+  const readAgain = await mirrorSync(mirrorMap);
+  const readAgainCalls = calls.slice(readAgainFrom);
+  const readAgainRows = await mirrorTasks();
+  const labelIdsOf = async (names: string[]) => {
+    const rows = await sql<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.task_labels
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+    `;
+    return names.map((name) => rows.find((row) => row.name === name)?.id);
+  };
+  const timeline = await sql<
+    {
+      taskId: string;
+      actorType: string;
+      actorId: string;
+      fromValue: string | null;
+      toValue: string | null;
+    }[]
+  >`
+    SELECT task_id AS "taskId", actor_type AS "actorType",
+           actor_id AS "actorId", from_value AS "fromValue",
+           to_value AS "toValue"
+    FROM app.task_activity
+    WHERE org_id = ${orgId} AND action = 'labels.changed'
+      AND task_id = ANY(${createdRows.map((row) => row.id)})
+    ORDER BY id
+  `;
+  const audit = await sql<
+    {
+      taskId: string;
+      actorType: string;
+      actorId: string;
+      previous: { labelIds?: string[] } | null;
+      next: { labelIds?: string[] } | null;
+    }[]
+  >`
+    SELECT resource_id AS "taskId", actor_type AS "actorType",
+           actor_id AS "actorId", previous_state AS previous,
+           new_state AS next
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'task.updated'
+      AND resource_id = ANY(${createdRows.map((row) => row.id)})
+    ORDER BY ts, id
+  `;
+  const mirrorAudit = audit.filter((row) => row.taskId === mirrorTask?.id);
+  const steadyAudit = audit.filter((row) => row.taskId === steadyTask?.id);
+  const [idsBefore, idsAfter] = await Promise.all([
+    labelIdsOf(['source:mirror', 'bug', 'hold']),
+    labelIdsOf(['source:mirror', 'hold', 'Feature']),
+  ]);
+  record(
+    'issue sync: a source that mirrors issue labels refuses a project that lacks one, then keeps each task’s mapped labels in step with its issue’s',
+    lacking.join(',') === 'perf' &&
+      refusedCalls === 0 &&
+      createdMirror.created === 2 &&
+      labelsOf(createdRows) === 'source:mirror+bug,source:mirror+Feature' &&
+      labelsOf(readAgainRows) ===
+        'source:mirror+hold+Feature,source:mirror+Feature' &&
+      readAgain.created === 0 &&
+      readAgain.refreshed === 1 &&
+      readAgain.unchanged === 1 &&
+      readAgainCalls.length === 2 &&
+      readAgainCalls.every((call) => call.withLabels === true) &&
+      timeline.length === 1 &&
+      timeline[0]?.taskId === mirrorTask?.id &&
+      timeline[0]?.actorType === 'agent' &&
+      timeline[0]?.actorId === 'workflow' &&
+      timeline[0]?.fromValue === 'source:mirror, bug, hold' &&
+      timeline[0]?.toValue === 'source:mirror, hold, Feature' &&
+      mirrorAudit.length === 1 &&
+      mirrorAudit[0]?.actorType === 'api' &&
+      mirrorAudit[0]?.actorId === 'workflow' &&
+      JSON.stringify(mirrorAudit[0]?.previous?.labelIds) ===
+        JSON.stringify(idsBefore) &&
+      JSON.stringify(mirrorAudit[0]?.next?.labelIds) ===
+        JSON.stringify(idsAfter) &&
+      steadyAudit.length === 1 &&
+      steadyAudit[0]?.previous === null &&
+      steadyAudit[0]?.next === null,
+    JSON.stringify({
+      lacking,
+      refusedCalls,
+      created: createdMirror.created,
+      createdLabels: labelsOf(createdRows),
+      readAgainLabels: labelsOf(readAgainRows),
+      receipt: {
+        created: readAgain.created,
+        refreshed: readAgain.refreshed,
+        unchanged: readAgain.unchanged,
+      },
+      readAgainCalls,
+      timeline,
+      audit,
+    }),
   );
 
   // 9. An archived project stops the step before any tracker is read.
