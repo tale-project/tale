@@ -478,7 +478,6 @@ async function isolatedSuite(): Promise<void> {
         version: TARGET,
         stop: false,
         env: {
-          BACKEND_UPSTREAM: '',
           GHCR_REGISTRY: REGISTRY,
           SITE_URL: 'https://localhost',
           HEALTH_CHECK_TIMEOUT: 1,
