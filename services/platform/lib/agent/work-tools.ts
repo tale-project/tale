@@ -71,6 +71,15 @@ export const WORK_TOOL_FAILURE_REASONS = [
   /** A file the program needs — a skill's, an attached one — could not be
    * copied into the sandbox (`error`). */
   'files_not_staged',
+  /** The sandbox refused the program's files as one request, so the program
+   * did not run (`error`). */
+  'stage_refused',
+  /** The sandbox host ran out of disk space while the program ran, and the
+   * sandbox ended it (`unavailable`). */
+  'sandbox_disk_full',
+  /** The program wrote more output than a run keeps, and the sandbox ended it
+   * (`error`). */
+  'output_limit',
 ] as const;
 
 export type WorkToolFailureReason = (typeof WORK_TOOL_FAILURE_REASONS)[number];

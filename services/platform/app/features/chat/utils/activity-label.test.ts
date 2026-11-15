@@ -301,6 +301,18 @@ describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
     expect(
       stepOutcomeLabel(t, { status: 'error', reason: 'files_not_staged' }),
     ).toBe('thinking.outcome.filesNotStaged');
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'stage_refused' }),
+    ).toBe('thinking.outcome.stageRefused');
+    expect(
+      stepOutcomeLabel(t, {
+        status: 'unavailable',
+        reason: 'sandbox_disk_full',
+      }),
+    ).toBe('thinking.outcome.sandboxDiskFull');
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'output_limit' }),
+    ).toBe('thinking.outcome.outputLimit');
   });
 
   it('names why a web read read nothing, by every cause it gives', () => {

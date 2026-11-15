@@ -722,6 +722,9 @@ thinking:
     programFailed: The program ended with an error
     timedOut: Ran out of time
     filesNotStaged: A file couldn't be copied into the sandbox
+    stageRefused: The sandbox refused the program's files
+    sandboxDiskFull: The sandbox host ran out of disk space
+    outputLimit: The program printed too much output
     notFound: Not found
     invalidArgs: Couldn't run as asked
     unavailable: Not available here

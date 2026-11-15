@@ -12,6 +12,7 @@ import {
   describeStageSkips,
   drainSessionExecResilient,
   ExecDiskFullError,
+  ExecOutputLimitError,
   ExecStreamProtocolError,
   ExecOutputGapError,
   isSpawnerTransportFailure,
@@ -927,7 +928,11 @@ describe('drainSessionExecResilient', () => {
           { resumeSinceSeq: 0 },
         ),
       ).rejects.toBeInstanceOf(
-        code === 'OUTPUT_GAP' ? ExecOutputGapError : ExecStreamProtocolError,
+        code === 'OUTPUT_GAP'
+          ? ExecOutputGapError
+          : code === 'OUTPUT_LIMIT'
+            ? ExecOutputLimitError
+            : ExecStreamProtocolError,
       );
       expect(requests).toBe(1);
     },

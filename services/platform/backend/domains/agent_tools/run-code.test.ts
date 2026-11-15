@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   drainSessionExecResilient,
+  ExecDiskFullError,
+  ExecOutputLimitError,
   sessionCancelExec,
   sessionListFiles,
   SessionNotFoundError,
   sessionReadFile,
   sessionStageFiles,
+  StageManifestError,
+  StageRequestError,
   SpawnerUnreachableError,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { stageUrlForBlobRef } from '../../core/node_only/sandbox/helpers/stage_url.ts';
@@ -25,7 +29,7 @@ import { FULL_LOADOUT, testScope } from './test-helpers.ts';
 vi.mock(
   '../../core/node_only/sandbox/helpers/session_client.ts',
   async (importOriginal) => {
-    const { describeStageSkips } =
+    const original =
       await importOriginal<
         typeof import('../../core/node_only/sandbox/helpers/session_client.ts')
       >();
@@ -33,10 +37,14 @@ vi.mock(
     class MockSessionNotFoundError extends Error {}
     class MockSpawnerUnreachableError extends Error {}
     return {
-      describeStageSkips,
+      describeStageSkips: original.describeStageSkips,
+      ExecDiskFullError: original.ExecDiskFullError,
+      ExecOutputLimitError: original.ExecOutputLimitError,
       SessionFileTooLargeError,
       SessionNotFoundError: MockSessionNotFoundError,
       SpawnerUnreachableError: MockSpawnerUnreachableError,
+      StageManifestError: original.StageManifestError,
+      StageRequestError: original.StageRequestError,
       drainSessionExecResilient: vi.fn(),
       sessionCancelExec: vi.fn(() => Promise.resolve(true)),
       sessionListFiles: vi.fn(),
@@ -853,6 +861,81 @@ describe('run_code', () => {
       /30-second deadline/,
     );
     expect(sessionCancelExec).toHaveBeenCalled();
+  });
+
+  describe('when the sandbox refuses the files or ends the program itself', () => {
+    it('answers stage_refused, and does not run the program, when the sandbox refuses the request', async () => {
+      vi.mocked(sessionStageFiles).mockRejectedValueOnce(
+        new StageRequestError(503),
+      );
+      const { scope } = testScope();
+      const result = await runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      expect(result).toMatchObject({
+        status: 'error',
+        reason: 'stage_refused',
+      });
+      expect((result as { message: string }).message).toMatch(
+        /call run_code once more/,
+      );
+      expect(drainSessionExecResilient).not.toHaveBeenCalled();
+    });
+
+    it('answers stage_refused when the files outgrow the request budget', async () => {
+      vi.mocked(sessionStageFiles).mockRejectedValueOnce(
+        new StageManifestError(
+          'Sandbox staging manifest exceeds the request budget',
+        ),
+      );
+      const { scope } = testScope();
+      await expect(
+        runRunCode(scope, { language: 'python', code: 'print(1)' }),
+      ).resolves.toMatchObject({ status: 'error', reason: 'stage_refused' });
+      expect(drainSessionExecResilient).not.toHaveBeenCalled();
+    });
+
+    it('answers sandbox_disk_full and stops the program', async () => {
+      vi.mocked(drainSessionExecResilient).mockRejectedValueOnce(
+        new ExecDiskFullError(),
+      );
+      const { scope } = testScope();
+      const result = await runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      expect(result).toMatchObject({
+        status: 'unavailable',
+        reason: 'sandbox_disk_full',
+      });
+      expect((result as { message: string }).message).toMatch(
+        /do not call run_code again/,
+      );
+      expect(sessionCancelExec).toHaveBeenCalledWith(
+        'lt-1',
+        expect.any(String),
+      );
+    });
+
+    it('answers output_limit with a way to print less, and stops the program', async () => {
+      vi.mocked(drainSessionExecResilient).mockRejectedValueOnce(
+        new ExecOutputLimitError(),
+      );
+      const { scope } = testScope();
+      const result = await runRunCode(scope, {
+        language: 'python',
+        code: 'print(1)',
+      });
+      expect(result).toMatchObject({ status: 'error', reason: 'output_limit' });
+      expect((result as { message: string }).message).toMatch(
+        /print a summary/,
+      );
+      expect(sessionCancelExec).toHaveBeenCalledWith(
+        'lt-1',
+        expect.any(String),
+      );
+    });
   });
 
   describe('when every light sandbox is running code', () => {

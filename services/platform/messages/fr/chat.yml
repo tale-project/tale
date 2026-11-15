@@ -728,6 +728,9 @@ thinking:
     programFailed: Le programme s'est terminé par une erreur
     timedOut: Délai dépassé
     filesNotStaged: Un fichier n'a pas pu être copié dans la sandbox
+    stageRefused: La sandbox a refusé les fichiers du programme
+    sandboxDiskFull: L'hôte de la sandbox n'a plus d'espace disque
+    outputLimit: Le programme a produit trop de sortie
     notFound: Introuvable
     invalidArgs: Impossible à exécuter tel quel
     unavailable: Indisponible ici
