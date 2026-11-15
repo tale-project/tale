@@ -1,4 +1,4 @@
-import type { IncusConfigMap } from '@tale/incus/api';
+import { incusStatus, type IncusConfigMap } from '@tale/incus/api';
 
 import { preconditionError } from '../../../../utils/fail';
 import type { LogOptions } from '../../types';
@@ -29,7 +29,9 @@ const FOLLOW_POLL_MS = 1_000;
 /** How much of what a follow took it keeps, to find it in a stopped console. */
 const TAKEN_TAIL = 4096;
 /** State reads, a poll apart, that a failed console read waits for the
- * instance to read stopped before it counts as a failure. */
+ * instance to read stopped before it counts as a failure; and console reads,
+ * a poll apart, a just-stopped instance gets before its console counts as
+ * failed. */
 const ENDED_STATE_READS = 10;
 /** The most one console read takes (Incus keeps about 128 KiB). */
 const CONSOLE_MAX_BYTES = 4 * 1024 * 1024;
@@ -47,6 +49,17 @@ export interface LogReadDependencies {
   pollMs?: number;
   /** Where the warning goes; stderr by default. */
   warn?: (line: string) => void;
+}
+
+/** Whether a console read failed the way Incus fails it for an instance that
+ * just ended: 500, "connection refused" (TI-20, measured). The console
+ * answers again a moment later; any other failure is a failure. */
+export function consoleJustEnded(error: unknown): boolean {
+  return (
+    incusStatus(error) === 500 &&
+    error instanceof Error &&
+    error.message.includes('connection refused')
+  );
 }
 
 /** Split console bytes into lines, carrying an unfinished last line. */
@@ -162,7 +175,32 @@ export async function readInstanceLogs(
     for (const line of lines) emit(line);
   };
 
-  if (!options.follow || !running(read.instance.status)) {
+  /** The console of an instance that reads stopped. Incus may still answer
+   * 500, "connection refused", for an instance that just ended: that answer
+   * is read again, a poll apart, at most ENDED_STATE_READS times; any other
+   * failure, and the last of those, is thrown at once. */
+  const readStoppedConsole = async () => {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await readConsole();
+      } catch (error) {
+        if (!consoleJustEnded(error) || attempt >= ENDED_STATE_READS)
+          throw error;
+        await sleep(dependencies.pollMs ?? FOLLOW_POLL_MS);
+      }
+    }
+  };
+  /** Show what the stopped console holds that this follow has not shown. */
+  const showStopped = async () => {
+    show(
+      untaken(await readStoppedConsole(), taken, takenLength - taken.length),
+      true,
+    );
+    return 0;
+  };
+
+  if (!running(read.instance.status)) return showStopped();
+  if (!options.follow) {
     show(await readConsole(), true);
     return 0;
   }
@@ -172,13 +210,7 @@ export async function readInstanceLogs(
       show('', true);
       return 0;
     }
-    if (!running(now.instance.status)) {
-      show(
-        untaken(await readConsole(), taken, takenLength - taken.length),
-        true,
-      );
-      return 0;
-    }
+    if (!running(now.instance.status)) return showStopped();
     let chunk: string;
     try {
       chunk = await readConsole();
@@ -186,20 +218,16 @@ export async function readInstanceLogs(
       // The service ended between the state read and the console read, and
       // its console went with it (Incus answers 500, "connection refused"),
       // while its state may still read Running for a moment: what no read
-      // took is in the console the stopped instance keeps.
+      // took is in the console the stopped instance keeps. Any other
+      // failure is one.
+      if (!consoleJustEnded(error)) throw error;
       for (let attempt = 0; attempt < ENDED_STATE_READS; attempt += 1) {
         const after = await context.client.getInstance(name);
         if (after === undefined) {
           show('', true);
           return 0;
         }
-        if (!running(after.instance.status)) {
-          show(
-            untaken(await readConsole(), taken, takenLength - taken.length),
-            true,
-          );
-          return 0;
-        }
+        if (!running(after.instance.status)) return showStopped();
         await sleep(dependencies.pollMs ?? FOLLOW_POLL_MS);
       }
       throw error;
