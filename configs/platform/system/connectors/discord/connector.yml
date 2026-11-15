@@ -42,6 +42,31 @@ actions:
     output: '{ guilds: Array<{ id: string, name: string, owner: boolean }> }'
     mock: |
       return { guilds: [{ id: '100000000000000001', name: 'Demo Server', owner: true }] };
+    scenarios:
+      - name: two_guilds
+        kind: success
+        description: 'The bot is a member of two servers, one of which it owns.'
+        output:
+          guilds:
+            - { id: '100000000000000001', name: 'Demo Server', owner: true }
+            - { id: '100000000000000002', name: 'Demo Community', owner: false }
+      - name: no_guilds
+        kind: empty
+        description: 'The bot is a member of no server yet.'
+        output:
+          guilds: []
+      - name: invalid_token
+        kind: error
+        description: 'Discord rejects the bot token with HTTP 401.'
+        error:
+          message: 'Discord list_guilds failed (401): authentication rejected — verify the bot token'
+          status: 401
+      - name: rate_limited
+        kind: error
+        description: 'Discord rate-limits the bot with HTTP 429.'
+        error:
+          message: 'Discord list_guilds failed (429): rate limited by Discord — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -67,9 +92,32 @@ actions:
         guild_id:
           type: string
           description: 'Guild (server) ID.'
-    output: '{ guild: { id: string, name: string, owner_id: string, description: string } }'
+    output: '{ guild: { id: string, name: string, owner_id: string, description: string | null } }'
     mock: |
       return { guild: { id: input.guild_id, name: 'Demo Server', owner_id: '200000000000000001', description: 'A mock guild.' } };
+    scenarios:
+      - name: guild
+        kind: success
+        description: 'Discord returns the server with its description.'
+        output:
+          guild: { id: '100000000000000001', name: 'Demo Server', owner_id: '200000000000000001', description: 'A demo server for the sales team.' }
+      - name: no_description
+        kind: empty
+        description: 'Discord returns a server that has no description, which it answers as null.'
+        output:
+          guild: { id: '100000000000000002', name: 'Demo Community', owner_id: '200000000000000001', description: null }
+      - name: guild_not_found
+        kind: error
+        description: 'Discord answers HTTP 404 for a server ID it does not know.'
+        error:
+          message: 'Discord get_guild failed (404): guild not found'
+          status: 404
+      - name: rate_limited
+        kind: error
+        description: 'Discord rate-limits the bot with HTTP 429.'
+        error:
+          message: 'Discord get_guild failed (429): rate limited by Discord — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -96,6 +144,31 @@ actions:
     output: '{ channels: Array<{ id: string, name: string, type: number, position: number }> }'
     mock: |
       return { channels: [{ id: '300000000000000001', name: 'general', type: 0, position: 0 }] };
+    scenarios:
+      - name: two_channels
+        kind: success
+        description: 'The server has two text channels, in their display order.'
+        output:
+          channels:
+            - { id: '300000000000000001', name: 'general', type: 0, position: 0 }
+            - { id: '300000000000000002', name: 'release-notes', type: 0, position: 1 }
+      - name: no_channels
+        kind: empty
+        description: 'The bot sees no channel in the server.'
+        output:
+          channels: []
+      - name: guild_not_found
+        kind: error
+        description: 'Discord answers HTTP 404 for a server ID it does not know.'
+        error:
+          message: 'Discord list_channels failed (404): guild not found'
+          status: 404
+      - name: rate_limited
+        kind: error
+        description: 'Discord rate-limits the bot with HTTP 429.'
+        error:
+          message: 'Discord list_channels failed (429): rate limited by Discord — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -134,6 +207,31 @@ actions:
     output: '{ messages: Array<{ id: string, content: string, author: { id: string, username: string }, timestamp: string }> }'
     mock: |
       return { messages: [{ id: '400000000000000001', content: 'Hello from the mock channel.', author: { id: '200000000000000001', username: 'demo-user' }, timestamp: '2024-01-01T00:00:00.000Z' }] };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'The channel holds two recent messages, from two members.'
+        output:
+          messages:
+            - { id: '400000000000000001', content: 'Hello from the mock channel.', author: { id: '200000000000000001', username: 'demo-user' }, timestamp: '2024-01-01T00:00:00.000Z' }
+            - { id: '400000000000000002', content: 'Deploy finished.', author: { id: '200000000000000002', username: 'demo-bot' }, timestamp: '2024-01-01T00:05:00.000Z' }
+      - name: no_messages
+        kind: empty
+        description: 'The channel holds no message yet.'
+        output:
+          messages: []
+      - name: channel_not_found
+        kind: error
+        description: 'Discord answers HTTP 404 for a channel ID it does not know.'
+        error:
+          message: 'Discord list_messages failed (404): channel not found'
+          status: 404
+      - name: no_read_permission
+        kind: error
+        description: 'Discord refuses with HTTP 403 because the bot cannot read the channel.'
+        error:
+          message: 'Discord list_messages failed (403): permission denied — the bot cannot read this channel'
+          status: 403
     backend:
       kind: yaml-js
       live: |
@@ -168,6 +266,33 @@ actions:
     output: '{ id: string, channel_id: string, content: string }'
     mock: |
       return { id: `4000000000000${String(input.content.length).padStart(5, '0')}`, channel_id: input.channel_id, content: input.content };
+    scenarios:
+      - name: sent
+        kind: success
+        description: 'Discord posts the message and answers with the message it made.'
+        output:
+          id: '400000000000000003'
+          channel_id: '300000000000000001'
+          content: 'Deploy finished ✅'
+      - name: sent_again
+        kind: duplicate
+        description: 'Discord does not recognize a message sent again: the same send posts a second message, with an id of its own.'
+        output:
+          id: '400000000000000004'
+          channel_id: '300000000000000001'
+          content: 'Deploy finished ✅'
+      - name: no_post_permission
+        kind: refusal
+        description: 'Discord refuses with HTTP 403 because the bot cannot post in the channel.'
+        error:
+          message: 'Discord send_message failed (403): permission denied — the bot cannot post in this channel'
+          status: 403
+      - name: rate_limited
+        kind: refusal
+        description: 'Discord rate-limits the bot with HTTP 429 and refuses the post.'
+        error:
+          message: 'Discord send_message failed (429): rate limited by Discord — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -199,9 +324,32 @@ actions:
         user_id:
           type: string
           description: 'User ID.'
-    output: '{ user: { id: string, username: string, global_name: string, bot: boolean } }'
+    output: '{ user: { id: string, username: string, global_name: string | null, bot: boolean } }'
     mock: |
       return { user: { id: input.user_id, username: 'demo-user', global_name: 'Demo User', bot: false } };
+    scenarios:
+      - name: user
+        kind: success
+        description: 'Discord returns a member user with a display name.'
+        output:
+          user: { id: '200000000000000001', username: 'demo-user', global_name: 'Demo User', bot: false }
+      - name: no_display_name
+        kind: empty
+        description: 'Discord returns a bot user that has no display name, which it answers as null.'
+        output:
+          user: { id: '200000000000000002', username: 'demo-bot', global_name: null, bot: true }
+      - name: user_not_found
+        kind: error
+        description: 'Discord answers HTTP 404 for a user ID it does not know.'
+        error:
+          message: 'Discord get_user failed (404): user not found'
+          status: 404
+      - name: rate_limited
+        kind: error
+        description: 'Discord rate-limits the bot with HTTP 429.'
+        error:
+          message: 'Discord get_user failed (429): rate limited by Discord — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
@@ -231,9 +379,34 @@ actions:
         after:
           type: string
           description: 'Return members after this user ID.'
-    output: '{ members: Array<{ user: { id: string, username: string }, nick: string, roles: string[] }> }'
+    output: '{ members: Array<{ user: { id: string, username: string }, nick: string | null, roles: string[] }> }'
     mock: |
       return { members: [{ user: { id: '200000000000000001', username: 'demo-user' }, nick: 'Demo', roles: ['500000000000000001'] }] };
+    scenarios:
+      - name: two_members
+        kind: success
+        description: 'The server has two members; the second has no nickname, which Discord answers as null.'
+        output:
+          members:
+            - { user: { id: '200000000000000001', username: 'demo-user' }, nick: 'Demo', roles: ['500000000000000001'] }
+            - { user: { id: '200000000000000002', username: 'demo-bot' }, nick: null, roles: [] }
+      - name: no_members
+        kind: empty
+        description: 'The server lists no member for the bot to see.'
+        output:
+          members: []
+      - name: missing_members_intent
+        kind: error
+        description: 'Discord refuses with HTTP 403 because the bot has no Server Members intent.'
+        error:
+          message: 'Discord list_members failed (403): permission denied — the bot needs the Server Members intent'
+          status: 403
+      - name: guild_not_found
+        kind: error
+        description: 'Discord answers HTTP 404 for a server ID it does not know.'
+        error:
+          message: 'Discord list_members failed (404): guild not found'
+          status: 404
     backend:
       kind: yaml-js
       live: |
@@ -271,6 +444,33 @@ actions:
     output: '{ id: string, name: string, type: number }'
     mock: |
       return { id: `3000000000000${String(input.name.length).padStart(5, '0')}`, name: input.name, type: input.type != null ? Number(input.type) : 0 };
+    scenarios:
+      - name: created
+        kind: success
+        description: 'Discord creates the text channel and answers with it.'
+        output:
+          id: '300000000000000003'
+          name: 'release-notes'
+          type: 0
+      - name: created_again
+        kind: duplicate
+        description: 'Discord does not recognize a channel created again: the same create makes a second channel, with an id of its own.'
+        output:
+          id: '300000000000000004'
+          name: 'release-notes'
+          type: 0
+      - name: no_manage_channels
+        kind: refusal
+        description: 'Discord refuses with HTTP 403 because the bot lacks the Manage Channels permission.'
+        error:
+          message: 'Discord create_channel failed (403): permission denied — the bot needs Manage Channels'
+          status: 403
+      - name: rate_limited
+        kind: refusal
+        description: 'Discord rate-limits the bot with HTTP 429 and refuses the create.'
+        error:
+          message: 'Discord create_channel failed (429): rate limited by Discord — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
