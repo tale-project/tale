@@ -293,8 +293,7 @@ export function commitRepositorySource(fixture: RuntimeFixture): void {
 /**
  * Commit this repository's own sandbox environment over the fixture's, beside
  * the fixture's edge: the spawner reads the environment alone, and the managed
- * runtime cannot prepare the repository's Traefik edge yet
- * (tale-project/tale#5282).
+ * runtime cannot prepare the repository's Traefik edge yet.
  */
 export function commitRepositorySandbox(fixture: RuntimeFixture): void {
   const repository = parse(
