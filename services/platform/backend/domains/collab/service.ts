@@ -1476,6 +1476,8 @@ const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
   time_limit: 'agentRunFailedBody',
   capacity: 'agentRunFailedBody',
   model: 'agentRunFailedBody',
+  runtime_exited: 'agentRunFailedBody',
+  replay_failed: 'agentRunFailedBody',
   model_capacity: 'agentRunFailedBody',
   start: 'agentRunFailedBody',
   interrupted: 'agentRunFailedBody',

@@ -166,6 +166,8 @@ What the run itself reported is in English and can name addresses and settings t
 | The run reached its time limit | Start the agent again, or split the task into smaller ones. |
 | The agent's sandbox ran out of memory | Start the agent again, or split the task into smaller ones. If it keeps happening, ask an Admin to give agents more memory; self-hosted operators set that limit as the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure) describes. |
 | The sandbox service the agent works in couldn't be reached | Your operator, whoever runs Tale for your organization, checks the sandbox service; then start the agent again. Self-hosted operators find what to check in [Troubleshooting](/self-hosted/operate/observability/troubleshooting#an-agent-cant-reach-the-sandbox-service). |
+| The agent's runtime stopped on its own before the work was done | Start the agent again. If it stops again, show an Admin **What the run reported** under **View** in the task's history. |
+| The sandbox couldn't replay everything the agent printed | Start the agent again to continue from the files it left. If it keeps happening, your operator checks the sandbox service. |
 | The run waited too long for a free worker | Start the agent again when fewer agents are busy, or ask an Owner or Admin to raise **Agent workers**. |
 | The AI model stayed at capacity for twelve hours | Start the agent again later. If the model stays unavailable, ask an Admin to check the AI provider. |
 | The AI model failed, or the run couldn't start or was interrupted | Start the agent again. If it fails again, show an Admin **What the run reported** under **View** in the task's history. |

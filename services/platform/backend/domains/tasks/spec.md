@@ -197,6 +197,19 @@ operator.
   and is retried three times; when the third retry fails, the task says the sandbox service could
   not be reached, that the operator checks it, and that the run was already retried 3 times.
 
+### TASK-R100 · A failure on the platform's side is not blamed on the AI model
+
+When the agent's runtime exits on its own before its turn is done, with no provider error to
+explain it, the run fails as a runtime that stopped, and when the sandbox cannot replay the
+complete output of the turn, the run fails as a replay failure. Both are retried like any other
+crash, and the task says what stopped the run and who can look into it, never that the AI
+provider failed. A provider's own error (a rejected key, a rate limit, a model at capacity) still
+fails as the model's.
+
+- **Example**: The Codex runtime finds its `CODEX_HOME` missing and exits at once → the run fails
+  as a runtime that stopped, is retried, and when the last retry fails the task asks Mia to show
+  an Admin what the run reported; it does not ask an Admin to check the AI provider.
+
 ## Handoffs by mention
 
 An agent hands a task on to another agent of its project by naming it in a comment, as it could

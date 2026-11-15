@@ -136,6 +136,8 @@ agentRun:
     model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
     start: Der Lauf konnte nicht starten. Zeig einem Admin, was der Lauf gemeldet hat, und starte den Agenten dann erneut.
     sandbox_unreachable: Der Sandbox-Dienst, in dem dieser Agent arbeitet, war nicht erreichbar, deshalb wurde der Lauf gestoppt. Bitte deinen Betreiber, den Sandbox-Dienst zu prüfen, und starte den Agenten dann erneut.
+    runtime_exited: Die Laufzeit des Agenten hat von sich aus aufgehört, bevor die Arbeit fertig war, deshalb wurde der Lauf gestoppt. Es lag nicht am KI-Modell. Starte den Agenten erneut — wenn er wieder abbricht, bitte einen Admin, die Laufzeit des Agenten und den Bericht des Laufs zu prüfen.
+    replay_failed: Der Sandbox-Dienst konnte nicht die gesamte Ausgabe des Agenten wiedergeben, deshalb wurde der Lauf gestoppt, bevor sein Ergebnis verlässlich war. Starte den Agenten erneut, um aus den hinterlassenen Dateien weiterzumachen — wenn das immer wieder passiert, bitte deinen Betreiber, den Sandbox-Dienst zu prüfen.
     interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
     out_of_memory: Der Sandbox des Agenten ist der Arbeitsspeicher ausgegangen, deshalb wurde seine Arbeit gestoppt. Starte den Agenten erneut — passiert das wieder, bitte einen Admin, Agenten mehr Arbeitsspeicher zu geben.
     stalled: 'Der Agent hat nicht mehr reagiert: Er hat lange nichts ausgegeben und kaum gearbeitet, deshalb hat seine Sandbox ihn gestoppt. Starte den Agenten erneut — bleibt er wieder stehen, zeig einem Admin, was der Lauf gemeldet hat.'

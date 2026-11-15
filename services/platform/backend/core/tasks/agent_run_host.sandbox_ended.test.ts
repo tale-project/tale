@@ -276,12 +276,12 @@ describe('a task agent turn the sandbox ended as stalled', () => {
     },
   );
 
-  it('keeps an ordinary crash a retryable harness error', async () => {
+  it('names an ordinary crash a runtime that stopped, not a model error', async () => {
     io.result = endedBySandbox('RUNTIME_ERROR', 1);
     const { ctx, mutations } = makeCtx({ status: 'running', execId: 'exec-1' });
 
     await driveTaskAgentTurnImpl(ctx, KEYS);
 
-    expect(failedMarks(mutations)[0]?.args.failureCode).toBe('harness_error');
+    expect(failedMarks(mutations)[0]?.args.failureCode).toBe('runtime_exited');
   });
 });

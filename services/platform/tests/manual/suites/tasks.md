@@ -1424,6 +1424,17 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   `inbox.agentRunFailedSandboxBody`. Start the service again (`docker start
   tale-sandbox`) and press **Retry** (`tasks.agentRun.retry`) → the run
   starts and the notice leaves the task.
+- [ ] `TASK-B61` · **A runtime that stops, or a turn the sandbox cannot replay, is not blamed on the AI model** —
+  On a local stack, make the agent's runtime exit at once (for a Codex agent,
+  point `CODEX_HOME` at a path that does not exist) and press **Start agent**
+  (`tasks.agentRun.start`) on a task → the run fails and is retried three
+  times; when the last retry fails, the task shows **The agent couldn't finish
+  this task** (`tasks.agentRun.failureTitle`) with
+  `tasks.agentRun.failure.runtime_exited`, which asks an Admin to show what
+  the run reported and never mentions the AI provider, in EN, DE and FR.
+  **View** (`common.actions.view`) on the run's row leads with the same
+  sentence. A sandbox that cannot replay an agent's output fails the same way
+  with `tasks.agentRun.failure.replay_failed`, which names the sandbox service.
 - [ ] `TASK-B37` · **A standard agent that can't run for you says why** —
   Under **Model access**, block every model for the Member role, with the
   standard agent's **Model** on **Automatic**. As the member, open

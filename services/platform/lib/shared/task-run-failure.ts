@@ -36,6 +36,12 @@ export const TASK_RUN_FAILURE_CLASSES = [
   'capacity',
   /** The model or its provider failed the turn. */
   'model',
+  /** The agent runtime stopped before the work was done, on its own — not a
+   * provider error: a person shows an Admin what the run reported. */
+  'runtime_exited',
+  /** The sandbox could not replay the agent's complete output, so the run's
+   * result cannot be trusted: the sandbox service is the operator's to check. */
+  'replay_failed',
   /** The provider kept the model at capacity for twelve hours: the run
    * stopped waiting for it. */
   'model_capacity',
@@ -68,6 +74,8 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   deadline: 'time_limit',
   park_deadline: 'capacity',
   harness_error: 'model',
+  runtime_exited: 'runtime_exited',
+  replay_failed: 'replay_failed',
   model_capacity: 'model_capacity',
   empty_turn: 'model',
   credential_rotated: 'model',
