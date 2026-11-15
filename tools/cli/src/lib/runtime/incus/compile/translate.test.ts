@@ -276,6 +276,110 @@ describe('what every instance carries (r3)', () => {
     );
   });
 
+  test('several declared sandbox hosts: the spawner gets the endpoint list, their credentials and a data volume for its record', () => {
+    const input = managedInput();
+    const oneHost = compiled(input);
+    const target = compiled({
+      ...input,
+      declaration: {
+        ...input.declaration,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          {
+            name: 'node-3',
+            endpoint: 'https://10.0.0.3:8443',
+            project: 'sandbox-pr-3',
+            egressProxy: 'http://10.20.3.2:3128',
+            dns: ['10.20.3.2'],
+            maxSessions: 25,
+            drained: true,
+          },
+        ],
+      },
+    });
+    const sandbox = target.instances.find(
+      (instance) => instance.name === 'sandbox',
+    );
+    const config = sandbox?.config ?? {};
+    // The list replaces the one host's connection, which the spawner refuses
+    // beside it.
+    for (const variable of [
+      'SANDBOX_INCUS_ENDPOINT',
+      'SANDBOX_INCUS_CLIENT_CERT_FILE',
+      'SANDBOX_INCUS_CLIENT_KEY_FILE',
+      'SANDBOX_INCUS_SERVER_CERT_FILE',
+    ])
+      expect(config[`environment.${variable}`]).toBeUndefined();
+    expect(
+      JSON.parse(config['environment.SANDBOX_INCUS_ENDPOINTS'] ?? 'null'),
+    ).toEqual([
+      {
+        name: 'node-2',
+        endpoint: 'https://10.0.0.2:8443',
+        clientCertFile: '/run/secrets/incus/node-2/client.crt',
+        clientKeyFile: '/run/secrets/incus/node-2/client.key',
+        serverCertFile: '/run/secrets/incus/node-2/server.crt',
+      },
+      {
+        name: 'node-3',
+        endpoint: 'https://10.0.0.3:8443',
+        clientCertFile: '/run/secrets/incus/node-3/client.crt',
+        clientKeyFile: '/run/secrets/incus/node-3/client.key',
+        serverCertFile: '/run/secrets/incus/node-3/server.crt',
+        project: 'sandbox-pr-3',
+        egressProxy: 'http://10.20.3.2:3128',
+        dns: ['10.20.3.2'],
+        maxSessions: 25,
+        drained: true,
+      },
+    ]);
+    expect(config['environment.SANDBOX_INCUS_STATE_DIR']).toBe(
+      '/var/lib/tale-sandbox/incus',
+    );
+    // Everything else of the Incus shape stays.
+    expect(config['environment.SANDBOX_BACKEND']).toBe('incus');
+    expect(config['environment.SANDBOX_INCUS_IMAGE_SOURCE']).toBe(
+      SANDBOX_RUNTIME.reference,
+    );
+    // Each host's three files, from its directory of the credentials.
+    expect(
+      target.files
+        .filter((file) => file.volume === 'sandbox-credentials')
+        .map((file) => [file.path, file.mode, file.source]),
+    ).toEqual(
+      ['node-2', 'node-3'].flatMap((host) =>
+        ['client.crt', 'client.key', 'server.crt'].map((name) => [
+          `${host}/${name}`,
+          0o600,
+          { kind: 'sandbox-credentials' as const, file: `${host}/${name}` },
+        ]),
+      ),
+    );
+    // The record outlives the instance: a data volume of the spawner's own.
+    expect(sandbox?.devices['sandbox-state']).toEqual({
+      type: 'disk',
+      pool: target.pool,
+      source: 'sandbox-state',
+      path: '/var/lib/tale-sandbox/incus',
+    });
+    expect(
+      target.volumes.find((volume) => volume.name === 'sandbox-state'),
+    ).toMatchObject({ kind: 'data' });
+
+    // One host: as before, with no list, no record and no new volume.
+    const one = oneHost.instances.find(
+      (instance) => instance.name === 'sandbox',
+    );
+    expect(one?.config['environment.SANDBOX_INCUS_ENDPOINTS']).toBeUndefined();
+    expect(one?.config['environment.SANDBOX_INCUS_STATE_DIR']).toBeUndefined();
+    expect(one?.devices['sandbox-state']).toBeUndefined();
+    expect(
+      oneHost.files
+        .filter((file) => file.volume === 'sandbox-credentials')
+        .map((file) => file.path),
+    ).toEqual(['client.crt', 'client.key', 'server.crt']);
+  });
+
   test("the sessions' image is pulled through the mirror declared for its registry", () => {
     const input = managedInput();
     const sandbox = compiled({

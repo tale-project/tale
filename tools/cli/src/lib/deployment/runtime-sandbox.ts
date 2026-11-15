@@ -27,6 +27,63 @@ export const SANDBOX_INCUS_FILES = [
 ] as const;
 /** Where the spawner container sees the directory. */
 export const SANDBOX_INCUS_MOUNT_POINT = '/run/secrets/incus';
+/** The variable of the spawner's several Incus hosts, which replaces the
+ * single host's endpoint and three certificate files. */
+export const SANDBOX_INCUS_ENDPOINTS_VARIABLE = 'SANDBOX_INCUS_ENDPOINTS';
+/** The single host's connection: the endpoint and the three certificate
+ * files, which the spawner refuses beside SANDBOX_INCUS_ENDPOINTS. */
+export const SANDBOX_SINGLE_HOST_VARIABLES = [
+  'SANDBOX_INCUS_ENDPOINT',
+  'SANDBOX_INCUS_CLIENT_CERT_FILE',
+  'SANDBOX_INCUS_CLIENT_KEY_FILE',
+  'SANDBOX_INCUS_SERVER_CERT_FILE',
+] as const;
+/** With several hosts: the spawner's data volume, where it records the host
+ * each session lives on, and where it sees it (SANDBOX_INCUS_STATE_DIR). */
+export const SANDBOX_STATE_VOLUME = 'sandbox-state';
+export const SANDBOX_STATE_MOUNT_POINT = '/var/lib/tale-sandbox/incus';
+
+/** One of several Incus hosts the spawner spreads its sessions over, as a
+ * deployment declares it (`runtime.incus.sandboxHosts`). Its credentials are
+ * the three files in `<credentials>/<name>/`. */
+export interface SandboxHost {
+  name: string;
+  endpoint: string;
+  project?: string;
+  profile?: string;
+  network?: string;
+  storagePool?: string;
+  egressProxy?: string;
+  dns?: readonly string[];
+  maxSessions?: number;
+  poolSize?: number;
+  drained?: boolean;
+}
+
+/** The credential files of the hosts, under the credentials directory: each
+ * host's three files in a directory of its name. */
+export function sandboxHostFiles(hosts: readonly SandboxHost[]): string[] {
+  return hosts.flatMap((host) =>
+    SANDBOX_INCUS_FILES.map((file) => `${host.name}/${file}`),
+  );
+}
+
+/** SANDBOX_INCUS_ENDPOINTS for the declared hosts: each entry as declared,
+ * with its certificate files where the spawner sees them. */
+export function sandboxEndpointsVariable(
+  hosts: readonly SandboxHost[],
+): string {
+  return JSON.stringify(
+    hosts.map(({ name, endpoint, ...rest }) => ({
+      name,
+      endpoint,
+      clientCertFile: `${SANDBOX_INCUS_MOUNT_POINT}/${name}/client.crt`,
+      clientKeyFile: `${SANDBOX_INCUS_MOUNT_POINT}/${name}/client.key`,
+      serverCertFile: `${SANDBOX_INCUS_MOUNT_POINT}/${name}/server.crt`,
+      ...rest,
+    })),
+  );
+}
 /**
  * The bind source is relative on purpose: Compose resolves it against the
  * directory of the Compose file, which a managed apply makes `<state>/src`,

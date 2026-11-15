@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { CliError, preconditionError } from '../../utils/fail';
-import { isUnicastIpv4 } from '../deployment/runtime-sandbox';
+import { isEgressProxy, isUnicastIpv4 } from '../deployment/runtime-sandbox';
 import { RUNTIME_ENGINES, type RuntimeEngine } from '../runtime/types';
 
 /**
@@ -79,6 +79,46 @@ const volumeConfigKey = z
     'Only snapshots.* and zfs.* volume settings may be declared.',
   );
 const port = z.number().int().min(1).max(65535);
+
+/** One Incus host the spawner places sessions on, beside the others: its
+ * name, its API, and what it names otherwise than the stack's sessions zone.
+ * Its restricted certificate, key and pinned server certificate are files in
+ * `sandbox-incus/<name>/`, never the declaration. */
+const sandboxHost = z
+  .strictObject({
+    name: incusName,
+    endpoint,
+    project: incusName.optional(),
+    profile: incusName.optional(),
+    network: bridgeName.optional(),
+    storagePool: incusName.optional(),
+    /** The egress proxy on the host's own sandbox network. */
+    egressProxy: z
+      .string()
+      .refine(
+        isEgressProxy,
+        'Must be http://<unicast IPv4 address>:<port>, with a port other than 80.',
+      )
+      .optional(),
+    /** The resolvers handed to the host's sessions. */
+    dns: z.array(ipv4).min(1).max(8).optional(),
+    /** The host's own session cap. */
+    maxSessions: z.number().int().min(1).max(100_000).optional(),
+    /** The host's warm standbys, at most its cap. */
+    poolSize: z.number().int().min(0).max(256).optional(),
+    /** No new session goes to the host; the ones it holds carry on there. */
+    drained: z.boolean().optional(),
+  })
+  .refine(
+    (host) =>
+      host.poolSize === undefined ||
+      host.maxSessions === undefined ||
+      host.poolSize <= host.maxSessions,
+    {
+      message: 'A host keeps at most its maxSessions as warm standbys.',
+      path: ['poolSize'],
+    },
+  );
 
 export const INGRESS_MODES = ['routed', 'proxy-device'] as const;
 export type IngressMode = (typeof INGRESS_MODES)[number];
@@ -158,6 +198,19 @@ const incusFields = z.strictObject({
       }),
     )
     .max(64)
+    .optional(),
+  /** Several Incus hosts the spawner spreads its sessions over, in place of
+   * the one at `endpoint` (SANDBOX_INCUS_ENDPOINTS): at least two. Every
+   * host must give a session the same shape. Absent, the spawner drives
+   * the one host, as before. */
+  sandboxHosts: z
+    .array(sandboxHost)
+    .min(2, 'Declare at least two sandbox hosts, or none for the one host.')
+    .max(64)
+    .refine(
+      (hosts) => new Set(hosts.map((host) => host.name)).size === hosts.length,
+      'Each sandbox host has a name of its own.',
+    )
     .optional(),
 });
 

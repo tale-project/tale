@@ -624,6 +624,29 @@ describePosix('applying a managed bundle on Incus', () => {
     expect(fake.instances.size).toBe(0);
   });
 
+  test("several sandbox hosts need each host's credentials before the first call to the node", async () => {
+    const { fake, options, dependencies } = await setup();
+    const requests = fake.requests.length;
+    await expect(
+      applyIncusRuntime(
+        {
+          ...options,
+          incus: {
+            ...options.incus,
+            sandboxHosts: [
+              { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+              { name: 'node-3', endpoint: 'https://10.0.0.3:8443' },
+            ],
+          },
+        },
+        dependencies,
+      ),
+    ).rejects.toThrow(
+      `Incus sandbox credentials of node-2 directory ${join(options.stateDirectory, 'sandbox-incus', 'node-2')} is missing`,
+    );
+    expect(fake.requests.length).toBe(requests);
+  });
+
   test('environment of the Incus shape stays the CLI own', async () => {
     const { options, dependencies } = await setup();
     await expect(

@@ -175,6 +175,9 @@ export function compileStackTarget(input: CompileInput): CompileResult {
     egressProxy: input.egressProxy,
     endpoint:
       declaration.endpoint ?? `https://${declaration.network.gateway}:8443`,
+    ...(declaration.sandboxHosts === undefined
+      ? {}
+      : { sandboxHosts: declaration.sandboxHosts }),
     ingress: declaration.ingress,
     mirrors: declaration,
     ...(input.path === 'workspace'

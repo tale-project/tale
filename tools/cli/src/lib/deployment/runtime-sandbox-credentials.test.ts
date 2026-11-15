@@ -71,6 +71,29 @@ describePosix('the Incus credentials check on a POSIX host', () => {
     expect(message).not.toContain('PEM-CONTENT-MARKER');
   });
 
+  test("with several sandbox hosts, holds each host's directory to the same custody", () => {
+    const { state, directory } = layout();
+    for (const host of ['node-2', 'node-3']) {
+      const own = join(directory, host);
+      mkdirSync(own, { mode: 0o700 });
+      chmodSync(own, 0o700);
+      for (const name of SANDBOX_INCUS_FILES)
+        writeFileSync(join(own, name), 'PEM-CONTENT-MARKER\n', {
+          mode: 0o600,
+        });
+    }
+    expect(() =>
+      assertIncusCredentials(state, ['node-2', 'node-3']),
+    ).not.toThrow();
+    chmodSync(join(directory, 'node-3', 'client.key'), 0o644);
+    expect(() => assertIncusCredentials(state, ['node-2', 'node-3'])).toThrow(
+      `${join(directory, 'node-3', 'client.key')} must not be accessible`,
+    );
+    expect(() => assertIncusCredentials(state, ['node-2', 'node-4'])).toThrow(
+      `Incus sandbox credentials of node-4 directory ${join(directory, 'node-4')} is missing; place the host's client.crt, client.key, server.crt in it before applying`,
+    );
+  });
+
   test('names the directory when it is missing', () => {
     const { state, directory } = layout();
     rmSync(directory, { recursive: true });

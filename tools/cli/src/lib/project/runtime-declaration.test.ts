@@ -68,6 +68,28 @@ describe('the Incus declaration', () => {
         ],
       },
     ],
+    [
+      'several sandbox hosts',
+      {
+        ...incus,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          {
+            name: 'node-3',
+            endpoint: 'https://10.0.0.3:8443',
+            project: 'sandbox-pr-3',
+            profile: 'sandbox',
+            network: 'sbx3',
+            storagePool: 'tank',
+            egressProxy: 'http://10.20.3.2:3128',
+            dns: ['10.20.3.2'],
+            maxSessions: 25,
+            poolSize: 2,
+            drained: true,
+          },
+        ],
+      },
+    ],
     ['a routed ingress', { ...incus, ingress: { mode: 'routed' } }],
     [
       'a /25 block (a managed deployment)',
@@ -167,6 +189,76 @@ describe('the Incus declaration', () => {
         ...incus,
         operatorReach: [
           { destination: '10.40.0.5', protocol: 'tcp', ports: [] },
+        ],
+      },
+    ],
+    [
+      'a single sandbox host',
+      {
+        ...incus,
+        sandboxHosts: [{ name: 'node-2', endpoint: 'https://10.0.0.2:8443' }],
+      },
+    ],
+    [
+      'two sandbox hosts of one name',
+      {
+        ...incus,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+        ],
+      },
+    ],
+    [
+      'a sandbox host with an http endpoint',
+      {
+        ...incus,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          { name: 'node-3', endpoint: 'http://10.0.0.3:8443' },
+        ],
+      },
+    ],
+    [
+      'a sandbox host whose egress proxy is a name',
+      {
+        ...incus,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          {
+            name: 'node-3',
+            endpoint: 'https://10.0.0.3:8443',
+            egressProxy: 'http://proxy:3128',
+          },
+        ],
+      },
+    ],
+    [
+      'a sandbox host with more standbys than sessions',
+      {
+        ...incus,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          {
+            name: 'node-3',
+            endpoint: 'https://10.0.0.3:8443',
+            maxSessions: 2,
+            poolSize: 3,
+          },
+        ],
+      },
+    ],
+    [
+      'a sandbox host with its own certificate in the declaration',
+      {
+        ...incus,
+        sandboxHosts: [
+          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          {
+            name: 'node-3',
+            endpoint: 'https://10.0.0.3:8443',
+            clientCertFile: '/x',
+          },
         ],
       },
     ],

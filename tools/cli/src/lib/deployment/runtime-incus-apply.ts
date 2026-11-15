@@ -520,8 +520,12 @@ export async function applyIncusRuntime(
     ),
     'Managed runtime environment names a variable the Incus sandbox shape sets itself.',
   );
-  // The spawner's credentials, before the first call to the node.
-  assertIncusCredentials(options.stateDirectory);
+  // The spawner's credentials, before the first call to the node: each
+  // declared sandbox host's, or the one host's.
+  assertIncusCredentials(
+    options.stateDirectory,
+    options.incus.sandboxHosts?.map((host) => host.name),
+  );
   const runtime =
     dependencies.incusRuntime ??
     (await managedIncusRuntime({

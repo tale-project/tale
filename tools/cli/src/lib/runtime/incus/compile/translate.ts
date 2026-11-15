@@ -6,9 +6,17 @@ import {
   incusSandboxVariables,
   isUnicastIpv4,
   SANDBOX_DOCKER_ONLY_VARIABLES,
+  SANDBOX_INCUS_ENDPOINTS_VARIABLE,
+  SANDBOX_INCUS_FILES,
   SANDBOX_INCUS_MOUNT_POINT,
   SANDBOX_INCUS_MOUNT_SOURCE,
   SANDBOX_SHAPE_MOUNTS,
+  SANDBOX_SINGLE_HOST_VARIABLES,
+  SANDBOX_STATE_MOUNT_POINT,
+  SANDBOX_STATE_VOLUME,
+  sandboxEndpointsVariable,
+  sandboxHostFiles,
+  type SandboxHost,
   type SandboxRuntimeImage,
 } from '../../../deployment/runtime-sandbox';
 import { TALE_INIT_LABEL, type ImageFacts } from '../../../oci/image-facts';
@@ -214,6 +222,9 @@ export interface ServiceContext {
   egressProxy?: string;
   /** The Incus API the spawner dials. */
   endpoint: string;
+  /** Several Incus hosts the spawner dials instead of `endpoint`
+   * (`runtime.incus.sandboxHosts`). */
+  sandboxHosts?: readonly SandboxHost[];
   ingress: { mode: 'routed' | 'proxy-device'; listen?: string };
   /** The declared registry mirrors, which the sessions' image is pulled
    * through as the stack's own images are. */
@@ -766,13 +777,22 @@ function mountsOf(
   if (name === 'sandbox') {
     addDisk('sandbox-credentials', SANDBOX_INCUS_MOUNT_POINT, true);
     runtimeVolumes.push('sandbox-credentials');
-    for (const file of ['client.crt', 'client.key', 'server.crt'])
+    // One host: its three files. Several: each host's, in a directory of its
+    // name, and a data volume for the record of each session's host.
+    const several = context.sandboxHosts;
+    for (const file of several === undefined
+      ? SANDBOX_INCUS_FILES
+      : sandboxHostFiles(several))
       files.push({
         volume: 'sandbox-credentials',
         path: file,
         mode: 0o600,
         source: { kind: 'sandbox-credentials', file },
       });
+    if (several !== undefined) {
+      addDisk(SANDBOX_STATE_VOLUME, SANDBOX_STATE_MOUNT_POINT, false);
+      dataVolumes.push(SANDBOX_STATE_VOLUME);
+    }
   }
   const mountPaths = Object.values(devices).map((device) => device.path ?? '');
   for (const path of facts.volumes) {
@@ -1312,7 +1332,18 @@ export function translateService(
       context.egressProxy ??
       `http://${context.plan.singleton('sandbox-egress')}:3128`;
     environment.SANDBOX_INCUS_DNS = context.plan.singleton('names-sessions');
-    environment.SANDBOX_INCUS_ENDPOINT = context.endpoint;
+    if (context.sandboxHosts === undefined)
+      environment.SANDBOX_INCUS_ENDPOINT = context.endpoint;
+    else {
+      // The list replaces the one host's connection, which the spawner
+      // refuses beside it.
+      for (const variable of SANDBOX_SINGLE_HOST_VARIABLES)
+        delete environment[variable];
+      environment[SANDBOX_INCUS_ENDPOINTS_VARIABLE] = sandboxEndpointsVariable(
+        context.sandboxHosts,
+      );
+      environment.SANDBOX_INCUS_STATE_DIR = SANDBOX_STATE_MOUNT_POINT;
+    }
     // The zone `tale incus bootstrap` made, unless `.env` names another.
     for (const [variable, value] of Object.entries(context.sessionsZone ?? {}))
       environment[variable] ??= value;
