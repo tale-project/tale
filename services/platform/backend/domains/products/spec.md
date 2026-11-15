@@ -118,6 +118,17 @@ is, the delete is refused (`LEGAL_HOLD_ACTIVE`) and nothing is removed.
 - **Example**: The organization is under a legal hold. Noah deletes a product → refused, and
   the product and its image stay.
 
+### PROD-R14 · A product list serves each image at the size its slot shows
+
+The product list cell and its hover card load a WebP no wider than twice their CSS size (160 px
+and 256 px), derived from the upload on read and cached by the browser for an hour. The
+product's own view loads the original. An image uploaded before this rule is served the same
+way, and an SVG, which is vector, is served unchanged. A variant that cannot be made serves the
+original.
+
+- **Example**: Mia opens the product list with a 4 MB photo on a product → the row loads a
+  160 px WebP; the product's view loads the 4 MB original.
+
 ## Not yet
 
 - **Listing, counting and searching products**, and the limits of a page (`routes.ts`).

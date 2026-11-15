@@ -1,10 +1,15 @@
+import { encodeImage } from '@tale/ui/images/encode';
+import { IMAGE_QUALITY } from '@tale/ui/images/responsive';
 import { fileTypeFromBuffer } from 'file-type';
 import type { Sql, TransactionSql } from 'postgres';
+import sharp from 'sharp';
 import { z } from 'zod';
 
 import {
   PRODUCT_IMAGE_MAX_BYTES,
   PRODUCT_IMAGE_TYPES,
+  PRODUCT_IMAGE_VARIANTS,
+  type ProductImageVariant,
 } from '../../../lib/shared/product-images.ts';
 import { svgHasActiveContent } from '../../core/branding/file_utils.ts';
 import {
@@ -151,5 +156,35 @@ export async function uploadProductImage(
   } catch (error) {
     await deleteOrgBlobRefs(sql, scope.organizationId, [storageRef]);
     throw error;
+  }
+}
+
+/**
+ * One served variant of a product image, derived on read: a WebP no wider
+ * than the variant's width (never an upscale), in the shared photo policy.
+ * Returns null when the bytes cannot be decoded or fit the budget, so the
+ * caller serves the original instead. An SVG is vector and is never derived.
+ */
+export async function productImageVariant(
+  bytes: Uint8Array,
+  variant: ProductImageVariant,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  try {
+    const pipeline = sharp(bytes).rotate().resize({
+      width: PRODUCT_IMAGE_VARIANTS[variant],
+      withoutEnlargement: true,
+    });
+    const { bytes: encoded } = await encodeImage(pipeline, {
+      format: 'webp',
+      quality: IMAGE_QUALITY.photo.webp,
+      label: `product image ${variant}`,
+    });
+    return Uint8Array.from(encoded);
+  } catch (error) {
+    console.warn(
+      `[products] no ${variant} variant for a product image, serving the original:`,
+      error instanceof Error ? error.message : error,
+    );
+    return null;
   }
 }

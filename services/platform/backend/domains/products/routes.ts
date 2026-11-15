@@ -3,7 +3,11 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { PRODUCT_IMAGE_MAX_BYTES } from '../../../lib/shared/product-images.ts';
+import {
+  PRODUCT_IMAGE_MAX_BYTES,
+  PRODUCT_IMAGE_VARIANTS,
+  type ProductImageVariant,
+} from '../../../lib/shared/product-images.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -27,6 +31,7 @@ import {
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   isProductImageUrl,
+  productImageVariant,
   readProductImage,
   uploadProductImage,
   validateProductImageBinding,
@@ -80,6 +85,15 @@ const productAppImageUrlSchema = z.string().transform((value, ctx) => {
 const productAppInputSchema = productInputSchema.extend({
   imageUrl: productAppImageUrlSchema.nullable().optional(),
 });
+
+/** The `variant` query: a known variant, or null for the original. */
+function productImageVariantParam(
+  value: string | undefined,
+): ProductImageVariant | null {
+  if (value === undefined || !Object.hasOwn(PRODUCT_IMAGE_VARIANTS, value))
+    return null;
+  return value as ProductImageVariant;
+}
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
@@ -137,8 +151,7 @@ export function createProductRoutes(deps: {
         signal: c.req.raw.signal,
       });
       if (!content) return c.json({ error: 'PRODUCT_IMAGE_NOT_FOUND' }, 404);
-      // Serve inline under a sandbox even for direct SVG navigation. Never
-      // redirect to an object URL that lacks this response policy.
+      const variant = productImageVariantParam(c.req.query('variant'));
       const headers = new Headers(content.headers);
       headers.set('content-type', image.contentType);
       headers.set(
@@ -147,7 +160,33 @@ export function createProductRoutes(deps: {
       );
       headers.set('x-content-type-options', 'nosniff');
       headers.set('cache-control', 'private, no-store');
-      return new Response(content.body, { status: content.status, headers });
+      if (
+        variant === null ||
+        content.status !== 200 ||
+        content.body === null ||
+        image.contentType === 'image/svg+xml'
+      ) {
+        // Serve inline under a sandbox even for direct SVG navigation. Never
+        // redirect to an object URL that lacks this response policy.
+        return new Response(content.body, { status: content.status, headers });
+      }
+      // A variant is derived from the original bytes and keyed by its URL, so
+      // the browser may keep it: the file under one id never changes. The
+      // original, when the variant cannot be made, stays uncached.
+      const original = new Uint8Array(
+        await new Response(content.body).arrayBuffer(),
+      );
+      const derived = await productImageVariant(original, variant);
+      if (derived === null) {
+        return new Response(original, { status: 200, headers });
+      }
+      const variantHeaders = new Headers(headers);
+      variantHeaders.set('content-type', 'image/webp');
+      variantHeaders.set('cache-control', 'private, max-age=3600');
+      variantHeaders.delete('content-length');
+      variantHeaders.delete('etag');
+      variantHeaders.delete('last-modified');
+      return new Response(derived, { status: 200, headers: variantHeaders });
     } catch (error) {
       return handleError(c, error);
     }
