@@ -3377,7 +3377,9 @@ export function createChatToolExecutor(
     } catch (error) {
       const message =
         error instanceof SafeFetchError
-          ? `The page could not be fetched (${error.kind}${error.status !== undefined ? ` ${error.status}` : ''}).`
+          ? error.kind === 'response_too_large'
+            ? `The page could not be fetched: it is larger than the ${WEB_FETCH_MAX_RESPONSE_BYTES / (1024 * 1024)} MiB this tool reads, so none of it was read. Tell the user; they can attach the file to a message instead.`
+            : `The page could not be fetched (${error.kind}${error.status !== undefined ? ` ${error.status}` : ''}).`
           : `The page could not be fetched: ${clip(describeError(error), 200)}`;
       return refuseWebFetch(
         webFetchFailure('error', fetchFailureReason(error), message),

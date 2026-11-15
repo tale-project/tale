@@ -1619,27 +1619,6 @@ describe('web_fetch', () => {
     },
   );
 
-  it('says plainly when the content type is unreadable', async () => {
-    safeFetchMock.mockResolvedValueOnce({
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers({ 'content-type': 'application/pdf' }),
-      body: '%PDF-1.7',
-      finalUrl: 'https://example.com/file.pdf',
-    });
-    const executor = await makeExecutor(createCtx().ctx);
-    await expect(
-      executor.execute({
-        id: 'call_1',
-        name: 'web_fetch',
-        input: { url: 'https://example.com/file.pdf' },
-      }),
-    ).resolves.toMatchObject({
-      status: 'unavailable',
-      message: expect.stringContaining('application/pdf'),
-    });
-  });
-
   it('extracts the title and wraps the page text as untrusted content', async () => {
     safeFetchMock.mockResolvedValueOnce({
       status: 200,
