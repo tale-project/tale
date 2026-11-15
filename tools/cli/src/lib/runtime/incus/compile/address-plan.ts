@@ -11,7 +11,7 @@ import { RefusalError, refusal } from './refusals';
  * | Offset    | Holder                                                  |
  * | --------- | ------------------------------------------------------- |
  * | .1        | the bridge gateway (the operator's)                     |
- * | .2-.12    | the singletons (`SINGLETON_OFFSETS`)                    |
+ * | .2-.13    | the singletons (`SINGLETON_OFFSETS`)                    |
  * | .16-.31   | one-shot helpers `job-*`                                |
  * | .32-.63   | reserved                                                |
  * | .64-.127  | blue: platform .64, backend-api .80, backend-worker .96 |
@@ -35,6 +35,7 @@ export const SINGLETON_OFFSETS = {
   'sandbox-egress': 10,
   sandbox: 11,
   'bgutil-provider': 12,
+  'docker-api': 13,
 } as const;
 export type SingletonRole = keyof typeof SINGLETON_OFFSETS;
 

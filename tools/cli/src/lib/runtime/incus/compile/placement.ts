@@ -159,6 +159,15 @@ export const PLACEMENT = {
     // As create-bgutil-provider-service.ts bounds it.
     limits: { memory: '512MiB', processes: 512 },
   },
+  // The read-only Docker API proxy the edge reads its labels through (the
+  // proxy image's `docker-api` role, compose.yml). It is rolled and stopped
+  // with the edge, and starts before it, as the edge's provider.
+  'docker-api': {
+    kind: 'service',
+    address: { singleton: 'docker-api' },
+    start: 11,
+    stop: STOP_GROUPS.edge,
+  },
   proxy: {
     kind: 'service',
     address: { singleton: 'proxy' },
