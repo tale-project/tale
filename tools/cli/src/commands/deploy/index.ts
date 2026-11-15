@@ -51,6 +51,11 @@ export function createDeployCommand(): Command {
       'On the Incus runtime (a workspace or --bundle): apply exactly this reviewed plan (from --plan-only --json)',
     )
     .option(
+      '--clear-sandbox-placement',
+      "On the Incus runtime (a workspace or --bundle), when the deployment no longer declares runtime.incus.sandboxHosts: delete the sandbox spawner's record of each session's host (the sandbox-state volume) once the spawner no longer mounts it. Without it such a deploy is refused while the record is kept",
+      false,
+    )
+    .option(
       '--host <hostname>',
       'Serve this host for this run instead of HOST in .env (.env is not changed)',
     )
@@ -121,6 +126,9 @@ export function createDeployCommand(): Command {
             ...(options.stop ? { stop: true } : {}),
             ...(options.planOnly ? { planOnly: true } : {}),
             ...(options.plan === undefined ? {} : { plan: options.plan }),
+            ...(options.clearSandboxPlacement
+              ? { clearSandboxPlacement: true }
+              : {}),
           });
           return;
         }
@@ -147,6 +155,9 @@ export function createDeployCommand(): Command {
           acceptDataLoss: options.acceptDataLoss,
           ...(options.planOnly ? { planOnly: true } : {}),
           ...(options.plan === undefined ? {} : { plan: options.plan }),
+          ...(options.clearSandboxPlacement
+            ? { clearSandboxPlacement: true }
+            : {}),
         });
       }),
     );

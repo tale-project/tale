@@ -36,6 +36,7 @@ import {
 } from './runtime-model';
 import { prepareRuntime } from './runtime-prepare';
 import { SANDBOX_INCUS_FILES } from './runtime-sandbox';
+import { SANDBOX_PLACEMENT_SENTENCES } from './runtime-sandbox-placement';
 import {
   commitRepositorySource,
   fakeRegistry,
@@ -634,8 +635,18 @@ describePosix('applying a managed bundle on Incus', () => {
           incus: {
             ...options.incus,
             sandboxHosts: [
-              { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-              { name: 'node-3', endpoint: 'https://10.0.0.3:8443' },
+              {
+                name: 'node-2',
+                endpoint: 'https://10.0.0.2:8443',
+                egressProxy: 'http://10.20.2.2:3128',
+                dns: ['10.20.2.2'],
+              },
+              {
+                name: 'node-3',
+                endpoint: 'https://10.0.0.3:8443',
+                egressProxy: 'http://10.20.3.2:3128',
+                dns: ['10.20.3.2'],
+              },
             ],
           },
         },
@@ -645,6 +656,80 @@ describePosix('applying a managed bundle on Incus', () => {
       `Incus sandbox credentials of node-2 directory ${join(options.stateDirectory, 'sandbox-incus', 'node-2')} is missing`,
     );
     expect(fake.requests.length).toBe(requests);
+  });
+
+  test("leaving the list form with the spawner's placement record kept is refused unless the operator clears it", async () => {
+    const { fake, options, dependencies } = await setup();
+    await applyIncusRuntime(options, dependencies);
+    // The record a spawner of the list form left on its data volume.
+    fake.seedVolume('sandbox-state', {
+      'user.tale.stack': options.composeProject,
+      'user.tale.kind': 'data',
+      'user.tale.volume': 'sandbox-state',
+    });
+    const instances = new Map(
+      [...fake.instances].map(([name, instance]) => [name, instance.config]),
+    );
+    for (const dryRun of [true, false])
+      await expect(
+        applyIncusRuntime({ ...options, dryRun }, dependencies),
+      ).rejects.toThrow(SANDBOX_PLACEMENT_SENTENCES.kept);
+    expect(
+      new Map(
+        [...fake.instances].map(([name, instance]) => [name, instance.config]),
+      ),
+    ).toEqual(instances);
+    expect(fake.volumes.has('sandbox-state')).toBe(true);
+
+    // A plan with the flag names the deletion and keeps the record.
+    await applyIncusRuntime(
+      { ...options, dryRun: true, clearSandboxPlacement: true },
+      dependencies,
+    );
+    expect(fake.volumes.has('sandbox-state')).toBe(true);
+    // The deploy with it deletes the record the spawner no longer mounts.
+    await applyIncusRuntime(
+      { ...options, clearSandboxPlacement: true },
+      dependencies,
+    );
+    expect(fake.volumes.has('sandbox-state')).toBe(false);
+    // Then the single form deploys as before.
+    await applyIncusRuntime(options, dependencies);
+  });
+
+  test('a placement record the running spawner still mounts is kept, and the next deploy refuses again', async () => {
+    const { fake, options, dependencies } = await setup();
+    await applyIncusRuntime(options, dependencies);
+    fake.seedVolume('sandbox-state', {
+      'user.tale.stack': options.composeProject,
+      'user.tale.kind': 'data',
+      'user.tale.volume': 'sandbox-state',
+    });
+    // An instance that still mounts it, as a spawner the apply did not
+    // replace would.
+    fake.seedInstance(
+      'holder',
+      {},
+      {
+        status: 'Stopped',
+        devices: {
+          state: {
+            type: 'disk',
+            pool: DECLARATION.pool,
+            source: 'sandbox-state',
+            path: '/state',
+          },
+        },
+      },
+    );
+    await applyIncusRuntime(
+      { ...options, clearSandboxPlacement: true },
+      dependencies,
+    );
+    expect(fake.volumes.has('sandbox-state')).toBe(true);
+    await expect(applyIncusRuntime(options, dependencies)).rejects.toThrow(
+      SANDBOX_PLACEMENT_SENTENCES.kept,
+    );
   });
 
   test('environment of the Incus shape stays the CLI own', async () => {

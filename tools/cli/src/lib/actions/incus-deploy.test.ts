@@ -12,6 +12,7 @@ import {
   setActiveOutputMode,
 } from '../../utils/output-mode';
 import { AUTOMATION_PROTOCOL_LABEL } from '../deployment/automation-model';
+import { SANDBOX_PLACEMENT_SENTENCES } from '../deployment/runtime-sandbox-placement';
 import type { RegistryClient, ResolvedImage } from '../oci/registry';
 import { setProjectId } from '../project/project-context';
 import {
@@ -286,6 +287,7 @@ async function deploy(
     dependencies?: IncusDeployDependencies;
     services?: Parameters<typeof deployOnIncus>[0]['services'];
     stop?: boolean;
+    clearSandboxPlacement?: boolean;
   } = {},
 ): Promise<void> {
   await deployOnIncus({
@@ -294,6 +296,7 @@ async function deploy(
     dryRun: false,
     skipBackup: true,
     ...(options.services === undefined ? {} : { services: options.services }),
+    ...(options.clearSandboxPlacement ? { clearSandboxPlacement: true } : {}),
   });
   setup.seedFacts();
 }
@@ -615,6 +618,30 @@ describePosix('a flip from N to N+1 (design 7.3, R3-02, R3-34)', () => {
     ).toBe(false);
   });
 });
+
+describePosix(
+  "leaving the list form with the spawner's placement record",
+  () => {
+    test('is refused before anything changes, and the flag deletes the record once the spawner no longer mounts it', async () => {
+      await allowRegistries();
+      await deploy(N);
+      setup.fake.seedVolume('sandbox-state', {
+        'user.tale.stack': 'tale',
+        'user.tale.kind': 'data',
+        'user.tale.volume': 'sandbox-state',
+      });
+      const before = census();
+      await expect(deploy(NEXT)).rejects.toThrow(
+        SANDBOX_PLACEMENT_SENTENCES.kept,
+      );
+      expect(census()).toEqual(before);
+      expect(setup.fake.volumes.has('sandbox-state')).toBe(true);
+      await deploy(NEXT, { clearSandboxPlacement: true });
+      expect(setup.fake.volumes.has('sandbox-state')).toBe(false);
+      expect(await getCurrentColor(setup.deployDir)).toBe('green');
+    });
+  },
+);
 
 describePosix('rollback on Incus (design 7.3)', () => {
   test('flips back to N on the opposite colour', async () => {

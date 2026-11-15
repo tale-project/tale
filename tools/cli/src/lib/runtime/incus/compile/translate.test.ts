@@ -284,7 +284,12 @@ describe('what every instance carries (r3)', () => {
       declaration: {
         ...input.declaration,
         sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          {
+            name: 'node-2',
+            endpoint: 'https://10.0.0.2:8443',
+            egressProxy: 'http://10.20.2.2:3128',
+            dns: ['10.20.2.2'],
+          },
           {
             name: 'node-3',
             endpoint: 'https://10.0.0.3:8443',
@@ -319,6 +324,8 @@ describe('what every instance carries (r3)', () => {
         clientCertFile: '/run/secrets/incus/node-2/client.crt',
         clientKeyFile: '/run/secrets/incus/node-2/client.key',
         serverCertFile: '/run/secrets/incus/node-2/server.crt',
+        egressProxy: 'http://10.20.2.2:3128',
+        dns: ['10.20.2.2'],
       },
       {
         name: 'node-3',

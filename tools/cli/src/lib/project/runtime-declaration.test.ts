@@ -21,6 +21,20 @@ import {
 } from './runtime-declaration';
 import { writeProject } from './write-project';
 
+/** A sandbox host as the list form needs it: its own proxy and resolvers. */
+const node2 = {
+  name: 'node-2',
+  endpoint: 'https://10.0.0.2:8443',
+  egressProxy: 'http://10.20.2.2:3128',
+  dns: ['10.20.2.2'],
+};
+const node3 = {
+  name: 'node-3',
+  endpoint: 'https://10.0.0.3:8443',
+  egressProxy: 'http://10.20.3.2:3128',
+  dns: ['10.20.3.2'],
+};
+
 const incus = {
   project: 'tale-acme',
   pool: 'tank',
@@ -73,7 +87,7 @@ describe('the Incus declaration', () => {
       {
         ...incus,
         sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
+          node2,
           {
             name: 'node-3',
             endpoint: 'https://10.0.0.3:8443',
@@ -89,6 +103,10 @@ describe('the Incus declaration', () => {
           },
         ],
       },
+    ],
+    [
+      'one sandbox host in the list form (a stack that ran several keeps its record)',
+      { ...incus, sandboxHosts: [node2] },
     ],
     ['a routed ingress', { ...incus, ingress: { mode: 'routed' } }],
     [
@@ -192,8 +210,24 @@ describe('the Incus declaration', () => {
         ],
       },
     ],
+    ['an empty sandbox host list', { ...incus, sandboxHosts: [] }],
     [
-      'a single sandbox host',
+      'a sandbox host without its own egress proxy',
+      {
+        ...incus,
+        sandboxHosts: [node2, { ...node3, egressProxy: undefined }],
+      },
+    ],
+    [
+      'a sandbox host without its own resolvers',
+      { ...incus, sandboxHosts: [node2, { ...node3, dns: undefined }] },
+    ],
+    [
+      'a sandbox host with no resolver',
+      { ...incus, sandboxHosts: [node2, { ...node3, dns: [] }] },
+    ],
+    [
+      'a lone sandbox host without its own egress proxy and resolvers',
       {
         ...incus,
         sandboxHosts: [{ name: 'node-2', endpoint: 'https://10.0.0.2:8443' }],
@@ -201,70 +235,65 @@ describe('the Incus declaration', () => {
     ],
     [
       'two sandbox hosts of one name',
-      {
-        ...incus,
-        sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-        ],
-      },
+      { ...incus, sandboxHosts: [node2, { ...node3, name: 'node-2' }] },
     ],
     [
       'a sandbox host with an http endpoint',
       {
         ...incus,
-        sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-          { name: 'node-3', endpoint: 'http://10.0.0.3:8443' },
-        ],
+        sandboxHosts: [node2, { ...node3, endpoint: 'http://10.0.0.3:8443' }],
       },
     ],
     [
       'a sandbox host whose egress proxy is a name',
       {
         ...incus,
-        sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-          {
-            name: 'node-3',
-            endpoint: 'https://10.0.0.3:8443',
-            egressProxy: 'http://proxy:3128',
-          },
-        ],
+        sandboxHosts: [node2, { ...node3, egressProxy: 'http://proxy:3128' }],
       },
     ],
     [
       'a sandbox host with more standbys than sessions',
       {
         ...incus,
-        sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-          {
-            name: 'node-3',
-            endpoint: 'https://10.0.0.3:8443',
-            maxSessions: 2,
-            poolSize: 3,
-          },
-        ],
+        sandboxHosts: [node2, { ...node3, maxSessions: 2, poolSize: 3 }],
       },
     ],
     [
       'a sandbox host with its own certificate in the declaration',
       {
         ...incus,
-        sandboxHosts: [
-          { name: 'node-2', endpoint: 'https://10.0.0.2:8443' },
-          {
-            name: 'node-3',
-            endpoint: 'https://10.0.0.3:8443',
-            clientCertFile: '/x',
-          },
-        ],
+        sandboxHosts: [node2, { ...node3, clientCertFile: '/x' }],
       },
     ],
     ['an unknown key', { ...incus, cluster: 'yes' }],
   ])('refuses %s', (_name, value) => {
     expect(incusDeclarationSchema.safeParse(value).success).toBe(false);
+  });
+
+  test("a listed sandbox host without its own proxy and resolvers is refused by name: the stack's are on another host's network", () => {
+    const parsed = incusDeclarationSchema.safeParse({
+      ...incus,
+      sandboxHosts: [
+        node2,
+        { name: 'node-3', endpoint: 'https://10.0.0.3:8443' },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+    expect(
+      parsed.error?.issues.map((issue) => [
+        issue.path.join('.'),
+        issue.message,
+      ]),
+    ).toEqual([
+      [
+        'sandboxHosts.1.egressProxy',
+        "Each sandbox host declares its own egressProxy, on that host's sandbox network.",
+      ],
+      [
+        'sandboxHosts.1.dns',
+        "Each sandbox host declares its own dns, reachable on that host's sandbox network.",
+      ],
+    ]);
   });
 });
 

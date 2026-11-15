@@ -53,8 +53,9 @@ export interface SandboxHost {
   profile?: string;
   network?: string;
   storagePool?: string;
-  egressProxy?: string;
-  dns?: readonly string[];
+  /** The egress proxy and resolvers on the host's own sandbox network. */
+  egressProxy: string;
+  dns: readonly string[];
   maxSessions?: number;
   poolSize?: number;
   drained?: boolean;

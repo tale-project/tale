@@ -141,6 +141,10 @@ import {
   SANDBOX_OWNED_VARIABLES,
 } from './runtime-sandbox';
 import { assertIncusCredentials } from './runtime-sandbox-credentials';
+import {
+  admitSandboxPlacement,
+  clearSandboxPlacement,
+} from './runtime-sandbox-placement';
 import { drainSpawner } from './runtime-spawner';
 
 /** The sentences the managed Incus path speaks. */
@@ -323,6 +327,10 @@ export interface ApplyIncusRuntimeOptions extends ApplyRuntimeOptions {
   /** `--plan <file>`: the reviewed plan; the apply refuses unless the node
    * still needs exactly it. */
   plan?: unknown;
+  /** `--clear-sandbox-placement`: leaving the list form
+   * (`runtime.incus.sandboxHosts`), delete the spawner's record of each
+   * session's host once it no longer mounts it. */
+  clearSandboxPlacement?: boolean;
 }
 
 export interface IncusRuntimeDependencies extends RuntimeDependencies {
@@ -555,6 +563,13 @@ export async function applyIncusRuntime(
   );
 
   const { receipt: found, instances } = await admission(options, runtime);
+  // Leaving the list form with the spawner's record of each session's host
+  // kept is refused unless the operator clears that record.
+  const clearPlacement = await admitSandboxPlacement(
+    runtime,
+    options.incus.sandboxHosts !== undefined,
+    options.clearSandboxPlacement === true,
+  );
   let receipt = found;
   const inputSha256 = receiptInput(options);
   const sourceDirectory = join(options.stateDirectory, 'src');
@@ -786,10 +801,12 @@ export async function applyIncusRuntime(
       : instanceIdentity(runtime.client.project, before);
   if (options.dryRun) {
     for (const line of planLines) logger.info(line);
+    if (clearPlacement) await clearSandboxPlacement(runtime, true);
     return result(backendId);
   }
   if (!changed) {
     await waitHealthyAll(runtime, target);
+    if (clearPlacement) await clearSandboxPlacement(runtime, false);
     return result(backendId);
   }
   for (const line of planLines) logger.info(line);
@@ -869,6 +886,9 @@ export async function applyIncusRuntime(
     );
   receipt = { ...receipt, phase: 'ready' };
   atomicRuntimeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+  // The spawner runs without the list now: the record it no longer mounts
+  // goes, as the operator asked.
+  if (clearPlacement) await clearSandboxPlacement(runtime, false);
   const api = after.instances.find(
     (instance) =>
       instance.custody.verdict === 'stack' &&

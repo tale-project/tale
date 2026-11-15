@@ -630,9 +630,11 @@ not name is placed: it may hold workspaces made without the record.
 **A host that does not answer** is skipped for new sessions and not asked
 again for 30 seconds, with its reason logged. Each Incus request has its own
 timeout (`SANDBOX_INCUS_API_TIMEOUT_MS`), and only a failed connection (refused,
-reset, unroutable, a failed TLS handshake) or a request with no answer within
-it counts: a slow host that answers each request in time, or one that answers
-with an Incus error, is not skipped. Its sessions stay listed as they
+reset, unroutable, timed out, a failed TLS handshake: the error codes Bun's and
+undici's fetch give, on the error or its cause) or a request with no answer
+within it counts: a slow host that answers each request in time, one that
+answers with an Incus error, or one whose reply does not parse, is not
+skipped. Its sessions stay listed as they
 were last seen, so a blip does not end them, and a call for one of them fails
 for the platform to retry; a session whose workspace is there is not started
 elsewhere. A host that has not answered since the spawner started shows no
@@ -645,12 +647,22 @@ until they end. Once the platform reports none on it and it holds no
 workspace, remove the entry: a session the record still names on a removed
 host is refused until the entry is back.
 **Add a host** by setting it up as above and appending an entry.
+**Down to one host, keep the list**: it takes a single entry, and the record
+stays in use. Going back to `SANDBOX_INCUS_ENDPOINT` leaves the record
+behind, and the sessions the one host then makes are missing from it, so a
+later list could place one of them on another host with an empty workspace.
+Delete the record (`placement.json`) when you leave the list form; the Tale CLI
+refuses to drop `runtime.incus.sandboxHosts` while the stack keeps the
+`sandbox-state` volume, unless `tale deploy --clear-sandbox-placement` deletes
+it.
 
 **Network.** The spawner reaches every host's API and every session's runnerd
 (tcp 8200 at the session's own address), so each host's sandbox network needs
 an address range of its own that the spawner can route to, and each host's ACL
 names the spawner's address as seen from that host. Each host needs its own
-egress proxy on its own sandbox network (`egressProxy`), and its sessions must
+egress proxy and resolvers on its own sandbox network (`egressProxy`, `dns`;
+the defaults are the first host's, which the Tale CLI therefore requires on
+every host it declares), and its sessions must
 reach the platform's LLM gateway and backend from that host (the ACL rules and
 the names of [Give the sessions the platform's names](#what-the-operator-creates-on-the-node)).
 The spawner follows a moved egress proxy (`egressAddress`) only while every

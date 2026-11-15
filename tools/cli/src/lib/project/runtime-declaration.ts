@@ -81,9 +81,10 @@ const volumeConfigKey = z
 const port = z.number().int().min(1).max(65535);
 
 /** One Incus host the spawner places sessions on, beside the others: its
- * name, its API, and what it names otherwise than the stack's sessions zone.
- * Its restricted certificate, key and pinned server certificate are files in
- * `sandbox-incus/<name>/`, never the declaration. */
+ * name, its API, its own egress proxy and resolvers (on its own sandbox
+ * network, never another host's), and what it names otherwise than the
+ * stack's sessions zone. Its restricted certificate, key and pinned server
+ * certificate are files in `sandbox-incus/<name>/`, never the declaration. */
 const sandboxHost = z
   .strictObject({
     name: incusName,
@@ -92,16 +93,26 @@ const sandboxHost = z
     profile: incusName.optional(),
     network: bridgeName.optional(),
     storagePool: incusName.optional(),
-    /** The egress proxy on the host's own sandbox network. */
+    /** The egress proxy on the host's own sandbox network: required, since
+     * the stack's own proxy sits on the first host's network. */
     egressProxy: z
-      .string()
+      .string({
+        error:
+          "Each sandbox host declares its own egressProxy, on that host's sandbox network.",
+      })
       .refine(
         isEgressProxy,
         'Must be http://<unicast IPv4 address>:<port>, with a port other than 80.',
-      )
-      .optional(),
-    /** The resolvers handed to the host's sessions. */
-    dns: z.array(ipv4).min(1).max(8).optional(),
+      ),
+    /** The resolvers handed to the host's sessions: required, since the
+     * stack's own resolvers sit on the first host's network. */
+    dns: z
+      .array(ipv4, {
+        error:
+          "Each sandbox host declares its own dns, reachable on that host's sandbox network.",
+      })
+      .min(1)
+      .max(8),
     /** The host's own session cap. */
     maxSessions: z.number().int().min(1).max(100_000).optional(),
     /** The host's warm standbys, at most its cap. */
@@ -199,13 +210,14 @@ const incusFields = z.strictObject({
     )
     .max(64)
     .optional(),
-  /** Several Incus hosts the spawner spreads its sessions over, in place of
-   * the one at `endpoint` (SANDBOX_INCUS_ENDPOINTS): at least two. Every
-   * host must give a session the same shape. Absent, the spawner drives
-   * the one host, as before. */
+  /** The Incus hosts the spawner spreads its sessions over, in place of the
+   * one at `endpoint` (SANDBOX_INCUS_ENDPOINTS): one to 64, so a stack that
+   * once ran several keeps the list (and its record of each session's
+   * host) down to one. Every host must give a session the same shape.
+   * Absent, the spawner drives the one host, as before. */
   sandboxHosts: z
     .array(sandboxHost)
-    .min(2, 'Declare at least two sandbox hosts, or none for the one host.')
+    .min(1, 'Declare at least one sandbox host, or leave the list out.')
     .max(64)
     .refine(
       (hosts) => new Set(hosts.map((host) => host.name)).size === hosts.length,

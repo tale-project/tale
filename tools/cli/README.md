@@ -528,13 +528,17 @@ Incus variables an earlier declaration left in the managed `.env` file, unless t
 `environment` declares them. See the
 [Incus sandbox guide](../../docs/en/self-hosted/install/cli-install.md#managed-incus-sandbox).
 
-When the whole stack runs on Incus, `runtime.incus.sandboxHosts` declares several
-Incus hosts for the spawner (at least two): the compiled spawner then gets
+When the whole stack runs on Incus, `runtime.incus.sandboxHosts` declares the
+Incus hosts for the spawner (one to 64, each with its own `egressProxy` and `dns`
+on its own sandbox network): the compiled spawner then gets
 `SANDBOX_INCUS_ENDPOINTS` in place of `SANDBOX_INCUS_ENDPOINT` and the three
 certificate paths, each host's three files from `sandbox-incus/<name>/`, and a
 `sandbox-state` data volume at `/var/lib/tale-sandbox/incus` for its record of the
 host each session lives on. Without the list the spawner drives the one host, as
-before.
+before. A stack down to one host keeps the list of one; dropping the list while
+the `sandbox-state` volume is kept is refused unless `tale deploy
+--clear-sandbox-placement` deletes the record (once the spawner no longer mounts
+it).
 
 ### Run the whole stack on Incus (experimental)
 

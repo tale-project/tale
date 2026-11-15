@@ -199,6 +199,24 @@ describe('tale deploy --host serves its host for one run', () => {
   });
 });
 
+describe('tale deploy --clear-sandbox-placement', () => {
+  test('is refused on a Docker workspace before the runtime is probed', async () => {
+    writeTaleJson('demo-abc123');
+    const { calls, deps } = stubs();
+
+    const error = await runDeploy(
+      { dryRun: true, clearSandboxPlacement: true },
+      deps,
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(CliError);
+    expect((error as CliError).info.code).toBe(ExitCode.Usage);
+    expect((error as CliError).message).toContain('Docker Compose');
+    expect(calls.docker).toBe(0);
+    expect(calls.deploy).toBeUndefined();
+  });
+});
+
 describe('tale deploy --override-all asks before anything changes (#5175)', () => {
   const ttys = {
     stdin: Object.getOwnPropertyDescriptor(process.stdin, 'isTTY'),
