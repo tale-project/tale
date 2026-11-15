@@ -32,9 +32,30 @@ const { members, matters, place } = vi.hoisted(() => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useOrgMembersForPicker: () => members,
   useLegalMatters: () => matters,
 }));
+// The user picker searches the members on the server and names the one chosen
+// by id; the read is `members` above, a failure over the list it answered
+// before included.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => members.data,
+    [],
+    {
+      // A read that never answered and failed stays failed through a retry.
+      failed: () => members.data === undefined && members.errorUpdateCount > 0,
+      stale: () => members.data !== undefined && members.isError,
+      retrying: () => members.isFetching,
+      retry: () => void members.refetch(),
+      error: () => members.error,
+    },
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => members.data,
+  ),
+);
 vi.mock('../hooks/mutations', () => ({
   usePlaceLegalHold: () => ({ mutateAsync: place, isPending: false }),
   useUpsertLegalMatter: () => ({ mutateAsync: vi.fn(), isPending: false }),

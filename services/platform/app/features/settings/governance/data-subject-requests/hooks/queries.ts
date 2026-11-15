@@ -30,18 +30,3 @@ export function useGetErasureRequest(requestId: string | undefined) {
     requestId ? { requestId } : 'skip',
   );
 }
-
-/**
- * Reuse the legal-hold member picker query — it already returns the
- * shape the searchable-select needs (`userId`, `email`, `displayName`,
- * `role`) and is admin-gated. Kept under this feature's hooks so future
- * picker swaps live in one place.
- */
-export function useOrgMembersForErasurePicker(
-  organizationId: string | undefined,
-) {
-  return useBackendQuery(
-    'governance/legal_hold_queries:listOrgMembersForPicker',
-    organizationId ? { organizationId } : 'skip',
-  );
-}

@@ -627,9 +627,8 @@ Restore any toggled setting after the run.
   **Developer** takes it away; choose **Another member** and a Member → the
   line says the key calls them only while that member holds **Call models over
   the API** (`settings.apiKeys.form.modelApi.needsGrant`), and the **Member**
-  picker says why it lists no Admin and no Owner
-  (`settings.apiKeys.form.memberHidden`), never only when it is empty. As a
-  Member holding only **Export notifications**, the dialog says this key
+  picker lists no Admin and no Owner. As a Member holding only
+  **Export notifications**, the dialog says this key
   cannot call them here (`settings.apiKeys.form.modelApi.forbiddenSelf`).
   Revoke that grant, then **Create key** in the still-open dialog → the
   failure toast (`settings.apiKeys.keyCreateFailed`) reads

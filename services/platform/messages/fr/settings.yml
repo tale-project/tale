@@ -1459,7 +1459,6 @@ apiKeys:
     memberPlaceholder: Choisis un membre
     memberSearch: Rechercher des membres...
     memberEmpty: Aucun membre dont le rôle est inférieur au tien
-    memberHidden: Seuls les membres dont le rôle est inférieur au tien sont listés. Une clé agit au nom de son membre, elle n'est donc jamais créée pour quelqu'un dont le rôle égale ou dépasse le tien.
     memberNoMatch: Aucun membre ne correspond
     memberLoadFailed: Impossible de charger les membres.
     team: Équipe

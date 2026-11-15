@@ -19,7 +19,10 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { ProjectSelect } from '@/app/features/projects/components/project-select';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
 import { cronParseProblem } from '@/lib/automations/cron';
 import { generatedAutomationSlug, slugFromName } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
@@ -897,21 +900,26 @@ function MemberQuestion({
   description?: string;
 }) {
   const { t } = useT('automations');
-  const { members } = useMembers(organizationId);
-  const options = useMemo(() => {
-    const listed: SearchableSelectOption[] = [];
-    for (const member of members ?? []) {
-      // A disabled member is nobody to tell.
-      if (member.role === 'disabled') continue;
-      const option: SearchableSelectOption = {
-        value: member.userId,
-        label: member.displayName ?? member.email ?? member.userId,
-      };
-      if (member.email !== undefined) option.description = member.email;
-      listed.push(option);
-    }
-    return listed;
-  }, [members]);
+  // The people are searched on the server as the admin types (MEMBER-R12),
+  // never read all at once; disabled members are left out (`access: 'read'`),
+  // and the one picked stays named by id.
+  const [query, setQuery] = useState('');
+  const members = useMemberChoices(organizationId, query, {
+    access: 'read',
+    chosen: value === '' ? [] : [value],
+  });
+  const options = useMemo(
+    () =>
+      members.members.map((member) => {
+        const option: SearchableSelectOption = {
+          value: member.userId,
+          label: memberLabel(member),
+        };
+        if (member.email !== undefined) option.description = member.email;
+        return option;
+      }),
+    [members.members],
+  );
   return (
     <SearchableSelect
       id={id}
@@ -920,6 +928,7 @@ function MemberQuestion({
       searchPlaceholder={t('templates.memberSearch')}
       emptyText={t('templates.memberEmpty')}
       options={options}
+      onSearchChange={setQuery}
       value={value === '' ? null : value}
       onValueChange={onChange}
       required

@@ -19,14 +19,6 @@ const mockCreateKey = vi
   .mockResolvedValue({ key: 'tale_generated-api-key' });
 
 const lists = vi.hoisted(() => ({
-  members: {
-    data: [],
-    isLoading: false,
-    isError: false,
-    isFetching: false,
-    errorUpdateCount: 0,
-    refetch: () => undefined,
-  },
   teams: {
     teams: [],
     isLoading: false,
@@ -47,9 +39,17 @@ vi.mock('@tale/ui/use-toast', () => ({
 vi.mock('../hooks/use-api-keys', () => ({
   useCreateApiKey: () => ({ mutateAsync: mockCreateKey, isPending: false }),
 }));
-vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
-  useOrgMembersForPicker: () => lists.members,
-}));
+// The members are not what this suite reads; none is offered.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => [],
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => [],
+  ),
+);
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => lists.teams,
 }));

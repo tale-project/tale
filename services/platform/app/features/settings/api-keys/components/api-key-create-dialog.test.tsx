@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ApiKeyCreateDialog } from './api-key-create-dialog';
+import { ApiKeyOwnerField } from './api-key-owner-field';
 
 const mockCreateKey = vi
   .fn()
@@ -60,13 +63,34 @@ const TEAMS = [{ id: 'finance', name: 'Finance' }];
 const PROJECTS = [{ _id: 'launch', name: 'Launch' }];
 
 const reads = vi.hoisted(() => ({
-  members: {} as Record<string, unknown>,
+  /** The members the search and the lookup serve; `undefined` while pending. */
+  members: undefined as StandInMember[] | undefined,
+  /** Whether the member read failed without an answer. */
+  membersFailed: false,
+  asked: new Array<MemberLookupTarget>(),
   teams: {} as Record<string, unknown>,
   projects: {} as Record<string, unknown>,
 }));
-vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
-  useOrgMembersForPicker: () => reads.members,
-}));
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => reads.members,
+    [],
+    {
+      failed: () => reads.membersFailed,
+      retry: () => retries.members(),
+    },
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => reads.members,
+    reads.asked,
+    {
+      failed: () => reads.membersFailed,
+      retry: () => retries.members(),
+    },
+  ),
+);
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => reads.teams,
 }));
@@ -103,15 +127,10 @@ function setRead(list: TargetList, read: ListRead) {
     failureCount: read === 'failed' ? 1 : 0,
   };
   if (list === 'members') {
-    // The whole react-query result.
-    reads.members = {
-      data: rows,
-      isLoading: read === 'pending',
-      isError: read === 'failed',
-      isFetching: read === 'pending',
-      errorUpdateCount: failure.failureCount,
-      refetch: retries.members,
-    };
+    // The member search and lookup answer for `reads.members`; a failed read
+    // answers nobody.
+    reads.members = rows as typeof reads.members;
+    reads.membersFailed = read === 'failed';
   } else if (list === 'teams') {
     reads.teams = {
       teams: rows,
@@ -598,33 +617,20 @@ describe('ApiKeyCreateDialog', () => {
       ).toEqual([expect.stringContaining('Mia Keller')]);
     });
 
-    it('keeps saying why a member is not listed when the picker closes without a choice [APIKEY-R3]', async () => {
+    it('asks for a member when the picker closes without a choice [APIKEY-R3]', async () => {
       const { user } = renderForAdmin();
       await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
       await user.click(screen.getByRole('option', { name: 'Another member' }));
       // Ada looks for Ines, a fellow admin, does not find her, and closes it.
       await user.click(screen.getByRole('button', { name: /^Member/ }));
       await user.keyboard('{Escape}');
-      // The refusal, and beside it why Ines was not there to pick.
+      // The refusal: no member is picked yet.
       expect(
         document.getElementById('api-key-member'),
-      ).toHaveAccessibleDescription(
-        'Choose whom the key belongs to. Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.',
-      );
+      ).toHaveAccessibleDescription('Choose whom the key belongs to.');
     });
 
-    it('says why members at or above the maker are not listed, whenever it leaves one out [APIKEY-R3]', async () => {
-      const hint =
-        'Only members whose role is below yours are listed. A key acts as its member, so it is never made for someone at or above your role.';
-      const { user, unmount } = renderForAdmin();
-      await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
-      await user.click(screen.getByRole('option', { name: 'Another member' }));
-      // Ines, a fellow admin, and Olav, the owner, are left out.
-      expect(
-        document.getElementById('api-key-member'),
-      ).toHaveAccessibleDescription(hint);
-      unmount();
-
+    it('offers every member below an Owner [APIKEY-R3]', async () => {
       // The owner leaves nobody out: Ada, Ines and Mia are all below.
       setRead('members', {
         rows: MEMBERS.filter((member) => member.userId !== 'olav'),
@@ -645,7 +651,50 @@ describe('ApiKeyCreateDialog', () => {
       await owner.user.click(
         screen.getByRole('option', { name: 'Another member' }),
       );
-      expect(screen.queryByText(hint)).not.toBeInTheDocument();
+      await owner.user.click(screen.getByRole('button', { name: /^Member/ }));
+      expect(
+        screen.getAllByRole('option').map((option) => option.textContent),
+      ).toEqual([
+        expect.stringContaining('Ada'),
+        expect.stringContaining('Ines'),
+        expect.stringContaining('Mia Keller'),
+      ]);
+    });
+
+    it('offers no disabled member, even one already picked [APIKEY-R3]', async () => {
+      // Mia was picked, and is disabled since: the picker names her by id, and
+      // offers nobody disabled. Rendered with her as the chosen member, so no
+      // popover closes and keeps the rows it showed before.
+      setRead('members', {
+        rows: MEMBERS.map((member) =>
+          member.userId === 'mia' ? { ...member, role: 'disabled' } : member,
+        ),
+      });
+      const keyRole = 'member' as const;
+      const { user } = render(
+        <ApiKeyOwnerField
+          organizationId="org-1"
+          viewerUserId="ada"
+          viewerRole="admin"
+          choice="member"
+          onChoiceChange={vi.fn()}
+          memberId="mia"
+          onMemberChange={vi.fn()}
+          teamId=""
+          onTeamChange={vi.fn()}
+          projectId=""
+          onProjectChange={vi.fn()}
+          role={keyRole}
+          onRoleChange={vi.fn()}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: /^Member/ }));
+      expect(
+        screen.queryByRole('option', { name: /Mia Keller/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('No member whose role is below yours'),
+      ).toBeInTheDocument();
     });
 
     it('makes a key for a member and says to hand it to them [APIKEY-R2]', async () => {

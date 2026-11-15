@@ -34,7 +34,11 @@ import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -131,7 +135,7 @@ interface RuleDialogProps {
   onSave: (rule: FeatureFlagRule) => void;
   title: string;
   cannotManage: boolean;
-  memberOptions: { value: string; label: string; description?: string }[];
+  organizationId: string;
   teamOptions: { value: string; label: string }[];
 }
 
@@ -142,12 +146,28 @@ function RuleDialog({
   onSave,
   title,
   cannotManage,
-  memberOptions,
+  organizationId,
   teamOptions,
 }: RuleDialogProps) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
+  // The people a user rule may name are searched on the server as the admin
+  // types (MEMBER-R12); the one the rule names stays named.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    enabled: open && draft.scope === 'user',
+    chosen: draft.scope === 'user' && draft.scopeId ? [draft.scopeId] : [],
+  });
+  const memberOptions = useMemo(
+    () =>
+      members.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+        description: m.email && m.displayName ? m.email : undefined,
+      })),
+    [members.members],
+  );
 
   const scopeOptions = useMemo(
     () =>
@@ -246,6 +266,7 @@ function RuleDialog({
             disabled={cannotManage}
             value={draft.scopeId ?? null}
             onValueChange={(value) => updateDraft({ scopeId: value })}
+            onSearchChange={setMemberQuery}
             options={memberOptions}
             searchPlaceholder={t('featureFlags.searchUsers')}
             emptyText={t('featureFlags.noUsersFound')}
@@ -338,18 +359,7 @@ function FeatureFlagsEditorContent({
     'feature_flags',
   );
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
-  const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
-
-  const memberOptions = useMemo(
-    () =>
-      (members ?? []).map((m) => ({
-        value: m.userId,
-        label: m.displayName || m.email || m.userId,
-        description: m.email && m.displayName ? m.email : undefined,
-      })),
-    [members],
-  );
 
   const teamOptions = useMemo(
     () =>
@@ -366,6 +376,18 @@ function FeatureFlagsEditorContent({
   );
 
   const [rules, setRules] = useState<FeatureFlagRule[]>([]);
+  // The people the rules name, looked up by id: the table names each one.
+  const named = useMemberLookup(
+    organizationId,
+    rules.flatMap((rule) =>
+      rule.scope === 'user' && rule.scopeId ? [{ userId: rule.scopeId }] : [],
+    ),
+  );
+  const memberNames = useMemo(
+    () =>
+      new Map(named.members.map((m) => [m.userId, memberLabel(m)] as const)),
+    [named.members],
+  );
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -465,10 +487,7 @@ function FeatureFlagsEditorContent({
       switch (rule.scope) {
         case 'user': {
           if (!rule.scopeId) return '—';
-          return (
-            memberOptions.find((o) => o.value === rule.scopeId)?.label ??
-            rule.scopeId
-          );
+          return memberNames.get(rule.scopeId) ?? rule.scopeId;
         }
         case 'team': {
           if (!rule.scopeId) return '—';
@@ -485,7 +504,7 @@ function FeatureFlagsEditorContent({
           return '—';
       }
     },
-    [memberOptions, teamOptions, t],
+    [memberNames, teamOptions, t],
   );
 
   const onAddRule = openAddDialog;
@@ -649,7 +668,7 @@ function FeatureFlagsEditorContent({
           onSave={onDialogSave}
           title={dialogTitle}
           cannotManage={cannotManage}
-          memberOptions={memberOptions}
+          organizationId={organizationId}
           teamOptions={teamOptions}
         />
 

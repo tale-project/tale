@@ -66,9 +66,18 @@ vi.mock('../hooks/mutations', () => ({
   useGenerateUploadUrl: () => ({ mutateAsync: generateUploadUrlMock }),
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
-}));
+// The reassign picker searches the members on the server, and names the one
+// picked by id; this org has nobody to offer.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => [],
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => [],
+  ),
+);
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({ teams: [] }),

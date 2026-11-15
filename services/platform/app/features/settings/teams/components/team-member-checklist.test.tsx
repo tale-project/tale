@@ -1,15 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInSearchAsk } from '@/tests/utils/member-search-stand-in';
 import { render, screen } from '@/tests/utils/render';
 
 import { TeamMemberChecklist } from './team-member-checklist';
 
-const mockUseMembers = vi.fn();
-
-vi.mock('../../organization/hooks/queries', () => ({
-  useMembers: (organizationId: string) => mockUseMembers(organizationId),
+// The members the organization has, as the member search and the member lookup
+// serve them; `undefined` while they have not answered.
+const reads = vi.hoisted(() => ({
+  members: undefined as
+    | { userId: string; displayName?: string; email?: string }[]
+    | undefined,
+  searches: new Array<StandInSearchAsk>(),
+  asked: new Array<MemberLookupTarget>(),
 }));
+
+vi.mock('../../organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => reads.members,
+    reads.searches,
+  ),
+);
+vi.mock('../../organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => reads.members,
+    reads.asked,
+  ),
+);
 
 const MEMBERS = [
   { userId: 'user-1', displayName: 'Alice', email: 'alice@example.com' },
@@ -17,7 +36,7 @@ const MEMBERS = [
 ];
 
 function setMembers(members: typeof MEMBERS, isLoading = false) {
-  mockUseMembers.mockReturnValue({ members, isLoading });
+  reads.members = isLoading ? undefined : members;
 }
 
 /** The multi-select renders its options inside a popover, opened via the trigger. */
@@ -158,6 +177,27 @@ describe('TeamMemberChecklist', () => {
     await openDropdown(user);
     await user.click(optionFor('Bob'));
     expect(onToggleMember).toHaveBeenCalledWith('user-2');
+  });
+
+  it('searches the members as the admin types, and keeps a checked member named', async () => {
+    setMembers(MEMBERS);
+    reads.searches.length = 0;
+    const { user } = render(
+      <TeamMemberChecklist
+        organizationId="org-1"
+        selectedMemberIds={new Set(['user-1'])}
+        onToggleMember={vi.fn()}
+      />,
+    );
+
+    // The people are searched on the server; disabled members are not the
+    // checklist's to narrow, so every member is searched for.
+    await openDropdown(user);
+    await user.type(screen.getByRole('combobox', { name: /search/i }), 'bob');
+    expect(reads.searches.at(-1)).toMatchObject({ query: 'bob' });
+    expect(optionFor('Bob')).toBeInTheDocument();
+    // The checked member is named by id, so the field can show who it holds.
+    expect(reads.asked).toContainEqual({ userId: 'user-1' });
   });
 
   it('renders a loading state while members are fetching', () => {

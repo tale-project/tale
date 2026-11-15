@@ -45,7 +45,11 @@ import {
   useMailboxes,
 } from '@/app/features/conversations/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  memberLabel,
+  useMemberChoices,
+} from '@/app/features/settings/organization/hooks/member-choices';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -178,7 +182,7 @@ interface RuleDialogProps {
   description?: string;
   cannotManage: boolean;
   teamOptions: Option[];
-  memberOptions: Option[];
+  organizationId: string;
   arrivesOnOptions: SearchableSelectOption[];
   /** Whether another rule already matches the same conversations. */
   isDuplicate: (rule: EditorRule) => boolean;
@@ -193,7 +197,7 @@ function RuleDialog({
   description,
   cannotManage,
   teamOptions,
-  memberOptions,
+  organizationId,
   arrivesOnOptions,
   isDuplicate,
 }: RuleDialogProps) {
@@ -203,6 +207,22 @@ function RuleDialog({
   useEffect(() => {
     if (open) setDraft(initialRule);
   }, [open, initialRule]);
+
+  // The people a rule may route to are searched on the server as the admin
+  // types (MEMBER-R12); the one the rule names stays named.
+  const [memberQuery, setMemberQuery] = useState('');
+  const members = useMemberChoices(organizationId, memberQuery, {
+    enabled: open,
+    chosen: draft.userId ? [draft.userId] : [],
+  });
+  const memberOptions = useMemo<Option[]>(
+    () =>
+      members.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+      })),
+    [members.members],
+  );
 
   // People + Teams in one sectioned list — sections render only when non-empty.
   const selectOptions = useMemo<SearchableSelectOption[]>(() => {
@@ -337,6 +357,7 @@ function RuleDialog({
           <SearchableSelect
             value={null}
             onValueChange={handleSelect}
+            onSearchChange={setMemberQuery}
             options={selectOptions}
             disabled={cannotManage}
             modal
@@ -474,20 +495,11 @@ function ConversationRoutingPolicyEditorContent({
     'conversation_routing',
   );
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
-  const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
 
   const teamOptions = useMemo<Option[]>(
     () => (teams ?? []).map((team) => ({ value: team.id, label: team.name })),
     [teams],
-  );
-  const memberOptions = useMemo<Option[]>(
-    () =>
-      (members ?? []).map((m) => ({
-        value: m.userId,
-        label: m.displayName || m.email || m.userId,
-      })),
-    [members],
   );
 
   const { mailboxes: allMailboxes } = useMailboxes();
@@ -511,6 +523,19 @@ function ConversationRoutingPolicyEditorContent({
 
   const initializedRef = useRef(false);
   const [rules, setRules] = useState<EditorRule[]>([]);
+  // The people the rules route to, looked up by id: the table names each one.
+  const namedMembers = useMemberLookup(
+    organizationId,
+    rules.flatMap((rule) => (rule.userId ? [{ userId: rule.userId }] : [])),
+  );
+  const memberOptions = useMemo<Option[]>(
+    () =>
+      namedMembers.members.map((m) => ({
+        value: m.userId,
+        label: memberLabel(m),
+      })),
+    [namedMembers.members],
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dialogRule, setDialogRule] = useState(emptyRule());
@@ -920,7 +945,7 @@ function ConversationRoutingPolicyEditorContent({
             }
             cannotManage={cannotManage}
             teamOptions={teamOptions}
-            memberOptions={memberOptions}
+            organizationId={organizationId}
             arrivesOnOptions={arrivesOnOptions}
             isDuplicate={isDuplicate}
           />

@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
+import type { StandInSearchAsk } from '@/tests/utils/member-search-stand-in';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { GrantCompetenceDialog } from './grant-competence-dialog';
@@ -12,8 +15,13 @@ const state = vi.hoisted(() => ({
   grant: vi.fn(),
   toast: vi.fn(),
   refetchMembers: vi.fn(),
-  // The member list as `useOrgMembersForPicker` answers it (`setMembers`).
-  members: {} as Record<string, unknown>,
+  // The members the member search and the member lookup answer for
+  // (`setMembers`); `undefined` while they have not answered.
+  members: undefined as readonly StandInMember[] | undefined,
+  /** Whether the member read failed without an answer. */
+  membersFailed: false,
+  memberSearches: new Array<StandInSearchAsk>(),
+  memberAsks: new Array<MemberLookupTarget>(),
   // The model endpoints switch as `useMyModelApiAccess` answers it
   // (`setModelApi`).
   modelApi: {} as Record<string, unknown>,
@@ -26,9 +34,28 @@ vi.mock('../hooks/mutations', () => ({
   useGrantCompetence: () => ({ mutateAsync: state.grant, isPending: false }),
 }));
 vi.mock('../hooks/queries', () => ({
-  useOrgMembersForPicker: () => state.members,
   useMyModelApiAccess: () => state.modelApi,
 }));
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => state.members,
+    state.memberSearches,
+    {
+      failed: () => state.membersFailed,
+      retry: () => state.refetchMembers(),
+    },
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => state.members,
+    state.memberAsks,
+    {
+      failed: () => state.membersFailed,
+      retry: () => state.refetchMembers(),
+    },
+  ),
+);
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => state.teams,
 }));
@@ -55,7 +82,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-a',
 }));
 
-const MEMBERS = [
+const MEMBERS: StandInMember[] = [
   {
     userId: 'user-worker',
     email: 'worker@example.com',
@@ -83,22 +110,19 @@ const TEAMS = [
 
 /** How the member list reads: answered with its rows, still pending, or
  * failed with no answer (`readStateOf`'s `unavailable`). */
-type MembersRead = { rows: readonly object[] } | 'pending' | 'failed';
+type MembersRead = { rows: readonly StandInMember[] } | 'pending' | 'failed';
 
-/** Set the member list's read, in the shape of the react-query result. */
+/** How the team list reads, in the same shape. */
+type TeamsRead = { rows: readonly object[] } | 'pending' | 'failed';
+
+/** Set the member search and lookup's answer. */
 function setMembers(read: MembersRead) {
-  state.members = {
-    data: typeof read === 'object' ? read.rows : undefined,
-    isLoading: read === 'pending',
-    isError: read === 'failed',
-    isFetching: read === 'pending',
-    errorUpdateCount: read === 'failed' ? 1 : 0,
-    refetch: state.refetchMembers,
-  };
+  state.members = typeof read === 'object' ? read.rows : undefined;
+  state.membersFailed = read === 'failed';
 }
 
 /** Set the team list's read, in the shape `useOrgTeams` returns. */
-function setTeams(read: MembersRead) {
+function setTeams(read: TeamsRead) {
   const failed = read === 'failed';
   state.teams = {
     teams: typeof read === 'object' ? read.rows : undefined,

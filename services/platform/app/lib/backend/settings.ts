@@ -112,8 +112,6 @@ type HeldByTargetResult =
   ReturnsOf<'governance/legal_hold_queries:getLegalHoldByTarget'>;
 type ActiveHoldTargetsResult =
   ReturnsOf<'governance/legal_hold_queries:listActiveHoldTargetIds'>;
-type MemberPickerItem =
-  ItemOf<'governance/legal_hold_queries:listOrgMembersForPicker'>;
 type ErasureDetailResult =
   ReturnsOf<'governance/erasure_queries:getErasureRequest'>;
 type DsarPolicyUiResult =
@@ -140,14 +138,6 @@ type UpdateCompetenceResult =
 /** Query-key entity of the competence register. */
 const COMPETENCE_ENTITY = 'competence';
 type ProposeDsarResult = ReturnsOf<'governance/dsar_policy:proposeDsarPolicy'>;
-
-/** GET /members row (the directory projection the pickers reuse). */
-interface MemberDirectoryWire {
-  userId: string;
-  role: string;
-  displayName: string | null;
-  email: string | null;
-}
 
 /** The pg keyset page envelope for the governance history walks. */
 interface KeysetPage<Row> {
@@ -954,26 +944,6 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<ActiveHoldTargetsResult>(
           `/legal-holds/targets?targetType=${encodeURIComponent(targetType)}`,
           { orgId },
-        ),
-    };
-  },
-  'governance/legal_hold_queries:listOrgMembersForPicker': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, MEMBER_HINT_ENTITY, 'picker'),
-      queryFn: () =>
-        backendFetch<{ members: MemberDirectoryWire[] }>('/members', {
-          orgId,
-        }).then((body) =>
-          body.members
-            .filter((row) => row.role.toLowerCase() !== 'disabled')
-            .map((row): MemberPickerItem => ({
-              userId: row.userId,
-              email: row.email ?? '',
-              displayName: row.displayName ?? row.email ?? row.userId,
-              role: row.role,
-            })),
         ),
     };
   },

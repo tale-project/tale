@@ -2,17 +2,11 @@
 
 import { Row, Stack } from '@tale/ui/layout';
 import { MultiSelect, type MultiSelectOption } from '@tale/ui/multi-select';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useMembers } from '../../organization/hooks/queries';
-
-interface MemberOption {
-  userId: string;
-  displayName?: string;
-  email?: string;
-}
+import { useMemberChoices } from '../../organization/hooks/member-choices';
 
 interface TeamMemberChecklistProps {
   organizationId: string;
@@ -31,7 +25,14 @@ export function TeamMemberChecklist({
 }: TeamMemberChecklistProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { members: orgMembers, isLoading } = useMembers(organizationId);
+  // The members are searched on the server as the admin types (MEMBER-R12),
+  // never read all at once; the ones checked are named by id, so the field
+  // keeps showing them whatever was found.
+  const [query, setQuery] = useState('');
+  const members = useMemberChoices(organizationId, query, {
+    chosen: Array.from(selectedMemberIds),
+  });
+  const orgMembers = members.members;
 
   // A team must keep at least one member (the backend rejects removing the last
   // one), so the sole remaining selected member's option is disabled rather than
@@ -41,7 +42,7 @@ export function TeamMemberChecklist({
 
   const options = useMemo<MultiSelectOption[]>(
     () =>
-      (orgMembers ?? []).map((member: MemberOption) => {
+      orgMembers.map((member) => {
         const label =
           member.displayName ||
           member.email ||
@@ -84,7 +85,7 @@ export function TeamMemberChecklist({
     [selectedMemberIds, onToggleMember],
   );
 
-  if (isLoading) {
+  if (!members.answered && !members.unavailable) {
     return (
       <Row gap={0} justify="center" className="py-4">
         <p className="text-muted-foreground text-sm">
@@ -94,7 +95,9 @@ export function TeamMemberChecklist({
     );
   }
 
-  if (!orgMembers || orgMembers.length === 0) {
+  // Nobody to add is said once the org has no member; a search that found
+  // nobody keeps the field, so the typed text stays.
+  if (query.trim() === '' && orgMembers.length === 0) {
     return (
       <Row gap={0} justify="center" className="py-4">
         <p className="text-muted-foreground text-sm">
@@ -113,10 +116,16 @@ export function TeamMemberChecklist({
         description={tSettings('teams.memberChecklistHint')}
         value={Array.from(selectedMemberIds)}
         onValueChange={handleChange}
+        searchable
+        onSearchChange={setQuery}
         options={options}
         placeholder={tSettings('teams.manageMembers')}
         searchPlaceholder={tCommon('search.placeholder')}
-        emptyText={tCommon('search.noResults')}
+        emptyText={
+          members.searching
+            ? tCommon('actions.loading')
+            : tCommon('search.noResults')
+        }
         aria-label={tSettings('teams.manageMembers')}
         modal
         disabled={disabled}

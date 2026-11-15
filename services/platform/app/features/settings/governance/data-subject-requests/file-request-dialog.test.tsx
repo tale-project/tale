@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import {
   act,
   fireEvent,
@@ -23,14 +24,14 @@ import { FileRequestDialog } from './file-request-dialog';
 
 const mockRequestErasure = vi.fn();
 const mockRefetch = vi.fn();
-const member = {
+const member: StandInMember = {
   userId: 'user-1',
   displayName: 'Ada Example',
   email: 'ada@example.test',
   role: 'member',
 };
 let memberQuery = {
-  data: [] as (typeof member)[] | undefined,
+  data: [] as StandInMember[] | undefined,
   isLoading: false,
   isError: false,
   isSuccess: true,
@@ -50,9 +51,28 @@ vi.mock('./hooks/mutations', () => ({
 
 // The subject picker query — return an empty member list so the dialog renders
 // without a live Convex backend. Open/close never reads member data.
-vi.mock('./hooks/queries', () => ({
-  useOrgMembersForErasurePicker: () => memberQuery,
-}));
+// The subject picker searches the members on the server and names the one
+// chosen by id; a read that failed is named, with Try again. The read is the
+// `memberQuery` each test sets: data, or a failure over it.
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => memberQuery.data,
+    [],
+    {
+      failed: () =>
+        memberQuery.data === undefined &&
+        (memberQuery.isError || memberQuery.errorUpdateCount > 0),
+      stale: () => memberQuery.data !== undefined && memberQuery.isError,
+      retrying: () => memberQuery.isFetching,
+      retry: () => mockRefetch(),
+    },
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => memberQuery.data,
+  ),
+);
 
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
@@ -96,6 +116,7 @@ describe('FileRequestDialog', () => {
       isError: true,
       isSuccess: false,
       errorUpdatedAt: 1,
+      errorUpdateCount: 1,
     };
     const props = {
       open: true,

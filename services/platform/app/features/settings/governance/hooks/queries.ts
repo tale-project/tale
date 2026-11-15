@@ -263,13 +263,6 @@ export function useLegalHoldByTarget(args: {
   );
 }
 
-export function useOrgMembersForPicker(organizationId: string | undefined) {
-  return useBackendQuery(
-    'governance/legal_hold_queries:listOrgMembersForPicker',
-    organizationId ? { organizationId } : 'skip',
-  );
-}
-
 /** Every record of the competence register — revoked and expired included. */
 export function useCompetences(organizationId: string | undefined) {
   return useBackendQuery(

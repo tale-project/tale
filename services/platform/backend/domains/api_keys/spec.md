@@ -50,7 +50,7 @@ Acting as someone takes more authority than they hold. A key for yourself is mad
 key (`API_KEY_MEMBER_SELF`), bound here after single sign-on (`APIKEY-R13`); one for an admin or
 the owner, by an admin, is refused (`API_KEY_MEMBER_FORBIDDEN`), and so is one for someone who is
 not an active member (`API_KEY_MEMBER_NOT_FOUND`). The member picker offers only the members
-below you, and whenever it leaves someone out it says why.
+below you.
 
 - **Example**: Ada, an admin, picks Olav, the owner → refused. Olav picks Ada → allowed.
 

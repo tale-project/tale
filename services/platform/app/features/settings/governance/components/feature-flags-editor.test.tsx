@@ -39,14 +39,22 @@ vi.mock('../hooks/mutations', () => ({
   }),
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      { userId: 'user_1', displayName: 'Alice', email: 'alice@test.com' },
-      { userId: 'user_2', displayName: 'Bob', email: 'bob@test.com' },
-    ],
-  }),
-}));
+// The organization's members, as the member search and the member lookup
+// answer them.
+const ORG_MEMBERS = [
+  { userId: 'user_1', displayName: 'Alice', email: 'alice@test.com' },
+  { userId: 'user_2', displayName: 'Bob', email: 'bob@test.com' },
+];
+vi.mock('@/app/features/settings/organization/hooks/member-search', async () =>
+  (await import('@/tests/utils/member-search-stand-in')).memberSearchStandIn(
+    () => ORG_MEMBERS,
+  ),
+);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => ORG_MEMBERS,
+  ),
+);
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({

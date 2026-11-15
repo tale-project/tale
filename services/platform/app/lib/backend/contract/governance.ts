@@ -634,16 +634,6 @@ export interface GovernanceContract {
       linkedActiveHolds: number;
     }>;
   };
-  'governance/legal_hold_queries:listOrgMembersForPicker': {
-    kind: 'query';
-    args: { organizationId: string };
-    returns: Array<{
-      userId: string;
-      email: string;
-      displayName: string;
-      role: string;
-    }>;
-  };
   'governance/moderation_provider/secrets:hasModerationSecret': {
     kind: 'action';
     args: { organizationId: string };
