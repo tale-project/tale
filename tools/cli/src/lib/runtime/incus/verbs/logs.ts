@@ -54,7 +54,7 @@ export interface LogReadDependencies {
 /** Whether a console read failed the way Incus fails it for an instance that
  * just ended: 500, "connection refused" (TI-20, measured). The console
  * answers again a moment later; any other failure is a failure. */
-export function consoleJustEnded(error: unknown): boolean {
+function consoleJustEnded(error: unknown): boolean {
   return (
     incusStatus(error) === 500 &&
     error instanceof Error &&
