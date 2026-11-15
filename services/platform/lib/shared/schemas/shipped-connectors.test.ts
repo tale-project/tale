@@ -44,6 +44,13 @@ import {
   type MailTransport,
   type SmtpSession,
 } from '../../connectors/natives/imap-smtp';
+import {
+  type WebdavEntry,
+  type WebdavStore,
+  type WebdavStoreErrorCode,
+  WebdavStoreError,
+  webdavNatives,
+} from '../../connectors/natives/webdav';
 import { connectorFailureOf } from '../../engine/core/record/failure';
 import type {
   ConnectorContext,
@@ -102,6 +109,7 @@ const SCENARIO_CONNECTORS = [
   'tavily',
   'teams',
   'twilio',
+  'webdav',
 ] as const;
 type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
@@ -1963,6 +1971,93 @@ function mailContext(): NativeConnectorContext {
   };
 }
 
+/** What a native action's store answers in one case: the value a store method
+ * returns, or the refusal it raises. */
+type StoreAnswer = { returns: unknown } | { refuses: WebdavStoreErrorCode };
+
+/** One case of a native action: the store method it calls, and what the store
+ * answers. A native's service is its store, so the proof is that answer. */
+interface NativeProof {
+  call: 'list' | 'read' | 'write' | 'remove';
+  answer: StoreAnswer;
+}
+
+/** The bytes a store holds for a file, as the store hands them over. */
+const storedBytes = (text: string): Uint8Array =>
+  new TextEncoder().encode(text);
+
+/**
+ * The proof of every WebDAV scenario, keyed `<action>/<scenario>`: the answer
+ * the organization's document store gives the native, given the action's
+ * example input with the scenario's `when` laid over it. A native's failure is
+ * the `ConnectorError` it throws, which names no HTTP status.
+ */
+const WEBDAV_NATIVE_PROOFS: Record<string, NativeProof> = {
+  'list/folder_with_entries': {
+    call: 'list',
+    answer: {
+      returns: {
+        entries: [
+          { name: 'notes.md', isDir: false, size: 128 },
+          { name: 'archive', isDir: true, size: 0 },
+        ] satisfies WebdavEntry[],
+        truncated: false,
+      },
+    },
+  },
+  'list/empty_folder': {
+    call: 'list',
+    answer: { returns: { entries: [], truncated: false } },
+  },
+  'list/folder_not_found': {
+    call: 'list',
+    answer: { refuses: 'not-found' },
+  },
+  'read/text_file': {
+    call: 'read',
+    answer: {
+      returns: {
+        bytes: storedBytes('Q3 revenue rose.'),
+        contentType: 'text/markdown',
+      },
+    },
+  },
+  'read/empty_file': {
+    call: 'read',
+    answer: {
+      returns: { bytes: storedBytes(''), contentType: 'text/plain' },
+    },
+  },
+  'read/file_not_found': {
+    call: 'read',
+    answer: { refuses: 'not-found' },
+  },
+  'write/file_written': {
+    call: 'write',
+    answer: { returns: undefined },
+  },
+  'write/legal_hold': {
+    call: 'write',
+    answer: { refuses: 'legal-hold' },
+  },
+  'write/file_overwritten': {
+    call: 'write',
+    answer: { returns: undefined },
+  },
+  'delete/file_deleted': {
+    call: 'remove',
+    answer: { returns: true },
+  },
+  'delete/legal_hold': {
+    call: 'remove',
+    answer: { refuses: 'legal-hold' },
+  },
+  'delete/already_gone': {
+    call: 'remove',
+    answer: { returns: false },
+  },
+};
+
 /**
  * Every listed connector's proofs. A connector whose actions call HTTP proves
  * them with the answers its live body gets, and the secrets its credential
@@ -1977,6 +2072,8 @@ type ScenarioProofs =
   | {
       secrets?: Record<string, string>;
       proofs: Record<string, ProofAnswers>;
+      /** A native connector's cases, proven against its store instead. */
+      native?: Record<string, NativeProof>;
       stored?: Record<string, StoredFile[]>;
     };
 
@@ -1994,6 +2091,7 @@ const SCENARIO_PROOFS: Record<ScenarioConnector, ScenarioProofs> = {
   },
   teams: { proofs: TEAMS_PROOFS },
   twilio: { secrets: { username: TWILIO_ACCOUNT }, proofs: TWILIO_PROOFS },
+  webdav: { proofs: {}, native: WEBDAV_NATIVE_PROOFS },
 };
 
 /** A file a live body handed `ctx.files.store`, as it handed it over. */
@@ -2090,6 +2188,12 @@ async function outcomeOf(run: Promise<unknown>): Promise<Outcome> {
 function proofKeysOf(slug: ScenarioConnector): string[] {
   const entry = SCENARIO_PROOFS[slug];
   return Object.keys('natives' in entry ? entry.natives : entry.proofs);
+}
+
+/** The native proofs of a connector, keyed `<action>/<scenario>`. */
+function nativeProofsOf(slug: ScenarioConnector): Record<string, NativeProof> {
+  const entry = SCENARIO_PROOFS[slug];
+  return 'natives' in entry ? {} : (entry.native ?? {});
 }
 
 /**
@@ -2249,7 +2353,10 @@ describe('a connector scenario fits its action and answers as the live call woul
           (scenario) => `${action.name}/${scenario.name}`,
         ),
       );
-      const proofs = proofKeysOf(slug);
+      const proofs = [
+        ...proofKeysOf(slug),
+        ...Object.keys(nativeProofsOf(slug)),
+      ];
       const entry = SCENARIO_PROOFS[slug];
       const storing = 'natives' in entry ? [] : Object.keys(entry.stored ?? {});
       const shipped = new Set(scenarios);
@@ -2334,6 +2441,128 @@ describe('a connector scenario fits its action and answers as the live call woul
         connectorFailureOf(thrown, slug, `${slug}.${actionName}`),
       ).toStrictEqual(
         connectorFailureOf(simulated, slug, `${slug}.${actionName}`),
+      );
+    },
+  );
+});
+
+/** A store that answers the one method its native calls with the proof's
+ * answer, and notes each method it was asked, as a live store would. */
+function proofStore(proof: NativeProof, asked: string[]): WebdavStore {
+  const answer = (call: NativeProof['call']): unknown => {
+    asked.push(call);
+    if (call !== proof.call) {
+      throw new Error(`the proof gives no answer for ${call}`);
+    }
+    if ('refuses' in proof.answer) {
+      throw new WebdavStoreError(
+        proof.answer.refuses,
+        `the store refuses: ${proof.answer.refuses}`,
+      );
+    }
+    return proof.answer.returns;
+  };
+  return {
+    list: async () =>
+      answer('list') as Awaited<ReturnType<WebdavStore['list']>>,
+    read: async () =>
+      answer('read') as Awaited<ReturnType<WebdavStore['read']>>,
+    write: async () => {
+      answer('write');
+    },
+    remove: async () => answer('remove') as boolean,
+  };
+}
+
+/** The context a native runs in: its organization, and no HTTP, which a
+ * WebDAV native never makes. */
+function nativeContext(): NativeConnectorContext {
+  const noHttp = () => Promise.reject(new Error('no HTTP in a webdav native'));
+  return {
+    secrets: { get: () => '' },
+    idempotencyKey: 'key_example',
+    config: {},
+    organizationId: 'org_example',
+    credentialId: 'cred_example',
+    authMethod: 'basic',
+    http: {
+      get: noHttp,
+      post: noHttp,
+      put: noHttp,
+      patch: noHttp,
+      delete: noHttp,
+    },
+    base64Encode,
+    base64Decode,
+  };
+}
+
+describe('a native scenario answers as its native action does [CONN-R33]', () => {
+  // Only WebDAV is a native connector with scenarios, so every native proof
+  // runs against its document store.
+  it.each(
+    SCENARIO_CONNECTORS.flatMap((slug) =>
+      Object.keys(nativeProofsOf(slug)).map(
+        (key): [ScenarioConnector, string] => [slug, key],
+      ),
+    ),
+  )(
+    '%s %s: the native action, given the store answer the scenario stands for, returns its output or throws its error',
+    async (slug, key) => {
+      const [actionName, scenarioName] = key.split('/');
+      const connector = loadConnector(slug);
+      const action = connector.actions.find((a) => a.name === actionName);
+      const scenario = action?.scenarios?.find((s) => s.name === scenarioName);
+      const proof = nativeProofsOf(slug)[key];
+      if (
+        action?.backend?.kind !== 'native' ||
+        scenario === undefined ||
+        proof === undefined
+      ) {
+        throw new Error(
+          `${slug}.${actionName} has no native backend, or no ${scenarioName} scenario and proof`,
+        );
+      }
+      const asked: string[] = [];
+      const native = webdavNatives(proofStore(proof, asked))[
+        action.backend.impl
+      ];
+      if (native === undefined) {
+        throw new Error(`${action.backend.impl} is not a native of ${slug}`);
+      }
+      const outcome = await outcomeOf(
+        native({ ...action.exampleInput, ...scenario.when }, nativeContext()),
+      );
+
+      // The native made the one store call its proof answers.
+      expect(asked).toEqual([proof.call]);
+      if (scenario.error === undefined) {
+        expect(outcome).toEqual({ output: scenario.output });
+        return;
+      }
+      if (!('thrown' in outcome)) {
+        throw new Error(
+          `${slug}.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+        );
+      }
+      const { thrown } = outcome;
+      const { message, status } = scenario.error;
+      expect(thrown).toBeInstanceOf(Error);
+      expect(thrown instanceof Error ? thrown.message : thrown).toBe(message);
+      // A native refusal names no HTTP status, so neither does its scenario.
+      expect(
+        isRecord(thrown) ? thrown.vendorStatus : undefined,
+      ).toBeUndefined();
+      expect(status).toBeUndefined();
+      // A run classifies the native's failure as it classifies the scenario's.
+      const failure = connectorFailureOf(thrown, slug, `${slug}.${actionName}`);
+      const simulated = connectorFailureOf(
+        new Error(message),
+        slug,
+        `${slug}.${actionName}`,
+      );
+      expect({ reason: failure.reason, status: failure.params.status }).toEqual(
+        { reason: simulated.reason, status: simulated.params.status },
       );
     },
   );
