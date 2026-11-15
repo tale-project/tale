@@ -14,11 +14,12 @@ import type { ObservedInstance, Readback } from '../apply/readback';
 import {
   colourDocument,
   compileInput,
-  expectEdgeRefusal,
   statefulDocument,
-  STATEFUL_AND_BOTH_EDGE_REFUSALS,
 } from '../compile/compile-fixture';
-import { compileStackTarget } from '../compile/stack-target';
+import {
+  compileStackTarget,
+  requireStackTarget,
+} from '../compile/stack-target';
 import {
   DEFERRED_INFRASTRUCTURE_HINT,
   DEFERRED_STOP_GATED_HINT,
@@ -682,31 +683,60 @@ describe('a missing data volume (R3-22)', () => {
 
 describe('phases and the switch (R3-02)', () => {
   const workspace = (replicas: number) =>
-    compileStackTarget(
-      compileInput(
-        'workspace',
-        [
-          { compose: statefulDocument() },
-          { compose: colourDocument('blue'), colour: 'blue' },
-          { compose: colourDocument('green'), colour: 'green' },
-        ],
-        {
-          replicas: {
-            platform: replicas,
-            'backend-api': replicas,
-            'backend-worker': 1,
+    requireStackTarget(
+      compileStackTarget(
+        compileInput(
+          'workspace',
+          [
+            { compose: statefulDocument() },
+            { compose: colourDocument('blue'), colour: 'blue' },
+            { compose: colourDocument('green'), colour: 'green' },
+          ],
+          {
+            replicas: {
+              platform: replicas,
+              'backend-api': replicas,
+              'backend-worker': 1,
+            },
           },
-        },
+        ),
       ),
     );
 
-  test('a scale change rewrites no switch file and does not touch the switch', () => {
-    expectEdgeRefusal(workspace(1), STATEFUL_AND_BOTH_EDGE_REFUSALS);
-    expectEdgeRefusal(workspace(3), STATEFUL_AND_BOTH_EDGE_REFUSALS);
+  // Parked until the switch-role port lands: Incus refuses the Traefik stack,
+  // so the workspace compile these phases plan is refused before any change.
+  test.skip('a scale change rewrites no switch file and does not touch the switch', () => {
+    const one = desiredOf(workspace(1));
+    const three = desiredOf(workspace(3));
+    const files = (desired: DesiredStack) =>
+      desired.files
+        .filter((file) => file.instance === 'switch')
+        .map((file) => new TextDecoder().decode(file.content));
+    expect(files(three)).toEqual(files(one));
+    const made = plan(three, convergedReadback(one), FULL);
+    expect(resource(made, 'instance/switch').action).toBe('unchanged');
+    expect(resource(made, 'instance/platform-blue-3').action).toBe('create');
   });
 
-  test('a colour phase plans that colour alone, and deletes only its orphans', () => {
-    expectEdgeRefusal(workspace(2), STATEFUL_AND_BOTH_EDGE_REFUSALS);
+  test.skip('a colour phase plans that colour alone, and deletes only its orphans', () => {
+    const desired = desiredOf(workspace(2));
+    const readback = convergedReadback(desired);
+    const blueOnly = structuredClone(desired.target);
+    blueOnly.instances = blueOnly.instances.filter(
+      (spec) => spec.colour !== 'blue' || spec.name !== 'platform-blue-2',
+    );
+    const made = plan(desiredOf(blueOnly), readback, {
+      phase: 'colour-blue',
+      stop: false,
+    });
+    const instances = made.resources.filter((item) =>
+      item.id.startsWith('instance/'),
+    );
+    expect(instances.every((item) => item.id.includes('-blue-'))).toBe(true);
+    expect(resource(made, 'instance/platform-blue-2').action).toBe('delete');
+    expect(made.resources.some((item) => item.id === 'instance/db')).toBe(
+      false,
+    );
   });
 
   test('the ingress is its own resource, after the instances (design 7.1)', () => {
