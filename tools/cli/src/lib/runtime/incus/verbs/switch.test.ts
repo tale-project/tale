@@ -100,35 +100,49 @@ describe('the switch lists every slot once (design 5.3, R3-02)', () => {
 });
 
 describe('an image of another line is refused (R3-23)', () => {
-  const proxy = (labels: Record<string, string>) => {
+  /** The stack with the edge's image declaring `labels`. The image is the
+   * Traefik edge as services/proxy/Dockerfile builds it: its volume is
+   * `/data`, and it names no infra format (the switch role is not ported
+   * onto the edge, tale-project/tale#5282). */
+  const edge = (labels: Record<string, string>) => {
     const input = compileInput('workspace', [{ compose: statefulDocument() }]);
     const images = Object.fromEntries(
       Object.entries(input.images).map(([reference, facts]) => [
         reference,
         reference.includes('/tale-proxy')
-          ? factsFor(reference, { labels: { ...facts.labels, ...labels } })
+          ? factsFor(reference, {
+              labels: {
+                ...Object.fromEntries(
+                  Object.entries(facts.labels).filter(
+                    ([key]) => key !== 'dev.tale.infra-formats',
+                  ),
+                ),
+                ...labels,
+              },
+              volumes: ['/data'],
+            })
           : facts,
       ]),
     );
     return compileStackTarget({ ...input, images });
   };
 
-  test('a proxy image that does not read switch-upstreams/1 fails closed', () => {
-    for (const formats of ['', 'traefik-dynamic/1', 'switch-upstreams/2']) {
-      const result = proxy({ 'dev.tale.infra-formats': formats });
-      expect(result.target).toBeNull();
-      expect(result.refusals).toContainEqual(
-        expect.objectContaining({
-          id: 'infra-format',
-          service: 'switch',
-          detail: expect.stringContaining('switch-upstreams/1'),
-        }),
+  test('the edge image, which reads no switch-upstreams/1, fails closed', () => {
+    // Whatever formats the image claims, it is refused: the edge's own
+    // wiring (its docker-api network) refuses the stack before the switch
+    // format is ever read, so the refusal names the edge.
+    for (const formats of [
+      undefined,
+      '',
+      'traefik-dynamic/1',
+      'switch-upstreams/2',
+    ]) {
+      const result = edge(
+        formats === undefined ? {} : { 'dev.tale.infra-formats': formats },
       );
+      expect(result.target).toBeNull();
+      expect(result.refusals.map((item) => item.service)).toContain('proxy');
     }
-    expect(
-      proxy({ 'dev.tale.infra-formats': 'names-hosts/1 switch-upstreams/1' })
-        .target,
-    ).not.toBeNull();
   });
 });
 
