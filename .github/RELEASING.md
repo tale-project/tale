@@ -325,6 +325,13 @@ image's labels. The Manifest job reads the index back and fails unless it is tha
 OCI index. `docker manifest inspect` lists the index but hides its annotations;
 `docker buildx imagetools inspect --raw` shows both.
 
+GHCR answers a burst of index writes with a transient
+`403 Forbidden / denied: permission_denied: write_package` that the same write, with the same
+token, passes minutes later. The Manifest legs therefore run four at a time with `fail-fast`
+off, so one leg's failure cancels none of the others, and each leg makes the write up to four
+times, waiting 30, 60 and 120 seconds, when the registry answers that 403, a 429 or a 5xx. Any
+other failure stops the leg at once. The read-back runs after the write that held.
+
 `:latest` and GitHub's **Latest** release move together, and only for the highest version:
 `tools/cli/scripts/release-latest.ts` moves them when the run is not sites-only, the version is
 a stable `X.Y.Z`, and no published release (not a draft or pre-release) is higher. A re-run or
