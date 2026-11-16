@@ -655,6 +655,24 @@ denied: permission_denied: write_package`;
     });
   });
 
+  test('no publication job runs past a failed index leg', async () => {
+    // With fail-fast off, the other legs finish after one fails; the
+    // manifest job still fails as a whole. A job that needs it and has no
+    // status function in its `if` keeps the implicit success(), so neither
+    // the release nor anything after it runs on a partial set of indexes.
+    const { jobs } = (await workflow('release')) as {
+      jobs: Record<string, { needs?: string | string[]; if?: string }>;
+    };
+    const needs = (job: string) => [jobs[job]!.needs ?? []].flat();
+    expect(needs('create-release')).toContain('manifest');
+    expect(needs('trigger-cli')).toContain('manifest');
+    expect(needs('publish-packages')).toContain('create-release');
+    for (const job of ['create-release', 'trigger-cli', 'publish-packages'])
+      expect(jobs[job]!.if ?? '').not.toMatch(
+        /\b(always|failure|cancelled)\s*\(/,
+      );
+  });
+
   test.skipIf(process.platform === 'win32').each([
     ['a GHCR 403 write_package', GHCR_403],
     ['a 429', status('429 Too Many Requests')],
