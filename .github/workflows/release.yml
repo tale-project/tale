@@ -604,7 +604,12 @@ jobs:
       contents: read
       packages: write
 
+    # GHCR answers a burst of index writes with a transient 403 (see the
+    # retry below): four legs at a time, and one leg's failure cancels none
+    # of the others, so a re-run writes only the indexes still missing.
     strategy:
+      fail-fast: false
+      max-parallel: 4
       matrix:
         service: ${{ fromJSON(needs.prepare.outputs.service_names) }}
 
@@ -701,7 +706,34 @@ jobs:
 
           TAGS=(--tag "${IMAGE}:${VERSION}")
           if [ "$MOVE_LATEST" = true ]; then TAGS+=(--tag "${IMAGE}:latest"); fi
-          docker buildx imagetools create "${TAGS[@]}" "${ANNOTATIONS[@]}" "$AMD64" "$ARM64"
+          # Since 2026-11 GHCR has answered bursts of index writes with
+          # "403 Forbidden / denied: permission_denied: write_package", and
+          # accepted the same write with the same token minutes later. Retry
+          # that 403, a 429 and a 5xx, backing off 30, 60 and 120 s; any other
+          # failure is real and stops at once. A retry writes the same bytes.
+          create_index() {
+            local attempt=1 delay output
+            for delay in 30 60 120 -; do
+              if output=$(docker buildx imagetools create "$@" 2>&1); then
+                printf '%s\n' "$output"
+                return 0
+              fi
+              printf '%s\n' "$output" >&2
+              if ! { grep -q '403 Forbidden' <<< "$output" && grep -q 'permission_denied: write_package' <<< "$output"; } &&
+                 ! grep -Eq 'request to [^ ]+: (429|5[0-9]{2})( |$)|toomanyrequests' <<< "$output"; then
+                echo "::error::${IMAGE}:${VERSION}: the registry refused the index write"
+                return 1
+              fi
+              if [ "$delay" = - ]; then
+                echo "::error::${IMAGE}:${VERSION}: the registry still refused the index write after ${attempt} attempts"
+                return 1
+              fi
+              echo "::warning::${IMAGE}:${VERSION}: transient registry refusal on attempt ${attempt}; retrying in ${delay} s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+            done
+          }
+          create_index "${TAGS[@]}" "${ANNOTATIONS[@]}" "$AMD64" "$ARM64"
 
           # The proof: the tag is an OCI image index of exactly the two native
           # images this run pushed, annotated with this release, and every tag

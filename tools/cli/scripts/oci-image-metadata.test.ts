@@ -47,7 +47,14 @@ type Step = {
 };
 type Workflow = {
   env?: Record<string, string>;
-  jobs: Record<string, { needs?: string | string[]; steps?: Step[] }>;
+  jobs: Record<
+    string,
+    {
+      needs?: string | string[];
+      strategy?: Record<string, unknown>;
+      steps?: Step[];
+    }
+  >;
 };
 
 async function workflow(name: 'build' | 'release'): Promise<Workflow> {
@@ -442,6 +449,8 @@ describe('the release publishes one annotated OCI image index per service', () =
       index?: unknown;
       latest?: string;
       arm64?: string;
+      /** What the registry answers the 1st, 2nd, … index write: a failure. */
+      createFailures?: string[];
     } = {},
   ) {
     const directory = await scratch();
@@ -463,6 +472,16 @@ describe('the release publishes one annotated OCI image index per service', () =
     await writeFile(join(directory, 'latest.digest'), options.latest ?? INDEX);
     await writeFile(join(directory, 'index.digest'), INDEX);
     await writeFile(join(directory, 'summary.md'), '');
+    for (const [index, failure] of (options.createFailures ?? []).entries())
+      await writeFile(join(directory, `create-failure-${index + 1}`), failure);
+    // The back-off sleeps nothing here; it records what it would wait.
+    await writeFile(
+      join(directory, 'bin/sleep'),
+      `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$STATE/sleeps"
+`,
+    );
+    await chmod(join(directory, 'bin/sleep'), 0o755);
     await writeFile(
       join(directory, 'bin/docker'),
       `#!/usr/bin/env bash
@@ -472,7 +491,12 @@ printf '\\n' >> "$STATE/calls"
 if [ "\${1:-}" = manifest ]; then echo 'docker manifest is not available' >&2; exit 97; fi
 case "$*" in
   'buildx version') echo 'github.com/docker/buildx v0.0.0-fixture' ;;
-  'buildx imagetools create '*) ;;
+  'buildx imagetools create '*)
+    WRITES=$(( $(cat "$STATE/writes" 2>/dev/null || echo 0) + 1 ))
+    echo "$WRITES" > "$STATE/writes"
+    if [ -f "$STATE/create-failure-$WRITES" ]; then
+      cat "$STATE/create-failure-$WRITES" >&2; exit 1
+    fi ;;
   'buildx imagetools inspect '*' --format {{json .Image}}') cat "$STATE/config.json" ;;
   'buildx imagetools inspect '*' --raw') cat "$STATE/index.json" ;;
   'buildx imagetools inspect '*' --format {{.Manifest.Digest}}')
@@ -587,6 +611,11 @@ cat "$STATE/releases"
         (call) => call.slice(0, 3).join(' ') === 'buildx imagetools create',
       ),
       summary: await readFile(join(directory, 'summary.md'), 'utf8'),
+      sleeps: existsSync(join(directory, 'sleeps'))
+        ? (await readFile(join(directory, 'sleeps'), 'utf8'))
+            .split('\n')
+            .filter(Boolean)
+        : [],
     };
   }
   const flagValues = (call: string[], flag: string) =>
@@ -602,6 +631,99 @@ cat "$STATE/releases"
     ).run!;
     expect(run).toContain('docker buildx imagetools create');
     expect(run).not.toContain('docker manifest');
+  });
+
+  // GHCR has answered a burst of index writes with a transient 403 since
+  // 2026-11: Release run 43798515062 lost tale-docs:0.5.107 to one, and the
+  // default fail-fast cancelled the other eleven legs with it.
+  const GHCR_403 = `ERROR: publish sha256:${'3'.repeat(64)} to ${IMAGE}:${VERSION}: failed commit on ref "index-sha256:${'3'.repeat(64)}": unexpected status from PUT request to https://ghcr.io/v2/tale-project/tale/tale-db/manifests/${VERSION}: 403 Forbidden
+denied: permission_denied: write_package`;
+  const status = (code: string) =>
+    `ERROR: unexpected status from PUT request to https://ghcr.io/v2/tale-project/tale/tale-db/manifests/${VERSION}: ${code}`;
+  const writes = (calls: string[][]) =>
+    calls.filter(
+      (call) => call.slice(0, 3).join(' ') === 'buildx imagetools create',
+    );
+
+  test('the index legs run four at a time, and one failure cancels none', async () => {
+    expect((await workflow('release')).jobs.manifest!.strategy).toEqual({
+      'fail-fast': false,
+      'max-parallel': 4,
+      matrix: {
+        service: '${{ fromJSON(needs.prepare.outputs.service_names) }}',
+      },
+    });
+  });
+
+  test('no publication job runs past a failed index leg', async () => {
+    // With fail-fast off, the other legs finish after one fails; the
+    // manifest job still fails as a whole. A job that needs it and has no
+    // status function in its `if` keeps the implicit success(), so neither
+    // the release nor anything after it runs on a partial set of indexes.
+    const { jobs } = (await workflow('release')) as {
+      jobs: Record<string, { needs?: string | string[]; if?: string }>;
+    };
+    const needs = (job: string) => [jobs[job]!.needs ?? []].flat();
+    expect(needs('create-release')).toContain('manifest');
+    expect(needs('trigger-cli')).toContain('manifest');
+    expect(needs('publish-packages')).toContain('create-release');
+    for (const job of ['create-release', 'trigger-cli', 'publish-packages'])
+      expect(jobs[job]!.if ?? '').not.toMatch(
+        /\b(always|failure|cancelled)\s*\(/,
+      );
+  });
+
+  test.skipIf(process.platform === 'win32').each([
+    ['a GHCR 403 write_package', GHCR_403],
+    ['a 429', status('429 Too Many Requests')],
+    ['a 503', status('503 Service Unavailable')],
+  ])(
+    'the index write outlasts %s, then proves the index it wrote',
+    async (_label, failure) => {
+      const result = await publish(
+        await fixture({ createFailures: [failure, failure] }),
+      );
+      expect(result.code, result.output).toBe(0);
+      expect(result.sleeps).toEqual(['30', '60']);
+      const attempts = writes(result.calls);
+      expect(attempts).toHaveLength(3);
+      // Every attempt writes the same tags from the same images.
+      expect(new Set(attempts.map((call) => call.join('\t'))).size).toBe(1);
+      expect(result.output).toContain('::warning::');
+      // The read-back proof still runs after the write that held.
+      expect(
+        result.calls.some((call) => call.join(' ').endsWith('--raw')),
+      ).toBe(true);
+      expect(result.summary).toContain(`${IMAGE}@${INDEX}`);
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'the index write gives up after four attempts',
+    async () => {
+      const result = await publish(
+        await fixture({ createFailures: Array(4).fill(GHCR_403) }),
+      );
+      expect(result.code).not.toBe(0);
+      expect(result.sleeps).toEqual(['30', '60', '120']);
+      expect(writes(result.calls)).toHaveLength(4);
+      expect(result.output).toContain('after 4 attempts');
+      expect(result.summary).toBe('');
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([
+    ['a 401', status('401 Unauthorized')],
+    ['a 403 for another reason', status('403 Forbidden')],
+    ['a missing image', `ERROR: ${IMAGE}:${VERSION}-arm64: not found`],
+  ])('the index write stops at once on %s', async (_label, failure) => {
+    const result = await publish(await fixture({ createFailures: [failure] }));
+    expect(result.code).not.toBe(0);
+    expect(result.sleeps).toEqual([]);
+    expect(writes(result.calls)).toHaveLength(1);
+    expect(result.output).toContain(failure);
+    expect(result.output).toContain('refused the index write');
+    expect(result.summary).toBe('');
   });
 
   test.skipIf(process.platform === 'win32')(
