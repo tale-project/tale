@@ -196,6 +196,108 @@ describe('tale logs on Incus', () => {
     ).rejects.toThrow('broken');
   });
 
+  test('--follow reads a just-stopped console again while Incus answers 500, connection refused (E2E flake)', async () => {
+    const api = seedStackInstance(fixture.fake, 'api');
+    api.consoleLog = 'a\n';
+    const out = collect();
+    let sleeps = 0;
+    const exitCode = await readInstanceLogs(
+      fixture.context,
+      'api',
+      { follow: true, consume: true },
+      out.onLine,
+      {
+        warn: out.warn,
+        pollMs: 1,
+        sleep: async () => {
+          sleeps += 1;
+          if (sleeps === 1) {
+            // The service ends: its state reads Stopped, and the first read
+            // of its console still answers what the running one did.
+            api.status = 'Stopped';
+            api.consoleLog = 'a\nlast\n';
+            fixture.fake.fail({
+              match: 'GET /1.0/instances/api/console',
+              status: 500,
+              message: 'connection refused',
+            });
+          }
+        },
+      },
+    );
+    expect(exitCode).toBe(0);
+    expect(out.lines).toEqual(['a', 'last']);
+    // One running read, the refused one, and the one that answered.
+    expect(fixture.fake.seen('GET /1.0/instances/api/console')).toHaveLength(3);
+  });
+
+  test('a stopped console that keeps answering 500, connection refused, fails after the bound, and any other failure at once', async () => {
+    seedStackInstance(fixture.fake, 'api', { status: 'Stopped' });
+    fixture.fake.fail({
+      match: 'GET /1.0/instances/api/console',
+      status: 500,
+      message: 'connection refused',
+      times: 100,
+    });
+    let sleeps = 0;
+    const refused = await refusal(
+      readInstanceLogs(fixture.context, 'api', { follow: true }, () => {}, {
+        warn: () => {},
+        pollMs: 1,
+        sleep: async () => {
+          sleeps += 1;
+        },
+      }),
+    );
+    expect(refused).toBeInstanceOf(IncusApiError);
+    expect(refused.message).toContain('connection refused');
+    expect(fixture.fake.seen('GET /1.0/instances/api/console')).toHaveLength(
+      10,
+    );
+    expect(sleeps).toBe(9);
+
+    seedStackInstance(fixture.fake, 'web', { status: 'Stopped' });
+    fixture.fake.fail({
+      match: 'GET /1.0/instances/web/console',
+      status: 500,
+      message: 'broken',
+      times: 100,
+    });
+    const broken = await refusal(
+      readInstanceLogs(fixture.context, 'web', { follow: false }, () => {}, {
+        warn: () => {},
+        pollMs: 1,
+        sleep: async () => {},
+      }),
+    );
+    expect(broken.message).toContain('broken');
+    expect(fixture.fake.seen('GET /1.0/instances/web/console')).toHaveLength(1);
+  });
+
+  test('--follow ends cleanly when the instance goes away between its state read and its console read', async () => {
+    seedStackInstance(fixture.fake, 'api');
+    const client = fixture.context.client;
+    const going = Object.assign(Object.create(client) as typeof client, {
+      readConsole: async () => {
+        fixture.fake.instances.delete('api');
+        throw new IncusApiError(
+          'Incus GET console answered 404: Instance not found',
+          404,
+        );
+      },
+    });
+    const out = collect();
+    const exitCode = await readInstanceLogs(
+      { ...fixture.context, client: going },
+      'api',
+      { follow: true, consume: true },
+      out.onLine,
+      { warn: out.warn, pollMs: 1, sleep: async () => {} },
+    );
+    expect(exitCode).toBe(0);
+    expect(out.lines).toEqual([]);
+  });
+
   test('--follow shows each line once when the stopped console hands out the whole run again (TI-20, measured)', async () => {
     const api = seedStackInstance(fixture.fake, 'api');
     api.consoleLog = 'a\nb\n';
