@@ -280,6 +280,8 @@ Un réplica backend lit un fichier dans un processus à part : il extrait le te
 
 Avec une limite de 96 Mio, un tableur de 100 000 lignes sur 10 colonnes passe, tout comme un PDF de plusieurs centaines de pages ou environ 20 Mo de texte brut ou de CSV. Avec la protection des DCP activée, environ 10 Mo de texte passent. Les images d’un PDF ne comptent pas : Tale ne décode pas une image trop grande pour la limite. Une fois la limite relevée, un document en échec reste **Échoué** jusqu’à ce que quelqu’un utilise **Relancer l'indexation**.
 
+Pendant qu’un fichier est lu, il se trouve sur le disque du réplica, dans son répertoire temporaire (`/tmp`). Il en va de même pour un téléversement dont le navigateur ou le client n’a pas annoncé la taille ; un téléversement qui annonce sa taille part vers le stockage objet à mesure qu’il arrive et n’est conservé nulle part en chemin. Prévois-y l’espace disque du plus gros fichier que tu attends : un enregistrement peut atteindre 2 Gio. Si le répertoire temporaire est conservé en mémoire (un montage `tmpfs`), il compte dans la mémoire du conteneur, ce que la limite ci-dessus doit justement éviter.
+
 ## Runtime de conteneurs {#container-runtime}
 
 Le runtime de conteneurs d’un déploiement se déclare dans `tale.json` ou dans la spécification de déploiement (`runtime.engine`), jamais par une variable. Ces variables protègent cette déclaration, situent ses identifiants, ou sont réglées par la CLI dans les images du [runtime Incus](/fr/self-hosted/install/incus), expérimental ; aucune n’a sa place dans `.env`.

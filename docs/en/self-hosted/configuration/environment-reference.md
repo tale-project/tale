@@ -280,6 +280,8 @@ A backend replica reads a file in a process of its own: it extracts a document's
 
 With the limit at 96 MiB, a spreadsheet of 100,000 rows by 10 columns fits, and so does a PDF of several hundred pages or about 20 MB of plain text or CSV. With PII protection on, about 10 MB of text fits. The pictures in a PDF do not count: Tale does not decode a picture that is too large for the limit. After you raise the limit, a document that failed stays **Failed** until someone uses **Retry indexing** on it.
 
+While a file is read, it is kept on the replica's disk, in its temporary directory (`/tmp`). So is an upload whose size the browser or client did not announce; an upload that announces its size goes to the object store as it arrives and is kept nowhere on the way. Plan disk there for the largest file you expect: a recording may be 2 GiB. A temporary directory that is kept in memory instead (a `tmpfs` mount) counts against the container's memory, which is what the limit above is there to prevent.
+
 ## Container runtime {#container-runtime}
 
 A deployment's container runtime is declared in `tale.json` or the deployment specification (`runtime.engine`), never chosen by a variable. These variables guard that declaration, locate its credentials, or are set by the CLI in the images on the experimental [Incus runtime](/self-hosted/install/incus); none of them belongs in `.env`.

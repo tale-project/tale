@@ -280,6 +280,8 @@ Ein Backend-Replikat liest eine Datei in einem eigenen Prozess: Es extrahiert de
 
 Bei einem Limit von 96 MiB passt eine Tabelle mit 100.000 Zeilen und 10 Spalten, ebenso ein PDF mit mehreren Hundert Seiten oder etwa 20 MB reiner Text oder CSV. Mit eingeschaltetem PII-Schutz passen etwa 10 MB Text. Die Bilder in einem PDF zählen nicht mit: Ein Bild, das für das Limit zu groß ist, dekodiert Tale nicht. Nachdem du das Limit angehoben hast, bleibt ein fehlgeschlagenes Dokument **Fehlgeschlagen**, bis jemand **Indexierung erneut versuchen** wählt.
 
+Während eine Datei gelesen wird, liegt sie auf der Festplatte des Replikats, in dessen temporärem Verzeichnis (`/tmp`). Dasselbe gilt für einen Upload, dessen Größe der Browser oder Client nicht angekündigt hat; ein Upload, der seine Größe ankündigt, geht beim Eintreffen direkt in den Objektspeicher und liegt unterwegs nirgends. Plane dort Speicherplatz für die größte Datei ein, die du erwartest: Eine Aufnahme kann 2 GiB groß sein. Liegt das temporäre Verzeichnis stattdessen im Arbeitsspeicher (ein `tmpfs`-Mount), zählt es zum Arbeitsspeicher des Containers, und genau das soll das Limit oben verhindern.
+
 ## Container-Laufzeit {#container-runtime}
 
 Die Container-Laufzeit eines Deployments steht in `tale.json` oder in der Deployment-Spezifikation (`runtime.engine`) und wird nie über eine Variable gewählt. Diese Variablen sichern die Festlegung ab, zeigen auf ihre Zugangsdaten oder werden von der CLI in den Images der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus) gesetzt; keine davon gehört in die `.env`.
