@@ -165,11 +165,24 @@ export const ONE_PROCESS_POOLS = {
   KNOWLEDGE_DB_POOL_MAX: 5,
 } as const;
 
-/** {@link ONE_PROCESS_POOLS} as the environment of the one process: each a
- *  default that a value in `.env` replaces. */
+/**
+ * {@link ONE_PROCESS_POOLS} as the environment of the one process, each a
+ * default that a value in `.env` replaces, and with them the other thing a
+ * connection costs the database: the statements it keeps prepared.
+ *
+ * The backend prepares every statement it runs, on every connection, and the
+ * database keeps them all for as long as the connection lives. After the load
+ * tool's two-minute smoke run each PostgreSQL process of the application pool
+ * held 14 MiB with its statements prepared and 7 MiB without, and prepared
+ * it would go on growing with every statement it had not seen yet.
+ * Unprepared, a statement costs one more round trip: the mean request of
+ * that run took 13 ms where it had taken 11 to 12. A small host can spare
+ * that, and cannot spare 7 MiB for each of four connections.
+ */
 function onePoolEnvironment(): Record<string, string> {
   const pools = ONE_PROCESS_POOLS;
   return {
+    DATABASE_PREPARED_STATEMENTS: '${DATABASE_PREPARED_STATEMENTS:-false}',
     DATABASE_POOL_MAX: `\${DATABASE_POOL_MAX:-${pools.DATABASE_POOL_MAX}}`,
     JOBS_DATABASE_POOL_MAX: `\${JOBS_DATABASE_POOL_MAX:-\${DATABASE_POOL_MAX:-${pools.JOBS_DATABASE_POOL_MAX}}}`,
     AUTH_DATABASE_POOL_MAX: `\${AUTH_DATABASE_POOL_MAX:-${pools.AUTH_DATABASE_POOL_MAX}}`,

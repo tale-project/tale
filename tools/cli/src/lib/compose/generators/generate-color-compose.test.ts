@@ -457,6 +457,14 @@ describe('generateColorCompose ↔ the shape of the application tier', () => {
     );
   });
 
+  test('one process leaves its statements unprepared unless .env says otherwise', () => {
+    // Prepared, each stays in the database for as long as its connection
+    // lives: megabytes per connection, which a small host has not got.
+    expect(
+      shaped(UNIFIED).platform?.environment?.DATABASE_PREPARED_STATEMENTS,
+    ).toBe('${DATABASE_PREPARED_STATEMENTS:-false}');
+  });
+
   test('the pools of one process hold its queue, its listener and its workers', () => {
     // The backend warns at boot when the knowledge pool is below the jobs a
     // worker runs at once (WORKER_CONCURRENCY, 5 unless set).
@@ -473,12 +481,14 @@ describe('generateColorCompose ↔ the shape of the application tier', () => {
     // With the jobs apart, or as three services, a process is a replica
     // among others: the sizes are the backend's, or the operator's.
     const sized = (service: ComposeService | undefined): string[] =>
-      Object.keys(service?.environment ?? {}).filter((name) =>
-        name.endsWith('_POOL_MAX'),
+      Object.keys(service?.environment ?? {}).filter(
+        (name) =>
+          name.endsWith('_POOL_MAX') || name === 'DATABASE_PREPARED_STATEMENTS',
       );
     expect(sized(shaped(UNIFIED).platform).toSorted()).toEqual([
       'AUTH_DATABASE_POOL_MAX',
       'DATABASE_POOL_MAX',
+      'DATABASE_PREPARED_STATEMENTS',
       'JOBS_DATABASE_POOL_MAX',
       'KNOWLEDGE_DB_POOL_MAX',
     ]);
