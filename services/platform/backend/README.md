@@ -114,7 +114,13 @@ build measured about 100 MiB less at rest (256 → 149 MiB on amd64). The build
 fails if a built file would still import a package at runtime, because the image
 ships no `node_modules` for it.
 
-Two more properties of the build are held by its test:
+The build is a production build wherever it is made. Bun writes the
+`NODE_ENV` of the build's own environment into the code in place of every
+`process.env.NODE_ENV` (`development` when it is unset), so the build names
+`production` itself: a built backend never runs a library's development
+checks, and setting `NODE_ENV` on the container changes nothing in it.
+
+Three more properties of the build are held by its test:
 
 - **Every script is written in one-byte characters.** V8 keeps a script's text
   at one byte a character only while every character fits in a byte; one em

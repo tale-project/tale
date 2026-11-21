@@ -30,11 +30,12 @@ const FIRST = join(PLATFORM, `backend-dist.test-${SUFFIX}`);
 const SECOND = join(PLATFORM, `backend-dist.test-${SUFFIX}-again`);
 const BROKEN = join(PLATFORM, `backend-dist.test-${SUFFIX}-broken`);
 
-function build(outdir: string) {
+function build(outdir: string, environment: Record<string, string> = {}) {
   return spawnSync('bun', ['scripts/build-backend.ts', outdir], {
     cwd: PLATFORM,
     encoding: 'utf8',
     timeout: 120_000,
+    env: { ...process.env, ...environment },
   });
 }
 
@@ -213,7 +214,7 @@ describe('the built backend', () => {
     expect(mapped.stdout).toContain('DATABASE_URL');
   });
 
-  it('passes its own image check: the PII tree, the catalogs, the migrations and the code runner child', () => {
+  it('passes its own image check: the build, the PII tree, the catalogs, the migrations and the code runner child', () => {
     const result = node(join(FIRST, 'image-check.js'));
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain('ok    the PII data tree loads');
@@ -306,8 +307,21 @@ describe('the built backend', () => {
       expect(facts.bootPackages).toContain(name);
   });
 
-  it('builds the same bytes twice', () => {
-    const again = build(SECOND);
+  // Bun writes the NODE_ENV of the build's environment into the code. This
+  // build ran under the test runner's (NODE_ENV=test) and the check below
+  // runs with no NODE_ENV at all: what it reads is what the build was given.
+  // Built as anything else, the backend ran every library's development
+  // checks and put the dev image's live-reload script in the page.
+  it('is a production build, whatever environment built it and whatever it runs in', () => {
+    const result = node(join(FIRST, 'image-check.js'));
+    expect(result.stdout).toContain('ok    the backend is a production build');
+  });
+
+  // The first build ran under this test's environment (NODE_ENV=test) and
+  // this one runs as a development shell would: Bun writes the NODE_ENV of
+  // the build's environment into the code unless the build names one.
+  it('builds the same bytes twice, whatever environment builds it', () => {
+    const again = build(SECOND, { NODE_ENV: 'development' });
     expect(again.status, again.stdout + again.stderr).toBe(0);
     const files = readdirSync(FIRST).filter((file) => file.endsWith('.js'));
     expect(readdirSync(SECOND).filter((file) => file.endsWith('.js'))).toEqual(

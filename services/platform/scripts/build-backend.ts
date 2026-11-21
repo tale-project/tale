@@ -25,7 +25,9 @@
  *
  * Every dependency is inlined, so the directory runs without `node_modules`.
  * Every script is written in one-byte characters (`one-byte-scripts.ts`), so
- * V8 holds its text at one byte a character and not two.
+ * V8 holds its text at one byte a character and not two. It is a production
+ * build wherever it is made: `process.env.NODE_ENV` is written into the code
+ * as `production`, never read from the environment of the build.
  *
  * Usage (from `services/platform`): `bun scripts/build-backend.ts [outdir]`
  */
@@ -221,6 +223,14 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
     // what a boot never reaches (a PDF parser, a mail client) is never read.
     splitting: true,
     minify: true,
+    // Bun writes the NODE_ENV of the build's own environment into the code,
+    // in place of every `process.env.NODE_ENV`: `development` when it is
+    // unset, `test` under a test runner. The same sources then gave a build
+    // that ran every library's development checks, and the dev image's
+    // live-reload script in the page, anywhere but in the image's builder
+    // stage, which happens to set it. What this writes is what production
+    // runs, so it says so itself.
+    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
     // Beside each file and linked from none: a map the running process held
     // would cost what the build saves, so `symbolicate-trace.js` reads it
     // when a logged trace is mapped.

@@ -10,7 +10,9 @@
  * to the key, and the code runner fails the first automation that evaluates
  * an expression. So a packaging mistake surfaces as a customer's problem
  * days later. This reads each of them the way the running backend does and
- * exits 1 with the reason when one is missing.
+ * exits 1 with the reason when one is missing. It also says what the build
+ * was built as: one made for anything but production runs every library's
+ * development checks and never says so either.
  *
  * Built by `scripts/build-backend.ts` as an entry of its own; it shares the
  * build's chunks, so it tests the files the backend itself loads.
@@ -93,9 +95,25 @@ async function codeRunner(): Promise<string> {
   return 'the code runner evaluates in its child process';
 }
 
+/**
+ * The build writes NODE_ENV into the code in place of every read of it
+ * (`scripts/build-backend.ts`), so what this reads is what every module of
+ * the build was given, whatever the container's environment says.
+ */
+async function productionBuild(): Promise<string> {
+  if (!BUILT) return 'the backend runs from its sources';
+  const mode = process.env.NODE_ENV;
+  if (mode !== 'production')
+    throw new Error(
+      `the backend was built with NODE_ENV=${mode ?? '(unset)'}, not production`,
+    );
+  return 'the backend is a production build';
+}
+
 /** Each check under the name a failure is reported by: the build minifies
  * function names, so the name is written out. */
 const CHECKS: [name: string, check: () => Promise<string>][] = [
+  ['the build', productionBuild],
   ['the PII data tree', piiDataTree],
   ['the message catalogs', messageCatalogs],
   ['the boot migrations', bootMigrations],
