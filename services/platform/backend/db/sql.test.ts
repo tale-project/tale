@@ -9,6 +9,7 @@ import {
   jobsPoolMax,
   jsonParam,
   likeContains,
+  preparedStatements,
 } from './sql.ts';
 
 /**
@@ -54,6 +55,31 @@ describe('likeContains', () => {
     expect(likeContains('50%_off')).toBe('%50\\%\\_off%');
     expect(likeContains('a\\b')).toBe('%a\\\\b%');
   });
+});
+
+describe('prepared statements', () => {
+  it('keeps statements prepared unless DATABASE_PREPARED_STATEMENTS says false', () => {
+    expect(preparedStatements({})).toBe(true);
+    expect(preparedStatements({ DATABASE_PREPARED_STATEMENTS: 'true' })).toBe(
+      true,
+    );
+    expect(preparedStatements({ DATABASE_PREPARED_STATEMENTS: 'false' })).toBe(
+      false,
+    );
+    expect(
+      preparedStatements({ DATABASE_PREPARED_STATEMENTS: ' False ' }),
+    ).toBe(false);
+  });
+
+  // A typo must not quietly change how every query is sent.
+  it.each(['', '0', 'off', 'no', 'disabled'])(
+    'reads only the word false as a no (%j)',
+    (raw) => {
+      expect(preparedStatements({ DATABASE_PREPARED_STATEMENTS: raw })).toBe(
+        true,
+      );
+    },
+  );
 });
 
 describe('connection pool sizes', () => {

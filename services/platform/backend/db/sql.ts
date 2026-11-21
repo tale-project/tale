@@ -135,6 +135,27 @@ export function authPoolMax(
 }
 
 /**
+ * Whether a connection keeps the statements it has run prepared on the
+ * database's side (`DATABASE_PREPARED_STATEMENTS`, yes unless `false`).
+ *
+ * Prepared, a statement is parsed once per connection and only bound from
+ * then on, which saves a round trip and the parse on every repeat. The
+ * database keeps each one for as long as the connection lives, and nothing
+ * here ever drops one: the backend runs a few hundred distinct statements,
+ * and a PostgreSQL process that has prepared the 447 of a short load run
+ * holds 12 MiB where a fresh one holds 2. Every connection of a pool gets
+ * there. Unprepared, a statement goes unnamed each time and nothing
+ * accumulates, at the price of that round trip. A deployment sized for a
+ * small host turns it off; so may one behind a pooler that cannot carry
+ * prepared statements from one of its connections to the next.
+ */
+export function preparedStatements(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.DATABASE_PREPARED_STATEMENTS?.trim().toLowerCase() !== 'false';
+}
+
+/**
  * The longest a pool waits to reconnect a connection the database dropped.
  *
  * postgres.js's own backoff climbs to twenty seconds, and its retry count is
@@ -167,6 +188,7 @@ export function createSql(databaseUrl: string): Sql {
   const { url, ssl } = resolvePostgresConnection(databaseUrl);
   return postgres(url, {
     max: appPoolMax(),
+    prepare: preparedStatements(),
     ssl,
     idle_timeout: 30,
     connect_timeout: 10,

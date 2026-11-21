@@ -61,7 +61,7 @@ import postgres, { type Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
 import { createOutageWatch, type OutageWatch } from '../../db/outage-watch';
-import { reconnectBackoffSeconds } from '../../db/sql';
+import { preparedStatements, reconnectBackoffSeconds } from '../../db/sql';
 import { resolvePostgresConnection } from '../../db/ssl';
 import {
   describeDatabaseError,
@@ -107,6 +107,9 @@ let openPool: PoolFactory = (rawUrl, options) => {
   const { url, ssl } = resolvePostgresConnection(rawUrl);
   return postgres(url, {
     max: options?.session ? 1 : knowledgePoolMax(),
+    // As the application pool does (`preparedStatements` in db/sql.ts): a
+    // corpus connection keeps what it prepared too.
+    prepare: preparedStatements(),
     ssl,
     idle_timeout: options?.session ? 30 : 120,
     connect_timeout: 30,

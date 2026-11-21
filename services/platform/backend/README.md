@@ -63,6 +63,7 @@ can fail before the application starts.
 | `DATABASE_POOL_MAX` | Connections one process opens to the application database for its own queries, default `10` |
 | `JOBS_DATABASE_POOL_MAX` | Connections one process opens for the job queue (pg-boss), default `DATABASE_POOL_MAX` where jobs are worked and `2` on the api role, which only sends them. A role that works jobs holds one more to be woken on (LISTEN); the api role holds none |
 | `AUTH_DATABASE_POOL_MAX` | Connections one process that serves requests opens for sign-in session lookups, default `5` |
+| `DATABASE_PREPARED_STATEMENTS` | Whether the application and knowledge pools keep their statements prepared, default `true`. Prepared, a repeat saves a round trip and the database keeps the statement while the connection lives; `false` sends every statement unprepared and keeps each connection's PostgreSQL process small |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
 | `SHUTDOWN_DRAIN_SECONDS` | How long a stopping process that serves the web tier keeps answering after `/api/health` turned to 503, default `6` (0–300); skipped when nothing has checked its health in the last 15 seconds |
