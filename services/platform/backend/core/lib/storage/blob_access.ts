@@ -29,12 +29,14 @@ import {
 import {
   buildObjectKey,
   deleteOrgObject,
+  fileBody,
   locateOrgObjectStore,
   resolveOrgObjectStore,
   s3GetObjectBytes,
   s3GetObjectToFile,
   s3HeadObject,
   s3PutObject,
+  s3PutObjectStream,
   type S3GetToFileOpts,
   type S3ObjectFile,
   type S3ObjectStore,
@@ -134,15 +136,21 @@ export async function deleteBlob(orgSlug: string, ref: BlobRef): Promise<void> {
 }
 
 /**
- * Write attested bytes to a reserved S3 final reference exactly once.
+ * Write an attested file to a reserved S3 final reference exactly once. The
+ * file is sent as it is read (`s3PutObjectStream`), so a document of the
+ * largest size a replacement may have is never held in memory
+ * (tale-project/tale#4942).
  *
  * The final key is never returned with a write capability. `exists` supports
- * recovery when an action wrote the object and died before recording promotion.
+ * recovery when an action wrote the object and died before recording
+ * promotion: the key is asked first, so that a file the store would refuse
+ * is not sent to it, and the write itself is still create-only, for a writer
+ * that got there in between.
  */
 export async function putImmutableS3Blob(
   orgSlug: string,
   ref: BlobRef,
-  bytes: Uint8Array,
+  file: { path: string; size: number },
   contentType: string,
 ): Promise<'created' | 'exists'> {
   const parsed = parseBlobRef(ref);
@@ -150,7 +158,10 @@ export async function putImmutableS3Blob(
     throw new Error('immutable S3 promotion requires an s3: reference');
   }
   const store = await requireS3(orgSlug, parsed.key);
-  return await s3PutObject(store, parsed.key, bytes, contentType, {
+  if ((await s3HeadObject(store, parsed.key)) !== null) return 'exists';
+  return await s3PutObjectStream(store, parsed.key, fileBody(file.path), {
+    contentLength: file.size,
+    contentType,
     createOnly: true,
   });
 }
