@@ -3,8 +3,9 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { transcribeAudioImpl } from '../../core/file_metadata/transcribe_audio.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { queueTranscription } from './transcription.ts';
+import { queueTranscription, runTranscribeJob } from './transcription.ts';
 
 /**
  * The regression under test: `queueTranscription` enqueued a
@@ -17,6 +18,9 @@ import { queueTranscription } from './transcription.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({
   addJobInTx: vi.fn(async () => 'job-1'),
+}));
+vi.mock('../../core/file_metadata/transcribe_audio.ts', () => ({
+  transcribeAudioImpl: vi.fn(async () => null),
 }));
 
 interface Captured {
@@ -73,5 +77,35 @@ describe('queueTranscription', () => {
     expect(await queueTranscription(sql, args)).toBe(false);
 
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('runTranscribeJob', () => {
+  const payload = {
+    storageId: 's3:org-1/audio.wav',
+    fileName: 'audio.wav',
+    contentType: 'audio/wav',
+    organizationId: 'org-1',
+  };
+
+  beforeEach(() => {
+    vi.mocked(transcribeAudioImpl).mockClear();
+  });
+
+  // The recording is converted in the heavy slot, where it may wait its
+  // turn: a job pg-boss gives up on must leave that line.
+  it('hands its job’s cancel to the pipeline, with the job as it was queued', async () => {
+    const job = new AbortController();
+    await runTranscribeJob(fakeSql([]).sql, payload, { signal: job.signal });
+
+    expect(transcribeAudioImpl).toHaveBeenCalledTimes(1);
+    const [, handed, work] = vi.mocked(transcribeAudioImpl).mock.calls[0] ?? [];
+    expect(handed).toEqual(payload);
+    expect(work).toEqual({ signal: job.signal });
+  });
+
+  it('runs with no cancel where its caller has none', async () => {
+    await runTranscribeJob(fakeSql([]).sql, payload);
+    expect(vi.mocked(transcribeAudioImpl).mock.calls[0]?.[2]).toEqual({});
   });
 });

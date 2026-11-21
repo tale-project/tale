@@ -12,12 +12,30 @@ import type { ResolvedTranscriptionModel } from '../lib/providers/resolve_transc
  */
 export function transcriptionCacheHash(
   bytes: Uint8Array,
-  target: Pick<
-    ResolvedTranscriptionModel,
-    'providerName' | 'modelId' | 'baseUrl' | 'responseFormat'
-  >,
+  target: TranscriptionCacheTarget,
 ): string {
-  return createHash('sha256')
+  const hasher = transcriptionCacheHasher(target);
+  hasher.update(bytes);
+  return hasher.digest();
+}
+
+type TranscriptionCacheTarget = Pick<
+  ResolvedTranscriptionModel,
+  'providerName' | 'modelId' | 'baseUrl' | 'responseFormat'
+>;
+
+/**
+ * The same hash, made as the audio's bytes pass: a recording that is read
+ * from the store into a file is hashed on its way there, and never held
+ * whole to be hashed (tale-project/tale#4942). `update` takes the bytes in
+ * order; `digest` answers what {@link transcriptionCacheHash} answers for
+ * all of them.
+ */
+export function transcriptionCacheHasher(target: TranscriptionCacheTarget): {
+  update(bytes: Uint8Array): void;
+  digest(): string;
+} {
+  const hash = createHash('sha256')
     .update(
       JSON.stringify([
         'tale.transcription.cache.v3',
@@ -27,7 +45,11 @@ export function transcriptionCacheHash(
         target.responseFormat ?? 'verbose_json',
       ]),
     )
-    .update('\0')
-    .update(bytes)
-    .digest('hex');
+    .update('\0');
+  return {
+    update: (bytes) => {
+      hash.update(bytes);
+    },
+    digest: () => hash.digest('hex'),
+  };
 }

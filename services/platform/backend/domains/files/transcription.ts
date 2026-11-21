@@ -344,12 +344,18 @@ export async function runTranscribeJob(
     organizationId: string;
     attempt?: number;
   },
+  /** The job's own cancel, handed on to the recording's conversion. */
+  options: { signal?: AbortSignal } = {},
 ): Promise<void> {
   const ctx = createCtxShim(transcriptionHandlers(sql), {
     scheduler: transcriptionScheduler(sql),
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused pipeline's ActionCtx surface is exactly what the shim provides
-  await transcribeAudioImpl(ctx as never, payload);
+  await transcribeAudioImpl(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused pipeline's ActionCtx surface is exactly what the shim provides
+    ctx as never,
+    payload,
+    options.signal !== undefined ? { signal: options.signal } : {},
+  );
 }
 
 /**

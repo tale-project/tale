@@ -32,8 +32,11 @@ import {
   locateOrgObjectStore,
   resolveOrgObjectStore,
   s3GetObjectBytes,
+  s3GetObjectToFile,
   s3HeadObject,
   s3PutObject,
+  type S3GetToFileOpts,
+  type S3ObjectFile,
   type S3ObjectStore,
 } from './object_store';
 
@@ -76,6 +79,27 @@ export async function readBlobBytes(
   const key = requireS3Key(ref);
   const store = await requireS3ForRead(orgSlug, key);
   return await s3GetObjectBytes(store, key);
+}
+
+/**
+ * Read a blob from the org's store into a file, as its bytes arrive: the
+ * blob is never held whole in memory (`s3GetObjectToFile`). The file must
+ * not exist. Throws for a blob that is not there, as {@link readBlobBytes}
+ * does, and {@link UnsupportedBlobRefError} for a non-`s3:` ref.
+ */
+export async function readBlobToFile(
+  orgSlug: string,
+  ref: BlobRef,
+  filePath: string,
+  opts: S3GetToFileOpts = {},
+): Promise<S3ObjectFile> {
+  const key = requireS3Key(ref);
+  const store = await requireS3ForRead(orgSlug, key);
+  const got = await s3GetObjectToFile(store, key, filePath, opts);
+  if (got === null) {
+    throw new Error(`S3 GET ${key} failed: 404 the object does not exist`);
+  }
+  return got;
 }
 
 /**

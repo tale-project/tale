@@ -42,6 +42,12 @@ export function classifyTranscriptionError(
   if (code === 'BUDGET_EXCEEDED') {
     return { shouldRetry: false, reason: 'budget_exceeded' };
   }
+  // The recording needs more memory to convert than this deployment gives
+  // one file (`lib/heavy-slot`): the same recording meets the same limit on
+  // every retry, until an administrator raises it.
+  if (code === 'HEAVY_SLOT_MEMORY_LIMIT') {
+    return { shouldRetry: false, reason: 'memory_limit' };
+  }
   // No transcription model configured — permanent until an admin adds one.
   if (code === 'NO_TRANSCRIPTION_MODEL') {
     return { shouldRetry: false, reason: 'no_transcription_model' };
