@@ -78,6 +78,43 @@ releases any run it still holds, so another worker continues it at once. Agent
 turns' drive windows end and leave the turn to its next window. The process then
 waits out its other jobs for up to `SHUTDOWN_DRAIN_MS` and closes its pools.
 
+## Build the backend for production
+
+The production image does not run these sources. It runs a build of them:
+
+```bash
+bun run --filter @tale/platform backend:build   # writes services/platform/backend-dist/
+node services/platform/backend-dist/main.js      # plain node: no loader, no flags
+```
+
+[`scripts/build-backend.ts`](../scripts/build-backend.ts) folds the backend and
+every dependency into one flat directory of minified JavaScript. A process that
+reads the sources through the loader keeps each module as a script of its own,
+with its comments and an inline source map; the same process started from the
+build measured about 100 MiB less at rest (256 → 149 MiB on amd64). The build
+fails if a built file would still import a package at runtime, because the image
+ships no `node_modules` for it.
+
+A module that reads a file by its own location must ask
+[`lib/layout.ts`](lib/layout.ts), which knows both shapes: in the build every
+module sits in `backend-dist/`, so `new URL('./x', import.meta.url)` points
+somewhere else than in the sources. Today that covers the boot migrations (the
+build copies the `.sql` files and compiles each data migration, which keeps the
+name it is recorded under), the message catalogs and the code runner's child
+program.
+
+Two programs are built beside the backend for whoever operates the image:
+
+- `node backend-dist/image-check.js` reads what the backend reads from beside
+  its code (the PII data tree, the catalogs, the migrations, the code runner)
+  and exits 1 when something is missing. The container smoke test runs it.
+- `node backend-dist/symbolicate-trace.js` turns a logged stack trace, which
+  names positions in `main.js`, back into source lines. The source maps are
+  written beside the build for it and never loaded by the backend.
+
+`scripts/build-backend.test.ts` builds the backend, boots it as far as its
+environment check, and runs both programs.
+
 ## Preserve transaction and tenant boundaries
 
 Use `transactSerializable` from `@tale/shared/db/serializable` for retryable

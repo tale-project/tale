@@ -727,6 +727,8 @@ describe('platform production dependency branch', () => {
         `builder app:app /app/services/platform/${file} ${destination}`,
     );
     expected.push(
+      // The built backend, from the stage that builds it.
+      'backend-build app:app /app/services/platform/backend-dist ./backend-dist',
       'builder app:app /app/packages ./packages',
       'pruner app:app /app/node_modules ./node_modules',
       'bun-bin - /usr/local/bin/bun /usr/local/bin/bun',
@@ -785,6 +787,11 @@ describe('platform production dependency branch', () => {
     source.replace(
       'COPY packages/shared ./packages/shared',
       'COPY packages/shared/package.json ./packages/shared/',
+    ),
+    // The built backend exists in the stage that builds it and nowhere else.
+    source.replace(
+      '--from=backend-build --chown=app:app /app/services/platform/backend-dist',
+      '--from=builder --chown=app:app /app/services/platform/backend-dist',
     ),
     source.replace(
       'RUN chmod +x ./docker-entrypoint.sh',

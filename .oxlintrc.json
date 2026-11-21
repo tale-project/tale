@@ -127,6 +127,7 @@
     "**/node_modules/**",
     "**/dist/**",
     "**/dist-ssr/**",
+    "**/backend-dist*/**",
     "**/coverage/**",
     "**/_generated/**",
     "*.gen.ts",

@@ -13,6 +13,7 @@
     "lint:fix": "bunx oxlint --type-aware --fix",
     "typecheck": "bunx tsc --noEmit",
     "generate:openapi": "bun scripts/generate-openapi.ts",
+    "backend:build": "bun scripts/build-backend.ts",
     "backend:start": "node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs backend/main.ts",
     "backend:dev": "node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs --watch backend/main.ts",
     "backend:integration": "TALE_STRICT_ERROR_CODES=1 TALE_ALLOW_OPEN_SIGN_UP=true node --experimental-transform-types --disable-warning=ExperimentalWarning --import ./backend/node-loader.mjs backend/integration-check.ts",

@@ -14,8 +14,9 @@ ARG AUTOMATION_WRITER_PROTOCOL=2
 # Bun binary for all stages
 FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
-# Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
-# sources directly via Node's type stripping (>= 22.18); only the binary is
+# Node binary for the backend roles (api/worker). The production image runs
+# the built backend (the backend-build stage) with plain `node`; the dev image
+# runs the .ts sources through Node's type transforming. Only the binary is
 # needed — no npm, no corepack.
 FROM node:22.21.1-bookworm-slim@sha256:25b3eb23a00590b7499f2a2ce939322727fcce1b15fdd69754fcd09536a3ae2c AS node-bin
 
@@ -135,6 +136,21 @@ COPY services/platform/server.ts \
 # 0.5 backend (Hono API + pg-boss worker on Postgres) — server-side only, so
 # copied after the vite build for the same cache reason as server.ts above.
 COPY services/platform/backend ./services/platform/backend
+
+# ============================================================================
+# Stage 2a: Backend build
+# ----------------------------------------------------------------------------
+# The backend as one flat directory of JavaScript, every dependency inlined
+# (scripts/build-backend.ts says what it writes and why): the process holds
+# its code once, minified, instead of every source module as its own script
+# with an inline source map. A stage of its own, so the dev image below, which
+# runs the sources, does not carry it.
+# ============================================================================
+FROM builder AS backend-build
+
+WORKDIR /app/services/platform
+RUN bun scripts/build-backend.ts
+WORKDIR /app
 
 # ============================================================================
 # Stage 2b: Dev (local hot-reload image — NOT used by prod/CI)
@@ -422,8 +438,12 @@ COPY --from=builder --chown=app:app \
      /app/services/platform/status-probe.ts \
      ./
 COPY --from=builder --chown=app:app /app/services/platform/lib ./lib
-# 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
-# in docker-entrypoint.sh execs `node /app/backend/main.ts`).
+# The built backend: the role dispatch in docker-entrypoint.sh execs
+# `node /app/backend-dist/main.js`. It sits beside `messages/`, which it reads
+# from one level up (backend/lib/layout.ts).
+COPY --from=backend-build --chown=app:app /app/services/platform/backend-dist ./backend-dist
+# The backend's sources stay for the web role alone: `bun server.ts` imports
+# one module of them unbundled.
 COPY --from=builder --chown=app:app /app/services/platform/backend ./backend
 COPY --from=builder --chown=app:app /app/services/platform/messages ./messages
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules

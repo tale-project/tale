@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 
 import { isRecord } from '../../../lib/utils/type-utils';
+import { PLATFORM_ROOT } from '../../lib/layout';
 
 /**
  * The platform's message catalogs (`services/platform/messages/<locale>/`, one
@@ -35,7 +36,7 @@ export function messageCatalog(locale: string): Record<string, unknown> {
 /** A locale's topic files (`<topic>.yml`), each under its topic's name; a
  * regional overlay has only the topics it overrides. */
 function readCatalog(locale: CatalogLocale): Record<string, unknown> {
-  const dir = new URL(`../../../messages/${locale}/`, import.meta.url);
+  const dir = new URL(`messages/${locale}/`, PLATFORM_ROOT);
   const catalog: Record<string, unknown> = {};
   for (const file of readdirSync(dir)) {
     if (!file.endsWith('.yml')) continue;

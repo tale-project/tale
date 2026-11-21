@@ -102,6 +102,23 @@ Quand les connexions d’une seule session échouent sur des réinitialisations 
 
 Un service `sandbox-egress` recréé (après un déploiement ou un redémarrage de la pile) peut revenir à une autre adresse, alors que les sessions qui tournaient déjà continuent d’envoyer leur trafic à l’ancienne et perdent l’accès réseau. Le service `sandbox` recycle chacune de ces sessions dès qu’elle est libérée et inactive, et consigne `recycling <session>` ; la prochaine utilisation la redémarre avec son espace de travail intact. Une session encore utilisée continue d’échouer jusqu’à la fin de son travail, et une session épinglée continue de tourner jusqu’à ce que tu l’arrêtes ou ne l’épingles plus.
 
+## Une trace de pile désigne des fichiers compilés
+
+Le backend s’exécute sous forme de JavaScript compilé. Une trace de pile dans son journal indique donc des positions dans `main.js` ou dans un fichier `chunk-….js`, avec des noms de fonction courts choisis à la compilation :
+
+```text
+    at KKo (file:///app/backend-dist/main.js:20807:3579)
+```
+
+L’image contient les source maps à côté de ce code, et le backend en cours d’exécution ne les charge jamais. Pour lire une trace en lignes du code source, transmets-la au programme que l’image fournit à cet effet. Il lit la trace sur l’entrée standard et la réécrit en remplaçant chaque position :
+
+```bash
+docker logs --tail 200 <backend-api-container> 2>&1 \
+  | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
+```
+
+La même ligne devient alors `at KKo (backend/env.ts:295:20)` : un fichier, une ligne et une colonne des sources de cette version. Les noms de fonction restent ceux de la compilation, et les lignes qui ne font pas partie d’une trace sont conservées telles quelles. Utilise un conteneur de la version qui a consigné la trace, car chaque version a ses propres source maps. Joins la trace ainsi résolue lorsque tu signales un défaut.
+
 ## Les écritures échouent ou le stockage se remplit
 
 Vérifie connexion à la base applicative, espace libre, usage des connexions et verrous. Arrête la croissance évitable et récupère de la capacité selon ta procédure de base. Ne supprime pas le contenu des volumes, ne remplace pas les clés de chiffrement et ne suppose pas que les écritures échouées seront rejouées après redémarrage. Vérifie si l’opération a persisté avant de la relancer.

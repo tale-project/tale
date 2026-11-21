@@ -341,33 +341,26 @@ async function main(): Promise<number> {
     r.fail('Backend api /ping');
   }
 
-  // The PII data tree is baked into the backend image at
-  // TALE_CONFIG_SYSTEM_DIR (/app/system/pii); an image built without it
-  // cannot enforce any organization's `pii_config` policy and only says so
-  // in a boot log line. Load the registry inside the built image exactly as
-  // the backend does — the same node flags and loader — so a packaging
-  // regression fails this job rather than a customer's governance policy.
-  // The flags and loader path mirror the `backend)` launch line in
-  // docker-entrypoint.sh by hand: change them together, or this probe fails
-  // for the wrong reason.
+  // What the backend reads from beside its code is baked into the image: the
+  // PII data tree at TALE_CONFIG_SYSTEM_DIR (/app/system/pii), the message
+  // catalogs, the boot migrations and the code runner's child program. A boot
+  // that misses one does not fail — without the PII tree it only logs, and
+  // then refuses every document under an organization's `pii_config` policy
+  // — so a packaging regression would reach a customer first. The image's
+  // own check (backend/image-check.ts, built into backend-dist/) reads each
+  // of them with the backend's code, from the files the backend loads.
   if (
     await dockerExecOk(backendContainer, [
       'node',
-      '--experimental-transform-types',
-      '--disable-warning=ExperimentalWarning',
-      '--import',
-      '/app/backend/node-loader.mjs',
-      '--input-type=module',
-      '-e',
-      "const { PatternRegistry } = await import('/app/lib/pii/index.ts'); PatternRegistry.fromDefaults();",
+      '/app/backend-dist/image-check.js',
     ])
   ) {
     r.pass(
-      'Backend image loads the PII data tree (PatternRegistry.fromDefaults)',
+      'Backend image holds what the backend reads (PII tree, catalogs, migrations, code runner)',
     );
   } else {
     r.fail(
-      'Backend image loads the PII data tree (PatternRegistry.fromDefaults)',
+      'Backend image holds what the backend reads (PII tree, catalogs, migrations, code runner)',
     );
   }
 

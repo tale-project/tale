@@ -1,0 +1,227 @@
+// @vitest-environment node
+
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import {
+  copyFileSync,
+  cpSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { isMigrationFile } from '@tale/shared/db/migration-files';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { builtMigrationName } from '../backend/lib/layout';
+
+/**
+ * The production backend is built (`scripts/build-backend.ts`) and run by
+ * plain `node`. These cases build it for real, into directories beside
+ * `backend/` (the build reads the message catalogs from one level up, as the
+ * image lays them out), and run what it wrote.
+ */
+
+const PLATFORM = fileURLToPath(new URL('..', import.meta.url));
+const SUFFIX = `${process.pid}-${Date.now().toString(36)}`;
+const FIRST = join(PLATFORM, `backend-dist.test-${SUFFIX}`);
+const SECOND = join(PLATFORM, `backend-dist.test-${SUFFIX}-again`);
+const BROKEN = join(PLATFORM, `backend-dist.test-${SUFFIX}-broken`);
+
+function build(outdir: string) {
+  return spawnSync('bun', ['scripts/build-backend.ts', outdir], {
+    cwd: PLATFORM,
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+}
+
+/** Run a built program with nothing of the caller's environment but PATH. */
+function node(file: string, args: string[] = [], input?: string) {
+  return spawnSync('node', [file, ...args], {
+    cwd: PLATFORM,
+    encoding: 'utf8',
+    timeout: 60_000,
+    env: { PATH: process.env.PATH ?? '' },
+    ...(input === undefined ? {} : { input }),
+  });
+}
+
+function sha256(file: string): string {
+  return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+
+interface BuildFacts {
+  entries: string[];
+  chunks: number;
+  sqlMigrations: number;
+  dataMigrations: string[];
+  bytes: number;
+}
+
+let facts: BuildFacts;
+
+beforeAll(() => {
+  const result = build(FIRST);
+  if (result.status !== 0) throw new Error(result.stdout + result.stderr);
+  // The build's own record, read back as the checks downstream read it.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- written by the build under test
+  facts = JSON.parse(
+    readFileSync(join(FIRST, 'build.json'), 'utf8'),
+  ) as BuildFacts;
+}, 180_000);
+
+afterAll(() => {
+  for (const directory of [FIRST, SECOND, BROKEN])
+    rmSync(directory, { recursive: true, force: true });
+});
+
+describe('the built backend', () => {
+  it('writes the backend, the code runner child, the two operator programs and every data migration as entries', () => {
+    const dataMigrations = readdirSync(
+      join(PLATFORM, 'backend/db/migrations'),
+    ).filter((file) => isMigrationFile(file) && file.endsWith('.ts'));
+    expect(dataMigrations.length).toBeGreaterThan(0);
+    expect(facts.entries).toEqual(
+      [
+        'main.js',
+        'node-vm-child.js',
+        'image-check.js',
+        'symbolicate-trace.js',
+        ...dataMigrations.map((file) => file.replace(/\.ts$/, '.js')),
+      ].sort(),
+    );
+    expect(facts.dataMigrations).toEqual(dataMigrations.sort());
+  });
+
+  it('lays every built file flat in one directory, so a path worked out from a module means the same wherever its code landed', () => {
+    const nested = readdirSync(FIRST, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    expect(nested).toEqual(['migrations']);
+  });
+
+  it('puts every boot migration beside the build under the name the sources record it by', () => {
+    const source = readdirSync(join(PLATFORM, 'backend/db/migrations'))
+      .filter(isMigrationFile)
+      .sort();
+    const files = readdirSync(join(FIRST, 'migrations'));
+    const built = files
+      .map(builtMigrationName)
+      .filter((name): name is string => name !== null)
+      .sort();
+    // Nothing else is in the directory: every file is a migration.
+    expect(built).toHaveLength(files.length);
+    expect(built).toEqual(source);
+    expect(facts.sqlMigrations + facts.dataMigrations.length).toBe(
+      source.length,
+    );
+  });
+
+  it('links no file to its source map: a running backend never loads one', () => {
+    const scripts = readdirSync(FIRST).filter((file) => file.endsWith('.js'));
+    expect(scripts.length).toBe(facts.entries.length + facts.chunks);
+    for (const file of scripts) {
+      expect(readdirSync(FIRST)).toContain(`${file}.map`);
+      expect(
+        readFileSync(join(FIRST, file), 'utf8').includes('sourceMappingURL'),
+        file,
+      ).toBe(false);
+    }
+  });
+
+  it('evaluates its whole module graph under plain node and stops at the first thing it needs from the environment', () => {
+    const result = node(join(FIRST, 'main.js'));
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('[backend] fatal startup error');
+    expect(result.stderr).toContain('DATABASE_URL');
+    // The trace is the build's: minified names at positions in main.js.
+    expect(result.stderr).toMatch(/backend-dist[^/]*\/main\.js:\d+:\d+/);
+  });
+
+  it('reads that trace back as lines of the sources', () => {
+    const boot = node(join(FIRST, 'main.js'));
+    const mapped = node(join(FIRST, 'symbolicate-trace.js'), [], boot.stderr);
+    expect(mapped.status, mapped.stderr).toBe(0);
+    expect(mapped.stdout).toMatch(/\(backend\/env\.ts:\d+:\d+\)/);
+    expect(mapped.stdout).toMatch(/\(backend\/main\.ts:\d+:\d+\)/);
+    expect(mapped.stdout).not.toMatch(/main\.js:\d+:\d+/);
+    // The message itself is untouched.
+    expect(mapped.stdout).toContain('DATABASE_URL');
+  });
+
+  it('passes its own image check: the PII tree, the catalogs, the migrations and the code runner child', () => {
+    const result = node(join(FIRST, 'image-check.js'));
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain('ok    the PII data tree loads');
+    expect(result.stdout).toContain('ok    the message catalogs load');
+    expect(result.stdout).toContain(
+      `ok    the boot migrations are readable (${facts.sqlMigrations} SQL, ${facts.dataMigrations.length} data)`,
+    );
+    expect(result.stdout).toContain(
+      'ok    the code runner evaluates in its child process',
+    );
+  });
+
+  it('fails the image check when the code runner child is missing from the build', () => {
+    cpSync(FIRST, BROKEN, { recursive: true });
+    rmSync(join(BROKEN, 'node-vm-child.js'));
+    const result = node(join(BROKEN, 'image-check.js'));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('FAIL  the code runner:');
+    // The checks before it still report.
+    expect(result.stdout).toContain('ok    the PII data tree loads');
+  });
+
+  it('fails the image check when a compiled data migration is missing from the build', () => {
+    rmSync(BROKEN, { recursive: true, force: true });
+    cpSync(FIRST, BROKEN, { recursive: true });
+    copyFileSync(
+      join(FIRST, 'node-vm-child.js'),
+      join(BROKEN, 'node-vm-child.js'),
+    );
+    const migration = facts.dataMigrations[0]?.replace(/\.ts$/, '.js');
+    if (migration === undefined) throw new Error('no data migration to remove');
+    rmSync(join(BROKEN, migration));
+    const result = node(join(BROKEN, 'image-check.js'));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('FAIL  the boot migrations:');
+  });
+
+  it('builds the same bytes twice', () => {
+    const again = build(SECOND);
+    expect(again.status, again.stdout + again.stderr).toBe(0);
+    const files = readdirSync(FIRST).filter((file) => file.endsWith('.js'));
+    expect(readdirSync(SECOND).filter((file) => file.endsWith('.js'))).toEqual(
+      files,
+    );
+    for (const file of files)
+      expect(sha256(join(SECOND, file)), file).toBe(sha256(join(FIRST, file)));
+  }, 180_000);
+});
+
+describe('the check that a built file asks the runtime for no package', () => {
+  it('names a package import, and passes node builtins, relative files and strings that read like imports', () => {
+    const source = [
+      'import a from"left-pad";',
+      'import b from"node:fs";',
+      'import c from"fs";',
+      'import{d}from"./chunk-abc.js";',
+      'const e=await import("@scope/pkg/sub");',
+      'const f=`from "not-an-import"`;',
+    ].join('');
+    const result = spawnSync(
+      'bun',
+      [
+        '-e',
+        `import { runtimeImports } from './scripts/build-backend.ts'; console.log(JSON.stringify(runtimeImports(${JSON.stringify(source)})));`,
+      ],
+      { cwd: PLATFORM, encoding: 'utf8', timeout: 60_000 },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(['@scope/pkg/sub', 'left-pad']);
+  });
+});

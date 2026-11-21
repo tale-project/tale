@@ -93,8 +93,13 @@ const DEFAULT_KILL_GRACE_MS = 1000;
  * fatal-OOM banner is the first few lines. */
 const STDERR_TAIL_BYTES = 4096;
 
+/** The built backend (`backend-dist/`, where every module is a `.js` file of
+ * one flat directory) ships the runner's program compiled beside its entry;
+ * the sources run it as TypeScript. */
+const BUILT = !import.meta.url.endsWith('.ts');
+
 const CHILD_PATH = fileURLToPath(
-  new URL('./node-vm-child.ts', import.meta.url),
+  new URL(BUILT ? './node-vm-child.js' : './node-vm-child.ts', import.meta.url),
 );
 
 /** Scope keys become named function parameters; only identifier-safe keys
@@ -133,12 +138,13 @@ function unwrapEnvelope(valueJson: string | null): unknown {
 
 /** The node flags the runner process starts with. Type stripping lets node
  * run the child's TypeScript source directly (default from node 23.6; a flag
- * on the 22 line the backend ships on). Under Bun neither flag exists and
- * TypeScript runs natively — the heap cap is a V8 flag Bun accepts and
- * ignores, so on that runtime only the deadline kill applies. */
+ * on the 22 line the backend ships on); the built backend's compiled program
+ * needs none. Under Bun neither flag exists and TypeScript runs natively —
+ * the heap cap is a V8 flag Bun accepts and ignores, so on that runtime only
+ * the deadline kill applies. */
 function childExecArgv(maxHeapMb: number): string[] {
   const args = [`--max-old-space-size=${maxHeapMb}`];
-  if (!('bun' in process.versions)) {
+  if (!BUILT && !('bun' in process.versions)) {
     args.push(
       '--experimental-strip-types',
       '--disable-warning=ExperimentalWarning',

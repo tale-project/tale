@@ -169,13 +169,21 @@ case "${TALE_ROLE:-web}" in
     # http://localhost:8003 — nobody listens there in-container, so every
     # agent start dies in ~20ms with TypeError: fetch failed.
     export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
-    # --experimental-transform-types + the resolve hook let the backend
-    # import the shared pure modules (extensionless specifiers, non-erasable
-    # TS) from the sibling trees unchanged.
-    exec node --experimental-transform-types \
-      --disable-warning=ExperimentalWarning \
-      --import "${TALE_BACKEND_DIR:-/app/backend}/node-loader.mjs" \
-      "${TALE_BACKEND_DIR:-/app/backend}/main.ts"
+    # The dev image has no built backend: it names its sources in
+    # TALE_BACKEND_DIR and runs them as they are. --experimental-transform-types
+    # + the resolve hook let the backend import the shared pure modules
+    # (extensionless specifiers, non-erasable TS) from the sibling trees
+    # unchanged.
+    if [ -n "${TALE_BACKEND_DIR:-}" ]; then
+      exec node --experimental-transform-types \
+        --disable-warning=ExperimentalWarning \
+        --import "${TALE_BACKEND_DIR}/node-loader.mjs" \
+        "${TALE_BACKEND_DIR}/main.ts"
+    fi
+    # The production image runs the built backend (scripts/build-backend.ts):
+    # plain node, no loader, no type transforming, and so none of the source
+    # maps that transforming turns on for every module it reads.
+    exec node /app/backend-dist/main.js
     ;;
   web)
     # Fall through to the platform web flow below.

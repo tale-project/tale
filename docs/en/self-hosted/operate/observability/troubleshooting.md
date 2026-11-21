@@ -102,6 +102,23 @@ When one session's connections fail with resets while other sessions still reach
 
 A recreated `sandbox-egress` service (after a deploy or a stack restart) can come back at another address, while sessions that were already running keep sending their traffic to the old one and lose network access. The sandbox service recycles each such session as soon as it is released and idle, and logs `recycling <session>`; the next use starts it again with its workspace intact. A session still in use keeps failing until its work ends, and a pinned session keeps running until you unpin or stop it.
 
+## A stack trace names built files
+
+The backend runs as built JavaScript, so a stack trace in its log gives positions in `main.js` or a `chunk-….js` file, and short function names the build chose:
+
+```text
+    at KKo (file:///app/backend-dist/main.js:20807:3579)
+```
+
+The image carries the source maps beside that code, and the running backend never loads them. To read a trace as source lines, pass it through the program the image ships for that. It reads the trace from standard input and writes it back with each position replaced:
+
+```bash
+docker logs --tail 200 <backend-api-container> 2>&1 \
+  | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
+```
+
+The same frame then reads `at KKo (backend/env.ts:295:20)`: a file, line and column of that release's sources. Function names stay as the build wrote them, and lines that are not part of a trace pass through unchanged. Use a container of the release that logged the trace, because every release has its own maps. Include the mapped trace when you report a defect.
+
 ## Writes fail or storage fills up
 
 Check application-database connectivity, free space, connection usage, and locks. Stop avoidable growth and follow your database procedure to recover capacity. Do not delete volume contents, reset encryption keys, or assume failed writes will replay after a restart. Retry the original operation only after checking whether it persisted.

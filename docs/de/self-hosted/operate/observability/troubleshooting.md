@@ -102,6 +102,23 @@ Wenn die Verbindungen einer einzelnen Session mit Resets abbrechen, während and
 
 Ein neu erstellter Dienst `sandbox-egress` (nach einem Deploy oder einem Neustart des Stacks) kann unter einer anderen Adresse zurückkommen, während Sessions, die schon liefen, ihren Verkehr weiter an die alte Adresse schicken und keinen Netzzugriff mehr haben. Der Dienst `sandbox` startet jede solche Session neu, sobald sie freigegeben und untätig ist, und protokolliert `recycling <session>`; die nächste Nutzung startet sie mit unverändertem Arbeitsbereich. Eine Session, die noch in Gebrauch ist, scheitert weiter, bis ihre Arbeit endet, und eine angepinnte Session läuft weiter, bis du sie stoppst oder nicht mehr anpinnst.
 
+## Ein Stacktrace nennt gebaute Dateien
+
+Das Backend läuft als gebautes JavaScript. Ein Stacktrace in seinem Protokoll nennt deshalb Positionen in `main.js` oder in einer Datei `chunk-….js` und kurze Funktionsnamen, die der Build vergeben hat:
+
+```text
+    at KKo (file:///app/backend-dist/main.js:20807:3579)
+```
+
+Das Image enthält die Source Maps neben diesem Code, und das laufende Backend lädt sie nie. Um einen Stacktrace als Quellzeilen zu lesen, leite ihn an das Programm weiter, das das Image dafür mitbringt. Es liest den Stacktrace von der Standardeingabe und gibt ihn mit ersetzten Positionen wieder aus:
+
+```bash
+docker logs --tail 200 <backend-api-container> 2>&1 \
+  | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
+```
+
+Derselbe Eintrag lautet danach `at KKo (backend/env.ts:295:20)`: Datei, Zeile und Spalte in den Quellen dieser Version. Die Funktionsnamen bleiben so, wie der Build sie geschrieben hat, und Zeilen, die zu keinem Stacktrace gehören, bleiben unverändert. Verwende einen Container der Version, die den Stacktrace protokolliert hat, denn jede Version hat eigene Source Maps. Füge den aufgelösten Stacktrace bei, wenn du einen Fehler meldest.
+
 ## Schreibzugriffe scheitern oder Speicher läuft voll
 
 Prüfe Datenbankverbindung, freien Platz, Verbindungsbelegung und Sperren. Stoppe vermeidbares Wachstum und stelle Kapazität nach deinem Datenbankverfahren wieder her. Lösche keine Volume-Inhalte, setze keine Verschlüsselungsschlüssel zurück und erwarte keine automatische Wiederholung fehlgeschlagener Schreibzugriffe. Prüfe vor einem erneuten Versuch, ob die ursprüngliche Operation bereits gespeichert wurde.
