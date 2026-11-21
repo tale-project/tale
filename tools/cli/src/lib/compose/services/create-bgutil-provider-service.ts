@@ -4,7 +4,7 @@ import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 /** The variable that turns the bundled PO-token provider on. */
-export const POT_PROVIDER_VARIABLE = 'VIDEO_INGEST_POT_PROVIDER';
+const POT_PROVIDER_VARIABLE = 'VIDEO_INGEST_POT_PROVIDER';
 
 /**
  * Whether the deployment asked for the bundled PO-token provider: `true` in

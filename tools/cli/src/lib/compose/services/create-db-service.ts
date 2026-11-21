@@ -5,7 +5,7 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
 import { memoryReservation } from './memory-env';
 
 /** The variable that names what the database is sized for. */
-export const DB_PROFILE_VARIABLE = 'DB_PROFILE';
+const DB_PROFILE_VARIABLE = 'DB_PROFILE';
 
 /**
  * The profiles the database image knows (services/db/docker-entrypoint.sh):
@@ -17,7 +17,7 @@ export type DbProfile = (typeof DB_PROFILES)[number];
 
 /** What `tale deploy` asks for unless `.env` names a profile: the deployment
  *  it starts is the one that must fit a small host. */
-export const DEFAULT_DB_PROFILE: DbProfile = 'small';
+const DEFAULT_DB_PROFILE: DbProfile = 'small';
 
 /**
  * The profile the deployment asked for, or the default where it named none.
