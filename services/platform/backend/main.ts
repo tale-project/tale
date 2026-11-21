@@ -48,6 +48,8 @@ import {
 } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import { configureCodeRunner } from './lib/code-runner.ts';
+import { keepJobDirsSwept } from './lib/heavy-slot/job-dir.ts';
+import { configureHeavySlot } from './lib/heavy-slot/slot.ts';
 import { processShutdown } from './lib/shutdown.ts';
 import {
   runShutdownSequence,
@@ -130,6 +132,18 @@ async function main(): Promise<void> {
   configureCodeRunner({
     role: env.ROLE,
     processes: env.AUTOMATION_RUNNER_PROCESSES,
+  });
+  configureHeavySlot({
+    slots: env.HEAVY_SLOTS,
+    memoryMb: env.HEAVY_SLOT_MEMORY_MB,
+  });
+  // What a process that was killed mid-job left on this container's disk:
+  // looked for now and every few minutes. Not awaited: nothing at boot
+  // depends on it.
+  keepJobDirsSwept((removed) => {
+    console.log(
+      `[backend] removed ${removed} job director${removed === 1 ? 'y' : 'ies'} a process left behind`,
+    );
   });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);

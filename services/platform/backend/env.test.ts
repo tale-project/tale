@@ -226,6 +226,42 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...BASE, AGENT_START_SLOTS: 'lots' })).toThrow();
   });
 
+  it('reads one file at a time in 512 MiB unless told otherwise, each bounded', () => {
+    const env = loadEnv({ ...BASE });
+    expect(env.HEAVY_SLOTS).toBe(1);
+    expect(env.HEAVY_SLOT_MEMORY_MB).toBe(512);
+    // What `tale deploy` gives the one process of a small host, and a host
+    // with memory to spare.
+    expect(
+      loadEnv({ ...BASE, HEAVY_SLOT_MEMORY_MB: '96' }).HEAVY_SLOT_MEMORY_MB,
+    ).toBe(96);
+    expect(loadEnv({ ...BASE, HEAVY_SLOTS: '4' }).HEAVY_SLOTS).toBe(4);
+    // A compose file hands on a variable its `.env` leaves empty: that is no
+    // value, not a refusal to boot.
+    const blank = loadEnv({
+      ...BASE,
+      HEAVY_SLOTS: '',
+      HEAVY_SLOT_MEMORY_MB: '',
+    });
+    expect(blank.HEAVY_SLOTS).toBe(1);
+    expect(blank.HEAVY_SLOT_MEMORY_MB).toBe(512);
+    // Under 64 MiB a reader does not start; the names are in the refusal.
+    for (const value of ['63', '65537', '96.5', 'plenty']) {
+      expect(() => loadEnv({ ...BASE, HEAVY_SLOT_MEMORY_MB: value })).toThrow(
+        /HEAVY_SLOT_MEMORY_MB/,
+      );
+    }
+    for (const value of ['0', '17', '1.5', 'many']) {
+      expect(() => loadEnv({ ...BASE, HEAVY_SLOTS: value })).toThrow(
+        /HEAVY_SLOTS/,
+      );
+    }
+    expect(
+      loadEnv({ ...BASE, HEAVY_SLOT_MEMORY_MB: '64' }).HEAVY_SLOT_MEMORY_MB,
+    ).toBe(64);
+    expect(loadEnv({ ...BASE, HEAVY_SLOTS: '16' }).HEAVY_SLOTS).toBe(16);
+  });
+
   it('limits an organization to eight automation steps at once by default, and 0 lifts it', () => {
     expect(loadEnv({ ...BASE }).AUTOMATION_ORG_CONCURRENCY).toBe(8);
     expect(

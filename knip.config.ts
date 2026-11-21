@@ -83,6 +83,7 @@ export default {
         // it as a child process (a heap-capped fault boundary), so nothing
         // imports it.
         'lib/engine/runners/node-vm-child.ts',
+        'backend/lib/heavy-slot/heavy-child.ts',
         // Programs the backend build writes beside the backend
         // (`scripts/build-backend.ts`), run by path from the image: the check
         // of what the image holds, and the stack-trace mapper.

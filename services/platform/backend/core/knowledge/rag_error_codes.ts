@@ -85,6 +85,13 @@ export const RAG_ERROR_PII_SCAN_FAILED = 'pii_scan_failed';
  * `knowledge.resume_usage_limited` pass), or when someone retries it. */
 export const RAG_ERROR_USAGE_LIMIT = 'usage_limit';
 
+/** The file needs more memory than this deployment gives one file
+ * (`HEAVY_SLOT_MEMORY_MB`, `backend/lib/heavy-slot`). The same file meets
+ * the same limit on every retry, so the indexing job does not retry: an
+ * administrator raises the limit, then indexing is retried. The stored
+ * sentence names the limit (`lib/shared/memory-limit.ts`). */
+export const RAG_ERROR_MEMORY_LIMIT = 'memory_limit';
+
 /** Anything else the indexer could not classify — a store or database fault
  * on the platform's side; the raw cause is in the platform log, the job
  * retries by itself. */
@@ -106,6 +113,7 @@ export const RAG_ERROR_CODES = [
   RAG_ERROR_INDEX_REBUILDING,
   RAG_ERROR_INDEX_REPAIR_FAILED,
   RAG_ERROR_USAGE_LIMIT,
+  RAG_ERROR_MEMORY_LIMIT,
   RAG_ERROR_INDEXER_ERROR,
 ] as const;
 

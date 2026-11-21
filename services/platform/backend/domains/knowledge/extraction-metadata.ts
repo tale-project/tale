@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import type { ExtractedDocument } from '../../core/lib/knowledge/extraction/router.ts';
+import type { ExtractedFacts } from '../../core/lib/knowledge/extraction/router.ts';
 
 /**
  * Persist what extraction learned about the file: how many pages it has, how
@@ -13,7 +13,7 @@ import type { ExtractedDocument } from '../../core/lib/knowledge/extraction/rout
 export async function stampExtractionMetadata(
   sql: Sql,
   fileId: string,
-  extracted: ExtractedDocument,
+  extracted: ExtractedFacts,
 ): Promise<void> {
   if (
     extracted.pageCount === undefined &&

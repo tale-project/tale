@@ -56,8 +56,11 @@ vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/lib/storage/object_store.ts')
   >()),
-  s3GetObjectBytes: vi.fn(async () =>
-    Buffer.from('My CV: ten years in sales.'),
+  // The lane reads the stored file into a file of its own, as it arrives.
+  s3GetObjectToFile: vi.fn(
+    (await import('../../lib/heavy-slot/test-support.ts')).objectToFile(() =>
+      Buffer.from('My CV: ten years in sales.'),
+    ),
   ),
 }));
 vi.mock('../../lib/object-store.ts', async (importOriginal) => ({

@@ -4,7 +4,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { s3GetObjectToFile } from '../../core/lib/storage/object_store.ts';
 import { indexUploadedFile } from './service.ts';
 
 /**
@@ -47,7 +47,12 @@ vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/lib/storage/object_store.ts')
   >()),
-  s3GetObjectBytes: vi.fn(async () => Buffer.from('Refund policy: 30 days.')),
+  // The lane reads the stored file into a file of its own, as it arrives.
+  s3GetObjectToFile: vi.fn(
+    (await import('../../lib/heavy-slot/test-support.ts')).objectToFile(() =>
+      Buffer.from('Refund policy: 30 days.'),
+    ),
+  ),
 }));
 vi.mock('../../lib/object-store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/object-store.ts')>()),
@@ -120,7 +125,7 @@ let error: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.mocked(indexWholeDocument).mockReset();
-  vi.mocked(s3GetObjectBytes).mockClear();
+  vi.mocked(s3GetObjectToFile).mockClear();
   info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
   error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
@@ -134,7 +139,7 @@ describe('indexUploadedFile — a released ref', () => {
 
     // Decided before any bytes are fetched or any status is written: the row
     // is out of circulation and a marker on it is read by nobody.
-    expect(s3GetObjectBytes).not.toHaveBeenCalled();
+    expect(s3GetObjectToFile).not.toHaveBeenCalled();
     expect(indexWholeDocument).not.toHaveBeenCalled();
     expect(statusWrites(log)).toEqual([]);
     expect(info).toHaveBeenCalledWith(

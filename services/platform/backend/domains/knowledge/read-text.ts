@@ -12,7 +12,6 @@ import {
   READ_WITHOUT_INDEX_MAX_TEXT,
   readWithoutIndexCap,
 } from '../../../lib/shared/file-types.ts';
-import { gateDocumentText } from '../../core/knowledge/indexing.ts';
 import { dropKeptText, keepReadText } from '../../core/knowledge/kept_reads.ts';
 import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
 import {
@@ -25,20 +24,20 @@ import {
 } from '../../core/knowledge/rag_error_codes.ts';
 import { unsupportedByName } from '../../core/knowledge/rag_unsupported.ts';
 import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
-import {
-  extractDocument,
-  isSupported,
-} from '../../core/lib/knowledge/extraction/router.ts';
+import { isSupported } from '../../core/lib/knowledge/extraction/router.ts';
 import {
   parseBlobRef,
   s3KeyBelongsToOrg,
 } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytesIfExists } from '../../core/lib/storage/object_store.ts';
 import {
   addJobInTx,
   PRIORITY_ATTACHMENT,
   PRIORITY_INTERACTIVE,
 } from '../../jobs/enqueue.ts';
+import {
+  readInHeavySlot,
+  type DocumentRead,
+} from '../../lib/heavy-slot/documents.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { stampExtractionMetadata } from './extraction-metadata.ts';
@@ -53,7 +52,9 @@ import { stampExtractionMetadata } from './extraction-metadata.ts';
  * decided whether a chat could be sent at all. Now an upload's door queues a
  * read ({@link queueDocumentRead}): the indexer's own extractor, then the
  * organization's secret scan and PII policy on the bytes, the text and the
- * file's name, exactly as indexing applies them (`gateDocumentText`). The
+ * file's name, exactly as indexing applies them (`gateDocumentText`) — all
+ * of it in the heavy slot's child, ahead of the files a queue brought, so
+ * the worker itself never holds the file (`lib/heavy-slot`). The
  * checked text is kept in the organization's knowledge database, where the
  * index's text lives (`core/knowledge/kept_reads.ts`), until the file's index
  * is complete; the file's row records only where the read stands
@@ -273,7 +274,7 @@ export async function readUploadedFileText(
   try {
     orgSlug = await resolveOrgSlug(sql, job.organizationId);
     if (orgSlug === null) throw new Error('The organization has no slug');
-    verdict = await readAndCheck(sql, job, file, orgSlug);
+    verdict = await readAndCheck(sql, job, file, orgSlug, options.signal);
     // Kept before the verdict says so: a reader that sees the read ready
     // finds its text.
     if (verdict.status === 'ready') {
@@ -313,6 +314,7 @@ async function readAndCheck(
     readonly size: number;
   },
   orgSlug: string,
+  signal: AbortSignal | undefined,
 ): Promise<ReadVerdict> {
   // The indexer's by-name rule: no extractor for the type, or a picture.
   const byName = unsupportedByName(file.fileName);
@@ -327,21 +329,30 @@ async function readAndCheck(
     throw new Error('The file is not stored under its organization');
   }
   const store = await locateOrgObjectStore(orgSlug, parsed.key);
-  const bytes = await s3GetObjectBytesIfExists(store, parsed.key);
-  if (bytes === null || bytes.byteLength === 0) {
-    return { status: 'unreadable', code: RAG_ERROR_EMPTY };
-  }
-  if (bytes.byteLength > cap) {
-    return { status: 'deferred', code: TEXT_TOO_LARGE };
-  }
 
-  // The indexer's own call, so the text is the very text its index run
-  // would extract — and that run starts from it.
-  let text: string;
+  // Strict: a policy that cannot be read must not read as no policy. Read
+  // before the file is: the policy goes with the file to the process that
+  // reads and checks it.
+  const piiConfig = parsePiiConfig(
+    await readGovernancePolicy(orgSlug, 'pii_config', { strict: true }),
+  );
+
+  // The indexer's own extractor, so the text is the very text its index run
+  // would extract — and that run starts from it. Read ahead of the files a
+  // queue brought: a message is waiting for this one.
+  let read: DocumentRead;
   try {
-    const extracted = await extractDocument(bytes, file.fileName);
-    await stampExtractionMetadata(sql, job.fileId, extracted);
-    text = extracted.text;
+    read = await readInHeavySlot(
+      { kind: 'store', store, key: parsed.key },
+      file.fileName,
+      {
+        priority: 'interactive',
+        maxBytes: cap,
+        maxTextChars: READ_WITHOUT_INDEX_MAX_TEXT,
+        piiConfig,
+        ...(signal !== undefined ? { signal } : {}),
+      },
+    );
   } catch (error) {
     if (error instanceof ExtractionError) {
       return {
@@ -352,27 +363,23 @@ async function readAndCheck(
     }
     throw error;
   }
-  if (text.length > READ_WITHOUT_INDEX_MAX_TEXT) {
-    return { status: 'deferred', code: TEXT_TOO_MUCH };
-  }
-
-  // Strict: a policy that cannot be read must not read as no policy.
-  const piiConfig = parsePiiConfig(
-    await readGovernancePolicy(orgSlug, 'pii_config', { strict: true }),
-  );
-  const gated = gateDocumentText({
-    text,
-    bytes,
-    piiConfig,
-    filename: file.fileName,
-  });
-  if (gated.kind === 'refused') {
-    return { status: 'refused', code: REFUSAL_CODES[gated.skipped] };
-  }
-  if (gated.kind === 'empty') {
+  if (read.kind === 'missing') {
     return { status: 'unreadable', code: RAG_ERROR_EMPTY };
   }
-  return { status: 'ready', text: gated.text };
+  if (read.kind === 'too-large') {
+    return { status: 'deferred', code: TEXT_TOO_LARGE };
+  }
+  await stampExtractionMetadata(sql, job.fileId, read.facts);
+  switch (read.kind) {
+    case 'too-much':
+      return { status: 'deferred', code: TEXT_TOO_MUCH };
+    case 'refused':
+      return { status: 'refused', code: REFUSAL_CODES[read.skipped] };
+    case 'empty':
+      return { status: 'unreadable', code: RAG_ERROR_EMPTY };
+    default:
+      return { status: 'ready', text: read.text };
+  }
 }
 
 /**

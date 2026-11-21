@@ -1,3 +1,4 @@
+import { runHeavySlotInline } from '../backend/lib/heavy-slot/slot';
 import { freezeScopes } from '../lib/engine/core/execute/scope';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch';
 
@@ -18,3 +19,11 @@ setSafeFetchResolverForTests(() =>
  * make — throws where it happens.
  */
 freezeScopes(true);
+
+/**
+ * A document is read in the process that asks for it: the suites test what
+ * is made of a document, and a child process per document would cost each
+ * of them its start. The suites of `backend/lib/heavy-slot` turn this off
+ * and start real children, which is where the process boundary is tested.
+ */
+runHeavySlotInline(true);

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { spawnSync } from 'node:child_process';
+import { fork, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   copyFileSync,
@@ -20,6 +20,11 @@ import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { isMigrationFile } from '@tale/shared/db/migration-files';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { readCountedMemory } from '../backend/lib/heavy-slot/memory';
+import {
+  childEnvironment,
+  childHeapFlags,
+} from '../backend/lib/heavy-slot/slot';
 import { builtMigrationName } from '../backend/lib/layout';
 
 /**
@@ -74,6 +79,8 @@ interface BuildFacts {
   bootPackages: string[];
   webBootFiles: string[];
   webBootPackages: string[];
+  heavyBootFiles: string[];
+  heavyBootPackages: string[];
   escapedUnits: number;
 }
 
@@ -131,6 +138,32 @@ const NEVER_IN_THE_WEB_ROLE = [
   '@sentry/node',
 ];
 
+/**
+ * What the heavy slot's child must never read. It is started for every file
+ * that is indexed or read, under a memory cap, to read that file and nothing
+ * else: every package it loads is memory each of those starts pays, out of
+ * the cap. It opens no connection and is handed no credential, so a
+ * database client or the object store's signer in its graph would be code
+ * with nothing to do there. One import of a backend module from
+ * `lib/heavy-slot/operations.ts` would bring them in without a test failing
+ * anywhere else (tale-project/tale#4942).
+ */
+const NEVER_IN_THE_HEAVY_CHILD = [
+  'postgres',
+  'pg',
+  'pg-boss',
+  'better-auth',
+  'hono',
+  '@hono/node-server',
+  'aws4fetch',
+  'openai',
+  '@sentry/node',
+  'undici',
+  // Read with the first file of their kind, not with every file.
+  'pdfjs-dist',
+  'xlsx',
+];
+
 let facts: BuildFacts;
 
 beforeAll(() => {
@@ -162,7 +195,7 @@ afterAll(() => {
 });
 
 describe('the built backend', () => {
-  it('writes the backend, the web role, the code runner child, the two operator programs and every data migration as entries', () => {
+  it('writes the backend, the web role, the two child programs, the two operator programs and every data migration as entries', () => {
     const dataMigrations = readdirSync(
       join(PLATFORM, 'backend/db/migrations'),
     ).filter((file) => isMigrationFile(file) && file.endsWith('.ts'));
@@ -172,6 +205,7 @@ describe('the built backend', () => {
         'main.js',
         'web-main.js',
         'node-vm-child.js',
+        'heavy-child.js',
         'image-check.js',
         'symbolicate-trace.js',
         ...dataMigrations.map((file) => file.replace(/\.ts$/, '.js')),
@@ -237,7 +271,7 @@ describe('the built backend', () => {
     expect(mapped.stdout).toContain('DATABASE_URL');
   });
 
-  it('passes its own image check: the build, the app, the PII tree, the catalogs, the migrations and the code runner child', () => {
+  it('passes its own image check: the build, the app, the PII tree, the catalogs, the migrations and the two child programs', () => {
     const result = node(join(FIRST, 'image-check.js'), ['--app', APP]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain(
@@ -248,6 +282,22 @@ describe('the built backend', () => {
     expect(result.stdout).toContain(
       `ok    the boot migrations are readable (${facts.sqlMigrations} SQL, ${facts.dataMigrations.length} data)`,
     );
+    expect(result.stdout).toContain(
+      'ok    the code runner evaluates in its child process',
+    );
+    expect(result.stdout).toContain(
+      'ok    the heavy slot reads a document in its child process',
+    );
+  });
+
+  it("fails the image check when the heavy slot's child is missing from the build", () => {
+    rmSync(BROKEN, { recursive: true, force: true });
+    cpSync(FIRST, BROKEN, { recursive: true });
+    rmSync(join(BROKEN, 'heavy-child.js'));
+    const result = node(join(BROKEN, 'image-check.js'), ['--app', APP]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('FAIL  the heavy slot:');
+    // The checks before it still report.
     expect(result.stdout).toContain(
       'ok    the code runner evaluates in its child process',
     );
@@ -359,8 +409,207 @@ describe('the built backend', () => {
     expect(facts.bootFiles).not.toContain('image-check.js');
     expect(facts.bootFiles).not.toContain('symbolicate-trace.js');
     expect(facts.bootFiles).not.toContain('node-vm-child.js');
+    expect(facts.bootFiles).not.toContain('heavy-child.js');
     expect(facts.bootFiles).not.toContain('web-main.js');
   });
+
+  it("reads for the heavy slot's child only heavy-child.js and what it imports statically", () => {
+    expect(facts.heavyBootFiles).toContain('heavy-child.js');
+    expect(facts.heavyBootFiles).not.toContain('main.js');
+    // A fraction of the backend's own boot: the readers, the scan, the
+    // policy and the chunker.
+    expect(facts.heavyBootPackages.length).toBeLessThan(
+      facts.bootPackages.length / 4,
+    );
+    for (const name of ['yauzl', 'saxes', 'fast-xml-parser', 'zod'])
+      expect(facts.heavyBootPackages).toContain(name);
+  });
+
+  it.each(NEVER_IN_THE_HEAVY_CHILD)(
+    "keeps %s out of the heavy slot's child: it reads one file and holds nothing else",
+    (name) => {
+      expect(facts.heavyBootPackages).not.toContain(name);
+    },
+  );
+
+  // The child as the backend starts it, from the built files alone: its
+  // readers load the chunks they are in (a PDF's reader is not part of its
+  // start), and what it makes comes back over the channel.
+  it("runs the heavy slot's child from the build, and reads a PDF and a spreadsheet in it", async () => {
+    const work = mkdtempSync(join(tmpdir(), 'tale-built-heavy-child-'));
+    try {
+      const pdf = join(work, 'two-lines.pdf');
+      const stream = 'BT /F1 12 Tf 72 700 Td (Read by the built child) Tj ET';
+      const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+        `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+      ];
+      let body = '%PDF-1.4\n';
+      const offsets: number[] = [];
+      objects.forEach((object, at) => {
+        offsets.push(body.length);
+        body += `${at + 1} 0 obj\n${object}\nendobj\n`;
+      });
+      const xref = body.length;
+      body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+      for (const offset of offsets)
+        body += `${String(offset).padStart(10, '0')} 00000 n \n`;
+      body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+      writeFileSync(pdf, body, 'latin1');
+
+      const ask = (request: Record<string, unknown>): Promise<unknown> =>
+        new Promise((resolve, reject) => {
+          const child = fork(join(FIRST, 'heavy-child.js'), [], {
+            execArgv: ['--max-old-space-size=57', '--expose-gc'],
+            env: { PATH: process.env.PATH ?? '' },
+            stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+          });
+          let answer: unknown;
+          child.on('message', (message: unknown) => {
+            if (
+              typeof message === 'object' &&
+              message !== null &&
+              'ready' in message
+            ) {
+              child.send(request);
+            } else answer = message;
+          });
+          child.on('error', reject);
+          child.on('close', (code) => {
+            if (answer === undefined) {
+              reject(new Error(`the child exited ${String(code)} unanswered`));
+            } else resolve(answer);
+          });
+        });
+      const limits = {
+        memoryMb: 96,
+        maxImagePixels: 6_000_000,
+        reopenAfterBytes: 16_000_000,
+      };
+
+      const textPath = join(work, 'pdf.txt');
+      expect(
+        await ask({
+          op: 'extract',
+          inputPath: pdf,
+          fileName: 'two-lines.pdf',
+          textPath,
+          processImages: true,
+          ...limits,
+        }),
+      ).toMatchObject({ ok: true, op: 'extract', facts: { pageCount: 1 } });
+      expect(readFileSync(textPath, 'utf8')).toBe(
+        '--- Page 1 ---\nRead by the built child',
+      );
+
+      // No workbook: SheetJS, which is a chunk of its own, reads the text.
+      const sheet = join(work, 'table.xlsx');
+      writeFileSync(sheet, 'name,count\nalpha,3\n');
+      const prepared = await ask({
+        op: 'prepare',
+        inputPath: sheet,
+        input: 'file',
+        fileName: 'table.xlsx',
+        piiConfig: null,
+        textPath: join(work, 'sheet.txt'),
+        chunksPath: join(work, 'chunks.jsonl'),
+        indexPath: join(work, 'chunks.idx'),
+        ...limits,
+      });
+      expect(prepared).toMatchObject({
+        ok: true,
+        op: 'prepare',
+        prepared: { kind: 'ready', chunksTotal: 1 },
+      });
+      expect(readFileSync(join(work, 'chunks.jsonl'), 'utf8')).toContain(
+        'name | count\\nalpha | 3',
+      );
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // What a deployment on a small host is promised: a document of sixteen
+  // megabytes of text is read where one file is given 96 MiB. The child
+  // holds the text once and writes its chunks as it cuts them; holding them
+  // as lists, as it once did, it ran out of memory at ten megabytes. Every
+  // character is two bytes in memory here, as in a text from a word
+  // processor.
+  it("prepares sixteen megabytes of text in the built child, within a small host's 96 MiB", async () => {
+    const work = mkdtempSync(join(tmpdir(), 'tale-built-heavy-child-'));
+    try {
+      const line = 'The figures of the region follow, „as agreed“, for 20 €.\n';
+      const lines = Math.ceil((16 * 1024 * 1024) / Buffer.byteLength(line));
+      const input = join(work, 'large.txt');
+      writeFileSync(input, line.repeat(lines));
+
+      const capMb = 96;
+      let peak = 0;
+      const answer = await new Promise<unknown>((resolve, reject) => {
+        const child = fork(join(FIRST, 'heavy-child.js'), [], {
+          execArgv: childHeapFlags(capMb),
+          env: childEnvironment({ PATH: process.env.PATH ?? '' }),
+          stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+        });
+        const watch = setInterval(() => {
+          if (child.pid === undefined) return;
+          peak = Math.max(peak, readCountedMemory(child.pid) ?? 0);
+        }, 20);
+        let answered: unknown;
+        child.on('message', (message: unknown) => {
+          if (
+            typeof message === 'object' &&
+            message !== null &&
+            'ready' in message
+          ) {
+            child.send({
+              op: 'prepare',
+              inputPath: input,
+              input: 'file',
+              fileName: 'large.txt',
+              piiConfig: null,
+              textPath: join(work, 'large.text'),
+              chunksPath: join(work, 'chunks.jsonl'),
+              indexPath: join(work, 'chunks.idx'),
+              memoryMb: capMb,
+              maxImagePixels: 6_000_000,
+              reopenAfterBytes: 16_000_000,
+            });
+          } else answered = message;
+        });
+        child.on('error', reject);
+        child.on('close', (code, signal) => {
+          clearInterval(watch);
+          if (answered === undefined) {
+            reject(
+              new Error(
+                `the child stopped unanswered (${signal ?? String(code)})`,
+              ),
+            );
+          } else resolve(answered);
+        });
+      });
+
+      expect(answer).toMatchObject({
+        ok: true,
+        op: 'prepare',
+        prepared: { kind: 'ready' },
+      });
+      // The index holds where each chunk starts, and where the last ends.
+      const chunks = readFileSync(join(work, 'chunks.idx')).length / 8 - 1;
+      expect(chunks).toBeGreaterThan(5000);
+      // What it held is read from /proc, which is Linux's.
+      if (process.platform === 'linux') {
+        expect(peak).toBeGreaterThan(0);
+        expect(peak / (1024 * 1024)).toBeLessThan(capMb);
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it('reads for the web role only web-main.js and what it imports statically', () => {
     expect(facts.webBootFiles).toContain('web-main.js');

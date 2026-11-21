@@ -7,12 +7,12 @@
  * `--app <directory>` names the built app to judge in place of the image's
  * own (`dist/` beside the backend), for a tree that keeps it elsewhere.
  *
- * The backend reads four things from beside its code, and a boot that misses
+ * The backend reads five things from beside its code, and a boot that misses
  * one of them does not fail: the PII data tree only logs (every document
  * under a `pii_config` policy is then refused), a message catalog falls back
- * to the key, and the code runner fails the first automation that evaluates
- * an expression. So a packaging mistake surfaces as a customer's problem
- * days later. This reads each of them the way the running backend does and
+ * to the key, the code runner fails the first automation that evaluates an
+ * expression, and the heavy slot fails the first file that is indexed. So a
+ * packaging mistake surfaces as a customer's problem days later. This reads each of them the way the running backend does and
  * exits 1 with the reason when one is missing. It also says what the build
  * was built as: one made for anything but production runs every library's
  * development checks and never says so either. And it says whether the app
@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { nodeVmRunner } from '../lib/engine/runners/node-vm.ts';
 import { PatternRegistry } from '../lib/pii/index.ts';
 import { messageCatalog } from './core/i18n/catalog.ts';
+import { extractInHeavySlot } from './lib/heavy-slot/documents.ts';
 import {
   BUILT,
   builtMigrationName,
@@ -104,6 +105,21 @@ async function codeRunner(): Promise<string> {
   return 'the code runner evaluates in its child process';
 }
 
+/** A document read by the heavy slot's child: the program is there, it
+ * starts under its heap limit, and what it reads comes back. */
+async function heavySlot(): Promise<string> {
+  const sentence =
+    'The heavy slot reads this sentence in a process of its own.';
+  const read = await extractInHeavySlot(
+    { kind: 'bytes', bytes: new TextEncoder().encode(sentence) },
+    'image-check.txt',
+    { priority: 'interactive', signal: AbortSignal.timeout(30_000) },
+  );
+  if (read.text !== sentence)
+    throw new Error(`the heavy slot read ${JSON.stringify(read.text)}`);
+  return 'the heavy slot reads a document in its child process';
+}
+
 /**
  * The build writes NODE_ENV into the code in place of every read of it
  * (`scripts/build-backend.ts`), so what this reads is what every module of
@@ -174,6 +190,7 @@ const CHECKS: [name: string, check: () => Promise<string>][] = [
   ['the message catalogs', messageCatalogs],
   ['the boot migrations', bootMigrations],
   ['the code runner', codeRunner],
+  ['the heavy slot', heavySlot],
 ];
 
 let failed = false;

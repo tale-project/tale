@@ -12,6 +12,7 @@ import {
   RAG_ERROR_IMAGE_NO_VISION,
   RAG_ERROR_INDEXER_ERROR,
   RAG_ERROR_MALFORMED,
+  RAG_ERROR_MEMORY_LIMIT,
   RAG_ERROR_NOT_TEXT,
   RAG_ERROR_PII_BLOCKED,
   RAG_ERROR_PII_SCAN_FAILED,
@@ -62,7 +63,12 @@ vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/lib/storage/object_store.ts')
   >()),
-  s3GetObjectBytes: vi.fn(async () => Buffer.from('Refund policy: 30 days.')),
+  // The lane reads the stored file into a file of its own, as it arrives.
+  s3GetObjectToFile: vi.fn(
+    (await import('../../lib/heavy-slot/test-support.ts')).objectToFile(() =>
+      Buffer.from('Refund policy: 30 days.'),
+    ),
+  ),
 }));
 vi.mock('../../lib/object-store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/object-store.ts')>()),
@@ -281,6 +287,7 @@ describe('the indexing codes, as the domain spec prints them', () => {
       RAG_ERROR_SECRET_DETECTED,
       RAG_ERROR_PII_BLOCKED,
       RAG_ERROR_PII_SCAN_FAILED,
+      RAG_ERROR_MEMORY_LIMIT,
       RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
       RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       RAG_ERROR_EMBEDDING_UPSTREAM,
@@ -293,6 +300,7 @@ describe('the indexing codes, as the domain spec prints them', () => {
       RAG_ERROR_SECRET_DETECTED: 'secret_detected',
       RAG_ERROR_PII_BLOCKED: 'pii_blocked',
       RAG_ERROR_PII_SCAN_FAILED: 'pii_scan_failed',
+      RAG_ERROR_MEMORY_LIMIT: 'memory_limit',
       RAG_ERROR_EMBEDDING_NOT_CONFIGURED: 'embedding_not_configured',
       RAG_ERROR_EMBEDDING_PROVIDER_REFUSED: 'embedding_provider_refused',
       RAG_ERROR_EMBEDDING_UPSTREAM: 'embedding_upstream',

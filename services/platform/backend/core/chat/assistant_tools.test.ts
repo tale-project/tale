@@ -32,6 +32,7 @@ import { SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { markKnowledgeDatabaseError } from '../../db/unavailable';
+import { heavySlotLoad, withHeavySlot } from '../../lib/heavy-slot/slot';
 import { buildDocx, para } from '../lib/knowledge/extraction/docx.test-helpers';
 import { PDF_MAX_PAGES } from '../lib/knowledge/extraction/pdf';
 import {
@@ -2103,6 +2104,45 @@ describe('web_fetch', () => {
       status: 'unavailable',
       message: expect.stringContaining('"application/octet-stream"'),
     });
+  });
+
+  // A fetched document is read in the heavy slot, which reads one file at
+  // a time: while another file holds it, the chat turn's tool call does not
+  // wait for good.
+  it('gives a document up when the server cannot read it in time, and says so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let letGo: () => void = () => undefined;
+    const holder = withHeavySlot(
+      { priority: 'background' },
+      () =>
+        new Promise<void>((resolve) => {
+          letGo = resolve;
+        }),
+    );
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      safeFetchMock.mockResolvedValueOnce(
+        documentAnswer(
+          makeTextPdf('A report nobody gets to read'),
+          'application/pdf',
+          'https://example.com/report.pdf',
+        ),
+      );
+      const fetched = fetchDocument('https://example.com/report.pdf');
+      await vi.advanceTimersByTimeAsync(46_000);
+      await expect(fetched).resolves.toMatchObject({
+        status: 'error',
+        message:
+          'The PDF document could not be read in the 45 seconds a fetch is given: the server is reading other files. Fetch it again in a moment.',
+      });
+      // It left the line: nothing waits for the slot once it gave up.
+      expect(heavySlotLoad()).toEqual({ running: 1, waiting: 0 });
+    } finally {
+      vi.useRealTimers();
+      letGo();
+      await holder;
+      warn.mockRestore();
+    }
   });
 
   it('says a document that does not parse cannot be read, with the reason', async () => {

@@ -13,6 +13,7 @@
  *   main.js                 the backend (`backend/main.ts`)
  *   web-main.js             the web tier alone (`backend/web-main.ts`)
  *   node-vm-child.js        the code runner's child program
+ *   heavy-child.js          the heavy slot's child program
  *   image-check.js          checks the image holds what the backend reads
  *   symbolicate-trace.js    maps a logged stack trace back to the sources
  *   <name>.js               each data migration, compiled
@@ -57,12 +58,14 @@ const PLATFORM_ROOT = resolve(import.meta.dirname, '..');
 const MIGRATIONS_SOURCE = join(PLATFORM_ROOT, 'backend/db/migrations');
 
 /** The backend's entry, the entry of the role that serves the web tier
- * alone, and the code runner's child program the backend forks; then the two
+ * alone, and the two child programs the backend forks: the code runner's,
+ * and the heavy slot's, which reads a file under a memory cap. Then the two
  * programs an operator runs from the image: the check of what the image
  * holds, and the one that reads a built stack trace back as source lines. */
 const MAIN_ENTRY = 'backend/main.ts';
 const WEB_ENTRY = 'backend/web-main.ts';
 const CODE_RUNNER_CHILD_ENTRY = 'lib/engine/runners/node-vm-child.ts';
+const HEAVY_CHILD_ENTRY = 'backend/lib/heavy-slot/heavy-child.ts';
 const IMAGE_CHECK_ENTRY = 'backend/image-check.ts';
 const SYMBOLICATE_ENTRY = 'backend/symbolicate-trace.ts';
 
@@ -91,6 +94,10 @@ export interface BackendBuild {
    * alone: what it reads is what that role costs. */
   webBootFiles: string[];
   webBootPackages: string[];
+  /** The same two for `heavy-child.js`: what a child reads before it has
+   * read a byte of its file is what every heavy job costs to start. */
+  heavyBootFiles: string[];
+  heavyBootPackages: string[];
   /** UTF-16 units above U+00FF the build wrote as escapes. */
   escapedUnits: number;
 }
@@ -212,6 +219,7 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
       join(PLATFORM_ROOT, MAIN_ENTRY),
       join(PLATFORM_ROOT, WEB_ENTRY),
       join(PLATFORM_ROOT, CODE_RUNNER_CHILD_ENTRY),
+      join(PLATFORM_ROOT, HEAVY_CHILD_ENTRY),
       join(PLATFORM_ROOT, IMAGE_CHECK_ENTRY),
       join(PLATFORM_ROOT, SYMBOLICATE_ENTRY),
       ...dataMigrations.map((file) => join(MIGRATIONS_SOURCE, file)),
@@ -295,6 +303,7 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
   };
   const bootFiles = bootFilesOf(outdir, 'main.js');
   const webBootFiles = bootFilesOf(outdir, 'web-main.js');
+  const heavyBootFiles = bootFilesOf(outdir, 'heavy-child.js');
 
   const build: BackendBuild = {
     outdir,
@@ -313,6 +322,8 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
     bootPackages: packagesIn(bootFiles),
     webBootFiles,
     webBootPackages: packagesIn(webBootFiles),
+    heavyBootFiles,
+    heavyBootPackages: packagesIn(heavyBootFiles),
     escapedUnits,
   };
 

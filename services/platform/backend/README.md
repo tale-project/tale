@@ -17,6 +17,7 @@ workspace and its build/test commands.
 | Public REST resources and error contracts | `rest/` |
 | Accounts, sessions, membership and native identity | `auth/` |
 | Durable jobs, schedules and queue policies | `jobs/` |
+| Reading a file under a memory cap: text extraction, chunking, converting a recording | [`lib/heavy-slot/`](lib/heavy-slot/), `core/lib/knowledge/file_extraction/` |
 | Application migrations and transaction setup | `db/` |
 | Realtime invalidation events | `realtime/` |
 | Reused domain logic and compatibility types | [`core/`](core/README.md) |
@@ -60,6 +61,8 @@ can fail before the application starts.
 | `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
 | `AUTOMATION_ORG_CONCURRENCY` | Automation steps one organization runs at once across every worker, default `8` (0–256, `0` = no limit); counted by pg-boss per job group (`queueGroupConcurrency`), so workers fetching at the same instant can briefly pass it by one or two |
 | `AUTOMATION_RUNNER_PROCESSES` | Runner processes one backend process evaluates automation code in (1–16); unset, `2` for the api and one per core but one (at most `4`) for a worker. Each starts only while the others are busy; one beyond the first stops after five idle minutes (`backend/lib/code-runner.ts`) |
+| `HEAVY_SLOT_MEMORY_MB` | Memory one file may take while it is read, in MiB, default `512` (64–65536). The read runs in a child process that is stopped above it, and the file fails with a sentence naming the cap and this variable (`lib/heavy-slot/slot.ts`) |
+| `HEAVY_SLOTS` | Files one process reads at once, default `1` (1–16); each may take the whole cap |
 | `DATABASE_POOL_MAX` | Connections one process opens to the application database for its own queries, default `10` |
 | `JOBS_DATABASE_POOL_MAX` | Connections one process opens for the job queue (pg-boss), default `DATABASE_POOL_MAX` where jobs are worked and `2` on the api role, which only sends them. A role that works jobs holds one more to be woken on (LISTEN); the api role holds none |
 | `AUTH_DATABASE_POOL_MAX` | Connections one process that serves requests opens for sign-in session lookups, default `5` |
@@ -148,6 +151,13 @@ Three more properties of the build are held by its test:
   nothing of the backend itself (`lib/http-hygiene.ts`, `lib/request-id.ts`,
   `lib/close-http-server.ts`, `lib/layout.ts`).
 
+- **The child that reads a file reads only the readers.** `heavy-child.js` is
+  the program a process starts for one file ([Read a file under a memory
+  cap](#read-a-file-under-a-memory-cap)), and `build.json` lists what it
+  imports: the extractors, the secret scan, the PII policy and the chunker.
+  A database client, the HTTP app or the object store there fails the test;
+  what a child loads is what every file pays before its first byte is read.
+
 A module that reads a file by its own location must ask
 [`lib/layout.ts`](lib/layout.ts), which knows both shapes: in the build every
 module sits in `backend-dist/`, so `new URL('./x', import.meta.url)` points
@@ -170,6 +180,49 @@ Two programs are built beside the backend for whoever operates the image:
 
 `scripts/build-backend.test.ts` builds the backend, boots it as far as its
 environment check, and runs both programs.
+
+## Read a file under a memory cap
+
+A document's text is extracted, checked and cut into chunks in a child process,
+and a recording is converted by an `ffmpeg` the same code starts
+([`lib/heavy-slot/`](lib/heavy-slot/)). One such job runs at a time in a
+process (`HEAVY_SLOTS`), work a person waits for ahead of work a queue
+brought, which keeps every fifth turn. A job that takes more than
+`HEAVY_SLOT_MEMORY_MB` is stopped, and a document whose text would not fit
+under it is refused by the child before it is read back: either way the
+caller gets a `HeavyLimitError`, whose sentence names the cap and the
+variable. The process that asked never holds the file or its text. It streams
+the stored object into a job directory, the child reads it from there and
+writes the chunks beside it, and indexing reads those back sixty-four at a
+time. A directory a killed process left behind is removed by the next one to
+look, at its start and every ten minutes.
+
+The cap holds because the child holds little, so keep it that way:
+
+- **Read a file from disk, a piece at a time.** The readers that take a path
+  are in `core/lib/knowledge/file_extraction/`; the ones in `extraction/` take
+  bytes, open no file, and are what a data migration may import. A new format
+  gets both, and a line in `file_extraction/router.test.ts` that holds them to
+  the same text.
+- **Write text to the sink as it is made**, and never build a list of what a
+  document is made of: its rows, its pages, its chunks. `chunksOf` cuts a
+  chunk when it is asked for, and `prepareContent` hands them on that way.
+- **Reuse a buffer** where a loop would allocate one per piece. Memory outside
+  V8's heap is freed only when its owner is collected, and a small heap
+  collects late.
+- **Write through the sink, which has a limit.** A file can state far more
+  text than it holds: the sink stops a reader where the text passes what the
+  cap has room for (`TextLimitError`), before the disk fills.
+
+A test that needs the result and not the process runs the work in its own
+process: `tests/setup-server.ts` turns that on for every server suite
+(`runHeavySlotInline`). The suites in `lib/heavy-slot/` start real children.
+
+Measured on a build, with the cap at 96 MiB, a child peaked at 47 MiB for a
+spreadsheet of 60,000 rows by 10 columns, at 51 MiB for a PDF of 300 pages of
+text, and at 80 MiB for a 142 MB PDF of ten scanned pages. Text is what a
+document costs: about 20 MB of it fits under that cap, half as much under a
+PII policy, which scans the text whole.
 
 ## Preserve transaction and tenant boundaries
 

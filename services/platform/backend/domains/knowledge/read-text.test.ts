@@ -33,22 +33,19 @@ import {
   PRIORITY_ATTACHMENT,
   PRIORITY_INTERACTIVE,
 } from '../../jobs/enqueue.ts';
+import { HeavyLimitError } from '../../lib/heavy-slot/slot.ts';
 
 const {
   addJobInTx,
-  getBytes,
+  readInSlot,
   readPolicy,
-  extractDocument,
-  gate,
   stamp,
   keepReadText,
   dropKeptText,
 } = vi.hoisted(() => ({
   addJobInTx: vi.fn(),
-  getBytes: vi.fn(),
+  readInSlot: vi.fn(),
   readPolicy: vi.fn(),
-  extractDocument: vi.fn(),
-  gate: vi.fn(),
   stamp: vi.fn(),
   keepReadText: vi.fn(),
   dropKeptText: vi.fn(),
@@ -61,31 +58,19 @@ vi.mock('../../jobs/enqueue.ts', async (importOriginal) => ({
 vi.mock('../../lib/object-store.ts', () => ({
   locateOrgObjectStore: () => Promise.resolve({ bucket: 'acme' }),
 }));
-vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
+// The file is read, scanned and put under the PII policy in the heavy
+// slot (`lib/heavy-slot/documents.test.ts`): this suite is about what the
+// lane does with what came of it.
+vi.mock('../../lib/heavy-slot/documents.ts', async (importOriginal) => ({
   ...(await importOriginal<
-    typeof import('../../core/lib/storage/object_store.ts')
+    typeof import('../../lib/heavy-slot/documents.ts')
   >()),
-  s3GetObjectBytesIfExists: getBytes,
+  readInHeavySlot: readInSlot,
 }));
 vi.mock('../../lib/org-config.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/org-config.ts')>()),
   resolveOrgSlug: () => Promise.resolve('acme'),
   readGovernancePolicy: readPolicy,
-}));
-vi.mock(
-  '../../core/lib/knowledge/extraction/router.ts',
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import('../../core/lib/knowledge/extraction/router.ts')
-    >()),
-    extractDocument,
-  }),
-);
-vi.mock('../../core/knowledge/indexing.ts', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../core/knowledge/indexing.ts')
-  >()),
-  gateDocumentText: gate,
 }));
 vi.mock('./extraction-metadata.ts', () => ({
   stampExtractionMetadata: stamp,
@@ -210,17 +195,19 @@ function settled(statements: Statement[]) {
   return { status, code, text: write.text, values: write.values };
 }
 
+/** What reading the file learned of it, whatever came of its text. */
+const FACTS = { visionUsed: false, pageCount: 4, scannedPagesDetected: 0 };
+
 beforeEach(() => {
   vi.clearAllMocks();
   keepReadText.mockResolvedValue(undefined);
   dropKeptText.mockResolvedValue(undefined);
-  getBytes.mockResolvedValue(new TextEncoder().encode('%PDF-1.7 report'));
-  extractDocument.mockResolvedValue({ text: 'Quarterly revenue rose.' });
-  readPolicy.mockResolvedValue(null);
-  gate.mockImplementation(({ text }: { text: string }) => ({
+  readInSlot.mockResolvedValue({
     kind: 'text',
-    text,
-  }));
+    text: 'Quarterly revenue rose.',
+    facts: FACTS,
+  });
+  readPolicy.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -247,26 +234,31 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
     const { sql, statements } = fakeSql({ claimed: pdf() });
     await readUploadedFileText(sql, JOB);
 
-    expect(extractDocument).toHaveBeenCalledWith(
-      expect.any(Uint8Array),
+    // The stored file, under the name its type is read by; no more of it
+    // than a read takes of its type, and no more text than a read keeps;
+    // ahead of the files a queue brought, since a message waits for it.
+    expect(readInSlot).toHaveBeenCalledTimes(1);
+    expect(readInSlot).toHaveBeenCalledWith(
+      {
+        kind: 'store',
+        store: { bucket: 'acme' },
+        key: 'tale/acme/7f3c-report',
+      },
       'report.pdf',
+      {
+        priority: 'interactive',
+        maxBytes: READ_WITHOUT_INDEX_MAX_BYTES,
+        maxTextChars: READ_WITHOUT_INDEX_MAX_TEXT,
+        piiConfig: null,
+      },
     );
     // What the extraction learned about the file is stamped by the read,
     // which the index then starts from.
-    expect(stamp).toHaveBeenCalledWith(sql, 'file-1', {
-      text: 'Quarterly revenue rose.',
-    });
+    expect(stamp).toHaveBeenCalledWith(sql, 'file-1', FACTS);
     // Strict: an unreadable policy must never read as no policy.
     expect(readPolicy).toHaveBeenCalledWith('acme', 'pii_config', {
       strict: true,
     });
-    expect(gate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: 'Quarterly revenue rose.',
-        filename: 'report.pdf',
-        bytes: expect.any(Uint8Array),
-      }),
-    );
     // The text goes to the organization's knowledge database, before the
     // verdict that sends a reader to it.
     expect(keepReadText).toHaveBeenCalledWith(
@@ -345,7 +337,7 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
     const { sql, statements } = fakeSql({ claimed: null });
     await readUploadedFileText(sql, JOB);
     expect(statements).toHaveLength(1);
-    expect(getBytes).not.toHaveBeenCalled();
+    expect(readInSlot).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
@@ -364,7 +356,7 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
         claimed: pdf({ fileName, contentType, size: cap + 1 }),
       });
       await readUploadedFileText(sql, JOB);
-      expect(getBytes).not.toHaveBeenCalled();
+      expect(readInSlot).not.toHaveBeenCalled();
       expect(settled(statements)).toMatchObject({
         status: 'deferred',
         code: 'too_large',
@@ -380,26 +372,24 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
     },
   );
 
-  it('checks the cap again on the bytes that arrive', async () => {
-    getBytes.mockResolvedValue(
-      new Uint8Array(READ_WITHOUT_INDEX_MAX_BYTES + 1),
-    );
+  it('leaves to the index a file that turns out larger than its row says', async () => {
+    // The cap is held again on the bytes as they arrive.
+    readInSlot.mockResolvedValue({ kind: 'too-large' });
     const { sql, statements } = fakeSql({ claimed: pdf() });
     await readUploadedFileText(sql, JOB);
-    expect(extractDocument).not.toHaveBeenCalled();
+    expect(stamp).not.toHaveBeenCalled();
     expect(settled(statements)).toMatchObject({
       status: 'deferred',
       code: 'too_large',
     });
   });
 
-  it('leaves more text than a read keeps to the index, before any scan', async () => {
-    extractDocument.mockResolvedValue({
-      text: 'x'.repeat(READ_WITHOUT_INDEX_MAX_TEXT + 1),
-    });
+  it('leaves more text than a read keeps to the index, with what the file is on its row', async () => {
+    readInSlot.mockResolvedValue({ kind: 'too-much', facts: FACTS });
     const { sql, statements } = fakeSql({ claimed: pdf() });
     await readUploadedFileText(sql, JOB);
-    expect(gate).not.toHaveBeenCalled();
+    expect(stamp).toHaveBeenCalledWith(sql, 'file-1', FACTS);
+    expect(keepReadText).not.toHaveBeenCalled();
     expect(settled(statements)).toMatchObject({
       status: 'deferred',
       code: 'too_much_text',
@@ -412,7 +402,7 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
   ] as const)(
     'records a file that does not read as its type (%s)',
     async (cause, code) => {
-      extractDocument.mockRejectedValue(new ExtractionError(cause, 'no'));
+      readInSlot.mockRejectedValue(new ExtractionError(cause, 'no'));
       const { sql, statements } = fakeSql({ claimed: pdf() });
       await readUploadedFileText(sql, JOB);
       expect(settled(statements)).toMatchObject({ status: 'unreadable', code });
@@ -421,15 +411,13 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
   );
 
   it('records empty or vanished bytes as a file with no text', async () => {
-    for (const bytes of [null, new Uint8Array(0)]) {
-      getBytes.mockResolvedValue(bytes);
-      const { sql, statements } = fakeSql({ claimed: pdf() });
-      await readUploadedFileText(sql, JOB);
-      expect(settled(statements)).toMatchObject({
-        status: 'unreadable',
-        code: 'empty',
-      });
-    }
+    readInSlot.mockResolvedValue({ kind: 'missing' });
+    const { sql, statements } = fakeSql({ claimed: pdf() });
+    await readUploadedFileText(sql, JOB);
+    expect(settled(statements)).toMatchObject({
+      status: 'unreadable',
+      code: 'empty',
+    });
   });
 
   it.each([
@@ -439,7 +427,7 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
   ])(
     'records a refusal by the organization’s checks (%s)',
     async (skipped, code) => {
-      gate.mockReturnValue({ kind: 'refused', skipped });
+      readInSlot.mockResolvedValue({ kind: 'refused', skipped, facts: FACTS });
       const { sql, statements } = fakeSql({ claimed: pdf() });
       await readUploadedFileText(sql, JOB);
       expect(settled(statements)).toMatchObject({ status: 'refused', code });
@@ -456,7 +444,7 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
   );
 
   it('records a text the policy left empty as a file with no text', async () => {
-    gate.mockReturnValue({ kind: 'empty' });
+    readInSlot.mockResolvedValue({ kind: 'empty', facts: FACTS });
     const { sql, statements } = fakeSql({ claimed: pdf() });
     await readUploadedFileText(sql, JOB);
     expect(settled(statements)).toMatchObject({
@@ -470,7 +458,8 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
     readPolicy.mockRejectedValue(new Error('governance unreadable'));
     const { sql, statements } = fakeSql({ claimed: pdf() });
     await readUploadedFileText(sql, JOB);
-    expect(gate).not.toHaveBeenCalled();
+    // Not read at all: the policy goes with the file to where it is read.
+    expect(readInSlot).not.toHaveBeenCalled();
     expect(settled(statements)).toMatchObject({
       status: 'deferred',
       code: 'read_failed',
@@ -490,7 +479,7 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
 
   it('leaves the file to its index when a parser throws something of its own', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    extractDocument.mockRejectedValue(new TypeError('zip end not found'));
+    readInSlot.mockRejectedValue(new TypeError('zip end not found'));
     const { sql, statements } = fakeSql({ claimed: pdf() });
     await readUploadedFileText(sql, JOB);
     expect(settled(statements)).toMatchObject({
@@ -499,9 +488,37 @@ describe('readUploadedFileText — one read, decided [CHAT-R47] [CHAT-R48]', () 
     });
   });
 
+  // A file that needs more memory than one file is given is no read's to
+  // decide: its index meets the same limit, and says so on the file with
+  // the setting that raises it.
+  it('leaves the file to its index when it needs more memory than a file is given', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    readInSlot.mockRejectedValue(new HeavyLimitError(96));
+    const { sql, statements } = fakeSql({ claimed: pdf() });
+    await readUploadedFileText(sql, JOB);
+    expect(settled(statements)).toMatchObject({
+      status: 'deferred',
+      code: 'read_failed',
+    });
+    expect(keepReadText).not.toHaveBeenCalled();
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'rag.index_file',
+      { fileId: 'file-1' },
+      { priority: PRIORITY_ATTACHMENT },
+    );
+  });
+
+  it("hands its job's signal to the read, so that a cancelled job leaves the line", async () => {
+    const job = new AbortController();
+    const { sql } = fakeSql({ claimed: pdf() });
+    await readUploadedFileText(sql, JOB, { signal: job.signal });
+    expect(readInSlot.mock.calls[0]?.[2]).toMatchObject({ signal: job.signal });
+  });
+
   it('lets pg-boss retry a run it stopped, deciding nothing', async () => {
     const controller = new AbortController();
-    extractDocument.mockImplementation(() => {
+    readInSlot.mockImplementation(() => {
       controller.abort();
       return Promise.reject(new Error('aborted'));
     });

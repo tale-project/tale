@@ -14,6 +14,10 @@ import {
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
 import { invalidHostEntries } from './auth/agent-oauth-config.ts';
 import { invalidAllowedOrigins } from './domains/mcp/origin.ts';
+import {
+  DEFAULT_HEAVY_SLOT_MEMORY_MB,
+  DEFAULT_HEAVY_SLOTS,
+} from './lib/heavy-slot/slot.ts';
 
 /** A comma- or space-separated list of host names, validated so a typo
  * fails boot instead of silently matching nothing. */
@@ -95,6 +99,30 @@ const envFields = z.object({
     .min(1)
     .max(16)
     .optional(),
+  /**
+   * How many heavy jobs this process runs at once (`lib/heavy-slot`): the
+   * reading of a document's text, the conversion of a recording. Each runs
+   * in a child process of its own; the others wait their turn. An empty
+   * value is no value.
+   */
+  HEAVY_SLOTS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(1).max(16).default(DEFAULT_HEAVY_SLOTS),
+  ),
+  /**
+   * The most memory one heavy job may hold, in MiB. A job that goes over is
+   * stopped, and fails with an error that names this setting. 64 is the
+   * least a PDF's reader starts in.
+   */
+  HEAVY_SLOT_MEMORY_MB: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(64)
+      .max(65536)
+      .default(DEFAULT_HEAVY_SLOT_MEMORY_MB),
+  ),
   /**
    * How long a stopping process waits for its jobs before it fails what is
    * left (`shutdown-sequence.ts`); unset, 15 s for the api and 90 s for a

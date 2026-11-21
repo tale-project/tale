@@ -97,11 +97,11 @@ function assertCrawlableUrl(url: string): void {
     throw new SafeFetchError('private_ip', `Crawl target refused: ${refusal}`);
   }
 }
+import { extractInHeavySlot } from '../../lib/heavy-slot/documents';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { extractText } from '../lib/knowledge/extraction/router';
 import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import {
   RENDER_MAX_HTML_BYTES,
@@ -404,6 +404,13 @@ export async function scanWebsiteImpl(
       const linkStartedAt = Date.now();
       const hardWall = actionStartedAt + ACTION_HARD_WALL_MS;
       const deadline = Math.min(linkStartedAt + SCAN_BUDGET_MS, hardWall);
+      // What a document's reading is given up for: the link's hard wall, or
+      // the end of the job the link runs in. A document waits its turn for
+      // the heavy slot, and without this it went on waiting after both.
+      const linkEnds = AbortSignal.any([
+        AbortSignal.timeout(Math.max(1, hardWall - Date.now())),
+        ...(args.signal === undefined ? [] : [args.signal]),
+      ]);
       const indexer = new PageIndexer(ctx, sql, identity, args.embeddingMeter);
       const renderQueue: { page: DuePage; probe: PageProbe }[] = [];
       let renderBatchCounter = 0;
@@ -551,7 +558,7 @@ export async function scanWebsiteImpl(
       // `renderDeferred` is set inside `flushRenderBatch`, which this loop
       // calls — the static check cannot see the closure write.
       // oxlint-disable-next-line eslint/no-unmodified-loop-condition
-      while (Date.now() < deadline && !renderDeferred) {
+      while (Date.now() < deadline && !renderDeferred && !linkEnds.aborted) {
         const pages = await nextDuePages(
           sql,
           args.domain,
@@ -560,13 +567,16 @@ export async function scanWebsiteImpl(
         );
         if (pages.length === 0) break;
         for (const page of pages) {
-          if (Date.now() >= deadline || renderDeferred) break;
+          if (Date.now() >= deadline || renderDeferred || linkEnds.aborted) {
+            break;
+          }
           const outcome = await fetchAndStorePage(
             sql,
             args.domain,
             page,
             policy,
             scanStartedAt,
+            { signal: linkEnds },
           );
           seen.requested += 1;
           if (outcome === 'not_modified') {
@@ -1444,6 +1454,9 @@ export async function fetchAndStorePage(
   page: DuePage,
   policy: RobotsPolicy,
   scanStartedAt?: string,
+  /** Ends a document's wait for the heavy slot and its reading: the link
+   * ran out of time, or its job ended. */
+  work: { signal?: AbortSignal } = {},
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
 
@@ -1670,14 +1683,31 @@ export async function fetchAndStorePage(
     );
     try {
       // The crawl lane carries no vision arm; extractors degrade on their
-      // own (scanned PDF pages come back empty instead of failing).
-      const [extracted] = await extractText(bytes, name, {
-        visionClient: null,
-        processImages: false,
-      });
-      text = extracted;
+      // own (scanned PDF pages come back empty instead of failing). Read in
+      // the heavy slot, one document at a time and in a process of its own
+      // (`lib/heavy-slot`): a site of large PDFs must not cost the worker
+      // their size.
+      const extracted = await extractInHeavySlot(
+        { kind: 'bytes', bytes },
+        name,
+        {
+          priority: 'background',
+          processImages: false,
+          ...(work.signal !== undefined ? { signal: work.signal } : {}),
+        },
+      );
+      text = extracted.text;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (work.signal?.aborted === true) {
+        // Given up, not failed: the link ran out of time while the document
+        // waited its turn, or its job ended. The page is as it was, and is
+        // read by the link that comes next.
+        console.warn(
+          `[crawl] ${page.url}: the reading of ${name} was given up with its link: ${message}`,
+        );
+        return 'failed';
+      }
       console.warn(
         `[crawl] ${page.url}: extraction failed for ${name}: ${message}`,
       );
