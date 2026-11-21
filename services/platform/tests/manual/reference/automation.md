@@ -39,6 +39,37 @@ own it end to end:
 What they cannot judge is the stop of a real container behind the edge:
 [`PERF-B14`](../suites/performance.md) asks a person for that.
 
+## How the app's files and the API's answers travel (#4942)
+
+The build compresses the app's files and the edge compresses text alone;
+these suites own both, the last one on a real edge:
+
+- `scripts/precompress-dist.test.ts` holds what the build writes beside the
+  files of `dist/`: a brotli and a gzip copy that decode to the file, none
+  for a packed format, a source map, HTML, the document the web tier answers
+  itself or a file under a kilobyte, none left from an earlier build beside a
+  file that gets none now, and no file of the app deleted. It also keeps
+  every kind the build compresses on the edge's own list.
+- `scripts/build-backend.test.ts` runs the image check against an app with
+  its copies, one without, and one that is not there.
+- `lib/static-file.test.ts` and `lib/static-assets.test.ts` hold the web
+  tier's side: the copy a request accepts, brotli first, and a retained
+  bundle published and expired with its copies.
+- `services/proxy/render/config.test.ts` holds the edge's rule: gzip alone,
+  from a kilobyte, for the types it names, with no stream and no packed
+  format among them.
+- `tests/integration/container-smoke-test.ts` asks the real edge in CI: a
+  bundle arrives in brotli and in gzip with the length of the build's copy,
+  a packed font keeps its length, a JSON answer is compressed with gzip
+  under the tag it has uncompressed, and nothing is compressed for a client
+  that takes zstd alone. `tools/cli/scripts/ci-edge-delivery.test.ts` holds
+  how it reads those answers.
+
+What none of them reads is the API's own routes behind the edge, a list
+read and a stored file's download, which
+[`PERF-P9` and `PERF-P22`](../suites/performance.md) ask a person for, and
+the edge's memory while pages load.
+
 ## Skill editor successful saves (#3642)
 
 The component/HTTP suite `app/features/skills/components/skill-detail-pane.save.test.tsx` owns keeping Description, Labels, Visibility and Instructions visible with saved values and a clean Save state after a normalized no-op or a changed save, with detail and library refreshes completing in either order. It uses the real skills hooks, React Query and HTTP adapters with an in-memory door; a refused save keeps the draft and stored document, and an untouched skill reopens intact without a PUT. Real file-store normalization and browser layout remain outside this suite.

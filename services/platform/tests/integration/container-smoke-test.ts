@@ -19,6 +19,14 @@ import { copyFileSync, existsSync, rmSync } from 'node:fs';
 import { connect } from 'node:tls';
 
 import {
+  APP_FILES_PROGRAM,
+  deliveryFaults,
+  parseAppFiles,
+  parseDelivery,
+  type Delivery,
+  type ExpectedDelivery,
+} from './lib/delivery';
+import {
   Compose,
   composeArgs,
   containerState,
@@ -400,6 +408,8 @@ async function main(): Promise<number> {
     }
   }
 
+  await edgeDeliveryProbe(platformContainer);
+
   // A body the client framed wrongly is the client's fault, answered at the
   // edge whatever the path routes to (services/proxy/bodyfaults). Traefik
   // alone answered 500, or a 502 that read as an outage with retry advice.
@@ -537,6 +547,128 @@ async function main(): Promise<number> {
   await egressLifecycleProbe(egressContainer);
 
   return r.failed === 0 ? 0 : 1;
+}
+
+/** The codings a current browser offers. */
+const BROWSER_ENCODINGS = 'gzip, deflate, br, zstd';
+
+/** One GET through the edge from inside a container, read for its headers. */
+async function edgeDelivery(
+  container: string,
+  path: string,
+  acceptEncoding: string,
+): Promise<Delivery | null> {
+  const answer = await capture([
+    'docker',
+    'exec',
+    container,
+    // nosemgrep: tools.opengrep.rules.trailofbits.generic.curl-insecure.curl-insecure -- Isolated smoke network and self-signed proxy; no credentials or external traffic.
+    'curl',
+    '--insecure',
+    '--silent',
+    '--show-error',
+    '--max-time',
+    '20',
+    '--connect-to',
+    'localhost:443:proxy:443',
+    '--header',
+    `Accept-Encoding: ${acceptEncoding}`,
+    '--dump-header',
+    '-',
+    '--output',
+    '/dev/null',
+    `https://localhost${path}`,
+  ]);
+  return answer.exitCode === 0 ? parseDelivery(answer.stdout) : null;
+}
+
+/**
+ * The app's files reach a browser as the build compressed them
+ * (scripts/precompress-dist.ts): the platform sends the neighbour the request
+ * accepts and the edge passes it through, where it would otherwise hold an
+ * encoder for every open answer. What the edge compresses itself is text,
+ * with gzip and under the answer's own entity tag
+ * (services/proxy/render/config.js); a packed file keeps its length, which a
+ * compressed answer does not have.
+ */
+async function edgeDeliveryProbe(platformContainer: string): Promise<void> {
+  const listed = await capture([
+    'docker',
+    'exec',
+    platformContainer,
+    'node',
+    '-e',
+    APP_FILES_PROGRAM,
+  ]);
+  const files = listed.exitCode === 0 ? parseAppFiles(listed.stdout) : null;
+  if (files === null) {
+    r.fail(
+      `Built app holds a precompressed bundle and a packed font: ${listed.combined.trim().slice(0, 300)}`,
+    );
+    return;
+  }
+  const { bundle, packed } = files;
+  const document = '/openapi.json';
+  const checks: [
+    label: string,
+    path: string,
+    offered: string,
+    expected: ExpectedDelivery,
+  ][] = [
+    [
+      'Edge passes a bundle through as the build compressed it (br)',
+      `/assets/${bundle.name}`,
+      BROWSER_ENCODINGS,
+      { coding: 'br', length: bundle.br },
+    ],
+    [
+      'Edge passes a bundle through as the build compressed it (gzip)',
+      `/assets/${bundle.name}`,
+      'gzip',
+      { coding: 'gzip', length: bundle.gzip },
+    ],
+    [
+      'Edge sends a bundle as it is to a client that takes no coding',
+      `/assets/${bundle.name}`,
+      'identity',
+      { coding: null, length: bundle.bytes },
+    ],
+    [
+      'Edge leaves a packed file its length',
+      `/assets/${packed.name}`,
+      BROWSER_ENCODINGS,
+      { coding: null, length: packed.bytes },
+    ],
+    [
+      'Edge compresses a JSON answer with gzip',
+      document,
+      BROWSER_ENCODINGS,
+      { coding: 'gzip' },
+    ],
+    [
+      'Edge compresses nothing for a client that takes zstd alone',
+      document,
+      'zstd',
+      { coding: null },
+    ],
+  ];
+  const tags = new Set<string>();
+  for (const [label, path, offered, expected] of checks) {
+    const delivery = await edgeDelivery(platformContainer, path, offered);
+    const faults = deliveryFaults(delivery, expected);
+    if (faults.length === 0) {
+      r.pass(label);
+    } else {
+      r.fail(`${label}: ${faults.join('; ')}`);
+    }
+    if (path === document) tags.add(delivery?.etag ?? '(none)');
+  }
+  const tagLabel = 'Edge keeps the entity tag of an answer it compresses';
+  if (tags.size === 1 && !tags.has('(none)')) {
+    r.pass(tagLabel);
+  } else {
+    r.fail(`${tagLabel}: got ${[...tags].join(' and ')}`);
+  }
 }
 
 /**
