@@ -1,15 +1,40 @@
 'use node';
 
-import {
+import type {
+  CacheProvider,
+  Profile,
   SAML,
-  ValidateInResponseTo,
-  type CacheProvider,
-  type Profile,
-  type SamlConfig,
+  SamlConfig,
 } from '@node-saml/node-saml';
-import { DOMParser } from '@xmldom/xmldom';
 
 import { isRecord } from '../../../../lib/utils/type-utils';
+
+/**
+ * The SAML libraries: node-saml with xml-crypto, xpath, xml2js and xmldom,
+ * about a megabyte of source. Only a SAML sign-in needs them, so they are
+ * read with the first one and not at every boot (tale-project/tale#4942). A
+ * load that fails is tried again by the next sign-in.
+ */
+interface SamlLibraries {
+  saml: typeof import('@node-saml/node-saml');
+  xmldom: typeof import('@xmldom/xmldom');
+}
+
+let samlLibraries: Promise<SamlLibraries> | undefined;
+
+function loadSamlLibraries(): Promise<SamlLibraries> {
+  samlLibraries ??= Promise.all([
+    import('@node-saml/node-saml'),
+    import('@xmldom/xmldom'),
+  ]).then(
+    ([saml, xmldom]) => ({ saml, xmldom }),
+    (error: unknown) => {
+      samlLibraries = undefined;
+      throw error;
+    },
+  );
+  return samlLibraries;
+}
 
 /**
  * SAML 2.0 assertion handling, isolated in a Node action (node-saml needs
@@ -35,7 +60,10 @@ export const SAML_ASSERTION_NOT_ENCRYPTED_KEY =
  * document does not parse: there is no assertion to judge, and node-saml
  * fails the response with its own error.
  */
-function carriesEncryptedAssertion(samlResponse: string): boolean | null {
+function carriesEncryptedAssertion(
+  samlResponse: string,
+  { DOMParser }: SamlLibraries['xmldom'],
+): boolean | null {
   let malformed = false;
   const flag = (): void => {
     malformed = true;
@@ -84,6 +112,7 @@ function buildSaml(
     wantAssertionsSigned?: boolean;
   },
   deps: SamlValidationDeps,
+  { SAML, ValidateInResponseTo }: SamlLibraries['saml'],
 ): SAML {
   const config: SamlConfig = {
     issuer: args.spEntityId,
@@ -179,9 +208,10 @@ export async function validateSamlResponseImpl(
   inResponseTo?: string;
 }> {
   try {
+    const libraries = await loadSamlLibraries();
     if (
       args.wantAssertionsEncrypted &&
-      carriesEncryptedAssertion(args.samlResponse) === false
+      carriesEncryptedAssertion(args.samlResponse, libraries.xmldom) === false
     ) {
       return {
         ok: false,
@@ -190,7 +220,7 @@ export async function validateSamlResponseImpl(
         errorKey: SAML_ASSERTION_NOT_ENCRYPTED_KEY,
       };
     }
-    const saml = buildSaml(args, deps);
+    const saml = buildSaml(args, deps, libraries.saml);
     const { profile } = await saml.validatePostResponseAsync({
       SAMLResponse: args.samlResponse,
       ...(args.relayState ? { RelayState: args.relayState } : {}),
@@ -246,7 +276,8 @@ export async function buildSamlAuthnRedirectImpl(
   deps: SamlValidationDeps,
 ): Promise<{ url?: string; error?: string }> {
   try {
-    const saml = buildSaml(args, deps);
+    const { saml: library } = await loadSamlLibraries();
+    const saml = buildSaml(args, deps, library);
     const url = await saml.getAuthorizeUrlAsync(args.relayState, undefined, {});
     return { url };
   } catch (error) {

@@ -1,18 +1,8 @@
-import { serve } from '@hono/node-server';
 import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
-import { createApp } from './app.ts';
-import {
-  configuredMcpResources,
-  seedMcpResources,
-} from './auth/agent-oauth.ts';
-import { createAuth, type Auth } from './auth/auth.ts';
-import {
-  startAuthRequestCache,
-  stopAuthRequestCache,
-} from './auth/request-cache.ts';
+import type { Auth } from './auth/auth.ts';
 import { settleLiveTurns } from './core/automations/stepper.ts';
 import {
   closeKnowledgePools,
@@ -32,7 +22,6 @@ import { isBackendDraining } from './domains/control/service.ts';
 import { bootDefaultKnowledge } from './domains/knowledge/boot.ts';
 import { installCorpusHealthHook } from './domains/knowledge/index-health.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
-import { seedDevUser } from './domains/provisioning/dev-seed.ts';
 import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
 import { loadEnv } from './env.ts';
 import {
@@ -52,10 +41,6 @@ import {
 } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import { configureCodeRunner } from './lib/code-runner.ts';
-import {
-  BACKEND_SERVER_OPTIONS,
-  installClientErrorEnvelope,
-} from './lib/http-hygiene.ts';
 import { processShutdown } from './lib/shutdown.ts';
 import {
   runShutdownSequence,
@@ -64,11 +49,50 @@ import {
 } from './shutdown-sequence.ts';
 import { initBackendTelemetry } from './telemetry.ts';
 
+/**
+ * What only a process that answers requests needs: the application's routes,
+ * the sign-in stack behind them (Better Auth with its OAuth provider,
+ * passkeys and database adapter) and the HTTP server. A pure worker serves no
+ * request, so it never reads them: they are about a third of the modules a
+ * boot loads (tale-project/tale#4942, finding 2).
+ */
+async function loadHttpSurface() {
+  const [
+    { serve },
+    { createApp },
+    { configuredMcpResources, seedMcpResources },
+    { createAuth },
+    { startAuthRequestCache, stopAuthRequestCache },
+    { seedDevUser },
+    { BACKEND_SERVER_OPTIONS, installClientErrorEnvelope },
+  ] = await Promise.all([
+    import('@hono/node-server'),
+    import('./app.ts'),
+    import('./auth/agent-oauth.ts'),
+    import('./auth/auth.ts'),
+    import('./auth/request-cache.ts'),
+    import('./domains/provisioning/dev-seed.ts'),
+    import('./lib/http-hygiene.ts'),
+  ]);
+  return {
+    serve,
+    createApp,
+    configuredMcpResources,
+    seedMcpResources,
+    createAuth,
+    startAuthRequestCache,
+    stopAuthRequestCache,
+    seedDevUser,
+    BACKEND_SERVER_OPTIONS,
+    installClientErrorEnvelope,
+  };
+}
+
 async function main(): Promise<void> {
   const env = loadEnv();
   // First thing after the env parse, so even a failing boot (migrations, DB
   // connectivity) reports before the process dies. No-op without SENTRY_DSN.
-  initErrorReporting({
+  await initErrorReporting({
     dsn: env.SENTRY_DSN,
     role: env.ROLE,
     tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
@@ -84,14 +108,15 @@ async function main(): Promise<void> {
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);
 
+  const http = needsApi ? await loadHttpSurface() : null;
   let auth: Auth | null = null;
-  if (needsApi) {
+  if (http !== null) {
     if (!env.BETTER_AUTH_SECRET) {
       throw new Error(
         `BETTER_AUTH_SECRET is required for role '${env.ROLE}' (only a pure worker boots without it)`,
       );
     }
-    auth = createAuth({
+    auth = http.createAuth({
       databaseUrl: env.DATABASE_URL,
       secret: env.BETTER_AUTH_SECRET,
       baseUrl: env.SITE_URL,
@@ -123,11 +148,13 @@ async function main(): Promise<void> {
     ...(auth ? { authOptions: auth.options } : {}),
     wait: databaseWait,
   });
-  if (auth !== null) {
+  if (http !== null) {
     // The MCP endpoint as the sign-in server's resource, on every address
     // the deployment answers on — once the provider's tables exist, and
     // through the boot's wait, like the migrations before it.
-    await databaseWait(() => seedMcpResources(sql, configuredMcpResources()));
+    await databaseWait(() =>
+      http.seedMcpResources(sql, http.configuredMcpResources()),
+    );
   }
   // The additive custody schema exists before this can inventory legacy
   // factors. Refuse an altered/removed active fence before serving requests.
@@ -233,9 +260,9 @@ async function main(): Promise<void> {
   // Loopback-only dev convenience: seed the owner account + workspace so a
   // fresh stack is testable without a manual /setup pass. Gated inside on
   // TALE_DEV_SEED_USER + a loopback SITE_URL; never fails boot.
-  if (auth !== null) {
+  if (http !== null && auth !== null) {
     try {
-      const seeded = await seedDevUser({ sql, auth });
+      const seeded = await http.seedDevUser({ sql, auth });
       if (seeded.status === 'seeded') {
         console.log(`[backend] dev seed: ${seeded.detail}`);
       }
@@ -247,8 +274,8 @@ async function main(): Promise<void> {
   // A process that answers requests keeps the sessions and memberships it
   // resolved for a moment, dropping each the moment the database says it
   // changed (`auth/request-cache.ts`); `AUTH_REQUEST_CACHE=off` turns it off.
-  if (env.ROLE !== 'worker' && auth !== null) {
-    const cache = startAuthRequestCache(sql, {
+  if (http !== null) {
+    const cache = http.startAuthRequestCache(sql, {
       sessionConfig: sessionIdleWindowSeconds(),
     });
     if (cache === null) {
@@ -257,11 +284,11 @@ async function main(): Promise<void> {
   }
 
   const server =
-    env.ROLE === 'worker' || auth === null
+    http === null || auth === null
       ? null
-      : serve(
+      : http.serve(
           {
-            fetch: createApp({ sql, auth }).fetch,
+            fetch: http.createApp({ sql, auth }).fetch,
             port: env.PORT,
             ...(env.BACKEND_LISTEN_HOST === undefined
               ? {}
@@ -269,7 +296,7 @@ async function main(): Promise<void> {
             // The header budget and the response class that keeps a
             // bodiless answer free of content headers — shared with the
             // integration harness (lib/http-hygiene.ts).
-            serverOptions: BACKEND_SERVER_OPTIONS,
+            serverOptions: http.BACKEND_SERVER_OPTIONS,
           },
           (info) => {
             console.log(
@@ -280,7 +307,7 @@ async function main(): Promise<void> {
   // What the listener answers below the app — a body that stops arriving
   // (408), a header block past the budget (431), bytes that are not HTTP
   // (400) — in the JSON envelope the doors speak (lib/http-hygiene.ts).
-  if (server !== null) installClientErrorEnvelope(server);
+  if (http !== null && server !== null) http.installClientErrorEnvelope(server);
 
   if (env.ROLE === 'worker') {
     console.log(
@@ -300,7 +327,7 @@ async function main(): Promise<void> {
     );
     // The round in flight finishes; what it leaves the next worker seals.
     await auditSealer?.stop();
-    await stopAuthRequestCache();
+    await http?.stopAuthRequestCache();
     await runShutdownSequence(signal, {
       role: env.ROLE,
       drainMs,

@@ -59,7 +59,40 @@ interface BuildFacts {
   sqlMigrations: number;
   dataMigrations: string[];
   bytes: number;
+  bootFiles: string[];
+  bootPackages: string[];
 }
+
+/**
+ * What a boot must not read, with what reads each instead. A backend process
+ * held all of them from its first second, whether or not it ever reported an
+ * error, opened a spreadsheet, took a SAML sign-in or served a request
+ * (tale-project/tale#4942, finding 2): 14 MiB at rest for the first three,
+ * and a third of a worker's modules for the sign-in stack.
+ */
+const NOT_AT_BOOT: Record<string, string> = {
+  // Error reporting: `backend/sentry-sdk.ts`, with a SENTRY_DSN only.
+  '@sentry/node': 'error reporting with a DSN',
+  '@sentry/core': 'error reporting with a DSN',
+  // Document extraction: the first document of each kind.
+  xlsx: 'the first spreadsheet',
+  'pdfjs-dist': 'the first PDF',
+  // SAML: `core/enterprise_sso/saml/validate_assertion.ts`.
+  '@node-saml/node-saml': 'the first SAML sign-in',
+  'xml-crypto': 'the first SAML sign-in',
+  xpath: 'the first SAML sign-in',
+  // Mail connectors.
+  imapflow: 'the first IMAP call',
+  nodemailer: 'the first SMTP call',
+  mailparser: 'the first parsed mail',
+  // The HTTP surface, which `main.ts` loads for the api and all roles only:
+  // a pure worker never reads the sign-in stack behind the routes.
+  '@better-auth/oauth-provider': 'a role that serves requests',
+  '@simplewebauthn/server': 'a role that serves requests',
+  '@hono/node-server': 'a role that serves requests',
+  // Rendered math: the mention scanner parses math and never renders it.
+  katex: 'nothing in the backend',
+};
 
 let facts: BuildFacts;
 
@@ -189,6 +222,27 @@ describe('the built backend', () => {
     const result = node(join(BROKEN, 'image-check.js'));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('FAIL  the boot migrations:');
+  });
+
+  it('reads at boot only main.js and what it imports statically', () => {
+    expect(facts.bootFiles).toContain('main.js');
+    expect(facts.bootFiles.length).toBeLessThan(facts.chunks);
+    // The programs beside the backend are no part of its boot.
+    expect(facts.bootFiles).not.toContain('image-check.js');
+    expect(facts.bootFiles).not.toContain('symbolicate-trace.js');
+    expect(facts.bootFiles).not.toContain('node-vm-child.js');
+  });
+
+  it.each(Object.entries(NOT_AT_BOOT))(
+    'does not read %s at boot: it waits for %s',
+    (name) => {
+      expect(facts.bootPackages).not.toContain(name);
+    },
+  );
+
+  it('still reads at boot what every role needs', () => {
+    for (const name of ['postgres', 'pg-boss', 'zod', 'yaml'])
+      expect(facts.bootPackages).toContain(name);
   });
 
   it('builds the same bytes twice', () => {

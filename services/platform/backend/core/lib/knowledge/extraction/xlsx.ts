@@ -6,7 +6,7 @@
  * Converts spreadsheet rows into plain text for indexing.
  */
 
-import * as XLSX from 'xlsx';
+import type { WorkBook } from 'xlsx';
 
 /** Render a SheetJS cell value (string/number/boolean/Date/null) as text. */
 function stringifyCell(cell: unknown): string {
@@ -37,7 +37,10 @@ export async function extractTextFromXlsxBytes(
   xlsxBytes: Uint8Array,
   _filename = 'spreadsheet.xlsx',
 ): Promise<[string, boolean]> {
-  let workbook: XLSX.WorkBook;
+  // SheetJS is a megabyte of source that only a spreadsheet needs, so it is
+  // read with the first one and not at every boot (tale-project/tale#4942).
+  const XLSX = await import('xlsx');
+  let workbook: WorkBook;
   try {
     workbook = XLSX.read(xlsxBytes, { type: 'array' });
   } catch (err) {

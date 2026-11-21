@@ -50,6 +50,7 @@ import {
   scrubUrl,
 } from './error-reporting.ts';
 import { appJsonBody } from './lib/app-json-body.ts';
+import { sentrySdk } from './sentry-sdk.ts';
 
 /**
  * The module holds one process-wide SDK, so ordering is load-bearing: the
@@ -317,7 +318,11 @@ describe('scrubEvent', () => {
 
 describe('error reporting without a DSN', () => {
   it('stays disabled and every hook is a safe no-op', async () => {
-    expect(initErrorReporting({ dsn: undefined, role: 'all' })).toBe(false);
+    expect(await initErrorReporting({ dsn: undefined, role: 'all' })).toBe(
+      false,
+    );
+    // A process without a DSN never reads the SDK.
+    expect(sentrySdk()).toBeNull();
     expect(errorReportingEnabled()).toBe(false);
     expect(() => reportError(new Error('never sent'))).not.toThrow();
     await expect(flushErrorReporting(10)).resolves.toBeUndefined();
@@ -380,7 +385,8 @@ describe('error reporting with a DSN', () => {
 
   it('initializes against the DSN and reports over real HTTP', async () => {
     const dsn = `http://publickey@127.0.0.1:${ingestPort}/42`;
-    expect(initErrorReporting({ dsn, role: 'test-role' })).toBe(true);
+    expect(await initErrorReporting({ dsn, role: 'test-role' })).toBe(true);
+    expect(sentrySdk()).not.toBeNull();
     expect(errorReportingEnabled()).toBe(true);
 
     reportError(new Error('boom-direct'), {

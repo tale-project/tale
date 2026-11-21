@@ -31,6 +31,7 @@ import {
   copyFileSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -64,9 +65,26 @@ export interface BackendBuild {
   dataMigrations: string[];
   /** The size of every JavaScript file of the build, in bytes. */
   bytes: number;
+  /**
+   * What a boot reads before it does anything: `main.js` and every file it
+   * imports statically, directly or through another. A file reached only by
+   * an `import()` is read when that code first runs.
+   */
+  bootFiles: string[];
+  /** The packages whose code is in those files, by name. */
+  bootPackages: string[];
 }
 
 const NODE_BUILTINS = new Set(builtinModules);
+
+interface ScannedImport {
+  path: string;
+  kind: string;
+}
+
+function scanImports(source: string): ScannedImport[] {
+  return new Bun.Transpiler({ loader: 'js' }).scanImports(source);
+}
 
 /**
  * The packages a built file still asks the runtime for. The build inlines
@@ -76,13 +94,66 @@ const NODE_BUILTINS = new Set(builtinModules);
  */
 export function runtimeImports(source: string): string[] {
   const found = new Set<string>();
-  for (const { path } of new Bun.Transpiler({ loader: 'js' }).scanImports(
-    source,
-  )) {
+  for (const { path } of scanImports(source)) {
     if (path.startsWith('.') || path.startsWith('node:')) continue;
     if (!NODE_BUILTINS.has(path)) found.add(path);
   }
   return [...found].sort();
+}
+
+/** The package a source of a source map belongs to, or null for the
+ * repository's own code: `../../../node_modules/@scope/name/x.js` is
+ * `@scope/name`. */
+export function packageOfSource(source: string): string | null {
+  const segments = source.split('/');
+  const at = segments.lastIndexOf('node_modules');
+  const first = segments[at + 1];
+  if (at === -1 || first === undefined) return null;
+  const second = segments[at + 2];
+  return first.startsWith('@') && second !== undefined
+    ? `${first}/${second}`
+    : first;
+}
+
+interface SourceMapFile {
+  mappings: string;
+  sources: string[];
+}
+
+function readSourceMap(path: string): SourceMapFile {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    !('mappings' in parsed) ||
+    typeof parsed.mappings !== 'string' ||
+    !('sources' in parsed) ||
+    !Array.isArray(parsed.sources)
+  )
+    throw new Error(`${path} is not a source map`);
+  return {
+    ...parsed,
+    mappings: parsed.mappings,
+    sources: parsed.sources.map(String),
+  };
+}
+
+/** `main.js` and every file it imports statically, directly or not. */
+function bootFilesOf(outdir: string): string[] {
+  const loaded = new Set(['main.js']);
+  const queue = ['main.js'];
+  for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
+    for (const { path, kind } of scanImports(
+      readFileSync(join(outdir, file), 'utf8'),
+    )) {
+      if (kind === 'dynamic-import' || !path.startsWith('./')) continue;
+      const imported = path.slice('./'.length);
+      if (loaded.has(imported)) continue;
+      loaded.add(imported);
+      queue.push(imported);
+    }
+  }
+  return [...loaded].sort();
 }
 
 export async function buildBackend(outdir: string): Promise<BackendBuild> {
@@ -142,6 +213,30 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
   const outputs = result.outputs.filter((output) =>
     output.path.endsWith('.js'),
   );
+
+  const stray = new Map<string, string[]>();
+  for (const output of outputs) {
+    const packages = runtimeImports(readFileSync(output.path, 'utf8'));
+    if (packages.length > 0) stray.set(basename(output.path), packages);
+  }
+  if (stray.size > 0) {
+    const lines = [...stray].map(
+      ([file, packages]) => `  ${file}: ${packages.join(', ')}`,
+    );
+    throw new Error(
+      `the built backend still imports packages at runtime, which the image does not ship:\n${lines.join('\n')}`,
+    );
+  }
+
+  const bootFiles = bootFilesOf(outdir);
+  const bootPackages = new Set<string>();
+  for (const file of bootFiles) {
+    for (const source of readSourceMap(join(outdir, `${file}.map`)).sources) {
+      const name = packageOfSource(source);
+      if (name !== null) bootPackages.add(name);
+    }
+  }
+
   const build: BackendBuild = {
     outdir,
     entries: outputs
@@ -155,21 +250,9 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
       (total, output) => total + statSync(output.path).size,
       0,
     ),
+    bootFiles,
+    bootPackages: [...bootPackages].sort(),
   };
-
-  const stray = new Map<string, string[]>();
-  for (const output of outputs) {
-    const packages = runtimeImports(await Bun.file(output.path).text());
-    if (packages.length > 0) stray.set(basename(output.path), packages);
-  }
-  if (stray.size > 0) {
-    const lines = [...stray].map(
-      ([file, packages]) => `  ${file}: ${packages.join(', ')}`,
-    );
-    throw new Error(
-      `the built backend still imports packages at runtime, which the image does not ship:\n${lines.join('\n')}`,
-    );
-  }
 
   writeFileSync(
     join(outdir, 'build.json'),
@@ -185,6 +268,6 @@ if (import.meta.main) {
   );
   const build = await buildBackend(outdir);
   console.log(
-    `[build-backend] ${build.entries.length} entries, ${build.chunks} chunks, ${(build.bytes / 1024 ** 2).toFixed(1)} MiB of JavaScript, ${build.sqlMigrations} SQL and ${build.dataMigrations.length} data migrations → ${outdir}`,
+    `[build-backend] ${build.entries.length} entries, ${build.chunks} chunks, ${(build.bytes / 1024 ** 2).toFixed(1)} MiB of JavaScript (${build.bootFiles.length} files and ${build.bootPackages.length} packages read at boot), ${build.sqlMigrations} SQL and ${build.dataMigrations.length} data migrations → ${outdir}`,
   );
 }

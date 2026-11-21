@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/node';
+import type { SeverityLevel } from '@sentry/node';
 import { callSiteOf, isSerializationFailure } from '@tale/shared/db/retry';
 import { scrubEvent, scrubUrl } from '@tale/shared/monitoring/privacy';
 import type { Context, ErrorHandler } from 'hono';
@@ -12,6 +12,7 @@ import {
   type DatabaseErrorOrigin,
   type KnowledgeDatabase,
 } from './db/unavailable.ts';
+import { loadSentrySdk, sentrySdk } from './sentry-sdk.ts';
 import { methodClass, routeClass } from './telemetry.ts';
 import { configureBackendTracing, scrubTransaction } from './tracing.ts';
 
@@ -19,9 +20,10 @@ import { configureBackendTracing, scrubTransaction } from './tracing.ts';
  * Sentry-compatible error reporting for the 0.5 backend (api + worker roles).
  *
  * Opt-in via `SENTRY_DSN`, exactly like the browser SPA: unset means every
- * function here is a no-op and the SDK never initializes. The DSN already
- * reaches the backend containers (both compose lanes mount `env_file: .env`);
- * this module is what makes the process honor it.
+ * function here is a no-op, and the SDK is neither initialized nor loaded
+ * (`sentry-sdk.ts`). The DSN already reaches the backend containers (both
+ * compose lanes mount `env_file: .env`); this module is what makes the
+ * process honor it.
  *
  * Errors by default. BACKEND_SENTRY_TRACES_SAMPLE_RATE opts into manual
  * request and worker spans, independently of the browser's sampling knob.
@@ -87,9 +89,17 @@ export interface ErrorReportingOptions {
   tracesSampleRate?: number;
 }
 
-export function initErrorReporting(options: ErrorReportingOptions): boolean {
+/**
+ * Start reporting when a DSN is configured; resolves to whether it did.
+ * Asynchronous because that is when the SDK is loaded: a process without a
+ * DSN returns before reading any of it.
+ */
+export async function initErrorReporting(
+  options: ErrorReportingOptions,
+): Promise<boolean> {
   if (!options.dsn) return false;
   try {
+    const Sentry = await loadSentrySdk();
     Sentry.init({
       dsn: options.dsn,
       release: process.env.TALE_VERSION,
@@ -138,7 +148,7 @@ export interface ErrorReportContext {
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
   /** The event's severity; `error` when omitted. */
-  level?: Sentry.SeverityLevel;
+  level?: SeverityLevel;
 }
 
 export function reportError(
@@ -146,14 +156,14 @@ export function reportError(
   context?: ErrorReportContext,
 ): void {
   if (!enabled) return;
-  Sentry.captureException(error, context);
+  sentrySdk()?.captureException(error, context);
 }
 
 /** Drain the outbound queue — call before an intentional `process.exit`. */
 export async function flushErrorReporting(timeoutMs = 2000): Promise<void> {
   if (!enabled) return;
   try {
-    await Sentry.flush(timeoutMs);
+    await sentrySdk()?.flush(timeoutMs);
   } catch (error) {
     console.warn('[backend] error reporting flush failed:', error);
   }

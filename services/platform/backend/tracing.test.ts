@@ -93,7 +93,7 @@ describe('manual backend spans', () => {
 
   it('exports sampled HTTP spans with only operational metadata', async () => {
     expect(
-      initErrorReporting({
+      await initErrorReporting({
         dsn: `http://publickey@127.0.0.1:${port}/42`,
         role: 'test',
         tracesSampleRate: 1,
