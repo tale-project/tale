@@ -18,8 +18,9 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../auth/auth.ts';
+import { MAX_UPLOAD_BYTES, storeBodyBounded } from './bounded-body.ts';
 import { createFileRoutes } from './routes.ts';
-import { deleteOrgBlobRefs, FileError, putOrgBlobBytes } from './service.ts';
+import { deleteOrgBlobRefs, FileError } from './service.ts';
 import { recordUploadIntent } from './upload-intents.ts';
 
 vi.mock('../../auth/session.ts', () => ({
@@ -87,7 +88,6 @@ vi.mock('./service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./service.ts')>();
   return {
     ...actual,
-    putOrgBlobBytes: vi.fn(() => Promise.resolve('s3:blobs/acme/minted')),
     deleteOrgBlobRefs: vi.fn(() => Promise.resolve()),
     getFileMetadataByIdOrRef: vi.fn(() =>
       Promise.resolve({
@@ -103,6 +103,17 @@ vi.mock('./service.ts', async (importOriginal) => {
         conversationId: null,
         createdAt: 0,
       }),
+    ),
+  };
+});
+// The door's own part is tested here; how a body reaches the store without
+// being held is `bounded-body.test.ts`'s.
+vi.mock('./bounded-body.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./bounded-body.ts')>();
+  return {
+    ...actual,
+    storeBodyBounded: vi.fn(() =>
+      Promise.resolve({ storageRef: 's3:blobs/acme/minted', size: 5 }),
     ),
   };
 });
@@ -135,7 +146,7 @@ describe('POST /files/upload', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ storageId: 's3:blobs/acme/minted' });
-    expect(putOrgBlobBytes).toHaveBeenCalledTimes(1);
+    expect(storeBodyBounded).toHaveBeenCalledTimes(1);
     expect(recordUploadIntent).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -162,10 +173,47 @@ describe('POST /files/upload', () => {
     ]);
   });
 
+  // The body is handed on as the stream it arrives as, never read here: the
+  // door used to hold an upload of 512 MiB twice before the store saw it.
+  it('hands the request on to be stored as it arrives, up to the largest file [FILE-R11]', async () => {
+    await upload();
+
+    const [, organizationId, source, options] =
+      vi.mocked(storeBodyBounded).mock.calls[0] ?? [];
+    expect(organizationId).toBe('org_1');
+    expect(source).toBeInstanceOf(Request);
+    expect(source?.body?.locked).toBe(false);
+    expect(options).toMatchObject({
+      maxBytes: MAX_UPLOAD_BYTES,
+      contentType: 'text/plain',
+    });
+    // A browser that goes away ends the transfer to the store with it.
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('refuses a file over the limit with the limit in its sentence [FILE-R11]', async () => {
+    vi.mocked(storeBodyBounded).mockRejectedValueOnce(
+      new FileError(
+        'FILE_SIZE_INVALID',
+        'The file exceeds the 512 MiB limit',
+        413,
+      ),
+    );
+
+    const res = await upload();
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({
+      error: 'FILE_SIZE_INVALID',
+      message: 'The file exceeds the 512 MiB limit',
+    });
+    expect(recordUploadIntent).not.toHaveBeenCalled();
+  });
+
   // The door used to answer the bare code, so an uploader could only be told
   // `FILE_SIZE_INVALID`; the sentence written for them now rides beside it.
   it("answers a refusal with its code and the uploader's sentence [FILE-R7]", async () => {
-    vi.mocked(putOrgBlobBytes).mockRejectedValueOnce(
+    vi.mocked(storeBodyBounded).mockRejectedValueOnce(
       new FileError('FILE_SIZE_INVALID', 'Invalid blob size'),
     );
 
@@ -179,7 +227,7 @@ describe('POST /files/upload', () => {
   });
 
   it("keeps a fault's message off the wire [FILE-R7]", async () => {
-    vi.mocked(putOrgBlobBytes).mockRejectedValueOnce(
+    vi.mocked(storeBodyBounded).mockRejectedValueOnce(
       new FileError(
         'OBJECT_STORE_UNAVAILABLE',
         'The object store did not serve the file: ECONNREFUSED 10.0.0.7:9000',

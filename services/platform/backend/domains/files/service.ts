@@ -23,6 +23,7 @@ import {
   s3PresignGetUrl,
   s3PresignPutUrl,
   s3PutObject,
+  s3PutObjectStream,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { projectChatAccess } from '../chat/threads.ts';
@@ -65,7 +66,7 @@ export class FileError extends Error {
 }
 
 /** The largest blob the platform stores (uploads, imports, harvests). The
- * intake lanes refuse past it BEFORE buffering — see `bounded-body.ts`. */
+ * intake lanes refuse past it before a byte is read — see `bounded-body.ts`. */
 export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
 export interface UploadHandoff {
@@ -815,6 +816,54 @@ export async function putOrgBlobBytes(
   const key = buildObjectKey(store, orgSlug);
   await s3PutObject(store, key, args.bytes, args.contentType);
   return encodeS3Ref(key);
+}
+
+/**
+ * Store a body AS IT IS READ and answer the blob ref: what
+ * {@link putOrgBlobBytes} is for bytes in hand, for bytes that are still
+ * arriving or lie in a file. Nothing of the body is held here, so its size
+ * costs this process no memory (tale-project/tale#4942).
+ *
+ * `contentLength` is how many bytes the body holds; exactly that many are
+ * stored, or nothing (`s3PutObjectStream`). The body is released when the
+ * call ends, however it ends: refused for its size before a byte is read
+ * included.
+ */
+export async function putOrgBlobStream(
+  sql: Sql,
+  organizationId: string,
+  body: ReadableStream<Uint8Array>,
+  args: {
+    contentLength: number;
+    contentType: string;
+    /** Ends the transfer when the caller gives up. */
+    signal?: AbortSignal;
+  },
+): Promise<string> {
+  let handedOn = false;
+  try {
+    if (args.contentLength <= 0 || args.contentLength > MAX_UPLOAD_BYTES) {
+      throw new FileError('FILE_SIZE_INVALID', 'Invalid blob size');
+    }
+    const { orgSlug, store } = await requireOrgStore(sql, organizationId);
+    const key = buildObjectKey(store, orgSlug);
+    handedOn = true;
+    await s3PutObjectStream(store, key, body, {
+      contentLength: args.contentLength,
+      contentType: args.contentType,
+      ...(args.signal !== undefined && { signal: args.signal }),
+    });
+    return encodeS3Ref(key);
+  } finally {
+    // The transfer releases the body it was handed. One refused before that
+    // is released here, so a request's socket or a file's descriptor never
+    // waits on a reader that is not coming.
+    if (!handedOn) {
+      await body.cancel().catch((error: unknown) => {
+        console.warn('[files] a refused body could not be released:', error);
+      });
+    }
+  }
 }
 
 /**

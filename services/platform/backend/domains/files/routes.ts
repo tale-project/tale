@@ -31,7 +31,7 @@ import {
   resolveFileReadAccess,
   viewerForMember,
 } from './access.ts';
-import { MAX_UPLOAD_BYTES, readBodyBounded } from './bounded-body.ts';
+import { MAX_UPLOAD_BYTES, storeBodyBounded } from './bounded-body.ts';
 import {
   createRestUploadHandoff,
   deleteFile,
@@ -40,7 +40,6 @@ import {
   FileError,
   getFileMetadataByIdOrRef,
   getFileUrl,
-  putOrgBlobBytes,
   registerUpload,
   stampImageVisionMetadata,
 } from './service.ts';
@@ -145,13 +144,20 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const userId = c.get('sessionBundle').user.id;
       await checkUserRateLimit(deps.sql, 'file:upload', userId);
-      // Refused past the ceiling BEFORE the body is buffered — on the declared
-      // length, then on the bytes as they arrive.
-      const bytes = await readBodyBounded(c.req.raw, MAX_UPLOAD_BYTES);
-      const storageId = await putOrgBlobBytes(deps.sql, c.get('orgId'), {
-        bytes,
-        contentType: c.req.header('content-type') ?? 'application/octet-stream',
-      });
+      // Refused past the ceiling before a byte is read where the length is
+      // declared, and stored as it arrives: nothing of the file is held here
+      // (`storeBodyBounded`).
+      const { storageRef: storageId } = await storeBodyBounded(
+        deps.sql,
+        c.get('orgId'),
+        c.req.raw,
+        {
+          maxBytes: MAX_UPLOAD_BYTES,
+          contentType:
+            c.req.header('content-type') ?? 'application/octet-stream',
+          signal: c.req.raw.signal,
+        },
+      );
       // The bytes are already in the bucket; the intent row is the ONLY
       // record they exist. If it cannot be written, reclaim the blob before
       // answering the error — otherwise nothing would ever find it again.
