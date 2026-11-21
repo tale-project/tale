@@ -3,7 +3,13 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { appPoolMax, authPoolMax, jsonParam, likeContains } from './sql.ts';
+import {
+  appPoolMax,
+  authPoolMax,
+  jobsPoolMax,
+  jsonParam,
+  likeContains,
+} from './sql.ts';
 
 /**
  * `jsonParam` binds any JSON value as one parameter, serialized up front: the
@@ -61,11 +67,36 @@ describe('connection pool sizes', () => {
     expect(authPoolMax({ AUTH_DATABASE_POOL_MAX: '24' })).toBe(24);
   });
 
+  it('gives the job queue two connections where jobs are only sent, and the application pool’s size where they are worked', () => {
+    expect(jobsPoolMax('api', {})).toBe(2);
+    expect(jobsPoolMax('worker', {})).toBe(10);
+    expect(jobsPoolMax('all', {})).toBe(10);
+    // A deployment that sized its application pool sized this one with it,
+    // before it had a name of its own.
+    expect(jobsPoolMax('worker', { DATABASE_POOL_MAX: '40' })).toBe(40);
+    expect(jobsPoolMax('all', { DATABASE_POOL_MAX: '4' })).toBe(4);
+    expect(jobsPoolMax('api', { DATABASE_POOL_MAX: '40' })).toBe(2);
+  });
+
+  it('reads JOBS_DATABASE_POOL_MAX for every role, whatever the application pool', () => {
+    for (const role of ['api', 'worker', 'all'] as const) {
+      expect(jobsPoolMax(role, { JOBS_DATABASE_POOL_MAX: '3' })).toBe(3);
+      expect(
+        jobsPoolMax(role, {
+          JOBS_DATABASE_POOL_MAX: '6',
+          DATABASE_POOL_MAX: '40',
+        }),
+      ).toBe(6);
+    }
+  });
+
   it.each(['0', '-3', '2.5', 'many', ''])(
     'ignores a size that is not a positive integer (%j)',
     (raw) => {
       expect(appPoolMax({ DATABASE_POOL_MAX: raw })).toBe(10);
       expect(authPoolMax({ AUTH_DATABASE_POOL_MAX: raw })).toBe(5);
+      expect(jobsPoolMax('api', { JOBS_DATABASE_POOL_MAX: raw })).toBe(2);
+      expect(jobsPoolMax('all', { JOBS_DATABASE_POOL_MAX: raw })).toBe(10);
     },
   );
 });

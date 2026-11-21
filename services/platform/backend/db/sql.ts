@@ -82,12 +82,12 @@ const jsonPassthrough = {
  * How many connections ONE process opens to the application database.
  *
  * The budget matters once the database is external: a replica costs this pool
- * plus pg-boss's own pool of the same size. Sandbox lifecycle lock holders
- * may each open one temporary data connection (at most this pool's size),
- * so the peak is three times the configured size. A managed Postgres can cap
- * `max_connections` far below what a handful of replicas would then ask for
- * (Azure's smallest Flexible Server allows 50). Tunable so the arithmetic is
- * the operator's to do rather than the code's to assume.
+ * plus pg-boss's own (`jobsPoolMax`). Sandbox lifecycle lock holders may each
+ * open one temporary data connection (at most this pool's size), so the peak
+ * is twice the configured size beside the job queue's. A managed Postgres can
+ * cap `max_connections` far below what a handful of replicas would then ask
+ * for (Azure's smallest Flexible Server allows 50). Tunable so the arithmetic
+ * is the operator's to do rather than the code's to assume.
  */
 export function appPoolMax(
   env: Record<string, string | undefined> = process.env,
@@ -95,6 +95,28 @@ export function appPoolMax(
   const raw = env.DATABASE_POOL_MAX;
   const parsed = raw ? Number(raw) : Number.NaN;
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
+}
+
+/**
+ * How many connections ONE process's job queue opens: pg-boss's own pool,
+ * beside the application pool, and beside the one connection a process that
+ * works queues listens on (`jobs/boss.ts`).
+ *
+ * A process that works queues polls every one of them and settles its jobs
+ * through this pool, and has always had the application pool's size for it.
+ * A process that only sends jobs, the api role, asks far less of it: a send
+ * is one short statement, and the cron clock is the only thing that polls.
+ * Two connections carry that: eight fewer than an api replica could open
+ * before, nine with the listener it no longer holds.
+ */
+export function jobsPoolMax(
+  role: 'api' | 'worker' | 'all',
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.JOBS_DATABASE_POOL_MAX;
+  const parsed = raw ? Number(raw) : Number.NaN;
+  if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  return role === 'api' ? 2 : appPoolMax(env);
 }
 
 /**

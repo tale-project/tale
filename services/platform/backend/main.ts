@@ -34,7 +34,11 @@ import {
   reportKnowledgeDatabaseOutage,
 } from './error-reporting.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
-import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
+import {
+  alignQueuePolicies,
+  bossOptionsForRole,
+  startBoss,
+} from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import {
@@ -197,9 +201,10 @@ async function main(): Promise<void> {
 
   // pg-boss migrates its own `pgboss` schema on start (advisory-locked).
   // Every role sends jobs, so every role starts an instance; queue
-  // maintenance (supervise) runs on workers only.
+  // maintenance (supervise) runs on workers only, and so does the LISTEN
+  // connection: a notification wakes workers, and the api role has none.
   const boss = await startBoss(env.DATABASE_URL, {
-    supervise: env.ROLE !== 'api',
+    ...bossOptionsForRole(env.ROLE),
     wait: databaseWait,
   });
   await alignQueuePolicies(sql);
