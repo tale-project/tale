@@ -61,6 +61,7 @@ interface BuildFacts {
   bytes: number;
   bootFiles: string[];
   bootPackages: string[];
+  escapedUnits: number;
 }
 
 /**
@@ -222,6 +223,21 @@ describe('the built backend', () => {
     const result = node(join(BROKEN, 'image-check.js'));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('FAIL  the boot migrations:');
+  });
+
+  it('writes every script in one-byte characters, so V8 holds its text at a byte a character', () => {
+    // One character above U+00FF makes V8 keep the whole script two bytes a
+    // character; the sources are full of em dashes and arrows.
+    expect(facts.escapedUnits).toBeGreaterThan(1000);
+    for (const file of readdirSync(FIRST).filter((name) =>
+      name.endsWith('.js'),
+    )) {
+      const text = readFileSync(join(FIRST, file), 'utf8');
+      let wide = 0;
+      for (let index = 0; index < text.length; index += 1)
+        if (text.charCodeAt(index) > 0xff) wide += 1;
+      expect(wide, file).toBe(0);
+    }
   });
 
   it('reads at boot only main.js and what it imports statically', () => {

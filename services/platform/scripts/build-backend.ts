@@ -23,6 +23,8 @@
  *   build.json              what was built, for the checks that read it
  *
  * Every dependency is inlined, so the directory runs without `node_modules`.
+ * Every script is written in one-byte characters (`one-byte-scripts.ts`), so
+ * V8 holds its text at one byte a character and not two.
  *
  * Usage (from `services/platform`): `bun scripts/build-backend.ts [outdir]`
  */
@@ -40,6 +42,13 @@ import { builtinModules } from 'node:module';
 import { basename, join, resolve } from 'node:path';
 
 import { isMigrationFile } from '@tale/shared/db/migration-files';
+
+import {
+  shiftGeneratedColumns,
+  toOneByteScript,
+  verifyShift,
+  type GeneratedPosition,
+} from './one-byte-scripts.ts';
 
 const PLATFORM_ROOT = resolve(import.meta.dirname, '..');
 const MIGRATIONS_SOURCE = join(PLATFORM_ROOT, 'backend/db/migrations');
@@ -73,6 +82,8 @@ export interface BackendBuild {
   bootFiles: string[];
   /** The packages whose code is in those files, by name. */
   bootPackages: string[];
+  /** UTF-16 units above U+00FF the build wrote as escapes. */
+  escapedUnits: number;
 }
 
 const NODE_BUILTINS = new Set(builtinModules);
@@ -136,6 +147,30 @@ function readSourceMap(path: string): SourceMapFile {
     mappings: parsed.mappings,
     sources: parsed.sources.map(String),
   };
+}
+
+/**
+ * Rewrite one built script in one-byte characters, and move its source map
+ * along with it. Returns how many units were escaped.
+ */
+function writeOneByte(scriptPath: string): number {
+  const original = readFileSync(scriptPath, 'utf8');
+  const script = toOneByteScript(original);
+  if (script.escaped === 0) return 0;
+  const mapPath = `${scriptPath}.map`;
+  const map = readSourceMap(mapPath);
+  const positions: GeneratedPosition[] = [];
+  const mappings = shiftGeneratedColumns(
+    map.mappings,
+    script.shifts,
+    positions,
+  );
+  // Every mapped position is checked against the text before anything is
+  // written: a map that drifted would symbolicate to the wrong line, quietly.
+  verifyShift(original, script, positions);
+  writeFileSync(scriptPath, script.text);
+  writeFileSync(mapPath, JSON.stringify({ ...map, mappings }));
+  return script.escaped;
 }
 
 /** `main.js` and every file it imports statically, directly or not. */
@@ -214,8 +249,10 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
     output.path.endsWith('.js'),
   );
 
+  let escapedUnits = 0;
   const stray = new Map<string, string[]>();
   for (const output of outputs) {
+    escapedUnits += writeOneByte(output.path);
     const packages = runtimeImports(readFileSync(output.path, 'utf8'));
     if (packages.length > 0) stray.set(basename(output.path), packages);
   }
@@ -252,6 +289,7 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
     ),
     bootFiles,
     bootPackages: [...bootPackages].sort(),
+    escapedUnits,
   };
 
   writeFileSync(

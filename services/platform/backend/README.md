@@ -97,6 +97,20 @@ build measured about 100 MiB less at rest (256 → 149 MiB on amd64). The build
 fails if a built file would still import a package at runtime, because the image
 ships no `node_modules` for it.
 
+Two more properties of the build are held by its test:
+
+- **Every script is written in one-byte characters.** V8 keeps a script's text
+  at one byte a character only while every character fits in a byte; one em
+  dash makes it two for the whole file. The build writes each character above
+  U+00FF as its `\uXXXX` escape ([`scripts/one-byte-scripts.ts`](../scripts/one-byte-scripts.ts))
+  and moves the source maps along, which is worth another 13 MiB at rest.
+- **A boot reads only what every role needs.** `build.json` lists the files
+  and packages `main.js` imports statically. What only some work needs is
+  behind an `import()`: the error-reporting SDK (with a `SENTRY_DSN`), SheetJS,
+  the SAML libraries, and for a pure worker the routes and the sign-in stack.
+  A new dependency of that kind belongs behind one too, and in the test's
+  list.
+
 A module that reads a file by its own location must ask
 [`lib/layout.ts`](lib/layout.ts), which knows both shapes: in the build every
 module sits in `backend-dist/`, so `new URL('./x', import.meta.url)` points
