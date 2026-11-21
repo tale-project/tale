@@ -4,6 +4,7 @@ import {
   deleteOrgObject,
   locateOrgObject,
   locateOrgObjectStore,
+  ObjectLengthMismatchError,
   resolveOrgObjectStore,
   s3DeleteObject,
   s3GetObjectBytes,
@@ -11,6 +12,7 @@ import {
   s3PresignGetUrl,
   s3PresignPutUrl,
   s3PutObject,
+  s3PutObjectStream,
   type S3ObjectStore,
 } from '../core/lib/storage/object_store.ts';
 
@@ -119,11 +121,13 @@ export {
   deleteOrgObject,
   locateOrgObject,
   locateOrgObjectStore,
+  ObjectLengthMismatchError,
   s3DeleteObject,
   s3GetObjectBytes,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
   s3PutObject,
+  s3PutObjectStream,
   type S3ObjectStore,
 };

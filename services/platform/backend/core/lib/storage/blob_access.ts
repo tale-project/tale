@@ -71,14 +71,17 @@ export async function putBlob(
 }
 
 /** Read a blob's raw bytes from the org's store. Throws
- * {@link UnsupportedBlobRefError} for a non-`s3:` ref. */
+ * {@link UnsupportedBlobRefError} for a non-`s3:` ref, and
+ * `ObjectTooLargeError` for a blob over the `maxBytes` its caller accepts,
+ * before the blob is in memory. */
 export async function readBlobBytes(
   orgSlug: string,
   ref: BlobRef,
+  opts: { maxBytes?: number } = {},
 ): Promise<Uint8Array> {
   const key = requireS3Key(ref);
   const store = await requireS3ForRead(orgSlug, key);
-  return await s3GetObjectBytes(store, key);
+  return await s3GetObjectBytes(store, key, opts);
 }
 
 /**

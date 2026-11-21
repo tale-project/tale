@@ -490,6 +490,18 @@ interface S3TimeoutOpts {
   timeoutMs?: number;
 }
 
+/** What a read of a whole object may be told. */
+export interface S3ReadOpts extends S3TimeoutOpts {
+  /**
+   * The most bytes the caller accepts. An object that holds more ends the
+   * read with {@link ObjectTooLargeError}: on the length the store declares,
+   * before a byte is read, and otherwise at the first chunk past the limit.
+   * A caller with a limit says it here: compared after the read, a limit of
+   * two megabytes has let an object of five hundred into memory first.
+   */
+  maxBytes?: number;
+}
+
 /**
  * The ONE door every S3 verb goes through: the signed request with a total
  * timeout covering aws4fetch's retry loop. An abort surfaces as a legible
@@ -533,8 +545,9 @@ export async function s3PutObject(
     key,
     'PUT',
     {
-      // aws4fetch hashes the Uint8Array body for SigV4 (it checks `byteLength`);
-      // the cast is only to bridge TS 5.7's `Uint8Array<ArrayBufferLike>` vs the
+      // The body is not part of the signature: for S3 aws4fetch signs the
+      // headers with `X-Amz-Content-Sha256: UNSIGNED-PAYLOAD`. The cast is
+      // only to bridge TS 5.7's `Uint8Array<ArrayBufferLike>` vs the
       // aws4fetch's declaration uses the DOM `BodyInit` shape. The Bun
       // compiler models this view as `Uint8Array<ArrayBufferLike>`, while the
       // signer accepts the same bytes at runtime as an ArrayBuffer-backed
@@ -558,6 +571,232 @@ export async function s3PutObject(
   return 'created';
 }
 
+/** A streamed PUT was handed a body that is not as long as it was said to
+ * be. Nothing was stored. */
+export class ObjectLengthMismatchError extends Error {
+  readonly contentLength: number;
+  /** Whether the body ended early or went on. */
+  readonly found: 'fewer' | 'more';
+
+  constructor(key: string, contentLength: number, found: 'fewer' | 'more') {
+    super(
+      `S3 PUT ${key} was handed ${found} than the ${contentLength} bytes it was told of`,
+    );
+    this.name = 'ObjectLengthMismatchError';
+    this.contentLength = contentLength;
+    this.found = found;
+  }
+}
+
+export interface S3PutStreamOpts {
+  /** How many bytes the body holds. A store takes a body only with its
+   * length (it answers one without `411 MissingContentLength`, or drops
+   * the connection), so a body whose length is unknown goes to a file
+   * first. */
+  contentLength: number;
+  contentType: string;
+  /** Ends the transfer when the caller gives up; its reason is rethrown. */
+  signal?: AbortSignal;
+  /** Sees every chunk, in order, as it is sent: a hash of the object. */
+  onChunk?: (chunk: Uint8Array) => void;
+  /** How long the body may stand still before the transfer is given up. */
+  stallTimeoutMs?: number;
+  /** How long the store may take to answer once it has been sent the last
+   * byte. */
+  answerTimeoutMs?: number;
+}
+
+/**
+ * PUT an object from a body that is read as it is sent. The object is never
+ * held whole in memory, so a process stores one larger than the memory it
+ * has left (tale-project/tale#4942): an upload goes from the browser to the
+ * store, an import from the vendor to the store, a file from the disk.
+ *
+ * The body is a stream: a request's or a response's, or a file being read.
+ * It is cancelled when the transfer ends, however it ends, which gives a
+ * request its socket back and a file its descriptor. It is read through a
+ * reader and not as an iterator: an iterator's `return()` waits for the read
+ * that is still out, so a body that stood still could never be let go.
+ *
+ * Exactly `contentLength` bytes are stored, or nothing: a store keeps the
+ * object as soon as it has the bytes it was told of, so the chunk that
+ * completes it is sent only once the body is known to have ended there. A
+ * body that ends early or goes on is {@link ObjectLengthMismatchError}; the
+ * body's own failure is rethrown as it is, and so is the reason of a caller
+ * that gave up. Every other failure is the store's.
+ *
+ * Sent once: a body that has been read cannot be sent again, so the retries
+ * the other verbs make do not apply. Bounded by progress, as
+ * {@link s3GetObjectToFile} is, and then by how long the store takes to
+ * answer its last byte.
+ */
+export async function s3PutObjectStream(
+  store: S3ObjectStore,
+  key: string,
+  body: ReadableStream<Uint8Array>,
+  opts: S3PutStreamOpts,
+): Promise<void> {
+  const { contentLength } = opts;
+  if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+    throw new RangeError(
+      `S3 PUT ${key} needs a whole number of bytes, not ${contentLength}`,
+    );
+  }
+  const stallTimeoutMs = opts.stallTimeoutMs ?? S3_BODY_TIMEOUT_MS;
+  const answerTimeoutMs = opts.answerTimeoutMs ?? S3_BODY_TIMEOUT_MS;
+  const controller = new AbortController();
+  const giveUp = (why: string): void =>
+    controller.abort(new Error(`S3 PUT ${key} ${why}`));
+  const forwardAbort = (): void => controller.abort(opts.signal?.reason);
+  if (opts.signal?.aborted) forwardAbort();
+  else opts.signal?.addEventListener('abort', forwardAbort, { once: true });
+
+  const stalled = (): void => giveUp(`stalled for ${stallTimeoutMs} ms`);
+  let timer = setTimeout(stalled, stallTimeoutMs);
+
+  /** What the body itself failed with: its own error, or its length. Kept
+   * in an object because it is set inside the stream, where the compiler's
+   * reading of this function does not follow. */
+  const ofBody: { failure?: { error: unknown } } = {};
+  const source = body.getReader();
+  let released = false;
+  let stored = false;
+  /** Give the body back: a request's socket, a file's descriptor. A read
+   * that is still out is answered as the body's end. */
+  const release = async (): Promise<void> => {
+    if (released) return;
+    released = true;
+    await source.cancel().catch((error: unknown) => {
+      // A body that failed, or whose sender is gone, answers its cancel
+      // with that failure, and the transfer reports it once, as its own.
+      // Only a body that could not be given back after its object was
+      // stored is news.
+      if (stored) {
+        console.warn(
+          `[object-store] the body of S3 PUT ${key} could not be released:`,
+          error,
+        );
+      }
+    });
+  };
+  // One chunk is kept back, so that the one completing the object is sent
+  // only when nothing follows it.
+  let held: Uint8Array | null = null;
+  let passed = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(sink) {
+      try {
+        for (;;) {
+          const next = await source.read();
+          if (next.done) {
+            const total = passed + (held?.byteLength ?? 0);
+            if (total !== contentLength) {
+              throw new ObjectLengthMismatchError(
+                key,
+                contentLength,
+                total < contentLength ? 'fewer' : 'more',
+              );
+            }
+            if (held !== null) {
+              opts.onChunk?.(held);
+              sink.enqueue(held);
+              passed = total;
+              held = null;
+            }
+            clearTimeout(timer);
+            timer = setTimeout(
+              () =>
+                giveUp(
+                  `was not answered within ${answerTimeoutMs} ms of its last byte`,
+                ),
+              answerTimeoutMs,
+            );
+            sink.close();
+            return;
+          }
+          const chunk = next.value;
+          // A chunk with nothing in it says nothing about what follows, so
+          // it must not be what lets the completing chunk go.
+          if (chunk.byteLength === 0) continue;
+          if (held === null) {
+            held = chunk;
+            continue;
+          }
+          if (passed + held.byteLength + chunk.byteLength > contentLength) {
+            throw new ObjectLengthMismatchError(key, contentLength, 'more');
+          }
+          const out = held;
+          held = chunk;
+          passed += out.byteLength;
+          opts.onChunk?.(out);
+          clearTimeout(timer);
+          timer = setTimeout(stalled, stallTimeoutMs);
+          sink.enqueue(out);
+          return;
+        }
+      } catch (error) {
+        // Once the transfer is over, a read that was still out is answered
+        // as the body's end: that is no failure of the body's.
+        if (released) return;
+        ofBody.failure = { error };
+        sink.error(error);
+      }
+    },
+    cancel: release,
+  });
+
+  try {
+    const signed = await store.client.sign(objectUrl(store, key), {
+      method: 'PUT',
+      headers: { 'content-type': opts.contentType },
+    });
+    const headers = new Headers(signed.headers);
+    // Not part of the signature, and what makes this one PUT instead of a
+    // chunked body no store takes.
+    headers.set('content-length', String(contentLength));
+    const res = await fetch(signed.url, {
+      method: 'PUT',
+      headers,
+      body: stream,
+      signal: controller.signal,
+      // Load-bearing for memory: unless it is told that a redirect is an
+      // error, `fetch` keeps a second copy of a body stream, to send it
+      // again should the store redirect, and that copy holds every chunk
+      // until the answer has come: the whole object, in this process. A
+      // body that has been read could not be sent again in any case.
+      redirect: 'error',
+      // A body that is a stream is sent while the answer is still to come:
+      // the runtime asks to be told so, and the typings do not know the
+      // option yet.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+      ...({ duplex: 'half' } as unknown as RequestInit),
+    });
+    if (!res.ok) {
+      throw new Error(
+        `S3 PUT ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
+      );
+    }
+    await res.body?.cancel();
+    stored = true;
+  } catch (error) {
+    // Whatever ended the transfer, the store must not be left a connection
+    // with half an object on it, nor the body its reader.
+    controller.abort(error);
+    await release();
+    // The body's own failure says more than the "fetch failed" it caused;
+    // otherwise the signal's reason says why the transfer ended: the
+    // caller's, a body that stood still, an answer that never came.
+    if (ofBody.failure !== undefined) throw ofBody.failure.error;
+    throw controller.signal.aborted && controller.signal.reason !== error
+      ? controller.signal.reason
+      : error;
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', forwardAbort);
+    await release();
+  }
+}
+
 /**
  * GET an object: its raw bytes plus the Content-Type the store holds for it
  * (`null` when the store answers none) — the pair a copy between stores needs
@@ -566,7 +805,7 @@ export async function s3PutObject(
 export async function s3GetObject(
   store: S3ObjectStore,
   key: string,
-  opts: S3TimeoutOpts = {},
+  opts: S3ReadOpts = {},
 ): Promise<{ bytes: Uint8Array; contentType: string | null }> {
   const got = await s3GetObjectIfExists(store, key, opts);
   if (got === null) {
@@ -585,7 +824,7 @@ export async function s3GetObject(
 async function s3GetObjectIfExists(
   store: S3ObjectStore,
   key: string,
-  opts: S3TimeoutOpts = {},
+  opts: S3ReadOpts = {},
 ): Promise<{ bytes: Uint8Array; contentType: string | null } | null> {
   const res = await s3Fetch(
     store,
@@ -602,17 +841,54 @@ async function s3GetObjectIfExists(
   }
   const contentType = res.headers.get('content-type');
   return {
-    bytes: new Uint8Array(await res.arrayBuffer()),
+    bytes:
+      opts.maxBytes === undefined
+        ? new Uint8Array(await res.arrayBuffer())
+        : await readAtMost(res, key, opts.maxBytes),
     contentType:
       contentType === null || contentType === '' ? null : contentType,
   };
+}
+
+/** A response's body, read only as far as `maxBytes` allows. */
+async function readAtMost(
+  res: Response,
+  key: string,
+  maxBytes: number,
+): Promise<Uint8Array> {
+  const declared = Number(res.headers.get('content-length') ?? Number.NaN);
+  if (declared > maxBytes) {
+    await res.body?.cancel();
+    throw new ObjectTooLargeError(key, maxBytes, declared);
+  }
+  if (res.body === null) return new Uint8Array(0);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw new ObjectTooLargeError(key, maxBytes);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return bytes;
 }
 
 /** The bytes half of `s3GetObjectIfExists`: `null` on 404, thrown otherwise. */
 export async function s3GetObjectBytesIfExists(
   store: S3ObjectStore,
   key: string,
-  opts: S3TimeoutOpts = {},
+  opts: S3ReadOpts = {},
 ): Promise<Uint8Array | null> {
   const got = await s3GetObjectIfExists(store, key, opts);
   return got === null ? null : got.bytes;
@@ -622,9 +898,83 @@ export async function s3GetObjectBytesIfExists(
 export async function s3GetObjectBytes(
   store: S3ObjectStore,
   key: string,
-  opts: S3TimeoutOpts = {},
+  opts: S3ReadOpts = {},
 ): Promise<Uint8Array> {
   return (await s3GetObject(store, key, opts)).bytes;
+}
+
+/** An object as it arrives: its bytes, and the Content-Type the store holds
+ * for them (`null` when it answers none). */
+export interface S3ObjectStream {
+  body: ReadableStream<Uint8Array>;
+  contentType: string | null;
+}
+
+/**
+ * GET an object as a stream, for a caller that passes its bytes on: a copy
+ * to another store reads no object whole (tale-project/tale#4942). `null`
+ * when the store answers 404; a thrown error for everything else, as
+ * {@link s3GetObject}.
+ *
+ * The caller reads the body to its end or cancels it. The headers must
+ * arrive within the metadata bound; after that the body is bounded by
+ * whoever reads it ({@link s3PutObjectStream} gives up on one that stands
+ * still), and the caller's signal ends it at any time.
+ */
+export async function s3GetObjectStream(
+  store: S3ObjectStore,
+  key: string,
+  opts: { signal?: AbortSignal; headerTimeoutMs?: number } = {},
+): Promise<S3ObjectStream | null> {
+  const headerTimeoutMs = opts.headerTimeoutMs ?? S3_METADATA_TIMEOUT_MS;
+  const controller = new AbortController();
+  // Left in place once the headers are in: the body still streams under the
+  // caller's signal.
+  const forwardAbort = (): void => controller.abort(opts.signal?.reason);
+  if (opts.signal?.aborted) forwardAbort();
+  else opts.signal?.addEventListener('abort', forwardAbort, { once: true });
+  const timer = setTimeout(
+    () =>
+      controller.abort(
+        new Error(`S3 GET ${key} timed out after ${headerTimeoutMs} ms`),
+      ),
+    headerTimeoutMs,
+  );
+  try {
+    const res = await store.client.fetch(objectUrl(store, key), {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    if (res.status === 404) {
+      await res.body?.cancel();
+      return null;
+    }
+    if (!res.ok) {
+      throw new Error(
+        `S3 GET ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
+      );
+    }
+    const contentType = res.headers.get('content-type');
+    return {
+      body:
+        res.body ??
+        new ReadableStream<Uint8Array>({
+          start(empty) {
+            empty.close();
+          },
+        }),
+      contentType:
+        contentType === null || contentType === '' ? null : contentType,
+    };
+  } catch (error) {
+    controller.abort(error);
+    opts.signal?.removeEventListener('abort', forwardAbort);
+    throw controller.signal.aborted && controller.signal.reason !== error
+      ? controller.signal.reason
+      : error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** What a streamed GET wrote: how many bytes, and the Content-Type the
@@ -634,14 +984,21 @@ export interface S3ObjectFile {
   contentType: string | null;
 }
 
-/** A streamed GET met more bytes than its caller accepts. */
+/** A GET met more bytes than its caller accepts. */
 export class ObjectTooLargeError extends Error {
   readonly maxBytes: number;
+  /** How many bytes the object holds, where the store declared it. */
+  readonly size: number | null;
 
-  constructor(key: string, maxBytes: number) {
-    super(`S3 GET ${key} holds more than the ${maxBytes} bytes accepted`);
+  constructor(key: string, maxBytes: number, size: number | null = null) {
+    super(
+      size === null
+        ? `S3 GET ${key} holds more than the ${maxBytes} bytes accepted`
+        : `S3 GET ${key} holds ${size} bytes, more than the ${maxBytes} accepted`,
+    );
     this.name = 'ObjectTooLargeError';
     this.maxBytes = maxBytes;
+    this.size = size;
   }
 }
 
