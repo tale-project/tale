@@ -13,7 +13,10 @@
  * to the key, the code runner fails the first automation that evaluates an
  * expression, and the heavy slot fails the first file that is indexed. So a
  * packaging mistake surfaces as a customer's problem days later. This reads each of them the way the running backend does and
- * exits 1 with the reason when one is missing. It also says what the build
+ * exits 1 with the reason when one is missing. It also asks for the one thing
+ * a library once loaded by a name the build could not see: the type of a
+ * file on the disk, without which every replacement document is refused and
+ * every crawled download is read as no document. It also says what the build
  * was built as: one made for anything but production runs every library's
  * development checks and never says so either. And it says whether the app
  * the same process serves was compressed at build: without that every page
@@ -25,12 +28,15 @@
  */
 
 import { readdirSync, statSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { nodeVmRunner } from '../lib/engine/runners/node-vm.ts';
 import { PatternRegistry } from '../lib/pii/index.ts';
 import { messageCatalog } from './core/i18n/catalog.ts';
+import { fileTypeOfFile } from './core/lib/knowledge/file_extraction/sniff_file.ts';
 import { extractInHeavySlot } from './lib/heavy-slot/documents.ts';
 import {
   BUILT,
@@ -121,6 +127,30 @@ async function heavySlot(): Promise<string> {
 }
 
 /**
+ * A file's type, told from the disk. The build inlines every dependency and
+ * the image ships no `node_modules`, so a library that loads a part of
+ * itself at the call, by a name the build is not shown, finds nothing there:
+ * `file-type` reads a path that way. The doors that tell a type from a file
+ * answer such a failure as "no type", which refuses a document without a
+ * word in any test that runs from the sources.
+ */
+async function fileTypes(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'tale-image-check-'));
+  try {
+    const path = join(dir, 'document');
+    await writeFile(path, '%PDF-1.7\n');
+    const type = await fileTypeOfFile(path);
+    if (type?.mime !== 'application/pdf')
+      throw new Error(
+        `a PDF on the disk was told to be ${JSON.stringify(type ?? null)}`,
+      );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+  return "a file's type is told from the disk";
+}
+
+/**
  * The build writes NODE_ENV into the code in place of every read of it
  * (`scripts/build-backend.ts`), so what this reads is what every module of
  * the build was given, whatever the container's environment says.
@@ -191,6 +221,7 @@ const CHECKS: [name: string, check: () => Promise<string>][] = [
   ['the boot migrations', bootMigrations],
   ['the code runner', codeRunner],
   ['the heavy slot', heavySlot],
+  ['file types', fileTypes],
 ];
 
 let failed = false;

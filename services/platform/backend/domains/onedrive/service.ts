@@ -5,8 +5,7 @@ import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { audienceMirror } from '../../core/lib/audience.ts';
-import { sniffDocumentExtension } from '../../core/lib/knowledge/extraction/sniff.ts';
-import { headOfFile } from '../../core/lib/knowledge/file_extraction/file_pieces.ts';
+import { sniffDocumentFile } from '../../core/lib/knowledge/file_extraction/sniff_file.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -528,10 +527,6 @@ async function vendorErrorText(response: Response): Promise<string> {
   }
 }
 
-/** How much of a conversion's answer says whether it is a PDF: a PDF says
- * so in its first bytes. */
-const PDF_HEAD_BYTES = 64 * 1024;
-
 /** A conversion answered bytes that are no PDF. */
 class NotAPdf extends Error {
   readonly size: number;
@@ -603,8 +598,7 @@ async function fetchVendorContentToStorage(
       // one.
       ...(args.format === 'pdf' && {
         inspect: async (file) => {
-          const head = await headOfFile(file.path, PDF_HEAD_BYTES);
-          if ((await sniffDocumentExtension(head)) !== '.pdf') {
+          if ((await sniffDocumentFile(file.path)) !== '.pdf') {
             throw new NotAPdf(file.size);
           }
         },
