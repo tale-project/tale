@@ -269,6 +269,17 @@ Diese Werte prägen die Anwendungsrollen eines Workspace-Deployments: die Replik
 
 Bei einem Workspace-Deployment laufen vorübergehend beide Farben. Plane Kapazität für diese Überschneidung. Erhöhe die Rolle, deren gemessene Last den Engpass bildet. Mehr Replikate brauchen auch mehr Datenbankverbindungen und Arbeitsspeicher. Siehe [Upgrades](/de/self-hosted/operate/upgrades).
 
+### Arbeitsspeicher zum Lesen von Dateien {#file-memory}
+
+Ein Backend-Replikat liest eine Datei in einem eigenen Prozess: Es extrahiert den Text eines Dokuments und teilt ihn für die Suche in Passagen, oder es wandelt eine Aufnahme um, bevor sie transkribiert wird. Das Replikat liest eine Datei nach der anderen und bricht ab, sobald eine Datei mehr Arbeitsspeicher braucht, als das Limit erlaubt. So kann eine große Datei das Replikat nicht mitreißen. Das Dokument zeigt dann **Fehlgeschlagen**, und die Erklärung nennt das Limit und die Variable, die es anhebt.
+
+| Name | Default | Beschreibung |
+| --- | --- | --- |
+| `HEAVY_SLOT_MEMORY_MB` | `512`; `96`, wo ein Prozess die ganze Anwendung ist | **Optional.** Wie viel Arbeitsspeicher eine Datei belegen darf, während sie gelesen wird, in MiB. Bereich `64`–`65536`. |
+| `HEAVY_SLOTS` | `1` | **Optional.** Wie viele Dateien ein Replikat gleichzeitig liest. Jede darf das ganze Limit belegen; plane deshalb für jede so viel Arbeitsspeicher ein. Eine Datei, auf die jemand wartet, etwa ein Anhang im Chat, wird vor den Dateien gelesen, die auf ihre Indexierung warten; diese kommen trotzdem bei jedem fünften Mal an die Reihe. Bereich `1`–`16`. |
+
+Bei einem Limit von 96 MiB passt eine Tabelle mit 100.000 Zeilen und 10 Spalten, ebenso ein PDF mit mehreren Hundert Seiten oder etwa 20 MB reiner Text oder CSV. Mit eingeschaltetem PII-Schutz passen etwa 10 MB Text. Die Bilder in einem PDF zählen nicht mit: Ein Bild, das für das Limit zu groß ist, dekodiert Tale nicht. Nachdem du das Limit angehoben hast, bleibt ein fehlgeschlagenes Dokument **Fehlgeschlagen**, bis jemand **Indexierung erneut versuchen** wählt.
+
 ## Container-Laufzeit {#container-runtime}
 
 Die Container-Laufzeit eines Deployments steht in `tale.json` oder in der Deployment-Spezifikation (`runtime.engine`) und wird nie über eine Variable gewählt. Diese Variablen sichern die Festlegung ab, zeigen auf ihre Zugangsdaten oder werden von der CLI in den Images der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus) gesetzt; keine davon gehört in die `.env`.

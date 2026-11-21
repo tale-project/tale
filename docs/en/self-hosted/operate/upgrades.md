@@ -164,6 +164,18 @@ Earlier releases started `bgutil-provider` with every deployment. `tale deploy` 
 
 YouTube links keep working from an address that YouTube does not challenge. From one it does, a link fails and names the provider. If your members paste YouTube links and your host is in a data center, [turn the provider on](/self-hosted/configuration/video-ingestion#token-provider) before you upgrade.
 
+## Files are read within a memory limit {#file-memory-limit}
+
+A replica now reads each file in a process of its own, one file at a time, and stops reading a file that needs more memory than the limit. Until this release a large spreadsheet or PDF was read inside the application process, which could grow by hundreds of megabytes while it did.
+
+The limit is 512 MiB, and 96 MiB where `tale deploy` runs the application as one process, which a deployment on a host of half a gigabyte needs. Under 96 MiB a spreadsheet of 100,000 rows by 10 columns still fits, and so does about 20 MB of plain text. A file that needs more shows **Failed** with an explanation that names the limit. If your documents are larger and the host has memory to spare, set this in the workspace's `.env` before you deploy:
+
+```dotenv
+HEAVY_SLOT_MEMORY_MB=512
+```
+
+Afterwards, use **Retry indexing** on a document that failed. [Memory for reading files](/self-hosted/configuration/environment-reference#file-memory) lists what fits and how to read more than one file at once.
+
 ## Upgrade from v0.5.77 or earlier
 
 Releases from v0.5.78 on write automation runs with writer protocol 2. Their migration `0163` puts every run that is still queued, running or waiting **On hold**, and a held run never resumes. The first upgrade from v0.5.77 therefore stops the old backend while no run is unfinished, and only then starts the new version. `tale deploy` does this itself, once.

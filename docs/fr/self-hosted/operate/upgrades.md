@@ -164,6 +164,18 @@ Les versions précédentes démarraient `bgutil-provider` avec chaque déploieme
 
 Les liens YouTube continuent de fonctionner depuis une adresse que YouTube ne met pas à l’épreuve. Depuis une autre, un lien échoue et nomme le fournisseur. Si tes membres collent des liens YouTube et que ton hôte est dans un centre de données, [active le fournisseur](/fr/self-hosted/configuration/video-ingestion#token-provider) avant la mise à niveau.
 
+## Les fichiers sont lus dans une limite de mémoire {#file-memory-limit}
+
+Un réplica lit désormais chaque fichier dans un processus à part, un fichier à la fois, et interrompt la lecture d’un fichier qui demande plus de mémoire que la limite. Jusqu’à cette version, un gros tableur ou un gros PDF était lu dans le processus de l’application, qui pouvait grossir de plusieurs centaines de mégaoctets pendant la lecture.
+
+La limite est de 512 Mio, et de 96 Mio là où `tale deploy` exécute l’application en un seul processus, ce dont un déploiement a besoin sur un hôte d’un demi-gigaoctet. Sous 96 Mio, un tableur de 100 000 lignes sur 10 colonnes passe toujours, tout comme environ 20 Mo de texte brut. Un fichier qui en demande davantage affiche **Échoué**, avec une explication qui nomme la limite. Si tes documents sont plus gros et que ton hôte a de la mémoire à revendre, ajoute ceci au `.env` de l’espace de travail avant de déployer :
+
+```dotenv
+HEAVY_SLOT_MEMORY_MB=512
+```
+
+Utilise ensuite **Relancer l'indexation** sur un document en échec. [Mémoire pour lire les fichiers](/fr/self-hosted/configuration/environment-reference#file-memory) indique ce qui passe et comment lire plusieurs fichiers à la fois.
+
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
 À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.

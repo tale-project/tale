@@ -269,6 +269,17 @@ These values shape the application roles of a workspace deployment: the replica 
 
 A workspace rollout temporarily runs both colors. Plan capacity for that overlap. Increase the role whose measured workload is the bottleneck; more replicas also increase database connections and memory use. See [Upgrades](/self-hosted/operate/upgrades).
 
+### Memory for reading files {#file-memory}
+
+A backend replica reads a file in a process of its own: it extracts a document's text and cuts it into passages for search, or converts a recording before it is transcribed. The replica reads one file at a time and stops reading a file that needs more memory than the limit, so a large file cannot take the replica down with it. The document then shows **Failed**, and its explanation names the limit and the variable that raises it.
+
+| Name | Default | Description |
+| --- | --- | --- |
+| `HEAVY_SLOT_MEMORY_MB` | `512`; `96` where one process is the whole application | **Optional.** How much memory one file may take while it is read, in MiB. Range `64`–`65536`. |
+| `HEAVY_SLOTS` | `1` | **Optional.** How many files a replica reads at once. Each may take the whole limit, so plan that much memory for every one. A file someone is waiting for, such as a chat attachment, is read before the files that wait to be indexed, which still get every fifth turn. Range `1`–`16`. |
+
+With the limit at 96 MiB, a spreadsheet of 100,000 rows by 10 columns fits, and so does a PDF of several hundred pages or about 20 MB of plain text or CSV. With PII protection on, about 10 MB of text fits. The pictures in a PDF do not count: Tale does not decode a picture that is too large for the limit. After you raise the limit, a document that failed stays **Failed** until someone uses **Retry indexing** on it.
+
 ## Container runtime {#container-runtime}
 
 A deployment's container runtime is declared in `tale.json` or the deployment specification (`runtime.engine`), never chosen by a variable. These variables guard that declaration, locate its credentials, or are set by the CLI in the images on the experimental [Incus runtime](/self-hosted/install/incus); none of them belongs in `.env`.

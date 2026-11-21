@@ -269,6 +269,17 @@ Ces valeurs façonnent les rôles applicatifs d’un déploiement de workspace 
 
 Un déploiement de workspace fait temporairement tourner les deux couleurs. Prévois cette capacité supplémentaire. Augmente le rôle qui limite le débit selon tes mesures ; davantage de réplicas consomment aussi plus de connexions et de mémoire. Consulte [Mises à jour](/fr/self-hosted/operate/upgrades).
 
+### Mémoire pour lire les fichiers {#file-memory}
+
+Un réplica backend lit un fichier dans un processus à part : il extrait le texte d’un document et le découpe en passages pour la recherche, ou convertit un enregistrement avant sa transcription. Le réplica lit un fichier à la fois et interrompt la lecture d’un fichier qui demande plus de mémoire que la limite. Un gros fichier ne peut donc pas faire tomber le réplica. Le document affiche alors **Échoué**, et son explication nomme la limite et la variable qui la relève.
+
+| Nom | Défaut | Description |
+| --- | --- | --- |
+| `HEAVY_SLOT_MEMORY_MB` | `512`, ou `96` là où un seul processus est toute l’application | **Optionnel.** Mémoire qu’un fichier peut occuper pendant sa lecture, en Mio. Plage `64`–`65536`. |
+| `HEAVY_SLOTS` | `1` | **Optionnel.** Nombre de fichiers qu’un réplica lit en même temps. Chacun peut occuper toute la limite : prévois donc autant de mémoire pour chacun. Un fichier que quelqu’un attend, par exemple une pièce jointe dans le chat, est lu avant les fichiers qui attendent leur indexation ; ceux-ci gardent tout de même un tour sur cinq. Plage `1`–`16`. |
+
+Avec une limite de 96 Mio, un tableur de 100 000 lignes sur 10 colonnes passe, tout comme un PDF de plusieurs centaines de pages ou environ 20 Mo de texte brut ou de CSV. Avec la protection des DCP activée, environ 10 Mo de texte passent. Les images d’un PDF ne comptent pas : Tale ne décode pas une image trop grande pour la limite. Une fois la limite relevée, un document en échec reste **Échoué** jusqu’à ce que quelqu’un utilise **Relancer l'indexation**.
+
 ## Runtime de conteneurs {#container-runtime}
 
 Le runtime de conteneurs d’un déploiement se déclare dans `tale.json` ou dans la spécification de déploiement (`runtime.engine`), jamais par une variable. Ces variables protègent cette déclaration, situent ses identifiants, ou sont réglées par la CLI dans les images du [runtime Incus](/fr/self-hosted/install/incus), expérimental ; aucune n’a sa place dans `.env`.

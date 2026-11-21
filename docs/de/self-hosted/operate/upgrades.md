@@ -168,6 +168,18 @@ Frühere Versionen haben `bgutil-provider` mit jeder Instanz gestartet. `tale de
 
 YouTube-Links funktionieren weiter von einer Adresse, die YouTube nicht auf die Probe stellt. Von einer anderen scheitert ein Link und nennt den Anbieter. Fügen deine Mitglieder YouTube-Links ein und steht dein Host in einem Rechenzentrum, [aktiviere den Anbieter](/de/self-hosted/configuration/video-ingestion#token-provider) vor dem Upgrade.
 
+## Dateien werden innerhalb eines Speicherlimits gelesen {#file-memory-limit}
+
+Ein Replikat liest jede Datei jetzt in einem eigenen Prozess, eine Datei nach der anderen, und bricht ab, sobald eine Datei mehr Arbeitsspeicher braucht, als das Limit erlaubt. Bisher wurde eine große Tabelle oder ein großes PDF im Prozess der Anwendung gelesen, der dabei um mehrere Hundert Megabyte wachsen konnte.
+
+Das Limit beträgt 512 MiB, und 96 MiB, wo `tale deploy` die Anwendung als einen Prozess ausführt, was eine Instanz auf einem Host mit einem halben Gigabyte braucht. Unter 96 MiB passt weiterhin eine Tabelle mit 100.000 Zeilen und 10 Spalten, ebenso etwa 20 MB reiner Text. Eine Datei, die mehr braucht, zeigt **Fehlgeschlagen** mit einer Erklärung, die das Limit nennt. Sind deine Dokumente größer und hat dein Host Speicher übrig, setz vor dem Deploy in der `.env` des Workspace:
+
+```dotenv
+HEAVY_SLOT_MEMORY_MB=512
+```
+
+Wähle danach bei einem fehlgeschlagenen Dokument **Indexierung erneut versuchen**. [Arbeitsspeicher zum Lesen von Dateien](/de/self-hosted/configuration/environment-reference#file-memory) nennt, was passt und wie ein Replikat mehrere Dateien gleichzeitig liest.
+
 ## Upgrade von v0.5.77 oder älter
 
 Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
