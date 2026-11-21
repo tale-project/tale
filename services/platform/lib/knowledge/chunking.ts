@@ -28,6 +28,14 @@
  * Splitting happens at the coarsest structural boundary that fits the size
  * budget — heading, code fence, paragraph, line, sentence, word — and only
  * falls back to cutting mid-word when a single word exceeds the budget.
+ *
+ * **A chunk is cut when it is asked for.** {@link chunksOf} hands the chunks
+ * over one at a time, and nothing here holds more of the document than the
+ * text itself and the chunk being cut: the pieces, the bodies and the chunks
+ * of a long document were five to seven times its text when they were lists.
+ * A caller that stores each chunk as it comes holds a large file's text and
+ * little else (tale-project/tale#4942); {@link chunkDocument} is the same
+ * chunks as a list, for a text that is small.
  */
 
 /** Target size of a chunk body, in UTF-16 code units. */
@@ -85,7 +93,19 @@ export function chunkDocument(
   text: string | null | undefined,
   options: ChunkOptions = {},
 ): ContextualChunk[] {
-  if (!text || text.trim() === '') return [];
+  return [...chunksOf(text, options)];
+}
+
+/**
+ * The chunks {@link chunkDocument} lists, each cut when it is asked for, in
+ * order. Nothing is held between two of them but the text and the bodies of
+ * the chunk before and the chunk after, which a chunk's spans are told from.
+ */
+export function* chunksOf(
+  text: string | null | undefined,
+  options: ChunkOptions = {},
+): Generator<ContextualChunk, void, undefined> {
+  if (!text || text.trim() === '') return;
 
   const chunkSize = options.chunkSize ?? CHUNK_SIZE;
   // A chunk cannot repeat more than half of itself, or consecutive chunks stop
@@ -95,54 +115,55 @@ export function chunkDocument(
     Math.floor(chunkSize / 2),
   );
 
-  const placed = packSegments(
-    splitIntoSegments(text, 0, chunkSize),
-    chunkSize,
-    overlap,
+  const placed = strictlyAdvancing(
+    packSegments(segmentsOf(text, 0, chunkSize), chunkSize, overlap),
   );
-  if (placed.length === 0) return [];
+  let current = placed.next();
+  if (current.done === true) return;
 
   const headings = headingOutline(text);
   const title = options.title?.trim() ?? '';
-  const chunks: ContextualChunk[] = [];
+  let previous: PlacedBody | undefined;
 
-  for (let i = 0; i < placed.length; i++) {
-    const { start, body } = placed[i];
+  for (let index = 0; current.done !== true; index++) {
+    const following = placed.next();
+    const next = following.done === true ? undefined : following.value;
+    const { start, body } = current.value;
     const end = start + body.length;
 
     // The first chunk owns everything before it and the last chunk everything
     // after it, so whitespace the splitter trimmed at the document's edges is
     // still owned by exactly one chunk and reassembly stays exact.
-    const coreStart = i === 0 ? 0 : start;
-    const coreEnd = i === placed.length - 1 ? text.length : placed[i + 1].start;
+    const coreStart = index === 0 ? 0 : start;
+    const coreEnd = next === undefined ? text.length : next.start;
 
     let prefixOverlap = '';
-    if (i > 0) {
-      const previousEnd = placed[i - 1].start + placed[i - 1].body.length;
+    if (previous !== undefined) {
+      const previousEnd = previous.start + previous.body.length;
       if (previousEnd > start) {
         prefixOverlap = text.slice(start, Math.min(previousEnd, coreEnd));
       }
     }
 
     let suffixOverlap = '';
-    if (i < placed.length - 1) {
-      const nextStart = placed[i + 1].start;
-      if (end > nextStart) suffixOverlap = text.slice(nextStart, end);
+    if (next !== undefined && end > next.start) {
+      suffixOverlap = text.slice(next.start, end);
     }
 
     const header = renderHeader(title, headingPathAt(headings, start));
-    chunks.push({
-      index: i,
+    yield {
+      index,
       text: body,
       header,
       embedText: header === '' ? body : `${header}\n\n${body}`,
       core: text.slice(coreStart, coreEnd),
       prefixOverlap,
       suffixOverlap,
-    });
-  }
+    };
 
-  return chunks;
+    previous = current.value;
+    current = following;
+  }
 }
 
 /**
@@ -165,12 +186,19 @@ interface Heading {
   readonly title: string;
 }
 
-/** ATX headings (`## Section`) outside fenced code blocks, in document order. */
+/**
+ * ATX headings (`## Section`) outside fenced code blocks, in document order.
+ * The lines are read one at a time: a list of every line of a long document
+ * is a second copy of it.
+ */
 function headingOutline(text: string): Heading[] {
   const headings: Heading[] = [];
   let offset = 0;
   let inFence = false;
-  for (const line of text.split('\n')) {
+  for (;;) {
+    const lineEnd = text.indexOf('\n', offset);
+    const line =
+      lineEnd === -1 ? text.slice(offset) : text.slice(offset, lineEnd);
     const fence = /^\s{0,3}(?:```|~~~)/.exec(line);
     if (fence) inFence = !inFence;
     if (!inFence) {
@@ -184,9 +212,9 @@ function headingOutline(text: string): Heading[] {
         }
       }
     }
-    offset += line.length + 1;
+    if (lineEnd === -1) return headings;
+    offset = lineEnd + 1;
   }
-  return headings;
 }
 
 /** The nesting of headings in force at `offset`, outermost first. */
@@ -239,93 +267,116 @@ interface PlacedBody {
 }
 
 /**
- * Cut `text` into atomic pieces at the coarsest boundary whose pieces all fit
- * `chunkSize`. Pieces concatenate back to `text`, and their offsets are
- * absolute into the whole document.
+ * Where a text may be cut, coarse to fine. Each pattern splits BEFORE or
+ * AFTER its delimiter so the delimiter stays attached to a piece and
+ * concatenation stays lossless. A search through one of them starts from a
+ * copy (`matchAll`), so they are shared by every cut, at every depth.
  */
-function splitIntoSegments(
+const BOUNDARIES: readonly RegExp[] = [
+  /(?<=\n)(?=\s{0,3}#{1,6}\s)/g, // before a heading line
+  /(?<=```\n)/g, // after a code-fence line
+  /(?<=\n\n)/g, // paragraph break
+  /(?<=\n)/g, // line break
+  /(?<=[.!?]\s)/g, // sentence end
+  /(?<=\s)/g, // word boundary
+];
+
+/**
+ * Cut `text` into atomic pieces at the coarsest boundary whose pieces all fit
+ * `chunkSize`, one piece at a time. Pieces concatenate back to `text`, and
+ * their offsets are absolute into the whole document.
+ */
+function* segmentsOf(
   text: string,
   start: number,
   chunkSize: number,
-): Segment[] {
-  if (text.length <= chunkSize) return [{ start, text }];
+): Generator<Segment, void, undefined> {
+  if (text.length <= chunkSize) {
+    yield { start, text };
+    return;
+  }
 
-  // Coarse to fine. Each pattern splits BEFORE or AFTER its delimiter so the
-  // delimiter stays attached to a piece and concatenation stays lossless.
-  const boundaries = [
-    /(?<=\n)(?=\s{0,3}#{1,6}\s)/g, // before a heading line
-    /(?<=```\n)/g, // after a code-fence line
-    /(?<=\n\n)/g, // paragraph break
-    /(?<=\n)/g, // line break
-    /(?<=[.!?]\s)/g, // sentence end
-    /(?<=\s)/g, // word boundary
-  ];
+  for (const boundary of BOUNDARIES) {
+    const pieces = piecesAt(text, boundary);
+    // A boundary that leaves the text in one piece does not cut it: the
+    // next, finer one is tried.
+    const first = pieces.next();
+    if (first.done === true) continue;
+    const second = pieces.next();
+    if (second.done === true) continue;
 
-  for (const boundary of boundaries) {
-    const pieces = sliceAt(text, boundary);
-    if (pieces.length <= 1) continue;
-    const segments: Segment[] = [];
     let offset = start;
-    for (const piece of pieces) {
-      if (piece.length <= chunkSize)
-        segments.push({ start: offset, text: piece });
-      else segments.push(...splitIntoSegments(piece, offset, chunkSize));
+    for (const piece of startingWith(first.value, second.value, pieces)) {
+      if (piece.length <= chunkSize) yield { start: offset, text: piece };
+      else yield* segmentsOf(piece, offset, chunkSize);
       offset += piece.length;
     }
-    return segments;
+    return;
   }
 
   // A single unbroken run longer than the budget — a base64 blob, a minified
   // line. Cut it by length; there is no boundary left to respect.
-  const segments: Segment[] = [];
   for (let i = 0; i < text.length; i += chunkSize) {
-    segments.push({ start: start + i, text: text.slice(i, i + chunkSize) });
+    yield { start: start + i, text: text.slice(i, i + chunkSize) };
   }
-  return segments;
 }
 
-/** Split at every match, keeping the delimiter attached to its piece. */
-function sliceAt(text: string, boundary: RegExp): string[] {
-  const pieces: string[] = [];
+/** Two pieces that were looked at already, then the rest of their line. */
+function* startingWith(
+  first: string,
+  second: string,
+  rest: Iterable<string>,
+): Generator<string, void, undefined> {
+  yield first;
+  yield second;
+  yield* rest;
+}
+
+/** The pieces of `text` between the matches of `boundary`, the delimiter
+ * kept attached to its piece. */
+function* piecesAt(
+  text: string,
+  boundary: RegExp,
+): Generator<string, void, undefined> {
   let last = 0;
-  boundary.lastIndex = 0;
   for (const match of text.matchAll(boundary)) {
     if (match.index > last) {
-      pieces.push(text.slice(last, match.index));
+      yield text.slice(last, match.index);
       last = match.index;
     }
   }
-  if (last < text.length) pieces.push(text.slice(last));
-  return pieces.length > 0 ? pieces : [text];
+  if (last < text.length) yield text.slice(last);
 }
 
 /**
  * Greedily fill chunks with segments, carrying an `overlap` budget of trailing
  * segments into the next chunk. Bodies are trimmed of surrounding whitespace;
  * the trimmed gaps are absorbed by the forward-owning spans in
- * {@link chunkDocument}, which is what keeps reassembly exact.
+ * {@link chunksOf}, which is what keeps reassembly exact.
  */
-function packSegments(
-  segments: readonly Segment[],
+function* packSegments(
+  segments: Iterable<Segment>,
   chunkSize: number,
   overlap: number,
-): PlacedBody[] {
-  const placed: PlacedBody[] = [];
+): Generator<PlacedBody, void, undefined> {
   let current: Segment[] = [];
   let currentLength = 0;
 
-  const flush = (): void => {
-    if (current.length === 0) return;
+  const flush = (): PlacedBody | undefined => {
+    if (current.length === 0) return undefined;
     let joined = '';
     for (const segment of current) joined += segment.text;
     const leading = joined.length - joined.trimStart().length;
     const body = joined.trim();
-    if (body !== '') placed.push({ start: current[0].start + leading, body });
+    return body !== ''
+      ? { start: current[0].start + leading, body }
+      : undefined;
   };
 
   for (const segment of segments) {
     if (currentLength + segment.text.length > chunkSize && current.length > 0) {
-      flush();
+      const placed = flush();
+      if (placed !== undefined) yield placed;
       const carry: Segment[] = [];
       let carryLength = 0;
       for (let i = current.length - 1; i >= 0; i--) {
@@ -340,9 +391,8 @@ function packSegments(
     current.push(segment);
     currentLength += segment.text.length;
   }
-  flush();
-
-  return strictlyAdvancing(placed);
+  const last = flush();
+  if (last !== undefined) yield last;
 }
 
 /**
@@ -350,16 +400,23 @@ function packSegments(
  *
  * When one segment is larger than the overlap budget the carry can reproduce
  * the previous chunk's start; keeping such a body would give two chunks the
- * same forward-owning span and break the reassembly identity.
+ * same forward-owning span and break the reassembly identity. Of bodies that
+ * start at one place the longest is kept, so a body is handed on only once
+ * the one after it has started further on.
  */
-function strictlyAdvancing(placed: readonly PlacedBody[]): PlacedBody[] {
-  const out: PlacedBody[] = [];
+function* strictlyAdvancing(
+  placed: Iterable<PlacedBody>,
+): Generator<PlacedBody, void, undefined> {
+  let held: PlacedBody | undefined;
   for (const candidate of placed) {
-    const previous = out[out.length - 1];
-    if (previous === undefined || candidate.start > previous.start)
-      out.push(candidate);
-    else if (candidate.body.length > previous.body.length)
-      out[out.length - 1] = candidate;
+    if (held === undefined) {
+      held = candidate;
+    } else if (candidate.start > held.start) {
+      yield held;
+      held = candidate;
+    } else if (candidate.body.length > held.body.length) {
+      held = candidate;
+    }
   }
-  return out;
+  if (held !== undefined) yield held;
 }
