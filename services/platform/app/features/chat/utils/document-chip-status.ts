@@ -1,8 +1,12 @@
 import { formatFileSize } from '@tale/ui/format';
 import type { TFunction } from 'i18next';
 
-import { READ_REFUSED_RAG_ERROR_CODES } from '@/backend/core/knowledge/rag_error_codes';
+import {
+  RAG_ERROR_MEMORY_LIMIT,
+  READ_REFUSED_RAG_ERROR_CODES,
+} from '@/backend/core/knowledge/rag_error_codes';
 import { shouldRagIndexOnUpload } from '@/lib/shared/file-types';
+import { MEMORY_LIMIT_SETTING, memoryLimitOf } from '@/lib/shared/memory-limit';
 
 import type { FileIndexingInfo } from '../hooks/use-file-indexing-status';
 
@@ -16,7 +20,9 @@ import type { FileIndexingInfo } from '../hooks/use-file-indexing-status';
  *  - `refused`: the organization's secret scan or PII policy refuses it;
  *  - `unreadable`: it holds no text a reader finds, or does not open;
  *  - `indexing`: too large to read before its index, which is being built;
- *  - `indexFailed`: only its index could serve it, and the index failed;
+ *  - `indexFailed`: only its index could serve it, and the index failed —
+ *    with `memoryLimitMb` when it failed because the file needs more memory
+ *    than this server gives one file, which only an administrator lifts;
  *  - `unsupported`: no extractor reads its type.
  */
 export type DocumentReadingState =
@@ -25,7 +31,7 @@ export type DocumentReadingState =
   | { readonly kind: 'refused'; readonly code: string }
   | { readonly kind: 'unreadable'; readonly code: string | undefined }
   | { readonly kind: 'indexing' }
-  | { readonly kind: 'indexFailed' }
+  | { readonly kind: 'indexFailed'; readonly memoryLimitMb?: number }
   | { readonly kind: 'unsupported' };
 
 export function documentReadingState(
@@ -64,7 +70,18 @@ export function documentReadingState(
   }
   // Left to its index — or a file from before reads existed.
   if (status === 'queued' || status === 'running') return { kind: 'indexing' };
-  if (status === 'failed') return { kind: 'indexFailed' };
+  if (status === 'failed') {
+    // The stored sentence names the limit the file went over
+    // (`lib/shared/memory-limit.ts`).
+    const memoryLimitMb =
+      info.errorCode === RAG_ERROR_MEMORY_LIMIT
+        ? memoryLimitOf(info.error)
+        : undefined;
+    return {
+      kind: 'indexFailed',
+      ...(memoryLimitMb !== undefined ? { memoryLimitMb } : {}),
+    };
+  }
   if (status === 'unsupported') return { kind: 'unsupported' };
   return { kind: 'ready' };
 }
@@ -80,6 +97,7 @@ const CHIP_KEYS = {
   readingText: 'indexingReadingText',
   progress: 'indexingProgress',
   failed: 'indexingFailed',
+  tooHeavy: 'documentTooHeavy',
   unsupported: 'indexingUnsupported',
 } as const;
 
@@ -92,6 +110,7 @@ const DETAIL_KEYS = {
   noText: 'documentNoTextDescription',
   malformed: 'documentMalformedDescription',
   indexFailed: 'indexingFailedDescription',
+  tooHeavy: 'documentTooHeavyDescription',
   unsupported: 'indexingUnsupportedDescription',
 } as const;
 
@@ -130,7 +149,13 @@ function documentStateDetail(
         { filename },
       );
     case 'indexFailed':
-      return t(DETAIL_KEYS.indexFailed, { filename });
+      return state.memoryLimitMb !== undefined
+        ? t(DETAIL_KEYS.tooHeavy, {
+            filename,
+            limit: state.memoryLimitMb,
+            setting: MEMORY_LIMIT_SETTING,
+          })
+        : t(DETAIL_KEYS.indexFailed, { filename });
     case 'unsupported':
       return t(DETAIL_KEYS.unsupported, { filename });
     default:
@@ -191,7 +216,15 @@ function chipLine(
     case 'indexing':
       return { label: indexingLabel(t, info), failed: false, busy: true };
     case 'indexFailed':
-      return { label: t(CHIP_KEYS.failed), failed: true, busy: false };
+      return {
+        label: t(
+          state.memoryLimitMb !== undefined
+            ? CHIP_KEYS.tooHeavy
+            : CHIP_KEYS.failed,
+        ),
+        failed: true,
+        busy: false,
+      };
     default:
       // `unsupported`: no extractor reads its type.
       return { label: t(CHIP_KEYS.unsupported), failed: false, busy: false };

@@ -465,6 +465,11 @@ rag:
           doesn't have one configured yet.
         configureCta: Configure embedding model
         askAdmin: Ask an organization admin to configure one, then retry indexing.
+      memoryLimit:
+        hint:
+          This server gives one file {limit} MiB of memory, and this file
+          needs more. An admin of the server can raise the limit with the
+          {setting} setting; retry indexing after that.
     unsupported:
       title: Document cannot be indexed
       description:

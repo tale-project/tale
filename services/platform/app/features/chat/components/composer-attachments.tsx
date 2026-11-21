@@ -36,6 +36,7 @@ import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
+import { MEMORY_LIMIT_SETTING, memoryLimitOf } from '@/lib/shared/memory-limit';
 import { isUsageLimitRefusal } from '@/lib/shared/usage-limit';
 
 import { documentChipStatus } from '../utils/document-chip-status';
@@ -135,6 +136,9 @@ function StagedMedia({
   // A reached usage limit is said in the reader's language, never as the
   // server's English sentence.
   const limited = failed && isUsageLimitRefusal(info?.error);
+  // So is a recording that needs more memory to convert than this server
+  // gives one file: the stored sentence names the limit it went over.
+  const memoryLimitMb = failed ? memoryLimitOf(info?.error) : undefined;
 
   let statusLabel: string;
   if (inFlight) {
@@ -143,6 +147,8 @@ function StagedMedia({
     statusLabel = t('transcription.transcribed');
   } else if (limited) {
     statusLabel = t('transcription.limitReached');
+  } else if (memoryLimitMb !== undefined) {
+    statusLabel = t('transcription.tooHeavy');
   } else if (failed || status === 'skipped') {
     statusLabel = t('transcription.couldNotTranscribe');
   } else {
@@ -182,7 +188,12 @@ function StagedMedia({
                 ? t(transcriptionUnavailableKey(transcriptionUnavailableReason))
                 : limited
                   ? t('transcription.limitReachedHint')
-                  : info?.error
+                  : memoryLimitMb !== undefined
+                    ? t('transcription.tooHeavyHint', {
+                        limit: memoryLimitMb,
+                        setting: MEMORY_LIMIT_SETTING,
+                      })
+                    : info?.error
               : undefined
           }
         >

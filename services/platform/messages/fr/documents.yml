@@ -501,6 +501,12 @@ rag:
         askAdmin:
           Demande à un administrateur de ton organisation d'en configurer
           un, puis relance l'indexation.
+      memoryLimit:
+        hint:
+          Ce serveur accorde {limit} Mio de mémoire à un fichier, et ce
+          fichier en demande davantage. Un administrateur du serveur peut
+          relever la limite avec le paramètre {setting} ; relance ensuite
+          l'indexation.
     unsupported:
       title: Indexation impossible
       description:
