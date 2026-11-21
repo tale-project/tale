@@ -13,19 +13,28 @@ Diese Betriebsanleitung behandelt den Transkriptabruf. Beginne mit einem öffent
 | --- | --- |
 | Ein Video scheitert | Unterstützung der URL, Verfügbarkeit des Inhalts und brauchbare Transkript- oder Audioquelle. |
 | Viele Videos scheitern von einem Host | Extraktionsfehler im Worker, Antworten der Quellplattform und Netzwerkweg dieses Hosts. |
+| Ein YouTube-Link meldet, der Server solle nachweisen, kein Bot zu sein | Den Token-Anbieter, der aus ist, bis du ihn [aktivierst](#token-provider). |
 | Videos stoßen über deine Proxys auf eine Bot-Prüfung | Die Zeilen `[ytdlp] outbound proxy entry` im Worker-Log und ob jeder gelistete Proxy eine feste Adresse behält ([Egress-Proxy](#egress-proxy)). |
 | Abruf gelingt, Wissenssuche scheitert | Embedding-Konfiguration der Organisation und Indexierungsstatus. |
 | Fehler nach einer zunächst funktionierenden Sitzung | Ablauf, Zustand des Quellkontos und Abkühlung oder Stilllegung im Pool. |
 
 Lies `tale logs backend-worker --tail 200` und den Fehlergrund des Eintrags. Halte URL und Fehlerkategorie fest. Entferne vor dem Teilen Cookies, signierte URLs und Zugangsdaten aus Diagnosen. Ein erneuter Versuch kann bei vorübergehenden Fehlern helfen; gleichbleibende Verweigerungen erfordern eine Untersuchung.
 
-## Mitgelieferten Token-Anbieter prüfen
+## Token-Anbieter aktivieren {#token-provider}
 
-Das Platform-Image enthält das Token-Plugin. Die mitgelieferte Bereitstellung startet `bgutil-provider` im internen Netzwerk unter `http://bgutil-provider:4416`. Der Dienst liefert Proof-of-Origin-Tokens für unterstützte Extraktionsanfragen. Er gewährt keinen Zugriff auf private Inhalte und garantiert keine Annahme durch die Quellplattform.
+YouTube verlangt von manchen Adressen, vor allem von Rechenzentrumsadressen, den Nachweis, dass eine Anfrage nicht von einem Bot stammt. Ein Link scheitert dann, und das Mitglied liest, YouTube verlange von diesem Server den Nachweis, kein Bot zu sein, und ein Administrator könne den Token-Anbieter aktivieren.
 
-Prüfe `tale logs bgutil-provider` und die Erreichbarkeit vom Worker. Der Sidecar ist optional für den Start des Kernsystems: Sein Ausfall blockiert die Bereitstellung nicht, kann den Transkriptabruf aber beeinträchtigen.
+Der Anbieter ist `bgutil-provider`, ein Dienst im internen Netzwerk, der die Proof-of-Origin-Tokens liefert, die eine solche Anfrage braucht. Das Platform-Image enthält sein Plugin. Eine mitgelieferte Bereitstellung startet ihn nur auf Wunsch: Er ist ein weiterer Container, etwa 60 MiB im Ruhezustand, und nur eine Instanz, die YouTube auf die Probe stellt, hat etwas von ihm. Um ihn zu aktivieren, ergänze diese Zeile in der `.env` des Workspace und führe `tale deploy` aus:
 
-`VIDEO_INGEST_POT_PROVIDER_URL` wählt einen anderen Anbieterendpunkt. `VIDEO_INGEST_PO_TOKEN` übergibt ein manuell beschafftes Token. Bewahre Tokens in deiner Geheimniskonfiguration auf. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) beschreibt auch Extraktions-Client und Plugin-Optionen. Ändere sie passend zum beobachteten Fehler.
+```dotenv
+VIDEO_INGEST_POT_PROVIDER=true
+```
+
+Der Deploy startet den Anbieter, und das Backend fragt ihn von da an unter `http://bgutil-provider:4416`. Entfernst du die Zeile oder setzt sie auf `false`, entfernt der nächste Deploy den Anbieter wieder. Ein Token gewährt keinen Zugriff auf private Inhalte und garantiert keine Annahme durch die Quellplattform.
+
+Prüfe `tale logs bgutil-provider` und die Erreichbarkeit vom Worker. Der Anbieter ist für den Start des Kernsystems nicht nötig: Sein Ausfall blockiert die Bereitstellung nicht, kann den Transkriptabruf aber beeinträchtigen.
+
+`VIDEO_INGEST_POT_PROVIDER_URL` nennt stattdessen einen eigenen Anbieter und braucht keine weitere Einstellung. `VIDEO_INGEST_PO_TOKEN` übergibt ein manuell beschafftes Token. Bewahre Tokens in deiner Geheimniskonfiguration auf. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) beschreibt auch Extraktions-Client und Plugin-Optionen. Ändere sie passend zum beobachteten Fehler.
 
 ## Einen Egress-Proxy konfigurieren {#egress-proxy}
 

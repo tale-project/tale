@@ -29,6 +29,9 @@ import {
   ffmpegLocationFlags,
   impersonateFlagsFromEnv,
   pluginDirFlagsFromEnv,
+  potProviderOn,
+  potProviderUrl,
+  botWallReason,
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
@@ -822,16 +825,46 @@ describe('youtubeExtractorArgsFromEnv', () => {
     warn.mockRestore();
   });
 
-  it('defaults the provider URL to the compose sidecar when the plugin is baked in', () => {
-    // hasBakedPlugin=true simulates the self-hosted image where the bgutil
-    // plugin dir exists; no operator env is needed.
-    const flags = youtubeExtractorArgsFromEnv({}, undefined, true);
+  it('asks the bundled provider where the deployment turned it on and the plugin is baked in', () => {
+    // hasBakedPlugin=true simulates the self-hosted image, where the bgutil
+    // plugin dir exists; the one variable is all the deployment sets.
+    const flags = youtubeExtractorArgsFromEnv(
+      { VIDEO_INGEST_POT_PROVIDER: 'true' },
+      undefined,
+      true,
+    );
     expect(flags).toContain(
       'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416',
     );
     expect(flags).toContain(
       'youtube:player_client=default,mweb,tv_simply;fetch_pot=always',
     );
+  });
+
+  // The provider is a container the deployment starts only when asked: an
+  // image that ships the plugin must not go looking for it on its own.
+  it('asks no provider in an image that ships the plugin until the deployment turns it on', () => {
+    for (const env of [
+      {},
+      { VIDEO_INGEST_POT_PROVIDER: 'false' },
+      { VIDEO_INGEST_POT_PROVIDER: '' },
+      { VIDEO_INGEST_POT_PROVIDER: 'yes' },
+    ]) {
+      expect(youtubeExtractorArgsFromEnv(env, undefined, true)).toEqual([
+        '--extractor-args',
+        'youtube:player_client=default,tv_simply',
+      ]);
+    }
+  });
+
+  it('turns nothing on where the image ships no plugin', () => {
+    expect(
+      youtubeExtractorArgsFromEnv(
+        { VIDEO_INGEST_POT_PROVIDER: 'true' },
+        undefined,
+        false,
+      ),
+    ).toEqual(['--extractor-args', 'youtube:player_client=default,tv_simply']);
   });
 
   it('does not emit fetch_pot without a provider', () => {
@@ -841,7 +874,7 @@ describe('youtubeExtractorArgsFromEnv', () => {
 
   it('honours a VIDEO_INGEST_FETCH_POT override', () => {
     const flags = youtubeExtractorArgsFromEnv(
-      { VIDEO_INGEST_FETCH_POT: 'never' },
+      { VIDEO_INGEST_FETCH_POT: 'never', VIDEO_INGEST_POT_PROVIDER: 'true' },
       undefined,
       true,
     );
@@ -863,7 +896,10 @@ describe('youtubeExtractorArgsFromEnv', () => {
   it('ignores an invalid VIDEO_INGEST_FETCH_POT (logged, not thrown)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const flags = youtubeExtractorArgsFromEnv(
-      { VIDEO_INGEST_FETCH_POT: 'sometimes' },
+      {
+        VIDEO_INGEST_FETCH_POT: 'sometimes',
+        VIDEO_INGEST_POT_PROVIDER: 'true',
+      },
       undefined,
       true,
     );
@@ -1008,11 +1044,28 @@ describe('pluginDirFlagsFromEnv', () => {
     ).toEqual(['--plugin-dirs', '/etc/yt-dlp/plugins']);
   });
 
-  it('falls back to the baked plugin dir when it exists', () => {
-    expect(pluginDirFlagsFromEnv({}, true)).toEqual([
-      '--plugin-dirs',
-      '/opt/yt-dlp/plugins',
-    ]);
+  it('falls back to the baked plugin dir where a run has a provider to ask', () => {
+    const baked = ['--plugin-dirs', '/opt/yt-dlp/plugins'];
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_POT_PROVIDER: 'true' }, true),
+    ).toEqual(baked);
+    expect(
+      pluginDirFlagsFromEnv(
+        { VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.example:4416' },
+        true,
+      ),
+    ).toEqual(baked);
+  });
+
+  // Loaded without one, the plugin looks for a provider on the loopback.
+  it('loads no plugin where no provider is asked', () => {
+    expect(pluginDirFlagsFromEnv({}, true)).toEqual([]);
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_POT_PROVIDER: 'false' }, true),
+    ).toEqual([]);
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_POT_PROVIDER: 'true' }, false),
+    ).toEqual([]);
   });
 
   it('prefers an explicit env dir over the baked default', () => {
@@ -1115,4 +1168,78 @@ describe('the yt-dlp version floor', () => {
       compareYtdlpVersions(MIN_YTDLP_VERSION, pinned as string),
     ).toBeLessThanOrEqual(0);
   });
+});
+
+describe('the bundled PO-token provider', () => {
+  it('is on only where the deployment says true', () => {
+    expect(potProviderOn({})).toBe(false);
+    expect(potProviderOn({ VIDEO_INGEST_POT_PROVIDER: 'true' })).toBe(true);
+    expect(potProviderOn({ VIDEO_INGEST_POT_PROVIDER: ' TRUE ' })).toBe(true);
+    for (const raw of ['false', '', '1', 'yes', 'on'])
+      expect(potProviderOn({ VIDEO_INGEST_POT_PROVIDER: raw })).toBe(false);
+  });
+
+  it('is asked at its own address, unless the deployment names another provider', () => {
+    expect(potProviderUrl({ VIDEO_INGEST_POT_PROVIDER: 'true' }, true)).toBe(
+      'http://bgutil-provider:4416',
+    );
+    expect(
+      potProviderUrl(
+        {
+          VIDEO_INGEST_POT_PROVIDER: 'true',
+          VIDEO_INGEST_POT_PROVIDER_URL: ' http://pot.example:4416 ',
+        },
+        true,
+      ),
+    ).toBe('http://pot.example:4416');
+    // A provider of the deployment's own needs neither the switch nor the
+    // bundled plugin's image.
+    expect(
+      potProviderUrl(
+        { VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.example:4416' },
+        false,
+      ),
+    ).toBe('http://pot.example:4416');
+    expect(potProviderUrl({}, true)).toBeUndefined();
+    expect(
+      potProviderUrl({ VIDEO_INGEST_POT_PROVIDER: 'true' }, false),
+    ).toBeUndefined();
+  });
+});
+
+describe('botWallReason', () => {
+  it('names the setting where YouTube walls a deployment that has no PO tokens', () => {
+    expect(botWallReason('youtube', {}, true)).toBe('poTokenProviderOff');
+    expect(botWallReason('youtube', {}, false)).toBe('poTokenProviderOff');
+    expect(
+      botWallReason('youtube', { VIDEO_INGEST_POT_PROVIDER: 'false' }, true),
+    ).toBe('poTokenProviderOff');
+  });
+
+  it('is the platform’s own wall once the deployment has a source of tokens', () => {
+    expect(
+      botWallReason('youtube', { VIDEO_INGEST_POT_PROVIDER: 'true' }, true),
+    ).toBe('botDetection');
+    expect(
+      botWallReason(
+        'youtube',
+        { VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.example:4416' },
+        false,
+      ),
+    ).toBe('botDetection');
+    expect(
+      botWallReason('youtube', { VIDEO_INGEST_PO_TOKEN: 'mweb.gvs+TOK' }, true),
+    ).toBe('botDetection');
+  });
+
+  // PO tokens are YouTube's: no other platform's wall is answered with them.
+  it.each(['bilibili', 'vimeo', 'twitch', 'dailymotion', 'generic'])(
+    'is the platform’s own wall on %s, whatever the deployment has',
+    (platform) => {
+      expect(botWallReason(platform, {}, true)).toBe('botDetection');
+      expect(
+        botWallReason(platform, { VIDEO_INGEST_POT_PROVIDER: 'true' }, true),
+      ).toBe('botDetection');
+    },
+  );
 });

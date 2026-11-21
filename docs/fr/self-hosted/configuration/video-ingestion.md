@@ -13,19 +13,28 @@ Ce guide d’exploitation concerne la récupération des transcriptions. Commenc
 | --- | --- |
 | Une seule vidéo échoue | URL prise en charge, contenu toujours disponible et transcription ou source audio utilisable. |
 | Beaucoup de vidéos échouent depuis un hôte | Erreurs de l’extracteur dans le worker, réponses de la plateforme source et chemin réseau de l’hôte. |
+| Un lien YouTube indique que le serveur doit prouver qu’il n’est pas un robot | Le fournisseur de jetons, désactivé tant que tu ne l’as pas [activé](#token-provider). |
 | Les vidéos se heurtent à une vérification anti-robot via tes proxys | Les lignes `[ytdlp] outbound proxy entry` du journal du worker, et si chaque proxy de la liste garde une adresse fixe ([proxy de sortie](#egress-proxy)). |
 | Récupération réussie, recherche de connaissances en échec | Configuration d’embedding de l’organisation et statut d’indexation. |
 | Échecs après une session fonctionnelle | Expiration, état du compte source et refroidissement ou retrait de la session. |
 
 Consulte `tale logs backend-worker --tail 200` et le motif d’échec de l’élément. Conserve URL et catégorie d’erreur, mais retire cookies, URL signées et identifiants avant de partager le diagnostic. Une relance peut résoudre un échec temporaire ; des refus identiques répétés demandent une investigation.
 
-## Vérifier le fournisseur de jetons intégré
+## Activer le fournisseur de jetons {#token-provider}
 
-L’image Platform inclut le plugin de jetons et le déploiement fourni démarre `bgutil-provider` sur le réseau interne. Son adresse par défaut est `http://bgutil-provider:4416`. Il fournit les jetons de preuve d’origine utilisés par certaines requêtes d’extraction ; il ne donne pas accès aux contenus privés et ne garantit pas l’acceptation de la requête.
+YouTube demande à certaines adresses, surtout celles des centres de données, de prouver qu’une requête ne vient pas d’un robot. Le lien échoue alors, et le membre lit que YouTube a demandé à ce serveur de prouver qu’il n’est pas un robot et qu’un administrateur peut activer le fournisseur de jetons.
+
+Ce fournisseur est `bgutil-provider`, un service du réseau interne qui fournit les jetons de preuve d’origine dont une telle requête a besoin. L’image Platform inclut son plugin. Un déploiement fourni ne le démarre que sur demande : c’est un conteneur de plus, environ 60 Mio au repos, utile seulement à un déploiement que YouTube met à l’épreuve. Pour l’activer, ajoute cette ligne au `.env` de l’espace de travail et lance `tale deploy` :
+
+```dotenv
+VIDEO_INGEST_POT_PROVIDER=true
+```
+
+Le déploiement démarre le fournisseur, et le backend l’interroge dès lors à `http://bgutil-provider:4416`. Retire la ligne, ou mets `false`, et le déploiement suivant retire le fournisseur. Un jeton ne donne pas accès aux contenus privés et ne garantit pas l’acceptation de la requête.
 
 Vérifie `tale logs bgutil-provider` et son accessibilité depuis le worker. Le service est démarré au mieux : son échec ne bloque pas le déploiement principal, mais peut dégrader la récupération des transcriptions.
 
-`VIDEO_INGEST_POT_PROVIDER_URL` choisit un autre fournisseur. `VIDEO_INGEST_PO_TOKEN` fournit un jeton obtenu manuellement. Garde ces valeurs dans ta configuration de secrets. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference) décrit aussi les options de client d’extraction et de plugin ; modifie-les selon l’erreur observée.
+`VIDEO_INGEST_POT_PROVIDER_URL` désigne à la place un fournisseur à toi, sans autre réglage. `VIDEO_INGEST_PO_TOKEN` fournit un jeton obtenu manuellement. Garde ces valeurs dans ta configuration de secrets. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference) décrit aussi les options de client d’extraction et de plugin ; modifie-les selon l’erreur observée.
 
 ## Configurer un proxy de sortie {#egress-proxy}
 

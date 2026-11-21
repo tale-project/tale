@@ -42,7 +42,7 @@ Every Pod below sets `enableServiceLinks: false`. Kubernetes otherwise injects D
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment; Service on 8003 | `SANDBOX_BACKEND=kubernetes`; `config-data` read-only at `/app/platform-config`. No Docker socket. |
 | `sandbox-egress` | Deployment; Service on 3128 | The shipped capability set, no sysctls. |
 | `sandbox-llm-gateway` | Deployment with strategy `Recreate`, PVC at `/app/data`; Services `sandbox-llm-gateway` and `llm-gateway` on 8080 | The image runs as uid 1000; `fsGroup: 1000` lets it write its state. It reads `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` from `tale-env`: until it has an admin account, it creates one only for a caller that presents that secret. With `terminationGracePeriodSeconds: 90`, a rollout gives the old Pod up to 90 seconds to finish the model calls in flight, streamed answers included; it saves its spend counters at the end only when they finish within 30 seconds of the stop. It takes no new call meanwhile, and the new Pod starts once it has exited. Its memory grows with the agent sessions that run at once: `limits.memory`, `512Mi` in the manifest below, holds the default of 8 sessions. When you raise `SANDBOX_MAX_SESSIONS`, raise it by the rule [`SANDBOX_LLM_GATEWAY_MEMORY`](/self-hosted/configuration/environment-reference#sandbox-agent-turns) describes, `4Gi` for 320 sessions; that variable itself has no effect here. |
-| `bgutil-provider` | Deployment; Service on 4416 | Optional video-token provider. |
+| `bgutil-provider` | Deployment; Service on 4416 | Optional video-token provider. Where you apply it, set `VIDEO_INGEST_POT_PROVIDER=true` for `backend-api` and `backend-worker`, which ask no provider otherwise. |
 
 The probes translate the Compose health checks:
 

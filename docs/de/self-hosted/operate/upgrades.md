@@ -162,6 +162,12 @@ DB_PROFILE=standard
 
 Um nur eine Größe zu ändern, nenn stattdessen diese, etwa `DB_SHARED_BUFFERS=1GB`. Eine Größe, die du nennst, geht dem Profil vor.
 
+## Der Token-Anbieter für YouTube-Links ist standardmäßig aus {#token-provider}
+
+Frühere Versionen haben `bgutil-provider` mit jeder Instanz gestartet. `tale deploy` startet ihn jetzt nur, wo die `.env` des Workspace `VIDEO_INGEST_POT_PROVIDER=true` setzt, und der erste Deploy dieser Version entfernt sonst den laufenden.
+
+YouTube-Links funktionieren weiter von einer Adresse, die YouTube nicht auf die Probe stellt. Von einer anderen scheitert ein Link und nennt den Anbieter. Fügen deine Mitglieder YouTube-Links ein und steht dein Host in einem Rechenzentrum, [aktiviere den Anbieter](/de/self-hosted/configuration/video-ingestion#token-provider) vor dem Upgrade.
+
 ## Upgrade von v0.5.77 oder älter
 
 Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.

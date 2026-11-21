@@ -1493,6 +1493,8 @@ export async function retryVideoLink(
   }
   if (
     (job.errorReasonCode === 'botDetection' ||
+      // The same wall, on a deployment that had no PO tokens for it.
+      job.errorReasonCode === 'poTokenProviderOff' ||
       job.errorReasonCode === 'rateLimited') &&
     Date.now() - job.statusChangedAt < RETRY_COOLDOWN_MS
   ) {

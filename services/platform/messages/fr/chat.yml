@@ -363,6 +363,7 @@ videoLink:
     unsupported: Ce site n'est pas pris en charge
     transient: Problème temporaire — réessaie
     botDetection: La plateforme vidéo a bloqué l'accès automatisé — réessaie plus tard ou utilise une autre plateforme
+    poTokenProviderOff: YouTube a demandé à ce serveur de prouver qu'il n'est pas un robot — demande à ton administrateur d'activer le fournisseur de jetons pour les liens vidéo
     rateLimited: La plateforme vidéo limite les requêtes — attends quelques minutes et réessaie
     RATE_LIMITED: La limite de téléversements est atteinte. Réessaie dans un moment.
     RATE_LIMITED_RETRY: "La limite de téléversements est atteinte. Réessaie dans {seconds, plural, one {# seconde} other {# secondes}}."

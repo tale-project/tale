@@ -17,7 +17,7 @@ The packaged single-host stack has eight services before replicas and temporary 
 | Application | `platform`; also `backend-api` and `backend-worker` where the roles run apart | The web tier serves the UI; the API authenticates requests and serves application operations; workers process queued tasks, automations, and ingestion. One `platform` process is all three unless the roles run apart. |
 | Persistent storage | `db`, `object-store` | Postgres holds application and knowledge data; the S3-compatible store holds original files and generated media. |
 | Sandboxed execution | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | The spawner creates execution sessions, the egress proxy controls outbound requests, and the model gateway supplies scoped model access. |
-| Video support | `bgutil-provider` | Supplies proof-of-origin tokens for video ingestion. Its availability can affect transcript retrieval. |
+| Video support | `bgutil-provider` | Supplies proof-of-origin tokens for YouTube links. `tale deploy` starts it only where `VIDEO_INGEST_POT_PROVIDER=true`. |
 
 The browser connects through the public proxy. Internal database, gateway, and sandbox ports should not be exposed as public services. With an external bucket, presigned file requests can instead go directly from the browser to that bucket's public endpoint.
 

@@ -439,7 +439,8 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker container inspect --format {{.State.Health.Status}} demo-abc123-sandbox-egress',
   'docker container inspect --format {{.State.Running}} demo-abc123-docker-api',
   'docker container inspect --format {{.State.Health.Status}} demo-abc123-docker-api',
-  'docker compose -p demo-abc123 -f <deploy-dir>/<compose> up -d bgutil-provider | cwd=<deploy-dir>',
+  'docker container inspect --format {{.Id}} demo-abc123-bgutil-provider',
+  'docker rm -f demo-abc123-bgutil-provider',
   'docker ps -a --filter label=com.docker.compose.project=demo-abc123-blue --filter label=com.docker.compose.service=platform --format \u00ab4fc2b80a78e6\u00bb',
   'docker container inspect --format \u00ab981aa748b02d\u00bb demo-abc123-blue-platform-1',
   'docker ps -a --filter label=com.docker.compose.project=demo-abc123-green --format \u00ab4fc2b80a78e6\u00bb',
@@ -607,6 +608,7 @@ async function isolatedSuite(): Promise<void> {
       'TALE_BACKEND_WORKER_REPLICAS',
       'TALE_APP_TIER',
       'DB_PROFILE',
+      'VIDEO_INGEST_POT_PROVIDER',
     ];
     let asked: Record<string, string | undefined> = {};
     beforeEach(() => {
@@ -847,6 +849,87 @@ async function isolatedSuite(): Promise<void> {
       expect(calls.some(({ args }) => args[0] === 'pull')).toBe(false);
       expect(calls.some(({ args }) => args[0] === 'compose')).toBe(false);
       expect(await getCurrentColor(deployDir)).toBe('blue');
+    });
+
+    describe('the PO-token provider', () => {
+      const SIDECAR = `${PROJECT}-bgutil-provider`;
+      /** The docker calls that name the sidecar, as `verb …rest`. */
+      const sidecarCalls = (): string[] =>
+        calls
+          .map(({ args }) => args.join(' '))
+          .filter((line) => line.includes('bgutil-provider'));
+
+      test('is started where the deployment asked for it', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        process.env.VIDEO_INGEST_POT_PROVIDER = 'true';
+
+        await run(TARGET);
+
+        expect(
+          sidecarCalls().filter((line) => line.startsWith('compose ')),
+        ).toEqual([
+          expect.stringMatching(
+            /^compose -p \S+ -f \S+ up -d bgutil-provider$/,
+          ),
+        ]);
+        expect(sidecarCalls().some((line) => line.startsWith('rm '))).toBe(
+          false,
+        );
+        expect(fake.instances.has(SIDECAR)).toBe(true);
+      });
+
+      // Every deployment had one before the provider was something to ask
+      // for; nothing in the stateful document names it any more, so nothing
+      // else would ever stop it.
+      test('is removed where an earlier deploy left one and the deployment did not ask', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        expect(fake.instances.has(SIDECAR)).toBe(true);
+
+        await run(TARGET);
+
+        expect(fake.instances.has(SIDECAR)).toBe(false);
+        expect(
+          sidecarCalls().some((line) => line.includes('up -d bgutil-provider')),
+        ).toBe(false);
+        expect(await getCurrentColor(deployDir)).toBe('green');
+      });
+
+      test('is neither started nor looked for twice where there is none', async () => {
+        seedLiveBlue(fake);
+        fake.instances.delete(SIDECAR);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        process.env.VIDEO_INGEST_POT_PROVIDER = 'false';
+
+        await run(TARGET);
+
+        expect(fake.instances.has(SIDECAR)).toBe(false);
+        expect(
+          sidecarCalls().filter(
+            (line) => line.startsWith('compose ') || line.startsWith('rm '),
+          ),
+        ).toEqual([]);
+        expect(await getCurrentColor(deployDir)).toBe('green');
+      });
+
+      test('a word that is neither true nor false is refused before anything is pulled', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        process.env.VIDEO_INGEST_POT_PROVIDER = 'yes';
+
+        await expect(run(TARGET)).rejects.toThrow(
+          'VIDEO_INGEST_POT_PROVIDER must be true, false, or unset; got: "yes"',
+        );
+
+        expect(calls.some(({ args }) => args[0] === 'pull')).toBe(false);
+        expect(calls.some(({ args }) => args[0] === 'compose')).toBe(false);
+        expect(fake.instances.has(SIDECAR)).toBe(true);
+      });
     });
 
     test('one process asked for by name ignores a backend count, which it scales nothing with', async () => {

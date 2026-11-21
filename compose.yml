@@ -218,7 +218,9 @@ services:
   # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into
   # the platform image (layout: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…),
   # so video-link ingestion survives YouTube's "confirm you're not a bot" wall
-  # on datacenter/flagged IPs — with zero operator config. Reached only by the
+  # on datacenter/flagged IPs. This stack starts it always, and its backend
+  # services are told so (VIDEO_INGEST_POT_PROVIDER below); a `tale deploy`
+  # deployment starts it on request. Reached only by the
   # backend over the internal network (no published ports); video ingest
   # degrades gracefully (no token) if it's down, so nothing depends_on it. The
   # image tag MUST match BGUTIL_POT_VERSION in
@@ -480,6 +482,11 @@ services:
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       SANDBOX_AGENT_PROFILE: ${SANDBOX_AGENT_PROFILE:-agent}
       TALE_SANDBOX_CLAUDE_EFFORT: ${TALE_SANDBOX_CLAUDE_EFFORT:-}
+      # This stack always starts `bgutil-provider` (above), so its backend
+      # asks it for PO tokens unless told not to. A `tale deploy` deployment
+      # starts the provider only where its .env asks for it
+      # (create-bgutil-provider-service.ts), and is off by default.
+      VIDEO_INGEST_POT_PROVIDER: ${VIDEO_INGEST_POT_PROVIDER:-true}
       # Where a sandbox CONTAINER reaches this backend: the in-sandbox
       # connectors bridge and the live-body host-call door are served here.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
@@ -575,6 +582,8 @@ services:
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       SANDBOX_AGENT_PROFILE: ${SANDBOX_AGENT_PROFILE:-agent}
       TALE_SANDBOX_CLAUDE_EFFORT: ${TALE_SANDBOX_CLAUDE_EFFORT:-}
+      # As for the api: this stack always starts `bgutil-provider`.
+      VIDEO_INGEST_POT_PROVIDER: ${VIDEO_INGEST_POT_PROVIDER:-true}
       # The worker DISPATCHES connector bodies too (automation nodes), so it
       # mints the same in-sandbox host-call URL the api does.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}

@@ -14,7 +14,7 @@ This is a deployment contract with an application-tier example, not a complete C
 | Replicable application | `platform`, `backend-api`, `backend-worker` | Same image and release. Keep shared wire contracts compatible during replacement. |
 | Persistent stores and edge | `db`, `object-store`, `proxy` | Preserve volumes, credentials, certificates, and stable network names when replacing containers. |
 | Shared execution services | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Coordinate active sessions before replacement; the spawner needs the Docker daemon and matching workspace paths. |
-| Optional video support | `bgutil-provider` | Best-effort token provider; its failure can affect video retrieval. |
+| Optional video support | `bgutil-provider` | Best-effort token provider; its failure can affect video retrieval. The backend asks it only with `VIDEO_INGEST_POT_PROVIDER=true`, which the reference stack sets for its own services. |
 
 The packaged layout keeps `tale_app` and `tale_knowledge` in one Postgres service with a `knowledge-db` alias. Separate database services or managed databases are also possible; configure their connections and backup coverage explicitly. Recreating a stateful container does not inherently destroy its data, but removing or replacing its volume can.
 

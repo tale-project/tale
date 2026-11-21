@@ -14,7 +14,7 @@ Dies ist eine Beschreibung des Bereitstellungsvertrags mit Beispiel für die Anw
 | Replizierbare Anwendung | `platform`, `backend-api`, `backend-worker` | Gleiches Image und Release; Schnittstellen während des Austauschs kompatibel halten. |
 | Dauerhafte Speicher und Zugang | `db`, `object-store`, `proxy` | Volumes, Zugangsdaten, Zertifikate und stabile Netzwerknamen beim Austausch erhalten. |
 | Gemeinsame Ausführungsdienste | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Aktive Sitzungen vor dem Austausch berücksichtigen; der Spawner braucht Docker-Daemon und passende Workspace-Pfade. |
-| Optionale Video-Unterstützung | `bgutil-provider` | Token-Anbieter ohne Startgarantie; sein Ausfall kann Videoabrufe beeinträchtigen. |
+| Optionale Video-Unterstützung | `bgutil-provider` | Token-Anbieter ohne Startgarantie; sein Ausfall kann Videoabrufe beeinträchtigen. Das Backend fragt ihn nur mit `VIDEO_INGEST_POT_PROVIDER=true`, was der Referenz-Stack für seine eigenen Dienste setzt. |
 
 Im mitgelieferten Aufbau liegen `tale_app` und `tale_knowledge` in einem Postgres-Dienst mit Alias `knowledge-db`. Separate oder verwaltete Datenbanken sind ebenfalls möglich. Konfiguriere ihre Verbindungen und Sicherungen ausdrücklich. Ein neuer Container zerstört vorhandene Daten nicht automatisch; ein entferntes oder ersetztes Volume kann es tun.
 

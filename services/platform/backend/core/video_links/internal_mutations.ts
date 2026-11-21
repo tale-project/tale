@@ -31,4 +31,7 @@ export type VideoLinkErrorReason =
   | 'privateIpResolved'
   // Orchestrator-synthesized
   | 'videoTooLong'
-  | 'whisperFailed';
+  | 'whisperFailed'
+  // YouTube's bot check on a deployment with no PO tokens to answer it with
+  // (`botWallReason` in ytdlp.ts).
+  | 'poTokenProviderOff';

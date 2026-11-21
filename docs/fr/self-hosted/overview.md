@@ -17,7 +17,7 @@ Le déploiement fourni pour un hôte comprend huit services, sans compter les r�
 | Application | `platform` ; aussi `backend-api` et `backend-worker` là où les rôles tournent séparément | Le service web fournit l’interface. L’API authentifie les requêtes et traite les opérations applicatives. Les workers exécutent les tâches, automatisations et imports en file d’attente. Un processus `platform` est les trois à la fois tant que les rôles ne tournent pas séparément. |
 | Stockage persistant | `db`, `object-store` | Postgres conserve les données applicatives et les connaissances ; le stockage compatible S3 contient les fichiers d’origine et les médias générés. |
 | Exécution en sandbox | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Le spawner crée les sessions d’exécution, le proxy de sortie contrôle les requêtes réseau et la passerelle de modèles fournit un accès limité aux modèles. |
-| Prise en charge vidéo | `bgutil-provider` | Fournit des jetons de preuve d’origine pour l’ingestion vidéo. Sa disponibilité peut affecter la récupération des transcriptions. |
+| Prise en charge vidéo | `bgutil-provider` | Fournit des jetons de preuve d’origine pour les liens YouTube. `tale deploy` ne le démarre qu’avec `VIDEO_INGEST_POT_PROVIDER=true`. |
 
 Le navigateur passe par le proxy public. Les ports internes des bases, de la passerelle et des sandbox ne doivent pas être exposés comme services publics. Avec un bucket externe, les requêtes de fichiers présignées peuvent aller directement du navigateur à son point d’accès public.
 

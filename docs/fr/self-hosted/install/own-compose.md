@@ -14,7 +14,7 @@ Cette page décrit le contrat de déploiement avec un exemple de couche applicat
 | Application réplicable | `platform`, `backend-api`, `backend-worker` | Même image et release ; conserver des interfaces compatibles pendant le remplacement. |
 | Stockages persistants et entrée | `db`, `object-store`, `proxy` | Préserver volumes, identifiants, certificats et noms réseau stables lors du remplacement. |
 | Exécution partagée | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Coordonner les sessions actives avant remplacement ; le spawner demande le daemon Docker et des chemins de workspace correspondants. |
-| Vidéo facultative | `bgutil-provider` | Fournisseur de jetons démarré au mieux ; sa panne peut affecter les récupérations vidéo. |
+| Vidéo facultative | `bgutil-provider` | Fournisseur de jetons démarré au mieux ; sa panne peut affecter les récupérations vidéo. Le backend ne l’interroge qu’avec `VIDEO_INGEST_POT_PROVIDER=true`, que la pile de référence définit pour ses propres services. |
 
 Le montage fourni conserve `tale_app` et `tale_knowledge` dans un service Postgres avec l’alias `knowledge-db`. Des bases séparées ou gérées sont aussi possibles ; configure explicitement connexions et sauvegardes. Recréer un conteneur persistant ne détruit pas automatiquement ses données, mais retirer ou remplacer son volume peut le faire.
 

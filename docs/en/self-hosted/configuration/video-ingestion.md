@@ -13,19 +13,28 @@ This operator guide covers transcript retrieval configuration. Start with a publ
 | --- | --- |
 | One video fails | Whether the URL is supported, the content is still available, and a usable transcript or audio path exists. |
 | Many videos fail from one host | Worker extractor errors, source-platform responses, and that host's network path. |
+| A YouTube link says the server was asked to prove it isn't a bot | The token provider, which is off until you [turn it on](#token-provider). |
 | Videos meet a bot check through your proxies | The worker's `[ytdlp] outbound proxy entry` lines, and whether each listed proxy keeps one address ([egress proxy](#egress-proxy)). |
 | Retrieval works but knowledge search does not | The organization's embedding configuration and indexing status. |
 | Failures begin after a session worked | Session expiry, source-account state, and cooling or retirement in the pool. |
 
 Read `tale logs backend-worker --tail 200` and the item's failure reason. Keep the URL and error category, but remove account cookies, signed URLs, and credentials before sharing diagnostics. Retries may help a transient failure; repeated identical refusals need investigation.
 
-## Check the built-in token provider
+## Turn on the token provider {#token-provider}
 
-The platform image includes the token plugin, and the packaged deployment starts `bgutil-provider` on the internal network. The default endpoint is `http://bgutil-provider:4416`. It supplies proof-of-origin tokens used by supported extractor requests; it does not grant access to private content or guarantee that a source accepts the request.
+YouTube asks some addresses, data-center addresses above all, to prove that a request does not come from a bot. A link then fails, and the member reads that YouTube asked this server to prove it isn't a bot and that an administrator can turn on the token provider.
 
-Check `tale logs bgutil-provider` and whether the worker can reach the service. The sidecar is best-effort: its failure does not prevent the core deployment from starting, though transcript retrieval may degrade.
+The provider is `bgutil-provider`, a service on the internal network that supplies the proof-of-origin tokens such a request needs. The platform image includes its plugin. A packaged deployment does not start it unless asked: it is one more container, about 60 MiB at rest, and only a deployment that YouTube challenges has a use for it. To turn it on, add this line to the workspace's `.env` and run `tale deploy`:
 
-`VIDEO_INGEST_POT_PROVIDER_URL` selects another provider endpoint. `VIDEO_INGEST_PO_TOKEN` supplies a manually obtained token. Keep token material in your secret configuration. The [environment reference](/self-hosted/configuration/environment-reference) also lists extractor-client and plugin options; change them only when the observed error calls for it.
+```dotenv
+VIDEO_INGEST_POT_PROVIDER=true
+```
+
+The deploy starts the provider, and the backend asks it at `http://bgutil-provider:4416` from then on. Remove the line, or set it to `false`, and the next deploy removes the provider again. A token does not grant access to private content or guarantee that a source accepts the request.
+
+Check `tale logs bgutil-provider` and whether the worker can reach the service. The provider is best-effort: its failure does not prevent the core deployment from starting, though transcript retrieval may degrade.
+
+`VIDEO_INGEST_POT_PROVIDER_URL` names a provider of your own instead, and needs no other setting. `VIDEO_INGEST_PO_TOKEN` supplies a manually obtained token. Keep token material in your secret configuration. The [environment reference](/self-hosted/configuration/environment-reference) also lists extractor-client and plugin options; change them only when the observed error calls for it.
 
 ## Configure an egress proxy {#egress-proxy}
 

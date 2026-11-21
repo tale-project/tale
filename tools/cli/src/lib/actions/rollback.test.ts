@@ -675,6 +675,43 @@ describe('rollback confirmation', () => {
     // nothing.
     const assumed = `[DRY-RUN] ${target} is not on this host yet, and the image says which services its colour runs. This preview shows the ones an image of this release runs; one from before the app moved into the backend process runs platform, backend-api and backend-worker.`;
 
+    // The provider is a container the deployment asks for. A preview says
+    // what the deploy would do about it, and touches nothing.
+    const wouldStart =
+      '[DRY-RUN] Would deploy bgutil-provider sidecar (separate, non-blocking)';
+    const wouldRemove =
+      '[DRY-RUN] Would remove the bgutil-provider sidecar: video links get no PO tokens for YouTube unless VIDEO_INGEST_POT_PROVIDER=true is in .env.';
+
+    test('previews the removal of a PO-token provider the deployment did not ask for', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      await preview();
+      expect(infoLines()).toContain(wouldRemove);
+      expect(infoLines()).not.toContain(wouldStart);
+      expect(
+        dockerMock.mock.calls.some(
+          (call) => call[0] === 'rm' && call.includes('tale-bgutil-provider'),
+        ),
+      ).toBe(false);
+    });
+
+    test('previews the start of the PO-token provider where the deployment asked for it', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      const before = process.env.VIDEO_INGEST_POT_PROVIDER;
+      process.env.VIDEO_INGEST_POT_PROVIDER = 'true';
+      try {
+        await preview();
+      } finally {
+        if (before === undefined) delete process.env.VIDEO_INGEST_POT_PROVIDER;
+        else process.env.VIDEO_INGEST_POT_PROVIDER = before;
+      }
+      expect(infoLines()).toContain(wouldStart);
+      expect(infoLines()).not.toContain(wouldRemove);
+    });
+
     test('previews an image that is not pulled yet as one of this release, and says so', async () => {
       arrangePatchRollback();
       protocolFloor = 2;

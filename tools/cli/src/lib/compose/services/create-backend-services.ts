@@ -214,6 +214,11 @@ function roleEnvironment(
     SANDBOX_URL: '${SANDBOX_URL:-http://sandbox:8003}',
     SANDBOX_AGENT_PROFILE: '${SANDBOX_AGENT_PROFILE:-agent}',
     TALE_SANDBOX_CLAUDE_EFFORT: '${TALE_SANDBOX_CLAUDE_EFFORT:-}',
+    // Whether to ask the bundled PO-token provider, which a deployment
+    // starts only where its .env says so (create-bgutil-provider-service.ts).
+    // Empty is off. compose.yml, whose stack always starts the provider,
+    // defaults the same key to `true`.
+    VIDEO_INGEST_POT_PROVIDER: '${VIDEO_INGEST_POT_PROVIDER:-}',
     SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
     // Where the backend reaches the blob store. Defaults to the bundled
     // one at its internal address — presigned URLs are signed here and

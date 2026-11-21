@@ -17,7 +17,7 @@ Die mitgelieferte Bereitstellung auf einem Host umfasst acht Dienste, bevor Repl
 | Anwendung | `platform`; dazu `backend-api` und `backend-worker`, wo die Rollen getrennt laufen | Die Web-Ebene liefert die Oberfläche. Die API authentifiziert Anfragen und führt Anwendungsoperationen aus. Worker bearbeiten Aufgaben, Automatisierungen und Importe aus der Warteschlange. Ein `platform`-Prozess ist alle drei zugleich, solange die Rollen nicht getrennt laufen. |
 | Dauerhafter Speicher | `db`, `object-store` | Postgres speichert Anwendungs- und Wissensdaten; der S3-kompatible Speicher enthält Originaldateien und erzeugte Medien. |
 | Sandbox-Ausführung | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Der Spawner erstellt Ausführungssitzungen, der Egress-Proxy kontrolliert ausgehende Anfragen und das Modell-Gateway stellt begrenzten Modellzugriff bereit. |
-| Video-Unterstützung | `bgutil-provider` | Liefert Proof-of-Origin-Tokens für den Videoimport. Seine Verfügbarkeit kann den Abruf von Transkripten beeinflussen. |
+| Video-Unterstützung | `bgutil-provider` | Liefert Proof-of-Origin-Tokens für YouTube-Links. `tale deploy` startet ihn nur mit `VIDEO_INGEST_POT_PROVIDER=true`. |
 
 Der Browser verbindet sich über den öffentlichen Proxy. Datenbank-, Gateway- und Sandbox-Ports sollten nicht öffentlich erreichbar sein. Bei einem externen Bucket können vorsignierte Dateianfragen direkt vom Browser an dessen öffentlichen Endpunkt gehen.
 

@@ -56,6 +56,7 @@ import { assertSafeUrl, UrlSafetyError } from './url_safety';
 import {
   YtDlpError,
   YtdlpRoute,
+  botWallReason,
   createJobDir,
   ytdlpExtractAudio,
   ytdlpJson,
@@ -371,10 +372,17 @@ export async function ingestVideoLinkImpl(
      * `failed` with a Retry button: a lost CAS is logged and nothing else
      * is written. */
     const fail = async (
-      reasonCode: VideoLinkErrorReason,
+      ytdlpReason: VideoLinkErrorReason,
       message: string,
       expectedStatus: string,
     ): Promise<void> => {
+      // A bot check that ended the video is told apart here, once, for what
+      // the member reads and the log says: YouTube's on a deployment with no
+      // PO tokens is a setting to change, not a wall to wait out.
+      const reasonCode: VideoLinkErrorReason =
+        ytdlpReason === 'botDetection'
+          ? botWallReason(job.sourcePlatform, process.env)
+          : ytdlpReason;
       console.error(
         JSON.stringify({
           event: 'video_link.failed',

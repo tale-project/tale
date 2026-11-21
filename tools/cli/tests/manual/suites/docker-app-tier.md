@@ -64,6 +64,17 @@ workspace says so where it wants the earlier sizes.
 - [ ] `APP-B3` · **Add `DB_PROFILE=tiny` to the workspace's `.env` and run `tale deploy`** → it exits `3` with `DB_PROFILE must be small, standard, or unset; got: "tiny"` before it pulls an image; `docker ps` lists the same containers as before, and the settings of `APP-F17` are unchanged.
 - [ ] `APP-F19` · **Change the line to `DB_PROFILE=standard`, add `DB_WORK_MEM=64MB`, run `tale deploy`, then run the command of `APP-F17` again** → the deploy exits `0` and recreates `<project>-db`; the command prints `shared_buffers=256MB`, `work_mem=64MB`, `maintenance_work_mem=128MB`, `max_connections=100`, `autovacuum_max_workers=3` and `max_parallel_workers_per_gather=2`, and the app signs in and answers a chat message. Remove both lines and deploy again to return to the small profile.
 
+## Turn the token provider on and off · the workspace of the group above · 15 min
+
+The provider of YouTube's proof-of-origin tokens is a container a workspace
+asks for. The earlier release started it with every deployment.
+
+- [ ] `APP-F20` · **Run `docker ps -a --format '{{.Names}}' | grep bgutil`, and read the output of the deploy in `APP-F2`** → the command prints nothing, and the deploy printed `Removed the bgutil-provider sidecar: video links get no PO tokens for YouTube unless VIDEO_INGEST_POT_PROVIDER=true is in .env.`
+- [ ] `APP-F21` · **Add `VIDEO_INGEST_POT_PROVIDER=true` to the workspace's `.env`, run `tale deploy`, then `docker ps --format '{{.Names}} {{.Status}}' | grep bgutil` and `docker inspect <project>-<colour>-platform-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep VIDEO_INGEST_POT_PROVIDER`** → the deploy exits `0`; `<project>-bgutil-provider` is up and healthy within a minute, and the application's environment holds `VIDEO_INGEST_POT_PROVIDER=true`.
+- [ ] `APP-F22` · **Paste a YouTube link into a chat message and wait for its chip to settle, then run `tale logs bgutil-provider --tail 20`** → the chip reads Ready, or fails with a reason that does not name the token provider, and the log shows the provider answering token requests.
+- [ ] `APP-B4` · **Change the line to `VIDEO_INGEST_POT_PROVIDER=yes` and run `tale deploy`** → it exits `3` with `VIDEO_INGEST_POT_PROVIDER must be true, false, or unset; got: "yes"` before it pulls an image, and `<project>-bgutil-provider` is still running.
+- [ ] `APP-F23` · **Remove the line, run `tale deploy`, then `docker ps -a --format '{{.Names}}' | grep bgutil`** → the deploy prints that it removed the sidecar, and the command prints nothing.
+
 ## Bring the three services back · the workspace of the group above · 15 min
 
 What a workspace does before it returns to a CLI from before this setting, which

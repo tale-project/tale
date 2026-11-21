@@ -47,10 +47,11 @@ const YTDLP_BIN = 'yt-dlp';
 /**
  * Where `services/platform/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
  * plugin, and the compose sidecar (`bgutil-provider`) that serves the tokens.
- * Both are present only in the self-hosted image + stack; when the plugin dir
- * exists we default the plugin path and provider URL so PO tokens work with
- * ZERO operator config (mirrors `knowledge_db.ts`'s `knowledge-db` fallback).
- * `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL` override.
+ * The plugin is in the self-hosted image; the sidecar runs only where a
+ * deployment turned it on (`VIDEO_INGEST_POT_PROVIDER=true`), and there the
+ * plugin path and the provider URL default to the pair, with nothing else
+ * to set. `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL`
+ * override.
  * Evaluated once at module load — cheap, and the image layout never changes at
  * runtime. Absent on a host `bun dev` (no baked dir) → defaults stay dormant.
  *
@@ -470,13 +471,59 @@ export function resetServingProxiesForTests(): void {
 const DEFAULT_YOUTUBE_PLAYER_CLIENT = 'default,tv_simply';
 
 /**
- * When a PO-token provider is available (baked plugin → compose sidecar, or
- * an explicit `VIDEO_INGEST_POT_PROVIDER_URL`), include `mweb` — yt-dlp's
+ * When a PO-token provider is available (the bundled one, turned on, or an
+ * explicit `VIDEO_INGEST_POT_PROVIDER_URL`), include `mweb` — yt-dlp's
  * PO-Token Guide TL;DR is "provider + mweb for GVS". Without `mweb` in the
  * list the provider is registered but rarely asked, and flagged datacenter
  * IPs still hit the bot wall. Operators can still override via env.
  */
 const DEFAULT_YOUTUBE_PLAYER_CLIENT_WITH_POT = 'default,mweb,tv_simply';
+
+/**
+ * Whether the deployment turned on the PO-token provider it ships
+ * (`VIDEO_INGEST_POT_PROVIDER=true`). Off unless it says so: the provider is
+ * one more container, about 60 MiB at rest, and only a deployment whose
+ * address YouTube challenges has a use for it.
+ */
+export function potProviderOn(env: NodeJS.ProcessEnv): boolean {
+  return env.VIDEO_INGEST_POT_PROVIDER?.trim().toLowerCase() === 'true';
+}
+
+/**
+ * The PO-token provider a run asks: the one the deployment names, else the
+ * bundled one where it is turned on and the image ships its plugin.
+ * Undefined when a run has none.
+ */
+export function potProviderUrl(
+  env: NodeJS.ProcessEnv,
+  hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+): string | undefined {
+  return (
+    env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
+    (hasBakedPlugin && potProviderOn(env)
+      ? DEFAULT_POT_PROVIDER_URL
+      : undefined)
+  );
+}
+
+/**
+ * What a member is told when a platform's bot check ended a video for good.
+ * YouTube's is one a deployment answers with PO tokens. Where it has no
+ * source of them, the wall is the deployment's own setting to change, and
+ * "try again later" would send the member round in circles: that case has a
+ * reason of its own, which names who can change it.
+ */
+export function botWallReason(
+  platform: string,
+  env: NodeJS.ProcessEnv,
+  hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+): 'botDetection' | 'poTokenProviderOff' {
+  if (platform !== 'youtube') return 'botDetection';
+  const hasTokens =
+    potProviderUrl(env, hasBakedPlugin) !== undefined ||
+    Boolean(env.VIDEO_INGEST_PO_TOKEN?.trim());
+  return hasTokens ? 'botDetection' : 'poTokenProviderOff';
+}
 
 /** Values yt-dlp accepts for the `youtube:fetch_pot` extractor-arg. */
 const FETCH_POT_VALUES = new Set(['never', 'auto', 'always']);
@@ -506,11 +553,9 @@ export function youtubeExtractorArgsFromEnv(
   session?: YtdlpSession,
   hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
 ): string[] {
-  // Explicit env wins; otherwise, when the bgutil plugin is baked into the
-  // image, default to the compose sidecar so PO tokens work out of the box.
-  const providerUrl =
-    env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
-    (hasBakedPlugin ? DEFAULT_POT_PROVIDER_URL : undefined);
+  // Explicit env wins; otherwise the bundled provider, where the deployment
+  // turned it on and the image ships its plugin.
+  const providerUrl = potProviderUrl(env, hasBakedPlugin);
 
   const client =
     env.VIDEO_INGEST_PLAYER_CLIENT?.trim() ||
@@ -584,7 +629,8 @@ export function cookiesFlagsFromEnv(
  * a plugins directory (e.g. where the bgutil PO-token-provider plugin is baked
  * into the image) — needed because the spawn sets `HOME` to the throwaway job
  * dir, so the default `~/.config/yt-dlp/plugins` never resolves. Falls back to
- * the baked plugin dir when it exists, so the self-hosted image needs no config.
+ * the baked plugin dir where a run has a provider to ask: loaded without one,
+ * the plugin would look for a provider on the loopback that nobody runs.
  */
 export function pluginDirFlagsFromEnv(
   env: NodeJS.ProcessEnv,
@@ -592,7 +638,9 @@ export function pluginDirFlagsFromEnv(
 ): string[] {
   const dir =
     env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS?.trim() ||
-    (hasBakedPlugin ? BAKED_YTDLP_PLUGIN_DIR : undefined);
+    (hasBakedPlugin && potProviderUrl(env, hasBakedPlugin) !== undefined
+      ? BAKED_YTDLP_PLUGIN_DIR
+      : undefined);
   return dir ? ['--plugin-dirs', dir] : [];
 }
 

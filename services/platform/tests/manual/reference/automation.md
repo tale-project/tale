@@ -39,6 +39,22 @@ own it end to end:
 What they cannot judge is the stop of a real container behind the edge:
 [`PERF-B14`](../suites/performance.md) asks a person for that.
 
+## What a walled YouTube link says (#4942)
+
+No box asks a person to provoke YouTube's bot check, which depends on the
+address a deployment has. These suites own what follows it:
+
+- `backend/core/video_links/ytdlp.test.ts` holds when a run asks the bundled
+  PO-token provider (only where the deployment turned it on, in an image that
+  ships its plugin, or where it names a provider of its own), that the plugin
+  is not loaded without one, and the reason a bot check ends a video with:
+  `poTokenProviderOff` for YouTube on a deployment with no source of tokens,
+  `botDetection` everywhere else.
+- `backend/core/video_links/ingest_video_link.sessions.test.ts` runs the
+  ingest into a walled video and reads the reason the job is failed with.
+- The i18n parity suites hold the message under `videoLink.errors` in every
+  locale the catalog ships.
+
 ## How the app's files and the API's answers travel (#4942)
 
 The build compresses the app's files and the edge compresses text alone;

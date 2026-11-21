@@ -30,6 +30,7 @@ import {
   selectDefaultServices,
   servicesKeepingHost,
 } from '../compose/select-services';
+import { potProviderAsked } from '../compose/services/create-bgutil-provider-service';
 import { askedDbProfile } from '../compose/services/create-db-service';
 import {
   memoryReservationNotice,
@@ -102,6 +103,10 @@ import {
 } from './incus-deploy';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
+
+/** What a deploy says of the PO-token provider it does not run. */
+const POT_PROVIDER_OFF =
+  'video links get no PO tokens for YouTube unless VIDEO_INGEST_POT_PROVIDER=true is in .env.';
 
 async function ensureInfrastructure(
   prefix: string,
@@ -418,6 +423,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // a database profile the image does not know.
       askedAppTier();
       askedDbProfile();
+      const potProvider = potProviderAsked();
 
       // Pull all required images first. The sandbox tier (sandbox +
       // sandbox-egress) is now a stateful always-roll singleton, so its images
@@ -844,9 +850,17 @@ export async function deploy(options: DeployOptions): Promise<void> {
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
           }
-          logger.info(
-            `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
-          );
+          if (potProvider) {
+            logger.info(
+              `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
+            );
+          } else if (
+            await runtime.exists(`${getProjectId()}-bgutil-provider`)
+          ) {
+            logger.info(
+              `${prefix}Would remove the bgutil-provider sidecar: ${POT_PROVIDER_OFF}`,
+            );
+          }
         } else {
           // Drain in-flight sandbox executions before the single spawner is
           // recreated below (the tier dropped blue-green — one container rolled
@@ -897,27 +911,44 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
-          // bgutil PO-token provider — brought up SEPARATELY and best-effort
-          // after the core services are healthy. It's a third-party image (not
-          // a `tale-*` build in the always-roll tier), so a pull/start failure
-          // must never fail the core deploy, and YouTube ingestion degrades
-          // gracefully (no PO token) if it never starts. Always attempted —
-          // it's the zero-config path, not opt-in.
-          const bgutilUp = await runtime.converge(
-            {
-              stack: getProjectId(),
-              compose: statefulCompose,
-              cwd: env.DEPLOY_DIR,
-            },
-            {
-              services: ['bgutil-provider'],
-              forceRecreate: Boolean(options.forceRecreate),
-            },
-          );
-          if (!bgutilUp.success) {
-            logger.warn(
-              `${prefix}bgutil-provider sidecar did not start (YouTube ingestion falls back to no PO token): ${bgutilUp.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+          // bgutil PO-token provider — where the deployment asked for it,
+          // brought up SEPARATELY and best-effort after the core services are
+          // healthy. It's a third-party image (not a `tale-*` build in the
+          // always-roll tier), so a pull/start failure must never fail the
+          // core deploy, and YouTube ingestion degrades gracefully (no PO
+          // token) if it never starts.
+          const sidecar = `${getProjectId()}-bgutil-provider`;
+          if (potProvider) {
+            const bgutilUp = await runtime.converge(
+              {
+                stack: getProjectId(),
+                compose: statefulCompose,
+                cwd: env.DEPLOY_DIR,
+              },
+              {
+                services: ['bgutil-provider'],
+                forceRecreate: Boolean(options.forceRecreate),
+              },
             );
+            if (!bgutilUp.success) {
+              logger.warn(
+                `${prefix}bgutil-provider sidecar did not start (YouTube ingestion falls back to no PO token): ${bgutilUp.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+              );
+            }
+          } else if (await runtime.exists(sidecar)) {
+            // One an earlier deploy started, when every deployment had one.
+            // Nothing in the stateful document names it any more, so nothing
+            // else would ever stop it.
+            const removed = await runtime.remove(sidecar);
+            if (removed) {
+              logger.info(
+                `${prefix}Removed the bgutil-provider sidecar: ${POT_PROVIDER_OFF}`,
+              );
+            } else {
+              logger.warn(
+                `${prefix}Could not remove the bgutil-provider sidecar, which this deployment no longer uses. Remove the container ${sidecar} by hand.`,
+              );
+            }
           }
         }
       }

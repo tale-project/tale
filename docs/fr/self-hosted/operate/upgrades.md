@@ -158,6 +158,12 @@ DB_PROFILE=standard
 
 Pour ne changer qu’une taille, nomme celle-là à la place, par exemple `DB_SHARED_BUFFERS=1GB`. Une taille que tu nommes l’emporte sur le profil.
 
+## Le fournisseur de jetons pour les liens YouTube est désactivé par défaut {#token-provider}
+
+Les versions précédentes démarraient `bgutil-provider` avec chaque déploiement. `tale deploy` ne le démarre plus que là où le `.env` de l’espace de travail définit `VIDEO_INGEST_POT_PROVIDER=true`, et le premier déploiement de cette version retire sinon celui qui tourne.
+
+Les liens YouTube continuent de fonctionner depuis une adresse que YouTube ne met pas à l’épreuve. Depuis une autre, un lien échoue et nomme le fournisseur. Si tes membres collent des liens YouTube et que ton hôte est dans un centre de données, [active le fournisseur](/fr/self-hosted/configuration/video-ingestion#token-provider) avant la mise à niveau.
+
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
 À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.

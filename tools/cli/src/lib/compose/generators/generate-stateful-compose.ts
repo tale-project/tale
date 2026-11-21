@@ -2,7 +2,10 @@ import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
 import type { RunOrigin } from '../../config/dev-origin';
-import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
+import {
+  createBgutilProviderService,
+  potProviderAsked,
+} from '../services/create-bgutil-provider-service';
 import { createDbService } from '../services/create-db-service';
 import { createObjectStorageService } from '../services/create-object-storage-service';
 import {
@@ -50,9 +53,12 @@ export function buildStatefulCompose(
     'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),
-    // Third-party sidecar; deploy.ts brings it up best-effort after core
-    // services (not in the always-roll tier — see the service comment).
-    'bgutil-provider': createBgutilProviderService(config),
+    // Third-party sidecar, where the deployment asked for it; deploy.ts
+    // brings it up best-effort after core services (not in the always-roll
+    // tier — see the service comment).
+    ...(potProviderAsked()
+      ? { 'bgutil-provider': createBgutilProviderService(config) }
+      : {}),
   };
   const compose: ComposeConfig = {
     services,

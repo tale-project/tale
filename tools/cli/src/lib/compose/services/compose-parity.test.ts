@@ -704,9 +704,11 @@ describe('read-only Docker API proxy parity', () => {
   });
 });
 
-describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () => {
+describe('bgutil PO-token provider parity (YouTube ingestion)', () => {
   // The sidecar must exist in BOTH pipelines, on the same image tag, or one
-  // path silently loses PO tokens (YouTube bot wall returns). The tag must also
+  // path silently loses PO tokens (YouTube bot wall returns): always in
+  // compose.yml, whose backend is told so, and on request from the CLI
+  // generator, whose backend then hears the same word. The tag must also
   // match BGUTIL_POT_VERSION in services/platform/Dockerfile (checked there
   // via the pinned SHA256) — asserted here as a constant so a bump touches
   // both.
@@ -722,16 +724,41 @@ describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () =
     );
   });
 
-  test('CLI generator emits bgutil-provider on the same pinned image', () => {
-    const generated = parse(
-      generateStatefulCompose(config, 'tale.example'),
-    ) as {
+  test('CLI generator emits bgutil-provider on the same pinned image, where the deployment asks for it', () => {
+    const before = process.env.VIDEO_INGEST_POT_PROVIDER;
+    process.env.VIDEO_INGEST_POT_PROVIDER = 'true';
+    let generated: {
       services: Record<string, { image?: string; networks?: unknown }>;
     };
+    try {
+      generated = parse(generateStatefulCompose(config, 'tale.example')) as {
+        services: Record<string, { image?: string; networks?: unknown }>;
+      };
+    } finally {
+      if (before === undefined) delete process.env.VIDEO_INGEST_POT_PROVIDER;
+      else process.env.VIDEO_INGEST_POT_PROVIDER = before;
+    }
     expect(generated.services['bgutil-provider']?.image).toBe(EXPECTED_IMAGE);
     expect(
       networkNames(generated.services['bgutil-provider']?.networks),
     ).toEqual(['internal']);
+  });
+
+  // The backend asks the provider only where it hears the word, so each
+  // pipeline must say it to the backend it starts beside the sidecar.
+  test('each pipeline tells its backend whether to ask the provider', () => {
+    for (const name of ['backend-api', 'backend-worker']) {
+      expect(
+        compose.services[name]?.environment?.VIDEO_INGEST_POT_PROVIDER,
+        name,
+      ).toBe('${VIDEO_INGEST_POT_PROVIDER:-true}');
+    }
+    expect(
+      createBackendApiService(config).environment?.VIDEO_INGEST_POT_PROVIDER,
+    ).toBe('${VIDEO_INGEST_POT_PROVIDER:-}');
+    expect(
+      createBackendWorkerService(config).environment?.VIDEO_INGEST_POT_PROVIDER,
+    ).toBe('${VIDEO_INGEST_POT_PROVIDER:-}');
   });
 
   // yt-dlp --plugin-dirs DIR does DIR.iterdir() then looks for yt_dlp_plugins
