@@ -75,10 +75,18 @@ describe('wrapWithCap', () => {
     );
   });
 
-  it('is pull-based: it does not drain an infinite source ahead of the consumer (backpressure)', async () => {
+  it('is pull-based: it does not drain a long source ahead of the consumer (backpressure)', async () => {
+    // Long, and with an end: a wrapper that drained its source fails on the
+    // count below, where a source without an end would have it read until
+    // the machine was out of memory, with no timeout to stop it.
+    const LONG = 100_000;
     let produced = 0;
     const src = new ReadableStream<Uint8Array>({
       pull(c) {
+        if (produced === LONG) {
+          c.close();
+          return;
+        }
         produced++;
         c.enqueue(new Uint8Array(1));
       },
@@ -87,9 +95,9 @@ describe('wrapWithCap', () => {
     const reader = (body as ReadableStream<Uint8Array>).getReader();
     await reader.read();
     await reader.read();
-    // A start()-loop would have drained the infinite source unboundedly
-    // (the critical bug). The pull source produces ~one chunk per consumer
-    // read plus a tiny prefetch window.
+    // A start()-loop would have drained the whole source (the critical
+    // bug). The pull source produces ~one chunk per consumer read plus a
+    // tiny prefetch window.
     expect(produced).toBeLessThan(10);
     await reader.cancel();
   });
