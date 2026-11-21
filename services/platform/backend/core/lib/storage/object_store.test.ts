@@ -19,6 +19,7 @@ import {
   buildS3ObjectStore,
   clearOrgObjectStoreCache,
   deleteOrgObject,
+  fileBody,
   locateOrgObject,
   locateOrgObjectStore,
   ObjectLengthMismatchError,
@@ -32,6 +33,7 @@ import {
   s3GetObjectStream,
   s3GetObjectToFile,
   s3HeadObject,
+  s3ObjectSha256,
   s3PresignGetUrl,
   s3PresignPutUrl,
   s3PutObjectStream,
@@ -41,6 +43,7 @@ import {
 } from './object_store';
 import {
   collectGarbage,
+  collectGarbageNow,
   startTestStore,
   type TestStore,
 } from './object_store.test-helpers';
@@ -1055,6 +1058,401 @@ describe('s3PutObjectStream — an object stored as its body is read', () => {
     read();
     await stored;
     expect(target.puts[0]?.received).toBe(pieces * piece.byteLength);
+  });
+});
+
+describe('s3PutObjectStream — an object stored only where none is', () => {
+  let target: TestStore;
+  beforeEach(async () => {
+    target = await startTestStore();
+  });
+  afterEach(async () => {
+    await target.close();
+  });
+
+  /** A body of `megabytes`, in pieces, saying how much of it was asked
+   * for and whether it was given back. */
+  function bodyOf(megabytes: number, fill: number) {
+    const total = megabytes * 1024 * 1024;
+    let pulled = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        pulled += 64 * 1024;
+        controller.enqueue(new Uint8Array(64 * 1024).fill(fill));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return { body, total, pulled: () => pulled, cancelled: () => cancelled };
+  }
+
+  const createOnly = (
+    key: string,
+    source: ReturnType<typeof bodyOf>,
+    more: Partial<Parameters<typeof s3PutObjectStream>[3]> = {},
+  ) =>
+    s3PutObjectStream(target.store, key, source.body, {
+      contentLength: source.total,
+      contentType: 'application/pdf',
+      createOnly: true,
+      ...more,
+    });
+
+  it('stores an object under a key that holds none, and says that it did', async () => {
+    const source = bodyOf(1, 1);
+
+    expect(await createOnly('acme/final', source)).toBe('created');
+
+    expect(target.objects.get('acme/final')?.bytes.byteLength).toBe(
+      source.total,
+    );
+    // The condition is the store's to keep, and part of what was signed.
+    const sent = target.puts[0]?.headers;
+    expect(sent?.['if-none-match']).toBe('*');
+    expect(sent?.authorization).toMatch(/SignedHeaders=[^,]*if-none-match/);
+  });
+
+  it('asks for no condition unless it is told to', async () => {
+    const source = bodyOf(1, 1);
+
+    expect(
+      await s3PutObjectStream(target.store, 'acme/plain', source.body, {
+        contentLength: source.total,
+        contentType: 'application/pdf',
+      }),
+    ).toBe('created');
+
+    expect(target.puts[0]?.headers['if-none-match']).toBeUndefined();
+  });
+
+  it.each(['answer', 'drop', 'late'] as const)(
+    'leaves a key that is taken as it is, and says so (the store would %s)',
+    async (taken) => {
+      await createOnly('acme/final', bodyOf(1, 1));
+      const kept = target.objects.get('acme/final')?.bytes;
+      target.behave = { taken };
+      // Longer than a sender has sent by the time a store has refused it.
+      const second = bodyOf(48, 2);
+
+      expect(await createOnly('acme/final', second)).toBe('exists');
+
+      expect(target.objects.get('acme/final')?.bytes).toBe(kept);
+      expect(kept?.every((byte) => byte === 1)).toBe(true);
+      // A store that answered has said so, and is asked nothing more. One
+      // that hung up is asked, once, what the key holds.
+      expect(target.heads).toEqual(taken === 'drop' ? ['acme/final'] : []);
+      if (taken === 'late') {
+        // A store that refuses only once it has the body was sent all of it.
+        expect(target.puts[1]?.received).toBe(second.total);
+        return;
+      }
+      // The body was let go, most of it never asked for.
+      expect(second.cancelled()).toBe(true);
+      expect(second.pulled()).toBeLessThan(second.total);
+    },
+  );
+
+  it("tells a 412 it did not ask for as the store's refusal", async () => {
+    target.behave = {
+      refuse: { status: 412, code: 'PreconditionFailed', message: 'no' },
+    };
+    const source = bodyOf(1, 1);
+
+    await expect(
+      s3PutObjectStream(target.store, 'acme/plain', source.body, {
+        contentLength: source.total,
+        contentType: 'application/pdf',
+      }),
+    ).rejects.toThrow('S3 PUT acme/plain failed: 412 PreconditionFailed: no');
+  });
+
+  it("tells a transfer that failed under a key nothing holds as the store's failure", async () => {
+    target.behave = {
+      refuse: { status: 503, code: 'SlowDown', message: 'later' },
+    };
+
+    await expect(createOnly('acme/final', bodyOf(1, 1))).rejects.toThrow(
+      'S3 PUT acme/final failed: 503 SlowDown: later',
+    );
+    expect(target.objects.has('acme/final')).toBe(false);
+  });
+
+  // A store that took the whole object and whose answer was lost: the key
+  // holds it, and the caller is told to look at what is there.
+  it('answers that the key is taken when its own object landed and the answer never came', async () => {
+    target.behave = { neverAnswer: true };
+    const source = bodyOf(1, 1);
+
+    expect(
+      await createOnly('acme/final', source, { answerTimeoutMs: 50 }),
+    ).toBe('exists');
+    expect(target.objects.get('acme/final')?.bytes.byteLength).toBe(
+      source.total,
+    );
+  });
+
+  it("tells the body's own failure as it is, taken key or not", async () => {
+    await createOnly('acme/final', bodyOf(1, 1));
+    const broken = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error('the disk gave out'));
+      },
+    });
+
+    await expect(
+      s3PutObjectStream(target.store, 'acme/final', broken, {
+        contentLength: 10,
+        contentType: 'application/pdf',
+        createOnly: true,
+      }),
+    ).rejects.toThrow('the disk gave out');
+  });
+
+  it('tells a caller that gave up its own reason, taken key or not', async () => {
+    await createOnly('acme/final', bodyOf(1, 1));
+    // A store that would refuse only once it had the body, and never reads
+    // it: the transfer is still out when the caller gives up.
+    target.behave = { taken: 'late', readAfter: new Promise<void>(() => {}) };
+    const caller = new AbortController();
+    const attempt = createOnly('acme/final', bodyOf(48, 2), {
+      signal: caller.signal,
+    });
+    setTimeout(() => caller.abort(new Error('the job was cancelled')), 30);
+
+    await expect(attempt).rejects.toThrow('the job was cancelled');
+  });
+
+  it('tells a failure as it is when the store cannot be asked what the key holds', async () => {
+    await createOnly('acme/final', bodyOf(1, 1));
+    target.behave = { taken: 'drop' };
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const store = target.store;
+    const ask = store.client.fetch.bind(store.client);
+    // The HEAD that would say what the key holds finds no store.
+    Object.assign(store.client, {
+      fetch: vi.fn((url: string, init: RequestInit) =>
+        init.method === 'HEAD'
+          ? Promise.reject(new Error('the store is gone'))
+          : ask(url, init),
+      ),
+    });
+
+    try {
+      await expect(createOnly('acme/final', bodyOf(48, 2))).rejects.toThrow(
+        'fetch failed',
+      );
+      expect(warned).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'whether acme/final is taken could not be asked',
+        ),
+        expect.anything(),
+      );
+    } finally {
+      warned.mockRestore();
+    }
+  });
+});
+
+describe('fileBody — a file as the body of a PUT', () => {
+  let target: TestStore;
+  let dir: string;
+  beforeEach(async () => {
+    target = await startTestStore();
+    dir = mkdtempSync(path.join(tmpdir(), 'object-store-body-'));
+  });
+  afterEach(async () => {
+    await target.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('sends the file as it is, from the disk', async () => {
+    const filePath = path.join(dir, 'document');
+    const bytes = Buffer.alloc(3 * 1024 * 1024 + 17);
+    for (let at = 0; at < bytes.byteLength; at += 4096)
+      bytes.writeUInt32LE(at, at);
+    writeFileSync(filePath, bytes);
+
+    await s3PutObjectStream(target.store, 'acme/doc', fileBody(filePath), {
+      contentLength: bytes.byteLength,
+      contentType: 'application/pdf',
+    });
+
+    expect(target.objects.get('acme/doc')?.bytes.equals(bytes)).toBe(true);
+  });
+
+  it('fails as the file fails, and stores nothing', async () => {
+    await expect(
+      s3PutObjectStream(
+        target.store,
+        'acme/doc',
+        fileBody(path.join(dir, 'never-written')),
+        { contentLength: 10, contentType: 'application/pdf' },
+      ),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(target.objects.has('acme/doc')).toBe(false);
+  });
+
+  it('closes the file when the body is let go', async () => {
+    const filePath = path.join(dir, 'document');
+    writeFileSync(filePath, Buffer.alloc(1024 * 1024, 5));
+    const body = fileBody(filePath);
+    const reader = body.getReader();
+    await reader.read();
+
+    await reader.cancel();
+
+    // A read of a closed file's stream ends; nothing more comes of it.
+    expect((await reader.read()).done).toBe(true);
+  });
+});
+
+describe('s3ObjectSha256 — what a stored object is, without keeping it', () => {
+  /** A store whose GET answers `res`. */
+  function storeAnswering(answer: (signal: AbortSignal) => Response) {
+    const store = testStore();
+    Object.assign(store.client, {
+      fetch: vi.fn((_url: string, init: RequestInit) =>
+        // oxlint-disable-next-line typescript/no-non-null-assertion -- the verb always passes its signal
+        Promise.resolve(answer(init.signal!)),
+      ),
+    });
+    return store;
+  }
+
+  /** A body that sends `chunks` and then, unless told to end, stays open
+   * until the request is aborted. */
+  function body(chunks: string[], signal: AbortSignal, end = true) {
+    const encoder = new TextEncoder();
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+        if (end) {
+          controller.close();
+          return;
+        }
+        signal.addEventListener('abort', () => controller.error(signal.reason));
+      },
+    });
+  }
+
+  it('answers the digest of the bytes in order, and how many they are', async () => {
+    const store = storeAnswering(
+      (signal) => new Response(body(['first,', 'second,', 'third'], signal)),
+    );
+
+    expect(await s3ObjectSha256(store, 'acme/doc')).toEqual({
+      sha256: createHash('sha256').update('first,second,third').digest('hex'),
+      size: 18,
+    });
+  });
+
+  it('answers the digest of nothing for an object with nothing in it', async () => {
+    const store = storeAnswering(() => new Response(null, { status: 200 }));
+
+    expect(await s3ObjectSha256(store, 'acme/doc')).toEqual({
+      sha256: createHash('sha256').digest('hex'),
+      size: 0,
+    });
+  });
+
+  it('answers null for a missing object', async () => {
+    const store = storeAnswering(() => new Response(null, { status: 404 }));
+
+    expect(await s3ObjectSha256(store, 'acme/doc')).toBeNull();
+  });
+
+  it('throws what the store refused with', async () => {
+    const store = storeAnswering(
+      () =>
+        new Response(
+          '<Error><Code>AccessDenied</Code><Message>no</Message></Error>',
+          { status: 403 },
+        ),
+    );
+
+    await expect(s3ObjectSha256(store, 'acme/doc')).rejects.toThrow(
+      'S3 GET acme/doc failed: 403 AccessDenied: no',
+    );
+  });
+
+  it('ends at one byte over the most it accepts', async () => {
+    const store = storeAnswering(
+      (signal) => new Response(body(['12345', '67890', 'x'], signal)),
+    );
+
+    await expect(
+      s3ObjectSha256(store, 'acme/doc', { maxBytes: 10 }),
+    ).rejects.toBeInstanceOf(ObjectTooLargeError);
+  });
+
+  it('gives up on a body that stands still', async () => {
+    const store = storeAnswering(
+      (signal) => new Response(body(['some'], signal, false)),
+    );
+
+    await expect(
+      s3ObjectSha256(store, 'acme/doc', { stallTimeoutMs: 20 }),
+    ).rejects.toThrow('S3 GET acme/doc stalled for 20 ms');
+  });
+
+  it("stops when its caller gives up, with the caller's reason", async () => {
+    const store = storeAnswering(
+      (signal) => new Response(body(['some'], signal, false)),
+    );
+    const caller = new AbortController();
+
+    const reading = s3ObjectSha256(store, 'acme/doc', {
+      signal: caller.signal,
+    });
+    setTimeout(() => caller.abort(new Error('the job was cancelled')), 20);
+
+    await expect(reading).rejects.toThrow('the job was cancelled');
+  });
+
+  // The point of the verb: an object is checked that the process could not
+  // hold. So the question is asked while the object is being read: of the
+  // megabytes handed out so far, how many are still held by anything?
+  it('keeps none of the object it reads', async () => {
+    const megabytes = 24;
+    const handedOut: WeakRef<Uint8Array>[] = [];
+    let heldNearTheEnd = Number.NaN;
+    const store = storeAnswering(
+      () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            async pull(controller) {
+              if (handedOut.length === megabytes) {
+                controller.close();
+                return;
+              }
+              if (handedOut.length === megabytes - 1) {
+                // A turn of its own, so that no chunk is kept alive by
+                // having been looked at in this one.
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                collectGarbageNow();
+                heldNearTheEnd = handedOut.filter(
+                  (chunk) => chunk.deref() !== undefined,
+                ).length;
+              }
+              const chunk = new Uint8Array(1024 * 1024).fill(handedOut.length);
+              handedOut.push(new WeakRef(chunk));
+              controller.enqueue(chunk);
+            },
+          }),
+        ),
+    );
+
+    const read = await s3ObjectSha256(store, 'acme/large');
+
+    expect(read?.size).toBe(megabytes * 1024 * 1024);
+    // The chunk in hand and the one queued behind it, never the object.
+    expect(heldNearTheEnd).toBeLessThanOrEqual(3);
   });
 });
 

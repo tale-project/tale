@@ -11,17 +11,23 @@ import { runInNewContext } from 'node:vm';
 
 import { buildS3ObjectStore, type S3ObjectStore } from './object_store';
 
+/** One full collection, now: for a test that asks in the middle of a
+ * transfer what is held of it. */
+export function collectGarbageNow(): void {
+  setFlagsFromString('--expose_gc');
+  const gc: unknown = runInNewContext('gc');
+  if (typeof gc !== 'function') throw new Error('V8 exposes no gc()');
+  Reflect.apply(gc, undefined, []);
+}
+
 /**
  * Two full collections a macrotask apart, so that a test can say of an
  * object that nothing holds it any more: what is still reachable after
  * these is held by something.
  */
 export async function collectGarbage(): Promise<void> {
-  setFlagsFromString('--expose_gc');
-  const gc: unknown = runInNewContext('gc');
-  if (typeof gc !== 'function') throw new Error('V8 exposes no gc()');
   for (let pass = 0; pass < 2; pass += 1) {
-    Reflect.apply(gc, undefined, []);
+    collectGarbageNow();
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 }
@@ -41,6 +47,8 @@ export interface TestStore {
   readonly objects: Map<string, { bytes: Buffer; contentType: string | null }>;
   /** Every PUT that reached the store, in order, whatever became of it. */
   readonly puts: TestStorePut[];
+  /** Every key the store was asked about with a HEAD, in order. */
+  readonly heads: string[];
   /** How the PUTs from now on are met. */
   behave: TestStoreBehaviour;
   close(): Promise<void>;
@@ -67,6 +75,13 @@ export interface TestStoreBehaviour {
   /** Count a body's bytes without keeping them: for a body of a size no
    * test should hold. */
   countOnly?: boolean;
+  /** How a create-only PUT (`If-None-Match: *`) of a key that holds an
+   * object is refused. Each leaves the object as it is. `'answer'`, the
+   * default, is the 412 MinIO sends without waiting for the body.
+   * `'drop'` is what versitygw does to a sender that is still sending: the
+   * connection is gone under the body, and no answer is ever read.
+   * `'late'` takes the whole body first and answers 412 then. */
+  taken?: 'answer' | 'drop' | 'late';
 }
 
 const BUCKET = 'tale-blobs';
@@ -92,6 +107,7 @@ function refuse(
 export async function startTestStore(): Promise<TestStore> {
   const objects: TestStore['objects'] = new Map();
   const puts: TestStorePut[] = [];
+  const heads: string[] = [];
   const held: { behave: TestStoreBehaviour } = { behave: {} };
 
   const onPut = (req: IncomingMessage, res: ServerResponse): void => {
@@ -114,6 +130,42 @@ export async function startTestStore(): Promise<TestStore> {
         code: 'MissingContentLength',
         message: 'You must provide the Content-Length HTTP header.',
       });
+      return;
+    }
+    if (req.headers['if-none-match'] === '*' && objects.has(put.key)) {
+      if (behave.taken === 'drop') {
+        // With the first of the body here, the sender is in the middle of
+        // sending it.
+        const drop = (): void => {
+          put.dropped = true;
+          req.socket.resetAndDestroy();
+        };
+        req.once('data', drop);
+        req.once('end', drop);
+        return;
+      }
+      const refuseTaken = (): void =>
+        refuse(res, {
+          status: 412,
+          code: 'PreconditionFailed',
+          message:
+            'At least one of the pre-conditions you specified did not hold',
+        });
+      if (behave.taken === 'late') {
+        const readThenRefuse = (): void => {
+          req.on('data', (chunk: Buffer) => {
+            put.received += chunk.byteLength;
+          });
+          req.on('end', refuseTaken);
+        };
+        req.on('close', () => {
+          put.dropped = true;
+        });
+        if (behave.readAfter === undefined) readThenRefuse();
+        else void behave.readAfter.then(readThenRefuse);
+        return;
+      }
+      refuseTaken();
       return;
     }
     const chunks: Buffer[] = [];
@@ -146,6 +198,7 @@ export async function startTestStore(): Promise<TestStore> {
       return;
     }
     const object = objects.get(keyOf(req));
+    if (req.method === 'HEAD') heads.push(keyOf(req));
     if (req.method === 'DELETE') {
       objects.delete(keyOf(req));
       res.writeHead(204).end();
@@ -184,6 +237,7 @@ export async function startTestStore(): Promise<TestStore> {
     ),
     objects,
     puts,
+    heads,
     get behave() {
       return held.behave;
     },

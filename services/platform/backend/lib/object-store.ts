@@ -2,6 +2,7 @@ import {
   buildObjectKey,
   clearOrgObjectStoreCache,
   deleteOrgObject,
+  fileBody,
   locateOrgObject,
   locateOrgObjectStore,
   ObjectLengthMismatchError,
@@ -119,6 +120,7 @@ export async function fetchPresignedObject(
 export {
   buildObjectKey,
   deleteOrgObject,
+  fileBody,
   locateOrgObject,
   locateOrgObjectStore,
   ObjectLengthMismatchError,

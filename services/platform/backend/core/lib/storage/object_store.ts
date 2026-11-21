@@ -30,8 +30,10 @@
  * using anything else.
  */
 
-import { randomUUID } from 'node:crypto';
-import { open, rm } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { open, rm, type FileHandle } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 
 import { AwsClient } from 'aws4fetch';
 
@@ -604,6 +606,18 @@ export interface S3PutStreamOpts {
   /** How long the store may take to answer once it has been sent the last
    * byte. */
   answerTimeoutMs?: number;
+  /** Store the object only where the key holds none: a key that is taken
+   * keeps what it has, and the answer is `'exists'`. */
+  createOnly?: boolean;
+}
+
+/** A file's bytes as a body for {@link s3PutObjectStream}, read as they are
+ * sent. Cancelling the stream closes the file. */
+export function fileBody(filePath: string): ReadableStream<Uint8Array> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node's web stream of a file hands out Buffers, which are byte arrays
+  return Readable.toWeb(
+    createReadStream(filePath),
+  ) as unknown as ReadableStream<Uint8Array>;
 }
 
 /**
@@ -629,13 +643,22 @@ export interface S3PutStreamOpts {
  * the other verbs make do not apply. Bounded by progress, as
  * {@link s3GetObjectToFile} is, and then by how long the store takes to
  * answer its last byte.
+ *
+ * `'created'`, or with `createOnly` `'exists'` for a key that already holds
+ * an object: that object is left as it is, as {@link s3PutObject} leaves it.
+ * A store is free to refuse such a key without waiting for the body, and
+ * not every store's refusal can be read by a sender that is still sending:
+ * MinIO's 412 arrives, versitygw closes the connection under the body. So a
+ * create-only transfer that failed asks what the key holds, and an object
+ * there is the answer `'exists'`, whoever wrote it. The caller checks what
+ * it finds there, as it must after any `'exists'`.
  */
 export async function s3PutObjectStream(
   store: S3ObjectStore,
   key: string,
   body: ReadableStream<Uint8Array>,
   opts: S3PutStreamOpts,
-): Promise<void> {
+): Promise<'created' | 'exists'> {
   const { contentLength } = opts;
   if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
     throw new RangeError(
@@ -748,7 +771,10 @@ export async function s3PutObjectStream(
   try {
     const signed = await store.client.sign(objectUrl(store, key), {
       method: 'PUT',
-      headers: { 'content-type': opts.contentType },
+      headers: {
+        'content-type': opts.contentType,
+        ...(opts.createOnly ? { 'if-none-match': '*' } : {}),
+      },
     });
     const headers = new Headers(signed.headers);
     // Not part of the signature, and what makes this one PUT instead of a
@@ -771,6 +797,12 @@ export async function s3PutObjectStream(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
       ...({ duplex: 'half' } as unknown as RequestInit),
     });
+    if (opts.createOnly && res.status === 412) {
+      // The key is taken: the store kept what it has, and what was sent of
+      // this body is nowhere.
+      await res.body?.cancel();
+      return 'exists';
+    }
     if (!res.ok) {
       throw new Error(
         `S3 PUT ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
@@ -778,11 +810,23 @@ export async function s3PutObjectStream(
     }
     await res.body?.cancel();
     stored = true;
+    return 'created';
   } catch (error) {
     // Whatever ended the transfer, the store must not be left a connection
     // with half an object on it, nor the body its reader.
     controller.abort(error);
     await release();
+    // A key that is taken may have been refused by a connection that
+    // closed (see above). The body's own failure and a caller that gave up
+    // are not that, and are told as they are.
+    if (
+      opts.createOnly === true &&
+      ofBody.failure === undefined &&
+      opts.signal?.aborted !== true &&
+      (await isTaken(store, key))
+    ) {
+      return 'exists';
+    }
     // The body's own failure says more than the "fetch failed" it caused;
     // otherwise the signal's reason says why the transfer ended: the
     // caller's, a body that stood still, an answer that never came.
@@ -794,6 +838,20 @@ export async function s3PutObjectStream(
     clearTimeout(timer);
     opts.signal?.removeEventListener('abort', forwardAbort);
     await release();
+  }
+}
+
+/** Whether the key holds an object, asked after a create-only PUT of it
+ * failed. A store that cannot be asked leaves the failure as it was. */
+async function isTaken(store: S3ObjectStore, key: string): Promise<boolean> {
+  try {
+    return (await s3HeadObject(store, key)) !== null;
+  } catch (error) {
+    console.warn(
+      `[object-store] whether ${key} is taken could not be asked after its create-only PUT failed:`,
+      error,
+    );
+    return false;
   }
 }
 
@@ -1037,6 +1095,83 @@ export async function s3GetObjectToFile(
   filePath: string,
   opts: S3GetToFileOpts = {},
 ): Promise<S3ObjectFile | null> {
+  let file: FileHandle | undefined;
+  return await readObject(store, key, opts, {
+    open: async () => {
+      // `wx`: a path that exists is somebody else's file, never overwritten.
+      file = await open(filePath, 'wx', 0o600);
+    },
+    // The whole chunk, from where the last one ended.
+    write: async (chunk) => {
+      await file?.writeFile(chunk);
+    },
+    close: async () => {
+      await file?.close();
+    },
+    discard: async () => {
+      await rm(filePath, { force: true }).catch((cause: unknown) => {
+        console.warn(
+          `[object-store] a half-written ${filePath} could not be removed:`,
+          cause,
+        );
+      });
+    },
+  });
+}
+
+/**
+ * The SHA-256 of a stored object, and how long the object is. It is read as
+ * it arrives and none of it is kept, so a process can check an object larger
+ * than the memory it has left against what it meant to store
+ * (tale-project/tale#4942).
+ *
+ * `null` when the store answers 404; a thrown error for everything else.
+ * Bounded as {@link s3GetObjectToFile} is.
+ */
+export async function s3ObjectSha256(
+  store: S3ObjectStore,
+  key: string,
+  opts: Omit<S3GetToFileOpts, 'onChunk'> = {},
+): Promise<{ sha256: string; size: number } | null> {
+  const hash = createHash('sha256');
+  const read = await readObject(
+    store,
+    key,
+    {
+      ...opts,
+      onChunk: (chunk) => {
+        hash.update(chunk);
+      },
+    },
+    {},
+  );
+  return read === null ? null : { sha256: hash.digest('hex'), size: read.size };
+}
+
+/** Where an object's chunks go as they arrive. A reader that only looks at
+ * them (`onChunk`) names no part, and keeps nothing. */
+interface ObjectSink {
+  /** Once the store has answered that it has the object, before the
+   * object's first chunk. */
+  open?(): Promise<void>;
+  /** One chunk. The next is read only once this has returned. */
+  write?(chunk: Uint8Array): Promise<void>;
+  /** When the chunks have ended, or the transfer has: for a sink that was
+   * opened. */
+  close?(): Promise<void>;
+  /** After `close`, for a transfer that did not reach the object's end:
+   * what was written is not the object. */
+  discard?(): Promise<void>;
+}
+
+/** GET an object and pass its chunks to `sink` as they arrive: the one
+ * transfer under {@link s3GetObjectToFile} and {@link s3ObjectSha256}. */
+async function readObject(
+  store: S3ObjectStore,
+  key: string,
+  opts: S3GetToFileOpts,
+  sink: ObjectSink,
+): Promise<S3ObjectFile | null> {
   const headerTimeoutMs = opts.headerTimeoutMs ?? S3_METADATA_TIMEOUT_MS;
   const stallTimeoutMs = opts.stallTimeoutMs ?? S3_BODY_TIMEOUT_MS;
   const controller = new AbortController();
@@ -1050,7 +1185,7 @@ export async function s3GetObjectToFile(
     () => giveUp(`timed out after ${headerTimeoutMs} ms`),
     headerTimeoutMs,
   );
-  let created = false;
+  let opened = false;
   try {
     const res = await store.client.fetch(objectUrl(store, key), {
       method: 'GET',
@@ -1066,9 +1201,8 @@ export async function s3GetObjectToFile(
       );
     }
     const contentType = res.headers.get('content-type');
-    // `wx`: a path that exists is somebody else's file, never overwritten.
-    const file = await open(filePath, 'wx', 0o600);
-    created = true;
+    await sink.open?.();
+    opened = true;
     let size = 0;
     try {
       if (res.body !== null) {
@@ -1079,8 +1213,7 @@ export async function s3GetObjectToFile(
             throw new ObjectTooLargeError(key, opts.maxBytes);
           }
           opts.onChunk?.(chunk);
-          // The whole chunk, from where the last one ended.
-          await file.writeFile(chunk);
+          await sink.write?.(chunk);
           timer = setTimeout(
             () => giveUp(`stalled for ${stallTimeoutMs} ms`),
             stallTimeoutMs,
@@ -1088,7 +1221,7 @@ export async function s3GetObjectToFile(
         }
       }
     } finally {
-      await file.close();
+      await sink.close?.();
     }
     return {
       size,
@@ -1099,14 +1232,7 @@ export async function s3GetObjectToFile(
     // Give the connection back whatever ended the transfer: a body left
     // unread would hold its socket until the store closed it.
     controller.abort(error);
-    if (created) {
-      await rm(filePath, { force: true }).catch((cause: unknown) => {
-        console.warn(
-          `[object-store] a half-written ${filePath} could not be removed:`,
-          cause,
-        );
-      });
-    }
+    if (opened) await sink.discard?.();
     // The signal's own reason says why the transfer ended: the caller's, a
     // header that never came, a body that stood still.
     throw controller.signal.aborted && controller.signal.reason !== error

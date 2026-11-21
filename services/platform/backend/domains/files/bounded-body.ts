@@ -1,13 +1,11 @@
-import { createReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
 import path from 'node:path';
-import { Readable } from 'node:stream';
 
 import type { Sql } from 'postgres';
 
 import { describeByteCap } from '../../lib/byte-cap.ts';
 import { newJobDir, removeJobDir } from '../../lib/heavy-slot/job-dir.ts';
-import { ObjectLengthMismatchError } from '../../lib/object-store.ts';
+import { fileBody, ObjectLengthMismatchError } from '../../lib/object-store.ts';
 import { FileError, MAX_UPLOAD_BYTES, putOrgBlobStream } from './service.ts';
 
 /**
@@ -220,7 +218,7 @@ export async function storeBodyBounded(
       storageRef: await land(
         sql,
         organizationId,
-        fileStream(filePath),
+        fileBody(filePath),
         size,
         opts,
       ),
@@ -238,14 +236,6 @@ function nothing(): ReadableStream<Uint8Array> {
       controller.close();
     },
   });
-}
-
-/** A file's bytes as a stream that closes the file when it is cancelled. */
-function fileStream(filePath: string): ReadableStream<Uint8Array> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node's web stream of a file hands out Buffers, which are byte arrays
-  return Readable.toWeb(
-    createReadStream(filePath),
-  ) as unknown as ReadableStream<Uint8Array>;
 }
 
 /** Write a body to a new file, counting it, and say how long it was. One
