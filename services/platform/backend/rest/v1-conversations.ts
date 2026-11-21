@@ -28,12 +28,11 @@ import {
   type ConversationSourceOwner,
   type IntegrationViewer,
 } from '../domains/conversations/service.ts';
-import { readBodyBounded } from '../domains/files/bounded-body.ts';
+import { storeBodyBounded } from '../domains/files/bounded-body.ts';
 import {
   deleteOrgBlobRefs,
   FileError,
-  getOrgBlobBytes,
-  putOrgBlobBytes,
+  openFileContent,
 } from '../domains/files/service.ts';
 import { recordUploadIntent } from '../domains/files/upload-intents.ts';
 import {
@@ -354,17 +353,29 @@ export function createConversationRestRoutes(deps: {
           c.req.param('id'),
           index.data,
         );
-        const { bytes } = await getOrgBlobBytes(
+        // The store's own stream: an attachment of 30 MiB was read whole
+        // and copied twice on its way out (tale-project/tale#4942).
+        const content = await openFileContent(
           deps.sql,
-          c.get('organizationId'),
+          { organizationId: c.get('organizationId') },
           attachment.storageId,
+          { signal: c.req.raw.signal },
         );
-        return new Response(new Uint8Array(bytes).buffer, {
-          headers: {
-            'Content-Type': attachment.contentType,
-            'Cache-Control': 'private, no-store',
-          },
+        if (content === null) {
+          return notFound(c, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
+        }
+        const headers = new Headers({
+          'Content-Type': attachment.contentType,
+          'Cache-Control': 'private, no-store',
         });
+        // The store's length and validator ride along: with its validator a
+        // JSON attachment is not read back whole to be given one
+        // (`conditionalGet`).
+        for (const name of ['content-length', 'etag']) {
+          const value = content.headers.get(name);
+          if (value !== null) headers.set(name, value);
+        }
+        return new Response(content.body, { headers });
       } catch (error) {
         return domainErrorResponse(c, error);
       }
@@ -374,14 +385,16 @@ export function createConversationRestRoutes(deps: {
     const limited = await chargeLane(deps.sql, c, 'rest:upload');
     if (limited) return limited;
     try {
-      const bytes = await readBodyBounded(c.req.raw, 30 * 1024 * 1024);
-      const storageId = await putOrgBlobBytes(
+      // Stored as it arrives; nothing of the attachment is held here.
+      const { storageRef: storageId } = await storeBodyBounded(
         deps.sql,
         c.get('organizationId'),
+        c.req.raw,
         {
-          bytes,
+          maxBytes: 30 * 1024 * 1024,
           contentType:
             c.req.header('Content-Type') ?? 'application/octet-stream',
+          signal: c.req.raw.signal,
         },
       );
       try {

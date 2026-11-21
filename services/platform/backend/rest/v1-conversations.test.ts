@@ -3,9 +3,14 @@
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiSnapshotSchema } from '../../lib/shared/conversations/api-sync.ts';
+import {
+  startTestStore,
+  type TestStore,
+} from '../core/lib/storage/object_store.test-helpers.ts';
+import type { S3ObjectStore } from '../core/lib/storage/object_store.ts';
 import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
@@ -20,6 +25,30 @@ vi.mock('../domains/collab/service.ts', () => ({
   notifyConversationAssigned: vi.fn(),
   notifyConversationAssignedTeam: vi.fn(),
 }));
+// The store the organization's attachments are in, where a test sets one.
+const organization: { store?: S3ObjectStore } = {};
+vi.mock('../lib/object-store.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../lib/object-store.ts')>();
+  const store = (): Promise<S3ObjectStore> =>
+    organization.store === undefined
+      ? Promise.reject(new Error('no store in this test'))
+      : Promise.resolve(organization.store);
+  return {
+    ...actual,
+    resolveObjectStore: vi.fn(store),
+    locateOrgObjectStore: vi.fn(store),
+  };
+});
+vi.mock('../lib/rate-limit.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/rate-limit.ts')>();
+  return { ...actual, checkUserRateLimit: vi.fn(() => Promise.resolve()) };
+});
+vi.mock('../domains/files/upload-intents.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../domains/files/upload-intents.ts')>();
+  return { ...actual, recordUploadIntent: vi.fn(() => Promise.resolve()) };
+});
 
 /**
  * The conversations family follows the door's organization rule. The
@@ -468,6 +497,118 @@ describe('GET /conversations/deliveries/{id}/attachments/{index}', () => {
       expect(await res.json()).toMatchObject({ code: 'ATTACHMENT_NOT_FOUND' });
     },
   );
+
+  // An attachment of up to 30 MiB was read whole and copied twice on its
+  // way out; it is now the store's own stream (tale-project/tale#4942).
+  describe('the bytes', () => {
+    let target: TestStore;
+    beforeEach(async () => {
+      target = await startTestStore();
+      organization.store = target.store;
+    });
+    afterEach(async () => {
+      await target.close();
+      delete organization.store;
+    });
+
+    it("answers the store's bytes under the type the delivery names, private and uncacheable", async () => {
+      target.objects.set('acme/one', {
+        bytes: Buffer.from('%PDF-1.7 the attachment'),
+        contentType: 'application/octet-stream',
+      });
+
+      const res = await get('0', [delivery]);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('application/pdf');
+      expect(res.headers.get('cache-control')).toBe('private, no-store');
+      expect(res.headers.get('content-length')).toBe('23');
+      expect(await res.text()).toBe('%PDF-1.7 the attachment');
+    });
+
+    it('answers ATTACHMENT_NOT_FOUND when the bytes are no longer in the store', async () => {
+      const res = await get('0', [delivery]);
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({
+        error: 'Attachment not found',
+        code: 'ATTACHMENT_NOT_FOUND',
+      });
+    });
+  });
+});
+
+/**
+ * An attachment staged for a source snapshot goes to the store as it
+ * arrives: the door holds none of it, and one over 30 MiB is refused on the
+ * length it declares, before a byte is read (tale-project/tale#4942).
+ */
+describe('POST /conversations/uploads', () => {
+  let target: TestStore;
+  beforeEach(async () => {
+    target = await startTestStore();
+    organization.store = target.store;
+  });
+  afterEach(async () => {
+    await target.close();
+    delete organization.store;
+  });
+
+  const upload = (init: RequestInit) =>
+    mount(['org-1']).app.request('http://localhost/conversations/uploads', {
+      method: 'POST',
+      ...init,
+    });
+
+  it('stores the body under the type it was sent with, and answers its ref', async () => {
+    const res = await upload({
+      headers: { 'content-type': 'application/pdf' },
+      body: '%PDF-1.7 staged',
+    });
+
+    expect(res.status).toBe(200);
+    const { storageId } = (await res.json()) as { storageId: string };
+    expect(storageId).toMatch(/^s3:acme\/[0-9a-f-]{36}$/);
+    expect(target.objects.get(storageId.slice('s3:'.length))).toEqual({
+      bytes: Buffer.from('%PDF-1.7 staged'),
+      contentType: 'application/pdf',
+    });
+  });
+
+  it('refuses a body that declares more than 30 MiB as BODY_TOO_LARGE, unread', async () => {
+    // Exactly the bytes it declares, and then an end, as a body on a socket
+    // has: a door that read it would store 30 MiB and fail here. A body
+    // without an end would have that door read until the machine was out of
+    // memory, with no timeout to stop it.
+    const declared = 30 * 1024 * 1024 + 1;
+    let left = declared;
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        const piece = Math.min(left, 64 * 1024);
+        left -= piece;
+        if (piece > 0) controller.enqueue(new Uint8Array(piece));
+        if (left === 0) controller.close();
+      },
+    });
+
+    const res = await upload({
+      headers: {
+        'content-type': 'application/pdf',
+        'content-length': String(declared),
+      },
+      body,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the runtime asks for the option with a stream body; the typings do not know it
+      ...({ duplex: 'half' } as unknown as RequestInit),
+    });
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ code: 'BODY_TOO_LARGE' });
+    expect(target.puts).toHaveLength(0);
+    // Only what the stream queues ahead of any reader was ever asked for.
+    expect(pulled).toBeLessThanOrEqual(2);
+  });
 });
 
 /**
