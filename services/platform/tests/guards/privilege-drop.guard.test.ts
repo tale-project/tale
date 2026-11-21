@@ -104,9 +104,9 @@ describe('platform root startup', () => {
 // A restart keeps /tmp (`docker restart`, an Incus restart). The run markers
 // of the previous start are deleted as root, before the drop to `app`: a
 // marker an exec created as root in sticky /tmp cannot be deleted by `app`,
-// and the api, worker and all roles exec node without reaching the web role's
-// own cleanup. A failed delete only warns: the entrypoint runs under
-// `set -eo pipefail`, and a start must not die on it.
+// so the process that serves the web tier, which deletes its own two at its
+// start (`startWebServer`), could not. A failed delete only warns: the
+// entrypoint runs under `set -eo pipefail`, and a start must not die on it.
 describe('platform run markers', () => {
   const MARKERS =
     'rm:-f /tmp/platform-withdrawn /tmp/platform-shutting-down /tmp/platform-ready /tmp/backend-withdrawn';

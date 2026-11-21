@@ -13,6 +13,32 @@ drawer test verifies that preserved runs are counted separately and their reason
 is explained. `backend/core/governance/erasure_counts.test.ts` and the receipt read
 regression keep summary and breakdown counts consistent for both stored shapes. These checks do not claim a retirement or hold-release mechanism.
 
+## How the image starts and what each role reads (#4942)
+
+No box asks a person to check how the platform container starts; these suites
+own it end to end:
+
+- `tests/guards/backend-start.guard.test.ts` runs the real entrypoint for every
+  role with a recording `node` in its place: the `api`, `worker` and `all` roles
+  start `backend-dist/main.js` and the `web` role `backend-dist/web-main.js`,
+  each as one plain `node` process with the size flags worked out from the
+  container's memory limit; the dev image starts the sources through the
+  loader; an unknown role exits 64 before anything starts.
+- `scripts/build-backend.test.ts` builds the backend and holds what a boot may
+  read: what waits behind an `import()` for the backend, and that the web
+  role's entry reads no database client, job queue or sign-in stack.
+- `server.listen.test.ts` starts the web tier on a real socket: the port it
+  takes (`APP_PORT`), the ready and shutdown markers it writes and deletes,
+  the wait a stopping replica grants a balancer that checks it and skips when
+  nothing does, the API it asks for the status page and the session verdict,
+  and built files with their length, compressed neighbour and byte ranges.
+- `tests/guards/dockerfile-env-parity.guard.test.ts` keeps `PORT` and
+  `APP_PORT` out of the image's environment, where one value would reach both
+  listeners of a process.
+
+What they cannot judge is the stop of a real container behind the edge:
+[`PERF-B14`](../suites/performance.md) asks a person for that.
+
 ## Skill editor successful saves (#3642)
 
 The component/HTTP suite `app/features/skills/components/skill-detail-pane.save.test.tsx` owns keeping Description, Labels, Visibility and Instructions visible with saved values and a clean Save state after a normalized no-op or a changed save, with detail and library refreshes completing in either order. It uses the real skills hooks, React Query and HTTP adapters with an in-memory door; a refused save keeps the draft and stored document, and an untouched skill reopens intact without a PUT. Real file-store normalization and browser layout remain outside this suite.

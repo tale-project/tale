@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadEnv } from './env.ts';
+import { loadEnv, ownApiUrl } from './env.ts';
 
 const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
@@ -340,5 +340,45 @@ describe('loadEnv', () => {
       loadEnv(source);
       expect(source.WEBDAV_APP_PASSWORD_HMAC_KEY).toBeUndefined();
     });
+  });
+});
+
+// The web tier a backend process serves beside its API asks that API for
+// session verdicts and for the status page (`main.ts`). It must reach this
+// process's own listener, not whichever replica a shared network name
+// resolves to, so the address is worked out from what the listener bound.
+describe('ownApiUrl', () => {
+  it('is loopback at the API port when the listener binds every interface', () => {
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: undefined })).toBe(
+      'http://127.0.0.1:3005',
+    );
+    expect(ownApiUrl({ PORT: 8080, BACKEND_LISTEN_HOST: '0.0.0.0' })).toBe(
+      'http://127.0.0.1:8080',
+    );
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: '::' })).toBe(
+      'http://127.0.0.1:3005',
+    );
+  });
+
+  it('is the one interface the listener bound, where it names one', () => {
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: '10.0.4.7' })).toBe(
+      'http://10.0.4.7:3005',
+    );
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: 'localhost' })).toBe(
+      'http://localhost:3005',
+    );
+  });
+
+  it('brackets an IPv6 address', () => {
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: '::1' })).toBe(
+      'http://[::1]:3005',
+    );
+  });
+
+  it('follows the port the environment sets', () => {
+    expect(ownApiUrl(loadEnv({ ...BASE, PORT: '53005' }))).toBe(
+      'http://127.0.0.1:53005',
+    );
+    expect(ownApiUrl(loadEnv(BASE))).toBe('http://127.0.0.1:3005');
   });
 });

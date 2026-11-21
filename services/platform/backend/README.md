@@ -51,6 +51,7 @@ can fail before the application starts.
 | `DATABASE_URL` | Required application database connection |
 | `ROLE` | `api`, `worker`, or `all` (default) |
 | `PORT` | Backend HTTP port, default `3005` |
+| `APP_PORT` | The port the web tier is served on, default `3000`: beside the API in `api` and `all`, alone in the image's `web` role. Never the API's port |
 | `BETTER_AUTH_SECRET` | Required when the process serves APIs (`api` or `all`) |
 | `SITE_URL` | Public origin used by authentication; non-loopback origins require HTTPS |
 | `TALE_CONFIG_DIR` / `TALE_CONFIG_BUILTIN_DIR` | Writable deployment configuration and shipped catalog |
@@ -61,6 +62,7 @@ can fail before the application starts.
 | `AUTOMATION_RUNNER_PROCESSES` | Runner processes one backend process evaluates automation code in (1–16); unset, `2` for the api and one per core but one (at most `4`) for a worker. Each starts only while the others are busy; one beyond the first stops after five idle minutes (`backend/lib/code-runner.ts`) |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
+| `SHUTDOWN_DRAIN_SECONDS` | How long a stopping process that serves the web tier keeps answering after `/api/health` turned to 503, default `6` (0–300); skipped when nothing has checked its health in the last 15 seconds |
 | `BACKEND_NODE_FLAGS` | Image only. The Node flags the built backend starts with, in place of the ones the entrypoint works out from the container's memory limit (`backend_node_flags` in `docker-entrypoint.sh`); empty starts Node with none |
 | `MALLOC_ARENA_MAX` | Image only. glibc arenas for the process, `2` unless set |
 | `SENTRY_DSN` | Optional error reporting |
@@ -71,9 +73,24 @@ and runs schedules. `all` combines both for local development. Every role runs
 application migrations under the same advisory lock. Auth migrations run where
 auth is configured, and pg-boss manages its own schema when it starts.
 
-On `SIGTERM` a process first tells its work that it is stopping
-(`lib/shutdown.ts`), then closes HTTP and stops fetching jobs
-(`shutdown-sequence.ts`). A worker's automation walkers hand their runs on at
+A process that serves the API serves the web tier too, on a listener of its
+own: the built app with its shell, the status page and the other doors of
+[`../server.ts`](../server.ts). It starts last, once the API listens, and writes
+the ready marker itself, so a replica reads as ready only when it can serve the
+app and answer what the app then asks. The web tier holds no database
+connection in either shape: it asks the API for a session's verdict and for the
+status page, and in this process that is the process's own API listener
+(`ownApiUrl` in `env.ts`), never whichever replica a shared network name
+resolves to. Its `/metrics` answers the one registry the process has. The same
+web tier runs alone as the image's `web` role, from an entry of its own
+([`web-main.ts`](web-main.ts)) that reads none of the backend.
+
+On `SIGTERM` a process that serves the web tier first turns `/api/health` to
+503 and keeps working for `SHUTDOWN_DRAIN_SECONDS`, so a balancer that checks
+each replica stops sending it requests; a replica nothing has checked lately
+skips the wait. The process then tells its work that it is stopping
+(`lib/shutdown.ts`), closes HTTP (the web tier's listener first, then the
+API's) and stops fetching jobs (`shutdown-sequence.ts`). A worker's automation walkers hand their runs on at
 their next step, a step still running after the grace (20 seconds, or a third of
 a shorter `SHUTDOWN_DRAIN_MS`) is cut and handed on unrecorded, and the worker
 releases any run it still holds, so another worker continues it at once. Agent
@@ -107,9 +124,16 @@ Two more properties of the build are held by its test:
 - **A boot reads only what every role needs.** `build.json` lists the files
   and packages `main.js` imports statically. What only some work needs is
   behind an `import()`: the error-reporting SDK (with a `SENTRY_DSN`), SheetJS,
-  the SAML libraries, and for a pure worker the routes and the sign-in stack.
-  A new dependency of that kind belongs behind one too, and in the test's
-  list.
+  the SAML libraries, and for a pure worker the routes, the sign-in stack and
+  the web tier. A new dependency of that kind belongs behind one too, and in
+  the test's list.
+- **The web role reads none of the backend.** `web-main.js` is the entry of
+  the role that serves the web tier alone, and `build.json` lists what it
+  imports as well: the web tier, the HTTP server and the metrics client. A
+  database client, the job queue or the sign-in stack there fails the test.
+  `server.ts` may import a backend module only when that module imports
+  nothing of the backend itself (`lib/http-hygiene.ts`, `lib/request-id.ts`,
+  `lib/close-http-server.ts`, `lib/layout.ts`).
 
 A module that reads a file by its own location must ask
 [`lib/layout.ts`](lib/layout.ts), which knows both shapes: in the build every

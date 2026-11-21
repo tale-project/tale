@@ -15,7 +15,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { getPath } from 'hono/utils/url';
 
 import { API_CONTRACT_VERSION } from '../../lib/shared/constants/api-contract.ts';
-import { requestIdOf } from '../error-reporting.ts';
+import { requestIdOf } from './request-id.ts';
 
 /**
  * The request-level hygiene every backend response shares, independent of

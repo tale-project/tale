@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,15 +147,6 @@ describe('blue-green browser assets', () => {
         publishStaticAssets(join(blue, 'assets'), shared),
         publishStaticAssets(join(green, 'assets'), shared),
       ]);
-      // Node hosts this unit project. Keep the fixture's file body and
-      // existence real; browser validation covers native Bun MIME inference.
-      vi.stubGlobal('Bun', {
-        file: (path: string) =>
-          Object.assign(
-            new Blob([existsSync(path) ? readFileSync(path) : '']),
-            { exists: async () => existsSync(path) },
-          ),
-      });
       const options = {
         indexHtml: '<!doctype html>app',
         retainedAssetsDirectory: shared,
@@ -193,7 +183,6 @@ describe('blue-green browser assets', () => {
         expect(await missing.text()).not.toContain('<!doctype');
       }
     } finally {
-      vi.unstubAllGlobals();
       await rm(directory, { recursive: true, force: true });
     }
   });
@@ -205,13 +194,6 @@ describe('blue-green browser assets', () => {
         join(directory, 'offline.html'),
         '<!doctype html><script src="/pwa-recovery.js"></script>',
       );
-      vi.stubGlobal('Bun', {
-        file: (path: string) =>
-          Object.assign(
-            new Blob([existsSync(path) ? readFileSync(path) : '']),
-            { exists: async () => existsSync(path) },
-          ),
-      });
       const app = createApp(
         { ...baseEnv, BASE_PATH: '/tale' },
         { distDirectory: directory },
@@ -241,7 +223,6 @@ describe('blue-green browser assets', () => {
         '<!doctype html><script src="/pwa-recovery.js"></script>',
       );
     } finally {
-      vi.unstubAllGlobals();
       await rm(directory, { recursive: true, force: true });
     }
   });
@@ -872,25 +853,6 @@ describe('GET /branding/images', () => {
         join(imagesDir, 'logo.svg'),
         '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.domain)</script></svg>',
       );
-      // The vitest server project runs under Node; shim the two BunFile
-      // members the branding handler uses (`exists`, body streaming) with a
-      // Blob so the real serve path executes.
-      vi.stubGlobal('Bun', {
-        file: (path: string) => {
-          let bytes: Uint8Array<ArrayBuffer> | null = null;
-          try {
-            // Copy into a fresh Uint8Array so the backing store is a plain
-            // ArrayBuffer (Buffer's ArrayBufferLike is not a valid BlobPart).
-            bytes = new Uint8Array(readFileSync(path));
-          } catch {
-            bytes = null;
-          }
-          const blob = new Blob(bytes === null ? [] : [bytes]);
-          return Object.assign(blob, {
-            exists: () => Promise.resolve(bytes !== null),
-          });
-        },
-      });
       // The branding root is read from the process env at module load, so
       // serve through a fresh module instance seeing the stubbed dir.
       vi.stubEnv('TALE_CONFIG_DIR', configDir);
@@ -908,7 +870,6 @@ describe('GET /branding/images', () => {
       expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     } finally {
       vi.unstubAllEnvs();
-      vi.unstubAllGlobals();
       vi.resetModules();
       await rm(configDir, { recursive: true, force: true });
     }
@@ -1155,7 +1116,7 @@ describe('SSE /events/file', () => {
       );
 
       // Config changes are rare: without the heartbeat a quiet client sits
-      // silent until Bun's 255 s idleTimeout cuts the socket. Nothing must
+      // silent until something on the way gives the connection up. Nothing must
       // be written before the interval elapses (a comment frame is not an
       // event), and one frame per interval after it.
       await vi.advanceTimersByTimeAsync(29_999);

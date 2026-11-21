@@ -11,6 +11,7 @@
  * What it writes to `backend-dist/` (the shape `backend/lib/layout.ts` reads):
  *
  *   main.js                 the backend (`backend/main.ts`)
+ *   web-main.js             the web tier alone (`backend/web-main.ts`)
  *   node-vm-child.js        the code runner's child program
  *   image-check.js          checks the image holds what the backend reads
  *   symbolicate-trace.js    maps a logged stack trace back to the sources
@@ -53,10 +54,12 @@ import {
 const PLATFORM_ROOT = resolve(import.meta.dirname, '..');
 const MIGRATIONS_SOURCE = join(PLATFORM_ROOT, 'backend/db/migrations');
 
-/** The backend's entry and the code runner's child program it forks, then the
- * two programs an operator runs from the image: the check of what the image
+/** The backend's entry, the entry of the role that serves the web tier
+ * alone, and the code runner's child program the backend forks; then the two
+ * programs an operator runs from the image: the check of what the image
  * holds, and the one that reads a built stack trace back as source lines. */
 const MAIN_ENTRY = 'backend/main.ts';
+const WEB_ENTRY = 'backend/web-main.ts';
 const CODE_RUNNER_CHILD_ENTRY = 'lib/engine/runners/node-vm-child.ts';
 const IMAGE_CHECK_ENTRY = 'backend/image-check.ts';
 const SYMBOLICATE_ENTRY = 'backend/symbolicate-trace.ts';
@@ -82,6 +85,10 @@ export interface BackendBuild {
   bootFiles: string[];
   /** The packages whose code is in those files, by name. */
   bootPackages: string[];
+  /** The same two for `web-main.js`, the role that serves the web tier
+   * alone: what it reads is what that role costs. */
+  webBootFiles: string[];
+  webBootPackages: string[];
   /** UTF-16 units above U+00FF the build wrote as escapes. */
   escapedUnits: number;
 }
@@ -173,10 +180,10 @@ function writeOneByte(scriptPath: string): number {
   return script.escaped;
 }
 
-/** `main.js` and every file it imports statically, directly or not. */
-function bootFilesOf(outdir: string): string[] {
-  const loaded = new Set(['main.js']);
-  const queue = ['main.js'];
+/** An entry and every file it imports statically, directly or not. */
+function bootFilesOf(outdir: string, entry: string): string[] {
+  const loaded = new Set([entry]);
+  const queue = [entry];
   for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
     for (const { path, kind } of scanImports(
       readFileSync(join(outdir, file), 'utf8'),
@@ -201,6 +208,7 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
   const result = await Bun.build({
     entrypoints: [
       join(PLATFORM_ROOT, MAIN_ENTRY),
+      join(PLATFORM_ROOT, WEB_ENTRY),
       join(PLATFORM_ROOT, CODE_RUNNER_CHILD_ENTRY),
       join(PLATFORM_ROOT, IMAGE_CHECK_ENTRY),
       join(PLATFORM_ROOT, SYMBOLICATE_ENTRY),
@@ -265,14 +273,18 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
     );
   }
 
-  const bootFiles = bootFilesOf(outdir);
-  const bootPackages = new Set<string>();
-  for (const file of bootFiles) {
-    for (const source of readSourceMap(join(outdir, `${file}.map`)).sources) {
-      const name = packageOfSource(source);
-      if (name !== null) bootPackages.add(name);
+  const packagesIn = (files: string[]): string[] => {
+    const packages = new Set<string>();
+    for (const file of files) {
+      for (const source of readSourceMap(join(outdir, `${file}.map`)).sources) {
+        const name = packageOfSource(source);
+        if (name !== null) packages.add(name);
+      }
     }
-  }
+    return [...packages].sort();
+  };
+  const bootFiles = bootFilesOf(outdir, 'main.js');
+  const webBootFiles = bootFilesOf(outdir, 'web-main.js');
 
   const build: BackendBuild = {
     outdir,
@@ -288,7 +300,9 @@ export async function buildBackend(outdir: string): Promise<BackendBuild> {
       0,
     ),
     bootFiles,
-    bootPackages: [...bootPackages].sort(),
+    bootPackages: packagesIn(bootFiles),
+    webBootFiles,
+    webBootPackages: packagesIn(webBootFiles),
     escapedUnits,
   };
 

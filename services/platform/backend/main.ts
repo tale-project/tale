@@ -1,3 +1,6 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+
+import type { ServerType } from '@hono/node-server';
 import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
@@ -23,7 +26,7 @@ import { bootDefaultKnowledge } from './domains/knowledge/boot.ts';
 import { installCorpusHealthHook } from './domains/knowledge/index-health.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
-import { loadEnv } from './env.ts';
+import { loadEnv, ownApiUrl } from './env.ts';
 import {
   flushErrorReporting,
   initErrorReporting,
@@ -47,14 +50,15 @@ import {
   shouldDeferJobs,
   shutdownDrainMs,
 } from './shutdown-sequence.ts';
-import { initBackendTelemetry } from './telemetry.ts';
+import { backendMetricsResponse, initBackendTelemetry } from './telemetry.ts';
 
 /**
  * What only a process that answers requests needs: the application's routes,
  * the sign-in stack behind them (Better Auth with its OAuth provider,
- * passkeys and database adapter) and the HTTP server. A pure worker serves no
- * request, so it never reads them: they are about a third of the modules a
- * boot loads (tale-project/tale#4942, finding 2).
+ * passkeys and database adapter), the HTTP server, and the web tier that
+ * serves the built app beside the API (`../server.ts`). A pure worker serves
+ * no request, so it never reads them: they are about a third of the modules
+ * a boot loads (tale-project/tale#4942, finding 2).
  */
 async function loadHttpSurface() {
   const [
@@ -65,6 +69,7 @@ async function loadHttpSurface() {
     { startAuthRequestCache, stopAuthRequestCache },
     { seedDevUser },
     { BACKEND_SERVER_OPTIONS, installClientErrorEnvelope },
+    { startWebServer, webPort },
   ] = await Promise.all([
     import('@hono/node-server'),
     import('./app.ts'),
@@ -73,6 +78,7 @@ async function loadHttpSurface() {
     import('./auth/request-cache.ts'),
     import('./domains/provisioning/dev-seed.ts'),
     import('./lib/http-hygiene.ts'),
+    import('../server.ts'),
   ]);
   return {
     serve,
@@ -85,7 +91,23 @@ async function loadHttpSurface() {
     seedDevUser,
     BACKEND_SERVER_OPTIONS,
     installClientErrorEnvelope,
+    startWebServer,
+    webPort,
   };
+}
+
+/** Resolves once the listener is bound, and rejects when it cannot be (its
+ * port is taken), so that fails the boot like any other step instead of
+ * surfacing as an unhandled `error` event. */
+function listening(server: ServerType): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (server.listening) {
+      resolve();
+      return;
+    }
+    server.once('listening', () => resolve());
+    server.once('error', reject);
+  });
 }
 
 async function main(): Promise<void> {
@@ -109,6 +131,14 @@ async function main(): Promise<void> {
   const sql = createSql(env.DATABASE_URL);
 
   const http = needsApi ? await loadHttpSurface() : null;
+  // The app's own port, read before anything is migrated or started: a value
+  // that is no port, or the API's, fails this boot at once and by name.
+  const webPort = http === null ? null : http.webPort();
+  if (webPort === env.PORT) {
+    throw new Error(
+      `APP_PORT and PORT are both ${env.PORT}: the app and the API each need a port of their own`,
+    );
+  }
   let auth: Auth | null = null;
   if (http !== null) {
     if (!env.BETTER_AUTH_SECRET) {
@@ -309,6 +339,31 @@ async function main(): Promise<void> {
   // (400) — in the JSON envelope the doors speak (lib/http-hygiene.ts).
   if (http !== null && server !== null) http.installClientErrorEnvelope(server);
 
+  // The web tier, in this process and on a port of its own: the built app,
+  // its shell, the status page and the other doors of `../server.ts`. It
+  // starts last and writes the ready marker itself, so a replica reads as
+  // ready only when it can serve the app and answer what the app then asks.
+  // The verdicts it needs from the API (the session oracle, the status
+  // probes) it asks of this process's own listener, never of whichever
+  // replica a shared network name resolves to; and `/metrics` there answers
+  // the one registry this process has.
+  const web =
+    http === null || server === null || webPort === null
+      ? null
+      : await listening(server).then(() =>
+          http.startWebServer({
+            port: webPort,
+            ...(env.BACKEND_LISTEN_HOST === undefined
+              ? {}
+              : { hostname: env.BACKEND_LISTEN_HOST }),
+            app: {
+              metrics: backendMetricsResponse,
+              backendUrl: ownApiUrl(env),
+            },
+          }),
+        );
+  web?.markReady();
+
   if (env.ROLE === 'worker') {
     console.log(
       `[backend] worker running (concurrency=${env.WORKER_CONCURRENCY})`,
@@ -322,9 +377,18 @@ async function main(): Promise<void> {
       return;
     }
     shuttingDown = true;
+    // The app's health answers 503 from here on, and everything keeps
+    // working for a moment longer: a balancer that checks each replica
+    // needs a check or two before it stops sending this one requests. A
+    // replica nothing checks does not wait (`WebServer.drainMs`).
+    const webDrainMs = web?.drainMs() ?? 0;
     console.log(
-      `[backend] ${signal} received — shutting down (drain ${drainMs} ms)`,
+      `[backend] ${signal} received — shutting down (drain ${drainMs} ms${webDrainMs > 0 ? `, after ${webDrainMs} ms for the balancer` : ''})`,
     );
+    if (web !== null) {
+      web.markShuttingDown();
+      await sleep(webDrainMs);
+    }
     // The round in flight finishes; what it leaves the next worker seals.
     await auditSealer?.stop();
     await http?.stopAuthRequestCache();
@@ -337,7 +401,14 @@ async function main(): Promise<void> {
       // open connection, so one connected browser used to park shutdown
       // there until the orchestrator's SIGKILL, never reaching the graceful
       // job stop and killing in-flight jobs mid-write.
-      closeServer: server ? () => closeServerGracefully(server) : null,
+      // The web tier's listener closes first: a request it is still
+      // answering may ask the API for a verdict.
+      closeServer: server
+        ? async () => {
+            await web?.close();
+            await closeServerGracefully(server);
+          }
+        : null,
       stopBoss: (options) => boss.stop(options),
       settleLiveTurns,
       releaseOwnedRunLeases: () => releaseOwnedRunLeases(sql),

@@ -281,6 +281,23 @@ const envSchema = envFields.superRefine((env, ctx) => {
 
 export type BackendEnv = z.infer<typeof envSchema>;
 
+/**
+ * This process's own API listener, as the web tier that runs beside it
+ * reaches it (`main.ts`). A listener on every interface answers on loopback;
+ * one bound to a single interface (`BACKEND_LISTEN_HOST`) answers there
+ * alone.
+ */
+export function ownApiUrl(
+  env: Pick<BackendEnv, 'PORT' | 'BACKEND_LISTEN_HOST'>,
+): string {
+  const bound = env.BACKEND_LISTEN_HOST;
+  const host =
+    bound === undefined || bound === '0.0.0.0' || bound === '::'
+      ? '127.0.0.1'
+      : bound;
+  return `http://${host.includes(':') ? `[${host}]` : host}:${env.PORT}`;
+}
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): BackendEnv {
   // The WebDAV app-password HMAC key derives from INSTANCE_SECRET when not
   // set explicitly — `ensureWebdavHmacKey` (the single derivation, pinned by

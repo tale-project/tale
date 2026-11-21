@@ -12,6 +12,7 @@ import {
   type DatabaseErrorOrigin,
   type KnowledgeDatabase,
 } from './db/unavailable.ts';
+import { requestIdOf } from './lib/request-id.ts';
 import { loadSentrySdk, sentrySdk } from './sentry-sdk.ts';
 import { methodClass, routeClass } from './telemetry.ts';
 import { configureBackendTracing, scrubTransaction } from './tracing.ts';
@@ -169,12 +170,10 @@ export async function flushErrorReporting(timeoutMs = 2000): Promise<void> {
   }
 }
 
-/** The request id the app-level `requestId` middleware stamped, when any —
- * the one handle a caller can quote back from an error response. */
-export function requestIdOf(c: Context): string | undefined {
-  const value: unknown = c.get('requestId');
-  return typeof value === 'string' && value !== '' ? value : undefined;
-}
+// The request id a caller can quote back lives in a module of its own
+// (`lib/request-id.ts`); it is exported from here for the doors that report
+// with it.
+export { requestIdOf };
 
 /**
  * Report an error a handler let escape — Sentry (no-op without a DSN) plus

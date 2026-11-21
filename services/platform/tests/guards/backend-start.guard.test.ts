@@ -2,6 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -22,6 +23,11 @@ import { afterEach, describe, expect, it } from 'vitest';
  * map and its source text, about 100 MiB a process (tale-project/tale#4942).
  * The dev image has no build and names its sources in `TALE_BACKEND_DIR`.
  *
+ * Every role is one node process. The web tier used to be a second runtime
+ * (`bun server.ts`) behind a shell that waited for it, wrote its ready marker
+ * and forwarded SIGTERM; it is the `web-main` entry of the same build now,
+ * started the same way.
+ *
  * Node sizes its heap for the machine, so the entrypoint works the flags out
  * from the container's own memory limit, which it reads from the cgroup.
  *
@@ -36,6 +42,9 @@ const ENTRYPOINT = fileURLToPath(
 );
 const MIB = 1024 ** 2;
 const BUILT_ENTRY = '/app/backend-dist/main.js';
+const BUILT_WEB_ENTRY = '/app/backend-dist/web-main.js';
+/** What the web role's own preparation (`env.sh`) insists on. */
+const WEB_ENV = { SITE_URL: 'https://tale.example', DB_PASSWORD: 'secret' };
 const tempDirs: string[] = [];
 
 afterEach(() => {
@@ -84,7 +93,16 @@ function startBackend(start: Start = {}) {
       mode: 0o755,
     });
   }
-  symlinkSync('/bin/date', path.join(bin, 'date'));
+  // The tools the entrypoint itself calls, by their real paths: the private
+  // PATH holds nothing else, so a role that reached for another program
+  // (curl, to wait for a listener it no longer starts) would fail here.
+  for (const tool of ['date', 'dirname', 'sha256sum', 'awk']) {
+    const real = ['/usr/bin', '/bin']
+      .map((directory) => path.join(directory, tool))
+      .find((candidate) => existsSync(candidate));
+    if (real === undefined) throw new Error(`no ${tool} on this machine`);
+    symlinkSync(real, path.join(bin, tool));
+  }
   const result = spawnSync('/bin/bash', [ENTRYPOINT], {
     env: {
       PATH: bin,
@@ -127,6 +145,61 @@ describe('how the image starts the backend', () => {
       '/app/services/platform/backend/node-loader.mjs',
       '/app/services/platform/backend/main.ts',
     ]);
+  });
+
+  it('runs the web tier as the web-main entry of the same build, with plain node and nothing else', () => {
+    const result = startBackend({ role: 'web', env: WEB_ENV });
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    // One line per argument: a second program (the `bun` double) or a second
+    // start would show here.
+    expect(result.argv).toEqual([BUILT_WEB_ENTRY]);
+    expect(result.environment).toBe(
+      'ROLE= SANDBOX_URL=http://sandbox:8003 MALLOC_ARENA_MAX=2',
+    );
+  });
+
+  it('starts the web tier when no role is named: the default until the roles are one', () => {
+    const result = startBackend({ env: { ...WEB_ENV, TALE_ROLE: '' } });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.argv).toEqual([BUILT_WEB_ENTRY]);
+  });
+
+  it('runs the web tier from its sources in the dev image, through the same loader', () => {
+    const result = startBackend({
+      role: 'web',
+      env: { ...WEB_ENV, TALE_BACKEND_DIR: '/app/services/platform/backend' },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.argv).toEqual([
+      '--experimental-transform-types',
+      '--disable-warning=ExperimentalWarning',
+      '--import',
+      '/app/services/platform/backend/node-loader.mjs',
+      '/app/services/platform/backend/web-main.ts',
+    ]);
+  });
+
+  it('sizes the web tier from its container like the backend', () => {
+    expect(
+      startBackend({
+        role: 'web',
+        env: WEB_ENV,
+        memoryMax: String(256 * MIB),
+      }).argv,
+    ).toEqual([
+      '--max-old-space-size=140',
+      '--max-semi-space-size=4',
+      '--optimize-for-size',
+      BUILT_WEB_ENTRY,
+    ]);
+  });
+
+  it('refuses a role it does not know, before anything starts', () => {
+    const result = startBackend({ role: 'frontend' });
+    expect(result.status).toBe(64);
+    expect(result.stderr).toContain("Unknown TALE_ROLE 'frontend'");
+    expect(result.argv).toEqual([]);
   });
 
   it('keeps a sandbox address and an arena count the deployment set', () => {

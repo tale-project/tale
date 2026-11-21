@@ -70,9 +70,11 @@ export default {
         // entries hides orphan files and unused exports.
         'app/routes/**/*.tsx',
         'scripts/**/*.ts',
-        // Bun production server — invoked by docker-entrypoint.sh, not from
-        // package.json scripts, so knip can't auto-detect it via the npm plugin.
-        'server.ts',
+        // The web role's entry — started by docker-entrypoint.sh, not from
+        // package.json scripts, so knip can't auto-detect it via the npm
+        // plugin. It anchors `server.ts`, which `backend/main.ts` also serves
+        // beside the API.
+        'backend/web-main.ts',
         // Mock gateway (folded in from @tale/mocks): the `start` entry is
         // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
         // imported, so knip can't auto-detect it. It anchors gateway/registry.

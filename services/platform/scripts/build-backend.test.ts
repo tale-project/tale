@@ -61,6 +61,8 @@ interface BuildFacts {
   bytes: number;
   bootFiles: string[];
   bootPackages: string[];
+  webBootFiles: string[];
+  webBootPackages: string[];
   escapedUnits: number;
 }
 
@@ -87,13 +89,36 @@ const NOT_AT_BOOT: Record<string, string> = {
   nodemailer: 'the first SMTP call',
   mailparser: 'the first parsed mail',
   // The HTTP surface, which `main.ts` loads for the api and all roles only:
-  // a pure worker never reads the sign-in stack behind the routes.
+  // a pure worker never reads the sign-in stack behind the routes, nor the
+  // web tier that is served beside them.
   '@better-auth/oauth-provider': 'a role that serves requests',
   '@simplewebauthn/server': 'a role that serves requests',
   '@hono/node-server': 'a role that serves requests',
+  chokidar: 'a role that serves the web tier',
   // Rendered math: the mention scanner parses math and never renders it.
   katex: 'nothing in the backend',
 };
+
+/**
+ * What the web role must never read. It serves the built app and asks the
+ * API for everything else, so it holds no database client, no job queue and
+ * no sign-in stack: that is the point of running it alone, and what keeps it
+ * a process of a few dozen megabytes. One import of a backend module from
+ * `server.ts` (the request-id helper once pulled in error reporting, and
+ * with it the metrics collectors and two database clients) would bring them
+ * all in without a test failing anywhere else.
+ */
+const NEVER_IN_THE_WEB_ROLE = [
+  'postgres',
+  'pg',
+  'pg-boss',
+  'better-auth',
+  '@better-auth/oauth-provider',
+  '@simplewebauthn/server',
+  '@aws-sdk/client-s3',
+  'openai',
+  '@sentry/node',
+];
 
 let facts: BuildFacts;
 
@@ -113,7 +138,7 @@ afterAll(() => {
 });
 
 describe('the built backend', () => {
-  it('writes the backend, the code runner child, the two operator programs and every data migration as entries', () => {
+  it('writes the backend, the web role, the code runner child, the two operator programs and every data migration as entries', () => {
     const dataMigrations = readdirSync(
       join(PLATFORM, 'backend/db/migrations'),
     ).filter((file) => isMigrationFile(file) && file.endsWith('.ts'));
@@ -121,6 +146,7 @@ describe('the built backend', () => {
     expect(facts.entries).toEqual(
       [
         'main.js',
+        'web-main.js',
         'node-vm-child.js',
         'image-check.js',
         'symbolicate-trace.js',
@@ -247,7 +273,26 @@ describe('the built backend', () => {
     expect(facts.bootFiles).not.toContain('image-check.js');
     expect(facts.bootFiles).not.toContain('symbolicate-trace.js');
     expect(facts.bootFiles).not.toContain('node-vm-child.js');
+    expect(facts.bootFiles).not.toContain('web-main.js');
   });
+
+  it('reads for the web role only web-main.js and what it imports statically', () => {
+    expect(facts.webBootFiles).toContain('web-main.js');
+    expect(facts.webBootFiles).not.toContain('main.js');
+    // A fraction of the backend's own boot: the web tier and little else.
+    expect(facts.webBootPackages.length).toBeLessThan(
+      facts.bootPackages.length / 4,
+    );
+    for (const name of ['hono', '@hono/node-server', 'prom-client'])
+      expect(facts.webBootPackages).toContain(name);
+  });
+
+  it.each(NEVER_IN_THE_WEB_ROLE)(
+    'keeps %s out of the web role: it holds no database, no jobs and no sign-in',
+    (name) => {
+      expect(facts.webBootPackages).not.toContain(name);
+    },
+  );
 
   it.each(Object.entries(NOT_AT_BOOT))(
     'does not read %s at boot: it waits for %s',

@@ -201,7 +201,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 ARG VERSION=dev
 ENV NODE_ENV=development \
     TALE_VERSION=${VERSION} \
-    PORT=3000 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
@@ -288,16 +287,17 @@ RUN HUSKY=0 bun install --production \
 # ============================================================================
 # Stage 4: Runtime
 # ----------------------------------------------------------------------------
-# One image, three roles (TALE_ROLE): the web tier (Vite + TanStack Start) and
-# the backend's api/worker. It therefore carries BOTH toolchains — the SPA
-# server and the media pipeline the ingest lanes shell out to (ffmpeg, yt-dlp
-# + its Deno JS runtime, the bgutil PO-token plugin), which used to live in
-# the retired Convex image.
+# One image, four roles (TALE_ROLE): the web tier alone (`web`), the API with
+# the web tier beside it (`api`), the job queues (`worker`), and the last two
+# in one process (`all`). Each is one node process running the built backend.
+# The image also carries the media pipeline the ingest lanes shell out to
+# (ffmpeg, yt-dlp + its Deno JS runtime, the bgutil PO-token plugin), which
+# used to live in the retired Convex image.
 # ============================================================================
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
-# Node runs the 0.5 backend roles (api/worker); Bun keeps running server.ts.
+# Node runs every role. Bun is here for the protocol check below alone.
 COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
@@ -401,8 +401,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
+# No PORT: it names the API's port (3005 unless set), and the web tier's own
+# is APP_PORT (3000 unless set). Baked, one value would reach both listeners
+# of a process that serves the two.
 ENV NODE_ENV=production \
-    PORT=3000 \
     HOSTNAME="0.0.0.0" \
     # Origin the in-sandbox daemons use to fetch staged blobs — the
     # sandbox-net alias, read via process.env in toSandboxStorageUrl()
@@ -438,19 +440,18 @@ COPY --from=builder --chown=app:app \
      /app/services/platform/status-probe.ts \
      ./
 COPY --from=builder --chown=app:app /app/services/platform/lib ./lib
-# The built backend: the role dispatch in docker-entrypoint.sh execs
-# `node /app/backend-dist/main.js`. It sits beside `messages/`, which it reads
-# from one level up (backend/lib/layout.ts).
+# The built backend: docker-entrypoint.sh execs `node /app/backend-dist/main.js`
+# for the api, worker and all roles and `web-main.js` for the web role. It
+# sits beside `messages/`, `dist/` and `dist-seo/`, which it reads from one
+# level up (backend/lib/layout.ts).
 COPY --from=backend-build --chown=app:app /app/services/platform/backend-dist ./backend-dist
-# The backend's sources stay for the web role alone: `bun server.ts` imports
-# one module of them unbundled.
+# No role reads these sources any more: the web tier, the last one that ran
+# unbundled, starts from the build above.
 COPY --from=builder --chown=app:app /app/services/platform/backend ./backend
 COPY --from=builder --chown=app:app /app/services/platform/messages ./messages
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
-# Workspace packages backing the `@tale/*` symlinks in node_modules. The
-# platform runs `bun server.ts` unbundled, so server-side imports of
-# `@tale/ui/seo/*` resolve at runtime through these directories — the
-# docs + web Dockerfiles bundle their server.ts and don't need this.
+# Workspace packages backing the `@tale/*` symlinks in node_modules, from
+# when the web tier ran unbundled and resolved `@tale/ui/seo/*` through them.
 COPY --from=builder --chown=app:app /app/packages ./packages
 COPY --from=builder --chown=app:app /app/services/platform/package.json ./
 # Knowledge-corpus DDL. Preparing a NEW corpus (the deployment default on
@@ -564,7 +565,6 @@ USER root
 # blocks equal.
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
-    PORT=3000 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
