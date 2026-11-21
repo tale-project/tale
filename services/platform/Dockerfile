@@ -119,11 +119,17 @@ ENV NODE_ENV=production
 # Build the SPA, then precompile the SEO + LLM artifact set into
 # `dist-seo/`. The runtime stage serves these via @tale/ui's precompiled
 # SEO server, so no source markdown is needed at request time.
+#
+# precompress-dist.ts runs once everything has written into `dist/`: it
+# leaves `app.js.br` and `app.js.gz` beside each bundle, which the web tier
+# sends as they are, so the edge compresses none of the app's files per
+# request (backend-dist/image-check.js fails an image without them).
 WORKDIR /app/services/platform
 RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun scripts/check-sw-manifest.ts \
     && bun scripts/check-entry-budget.ts \
     && bun scripts/prerender-boot-shell.tsx \
+    && bun scripts/precompress-dist.ts \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo
 WORKDIR /app
 

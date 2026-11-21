@@ -43,8 +43,11 @@ also runs this validation, pins the service worker's precache manifest
 KaTeX, the flow canvas, a library only some pages use, a German, French or
 Swiss topic file or the automation editor's own screens, topics and engine, or
 whose preloaded JavaScript weighs more than its gzip ceiling
-(`check-entry-budget.ts`), and renders its boot shell through
-`prerender-boot-shell.tsx`.
+(`check-entry-budget.ts`), renders its boot shell through
+`prerender-boot-shell.tsx`, and last writes a brotli and a gzip copy beside
+every file of `dist/` worth compressing (`precompress-dist.ts`). The web tier
+sends those copies as they are, so run that script again after anything that
+rewrites a file of `dist/`: a copy is trusted, never compared with its file.
 
 ## Keep the message catalogs split by topic
 

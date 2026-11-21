@@ -5,12 +5,17 @@ import { createHash } from 'node:crypto';
 import {
   copyFileSync,
   cpSync,
+  mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 
 import { isMigrationFile } from '@tale/shared/db/migration-files';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -29,6 +34,11 @@ const SUFFIX = `${process.pid}-${Date.now().toString(36)}`;
 const FIRST = join(PLATFORM, `backend-dist.test-${SUFFIX}`);
 const SECOND = join(PLATFORM, `backend-dist.test-${SUFFIX}-again`);
 const BROKEN = join(PLATFORM, `backend-dist.test-${SUFFIX}-broken`);
+/** A built app for the image check to judge: one bundle with its
+ * precompressed neighbours, as scripts/precompress-dist.ts leaves it. The
+ * checkout's own `dist/` is whatever a developer last built, or nothing. */
+const APP = mkdtempSync(join(tmpdir(), 'tale-image-check-app-'));
+const APP_BUNDLE = 'app-BQ4kL2mZ.js';
 
 function build(outdir: string, environment: Record<string, string> = {}) {
   return spawnSync('bun', ['scripts/build-backend.ts', outdir], {
@@ -131,10 +141,23 @@ beforeAll(() => {
   facts = JSON.parse(
     readFileSync(join(FIRST, 'build.json'), 'utf8'),
   ) as BuildFacts;
+
+  const bundle = Buffer.from(
+    'export const answer = () => "the built app, one chunk of it";\n'.repeat(
+      64,
+    ),
+  );
+  mkdirSync(join(APP, 'assets'));
+  writeFileSync(join(APP, 'assets', APP_BUNDLE), bundle);
+  writeFileSync(
+    join(APP, 'assets', `${APP_BUNDLE}.br`),
+    brotliCompressSync(bundle),
+  );
+  writeFileSync(join(APP, 'assets', `${APP_BUNDLE}.gz`), gzipSync(bundle));
 }, 180_000);
 
 afterAll(() => {
-  for (const directory of [FIRST, SECOND, BROKEN])
+  for (const directory of [FIRST, SECOND, BROKEN, APP])
     rmSync(directory, { recursive: true, force: true });
 });
 
@@ -214,9 +237,12 @@ describe('the built backend', () => {
     expect(mapped.stdout).toContain('DATABASE_URL');
   });
 
-  it('passes its own image check: the build, the PII tree, the catalogs, the migrations and the code runner child', () => {
-    const result = node(join(FIRST, 'image-check.js'));
+  it('passes its own image check: the build, the app, the PII tree, the catalogs, the migrations and the code runner child', () => {
+    const result = node(join(FIRST, 'image-check.js'), ['--app', APP]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      "ok    the app's bundles are precompressed (1, brotli and gzip)",
+    );
     expect(result.stdout).toContain('ok    the PII data tree loads');
     expect(result.stdout).toContain('ok    the message catalogs load');
     expect(result.stdout).toContain(
@@ -230,7 +256,7 @@ describe('the built backend', () => {
   it('fails the image check when the code runner child is missing from the build', () => {
     cpSync(FIRST, BROKEN, { recursive: true });
     rmSync(join(BROKEN, 'node-vm-child.js'));
-    const result = node(join(BROKEN, 'image-check.js'));
+    const result = node(join(BROKEN, 'image-check.js'), ['--app', APP]);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('FAIL  the code runner:');
     // The checks before it still report.
@@ -247,9 +273,68 @@ describe('the built backend', () => {
     const migration = facts.dataMigrations[0]?.replace(/\.ts$/, '.js');
     if (migration === undefined) throw new Error('no data migration to remove');
     rmSync(join(BROKEN, migration));
-    const result = node(join(BROKEN, 'image-check.js'));
+    const result = node(join(BROKEN, 'image-check.js'), ['--app', APP]);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('FAIL  the boot migrations:');
+  });
+
+  // Every page still loads without them, and the edge compresses each
+  // bundle per request instead: megabytes of encoder per open answer.
+  it.each([
+    ['a brotli neighbour', `${APP_BUNDLE}.br`],
+    ['a gzip neighbour', `${APP_BUNDLE}.gz`],
+  ])(
+    'fails the image check when a bundle of the app lacks %s',
+    (_what, missing) => {
+      const bare = `${APP}-bare`;
+      rmSync(bare, { recursive: true, force: true });
+      cpSync(APP, bare, { recursive: true });
+      try {
+        rmSync(join(bare, 'assets', missing));
+        const result = node(join(FIRST, 'image-check.js'), ['--app', bare]);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('FAIL  the built app:');
+        expect(result.stderr).toContain(
+          'bundles of the app without a precompressed neighbour: 1 of 1 in ',
+        );
+        expect(result.stderr).toContain(`${APP_BUNDLE} for one`);
+        // The checks after it still report.
+        expect(result.stdout).toContain('ok    the PII data tree loads');
+      } finally {
+        rmSync(bare, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('fails the image check when the app it is to judge is not there', () => {
+    const result = node(join(FIRST, 'image-check.js'), [
+      '--app',
+      `${APP}-absent`,
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('FAIL  the built app:');
+    expect(result.stderr).toContain('has no assets directory');
+  });
+
+  it('asks nothing of a file too small to be worth a neighbour, or of one that is no bundle', () => {
+    const small = `${APP}-small`;
+    rmSync(small, { recursive: true, force: true });
+    cpSync(APP, small, { recursive: true });
+    try {
+      writeFileSync(join(small, 'assets', 'tiny-AAAAAAAA.js'), 'export {};');
+      writeFileSync(
+        join(small, 'assets', 'logo-AAAAAAAA.png'),
+        'x'.repeat(4096),
+      );
+      writeFileSync(
+        join(small, 'assets', `${APP_BUNDLE}.map`),
+        'x'.repeat(4096),
+      );
+      const result = node(join(FIRST, 'image-check.js'), ['--app', small]);
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+    } finally {
+      rmSync(small, { recursive: true, force: true });
+    }
   });
 
   it('writes every script in one-byte characters, so V8 holds its text at a byte a character', () => {
@@ -313,7 +398,7 @@ describe('the built backend', () => {
   // Built as anything else, the backend ran every library's development
   // checks and put the dev image's live-reload script in the page.
   it('is a production build, whatever environment built it and whatever it runs in', () => {
-    const result = node(join(FIRST, 'image-check.js'));
+    const result = node(join(FIRST, 'image-check.js'), ['--app', APP]);
     expect(result.stdout).toContain('ok    the backend is a production build');
   });
 

@@ -156,7 +156,10 @@ Two programs are built beside the backend for whoever operates the image:
 
 - `node backend-dist/image-check.js` reads what the backend reads from beside
   its code (the PII data tree, the catalogs, the migrations, the code runner)
-  and exits 1 when something is missing. The container smoke test runs it.
+  and exits 1 when something is missing. It also fails a built app whose
+  scripts and stylesheets lack their precompressed copies, which the edge
+  would then compress per request; `--app <directory>` names an app that is
+  not at `dist/` beside the backend. The container smoke test runs it.
 - `node backend-dist/symbolicate-trace.js` turns a logged stack trace, which
   names positions in `main.js`, back into source lines. The source maps are
   written beside the build for it and never loaded by the backend.
