@@ -30,6 +30,16 @@ settings. Read [`docker-entrypoint.sh`](docker-entrypoint.sh) for supported
 `DB_*` values and [`postgresql.conf`](postgresql.conf) for the static defaults.
 Keep database passwords in the deployment's secret environment.
 
+`DB_PROFILE` sizes the server as a whole. Unset or `standard`, it is
+`postgresql.conf` as it stands: a server with a gigabyte or more to itself.
+`small` is a server that shares a host of half a gigabyte with the rest of a
+deployment, with 32 MB of shared buffers, a `work_mem` of 4 MB, 40 connections,
+one autovacuum worker and no parallel query, and BM25 and vector search as
+before. `tale deploy` asks for `small`. `DB_SHARED_BUFFERS`, `DB_WORK_MEM`,
+`DB_MAINTENANCE_WORK_MEM`, `DB_EFFECTIVE_CACHE_SIZE` and `DB_MAX_CONNECTIONS`
+each win over the profile, and the image sets none of them itself, or the
+profile could not apply. Any other profile name stops the container at once.
+
 ## Wait for initialization
 
 The healthcheck requires both `pg_isready` and `/tmp/.db_ready`. The marker is
