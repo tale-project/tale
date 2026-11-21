@@ -57,7 +57,7 @@ Eine Änderung von `TOTP_CLIENT_NAME` oder `TOTP_ENVIRONMENT` gilt für neu erze
 
 Ersetze die unsicheren Beispielwerte aus `.env.example`, bevor du die Instanz für andere zugänglich machst.
 
-## Datenbank
+## Datenbank {#database}
 
 Tale verwendet `tale_app` für Anwendungsdaten und `tale_knowledge` für Textabschnitte, Embeddings und Webseiten. Der Standardaufbau betreibt beide in einem Postgres-Dienst `db` mit dem Alias `knowledge-db`. Externe Verbindungen kannst du getrennt konfigurieren.
 
@@ -76,6 +76,8 @@ Jede Verbindung, die ein Backend-Prozess hält, ist auf der Seite der Datenbank 
 | `KNOWLEDGE_DB_POOL_MAX` | `10`; `5`, wo ein Prozess die ganze Anwendung ist | **Optional.** Verbindungen, die ein Backend-Prozess zum Wissenskorpus öffnet. Jeder Indexierungsjob belegt eine, während er einen Block Textabschnitte festschreibt — erlaubt `WORKER_CONCURRENCY` mehr gleichzeitige Jobs als das, warten sie auf den Pool; erhöhe beide zusammen. Wie `DATABASE_POOL_MAX` zählt der Wert je Replik gegen `max_connections` der Korpus-Datenbank. |
 | `KNOWLEDGE_DB_NAME` | `tale_knowledge` | Name der Wissensdatenbank, die die mitgelieferte Datenbankinitialisierung erstellt. |
 | `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | `1073741824`                                                        | **Optional.** Größter BM25-Suchindex (in Bytes), den das Backend beim Start synchron neu aufbaut, wenn es ihn beschädigt vorfindet; einen größeren baut ein Hintergrundjob neu auf, während Schreibzugriffe auf diesen Korpus abgewiesen werden. Siehe [Container-Architektur](/de/self-hosted/operate/container-architecture). |
+| `DB_PROFILE` | `small` mit `tale deploy`; `standard` im Image allein | **Optional.** Wofür die mitgelieferte Datenbank ausgelegt ist. `small` ist ein Server, der sich einen kleinen Host mit dem Rest der Instanz teilt: 32 MB Shared Buffers, 4 MB für eine Sortierung oder einen Hash, 32 MB für einen Indexaufbau oder ein Vacuum, 40 Verbindungen, ein Autovacuum-Worker und keine parallelen Abfragen. `standard` ist ein Server, der ein Gigabyte oder mehr für sich hat: 256 MB, 32 MB, 128 MB und 100 Verbindungen, wie vor dieser Einstellung. Beide behalten Volltext- und Vektorsuche. `tale deploy` weist jedes andere Wort ab, und die Datenbank startet neu, wenn sich der Wert ändert. Siehe [Eine Datenbank für einen kleinen Host](/de/self-hosted/operate/upgrades#database-profile). |
+| `DB_SHARED_BUFFERS`, `DB_WORK_MEM`, `DB_MAINTENANCE_WORK_MEM`, `DB_EFFECTIVE_CACHE_SIZE`, `DB_MAX_CONNECTIONS` | wie im Profil | **Optional.** Eine einzelne Größe der mitgelieferten Datenbank in der Schreibweise von PostgreSQL (`64MB`, `1GB`, eine Zahl von Verbindungen), anstelle des Werts aus dem Profil. |
 | `KNOWLEDGE_INDEX_REPAIR_DISABLED` | nicht gesetzt | `1` oder `true` deaktiviert die automatische BM25-Prüfung und Reparatur beim Start. Beschädigungen bleiben bestehen; fehlgeschlagene Abfragen oder Schreibzugriffe brauchen eine Untersuchung und kontrollierte Reparatur. |
 | `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES` | `104857600` | **Optional.** Größtes Dokument (PDF, DOCX, XLSX, PPTX, ODT — in Bytes), das der Website-Crawler herunterlädt und ausliest; ein größeres vermerkt er an seiner Seite als zu groß. HTML-Seiten haben ein eigenes Budget von 2 MiB. Jeder Abruf liegt während der Textextraktion im Speicher, und bis zu fünf Websites werden gleichzeitig gescannt — bemesse den Speicher des Backends entsprechend. Ein Wert unter 1 MiB oder keine ganze Zahl fällt auf den Standard zurück. |
 

@@ -606,6 +606,7 @@ async function isolatedSuite(): Promise<void> {
       'TALE_BACKEND_API_REPLICAS',
       'TALE_BACKEND_WORKER_REPLICAS',
       'TALE_APP_TIER',
+      'DB_PROFILE',
     ];
     let asked: Record<string, string | undefined> = {};
     beforeEach(() => {
@@ -826,6 +827,21 @@ async function isolatedSuite(): Promise<void> {
 
       await expect(run(TARGET)).rejects.toThrow(
         'TALE_APP_TIER must be one-process, workers-apart, three-services, or unset; got: "three"',
+      );
+
+      expect(calls.some(({ args }) => args[0] === 'pull')).toBe(false);
+      expect(calls.some(({ args }) => args[0] === 'compose')).toBe(false);
+      expect(await getCurrentColor(deployDir)).toBe('blue');
+    });
+
+    test('a database profile the image does not know is refused before anything is pulled', async () => {
+      seedLiveBlue(fake);
+      fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+      await workspace('blue');
+      process.env.DB_PROFILE = 'tiny';
+
+      await expect(run(TARGET)).rejects.toThrow(
+        'DB_PROFILE must be small, standard, or unset; got: "tiny"',
       );
 
       expect(calls.some(({ args }) => args[0] === 'pull')).toBe(false);

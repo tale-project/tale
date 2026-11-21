@@ -54,6 +54,16 @@ chat and one indexed document in it.
 - [ ] `APP-F16` · **Run `docker inspect <project>-<colour>-platform-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}'`, then `docker exec <project>-db psql -U tale -d postgres -Atc "select client_addr, count(*) from pg_stat_activity where application_name = 'tale-backend' group by 1"`** → the row of an address of `platform-1` counts at most 2: it sends jobs and works none, so it holds no connection to be woken on. The row of each worker counts more, at most 11.
 - [ ] `APP-F13` · **Remove the variable from `.env`, run `tale deploy`, then list the colour's containers and `TALE_ROLE` as above** → the live colour is `platform-1` alone again, with `TALE_ROLE=all`, and the app still signs in, answers a chat message and indexes a document.
 
+## Size the database for the host · the workspace of the group above · 15 min
+
+The database the application shares its host with starts small, and a
+workspace says so where it wants the earlier sizes.
+
+- [ ] `APP-F17` · **Run `docker exec <project>-db psql -U tale -d postgres -Atc "select name || '=' || current_setting(name) from unnest(array['shared_buffers','work_mem','maintenance_work_mem','max_connections','autovacuum_max_workers','max_parallel_workers_per_gather']) as name"`** → it prints `shared_buffers=32MB`, `work_mem=4MB`, `maintenance_work_mem=32MB`, `max_connections=40`, `autovacuum_max_workers=1` and `max_parallel_workers_per_gather=0`, and `docker logs <project>-db 2>&1 | grep '^Profile:'` prints `Profile: small`.
+- [ ] `APP-F18` · **Search the knowledge base for a phrase from the document indexed in `APP-F5`, in the app's chat** → the answer cites the document: full-text and vector search work on the small database.
+- [ ] `APP-B3` · **Add `DB_PROFILE=tiny` to the workspace's `.env` and run `tale deploy`** → it exits `3` with `DB_PROFILE must be small, standard, or unset; got: "tiny"` before it pulls an image; `docker ps` lists the same containers as before, and the settings of `APP-F17` are unchanged.
+- [ ] `APP-F19` · **Change the line to `DB_PROFILE=standard`, add `DB_WORK_MEM=64MB`, run `tale deploy`, then run the command of `APP-F17` again** → the deploy exits `0` and recreates `<project>-db`; the command prints `shared_buffers=256MB`, `work_mem=64MB`, `maintenance_work_mem=128MB`, `max_connections=100`, `autovacuum_max_workers=3` and `max_parallel_workers_per_gather=2`, and the app signs in and answers a chat message. Remove both lines and deploy again to return to the small profile.
+
 ## Bring the three services back · the workspace of the group above · 15 min
 
 What a workspace does before it returns to a CLI from before this setting, which

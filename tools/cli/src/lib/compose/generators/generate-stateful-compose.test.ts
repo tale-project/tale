@@ -24,6 +24,17 @@ function servicesOf(origin?: RunOrigin): Record<string, ComposeService> {
   ).services;
 }
 
+describe('generateStatefulCompose ↔ the database profile', () => {
+  // Compose fills the variable from the workspace's .env; unset there, the
+  // database starts sized for the small host this deployment must fit.
+  test('the database is asked for the small profile, as a default that .env replaces', () => {
+    expect(servicesOf().db?.environment).toEqual({
+      DB_PROFILE: '${DB_PROFILE:-small}',
+    });
+    expect(servicesOf().db?.env_file).toEqual(['.env']);
+  });
+});
+
 describe('generateStatefulCompose ↔ tale deploy --host', () => {
   test('the proxy answers on the host of the run instead of .env', () => {
     const services = servicesOf({

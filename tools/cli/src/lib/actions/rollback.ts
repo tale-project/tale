@@ -13,6 +13,7 @@ import {
 } from '../compose/app-tier';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
+import { askedDbProfile } from '../compose/services/create-db-service';
 import {
   memoryReservationNotice,
   reservedMemoryMib,
@@ -268,8 +269,10 @@ export async function rollback(
     };
     const reservationNotice = memoryReservationNotice(serviceConfig);
     if (reservationNotice) logger.warn(reservationNotice);
-    // A shape named by a word that is none is refused before the pull.
+    // A shape named by a word that is none is refused before the pull, and
+    // so is a database profile the image does not know.
     askedAppTier();
+    askedDbProfile();
 
     // Pull previous-version images CONCURRENTLY, reporting each as a step so
     // progress + failure attribution stay clear. A single failure doesn't

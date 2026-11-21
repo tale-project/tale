@@ -57,7 +57,7 @@ Changing `TOTP_CLIENT_NAME` or `TOTP_ENVIRONMENT` affects newly generated QR cod
 
 Replace the values that ship in `.env.example` before exposing the instance — they are intentionally insecure placeholders.
 
-## Database
+## Database {#database}
 
 Tale keeps two databases: the operational store (`tale_app` — agents, runs, the audit log) and the knowledge corpus (`tale_knowledge` — document chunks, embeddings, crawled pages). A production stack folds both into one ParadeDB service (`db`, port 5432, aliased `knowledge-db`). Both share `DB_PASSWORD`, and the corpus can be pointed at external infrastructure on its own.
 
@@ -76,6 +76,8 @@ Every connection a backend process holds is a PostgreSQL process on the database
 | `KNOWLEDGE_DB_POOL_MAX` | `10`; `5` where one process is the whole application | **Optional.** Connections one backend process opens to the knowledge corpus. Every indexing job holds one while it commits a slice of chunks, so a worker allowed more concurrent jobs than this (`WORKER_CONCURRENCY`) queues on the pool — raise the two together. Like `DATABASE_POOL_MAX`, it counts per replica against the corpus database's `max_connections`. |
 | `KNOWLEDGE_DB_NAME` | `tale_knowledge` | Name of the knowledge database created by the bundled database initialization. |
 | `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | `1073741824`                                                        | **Optional.** Largest BM25 search index (in bytes) the backend rebuilds synchronously at boot when it finds it corrupted; a larger one is rebuilt by a background job while writes to that corpus are refused. See [Container architecture](/self-hosted/operate/container-architecture). |
+| `DB_PROFILE` | `small` with `tale deploy`; `standard` in the image alone | **Optional.** What the bundled database is sized for. `small` is a server that shares a small host with the rest of the deployment: 32 MB of shared buffers, 4 MB for a sort or a hash, 32 MB for an index build or a vacuum, 40 connections, one autovacuum worker and no parallel query. `standard` is a server with a gigabyte or more to itself: 256 MB, 32 MB, 128 MB and 100 connections, as before this setting. Both keep full-text and vector search. `tale deploy` refuses any other word, and the database restarts when the value changes. See [A database sized for a small host](/self-hosted/operate/upgrades#database-profile). |
+| `DB_SHARED_BUFFERS`, `DB_WORK_MEM`, `DB_MAINTENANCE_WORK_MEM`, `DB_EFFECTIVE_CACHE_SIZE`, `DB_MAX_CONNECTIONS` | the profile's | **Optional.** One size of the bundled database, in PostgreSQL's own spelling (`64MB`, `1GB`, a number of connections), in place of the profile's. |
 | `KNOWLEDGE_INDEX_REPAIR_DISABLED` | unset | `1` or `true` disables automatic boot-time BM25 verification and repair. It does not fix corruption; failed queries or writes need investigation and a controlled repair. |
 | `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES` | `104857600` | **Optional.** Largest document (PDF, DOCX, XLSX, PPTX, ODT — in bytes) the website crawler downloads and extracts; a larger one is recorded on its page as too large to fetch. HTML pages have their own 2 MiB budget. Every fetch is held in memory while its text is extracted, and up to five sites scan at once, so size the backend's memory with it. A value below 1 MiB, or not a whole number, falls back to the default. |
 

@@ -144,6 +144,20 @@ Une CLI d’avant ce changement ne déploie que par-dessus trois services. Elle 
 
 Chaque couleur exécute les services que sa propre image prend en charge. `tale rollback` vers une version antérieure à ce changement ramène donc ses trois services. Le fichier Compose du dépôt, les [manifestes Kubernetes](/fr/self-hosted/install/kubernetes) et le [runtime Incus](/fr/self-hosted/install/incus) gardent les trois services.
 
+## Une base dimensionnée pour un petit hôte {#database-profile}
+
+`tale deploy` démarre la base fournie avec le profil `small` : 32 Mo de shared buffers au lieu de 256 Mo, 4 Mo pour un tri au lieu de 32 Mo, 40 connexions au lieu de 100, un seul worker d’autovacuum et aucune requête parallèle. La base occupe ainsi, sous la même charge, moins de la moitié de la mémoire qu’elle occupait, ce dont un déploiement a besoin sur un hôte d’un demi-gigaoctet. L’application ouvre moins de connexions en conséquence, [15 au plus depuis son unique processus](/fr/self-hosted/configuration/environment-reference#database).
+
+Le premier déploiement de cette version redémarre la base avec ces tailles. Rien ne change sur le disque, et la recherche fonctionne comme avant : au-delà de ses shared buffers, PostgreSQL lit à travers le cache de pages de l’hôte.
+
+Si ton hôte a de la mémoire à revendre et une grande base de connaissances, les tailles précédentes te conviendront mieux. Avant de déployer, ajoute ceci au `.env` de l’espace de travail :
+
+```dotenv
+DB_PROFILE=standard
+```
+
+Pour ne changer qu’une taille, nomme celle-là à la place, par exemple `DB_SHARED_BUFFERS=1GB`. Une taille que tu nommes l’emporte sur le profil.
+
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
 À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.

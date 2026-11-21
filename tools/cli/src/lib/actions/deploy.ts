@@ -30,6 +30,7 @@ import {
   selectDefaultServices,
   servicesKeepingHost,
 } from '../compose/select-services';
+import { askedDbProfile } from '../compose/services/create-db-service';
 import {
   memoryReservationNotice,
   reservedMemoryMib,
@@ -413,8 +414,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const reservationNotice = memoryReservationNotice(serviceConfig);
       if (reservationNotice) logger.warn(reservationNotice);
       // A shape named by a word that is none is refused here, like a size
-      // above: before this deploy pulls, retags or snapshots anything.
+      // above: before this deploy pulls, retags or snapshots anything. So is
+      // a database profile the image does not know.
       askedAppTier();
+      askedDbProfile();
 
       // Pull all required images first. The sandbox tier (sandbox +
       // sandbox-egress) is now a stateful always-roll singleton, so its images

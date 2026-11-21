@@ -891,6 +891,35 @@ describe('rollback confirmation', () => {
     expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
   });
 
+  // What a deploy refuses before it pulls, a rollback refuses there too:
+  // both read the same .env.
+  test.each([
+    [
+      'TALE_APP_TIER',
+      'three',
+      'TALE_APP_TIER must be one-process, workers-apart, three-services, or unset; got: "three"',
+    ],
+    [
+      'DB_PROFILE',
+      'tiny',
+      'DB_PROFILE must be small, standard, or unset; got: "tiny"',
+    ],
+  ])('refuses %s=%s before it pulls anything', async (name, value, message) => {
+    arrangePatchRollback();
+    const before = process.env[name];
+    process.env[name] = value;
+    try {
+      await expect(
+        rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+      ).rejects.toThrow(message);
+    } finally {
+      if (before === undefined) delete process.env[name];
+      else process.env[name] = before;
+    }
+    expect(pullImageMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+  });
+
   test('treats the global `tale -y` as consent when the local flag is absent', async () => {
     // `tale -y rollback` routes `--yes` to program.opts(); the command's own
     // flag stays unset. Under the global flag `confirm` would return its

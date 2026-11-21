@@ -144,6 +144,20 @@ A CLI from before this change deploys only over three services. It looks for the
 
 Each colour runs the services its own image supports, so `tale rollback` to a release from before this change brings its three services back. The Compose file in the repository, the [Kubernetes manifests](/self-hosted/install/kubernetes) and the [Incus runtime](/self-hosted/install/incus) keep the three services.
 
+## A database sized for a small host {#database-profile}
+
+`tale deploy` starts the bundled database with the `small` profile: 32 MB of shared buffers where it had 256 MB, 4 MB for a sort where it had 32 MB, 40 connections where it had 100, one autovacuum worker and no parallel query. With it the database holds less than half the memory it held under the same load, which a deployment on a host of half a gigabyte needs. The application opens fewer connections to match, [15 at most from its one process](/self-hosted/configuration/environment-reference#database).
+
+The first deploy of this release restarts the database with these sizes. Nothing on disk changes, and search works as before: past its shared buffers PostgreSQL reads through the host's page cache.
+
+A host with memory to spare and a large knowledge base is better served by the earlier sizes. Before you deploy, set this in the workspace's `.env`:
+
+```dotenv
+DB_PROFILE=standard
+```
+
+To change one size alone, name it instead, such as `DB_SHARED_BUFFERS=1GB`. A size you name wins over the profile.
+
 ## Upgrade from v0.5.77 or earlier
 
 Releases from v0.5.78 on write automation runs with writer protocol 2. Their migration `0163` puts every run that is still queued, running or waiting **On hold**, and a held run never resumes. The first upgrade from v0.5.77 therefore stops the old backend while no run is unfinished, and only then starts the new version. `tale deploy` does this itself, once.

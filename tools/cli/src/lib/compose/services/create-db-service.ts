@@ -1,7 +1,42 @@
+import { preconditionError } from '../../../utils/fail';
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
 import { memoryReservation } from './memory-env';
+
+/** The variable that names what the database is sized for. */
+export const DB_PROFILE_VARIABLE = 'DB_PROFILE';
+
+/**
+ * The profiles the database image knows (services/db/docker-entrypoint.sh):
+ * `small` for a server that shares a host of half a gigabyte with the rest
+ * of the deployment, `standard` for one with a gigabyte or more to itself.
+ */
+export const DB_PROFILES = ['small', 'standard'] as const;
+export type DbProfile = (typeof DB_PROFILES)[number];
+
+/** What `tale deploy` asks for unless `.env` names a profile: the deployment
+ *  it starts is the one that must fit a small host. */
+export const DEFAULT_DB_PROFILE: DbProfile = 'small';
+
+/**
+ * The profile the deployment asked for, or the default where it named none.
+ * A word that is no profile is refused here, before anything is pulled or
+ * recreated: the image refuses it too, and a database that does not start is
+ * a worse place to learn of a typo.
+ */
+export function askedDbProfile(
+  read: (name: string) => string | undefined = (name) => process.env[name],
+): DbProfile {
+  const asked = (read(DB_PROFILE_VARIABLE) ?? '').trim();
+  if (asked === '') return DEFAULT_DB_PROFILE;
+  const profile = DB_PROFILES.find((known) => known === asked);
+  if (profile === undefined)
+    throw preconditionError(
+      `${DB_PROFILE_VARIABLE} must be ${DB_PROFILES.join(', ')}, or unset; got: ${JSON.stringify(asked)}`,
+    );
+  return profile;
+}
 
 export function createDbService(config: ServiceConfig): ComposeService {
   return {
@@ -27,6 +62,13 @@ export function createDbService(config: ServiceConfig): ComposeService {
       'db-backup:/var/lib/postgresql/backup',
     ],
     env_file: ['.env'],
+    // What the server is sized for. The whole `.env` reaches the container,
+    // so a profile or a DB_ size named there wins; unset, this deployment
+    // asks for the small profile where the image alone would take the
+    // standard one.
+    environment: {
+      [DB_PROFILE_VARIABLE]: `\${${DB_PROFILE_VARIABLE}:-${DEFAULT_DB_PROFILE}}`,
+    },
     restart: 'unless-stopped',
     // Gate dependents on BOTH PostgreSQL accepting connections AND the
     // post-start init scripts finishing (they create `tale_knowledge` +

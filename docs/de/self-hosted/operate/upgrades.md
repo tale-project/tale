@@ -148,6 +148,20 @@ Eine CLI aus der Zeit vor dieser Änderung stellt nur über drei Diensten bereit
 
 Jede Farbe führt die Dienste aus, die ihr eigenes Image unterstützt. `tale rollback` auf eine Version vor dieser Änderung bringt daher ihre drei Dienste zurück. Die Compose-Datei im Repository, die [Kubernetes-Manifeste](/de/self-hosted/install/kubernetes) und die [Incus-Laufzeit](/de/self-hosted/install/incus) bleiben bei den drei Diensten.
 
+## Eine Datenbank für einen kleinen Host {#database-profile}
+
+`tale deploy` startet die mitgelieferte Datenbank mit dem Profil `small`: 32 MB Shared Buffers statt 256 MB, 4 MB für eine Sortierung statt 32 MB, 40 Verbindungen statt 100, ein Autovacuum-Worker und keine parallelen Abfragen. Damit belegt die Datenbank unter derselben Last weniger als die Hälfte des bisherigen Speichers, was eine Instanz auf einem Host mit einem halben Gigabyte braucht. Die Anwendung öffnet passend dazu weniger Verbindungen, [höchstens 15 aus ihrem einen Prozess](/de/self-hosted/configuration/environment-reference#database).
+
+Der erste Deploy dieser Version startet die Datenbank mit diesen Größen neu. Auf der Platte ändert sich nichts, und die Suche arbeitet wie zuvor: Was nicht in die Shared Buffers passt, liest PostgreSQL über den Seitencache des Hosts.
+
+Hat dein Host Speicher übrig und eine große Wissensdatenbank, bist du mit den bisherigen Größen besser bedient. Setz dafür vor dem Deploy in der `.env` des Workspace:
+
+```dotenv
+DB_PROFILE=standard
+```
+
+Um nur eine Größe zu ändern, nenn stattdessen diese, etwa `DB_SHARED_BUFFERS=1GB`. Eine Größe, die du nennst, geht dem Profil vor.
+
 ## Upgrade von v0.5.77 oder älter
 
 Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
