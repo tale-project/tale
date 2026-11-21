@@ -86,6 +86,52 @@ read and a stored file's download, which
 [`PERF-P9` and `PERF-P22`](../suites/performance.md) ask a person for, and
 the edge's memory while pages load.
 
+## Reading a file under a memory cap (#4942)
+
+A document is read, checked and cut into passages in a process of its own
+that is stopped above a cap. One box asks a person for the whole of it on a
+running stack, [`KNOW-B31`](../suites/knowledge.md); these suites own the
+rest:
+
+- `backend/lib/heavy-slot/slot.test.ts` holds the line of jobs (one at a time,
+  what a person waits for first), what a child is started with (its heap from
+  the cap, none of the backend's secrets), and how a job ends that outlives
+  its time, loses its caller or reaches its cap: the limit's sentence, one
+  line in the log and none of V8's crash report.
+- `backend/lib/heavy-slot/documents.test.ts` starts real children: the text,
+  the facts and the chunks a child hands back are the ones this process would
+  have made, a file that needs more than the cap fails with the limit and
+  leaves no files, a workbook that states a vast range is stopped where its
+  text passes what the cap has room for, a long text is prepared a chunk at a
+  time, and a directory a dead process left behind is removed.
+- `backend/lib/heavy-slot/operations.test.ts` holds what a child refuses
+  before it tries: a text that would not fit beside the bytes it is read
+  from, twice the room for a text with a character past U+00FF, and less
+  under a PII policy.
+- `scripts/build-backend.test.ts` runs the built child: what it may import,
+  a PDF and a spreadsheet read in it, and sixteen megabytes of text prepared
+  within the 96 MiB a small host gives one file.
+- `backend/core/lib/knowledge/file_extraction/*.test.ts` hold every reader of
+  a file on disk to the text its reader of bytes returns, the streamed
+  spreadsheet against SheetJS cell for cell, and the text sink to the bytes
+  of the whole text.
+- `lib/knowledge/chunking.lazy.test.ts` holds the chunks cut one at a time to
+  the chunks the list-building chunker cut, for two thousand random
+  documents, and `lib/knowledge/secret-scan.test.ts` the scan of a file read
+  in pieces to the scan of the whole file.
+- `backend/domains/knowledge/service.kept-read.test.ts` and
+  `read-text.test.ts` hold what the lanes do with the limit: an index fails
+  with `memory_limit` and the sentence on its row and is not retried by its
+  job, and a read leaves the file to its index.
+- `app/features/documents/components/rag-status-badge.memory-limit.test.tsx`,
+  `app/features/chat/utils/document-chip-status.test.ts` and
+  `app/features/chat/components/composer-attachments.test.tsx` render the
+  dialog, the attachment chip and the recording chip with the limit and the
+  variable, in English, German and French from the shipped catalogs.
+
+What none of them reads is a deployment's memory while a file is read, which
+the memory benchmark samples.
+
 ## Skill editor successful saves (#3642)
 
 The component/HTTP suite `app/features/skills/components/skill-detail-pane.save.test.tsx` owns keeping Description, Labels, Visibility and Instructions visible with saved values and a clean Save state after a normalized no-op or a changed save, with detail and library refreshes completing in either order. It uses the real skills hooks, React Query and HTTP adapters with an in-memory door; a refused save keeps the draft and stored document, and an untouched skill reopens intact without a PUT. Real file-store normalization and browser layout remain outside this suite.

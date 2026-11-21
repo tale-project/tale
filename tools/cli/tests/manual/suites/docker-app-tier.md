@@ -75,6 +75,16 @@ asks for. The earlier release started it with every deployment.
 - [ ] `APP-B4` · **Change the line to `VIDEO_INGEST_POT_PROVIDER=yes` and run `tale deploy`** → it exits `3` with `VIDEO_INGEST_POT_PROVIDER must be true, false, or unset; got: "yes"` before it pulls an image, and `<project>-bgutil-provider` is still running.
 - [ ] `APP-F23` · **Remove the line, run `tale deploy`, then `docker ps -a --format '{{.Names}}' | grep bgutil`** → the deploy prints that it removed the sidecar, and the command prints nothing.
 
+## Read a large file on a small host · the workspace of the group above · 15 min
+
+The one process reads a file in a process of its own and gives it 96 MiB,
+which a workspace raises where its host has memory to spare.
+
+- [ ] `APP-F24` · **Run `docker inspect <project>-<colour>-platform-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep HEAVY_SLOT`** → it prints `HEAVY_SLOT_MEMORY_MB=96` and nothing else.
+- [ ] `APP-F25` · **Make a table of 200,000 rows (`seq 1 200000 | awk '{print $1",2025-01-01,order,42,open,north,EUR,19.90,closed,7"}' > orders.csv`), upload it under Knowledge, and while its badge reads Indexing run `docker top <project>-<colour>-platform-1 -o pid,args | grep heavy-child` every few seconds** → a `heavy-child.js` process is listed while the file is read and none afterwards, and the document reads **Indexed**.
+- [ ] `APP-B5` · **Make a text of 60 MB (`yes "2025-01-01,order,42,open" | head -c 60000000 > too-big.csv`), upload it under Knowledge, open its badge once it reads Failed, then run `tale logs platform --tail 100 | grep heavy-slot`** → the dialog says the file needs more memory than the 96 MiB this server gives one file and names `HEAVY_SLOT_MEMORY_MB`; the log has one line `[heavy-slot] reading a .csv file needs more than the 96 MiB one file is given and was not attempted…`; `docker ps` lists `<project>-<colour>-platform-1` with the ID it had, and the app answers a chat message.
+- [ ] `APP-F26` · **Add `HEAVY_SLOT_MEMORY_MB=512` to the workspace's `.env`, run `tale deploy`, run the command of `APP-F24` again, then choose Retry indexing on the document of `APP-B5`** → the deploy exits `0`, the command prints `HEAVY_SLOT_MEMORY_MB=512`, and the document reads **Indexed**. Remove the line and deploy again to return to 96 MiB.
+
 ## Bring the three services back · the workspace of the group above · 15 min
 
 What a workspace does before it returns to a CLI from before this setting, which
