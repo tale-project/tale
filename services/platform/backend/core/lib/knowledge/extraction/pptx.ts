@@ -362,11 +362,24 @@ export async function extractTextFromPptxBytes(
   filename = 'presentation.pptx',
   options: PptxExtractionOptions = {},
 ): Promise<[string, boolean]> {
+  return extractTextFromPptxZip(
+    await GuardedZip.load(pptxBytes),
+    filename,
+    options,
+  );
+}
+
+/** The same, from an archive that is already open: a file on disk, whose
+ * parts are read as they are asked for. */
+export async function extractTextFromPptxZip(
+  zip: GuardedZip,
+  filename = 'presentation.pptx',
+  options: PptxExtractionOptions = {},
+): Promise<[string, boolean]> {
   const visionClient = options.visionClient ?? null;
   const processImages = options.processImages ?? true;
   const maxConcurrent = options.maxConcurrent ?? 3;
 
-  const zip = await GuardedZip.load(pptxBytes);
   const semaphore = new Semaphore(maxConcurrent);
 
   const slideNames = zip

@@ -197,11 +197,23 @@ export async function extractTextFromDocxBytes(
   filename = 'document.docx',
   options: DocxExtractionOptions = {},
 ): Promise<[string, boolean, number[]]> {
+  return extractTextFromDocxZip(
+    await GuardedZip.load(docxBytes),
+    filename,
+    options,
+  );
+}
+
+/** The same, from an archive that is already open: a file on disk, whose
+ * parts are read as they are asked for. */
+export async function extractTextFromDocxZip(
+  zip: GuardedZip,
+  filename = 'document.docx',
+  options: DocxExtractionOptions = {},
+): Promise<[string, boolean, number[]]> {
   const visionClient = options.visionClient ?? null;
   const processImages = options.processImages ?? true;
   const maxConcurrent = options.maxConcurrent ?? 3;
-
-  const zip = await GuardedZip.load(docxBytes);
 
   const documentXml = await zip.readString('word/document.xml');
   if (!documentXml) {
