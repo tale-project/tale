@@ -586,6 +586,14 @@ subject.
   message; each customer and the API source receive it once, the source with
   the literal text and its line break; the dialog closes and the selection
   clears
+- [ ] `CONV-F40` · **An image attachment opens in the preview** — Open a synced
+  email that lists two images and one PDF under **3 attachments**
+  (`conversations.attachment.attachments`) → Each image chip shows **Preview**
+  (`conversations.attachment.preview`) beside **Download**
+  (`conversations.attachment.download`); the PDF shows **Download** only.
+  **Preview** on the first image opens that picture in the image preview, and
+  the next control moves to the second image. A chip that reads **No longer
+  available** (`conversations.attachment.unavailable`) shows neither control.
 
 ## Boundary & error tests
 

@@ -30,6 +30,28 @@ vi.mock('@/app/components/image', () => ({
   Image: () => null,
 }));
 
+vi.mock('@/app/features/shared/markdown/image-preview-dialog', () => ({
+  ImagePreviewDialog: ({
+    src,
+    alt,
+    images,
+    activeIndex,
+  }: {
+    src: string;
+    alt: string;
+    images?: ReadonlyArray<{ src: string; alt: string }>;
+    activeIndex?: number;
+  }) => (
+    <div
+      role="dialog"
+      aria-label={alt}
+      data-src={src}
+      data-index={activeIndex}
+      data-count={images?.length ?? 0}
+    />
+  ),
+}));
+
 const NOW = 2_000_000;
 
 function makeMessage(overrides: Partial<MessageType> = {}): MessageType {
@@ -291,13 +313,69 @@ describe('Message — attachment list vs inline images', () => {
       <Message
         message={makeMessage({
           content: '<p>My CV is attached.</p>',
-          attachments: [attachment({ unavailable: true, url: undefined })],
+          attachments: [
+            attachment({
+              filename: 'logo.png',
+              contentType: 'image/png',
+              unavailable: true,
+              url: undefined,
+            }),
+          ],
         })}
       />,
     );
     expect(
-      screen.queryByRole('button', { name: /attachment\.download CV\.pdf/ }),
+      screen.queryByRole('button', { name: /attachment\.download logo\.png/ }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /attachment\.preview logo\.png/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('previews an image attachment beside its download', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>Designs attached.</p>',
+          attachments: [
+            attachment({
+              id: 'img-1',
+              filename: '1.png',
+              contentType: 'image/png',
+              url: '/storage/blob_1/1.png',
+            }),
+            attachment({
+              id: 'img-2',
+              filename: '2.png',
+              contentType: 'image/png',
+              url: '/storage/blob_2/2.png',
+            }),
+            attachment({
+              id: 'pdf',
+              filename: 'brief.pdf',
+              contentType: 'application/pdf',
+              url: '/storage/blob_3/brief.pdf',
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /attachment\.preview brief\.pdf/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /attachment\.download brief\.pdf/ }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /attachment\.preview 2\.png/ }),
+    );
+
+    const dialog = screen.getByRole('dialog', { name: '2.png' });
+    expect(dialog).toHaveAttribute('data-src', '/storage/blob_2/2.png');
+    expect(dialog).toHaveAttribute('data-index', '1');
+    expect(dialog).toHaveAttribute('data-count', '2');
   });
 
   it('still shows the size and a download for an attachment that is there', () => {

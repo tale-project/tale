@@ -159,6 +159,7 @@ editor:
   send: Nachricht senden
 attachment:
   download: Herunterladen
+  preview: Vorschau
   unavailable: Nicht mehr verfügbar
   attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
 panel:
