@@ -469,11 +469,11 @@ export interface FileContentConditions {
 
 /**
  * `If-None-Match` as the store must see it. RFC 9110 §13.1.2 makes the
- * comparison weak — `W/"x"` names the same bytes as `"x"` — and the edge
- * suffixes the tag of an answer it compressed (a text transcript comes
- * back as `"x-gzip"`); the store compares strongly and would answer the
- * whole file to either form. Every member is reduced to the opaque tag
- * the store issued (`canonicalEntityTag`).
+ * comparison weak — `W/"x"` names the same bytes as `"x"` — and a
+ * compressing proxy may suffix the tag of an answer it compressed (behind
+ * Caddy a text transcript came back as `"x-gzip"`); the store compares
+ * strongly and would answer the whole file to either form. Every member is
+ * reduced to the opaque tag the store issued (`canonicalEntityTag`).
  */
 function strongIfNoneMatch(header: string): string {
   return header

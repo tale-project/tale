@@ -407,6 +407,43 @@ export const PLATFORM_HEALTH = '(?i)^/api/health$';
 // client sends one; refused before any route, so a path never means one
 // thing to the router and another to the service that folds the dots.
 const DOT_SEGMENT = '(?i)(^|/)(%2e|[.]){1,2}(/|$)';
+// What the edge compresses: the text the platform and its API write. The
+// middleware compares a type exactly, whatever its parameters, and knows no
+// `text/*`, so each one is spelled out; a type that is missing here is sent
+// as the platform wrote it.
+//
+// Everything else passes through with its length and its byte ranges. A PDF,
+// an image, an archive or a recording gains nothing from a second coding,
+// and a compressed answer loses `Accept-Ranges`, and its `Content-Length`
+// once it is large enough to stream: a download without a size, and a
+// viewer that cannot ask for one page of a document without fetching all
+// of it.
+//
+// An event stream is absent on purpose: it is written as it happens, and a
+// compressor holds events back until its buffer fills.
+export const COMPRESSED_CONTENT_TYPES = [
+  // The API's answers, the app's shell and the documents beside it.
+  'application/json',
+  'application/scim+json',
+  'application/xml',
+  'text/html',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  // What a page loads, where the build left no compressed copy beside the
+  // file: a source map, a bundle that a release before this one published.
+  'text/css',
+  'text/javascript',
+  'application/javascript',
+  'application/manifest+json',
+  'application/wasm',
+  'image/svg+xml',
+  'font/ttf',
+  'font/otf',
+];
+// The body size from which the edge compresses, in bytes: under it an answer
+// fits one packet either way. The API reference names this floor.
+export const COMPRESSED_FROM_BYTES = 1024;
 
 /**
  * The headers the edge's JSON answers carry beside their request id, as the
@@ -615,12 +652,25 @@ export function renderEdge(s) {
         },
       },
     },
+    // Gzip, and nothing newer. A zstd encoder is megabytes where a gzip one
+    // is pooled and small, and offering zstd cost that even for an answer
+    // that passes through untouched: on two cores, six browsers loading the
+    // app's files, every one compressed by the platform already, took the
+    // edge from 20 MiB to over 100, and to 43 with gzip alone. Twelve open
+    // answers of 1.5 MB took it past 70 MiB, and to 26 with gzip alone. The
+    // app's own files are not compressed here either way: the platform
+    // sends them as the build compressed them, brotli first
+    // (services/platform/scripts/precompress-dist.ts). Before it did, the
+    // same six browsers took the edge to 500 MiB.
+    //
+    // The types are named, never excluded. A middleware that only excludes
+    // event streams compresses every download, and one that sets both lists
+    // is refused by Traefik, which then drops every route that names it.
     'tale-compress': {
       compress: {
-        encodings: ['zstd', 'gzip'],
-        // An event stream is written as it happens; a compressor would
-        // hold events back until its buffer fills.
-        excludedContentTypes: ['text/event-stream'],
+        encodings: ['gzip'],
+        includedContentTypes: COMPRESSED_CONTENT_TYPES,
+        minResponseBodyBytes: COMPRESSED_FROM_BYTES,
       },
     },
     // A failing service (502–504), by the kind of door: the page for a

@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 39 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -118,14 +118,15 @@ magnitude:
   `video-links/thread` request every 5 s appears; once it settles, the tab
   is silent again.
 - [ ] `PERF-P9` · **Validated reads through the proxy** — From a shell,
-  `curl -sS --compressed -D - -o /dev/null` an API list of at least 512 bytes
+  `curl -sS --compressed -D - -o /dev/null` an API list of at least 1 KiB
   through the proxy (e.g. `{SITE_URL}/api/v1/contacts?limit=200` with a
   Bearer key), then repeat it with `-H 'If-None-Match: <the ETag it
-  answered>'`. → The first answer carries `Content-Encoding: gzip` or
-  `zstd`, `Vary: Accept-Encoding`, an `ETag` ending in `-gzip`/`-zstd` and
-  `Cache-Control: private, no-cache`; the repeat answers **304** with no
-  body and the unsuffixed `ETag`; the same repeat without `--compressed`
-  still answers 304.
+  answered>'`. → The first answer carries `Content-Encoding: gzip` (never
+  `zstd` or `br`), `Vary: Accept-Encoding`, the `ETag` the same read
+  answers without `--compressed` and `Cache-Control: private, no-cache`;
+  the repeat answers **304** with no body and the same `ETag`; the same
+  repeat without `--compressed`, and one that sends the tag with `-gzip`
+  added before its closing quote, still answer 304.
 - [ ] `PERF-P10` · **Cold /log-in JS budget** — In a brand-new browser
   context (empty cache) open `/log-in`, then read
   `performance.getEntriesByType('resource')` filtered to `.js` → The page
@@ -164,6 +165,14 @@ magnitude:
   open paints promptly (DevTools → Performance: the click's interaction
   near 100 ms or under, never near 200 ms), and the image shows over the
   dimmed page, which stays sharp behind it.
+- [ ] `PERF-P22` · **A download keeps its size through the proxy** — Upload
+  a PDF of a few megabytes to a project, then from a shell
+  `curl -sS --compressed -D - -o /dev/null` its content through the proxy
+  (`{SITE_URL}/api/v1/projects/{id}/files/{documentId}/content` with a
+  Bearer key), and repeat with `-H 'Range: bytes=0-1023'`. → The first
+  answer is **200** with the file's `Content-Length`, `Accept-Ranges: bytes`
+  and no `Content-Encoding`; the second is **206** with `Content-Range` and
+  a `Content-Length` of 1024.
 
 ## Response-time SLAs
 

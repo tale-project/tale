@@ -183,6 +183,12 @@ const OUTSIDE_READS = [
     readers: 'backend/core/knowledge/ddl.test.ts',
   },
   {
+    // Read as text, not imported: the content types the edge compresses,
+    // which the kinds of file the build compresses are held to.
+    path: 'services/proxy/render/config.js',
+    readers: 'scripts/precompress-dist.test.ts',
+  },
+  {
     // Run under awk, not imported: the egress service's reader of
     // OUTBOUND_PROXY_URLS, held to the backend's.
     path: 'services/sandbox-egress/outbound-proxies.awk',

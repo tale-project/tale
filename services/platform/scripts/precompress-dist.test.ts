@@ -19,6 +19,7 @@ import {
   gzipSync,
 } from 'node:zlib';
 
+import { getMimeType } from 'hono/utils/mime';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -294,6 +295,31 @@ describe('the rule for a neighbour', () => {
     expect(isCompressible('openapi.json', 1_000_000)).toBe(false);
     expect(isCompressible('pwa-build.json', 1_000_000)).toBe(true);
     expect(isCompressible('assets\\app.js', MIN_BYTES)).toBe(true);
+  });
+
+  it('covers no kind of file the edge would send as it is for a build that did not', () => {
+    // The edge compresses the types it names (services/proxy/render/config.js)
+    // and passes every other through. A kind compressed here and missing
+    // there is compressed for one build and not for the next: a bundle that
+    // a release before this one published, a file whose neighbour is gone.
+    const edge = readFileSync(
+      new URL('../../proxy/render/config.js', import.meta.url),
+      'utf8',
+    );
+    const list = /export const COMPRESSED_CONTENT_TYPES = \[([^\]]*)\]/.exec(
+      edge,
+    )?.[1];
+    expect(list).toBeDefined();
+    const named = [
+      ...(list ?? '').replaceAll(/\/\/.*$/gm, '').matchAll(/'([^']+)'/g),
+    ].map((match) => match[1]);
+    expect(named).toContain('application/json');
+    for (const extension of COMPRESSIBLE_EXTENSIONS) {
+      // The web tier's own table (`lib/static-file.ts`), parameters dropped.
+      const type = getMimeType(`file${extension}`)?.split(';')[0];
+      expect(type, extension).toBeDefined();
+      expect(named, extension).toContain(type);
+    }
   });
 
   it('names the codings the web tier looks for, best first, and no third', () => {

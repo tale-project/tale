@@ -146,7 +146,7 @@ Une requête HTTP/1.1 dont le découpage en chunks est mal formé, par exemple u
 
 Une lecture JSON réussie (`GET`, **200**) inclut un `ETag` calculé à partir du corps de la réponse et `Cache-Control: private, no-cache`. Conserve cette réponse et envoie son tag dans `If-None-Match` à la lecture suivante. Si elle n’a pas changé, le serveur répond **304**, sans corps. Tu peux ainsi suivre une exécution, un fil inactif ou une indexation sans retransférer les mêmes données.
 
-Renvoie le tag sans le modifier. Le proxy ajoute `-gzip` ou `-zstd` au tag des réponses compressées ; l’API reconnaît ces formes et la forme faible `W/"…"`. Sa réponse **304** contient le tag qu’elle a calculé.
+Renvoie le tag sans le modifier. La compression ne le change pas : une réponse porte le même tag, que le proxy l’ait compressée ou non. L’API reconnaît aussi la forme faible `W/"…"` et un tag suffixé par un proxy qui compresse, `"…-gzip"` ou `"…-zstd"`, comme en émettaient les versions précédentes. Sa réponse **304** contient le tag qu’elle a calculé.
 
 Les téléchargements `GET /api/v1/projects/{id}/files/{documentId}/content` et `GET /api/v1/documents/{id}/content` acceptent aussi `If-None-Match` et `If-Modified-Since`. Utilise les valeurs `ETag` et `Last-Modified` qu’ils ont renvoyées.
 
@@ -162,9 +162,9 @@ curl -sS --compressed -D - -o /dev/null "https://your-host.example.com/api/v1/pr
 
 ### Demander la compression
 
-Demande `gzip` ou `zstd` dans `Accept-Encoding`, par exemple avec `curl --compressed`. Le serveur compresse les réponses JSON et texte à partir d’environ 512 octets ; il ne sert pas `br`.
+Demande `gzip` dans `Accept-Encoding`, par exemple avec `curl --compressed`. Le serveur compresse les réponses JSON et texte à partir d’environ 1 Kio ; il ne sert ni `br` ni `zstd`.
 
-Lorsqu’il est présent, `Content-Length` indique la taille compressée. Les réponses volumineuses transmises en flux peuvent l’omettre. L’`ETag` reçoit le suffixe `-gzip` ou `-zstd`. Une réponse `HEAD` reste non compressée et indique la longueur non compressée.
+Lorsqu’il est présent, `Content-Length` indique la taille compressée. Les réponses volumineuses transmises en flux peuvent l’omettre. L’`ETag` est celui de la réponse non compressée. Une réponse `HEAD` reste non compressée et indique la longueur non compressée. Tout le reste est envoyé tel qu’il est stocké : un PDF, une image, une archive ou un enregistrement garde son `Content-Length` et son `Accept-Ranges`, de même que toute réponse partielle (**206**).
 
 Active cette option pour réduire le volume transféré par les listes et les réponses contenant beaucoup de données répétées. La compression ne réduit pas le nombre de requêtes décomptées de ton quota.
 

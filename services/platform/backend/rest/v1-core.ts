@@ -1577,7 +1577,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // send it back as `If-Match` on its save. The 304 is NOT decided
       // here: the validated-read middleware outside the door
       // (lib/conditional-get.ts) keeps a route's own tag, compares
-      // `If-None-Match` weakly — the edge's `-gzip`/`-zstd` suffix
+      // `If-None-Match` weakly — a proxy's `-gzip`/`-zstd` suffix
       // included, which the strict matcher this route once ran never
       // matched — and answers the 304 with the `private, no-cache` the 200
       // carries. The route's own 304 said `no-store` about the very bytes

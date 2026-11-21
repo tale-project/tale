@@ -84,7 +84,7 @@ describe('openFileContent', () => {
     );
   });
 
-  it('reduces a weak or edge-suffixed If-None-Match to the tags the store compares', async () => {
+  it('reduces a weak or proxy-suffixed If-None-Match to the tags the store compares', async () => {
     fetched.mockResolvedValue(new Response(null, { status: 304 }));
     await openFileContent(sql, scope, 's3:acme/blob-1', {
       conditions: { ifNoneMatch: 'W/"abc", "def-gzip" , W/"ghi-zstd"' },
