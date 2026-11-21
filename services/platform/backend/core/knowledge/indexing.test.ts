@@ -4,7 +4,7 @@ import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { chunkDocument } from '../../../lib/knowledge/chunking';
+import { chunksOf } from '../../../lib/knowledge/chunking';
 import { logger } from '../../../lib/knowledge/logger';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
@@ -23,7 +23,7 @@ import { applyPiiPolicyForIndexing, type PiiScanFailure } from './pii_gate';
 vi.mock('../../../lib/knowledge/chunking', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('../../../lib/knowledge/chunking')>();
-  return { ...original, chunkDocument: vi.fn(original.chunkDocument) };
+  return { ...original, chunksOf: vi.fn(original.chunksOf) };
 });
 vi.mock('../../../lib/knowledge/secret-scan', async (importOriginal) => {
   const original =
@@ -1313,7 +1313,7 @@ describe('a document is prepared once, not once per slice', () => {
   it('scans, applies the policy and chunks the text once across every slice', async () => {
     vi.mocked(scanForSecrets).mockClear();
     vi.mocked(applyPiiPolicyForIndexing).mockClear();
-    vi.mocked(chunkDocument).mockClear();
+    vi.mocked(chunksOf).mockClear();
     const db = fakeDb({ resumable: true });
     const embedder = stubEmbedder();
     const progress: number[] = [];
@@ -1347,7 +1347,7 @@ describe('a document is prepared once, not once per slice', () => {
     // …and the whole-document work ran once for the document.
     expect(scanForSecrets).toHaveBeenCalledTimes(1);
     expect(applyPiiPolicyForIndexing).toHaveBeenCalledTimes(1);
-    expect(chunkDocument).toHaveBeenCalledTimes(1);
+    expect(chunksOf).toHaveBeenCalledTimes(1);
   });
 
   // A search hit reports where its chunk starts in the document's text
