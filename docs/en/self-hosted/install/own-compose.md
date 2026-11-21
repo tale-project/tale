@@ -56,7 +56,7 @@ Set `HOST`, `SITE_URL`, and `TLS_MODE` for the public path. [TLS and domains](/s
 
 ## Assemble the application tier
 
-The three roles share an image. `TALE_ROLE=api` and `TALE_ROLE=worker` select backend roles; keep that variable unset for the web service. Do not put a fixed `container_name` on roles you intend to scale.
+The three roles share an image. `TALE_ROLE=api` and `TALE_ROLE=worker` select backend roles; keep that variable unset for the web service. A workspace deployed with `tale deploy` runs all three in one `platform` process instead (`TALE_ROLE=all`); this page keeps them as three services, which every release supports. Do not put a fixed `container_name` on roles you intend to scale.
 
 ```yaml
 # Application-tier fragment; add the stores, proxy, and sandbox services.

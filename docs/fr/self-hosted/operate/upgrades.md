@@ -41,7 +41,7 @@ Un changement de version ou un remplacement de configuration de l’hôte prend 
 
 | Groupe de services | Déploiement ordinaire | Quand prévoir une interruption supplémentaire ? |
 | --- | --- | --- |
-| `platform`, `backend-api`, `backend-worker` | Déploiement commun dans la nouvelle couleur applicative. | Anciens et nouveaux réplicas coexistent ; le drainage peut refuser de nouveaux tours. |
+| `platform`, avec `backend-api` et `backend-worker` là où ils tournent à part | Déploiement commun dans la nouvelle couleur applicative. | Anciens et nouveaux réplicas coexistent ; le drainage peut refuser de nouveaux tours. |
 | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Remplacement sur place après drainage du travail concerné. | Ce sont des dépendances d’exécution communes, pas un second groupe applicatif bleu-vert. |
 | `db`, `object-store`, `proxy` | Conservation des services actifs ; la CLI signale les mises à jour ignorées. | Ajoute `--stop` lorsque ces services doivent être remplacés. |
 
@@ -49,7 +49,7 @@ Un changement de version ou un remplacement de configuration de l’hôte prend 
 tale deploy --stop
 ```
 
-`TALE_PLATFORM_REPLICAS`, `TALE_BACKEND_API_REPLICAS` et `TALE_BACKEND_WORKER_REPLICAS` acceptent 1–16 réplicas. Augmente le rôle dont les mesures montrent la saturation ; ajouter des workers ne corrige ni une base indisponible ni un quota fournisseur épuisé.
+`TALE_PLATFORM_REPLICAS` fixe le nombre de réplicas `platform` d’une couleur, de 1 à 16 ; chacun est l’application entière. Définir `TALE_BACKEND_WORKER_REPLICAS` ou `TALE_BACKEND_API_REPLICAS` [fait tourner les workers à part](#one-process), pour les dimensionner séparément. Augmente ce dont les mesures montrent la saturation ; ajouter des workers ne corrige ni une base indisponible ni un quota fournisseur épuisé.
 
 ## Comprendre la bascule
 
@@ -114,7 +114,7 @@ Après le déploiement, vérifie certificat public et connexion, ouvre un projet
 | Situation | Reprise |
 | --- | --- |
 | Revenir à la version précédente enregistrée dans la même ligne `major.minor` | `tale rollback` vérifie cette limite et demande confirmation avant de redéployer. Lis aussi les notes de compatibilité de la release. |
-| Revenir au-delà d’une limite mineure ou majeure | Restaure les données coordonnées d’avant la mise à niveau et déploie leur version correspondante. `tale rollback` refuse ce retour limité aux images. |
+| Revenir au-delà d’une limite mineure ou majeure | Restaure les données coordonnées d’avant la mise à niveau et déploie leur version correspondante. `tale rollback` refuse ce retour limité aux images. Un workspace qui exécute l’application en un seul processus [ramène d’abord ses trois services](#one-process). |
 | Version cible ou compatibilité des données inconnue | Résous la version et la provenance des sauvegardes avant de démarrer un programme plus ancien. |
 
 ```bash
@@ -123,7 +123,26 @@ tale rollback
 
 `--yes` supprime la confirmation pour une opération sans surveillance déjà approuvée. La vérification de ligne de version est un garde-fou, pas une preuve indépendante de compatibilité de chaque intégration externe ou configuration personnalisée. Une liste d’anciennes migrations qui forme le préfixe de la nouvelle ne suffit pas à rendre un retour arrière sûr.
 
-`tale rollback` remplace uniquement les images applicatives de `platform`, `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement ordinaire (sans `--services`) qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
+`tale rollback` remplace uniquement les images de l’application : celles de `platform` et, là où ils tournent à part, celles de `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement ordinaire (sans `--services`) qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
+
+## L’application en un seul processus {#one-process}
+
+Un workspace exécute l’application dans un processus `platform` par réplica : le service web, l’API et les workers. Les versions précédentes les exécutaient en trois services, `platform`, `backend-api` et `backend-worker`, et leurs images le font toujours.
+
+Le premier `tale deploy` d’une version capable de tourner en un seul processus démarre ainsi la nouvelle couleur à côté de l’ancienne couleur à trois services, puis retire l’ancienne après la bascule, comme tout autre déploiement. `tale deploy --dry-run` nomme les services que la nouvelle couleur exécuterait. Ensuite :
+
+- Il n’existe plus de conteneur `backend-api` ni `backend-worker`. `tale logs backend-api` et `tale logs backend-worker` lisent à la place le log de `platform`. Adapte ce que tu maintiens toi-même et qui nomme ces conteneurs, comme un collecteur de logs ou une alerte.
+- Les autres services atteignent toujours l’API sous le nom `backend-api`, auquel `platform` répond désormais aussi.
+- `PLATFORM_MEMORY_RESERVATION` dimensionne ce processus unique et vaut `256m` par défaut pour lui, au plus sa limite de mémoire de `12g`. `BACKEND_API_MEMORY_RESERVATION` et `BACKEND_WORKER_MEMORY_RESERVATION` ne s’appliquent à ces services que là où ils existent.
+- `tale deploy --services platform` remplace sur place l’application entière et draine donc d’abord les tours de chat. Nommer un service que la couleur active n’exécute pas est refusé, avec la liste de ceux qu’elle exécute.
+
+Pour dimensionner les workers séparément, définis `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` ou les deux, sur une valeur de 1 à 16, puis déploie. La nouvelle couleur exécute alors `backend-worker` avec son nombre de réplicas, à côté d’un `platform` qui est le service web et l’API et qui en compte autant que la plus grande des valeurs `TALE_PLATFORM_REPLICAS` et `TALE_BACKEND_API_REPLICAS`. Retire les deux variables et le déploiement suivant revient à un seul processus.
+
+`TALE_APP_TIER` nomme la forme directement et l’emporte sur les nombres de réplicas : `one-process`, `workers-apart` ou `three-services`. Avec `three-services`, même une version capable de tourner en un seul processus exécute `platform` comme service web seul, à côté de `backend-api` et `backend-worker`.
+
+Une CLI d’avant ce changement ne déploie que par-dessus trois services. Elle cherche les conteneurs `backend-api` et `backend-worker` et, sans eux, refuse de déployer ou de revenir en arrière sans rien modifier : avec `The installed backend database connection is unknown` par-dessus un seul processus, et avec `The installed backend database inventory is incomplete` là où seuls les workers tournent à part. Avant de revenir à une telle CLI, par exemple pour restaurer un snapshot d’une ligne de versions antérieure, définis `TALE_APP_TIER=three-services` et lance `tale deploy` avec la CLI actuelle : le workspace exécute alors les services que l’ancienne connaît. Fais-le avant la restauration : ensuite, les données appartiennent à la version antérieure, et seule la CLI de cette version peut les démarrer. `tale restore` le vérifie lui-même là où l’image de la version antérieure est encore sur l’hôte, et refuse avant de modifier quoi que ce soit. Retire la variable une fois revenu sur une version qui tourne en un seul processus. `tale rollback` n’a pas besoin de cette étape : la CLI actuelle démarre elle-même les trois services de la version antérieure.
+
+Chaque couleur exécute les services que sa propre image prend en charge. `tale rollback` vers une version antérieure à ce changement ramène donc ses trois services. Le fichier Compose du dépôt, les [manifestes Kubernetes](/fr/self-hosted/install/kubernetes) et le [runtime Incus](/fr/self-hosted/install/incus) gardent les trois services.
 
 ## Mise à niveau depuis v0.5.77 ou antérieure
 

@@ -24,10 +24,12 @@ copy-pasteable `Try:` where it has them.
 
 Each names what is wrong and what to do next, in words an operator can act on.
 
-None recorded yet. A refusal is a row of this table:
-
 | Refusal | How to reach it |
 |---|---|
+| `The <colour> colour runs platform: it has no backend-api to update. Name a service it runs, or run \`tale deploy\` without --services to start a colour of another shape.` (exit `3`) | in a workspace whose live colour runs the application as one process, `tale deploy --services backend-api` |
+| `TALE_APP_TIER must be one-process, workers-apart, three-services, or unset; got: "three"` (exit `3`) | with `TALE_APP_TIER=three` in the workspace's `.env`, `tale deploy` or `tale rollback` |
+| `Snapshot <id> holds the data of Tale <version>, whose CLI deploys only over the services platform, backend-api and backend-worker. This workspace runs the application as platform, which that CLI refuses once the data is restored. First set TALE_APP_TIER=three-services in .env and run \`tale deploy\`, then restore. Nothing was changed.` (exit `3`) | in a workspace whose live colour runs one process, `tale restore <id> --stop` for a snapshot of an earlier release whose image is still on the host and carries no `io.tale.app-in-backend` label |
+| `Could not read which services the <colour> colour runs: <container> did not answer an inspect. Nothing was changed.` (exit `5`) | `tale deploy --services <service>` while the live colour's `platform` container cannot be inspected |
 
 ## Must never appear
 

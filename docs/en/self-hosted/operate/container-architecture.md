@@ -21,15 +21,17 @@ Use service ownership to narrow an incident before changing containers. The pack
 
 Use logical service names with `tale logs <service>`. For your own Compose stack, use `docker compose logs --tail=200 <service>`; generated container names may include a project, colour, and replica number.
 
+A workspace runs the web tier, the API and the workers in one `platform` process unless its workers run apart. `backend-api` and `backend-worker` in this table are then that process, and all three share one log: `tale logs backend-api` and `tale logs backend-worker` read it, and say so. `tale status` lists the containers the workspace has.
+
 ## Follow an interactive chat request
 
-1. The browser reaches `proxy`. Web assets go to `platform`; application and authentication requests go to `backend-api`.
+1. The browser reaches `proxy`. Web assets go to `platform`; application and authentication requests go to `backend-api`, a name the `platform` process answers too where it is the API.
 2. The API checks the session and organization, resolves the chosen model and credential, and executes the interactive turn. It stores progress in the application database.
 3. The browser reads turn progress through the thread's stream endpoint. `/events` carries invalidation hints for refreshed data; it is not the token payload stream.
 4. Knowledge tools access the requesting organization's knowledge connection. Original files are read through its storage configuration.
 5. A turn using an agent runtime needs a sandbox session and the model gateway. Queued tasks, workflow agent jobs, and REST chat turns can also depend on workers.
 
-A worker outage therefore has a different scope from an API outage, but it is not safe to declare all chat or agent work unaffected. Check the entry point and execution type that failed. Preserve the original error before retrying a turn that might spend tokens or perform an external action.
+A worker outage therefore has a different scope from an API outage where the two are separate processes, but it is not safe to declare all chat or agent work unaffected. One process that is both fails as a whole. Check the entry point and execution type that failed. Preserve the original error before retrying a turn that might spend tokens or perform an external action.
 
 ## Understand the sandbox dependencies
 

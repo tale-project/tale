@@ -1,22 +1,28 @@
 import { sameMinor } from '../../utils/compare-versions';
 import { externalDepError, preconditionError } from '../../utils/fail';
-import {
-  getProjectId,
-  getReplicaCounts,
-  type DeploymentEnv,
-} from '../../utils/load-env';
+import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { runStepsInParallel } from '../../utils/progress';
 import { confirm } from '../../utils/prompt';
+import {
+  appTierFor,
+  askedAppTier,
+  describeReplicas,
+  tierReplicaCounts,
+} from '../compose/app-tier';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
-import { memoryReservationNotice } from '../compose/services/memory-env';
+import {
+  memoryReservationNotice,
+  reservedMemoryMib,
+} from '../compose/services/memory-env';
 import {
   ROTATABLE_SERVICES,
   imageRef,
   type ServiceConfig,
 } from '../compose/types';
+import { imageServesApp } from '../deployment/app-tier-image';
 import { legacyLedgerShape } from '../deployment/automation-cutover-sql';
 import {
   installedAutomationLedger,
@@ -47,10 +53,10 @@ import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import {
   awaitRunningColorHealthy,
-  colorLooksUp,
   colorProject,
   colorPlatformVersion,
-  isUnfinishedColorFlip,
+  colorTier,
+  planColorFlip,
   retireColor,
   startColor,
 } from './color-lifecycle';
@@ -103,6 +109,15 @@ function printSnapshotRestoreRunbook(): void {
   logger.info(
     'Only a separately verified compatible recovery can restore a snapshot:',
   );
+  logger.info(
+    '  0. If the application runs as one process (no backend-api container)',
+  );
+  logger.info(
+    '     and the snapshot is from a release before that, bring its three',
+  );
+  logger.info('     services back first: set TALE_APP_TIER=three-services in');
+  logger.info('     .env, then run:');
+  logger.info('       tale deploy');
   logger.info('  1. List the snapshots taken before deploys:');
   logger.info('       tale restore');
   logger.info('  2. Restore the one taken before the upgrade:');
@@ -253,13 +268,17 @@ export async function rollback(
     };
     const reservationNotice = memoryReservationNotice(serviceConfig);
     if (reservationNotice) logger.warn(reservationNotice);
+    // A shape named by a word that is none is refused before the pull.
+    askedAppTier();
 
     // Pull previous-version images CONCURRENTLY, reporting each as a step so
     // progress + failure attribution stay clear. A single failure doesn't
     // cancel the others; collect them and report together. Service → image
     // goes through `imageRef` and is de-duplicated: the backend roles run the
     // PLATFORM image, so a mechanical `tale-${service}` would try to pull
-    // images that were never built.
+    // images that were never built. Every name a service of the tier can
+    // have is asked: which of them this image's colour runs is read below,
+    // once the image is here.
     const rollbackImages = [
       ...new Set(
         ROTATABLE_SERVICES.map((service) => imageRef(serviceConfig, service)),
@@ -286,28 +305,50 @@ export async function rollback(
       installedProtocol,
     );
 
-    const services = [...ROTATABLE_SERVICES];
-    const replicas = getReplicaCounts();
+    // The colour takes the shape the image it runs was built for
+    // (compose/app-tier.ts), read under the reference just admitted: a
+    // release from before the app moved into the backend process comes back
+    // as its three services, whatever shape the live colour has.
+    const tier = appTierFor({
+      appInBackend: await imageServesApp(imageRef(serviceConfig, 'platform')),
+    });
+    serviceConfig.appTier = tier;
+    const services = [...tier.services];
+    const replicas = tierReplicaCounts(tier);
+    // What the live colour reserves is what the sandbox spawner was last told
+    // to leave free, and a rollback leaves the spawner alone. Read for the
+    // note at the end; a colour that cannot be read costs the note, never
+    // the rollback.
+    const reservedBefore = await colorTier(currentColor, runtime).then(
+      (live) => (live === null ? null : reservedMemoryMib(live)),
+      (error: unknown) => {
+        logger.debug(
+          `The live colour's shape could not be read: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return null;
+      },
+    );
     const pending = await getFlipPending(env.DEPLOY_DIR);
-    const resume =
-      pending !== null &&
-      (await isUnfinishedColorFlip(
-        env.DEPLOY_DIR,
-        pending,
-        services,
-        replicas,
-        runtime,
-      ));
-    const promoting =
-      resume && pending !== null ? pending.promoting : rollbackColor;
-    const retiring =
-      resume && pending !== null ? pending.retiring : currentColor;
+    // Decided once, like a deploy's (`planColorFlip`): a colour that is used
+    // as it stands has every writer inspected against the admitted image, and
+    // one that already holds the traffic is never started again.
+    const flip = await planColorFlip({
+      pending,
+      current: currentColor,
+      next: rollbackColor,
+      tier,
+      replicas,
+      runtime,
+    });
+    const { promoting, retiring } = flip;
 
-    if (await colorLooksUp(promoting, services, replicas, runtime))
+    if (flip.step !== 'start')
       await admitPendingAutomationColor(
         colorProject(promoting),
         serviceConfig.platformImage,
         installedProtocol,
+        {},
+        flip.services,
       );
 
     const checkInstalledWriter = async () =>
@@ -325,9 +366,13 @@ export async function rollback(
     await runtime.ensureVolumes(REQUIRED_VOLUMES);
     await runtime.ensureNetwork('internal');
 
-    if (!resume) {
+    if (!flip.resumed) {
       if (pending !== null) await clearFlipPending(env.DEPLOY_DIR);
       await setFlipPending(env.DEPLOY_DIR, { promoting, retiring });
+    } else if (flip.step === 'start') {
+      logger.info(
+        `Resuming the interrupted rollback onto ${promoting}: it serves nothing as it stands, so it is started again.`,
+      );
     } else {
       logger.info(
         `Resuming the interrupted rollback onto ${promoting} (will not recreate a colour that is already up).`,
@@ -337,7 +382,7 @@ export async function rollback(
     // Bring the rollback colour up beside the live one, at the same replica
     // counts, and wait for every replica. Skip when resuming a colour that
     // is already answering — `startColor` would wipe it first.
-    if (!(await colorLooksUp(promoting, services, replicas, runtime))) {
+    if (flip.step === 'start') {
       logger.step(
         `Deploying ${promoting} services with version ${rollbackVersion}...`,
       );
@@ -351,12 +396,16 @@ export async function rollback(
         runtime,
       });
     } else {
+      if (flip.runsInstead !== null)
+        logger.warn(
+          `The ${promoting} colour already holds the traffic and runs ${flip.runsInstead}, where this rollback asks for ${describeReplicas(tier, replicas)}. It is left as it is while the interrupted flip finishes.`,
+        );
       // A colour left up by an interrupted rollback takes traffic only once
       // every replica is healthy.
       await awaitRunningColorHealthy({
         color: promoting,
-        services,
-        replicas,
+        services: flip.services,
+        replicas: flip.replicas,
         healthTimeout: env.HEALTH_CHECK_TIMEOUT,
         runtime,
       });
@@ -368,7 +417,7 @@ export async function rollback(
 
     // Switch traffic and update version history
     logger.step(`Switching traffic to ${promoting}...`);
-    await runtime.admit(colorProject(promoting), services);
+    await runtime.admit(colorProject(promoting), flip.services);
     await setCurrentColor(env.DEPLOY_DIR, promoting);
     await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
     logger.info(`Version history updated: previous=${currentVersion}`);
@@ -388,5 +437,10 @@ export async function rollback(
     logger.success(
       `Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`,
     );
+    const reserved = reservedMemoryMib(tier);
+    if (reservedBefore !== null && reservedBefore !== reserved)
+      logger.warn(
+        `The application now runs as ${tier.services.join(', ')} and reserves ${reserved}m with the database, where the colour before it reserved ${reservedBefore}m. A rollback leaves the sandbox spawner as it is, so it still leaves ${reservedBefore}m free for them (SANDBOX_RESERVED_MEMORY). \`tale deploy --services sandbox\` gives it the new sum.`,
+      );
   });
 }

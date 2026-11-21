@@ -9,19 +9,19 @@ Start with this map when planning capacity or deciding which data to back up. [R
 
 ## How the services fit together
 
-The packaged single-host stack has ten services before replicas and temporary sandbox sessions are counted. The contributor stack can use a separate knowledge database. Service names are more useful than container counts when comparing those layouts.
+The packaged single-host stack has eight services before replicas and temporary sandbox sessions are counted, the application being one of them. A deployment that runs the application's roles apart has up to two more, and the contributor stack can use a separate knowledge database. Service names are more useful than container counts when comparing those layouts.
 
 | Layer | Services | Responsibility |
 | --- | --- | --- |
 | Public entry point | `proxy` | Caddy terminates TLS and routes the browser to the web tier, APIs, and file storage. |
-| Application | `platform`, `backend-api`, `backend-worker` | The web tier serves the UI; the API authenticates requests and serves application operations; workers process queued tasks, automations, and ingestion. |
+| Application | `platform`; also `backend-api` and `backend-worker` where the roles run apart | The web tier serves the UI; the API authenticates requests and serves application operations; workers process queued tasks, automations, and ingestion. One `platform` process is all three unless the roles run apart. |
 | Persistent storage | `db`, `object-store` | Postgres holds application and knowledge data; the S3-compatible store holds original files and generated media. |
 | Sandboxed execution | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | The spawner creates execution sessions, the egress proxy controls outbound requests, and the model gateway supplies scoped model access. |
 | Video support | `bgutil-provider` | Supplies proof-of-origin tokens for video ingestion. Its availability can affect transcript retrieval. |
 
 The browser connects through the public proxy. Internal database, gateway, and sandbox ports should not be exposed as public services. With an external bucket, presigned file requests can instead go directly from the browser to that bucket's public endpoint.
 
-The application roles use the same Tale platform image. `TALE_ROLE=api` starts the API; `TALE_ROLE=worker` starts a worker. Workers do not expose an HTTP server. The sandbox runtime is a separate image used to create temporary session containers, rather than another permanently running Compose service.
+The application roles use the same Tale platform image, and `TALE_ROLE` decides which of them a container runs. A workspace deployed with `tale deploy` starts `platform` with `TALE_ROLE=all`: one process is the web tier, the API and the workers. Setting a backend replica count runs the workers apart, as `backend-worker` (`TALE_ROLE=worker`) beside a `platform` that is the web tier and the API (`TALE_ROLE=api`); [Upgrades](/self-hosted/operate/upgrades#one-process) names the variables. The Compose file in the repository, the Kubernetes manifests and the Incus runtime run three services: `platform` as the web tier alone, `backend-api` and `backend-worker`. Workers do not expose an HTTP server. The sandbox runtime is a separate image used to create temporary session containers, rather than another permanently running Compose service.
 
 ## Where persistent data lives
 

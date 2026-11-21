@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CliError } from '../../utils/fail';
+import { SPLIT, THREE_WAY, UNIFIED } from '../compose/app-tier';
 import { setProjectId } from '../project/project-context';
 import { FakeRuntime } from '../runtime/fake-runtime';
 import { setRestorePending } from '../runtime/incus/apply/journal';
@@ -100,6 +101,42 @@ describe('tale stop', () => {
     expect(fake.journal).toContain(`stop ${PROJECT}-blue-platform-1 -t 45`);
     // A service that declares none keeps Docker's own.
     expect(fake.journal).toContain(`stop ${PROJECT}-bgutil-provider`);
+  });
+
+  // `platform` as the whole application hands its automation runs on like a
+  // worker: `-t` overrides the container's own stop timeout, so a grace read
+  // off three services would kill it 45 s in, mid-drain.
+  test('Docker gives a colour the grace its own shape declares', async () => {
+    expect(declaredGraces(UNIFIED).platform).toBe(120);
+    expect(declaredGraces(SPLIT).platform).toBe(45);
+    expect(declaredGraces(SPLIT)['backend-worker']).toBe(120);
+    expect(declaredGraces(THREE_WAY)).toEqual(declaredGraces());
+
+    const fake = environment('docker');
+    // Mid-flip: blue is three services, green one process.
+    fake.seedInstance({
+      stack: `${PROJECT}-green`,
+      service: 'platform',
+      image: IMAGE,
+      environment: { TALE_ROLE: 'all' },
+    });
+    await stopEnvironment({ deployDir, runtime: fake });
+    expect(fake.journal).toContain(`stop ${PROJECT}-green-platform-1 -t 120`);
+    expect(fake.journal).toContain(`stop ${PROJECT}-blue-platform-1 -t 45`);
+    expect(fake.journal).toContain(`stop ${PROJECT}-blue-backend-api-1 -t 30`);
+    expect(fake.journal).toContain(
+      `stop ${PROJECT}-blue-backend-worker-1 -t 120`,
+    );
+  });
+
+  test('a colour whose shape cannot be read is still stopped, within the graces of three services', async () => {
+    const fake = environment('docker');
+    const inspect = fake.inspect.bind(fake);
+    fake.inspect = async (name) =>
+      name === `${PROJECT}-blue-platform-1` ? null : inspect(name);
+    const stopped = await stopEnvironment({ deployDir, runtime: fake });
+    expect(stopped).toBe(fake.instances.size);
+    expect(fake.journal).toContain(`stop ${PROJECT}-blue-platform-1 -t 45`);
   });
 
   test('Incus stops each instance within its own declared grace', async () => {

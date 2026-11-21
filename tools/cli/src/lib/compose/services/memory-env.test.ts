@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { parse } from 'yaml';
 
 import { setProjectId } from '../../project/project-context';
+import { SPLIT, THREE_WAY, UNIFIED } from '../app-tier';
 import { generateColorCompose } from '../generators/generate-color-compose';
 import { generateStatefulCompose } from '../generators/generate-stateful-compose';
 import type { ComposeService, ServiceConfig } from '../types';
@@ -13,7 +14,11 @@ import {
 import { createDbService } from './create-db-service';
 import { createPlatformService } from './create-platform-service';
 import { createSandboxService } from './create-sandbox-service';
-import { memoryReservationNotice } from './memory-env';
+import {
+  memoryReservationNotice,
+  reservedMemoryMib,
+  unusedMemoryReservations,
+} from './memory-env';
 
 // getProjectId() (used for container_name) throws unless the project context
 // has been initialised, so seed it once for these unit tests.
@@ -193,5 +198,155 @@ describe('memory reservations on an engine that is not cgroup v2', () => {
     process.env.BACKEND_WORKER_MEMORY_RESERVATION = '0';
     expect(memoryReservationNotice(v1)).toBeNull();
     expect(memoryReservationNotice(unread)).toBeNull();
+  });
+});
+
+describe('memory reservations follow the shape of the colour', () => {
+  const one = { ...config, appTier: UNIFIED } satisfies ServiceConfig;
+  const apart = { ...config, appTier: SPLIT } satisfies ServiceConfig;
+  const three = { ...config, appTier: THREE_WAY } satisfies ServiceConfig;
+  const services = (yaml: string) =>
+    (parse(yaml) as { services: Record<string, ComposeService> }).services;
+
+  test('a platform that is a backend process keeps what a backend keeps', () => {
+    clear();
+    expect(createPlatformService(one, 'blue').mem_reservation).toBe('256m');
+    expect(createPlatformService(apart, 'blue').mem_reservation).toBe('256m');
+    // As the web tier alone it keeps the web tier's.
+    expect(createPlatformService(three, 'blue').mem_reservation).toBe('128m');
+  });
+
+  test("its variable stays platform's own, and the api's is not read for it", () => {
+    clear();
+    process.env.BACKEND_API_MEMORY_RESERVATION = '999m';
+    expect(createPlatformService(one, 'blue').mem_reservation).toBe('256m');
+    process.env.PLATFORM_MEMORY_RESERVATION = '300m';
+    expect(createPlatformService(one, 'blue').mem_reservation).toBe('300m');
+    expect(createPlatformService(apart, 'green').mem_reservation).toBe('300m');
+    process.env.PLATFORM_MEMORY_RESERVATION = '0';
+    expect(createPlatformService(one, 'blue')).not.toHaveProperty(
+      'mem_reservation',
+    );
+  });
+
+  test("it is held to the backend's memory limit, which the web tier alone does not have", () => {
+    clear();
+    process.env.PLATFORM_MEMORY_RESERVATION = '12g';
+    const platform = createPlatformService(one, 'blue');
+    expect(platform.mem_limit).toBe('12g');
+    expect(platform.mem_reservation).toBe('12288m');
+    process.env.PLATFORM_MEMORY_RESERVATION = '12289m';
+    for (const shaped of [one, apart])
+      for (const cgroupVersion of [2, 1, null] as const)
+        expect(() =>
+          createPlatformService({ ...shaped, cgroupVersion }, 'blue'),
+        ).toThrow(
+          'Env var PLATFORM_MEMORY_RESERVATION must be at most 12288m, the memory limit of platform; got: "12289m"',
+        );
+    expect(createPlatformService(three, 'blue').mem_limit).toBeUndefined();
+    expect(createPlatformService(three, 'blue').mem_reservation).toBe('12289m');
+    // A deploy reads the sum for the shape it settled on before it changes
+    // anything, so the refusal comes there too.
+    expect(() => reservedMemoryMib(UNIFIED)).toThrow(
+      'Env var PLATFORM_MEMORY_RESERVATION must be at most 12288m',
+    );
+    expect(reservedMemoryMib(THREE_WAY)).toBe(512 + 12289 + 256 + 256);
+  });
+
+  test('the spawner learns what the shape reserves, every replica counted', () => {
+    clear();
+    // The database and one process.
+    expect(createSandboxService(one).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '768m',
+    });
+    // The database, the API and the jobs.
+    expect(createSandboxService(apart).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '1024m',
+    });
+    expect(createSandboxService(three).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '1152m',
+    });
+    process.env.TALE_PLATFORM_REPLICAS = '2';
+    expect(createSandboxService(one).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '1024m',
+    });
+    // A backend count the one process has no service for reserves nothing.
+    process.env.TALE_BACKEND_API_REPLICAS = '3';
+    process.env.TALE_BACKEND_WORKER_REPLICAS = '4';
+    expect(createSandboxService(one).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '1024m',
+    });
+    // With the jobs apart, platform runs the larger of the two counts asked
+    // of it: 512 + 3 × 256 + 4 × 256.
+    expect(createSandboxService(apart).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '2304m',
+    });
+    process.env.PLATFORM_MEMORY_RESERVATION = '0';
+    expect(createSandboxService(one).environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '512m',
+    });
+  });
+
+  test('a reservation set for a service the shape does not run is named, since it protects nothing', () => {
+    clear();
+    expect(unusedMemoryReservations(UNIFIED)).toEqual([]);
+    process.env.BACKEND_API_MEMORY_RESERVATION = '2g';
+    process.env.BACKEND_WORKER_MEMORY_RESERVATION = '1g';
+    process.env.PLATFORM_MEMORY_RESERVATION = '64m';
+    expect(unusedMemoryReservations(UNIFIED)).toEqual([
+      'BACKEND_API_MEMORY_RESERVATION',
+      'BACKEND_WORKER_MEMORY_RESERVATION',
+    ]);
+    // With the jobs apart the worker's is read, the api's still is not.
+    expect(unusedMemoryReservations(SPLIT)).toEqual([
+      'BACKEND_API_MEMORY_RESERVATION',
+    ]);
+    expect(unusedMemoryReservations(THREE_WAY)).toEqual([]);
+    expect(unusedMemoryReservations()).toEqual([]);
+    // What the one process reserves is its own variable's, nothing else's.
+    expect(createPlatformService(one, 'blue').mem_reservation).toBe('64m');
+    expect(reservedMemoryMib(UNIFIED)).toBe(512 + 64);
+    expect(reservedMemoryMib(SPLIT)).toBe(512 + 64 + 1024);
+    expect(reservedMemoryMib(THREE_WAY)).toBe(512 + 64 + 2048 + 1024);
+    process.env.BACKEND_API_MEMORY_RESERVATION = '  ';
+    expect(unusedMemoryReservations(UNIFIED)).toEqual([
+      'BACKEND_WORKER_MEMORY_RESERVATION',
+    ]);
+  });
+
+  test('the sum is read without a word: the command that asks for it says what it clamped', () => {
+    clear();
+    process.env.TALE_PLATFORM_REPLICAS = '99';
+    const warned: unknown[] = [];
+    const warn = console.warn;
+    const log = console.log;
+    console.warn = (...args: unknown[]) => warned.push(args);
+    console.log = (...args: unknown[]) => warned.push(args);
+    try {
+      expect(reservedMemoryMib(UNIFIED)).toBe(512 + 16 * 256);
+    } finally {
+      console.warn = warn;
+      console.log = log;
+    }
+    expect(warned).toEqual([]);
+  });
+
+  test('the generated stack of one process reserves for db and platform, and tells the spawner so', () => {
+    clear();
+    const stack = {
+      ...services(generateStatefulCompose(one, 'demo.tale.dev')),
+      ...services(generateColorCompose(one, 'blue')),
+    };
+    expect(
+      Object.entries(stack)
+        .filter(([, service]) => service.mem_reservation !== undefined)
+        .map(([name, service]) => [name, service.mem_reservation]),
+    ).toEqual([
+      ['db', '512m'],
+      ['platform', '256m'],
+    ]);
+    expect(stack.sandbox?.environment).toMatchObject({
+      SANDBOX_RESERVED_MEMORY: '768m',
+    });
   });
 });

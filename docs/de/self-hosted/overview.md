@@ -9,19 +9,19 @@ Diese Übersicht hilft bei der Kapazitätsplanung und bei der Auswahl der zu sic
 
 ## Zusammenspiel der Dienste
 
-Die mitgelieferte Bereitstellung auf einem Host umfasst zehn Dienste, bevor Replikate und vorübergehende Sandbox-Sitzungen hinzukommen. Der Stack für die Entwicklung kann eine eigene Wissensdatenbank verwenden. Vergleiche daher die Aufgaben der Dienste statt nur die Anzahl der Container.
+Die mitgelieferte Bereitstellung auf einem Host umfasst acht Dienste, bevor Replikate und vorübergehende Sandbox-Sitzungen hinzukommen; die Anwendung ist einer davon. Laufen die Anwendungsrollen getrennt, kommen bis zu zwei hinzu, und der Stack für die Entwicklung kann eine eigene Wissensdatenbank verwenden. Vergleiche daher die Aufgaben der Dienste statt nur die Anzahl der Container.
 
 | Ebene | Dienste | Aufgabe |
 | --- | --- | --- |
 | Öffentlicher Zugang | `proxy` | Caddy beendet TLS und leitet Browseranfragen an Web-Oberfläche, APIs und Dateispeicher weiter. |
-| Anwendung | `platform`, `backend-api`, `backend-worker` | Die Web-Ebene liefert die Oberfläche. Die API authentifiziert Anfragen und führt Anwendungsoperationen aus. Worker bearbeiten Aufgaben, Automatisierungen und Importe aus der Warteschlange. |
+| Anwendung | `platform`; dazu `backend-api` und `backend-worker`, wo die Rollen getrennt laufen | Die Web-Ebene liefert die Oberfläche. Die API authentifiziert Anfragen und führt Anwendungsoperationen aus. Worker bearbeiten Aufgaben, Automatisierungen und Importe aus der Warteschlange. Ein `platform`-Prozess ist alle drei zugleich, solange die Rollen nicht getrennt laufen. |
 | Dauerhafter Speicher | `db`, `object-store` | Postgres speichert Anwendungs- und Wissensdaten; der S3-kompatible Speicher enthält Originaldateien und erzeugte Medien. |
 | Sandbox-Ausführung | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Der Spawner erstellt Ausführungssitzungen, der Egress-Proxy kontrolliert ausgehende Anfragen und das Modell-Gateway stellt begrenzten Modellzugriff bereit. |
 | Video-Unterstützung | `bgutil-provider` | Liefert Proof-of-Origin-Tokens für den Videoimport. Seine Verfügbarkeit kann den Abruf von Transkripten beeinflussen. |
 
 Der Browser verbindet sich über den öffentlichen Proxy. Datenbank-, Gateway- und Sandbox-Ports sollten nicht öffentlich erreichbar sein. Bei einem externen Bucket können vorsignierte Dateianfragen direkt vom Browser an dessen öffentlichen Endpunkt gehen.
 
-Die Anwendungsrollen verwenden dasselbe Tale-Platform-Image. `TALE_ROLE=api` startet die API, `TALE_ROLE=worker` einen Worker. Worker stellen keinen HTTP-Server bereit. Die Sandbox-Laufzeit ist ein separates Image für vorübergehende Sitzungscontainer und kein zusätzlicher dauerhaft laufender Compose-Dienst.
+Die Anwendungsrollen verwenden dasselbe Tale-Platform-Image, und `TALE_ROLE` bestimmt, welche davon ein Container ausführt. Ein Workspace, den du mit `tale deploy` bereitstellst, startet `platform` mit `TALE_ROLE=all`: Ein Prozess ist Web-Ebene, API und Worker zugleich. Setzt du eine Replikatzahl für das Backend, laufen die Worker getrennt als `backend-worker` (`TALE_ROLE=worker`) neben einem `platform`, das Web-Ebene und API ist (`TALE_ROLE=api`); [Bereitstellung aktualisieren](/de/self-hosted/operate/upgrades#one-process) nennt die Variablen. Die Compose-Datei im Repository, die Kubernetes-Manifeste und die Incus-Laufzeit führen drei Dienste aus: `platform` nur als Web-Ebene, `backend-api` und `backend-worker`. Worker stellen keinen HTTP-Server bereit. Die Sandbox-Laufzeit ist ein separates Image für vorübergehende Sitzungscontainer und kein zusätzlicher dauerhaft laufender Compose-Dienst.
 
 ## Wo dauerhafte Daten liegen
 

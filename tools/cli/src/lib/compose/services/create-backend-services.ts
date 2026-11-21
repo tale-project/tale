@@ -6,7 +6,7 @@ import {
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
 import { BACKEND_MEMORY_LIMIT_GIB, memoryReservation } from './memory-env';
-import { backendApiLabels } from './traefik-labels';
+import { backendApiLabels, platformLabels } from './traefik-labels';
 
 /** The api's container port — the target its Traefik labels route to. */
 const BACKEND_API_PORT = 3005;
@@ -25,12 +25,24 @@ export interface BackendServiceOptions {
   colour?: DeploymentColor;
 }
 
+/** The api's drain when SHUTDOWN_DRAIN_MS is unset, in seconds. */
+const BACKEND_API_DRAIN_S = 15;
+/** The drain of a process that runs jobs when SHUTDOWN_DRAIN_MS is unset. */
+const BACKEND_WORKER_DRAIN_S = 90;
 /** The api's stop grace, in seconds, under its default 15 s drain. */
 const BACKEND_API_STOP_GRACE_S = 30;
 /** The worker's stop grace, in seconds, under its default 90 s drain. */
 export const BACKEND_WORKER_STOP_GRACE_S = 120;
 /** How far a role's stop grace stays above its drain budget. */
 const STOP_GRACE_ABOVE_DRAIN_S = 15;
+/** The stop grace of `platform` where it answers the API and the pages but
+ *  runs no jobs: the web tier's own 45 s, which holds its wait for the edge
+ *  (6 s), the api's 15 s drain and the same room above it. */
+const PLATFORM_API_STOP_GRACE_S = 45;
+/** How long a stopping replica that serves the web tier keeps answering
+ *  before its drain starts, unless SHUTDOWN_DRAIN_SECONDS says otherwise
+ *  (`webDrainMs` in services/platform/server.ts). */
+const WEB_DRAIN_S = 6;
 
 /**
  * How long `docker stop` waits for a backend role before SIGKILL: the role's
@@ -39,20 +51,50 @@ const STOP_GRACE_ABOVE_DRAIN_S = 15;
  * of it, with nothing in its log saying why. Read from `process.env`, where
  * `loadEnv` has folded the project's `.env`; a value the backend would
  * refuse at boot keeps the default.
+ *
+ * A replica that serves the web tier waits for the edge before its drain
+ * starts (`SHUTDOWN_DRAIN_SECONDS`), so its grace holds that wait as well;
+ * `webBeforeDrainOf` names the drain its role runs when `SHUTDOWN_DRAIN_MS`
+ * is unset.
  */
-export function backendStopGraceSeconds(defaultSeconds: number): number {
+export function backendStopGraceSeconds(
+  defaultSeconds: number,
+  options: { webBeforeDrainOf?: number } = {},
+): number {
   const raw = process.env.SHUTDOWN_DRAIN_MS?.trim() ?? '';
   const drainMs = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
-  if (!Number.isSafeInteger(drainMs) || drainMs <= 0) return defaultSeconds;
+  const set = Number.isSafeInteger(drainMs) && drainMs > 0;
+  if (options.webBeforeDrainOf === undefined) {
+    return set
+      ? Math.max(
+          defaultSeconds,
+          Math.ceil(drainMs / 1000) + STOP_GRACE_ABOVE_DRAIN_S,
+        )
+      : defaultSeconds;
+  }
+  const drainSeconds = set
+    ? Math.ceil(drainMs / 1000)
+    : options.webBeforeDrainOf;
   return Math.max(
     defaultSeconds,
-    Math.ceil(drainMs / 1000) + STOP_GRACE_ABOVE_DRAIN_S,
+    webDrainSeconds() + drainSeconds + STOP_GRACE_ABOVE_DRAIN_S,
   );
+}
+
+/** The wait a replica that serves the web tier grants the edge before its
+ *  drain, in whole seconds: SHUTDOWN_DRAIN_SECONDS where the platform would
+ *  take it (0 to 300), else its default. */
+function webDrainSeconds(): number {
+  const raw = process.env.SHUTDOWN_DRAIN_SECONDS?.trim() ?? '';
+  const seconds = raw === '' ? Number.NaN : Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 && seconds <= 300
+    ? Math.ceil(seconds)
+    : WEB_DRAIN_S;
 }
 
 function backendBase(
   config: ServiceConfig,
-  service: 'backend-api' | 'backend-worker',
+  service: 'platform' | 'backend-api' | 'backend-worker',
   options: BackendServiceOptions,
 ): ComposeService {
   return {
@@ -102,7 +144,7 @@ function backendBase(
 
 /** Env every backend role shares, plus the colour when it has one. */
 function roleEnvironment(
-  role: 'api' | 'worker',
+  role: 'api' | 'worker' | 'all',
   options: BackendServiceOptions,
 ): Record<string, string> {
   return {
@@ -208,6 +250,72 @@ export function createBackendApiService(
           ...(options.colour ? [`backend-api-${options.colour}`] : []),
         ],
       },
+    },
+  };
+}
+
+/**
+ * `platform` where it answers the API too (app-tier.ts): the `all` role, the
+ * whole application in one process per replica, or the `api` role, the same
+ * without the jobs, which then run in `backend-worker`.
+ *
+ * It is the api service above with the web tier's doors added, because that
+ * is what the process is: the API on 3005 and the built app on 3000
+ * (services/platform/backend/main.ts). So it carries both sets of routes and
+ * answers both serving names, `platform` and `backend-api`, the second on
+ * the sandbox network as well, where a session reaches the bridges. Both
+ * colours declare their routers under their own names, so a colour of this
+ * shape and one of three services overlap in a flip like any two colours.
+ *
+ * Health is the web tier's: `/api/health` on 3000 and the ready marker,
+ * which the process writes once both listeners are up. The edge checks the
+ * same door, so a replica takes traffic when it can serve the app and
+ * answer what the app then asks.
+ */
+export function createPlatformBackendService(
+  config: ServiceConfig,
+  colour: DeploymentColor,
+  role: 'api' | 'all',
+): ComposeService {
+  const names = (service: string) => [service, `${service}-${colour}`];
+  return {
+    ...backendBase(config, 'platform', { colour }),
+    labels: { ...platformLabels(colour), ...backendApiLabels(colour) },
+    // The org config store, which this process writes, and the bundles of
+    // the app both colours publish for each other's pages.
+    volumes: ['config-data:/app/data', 'static-assets:/app/static-assets'],
+    environment: {
+      ...roleEnvironment(role, { colour }),
+      PORT: String(BACKEND_API_PORT),
+    },
+    // `docker stop` waits this long before SIGKILL. A replica that runs the
+    // jobs hands its automation runs on inside the worker's 90 s drain; one
+    // that does not needs the api's 15 s. Both first keep answering for the
+    // edge (SHUTDOWN_DRAIN_SECONDS), and the grace stays 15 s above the sum.
+    stop_grace_period: `${
+      role === 'all'
+        ? backendStopGraceSeconds(BACKEND_WORKER_STOP_GRACE_S, {
+            webBeforeDrainOf: BACKEND_WORKER_DRAIN_S,
+          })
+        : backendStopGraceSeconds(PLATFORM_API_STOP_GRACE_S, {
+            webBeforeDrainOf: BACKEND_API_DRAIN_S,
+          })
+    }s`,
+    healthcheck: {
+      test: [
+        'CMD-SHELL',
+        'curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]',
+      ],
+      interval: '5s',
+      timeout: '3s',
+      retries: 3,
+      start_period: '180s',
+    },
+    networks: {
+      internal: {
+        aliases: [...names('platform'), ...names('backend-api')],
+      },
+      sandbox: { aliases: names('backend-api') },
     },
   };
 }

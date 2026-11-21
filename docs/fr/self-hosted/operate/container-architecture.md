@@ -21,15 +21,17 @@ Commence par la responsabilité de chaque service pour circonscrire une panne av
 
 Utilise les noms logiques avec `tale logs <service>`. Pour ton propre Compose, utilise `docker compose logs --tail=200 <service>`. Les noms de conteneurs générés peuvent inclure le projet, la couleur et le numéro de réplica.
 
+Un workspace exécute le service web, l’API et les workers dans un seul processus `platform`, tant que ses workers ne tournent pas à part. `backend-api` et `backend-worker` désignent alors ce processus dans ce tableau, et les trois écrivent dans le même log : `tale logs backend-api` et `tale logs backend-worker` le lisent et le signalent. `tale status` liste les conteneurs du workspace.
+
 ## Suivre une requête de chat interactive
 
-1. Le navigateur atteint `proxy`. Les fichiers web vont à `platform` ; les requêtes applicatives et d’authentification vont à `backend-api`.
+1. Le navigateur atteint `proxy`. Les fichiers web vont à `platform` ; les requêtes applicatives et d’authentification vont à `backend-api`, un nom auquel le processus `platform` répond aussi là où il est l’API.
 2. L’API vérifie session et organisation, résout le modèle et les identifiants choisis, puis exécute le tour interactif. Elle stocke sa progression dans la base applicative.
 3. Le navigateur lit cette progression via le flux du fil de discussion. `/events` transporte des notifications d’invalidation pour actualiser les données, pas les tokens de la réponse.
 4. Les outils de connaissance utilisent la connexion de l’organisation demandeuse. Les fichiers d’origine sont lus selon sa configuration de stockage.
 5. Un tour utilisant un environnement d’agent de codage demande une session sandbox et la passerelle de modèles. Tâches en file, jobs d’agents de workflow et tours de chat REST peuvent aussi dépendre des workers.
 
-Une panne de worker n’a donc pas la même portée qu’une panne d’API, mais elle ne permet pas d’affirmer que tout chat ou travail d’agent reste disponible. Vérifie le point d’entrée et le type d’exécution concernés. Conserve l’erreur initiale avant de relancer un tour qui peut consommer des tokens ou effectuer une action externe.
+Une panne de worker n’a donc pas la même portée qu’une panne d’API là où ce sont deux processus distincts, mais elle ne permet pas d’affirmer que tout chat ou travail d’agent reste disponible. Un processus qui est les deux tombe d’un seul bloc. Vérifie le point d’entrée et le type d’exécution concernés. Conserve l’erreur initiale avant de relancer un tour qui peut consommer des tokens ou effectuer une action externe.
 
 ## Comprendre les dépendances des sandbox
 

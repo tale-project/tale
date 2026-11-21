@@ -1,0 +1,61 @@
+# The application tier on Docker
+
+> **Prefix** `APP-` · **Reset** the host's snapshot before the first group · **Cost** per group, in its heading
+
+How `tale deploy` runs the application on Docker Compose: one `platform`
+process that is the web tier, the API and the job runner, the job runners apart
+in `backend-worker`, or the three services an image from before needs. The unit
+suites judge every decision and every generated document over a fake Docker
+command line ([automation](../reference/automation.md)). This suite judges what
+only a real engine shows: one container answering two serving names, the edge
+routing both sets of routes to it, and a handover between a colour of three
+services and a colour of one while requests run.
+
+**The groups run in order on one host: each starts from the workspace the group
+before it left.**
+
+## Preconditions
+
+A Linux host with Docker Engine and its Compose plugin, the compiled `tale`
+under test and a name the workspace is reached under, per
+[`../setup.md`](../setup.md). The first group also needs the compiled `tale` of
+the last release whose image runs the application as three services.
+
+> **Agent note**: judge a colour by `docker ps` and by the public URL after a
+> command returns. A container that exists and a name that answers are
+> different states, and so are a web tier that is healthy and an API that
+> serves.
+
+## Hand over from three services to one process · a workspace on the earlier release · 30 min
+
+Deploy the earlier release first, with its own `tale`, and make an account, one
+chat and one indexed document in it.
+
+- [ ] `APP-F1` · **With the `tale` under test, run `tale update`, then `tale deploy --dry-run`** → the preview exits `0`; it prints `Rotatable services: platform` and `Would deploy 1× platform in <project>-<idle colour>`, and names no `backend-api` or `backend-worker` it would deploy. Where the image is not on the host yet, one line says the preview shows the services an image of this release runs.
+- [ ] `APP-F2` · **In a second shell start `while sleep 1; do curl -sS -o /dev/null -w '%{http_code}\n' https://<host>/api/health/ready; done`, run `tale deploy`, then stop the loop** → the deploy exits `0`, and the loop printed `200` on every line: the handover dropped no request.
+- [ ] `APP-F3` · **Run `docker ps -a --format '{{.Names}}' | grep '^<project>-'`** → the live colour has exactly one application container, `<project>-<colour>-platform-1`; no container of the other colour and none named `backend-api` or `backend-worker` is left.
+- [ ] `APP-F4` · **Run `docker inspect <project>-<colour>-platform-1 --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{$net.Aliases}}{{println}}{{end}}'`** → the `<project>_internal` line holds `platform`, `platform-<colour>`, `backend-api` and `backend-api-<colour>`; the `tale-sandbox-net` line holds `backend-api` and `backend-api-<colour>`, and no `platform`.
+- [ ] `APP-F5` · **In a browser, sign in with the account made on the earlier release, open its chat, send a message, upload a document and wait until it reads as indexed** → the page loads, the reply streams and the document is indexed: the web tier, the API and the job runner, all in the one container.
+- [ ] `APP-F6` · **Send a chat message that makes the assistant run code, such as `Run this Python and tell me the output: print(6 * 7)`** → the reply shows the code ran and gives `42`: a sandbox session reached the API under the name `backend-api`.
+- [ ] `APP-F7` · **Run `tale logs backend-api --tail 5`, then `tale logs backend-worker --tail 5`** → each exits `0`, says the colour runs that service inside `platform`, and prints lines of `<project>-<colour>-platform-1`.
+- [ ] `APP-F8` · **Run `docker inspect <project>-<colour>-platform-1 --format '{{.HostConfig.MemoryReservation}} {{.HostConfig.Memory}} {{.Config.StopTimeout}}'`, then `docker inspect <project>-sandbox --format '{{range .Config.Env}}{{println .}}{{end}}' | grep SANDBOX_RESERVED_MEMORY`** → on a cgroup v2 host that sets no reservation variable the first reads `268435456 12884901888 120` and the second `SANDBOX_RESERVED_MEMORY=768m`.
+
+## Replace the one process in place · the workspace of the group above · 10 min
+
+- [ ] `APP-F9` · **Note the ID `docker ps -q --filter name=<project>-<colour>-platform-1` prints, run `tale deploy --services platform`, then print the ID again** → the deploy exits `0`, warns that it replaces the live colour's replicas in place, and prints `Draining in-flight chat turns and automation steps on the <colour> api...` before it recreates the container; the ID changed, the colour did not, and the app answers again.
+- [ ] `APP-B1` · **Note the container's ID, run `tale deploy --services backend-api`, then print the ID again** → it exits `3` with `The <colour> colour runs platform: it has no backend-api to update.` and the advice to name a service the colour runs; the ID is the same.
+
+## Run the job runners apart, and together again · the workspace of the group above · 20 min
+
+- [ ] `APP-F10` · **Add `TALE_BACKEND_WORKER_REPLICAS=2` to the workspace's `.env`, run `tale deploy`, then `docker ps --format '{{.Names}}' | grep '^<project>-<colour>-'`** → the deploy exits `0` and prints `Replicas: platform×1, backend-worker×2`; the live colour is `platform-1`, `backend-worker-1` and `backend-worker-2`.
+- [ ] `APP-F11` · **Run `docker inspect <project>-<colour>-platform-1 <project>-<colour>-backend-worker-1 --format '{{.Name}} {{range .Config.Env}}{{println .}}{{end}}' | grep -E '^/|TALE_ROLE'`** → `platform-1` names `TALE_ROLE=api` and `backend-worker-1` names `TALE_ROLE=worker`.
+- [ ] `APP-F12` · **Upload a document and wait until it reads as indexed, then run `tale logs backend-worker --tail 20`** → the document is indexed, and the command prints lines of `<project>-<colour>-backend-worker-1` and names the other replica.
+- [ ] `APP-F13` · **Remove the variable from `.env`, run `tale deploy`, then list the colour's containers and `TALE_ROLE` as above** → the live colour is `platform-1` alone again, with `TALE_ROLE=all`, and the app still signs in, answers a chat message and indexes a document.
+
+## Bring the three services back · the workspace of the group above · 15 min
+
+What a workspace does before it returns to a CLI from before this setting, which
+deploys only over the two backend services.
+
+- [ ] `APP-B2` · **Add `TALE_APP_TIER=three` to the workspace's `.env` and run `tale deploy`** → it exits `3` with `TALE_APP_TIER must be one-process, workers-apart, three-services, or unset; got: "three"` before it pulls an image; `docker ps` lists the same containers as before.
+- [ ] `APP-F14` · **Change the line to `TALE_APP_TIER=three-services`, run `tale deploy`, then `docker ps --format '{{.Names}}' | grep '^<project>-<colour>-'`** → the deploy exits `0` and prints `Replicas: platform×1, backend-api×1, backend-worker×1`; the live colour is `platform-1`, `backend-api-1` and `backend-worker-1`, and the app signs in, answers a chat message and indexes a document.

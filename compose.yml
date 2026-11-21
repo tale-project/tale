@@ -368,9 +368,11 @@ services:
   # one `worker`, and either scales on this file:
   #   docker compose up -d --scale backend-worker=3
   # (no `container_name` on these two services precisely so --scale works).
-  # `tale deploy` runs the same two roles inside a deployment COLOUR and sizes
-  # them with TALE_BACKEND_API_REPLICAS / TALE_BACKEND_WORKER_REPLICAS —
-  # see docs/en/self-hosted/operate/upgrades.md.
+  # `tale deploy` runs both roles and the web tier in ONE `platform` process
+  # per replica of a deployment COLOUR, and the job runner apart only where
+  # it is asked for (TALE_BACKEND_WORKER_REPLICAS, TALE_APP_TIER) — see
+  # docs/en/self-hosted/operate/upgrades.md. This file keeps the three
+  # services, which every release runs.
   # State lives in the `tale_app` database on the `db` service (created
   # idempotently by services/db/init-scripts/04-create-app-database.sql).
   # ============================================================================

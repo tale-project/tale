@@ -24,6 +24,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
+import type { AppRole } from '../compose/app-tier';
 import { exec, type ExecResult } from '../docker/exec';
 import type { RuntimeEngine, RuntimeSession } from '../runtime/types';
 import { runtimeCommand, runtimeProcessEnvironment } from './runtime-command';
@@ -62,6 +63,11 @@ export interface RuntimeInstance {
    *  password above all, leaves it (design R-15). Absent when the runtime
    *  did not report the environment. */
   bundledDatabase?: boolean;
+  /** The role its environment names (`TALE_ROLE`), when it is one a
+   *  container of the platform image starts in. Decided where the
+   *  environment lives, like `bundledDatabase`; absent when it names none or
+   *  another word, or when the runtime did not report the environment. */
+  role?: AppRole;
   /** Its networks by name. */
   networks?: Record<string, { id?: string; address?: string }>;
   mounts?: Array<{ type?: string; source?: string; target?: string }>;
@@ -146,6 +152,16 @@ function isBundledDatabaseUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+const APP_ROLES: readonly AppRole[] = ['web', 'api', 'worker', 'all'];
+
+/** `role` of an environment: its one `TALE_ROLE`, when that is a role. */
+export function appRoleOf(
+  roles: readonly string[] | undefined,
+): AppRole | undefined {
+  if (roles === undefined || roles.length !== 1) return undefined;
+  return APP_ROLES.find((role) => role === roles[0]);
 }
 
 /** `bundledDatabase` of an environment: exactly one `DATABASE_URL`, and it
@@ -594,6 +610,11 @@ export function dockerRuntimeAccess<Tag = undefined>(
                       entry.startsWith('DATABASE_URL='),
                     ).map((entry) => entry.slice('DATABASE_URL='.length)),
                   ),
+            role: appRoleOf(
+              value.Config?.Env?.filter((entry) =>
+                entry.startsWith('TALE_ROLE='),
+              ).map((entry) => entry.slice('TALE_ROLE='.length)),
+            ),
             networks:
               value.NetworkSettings?.Networks == null
                 ? undefined

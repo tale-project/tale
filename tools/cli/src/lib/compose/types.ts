@@ -1,3 +1,5 @@
+import type { AppTier } from './app-tier';
+
 interface LoggingConfig {
   driver: string;
   options: Record<string, string>;
@@ -90,6 +92,12 @@ export interface ServiceConfig {
   registry: string;
   /** Exact platform digest admitted by the automation protocol fence. */
   platformImage?: string;
+  /**
+   * The shape of the colour these services belong to (app-tier.ts). Left
+   * out, the generators build the three-way shape every image can run: a
+   * caller names another only once it has read what the image can do.
+   */
+  appTier?: AppTier;
   /**
    * The cgroup version the Docker engine reports (probeCgroupVersion), null
    * when it reports none. Only 2 lets the generators emit `mem_reservation`

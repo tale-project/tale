@@ -9,19 +9,19 @@ Cette vue d’ensemble aide à prévoir la capacité et à choisir les données 
 
 ## Comment les services s’articulent
 
-Le déploiement fourni pour un hôte comprend dix services, sans compter les réplicas ni les sessions temporaires de sandbox. Le stack de développement peut utiliser une base de connaissances séparée. Pour comparer ces installations, regarde le rôle des services plutôt que le nombre de conteneurs.
+Le déploiement fourni pour un hôte comprend huit services, sans compter les réplicas ni les sessions temporaires de sandbox ; l’application est l’un d’eux. Un déploiement dont les rôles applicatifs tournent séparément en compte jusqu’à deux de plus, et le stack de développement peut utiliser une base de connaissances séparée. Pour comparer ces installations, regarde le rôle des services plutôt que le nombre de conteneurs.
 
 | Couche | Services | Responsabilité |
 | --- | --- | --- |
 | Entrée publique | `proxy` | Caddy termine TLS et dirige les requêtes du navigateur vers l’interface, les API et le stockage de fichiers. |
-| Application | `platform`, `backend-api`, `backend-worker` | Le service web fournit l’interface. L’API authentifie les requêtes et traite les opérations applicatives. Les workers exécutent les tâches, automatisations et imports en file d’attente. |
+| Application | `platform` ; aussi `backend-api` et `backend-worker` là où les rôles tournent séparément | Le service web fournit l’interface. L’API authentifie les requêtes et traite les opérations applicatives. Les workers exécutent les tâches, automatisations et imports en file d’attente. Un processus `platform` est les trois à la fois tant que les rôles ne tournent pas séparément. |
 | Stockage persistant | `db`, `object-store` | Postgres conserve les données applicatives et les connaissances ; le stockage compatible S3 contient les fichiers d’origine et les médias générés. |
 | Exécution en sandbox | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Le spawner crée les sessions d’exécution, le proxy de sortie contrôle les requêtes réseau et la passerelle de modèles fournit un accès limité aux modèles. |
 | Prise en charge vidéo | `bgutil-provider` | Fournit des jetons de preuve d’origine pour l’ingestion vidéo. Sa disponibilité peut affecter la récupération des transcriptions. |
 
 Le navigateur passe par le proxy public. Les ports internes des bases, de la passerelle et des sandbox ne doivent pas être exposés comme services publics. Avec un bucket externe, les requêtes de fichiers présignées peuvent aller directement du navigateur à son point d’accès public.
 
-Les rôles applicatifs utilisent la même image Tale Platform. `TALE_ROLE=api` démarre l’API et `TALE_ROLE=worker` un worker. Les workers n’exposent pas de serveur HTTP. L’environnement d’exécution des sandbox est une image distincte qui sert à créer des conteneurs de session temporaires, pas un service Compose permanent de plus.
+Les rôles applicatifs utilisent la même image Tale Platform, et `TALE_ROLE` décide lesquels un conteneur exécute. Un workspace déployé avec `tale deploy` démarre `platform` avec `TALE_ROLE=all` : un seul processus est à la fois le service web, l’API et les workers. Définir un nombre de réplicas pour le backend fait tourner les workers à part, dans `backend-worker` (`TALE_ROLE=worker`), à côté d’un `platform` qui est le service web et l’API (`TALE_ROLE=api`) ; [Mettre à niveau un déploiement](/fr/self-hosted/operate/upgrades#one-process) nomme les variables. Le fichier Compose du dépôt, les manifestes Kubernetes et le runtime Incus exécutent trois services : `platform` comme service web seul, `backend-api` et `backend-worker`. Les workers n’exposent pas de serveur HTTP. L’environnement d’exécution des sandbox est une image distincte qui sert à créer des conteneurs de session temporaires, pas un service Compose permanent de plus.
 
 ## Où les données persistent
 

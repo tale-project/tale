@@ -21,15 +21,17 @@ Grenze eine Störung anhand der Dienstzuständigkeit ein, bevor du Container än
 
 Nutze logische Dienstnamen mit `tale logs <service>`. Für deinen eigenen Compose-Stack gilt `docker compose logs --tail=200 <service>`. Erzeugte Containernamen können Projekt, Farbe und Replikatnummer enthalten.
 
+Ein Workspace führt Web-Ebene, API und Worker in einem `platform`-Prozess aus, solange seine Worker nicht getrennt laufen. `backend-api` und `backend-worker` in dieser Tabelle sind dann dieser Prozess, und alle drei schreiben in dasselbe Log: `tale logs backend-api` und `tale logs backend-worker` lesen es und weisen darauf hin. `tale status` zeigt, welche Container der Workspace hat.
+
 ## Einer interaktiven Chatanfrage folgen
 
-1. Der Browser erreicht `proxy`. Webdateien gehen an `platform`, Anwendungs- und Anmeldeanfragen an `backend-api`.
+1. Der Browser erreicht `proxy`. Webdateien gehen an `platform`, Anwendungs- und Anmeldeanfragen an `backend-api`; unter diesem Namen antwortet auch der `platform`-Prozess, wo er die API ist.
 2. Die API prüft Sitzung und Organisation, ermittelt Modell und Zugangsdaten und führt den interaktiven Turn aus. Fortschritt wird in der Anwendungsdatenbank gespeichert.
 3. Der Browser liest Fortschritt über den Stream-Endpunkt des Chats. `/events` liefert Hinweise zum erneuten Laden von Daten und enthält nicht den Token-Stream.
 4. Wissenswerkzeuge verwenden die Wissensverbindung der anfragenden Organisation. Originaldateien werden über deren Speicherkonfiguration gelesen.
 5. Ein Turn mit einer Agent-Laufzeit benötigt eine Sandbox-Sitzung und das Modell-Gateway. Eingereihte Aufgaben, Workflow-Agent-Jobs und REST-Chat-Turns können außerdem Worker benötigen.
 
-Ein Worker-Ausfall hat daher einen anderen Umfang als ein API-Ausfall. Daraus folgt aber nicht, dass sämtliche Chat- oder Agentenarbeit weiterläuft. Prüfe Einstiegspunkt und Ausführungstyp des betroffenen Ablaufs. Sichere den ursprünglichen Fehler, bevor du einen Turn wiederholst, der Tokens verbrauchen oder externe Aktionen ausführen könnte.
+Ein Worker-Ausfall hat daher einen anderen Umfang als ein API-Ausfall, wo beide getrennte Prozesse sind. Daraus folgt aber nicht, dass sämtliche Chat- oder Agentenarbeit weiterläuft. Ein Prozess, der beides ist, fällt als Ganzes aus. Prüfe Einstiegspunkt und Ausführungstyp des betroffenen Ablaufs. Sichere den ursprünglichen Fehler, bevor du einen Turn wiederholst, der Tokens verbrauchen oder externe Aktionen ausführen könnte.
 
 ## Abhängigkeiten der Sandbox verstehen
 

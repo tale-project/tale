@@ -100,6 +100,23 @@ unless you select another version. `tale deploy` rolls application containers;
 `--stop` also permits stop-gated updates with downtime. Blue-green rollout does not
 make every operation downtime-free.
 
+A colour is the application at one version, and `tale deploy` starts it in the
+shape its image runs. An image labelled `io.tale.app-in-backend` serves the app
+from its backend process, so the colour is one `platform` service: the web
+tier, the API and the job runner in one process per replica. Setting
+`TALE_BACKEND_API_REPLICAS` or `TALE_BACKEND_WORKER_REPLICAS` runs the job runner
+apart, as `backend-worker`, and `TALE_APP_TIER` names the shape outright
+(`one-process`, `workers-apart`, `three-services`). An image without the label
+gets the three services it needs, `platform`, `backend-api` and
+`backend-worker`. A CLI from before the shapes deploys only over those three:
+its writer census refuses a workspace without the two backend services, so a
+workspace asks for `three-services` and deploys before it goes back to one.
+`--services` replaces
+containers of the live colour as it is, and names services that colour runs.
+The shapes and what decides between them live in
+[`src/lib/compose/app-tier.ts`](src/lib/compose/app-tier.ts); the Incus runtime
+and `deploy --bundle` still run three services.
+
 `tale rollback` is limited to a recorded compatible patch version. Recovery across
 minor or major migrations uses a snapshot and its matching version; see the
 [upgrade guide](../../docs/en/self-hosted/operate/upgrades.md) before crossing a

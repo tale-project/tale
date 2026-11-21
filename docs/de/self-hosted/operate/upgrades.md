@@ -45,7 +45,7 @@ Ein Versionswechsel oder eine Überschreibung der Host-Konfiguration erstellt vo
 
 | Dienstgruppe | Normale Bereitstellung | Wann zusätzliche Unterbrechung einplanen? |
 | --- | --- | --- |
-| `platform`, `backend-api`, `backend-worker` | Gemeinsam als neue Anwendungsfarbe ausrollen. | Alte und neue Replikate überlappen; das Entleeren kann neue Turns verweigern. |
+| `platform`, dazu `backend-api` und `backend-worker`, wo sie getrennt laufen | Gemeinsam als neue Anwendungsfarbe ausrollen. | Alte und neue Replikate überlappen; das Entleeren kann neue Turns verweigern. |
 | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Nach dem Entleeren betroffener Arbeit an Ort und Stelle ersetzen. | Es sind gemeinsame Ausführungsdienste, keine zweite Blue-Green-Anwendungsgruppe. |
 | `db`, `object-store`, `proxy` | Laufende Dienste behalten; die CLI meldet ausgelassene Updates. | Verwende `--stop`, wenn diese Dienste ersetzt werden müssen. |
 
@@ -53,7 +53,7 @@ Ein Versionswechsel oder eine Überschreibung der Host-Konfiguration erstellt vo
 tale deploy --stop
 ```
 
-`TALE_PLATFORM_REPLICAS`, `TALE_BACKEND_API_REPLICAS` und `TALE_BACKEND_WORKER_REPLICAS` erlauben 1–16 Replikate. Erhöhe die Rolle, deren Engpass du gemessen hast. Mehr Worker beheben weder einen Datenbankausfall noch ein ausgeschöpftes Anbieterlimit.
+`TALE_PLATFORM_REPLICAS` legt fest, wie viele `platform`-Replikate eine Farbe ausführt, von 1 bis 16; jedes ist die ganze Anwendung. Setzt du `TALE_BACKEND_WORKER_REPLICAS` oder `TALE_BACKEND_API_REPLICAS`, [laufen die Worker getrennt](#one-process) und lassen sich für sich skalieren. Erhöhe, wo du einen Engpass gemessen hast. Mehr Worker beheben weder einen Datenbankausfall noch ein ausgeschöpftes Anbieterlimit.
 
 ## Die Übergabe verstehen
 
@@ -118,7 +118,7 @@ Prüfe nach der Bereitstellung öffentliches Zertifikat und Anmeldung, öffne ei
 | Situation | Wiederherstellung |
 | --- | --- |
 | Zur gespeicherten vorherigen Version derselben `major.minor`-Linie zurückkehren | `tale rollback` prüft diese Grenze und fragt vor der erneuten Bereitstellung nach Bestätigung. Lies zusätzlich die Kompatibilitätshinweise des Releases. |
-| Über eine Minor- oder Major-Grenze zurückkehren | Stelle den abgestimmten Datenstand vor dem Upgrade und dessen passende Version wieder her. `tale rollback` verweigert dieses reine Image-Downgrade. |
+| Über eine Minor- oder Major-Grenze zurückkehren | Stelle den abgestimmten Datenstand vor dem Upgrade und dessen passende Version wieder her. `tale rollback` verweigert dieses reine Image-Downgrade. Ein Workspace, der die Anwendung als einen Prozess ausführt, [holt zuerst seine drei Dienste zurück](#one-process). |
 | Zielversion oder Datenkompatibilität unbekannt | Kläre Version und Herkunft der Sicherung vor dem Start eines älteren Programms. |
 
 ```bash
@@ -127,7 +127,26 @@ tale rollback
 
 `--yes` überspringt die Bestätigung für einen bereits genehmigten unbeaufsichtigten Lauf. Die Prüfung derselben Versionslinie ist eine Schranke, kein eigenständiger Nachweis der Kompatibilität aller externen Integrationen und lokalen Anpassungen. Eine ältere Migrationsliste als Präfix der neuen macht ein Downgrade allein nicht sicher.
 
-`tale rollback` tauscht nur die Anwendungs-Images von `platform`, `backend-api` und `backend-worker` aus. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein gewöhnlicher Deploy (ohne `--services`) an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
+`tale rollback` tauscht nur die Images der Anwendung aus: die von `platform` und, wo sie getrennt laufen, die von `backend-api` und `backend-worker`. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein gewöhnlicher Deploy (ohne `--services`) an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
+
+## Die Anwendung als ein Prozess {#one-process}
+
+Ein Workspace führt die Anwendung als einen `platform`-Prozess pro Replikat aus: Web-Ebene, API und Worker. Frühere Versionen führten sie als drei Dienste aus, `platform`, `backend-api` und `backend-worker`, und ihre Images tun das weiterhin.
+
+Das erste `tale deploy` einer Version, die als ein Prozess laufen kann, startet die neue Farbe so neben der alten Farbe aus drei Diensten und entfernt die alte nach der Übergabe, wie bei jeder anderen Bereitstellung. `tale deploy --dry-run` nennt die Dienste, die die neue Farbe ausführen würde. Danach gilt:
+
+- Es gibt keinen `backend-api`- und keinen `backend-worker`-Container mehr. `tale logs backend-api` und `tale logs backend-worker` lesen stattdessen das Log von `platform`. Passe an, was du selbst pflegst und was diese Container beim Namen nennt, etwa einen Log-Versand oder eine Alarmregel.
+- Andere Dienste erreichen die API weiterhin unter dem Namen `backend-api`, unter dem jetzt auch `platform` antwortet.
+- `PLATFORM_MEMORY_RESERVATION` bemisst den einen Prozess und beträgt für ihn standardmäßig `256m`, höchstens sein Speicherlimit von `12g`. `BACKEND_API_MEMORY_RESERVATION` und `BACKEND_WORKER_MEMORY_RESERVATION` gelten nur für diese Dienste, wo es sie gibt.
+- `tale deploy --services platform` ersetzt die ganze Anwendung an Ort und Stelle und leert deshalb zuerst die API, damit laufende Chat-Turns zu Ende kommen. Nennst du einen Dienst, den die laufende Farbe nicht ausführt, lehnt die CLI ab und nennt die Dienste, die sie ausführt.
+
+Um die Worker für sich zu skalieren, setze `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` oder beide auf einen Wert von 1 bis 16 und stelle bereit. Die neue Farbe führt dann `backend-worker` mit seiner Anzahl neben einem `platform` aus, das Web-Ebene und API ist und so viele Replikate hat wie der größere der Werte `TALE_PLATFORM_REPLICAS` und `TALE_BACKEND_API_REPLICAS`. Entferne beide Variablen, und die nächste Bereitstellung kehrt zu einem Prozess zurück.
+
+`TALE_APP_TIER` legt die Form ausdrücklich fest und hat Vorrang vor den Replikatzahlen: `one-process`, `workers-apart` oder `three-services`. Mit `three-services` führt auch eine Version, die als ein Prozess laufen kann, `platform` nur als Web-Ebene aus, neben `backend-api` und `backend-worker`.
+
+Eine CLI aus der Zeit vor dieser Änderung stellt nur über drei Diensten bereit. Sie sucht die Container `backend-api` und `backend-worker`, und ohne sie verweigert sie Bereitstellung und Rollback, ohne etwas zu ändern: mit `The installed backend database connection is unknown` über einem Prozess und mit `The installed backend database inventory is incomplete`, wo nur die Worker getrennt laufen. Bevor du zu einer solchen CLI zurückkehrst, etwa um einen Snapshot einer früheren Versionslinie wiederherzustellen, setze `TALE_APP_TIER=three-services` und führe `tale deploy` mit der aktuellen CLI aus. Dann führt der Workspace die Dienste aus, die die ältere CLI kennt. Tu das vor der Wiederherstellung: Danach gehören die Daten zur früheren Version, und nur deren CLI darf sie starten. `tale restore` prüft das selbst, wo das Image der früheren Version noch auf dem Host liegt, und lehnt ab, bevor es etwas ändert. Entferne die Variable, sobald du wieder auf einer Version bist, die als ein Prozess läuft. `tale rollback` braucht diesen Schritt nicht: Die aktuelle CLI startet die drei Dienste der früheren Version selbst.
+
+Jede Farbe führt die Dienste aus, die ihr eigenes Image unterstützt. `tale rollback` auf eine Version vor dieser Änderung bringt daher ihre drei Dienste zurück. Die Compose-Datei im Repository, die [Kubernetes-Manifeste](/de/self-hosted/install/kubernetes) und die [Incus-Laufzeit](/de/self-hosted/install/incus) bleiben bei den drei Diensten.
 
 ## Upgrade von v0.5.77 oder älter
 

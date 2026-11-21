@@ -41,7 +41,7 @@ A version-changing deployment or host-config override takes a local snapshot bef
 
 | Service group | Ordinary deployment | When to plan extra interruption |
 | --- | --- | --- |
-| `platform`, `backend-api`, `backend-worker` | Roll together as the new application colour. | Old and new replicas overlap, and draining can refuse new turns. |
+| `platform`, with `backend-api` and `backend-worker` where they run apart | Roll together as the new application colour. | Old and new replicas overlap, and draining can refuse new turns. |
 | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Replace in place after draining relevant work. | These are shared execution dependencies, not a second blue-green application group. |
 | `db`, `object-store`, `proxy` | Keep the running services; the CLI reports skipped updates. | Add `--stop` when these services need replacement. |
 
@@ -49,7 +49,7 @@ A version-changing deployment or host-config override takes a local snapshot bef
 tale deploy --stop
 ```
 
-The role replica variables `TALE_PLATFORM_REPLICAS`, `TALE_BACKEND_API_REPLICAS`, and `TALE_BACKEND_WORKER_REPLICAS` accept 1–16. Increase the role that measurements show is constrained; adding workers does not solve an unavailable database or provider quota.
+`TALE_PLATFORM_REPLICAS` sets how many `platform` replicas a colour runs, from 1 to 16; each one is the whole application. Setting `TALE_BACKEND_WORKER_REPLICAS` or `TALE_BACKEND_API_REPLICAS` [runs the workers apart](#one-process), so they scale on their own. Increase what measurements show is constrained; adding workers does not solve an unavailable database or provider quota.
 
 ## Understand the handover
 
@@ -114,7 +114,7 @@ After deployment, verify the public certificate and sign-in, open an existing pr
 | Situation | Recovery path |
 | --- | --- |
 | Return to the recorded previous version in the same `major.minor` line | `tale rollback` checks that boundary and asks for confirmation before redeploying. Review that release's compatibility notes as well. |
-| Return across a minor or major boundary | Restore the coordinated pre-upgrade data and deploy its matching version. `tale rollback` refuses this image-only downgrade. |
+| Return across a minor or major boundary | Restore the coordinated pre-upgrade data and deploy its matching version. `tale rollback` refuses this image-only downgrade. A workspace that runs the application as one process [brings its three services back first](#one-process). |
 | Target version or data compatibility is unknown | Resolve the version and backup provenance before starting an older binary. |
 
 ```bash
@@ -123,7 +123,26 @@ tale rollback
 
 `--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
 
-`tale rollback` swaps the application images of `platform`, `backend-api`, and `backend-worker` only. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
+`tale rollback` swaps the application's images only: those of `platform`, and of `backend-api` and `backend-worker` where they run apart. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
+
+## The application as one process {#one-process}
+
+A workspace runs the application as one `platform` process per replica: the web tier, the API and the workers. Earlier releases ran them as three services, `platform`, `backend-api` and `backend-worker`, and their images still do.
+
+The first `tale deploy` of a release that can run as one process starts the new colour that way beside the old colour of three services, and retires the old one after the handover, like any other deploy. `tale deploy --dry-run` names the services the new colour would run. Afterwards:
+
+- No `backend-api` or `backend-worker` container exists. `tale logs backend-api` and `tale logs backend-worker` read the `platform` log instead. Update what you maintain yourself that names those containers, such as a log shipper or an alert.
+- Other services still reach the API under the name `backend-api`, which `platform` now answers as well.
+- `PLATFORM_MEMORY_RESERVATION` sizes the one process and defaults to `256m` for it, up to its `12g` memory limit. `BACKEND_API_MEMORY_RESERVATION` and `BACKEND_WORKER_MEMORY_RESERVATION` apply to those services only where they exist.
+- `tale deploy --services platform` replaces the whole application in place, so it drains chat turns first. Naming a service the live colour does not run is refused with the list of those it runs.
+
+To scale the workers on their own, set `TALE_BACKEND_WORKER_REPLICAS`, `TALE_BACKEND_API_REPLICAS` or both, to any value from 1 to 16, and deploy. The new colour then runs `backend-worker` with its count beside a `platform` that is the web tier and the API, with the larger of `TALE_PLATFORM_REPLICAS` and `TALE_BACKEND_API_REPLICAS` replicas. Remove both variables and the next deploy returns to one process.
+
+`TALE_APP_TIER` names the shape outright and wins over the replica counts: `one-process`, `workers-apart` or `three-services`. With `three-services`, a release that can run as one process still runs `platform` as the web tier alone, beside `backend-api` and `backend-worker`.
+
+A CLI from before this change deploys only over three services. It looks for the `backend-api` and `backend-worker` containers, and without them it refuses to deploy or roll back, changing nothing: with `The installed backend database connection is unknown` over one process, and with `The installed backend database inventory is incomplete` where only the workers run apart. Before you return to such a CLI, for instance to restore a snapshot from an earlier release line, set `TALE_APP_TIER=three-services` and run `tale deploy` with the current CLI, so the workspace runs the services the older one knows. Do it before the restore: afterwards the data belongs to the earlier release, and only that release's CLI may start it. `tale restore` checks this itself where the earlier release's image is still on the host, and refuses before it changes anything. Remove the variable once you are back on a release that runs as one process. `tale rollback` needs no such step: the current CLI starts the earlier release's three services itself.
+
+Each colour runs the services its own image supports, so `tale rollback` to a release from before this change brings its three services back. The Compose file in the repository, the [Kubernetes manifests](/self-hosted/install/kubernetes) and the [Incus runtime](/self-hosted/install/incus) keep the three services.
 
 ## Upgrade from v0.5.77 or earlier
 

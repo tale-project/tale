@@ -5,7 +5,7 @@ description: Start with the failing action, inspect the right service, and recov
 
 Record the time, affected organization, URL or action, and error code before restarting anything. Check whether the failure affects one item, one organization, or the whole deployment. That distinction determines whether to inspect a file, an organization connection, or shared infrastructure.
 
-For a workspace deployment, start with `tale status` and `tale logs <service> --tail 200`. In your own Compose project, use `docker compose ps` and `docker compose logs --tail=200 <service>`. Service names such as `platform` and `backend-api` differ from generated container names.
+For a workspace deployment, start with `tale status` and `tale logs <service> --tail 200`. In your own Compose project, use `docker compose ps` and `docker compose logs --tail=200 <service>`. Service names such as `platform` and `backend-api` differ from generated container names, and a workspace that runs the application as [one process](/self-hosted/operate/upgrades#one-process) has `platform` where this page says `backend-api` or `backend-worker`: `tale logs` reads its log under any of the three names.
 
 ## Public URL, certificate, or sign-in fails
 
@@ -117,7 +117,7 @@ docker logs --tail 200 <backend-api-container> 2>&1 \
   | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
 ```
 
-The same frame then reads `at KKo (backend/env.ts:295:20)`: a file, line and column of that release's sources. Function names stay as the build wrote them, and lines that are not part of a trace pass through unchanged. Use a container of the release that logged the trace, because every release has its own maps. Include the mapped trace when you report a defect.
+The same frame then reads `at KKo (backend/env.ts:295:20)`: a file, line and column of that release's sources. Function names stay as the build wrote them, and lines that are not part of a trace pass through unchanged. Use a container of the release that logged the trace, because every release has its own maps; where the application runs as one process, that container is `platform`. Include the mapped trace when you report a defect.
 
 ## Writes fail or storage fills up
 

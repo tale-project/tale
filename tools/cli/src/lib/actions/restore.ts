@@ -1,3 +1,5 @@
+import pkg from '../../../package.json';
+import { preconditionError } from '../../utils/fail';
 import { formatBytes } from '../../utils/format-bytes';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -19,11 +21,13 @@ import { listSnapshots } from '../backup/list-snapshots';
 import { manifestSizeBytes, type SnapshotManifest } from '../backup/manifest';
 import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { verifySnapshot } from '../backup/verify-snapshot';
+import type { AppTier } from '../compose/app-tier';
 import {
   ROTATABLE_SERVICES,
   SIDECAR_SERVICES,
   STATEFUL_SERVICES,
 } from '../compose/types';
+import { imageServesApp } from '../deployment/app-tier-image';
 import type { getContainerState } from '../docker/get-container-state';
 import type { listComposeContainers } from '../docker/list-service-containers';
 import type { stopContainer } from '../docker/stop-container';
@@ -31,6 +35,7 @@ import { snapshotStoreOf } from '../runtime/incus/verbs/snapshots';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
 import { withLock } from '../state/with-lock';
+import { colorTier } from './color-lifecycle';
 
 interface RestoreOptions {
   env: DeploymentEnv;
@@ -62,11 +67,39 @@ export interface RestoreDeps {
   getContainerState: typeof getContainerState;
   listComposeContainers: typeof listComposeContainers;
   stopContainer: typeof stopContainer;
+  /** The shape of each colour that has a `platform` to ask
+   *  (compose/app-tier.ts). */
+  colourTiers: () => Promise<AppTier[]>;
+  /** Whether a release's platform image serves the app from its backend
+   *  process; null when that image is not on this host to say. */
+  releaseServesApp: (version: string) => Promise<boolean | null>;
 }
 
 /** The collaborators as the selected runtime answers them. */
-function runtimeDeps(runtime: StackRuntime): RestoreDeps {
+function runtimeDeps(runtime: StackRuntime, env: DeploymentEnv): RestoreDeps {
   return {
+    colourTiers: async () => {
+      const tiers: AppTier[] = [];
+      for (const colour of ['blue', 'green'] as const) {
+        try {
+          const tier = await colorTier(colour, runtime);
+          if (tier !== null) tiers.push(tier);
+        } catch (error) {
+          // A colour that cannot be read says nothing here; the check that
+          // asks is a courtesy before the restore, never its condition.
+          logger.debug(
+            `The ${colour} colour's shape could not be read: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      return tiers;
+    },
+    releaseServesApp: async (version) => {
+      const reference = `${env.GHCR_REGISTRY}/tale-platform:${version}`;
+      return (await runtime.imagePresent(reference))
+        ? imageServesApp(reference)
+        : null;
+    },
     listSnapshots: (prefix) => listSnapshots(prefix, runtime),
     resolveSnapshotPrefix: () => resolveSnapshotPrefix(runtime),
     verifySnapshot: (prefix, manifest) =>
@@ -185,13 +218,49 @@ async function liveVolumeUsers(
   return [...names].sort().map((name) => ({ name, state: 'running' }));
 }
 
+/**
+ * A restore across releases hands the stack to the CLI of the snapshot's
+ * release: its data must come back under that version (`tale update
+ * --version`, then `tale deploy --stop`). A CLI from before the application
+ * could run as one process deploys only over the three services: its writer
+ * census looks for `backend-api` and `backend-worker`, and without them it
+ * refuses with "The installed backend database connection is unknown".
+ *
+ * So a workspace that runs fewer services is turned back HERE, while its
+ * volumes still hold their data, with the step that avoids the dead end.
+ * The release says which it is through its own image, where that image is
+ * still on the host; where it is not, the operator is told what to check.
+ */
+async function assertSnapshotReleaseCanDeploy(
+  manifest: SnapshotManifest,
+  deps: RestoreDeps,
+): Promise<void> {
+  const version = manifest.platformVersion;
+  if (version === null || version === pkg.version) return;
+  const runs = (await deps.colourTiers()).find(
+    (tier) => tier.shape !== 'three-way',
+  );
+  if (runs === undefined) return;
+  const servesApp = await deps.releaseServesApp(version);
+  if (servesApp === true) return;
+  const first =
+    'set TALE_APP_TIER=three-services in .env and run `tale deploy`, then restore';
+  if (servesApp === false)
+    throw preconditionError(
+      `Snapshot ${manifest.id} holds the data of Tale ${version}, whose CLI deploys only over the services platform, backend-api and backend-worker. This workspace runs the application as ${runs.services.join(' and ')}, which that CLI refuses once the data is restored. First ${first}. Nothing was changed.`,
+    );
+  logger.warn(
+    `Snapshot ${manifest.id} holds the data of Tale ${version}, and that release's image is not on this host to say which services it runs. This workspace runs the application as ${runs.services.join(' and ')}. If Tale ${version} is from before the application could run as one process, its CLI refuses this workspace once the data is restored: stop here, ${first}.`,
+  );
+}
+
 export async function restore(
   options: RestoreOptions,
   injected?: RestoreDeps,
 ): Promise<void> {
   const { env, snapshotId } = options;
   const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
-  const deps = injected ?? runtimeDeps(runtime);
+  const deps = injected ?? runtimeDeps(runtime, env);
 
   if (options.resume === true || options.abort === true) {
     if (options.resume === true && options.abort === true)
@@ -267,6 +336,8 @@ export async function restore(
     // On Incus the restore stops the volumes' users itself, gracefully,
     // and starts them again: `--stop` is the consent to that.
     const store = snapshotStoreOf(runtime);
+    // On Incus the application runs as three services in every release.
+    if (store === null) await assertSnapshotReleaseCanDeploy(manifest, deps);
     const live =
       store === null
         ? await findLiveProjectContainers(deps)

@@ -703,6 +703,58 @@ test('pending promotion checks every backend role against the admitted immutable
   ).rejects.toThrow('no admitted');
 });
 
+test('pending promotion asks for the services the colour is to run, and judges every writer it finds', async () => {
+  const imageId = `sha256:${'e'.repeat(64)}`;
+  const container = (service: string, index: number, image = imageId) => ({
+    Id: String(index).repeat(64),
+    Image: image,
+    Config: {
+      Labels: {
+        'com.docker.compose.project': 'tale-green',
+        'com.docker.compose.service': service,
+        'com.docker.compose.container-number': '1',
+        'com.docker.compose.oneoff': 'False',
+      },
+    },
+  });
+  let containers = [container('platform', 1)];
+  const deps: RuntimeDependencies = {
+    exec: async (_c, args) =>
+      args[0] === 'image'
+        ? ok([{ Id: imageId }])
+        : args[0] === 'ps'
+          ? ok(containers.map((c) => c.Id).join('\n'))
+          : ok(containers),
+  };
+  const reference = `ghcr.io/tale-project/tale/tale-platform@sha256:${'f'.repeat(64)}`;
+  const admit = (
+    services?: Parameters<typeof admitPendingAutomationColor>[4],
+  ) => admitPendingAutomationColor('tale-green', reference, 2, deps, services);
+
+  // One process is the whole colour: nothing else has to be there.
+  await expect(admit(['platform'])).resolves.toBeUndefined();
+  // Asked for the three services, as a caller that names none is.
+  await expect(admit()).rejects.toThrow('Pending automation writer');
+  // With the jobs apart, the worker has to be there.
+  await expect(admit(['platform', 'backend-worker'])).rejects.toThrow(
+    'Pending automation writer',
+  );
+  containers = [container('platform', 1), container('backend-worker', 2)];
+  await expect(admit(['platform', 'backend-worker'])).resolves.toBeUndefined();
+  // A writer of a service the colour is not to run is still a writer: left
+  // by an earlier deploy on another image, it refuses the colour.
+  containers = [
+    container('platform', 1),
+    container('backend-worker', 2, `sha256:${'a'.repeat(64)}`),
+  ];
+  await expect(admit(['platform'])).rejects.toThrow(
+    'Pending automation writer',
+  );
+  // On the admitted image it is no reason to refuse.
+  containers = [container('platform', 1), container('backend-worker', 2)];
+  await expect(admit(['platform'])).resolves.toBeUndefined();
+});
+
 test('malformed installed backend metadata cannot leak credentials through decode errors', async () => {
   const sentinel = 'synthetic-credential-must-stay-private';
   let message = '';
@@ -721,4 +773,267 @@ test('malformed installed backend metadata cannot leak credentials through decod
   expect(message).toContain('metadata is unreadable');
   expect(message).not.toContain(sentinel);
   expect(message).not.toContain('DATABASE_URL');
+});
+
+/**
+ * A colour runs its writers as `backend-api` and `backend-worker`, or inside
+ * `platform` (compose/app-tier.ts). The census tells a `platform` that is a
+ * backend process from the web tier of a colour of three services by the role
+ * it runs.
+ */
+const BUNDLED = 'DATABASE_URL=postgresql://tale:synthetic@db:5432/tale_app';
+interface Installed {
+  id: string;
+  project: string;
+  service: string;
+  env?: string[];
+}
+function installed(
+  containers: Installed[],
+  imageLabels: Record<string, string> = {},
+): RuntimeDependencies & { inspected: string[][] } {
+  const inspected: string[][] = [];
+  return {
+    inspected,
+    exec: async (_c, args) => {
+      if (args[0] === 'ps') {
+        if (!args.at(-1)?.includes('.Label')) return ok(db.Id);
+        const project = args
+          .find((arg) => arg.startsWith('label=com.docker.compose.project='))
+          ?.split('=')
+          .at(-1);
+        return ok(
+          containers
+            .filter((container) => container.project === project)
+            .map((container) => `${container.id}\t${container.service}`)
+            .join('\n'),
+        );
+      }
+      if (args[0] === 'image')
+        return ok(
+          args.slice(2).map((Id) => ({ Id, Config: { Labels: imageLabels } })),
+        );
+      if (args[0] === 'container' && args[1] === 'inspect') {
+        inspected.push(args.slice(2));
+        return ok(
+          args.slice(2).map((id) => {
+            const container = containers.find((entry) => entry.id === id);
+            if (container === undefined) throw new Error(`no container ${id}`);
+            return {
+              Id: id,
+              Image: db.Image,
+              RestartCount: 0,
+              State: db.State,
+              Config: {
+                Labels: {
+                  'com.docker.compose.project': container.project,
+                  'com.docker.compose.service': container.service,
+                  'com.docker.compose.container-number': '1',
+                  'com.docker.compose.oneoff': 'False',
+                },
+                Env: container.env ?? [],
+              },
+            };
+          }),
+        );
+      }
+      return ok('');
+    },
+  };
+}
+const PROJECTS = ['tale', 'tale-blue', 'tale-green'];
+const one = (role: string, project = 'tale-blue', id = '1'): Installed => ({
+  id: id.repeat(64),
+  project,
+  service: 'platform',
+  env: [BUNDLED, `TALE_ROLE=${role}`],
+});
+const web = (project = 'tale-blue', id = '7'): Installed => ({
+  id: id.repeat(64),
+  project,
+  service: 'platform',
+  // The web tier names no role and holds no database connection.
+  env: ['PATH=/usr/local/bin'],
+});
+const backend = (
+  service: 'backend-api' | 'backend-worker',
+  project = 'tale-blue',
+): Installed => ({
+  id: (service === 'backend-api' ? 'c' : 'd').repeat(64),
+  project,
+  service,
+  env: [BUNDLED],
+});
+
+test('one process that is the API and the jobs is a complete writer inventory', async () => {
+  const census = await bundledBackendIdentity(
+    PROJECTS,
+    installed([one('all')]),
+  );
+  expect(
+    census.writers.map(({ service, project }) => [service, project]),
+  ).toEqual([['platform', 'tale-blue']]);
+  expect(census.protocol).toBe(1);
+  expect(
+    (
+      await bundledBackendIdentity(
+        PROJECTS,
+        installed([one('all')], { [AUTOMATION_PROTOCOL_LABEL]: '2' }),
+      )
+    ).protocol,
+  ).toBe(2);
+});
+
+test('a platform that runs no jobs needs its worker beside it', async () => {
+  await expect(
+    bundledBackendIdentity(PROJECTS, installed([one('api')])),
+  ).rejects.toThrow('inventory is incomplete');
+  const census = await bundledBackendIdentity(
+    PROJECTS,
+    installed([one('api'), backend('backend-worker')]),
+  );
+  expect(census.writers.map((writer) => writer.service).toSorted()).toEqual([
+    'backend-worker',
+    'platform',
+  ]);
+});
+
+test('the web tier of a colour of three services is no writer, and changes nothing the census compares', async () => {
+  const backends = [backend('backend-api'), backend('backend-worker')];
+  const alone = await bundledBackendIdentity(PROJECTS, installed(backends));
+  const beside = await bundledBackendIdentity(
+    PROJECTS,
+    installed([web(), ...backends]),
+  );
+  expect(beside.writers).toEqual(alone.writers);
+  expect(beside.identity).toBe(alone.identity);
+  // Nor does it stand in for a backend that is missing.
+  await expect(
+    bundledBackendIdentity(
+      PROJECTS,
+      installed([web(), backend('backend-worker')]),
+    ),
+  ).rejects.toThrow('inventory is incomplete');
+  await expect(
+    bundledBackendIdentity(PROJECTS, installed([web()])),
+  ).rejects.toThrow('connection is unknown');
+  // An explicit web role is the web tier as well, and a role no shape gives
+  // platform makes it no writer either.
+  for (const role of ['web', 'worker'])
+    await expect(
+      bundledBackendIdentity(PROJECTS, installed([one(role)])),
+    ).rejects.toThrow('connection is unknown');
+});
+
+test('the platforms are asked their role first and on their own, and only writers are read in full', async () => {
+  const host = installed([
+    web(),
+    backend('backend-api'),
+    backend('backend-worker'),
+  ]);
+  await bundledBackendIdentity(PROJECTS, host);
+  // The web tier never joins the read of the writers, which stays the size
+  // it was for a colour of three services.
+  expect(host.inspected).toEqual([
+    ['7'.repeat(64)],
+    ['c'.repeat(64), 'd'.repeat(64)],
+  ]);
+  // Mid-flip onto one process: the old colour's web tier, the new colour's
+  // whole application.
+  const flipping = installed([
+    { ...web(), id: '8'.repeat(64) },
+    one('all', 'tale-green'),
+  ]);
+  await bundledBackendIdentity(PROJECTS, flipping);
+  expect(flipping.inspected).toEqual([
+    ['8'.repeat(64), '1'.repeat(64)],
+    ['1'.repeat(64)],
+  ]);
+});
+
+test('nothing in the record of a web tier can refuse the census', async () => {
+  const backends = [backend('backend-api'), backend('backend-worker')];
+  const plain = await bundledBackendIdentity(PROJECTS, installed(backends));
+  // No environment at all, and one far past what a writer may carry.
+  for (const env of [
+    null,
+    Array.from({ length: 4000 }, (_, index) => `VARIABLE_${index}=x`),
+  ]) {
+    const host = installed([web(), ...backends]);
+    const exec = host.exec!;
+    const census = await bundledBackendIdentity(PROJECTS, {
+      exec: async (command, args, options) => {
+        const answer = await exec(command, args, options);
+        if (
+          args[0] !== 'container' ||
+          args[1] !== 'inspect' ||
+          args[2] !== '7'.repeat(64)
+        )
+          return answer;
+        const [record] = JSON.parse(answer.stdout) as Array<{
+          Config: { Env: unknown };
+        }>;
+        if (record === undefined) throw new Error('no record');
+        record.Config.Env = env;
+        return { ...answer, stdout: JSON.stringify([record]) };
+      },
+    });
+    expect(census.identity).toBe(plain.identity);
+  }
+});
+
+test('while two colours of two shapes overlap, the writers of both are counted', async () => {
+  const census = await bundledBackendIdentity(
+    PROJECTS,
+    installed([
+      web('tale-blue'),
+      backend('backend-api'),
+      backend('backend-worker'),
+      one('all', 'tale-green', '2'),
+    ]),
+  );
+  expect(
+    census.writers
+      .map(({ project, service }) => `${project}/${service}`)
+      .toSorted(),
+  ).toEqual([
+    'tale-blue/backend-api',
+    'tale-blue/backend-worker',
+    'tale-green/platform',
+  ]);
+});
+
+test('a platform that is a writer is held to the bundled database like any backend', async () => {
+  const external: Installed = {
+    ...one('all'),
+    env: [
+      'DATABASE_URL=postgresql://tale:synthetic@external.invalid:5432/tale_app',
+      'TALE_ROLE=all',
+    ],
+  };
+  await expect(
+    bundledBackendIdentity(PROJECTS, installed([external])),
+  ).rejects.toThrow('Custom database');
+  // The web tier carries the same `.env`, and is not judged by it.
+  const census = await bundledBackendIdentity(
+    PROJECTS,
+    installed([
+      { ...web(), env: [external.env?.[0] ?? ''] },
+      backend('backend-api'),
+      backend('backend-worker'),
+    ]),
+  );
+  expect(census.writers).toHaveLength(2);
+});
+
+test('a deploy over one process reads the installed protocol through it', async () => {
+  const host = installed([one('all')]);
+  const deps: RuntimeDependencies = {
+    exec: async (command, args, options) => {
+      if (args[0] === 'exec') return ok({ schema: 'tale', ids });
+      if (args[0] === 'container' && args[2] === db.Id) return ok([db]);
+      return host.exec!(command, args, options);
+    },
+  };
+  expect(await tagDeploymentProtocol('tale', true, deps)).toBe(2);
 });

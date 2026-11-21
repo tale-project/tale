@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { ReplicaCounts } from '../../utils/load-env';
 import { createModuleMocks } from '../../utils/module-mock-fixture';
+import { SPLIT, THREE_WAY, UNIFIED, type AppTier } from '../compose/app-tier';
+import type { DeploymentColor } from '../compose/types';
 import { setProjectId } from '../project/project-context';
+import { FakeRuntime } from '../runtime/fake-runtime';
 
 setProjectId('tale');
 
@@ -37,7 +40,8 @@ const {
   awaitRunningColorHealthy,
   colorLooksUp,
   colorPlatformVersion,
-  isUnfinishedColorFlip,
+  colorTier,
+  planColorFlip,
   removeColorContainers,
 } = await import('./color-lifecycle');
 
@@ -111,77 +115,6 @@ describe('colorPlatformVersion', () => {
   });
 });
 
-describe('isUnfinishedColorFlip', () => {
-  function colourUp(project: string, argv: string): string {
-    if (!argv.includes(`project=${project}`)) return '';
-    for (const service of SERVICES) {
-      if (argv.includes(`service=${service}`)) {
-        return replica(project, service);
-      }
-    }
-    // Unscoped listing (retiring-still-running).
-    return SERVICES.map((service) => replica(project, service)).join('\n');
-  }
-
-  test('is true when traffic already flipped and the old colour is still up', async () => {
-    getCurrentColorMock.mockResolvedValue('green');
-    routePs(
-      (argv) => colourUp('tale-green', argv) || colourUp('tale-blue', argv),
-    );
-
-    expect(
-      await isUnfinishedColorFlip(
-        '/project',
-        { promoting: 'green', retiring: 'blue' },
-        SERVICES,
-        REPLICAS,
-      ),
-    ).toBe(true);
-  });
-
-  test('is true when the new colour is up but the switch is not recorded', async () => {
-    getCurrentColorMock.mockResolvedValue('blue');
-    routePs((argv) => colourUp('tale-green', argv));
-
-    expect(
-      await isUnfinishedColorFlip(
-        '/project',
-        { promoting: 'green', retiring: 'blue' },
-        SERVICES,
-        REPLICAS,
-      ),
-    ).toBe(true);
-  });
-
-  test('is false when the promoting colour was torn down (Ctrl-C cleanup)', async () => {
-    getCurrentColorMock.mockResolvedValue('blue');
-    routePs(() => '');
-
-    expect(
-      await isUnfinishedColorFlip(
-        '/project',
-        { promoting: 'green', retiring: 'blue' },
-        SERVICES,
-        REPLICAS,
-      ),
-    ).toBe(false);
-  });
-
-  test('is false when the flip already finished (pending file leftover)', async () => {
-    getCurrentColorMock.mockResolvedValue('green');
-    routePs((argv) => colourUp('tale-green', argv));
-
-    expect(
-      await isUnfinishedColorFlip(
-        '/project',
-        { promoting: 'green', retiring: 'blue' },
-        SERVICES,
-        REPLICAS,
-      ),
-    ).toBe(false);
-  });
-});
-
 describe('colorLooksUp', () => {
   test('is false when a requested role is short of its replica count', async () => {
     routePs((argv) =>
@@ -190,6 +123,352 @@ describe('colorLooksUp', () => {
         : '',
     );
     expect(await colorLooksUp('green', SERVICES, REPLICAS)).toBe(false);
+  });
+});
+
+/** A runtime with one colour up: one replica of each service of a shape,
+ *  each started in the role the shape names for it. */
+function colourOf(
+  tier: AppTier,
+  colour: DeploymentColor = 'green',
+  runtime = new FakeRuntime(),
+): FakeRuntime {
+  for (const service of tier.services) {
+    const role = tier.roles[service];
+    runtime.seedInstance({
+      stack: `tale-${colour}`,
+      service,
+      image: 'ghcr.io/tale-project/tale/tale-platform:0.6.1',
+      // The web tier of a colour of three services names no role.
+      environment:
+        role === undefined || role === 'web' ? {} : { TALE_ROLE: role },
+    });
+  }
+  return runtime;
+}
+
+const ONE: ReplicaCounts = {
+  platform: 1,
+  'backend-api': 0,
+  'backend-worker': 0,
+};
+
+describe('colorTier', () => {
+  test("reads the shape off the role the colour's platform runs", async () => {
+    for (const tier of [UNIFIED, SPLIT, THREE_WAY])
+      expect(await colorTier('green', colourOf(tier))).toBe(tier);
+  });
+
+  test('an explicit web role is the web tier too', async () => {
+    const runtime = new FakeRuntime();
+    runtime.seedInstance({
+      stack: 'tale-green',
+      service: 'platform',
+      image: 'example/platform:1',
+      environment: { TALE_ROLE: 'web' },
+    });
+    expect(await colorTier('green', runtime)).toBe(THREE_WAY);
+  });
+
+  test('the role decides, not the services left beside it', async () => {
+    // A colour that lost its worker still has a platform that runs no jobs.
+    const runtime = colourOf(SPLIT);
+    runtime.instances.delete('tale-green-backend-worker-1');
+    expect(await colorTier('green', runtime)).toBe(SPLIT);
+  });
+
+  test('null without a platform, or with one in a role no shape starts it in', async () => {
+    expect(await colorTier('green', new FakeRuntime())).toBeNull();
+    // The other colour's containers are not this colour's.
+    expect(await colorTier('green', colourOf(UNIFIED, 'blue'))).toBeNull();
+    const runtime = new FakeRuntime();
+    runtime.seedInstance({
+      stack: 'tale-green',
+      service: 'platform',
+      image: 'example/platform:1',
+      environment: { TALE_ROLE: 'worker' },
+    });
+    expect(await colorTier('green', runtime)).toBeNull();
+  });
+});
+
+describe('colorLooksUp, held to a shape', () => {
+  test('a colour up in the shape asked is up', async () => {
+    expect(
+      await colorLooksUp(
+        'green',
+        UNIFIED.services,
+        ONE,
+        colourOf(UNIFIED),
+        UNIFIED,
+      ),
+    ).toBe(true);
+    expect(
+      await colorLooksUp(
+        'green',
+        THREE_WAY.services,
+        REPLICAS,
+        colourOf(THREE_WAY),
+        THREE_WAY,
+      ),
+    ).toBe(true);
+  });
+
+  test('a colour of three services is not one process, although its platform runs', async () => {
+    const runtime = colourOf(THREE_WAY);
+    // Asked only whether platform runs, it does.
+    expect(await colorLooksUp('green', UNIFIED.services, ONE, runtime)).toBe(
+      true,
+    );
+    expect(
+      await colorLooksUp('green', UNIFIED.services, ONE, runtime, UNIFIED),
+    ).toBe(false);
+  });
+
+  test('a platform that runs no jobs is not the whole application, with its worker or without', async () => {
+    const runtime = colourOf(SPLIT);
+    expect(
+      await colorLooksUp('green', UNIFIED.services, ONE, runtime, UNIFIED),
+    ).toBe(false);
+    runtime.instances.delete('tale-green-backend-worker-1');
+    expect(
+      await colorLooksUp('green', UNIFIED.services, ONE, runtime, UNIFIED),
+    ).toBe(false);
+  });
+
+  test('a stopped container of a service the shape lacks still makes it another colour', async () => {
+    const runtime = colourOf(UNIFIED);
+    runtime.seedInstance({
+      stack: 'tale-green',
+      service: 'backend-api',
+      image: 'example/platform:1',
+      state: 'exited',
+    });
+    expect(
+      await colorLooksUp('green', UNIFIED.services, ONE, runtime, UNIFIED),
+    ).toBe(false);
+  });
+
+  test('one process is not the three services, and the count still decides first', async () => {
+    const runtime = colourOf(UNIFIED);
+    expect(
+      await colorLooksUp(
+        'green',
+        THREE_WAY.services,
+        REPLICAS,
+        runtime,
+        THREE_WAY,
+      ),
+    ).toBe(false);
+    expect(
+      await colorLooksUp(
+        'green',
+        UNIFIED.services,
+        { ...ONE, platform: 2 },
+        runtime,
+        UNIFIED,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('planColorFlip', () => {
+  const pending = { promoting: 'green', retiring: 'blue' } as const;
+  const TWO: ReplicaCounts = { ...ONE, platform: 2 };
+  const plan = (
+    runtime: FakeRuntime,
+    options: {
+      pending?: typeof pending | null;
+      current?: DeploymentColor | null;
+      tier?: AppTier;
+      replicas?: ReplicaCounts;
+    } = {},
+  ) => {
+    const tier = options.tier ?? UNIFIED;
+    return planColorFlip({
+      pending: options.pending === undefined ? pending : options.pending,
+      current: options.current === undefined ? 'blue' : options.current,
+      next: 'green',
+      tier,
+      replicas: options.replicas ?? (tier === THREE_WAY ? REPLICAS : ONE),
+      runtime,
+    });
+  };
+
+  test('with nothing recorded and the idle colour down, the flip starts it', async () => {
+    expect(await plan(colourOf(THREE_WAY, 'blue'), { pending: null })).toEqual({
+      promoting: 'green',
+      retiring: 'blue',
+      resumed: false,
+      step: 'start',
+      services: UNIFIED.services,
+      replicas: ONE,
+      runsInstead: null,
+    });
+  });
+
+  test('a first deploy promotes the colour it is given and retires none', async () => {
+    const flip = await planColorFlip({
+      pending: null,
+      current: null,
+      next: 'blue',
+      tier: UNIFIED,
+      replicas: ONE,
+      runtime: new FakeRuntime(),
+    });
+    expect(flip).toMatchObject({
+      promoting: 'blue',
+      retiring: null,
+      resumed: false,
+      step: 'start',
+    });
+  });
+
+  test('an idle colour that is up as asked is waited for, recorded or not', async () => {
+    const runtime = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    expect(await plan(runtime)).toMatchObject({
+      promoting: 'green',
+      retiring: 'blue',
+      resumed: true,
+      step: 'wait',
+      services: UNIFIED.services,
+      replicas: ONE,
+    });
+    expect(await plan(runtime, { pending: null })).toMatchObject({
+      resumed: false,
+      step: 'wait',
+    });
+  });
+
+  test('an idle colour left up in another shape, or short of replicas, is started again: it serves nothing yet', async () => {
+    const apart = colourOf(SPLIT, 'green', colourOf(THREE_WAY, 'blue'));
+    expect(await plan(apart)).toMatchObject({
+      promoting: 'green',
+      retiring: 'blue',
+      resumed: false,
+      step: 'start',
+      services: UNIFIED.services,
+    });
+    const short = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    expect(await plan(short, { replicas: TWO })).toMatchObject({
+      resumed: false,
+      step: 'start',
+      replicas: TWO,
+    });
+  });
+
+  test('a colour that holds the traffic is kept as it is, and waited for by what it runs', async () => {
+    // The switch to green was recorded; blue was not retired yet.
+    const runtime = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    expect(await plan(runtime, { current: 'green' })).toEqual({
+      promoting: 'green',
+      retiring: 'blue',
+      resumed: true,
+      step: 'keep',
+      services: UNIFIED.services,
+      replicas: REPLICAS,
+      runsInstead: null,
+    });
+  });
+
+  test('it is kept in the shape it has, whatever shape this run asks for', async () => {
+    const runtime = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    for (const tier of [SPLIT, THREE_WAY]) {
+      const flip = await plan(runtime, { current: 'green', tier });
+      expect(flip).toMatchObject({
+        promoting: 'green',
+        retiring: 'blue',
+        resumed: true,
+        step: 'keep',
+        // What it runs: the check against the admitted image and the health
+        // wait both read these, not the services asked.
+        services: UNIFIED.services,
+        runsInstead: 'platform×1',
+      });
+    }
+    // And the other way round: three services serve, one process is asked.
+    const three = colourOf(THREE_WAY, 'green', colourOf(UNIFIED, 'blue'));
+    expect(await plan(three, { current: 'green' })).toMatchObject({
+      step: 'keep',
+      services: THREE_WAY.services,
+      runsInstead: 'platform×1, backend-api×1, backend-worker×1',
+    });
+  });
+
+  test('it is kept at the replicas it has, where this run asks for more', async () => {
+    const runtime = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    expect(
+      await plan(runtime, { current: 'green', replicas: TWO }),
+    ).toMatchObject({ step: 'keep', runsInstead: 'platform×1' });
+  });
+
+  test('a colour that holds the traffic on record and serves none of it is started again', async () => {
+    const runtime = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    const platform = runtime.instances.get('tale-green-platform-1');
+    if (platform === undefined) throw new Error('seed');
+    platform.state = 'exited';
+    expect(await plan(runtime, { current: 'green' })).toMatchObject({
+      promoting: 'green',
+      retiring: 'blue',
+      resumed: true,
+      step: 'start',
+      services: UNIFIED.services,
+    });
+    // So is one whose containers are gone altogether.
+    runtime.instances.delete('tale-green-platform-1');
+    expect(await plan(runtime, { current: 'green' })).toMatchObject({
+      resumed: true,
+      step: 'start',
+    });
+  });
+
+  test('a colour of three that lost a service serves none of it either', async () => {
+    const runtime = colourOf(THREE_WAY, 'green', colourOf(UNIFIED, 'blue'));
+    const api = runtime.instances.get('tale-green-backend-api-1');
+    if (api === undefined) throw new Error('seed');
+    api.state = 'exited';
+    expect(
+      await plan(runtime, { current: 'green', tier: THREE_WAY }),
+    ).toMatchObject({ resumed: true, step: 'start' });
+  });
+
+  test('a record left behind by a flip that finished is no flip to resume', async () => {
+    // green is live and blue is gone: the next deploy promotes the colour it
+    // is given, never the one that serves.
+    const runtime = colourOf(UNIFIED, 'green');
+    const flip = await planColorFlip({
+      pending,
+      current: 'green',
+      next: 'blue',
+      tier: UNIFIED,
+      replicas: ONE,
+      runtime,
+    });
+    expect(flip).toMatchObject({
+      promoting: 'blue',
+      retiring: 'green',
+      resumed: false,
+      step: 'start',
+    });
+  });
+
+  test('a stopped old colour is one that is gone', async () => {
+    const runtime = colourOf(UNIFIED, 'green', colourOf(THREE_WAY, 'blue'));
+    for (const instance of runtime.instances.values())
+      if (instance.stack === 'tale-blue') instance.state = 'exited';
+    const flip = await planColorFlip({
+      pending,
+      current: 'green',
+      next: 'blue',
+      tier: UNIFIED,
+      replicas: ONE,
+      runtime,
+    });
+    expect(flip).toMatchObject({
+      promoting: 'blue',
+      retiring: 'green',
+      resumed: false,
+    });
   });
 });
 

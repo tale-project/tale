@@ -5,7 +5,7 @@ description: Pars de l’action en échec, inspecte le bon service et rétablis 
 
 Note l’heure, l’organisation, l’URL ou l’action concernée et le code d’erreur avant tout redémarrage. Détermine si le problème touche un élément, une organisation ou tout le déploiement. Cette distinction oriente l’enquête vers un fichier, une connexion d’organisation ou l’infrastructure partagée.
 
-Pour un déploiement dans un workspace, commence par `tale status` et `tale logs <service> --tail 200`. Dans ton propre projet Compose, utilise `docker compose ps` et `docker compose logs --tail=200 <service>`. Les noms de services comme `platform` et `backend-api` diffèrent des noms de conteneurs générés.
+Pour un déploiement dans un workspace, commence par `tale status` et `tale logs <service> --tail 200`. Dans ton propre projet Compose, utilise `docker compose ps` et `docker compose logs --tail=200 <service>`. Les noms de services comme `platform` et `backend-api` diffèrent des noms de conteneurs générés, et un workspace qui exécute l’application en [un seul processus](/fr/self-hosted/operate/upgrades#one-process) a `platform` là où cette page dit `backend-api` ou `backend-worker` : `tale logs` lit son log sous chacun des trois noms.
 
 ## Échec de l’URL publique, du certificat ou de la connexion
 
@@ -117,7 +117,7 @@ docker logs --tail 200 <backend-api-container> 2>&1 \
   | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
 ```
 
-La même ligne devient alors `at KKo (backend/env.ts:295:20)` : un fichier, une ligne et une colonne des sources de cette version. Les noms de fonction restent ceux de la compilation, et les lignes qui ne font pas partie d’une trace sont conservées telles quelles. Utilise un conteneur de la version qui a consigné la trace, car chaque version a ses propres source maps. Joins la trace ainsi résolue lorsque tu signales un défaut.
+La même ligne devient alors `at KKo (backend/env.ts:295:20)` : un fichier, une ligne et une colonne des sources de cette version. Les noms de fonction restent ceux de la compilation, et les lignes qui ne font pas partie d’une trace sont conservées telles quelles. Utilise un conteneur de la version qui a consigné la trace, car chaque version a ses propres source maps ; là où l’application tourne en un seul processus, ce conteneur est `platform`. Joins la trace ainsi résolue lorsque tu signales un défaut.
 
 ## Les écritures échouent ou le stockage se remplit
 

@@ -14,6 +14,7 @@ import {
   incusBackupFixture,
   type IncusBackupFixture,
 } from '../backup/incus-backup-fixture';
+import { SPLIT, THREE_WAY, UNIFIED, type AppTier } from '../compose/app-tier';
 import { setProjectId } from '../project/project-context';
 import { FakeRuntime } from '../runtime/fake-runtime';
 import { restore, type RestoreDeps } from './restore';
@@ -39,6 +40,13 @@ const confirmMock = mock();
 const loggerInfoMock = mock();
 const loggerNoticeMock = mock();
 const loggerWarnMock = mock();
+/** The shapes of the workspace's colours, and what the snapshot's release
+ *  image says; three services and an image that is not here unless a test
+ *  says otherwise. */
+const colourTiersMock = mock(async (): Promise<AppTier[]> => [THREE_WAY]);
+const releaseServesAppMock = mock(
+  async (_version: string): Promise<boolean | null> => null,
+);
 const loggerTableMock = mock();
 
 // Bun's module mocks are process-wide: each one is put back once this suite
@@ -77,6 +85,8 @@ const deps: RestoreDeps = {
   // finds them by project label rather than by name.
   listComposeContainers: listComposeContainersMock,
   stopContainer: stopContainerMock,
+  colourTiers: colourTiersMock,
+  releaseServesApp: releaseServesAppMock,
 };
 const run = (options: Parameters<typeof restore>[0]) => restore(options, deps);
 
@@ -175,6 +185,10 @@ afterEach(() => {
   loggerNoticeMock.mockReset();
   loggerWarnMock.mockReset();
   loggerTableMock.mockReset();
+  colourTiersMock.mockReset();
+  colourTiersMock.mockImplementation(async () => [THREE_WAY]);
+  releaseServesAppMock.mockReset();
+  releaseServesAppMock.mockImplementation(async () => null);
   rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
 });
 
@@ -265,6 +279,105 @@ describe('restore', () => {
     expect(
       infoLines.some((line) => line.includes('tale update --version 0.9.6')),
     ).toBe(true);
+  });
+
+  // The data of another release comes back under that release's CLI, and a
+  // CLI from before the application ran as one process deploys only over the
+  // three services.
+  describe('across releases, on a workspace that runs fewer than three services', () => {
+    const arrange = (): void => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST]);
+      getContainerStateMock.mockImplementation((name: string) =>
+        Promise.resolve(name === 'tale-db' ? 'running' : null),
+      );
+      stopContainerMock.mockResolvedValue(true);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+    const restoring = () =>
+      run({ env, snapshotId: MANIFEST.id, stop: true, assumeYes: true });
+    /** What the restore warned about the release's CLI, among its warnings. */
+    const warnings = () =>
+      loggerWarnMock.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.includes('holds the data of Tale'));
+
+    for (const [name, tier, services] of [
+      ['one process', UNIFIED, 'platform'],
+      ['the job runners apart', SPLIT, 'platform and backend-worker'],
+    ] as const)
+      test(`refuses while nothing is changed where the release runs three services (${name})`, async () => {
+        arrange();
+        colourTiersMock.mockImplementation(async () => [tier]);
+        releaseServesAppMock.mockImplementation(async () => false);
+
+        await expect(restoring()).rejects.toThrow(
+          `Snapshot ${MANIFEST.id} holds the data of Tale 0.9.6, whose CLI deploys only over the services platform, backend-api and backend-worker. This workspace runs the application as ${services}, which that CLI refuses once the data is restored. First set TALE_APP_TIER=three-services in .env and run \`tale deploy\`, then restore. Nothing was changed.`,
+        );
+
+        expect(releaseServesAppMock).toHaveBeenCalledWith('0.9.6');
+        expect(stopContainerMock).not.toHaveBeenCalled();
+        expect(verifySnapshotMock).not.toHaveBeenCalled();
+        expect(execMock).not.toHaveBeenCalled();
+      });
+
+    test('restores where the release runs as one process too', async () => {
+      arrange();
+      colourTiersMock.mockImplementation(async () => [UNIFIED]);
+      releaseServesAppMock.mockImplementation(async () => true);
+      await restoring();
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(warnings()).toEqual([]);
+    });
+
+    test('says what to check, and goes on, where the release image is not on the host to ask', async () => {
+      arrange();
+      colourTiersMock.mockImplementation(async () => [UNIFIED]);
+      await restoring();
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(warnings()).toEqual([
+        expect.stringContaining(
+          "that release's image is not on this host to say which services it runs",
+        ),
+      ]);
+      expect(warnings()[0]).toContain('TALE_APP_TIER=three-services');
+    });
+
+    test('one colour of fewer services is enough, mid-flip', async () => {
+      arrange();
+      colourTiersMock.mockImplementation(async () => [THREE_WAY, UNIFIED]);
+      releaseServesAppMock.mockImplementation(async () => false);
+      await expect(restoring()).rejects.toThrow('Nothing was changed.');
+    });
+
+    test('a workspace of three services is never asked', async () => {
+      arrange();
+      releaseServesAppMock.mockImplementation(async () => false);
+      await restoring();
+      expect(releaseServesAppMock).not.toHaveBeenCalled();
+      expect(execMock).toHaveBeenCalledTimes(2);
+    });
+
+    test('nor is a snapshot of the release this CLI is, or one that names none', async () => {
+      const pkg = await import('../../../package.json');
+      for (const platformVersion of [pkg.version, null]) {
+        arrange();
+        execMock.mockClear();
+        listSnapshotsMock.mockResolvedValue([{ ...MANIFEST, platformVersion }]);
+        colourTiersMock.mockImplementation(async () => [UNIFIED]);
+        releaseServesAppMock.mockImplementation(async () => false);
+        await restoring();
+        expect(execMock).toHaveBeenCalledTimes(2);
+      }
+      expect(colourTiersMock).not.toHaveBeenCalled();
+    });
   });
 
   test('treats the global `tale -y` as consent when the local flag is absent', async () => {

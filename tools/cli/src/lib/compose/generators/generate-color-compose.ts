@@ -2,6 +2,7 @@ import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
 import type { RunOrigin } from '../../config/dev-origin';
+import { THREE_WAY } from '../app-tier';
 import {
   createBackendApiService,
   createBackendWorkerService,
@@ -12,12 +13,17 @@ import { serveOrigin } from './serve-origin';
 
 /**
  * One deployment COLOUR: the whole stateless application tier at a single
- * version — `{platform × N, backend-api × N, backend-worker × M}`.
+ * version, in the shape `config.appTier` names (app-tier.ts): `platform × N`
+ * alone where one process is the whole application, `platform` and
+ * `backend-worker` where the job runners scale apart, or the three services
+ * `{platform × N, backend-api × N, backend-worker × M}` an image from before
+ * the web tier moved needs, which is also what a caller gets that names no
+ * shape.
  *
  * The compose PROJECT carries the colour (`<id>-blue`), so the services
  * inside it are named plainly and none pins a `container_name`: a pinned name
  * and `docker compose --scale` are mutually exclusive, and replicas therefore
- * come out as `<id>-blue-backend-api-1`, `-2`, … The CLI never reconstructs
+ * come out as `<id>-blue-platform-1`, `-2`, … The CLI never reconstructs
  * those names; it lists them by compose label.
  *
  * Nothing here declares `depends_on`. The database, the blob store and the
@@ -36,11 +42,16 @@ export function buildColorCompose(
   origin?: RunOrigin,
 ): ComposeConfig {
   const prefix = `${getProjectId()}_`;
-  const services: ComposeConfig['services'] = {
-    platform: createPlatformService(config, color),
-    'backend-api': createBackendApiService(config, { colour: color }),
-    'backend-worker': createBackendWorkerService(config, { colour: color }),
+  const tier = config.appTier ?? THREE_WAY;
+  const build = {
+    platform: () => createPlatformService(config, color),
+    'backend-api': () => createBackendApiService(config, { colour: color }),
+    'backend-worker': () =>
+      createBackendWorkerService(config, { colour: color }),
   };
+  const services: ComposeConfig['services'] = Object.fromEntries(
+    tier.services.map((service) => [service, build[service]()]),
+  );
   if (origin) serveOrigin(Object.values(services), origin);
   const compose: ComposeConfig = {
     services,
@@ -58,9 +69,10 @@ export function buildColorCompose(
     },
     networks: {
       internal: { external: true, name: `${prefix}internal` },
-      // The api is dual-homed so a session container reaches the connectors
-      // bridge and the host-call door directly. Fixed Docker-level name so
-      // the spawner can `docker run --network tale-sandbox-net`.
+      // The service that answers the API is dual-homed so a session container
+      // reaches the connectors bridge and the host-call door directly. Fixed
+      // Docker-level name so the spawner can
+      // `docker run --network tale-sandbox-net`.
       sandbox: { external: true, name: 'tale-sandbox-net' },
     },
   };

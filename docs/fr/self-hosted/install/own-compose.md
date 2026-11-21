@@ -56,7 +56,7 @@ Définis `HOST`, `SITE_URL` et `TLS_MODE` pour l’accès public. [TLS et domain
 
 ## Assembler la couche applicative
 
-Les trois rôles partagent une image. `TALE_ROLE=api` et `TALE_ROLE=worker` choisissent les rôles backend ; laisse cette variable absente du service web. Ne fixe pas de `container_name` sur les rôles à répliquer.
+Les trois rôles partagent une image. `TALE_ROLE=api` et `TALE_ROLE=worker` choisissent les rôles backend ; laisse cette variable absente du service web. Un workspace déployé avec `tale deploy` exécute à la place les trois dans un seul processus `platform` (`TALE_ROLE=all`) ; cette page garde trois services, que chaque version prend en charge. Ne fixe pas de `container_name` sur les rôles à répliquer.
 
 ```yaml
 # Application-tier fragment; add the stores, proxy, and sandbox services.

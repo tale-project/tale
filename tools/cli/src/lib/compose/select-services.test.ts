@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { SPLIT, THREE_WAY, UNIFIED } from './app-tier';
 import { selectDefaultServices, servicesKeepingHost } from './select-services';
 
 const ALL_RUNNING = () => true;
@@ -154,5 +155,34 @@ describe('servicesKeepingHost', () => {
       'backend-api',
       'backend-worker',
     ]);
+  });
+
+  // A colour serves the host through the services it has: one that runs the
+  // whole application in `platform` has no backend left on the old host.
+  test('names only the services a colour of the shape runs', () => {
+    expect(servicesKeepingHost(['platform', 'sandbox'], UNIFIED)).toEqual([
+      'proxy',
+    ]);
+    expect(servicesKeepingHost(['platform', 'sandbox'], SPLIT)).toEqual([
+      'proxy',
+      'backend-worker',
+    ]);
+    expect(servicesKeepingHost(['proxy'], UNIFIED)).toEqual(['platform']);
+    expect(servicesKeepingHost(['platform', 'sandbox'], THREE_WAY)).toEqual(
+      servicesKeepingHost(['platform', 'sandbox']),
+    );
+  });
+
+  test('a default deploy of any shape leaves only a running proxy behind', () => {
+    for (const tier of [UNIFIED, SPLIT, THREE_WAY]) {
+      const sel = selectDefaultServices({
+        isFirstDeploy: false,
+        stop: false,
+        isStopGatedRunning: ALL_RUNNING,
+      });
+      expect(
+        servicesKeepingHost([...tier.services, ...sel.stateful], tier),
+      ).toEqual(['proxy']);
+    }
   });
 });

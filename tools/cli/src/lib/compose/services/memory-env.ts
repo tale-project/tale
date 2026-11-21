@@ -1,4 +1,4 @@
-import { getReplicaCounts } from '../../../utils/load-env';
+import { type AppTier, THREE_WAY, tierReplicaCounts } from '../app-tier';
 import type { ComposeService, ServiceConfig } from '../types';
 
 const MIB = 1024 ** 2;
@@ -47,7 +47,9 @@ export function memorySizeEnvMib(
  *
  * - db: Postgres' `shared_buffers` (256MB, services/db/postgresql.conf), its
  *   connection backends and autovacuum.
- * - platform: the web role's `bun server.ts`.
+ * - platform: the web tier alone. Where `platform` answers the API too (the
+ *   `api` and `all` roles, app-tier.ts) it is a backend process and keeps
+ *   what one keeps: `backend-api`'s figure.
  * - backend-api, backend-worker: the node backend each role runs.
  */
 const MEMORY_RESERVATION_MIB = {
@@ -56,6 +58,11 @@ const MEMORY_RESERVATION_MIB = {
   'backend-api': 256,
   'backend-worker': 256,
 } as const;
+
+/** Whether `platform` is a backend process in a colour of this shape. */
+function platformRunsBackend(tier: AppTier): boolean {
+  return tier.roles.platform === 'api' || tier.roles.platform === 'all';
+}
 
 /** The variable that overrides each service's reservation. */
 const MEMORY_RESERVATION_ENV = {
@@ -89,16 +96,22 @@ const DOCKER_MIN_RESERVATION_MIB = 6;
  * `compose up` (under 6 MiB, or above the service's memory limit) fails the
  * compose generation instead, before any container is recreated.
  */
-function memoryReservationMib(service: ReservedService): number {
+function memoryReservationMib(
+  service: ReservedService,
+  tier: AppTier = THREE_WAY,
+): number {
   const name = MEMORY_RESERVATION_ENV[service];
-  const mib = memorySizeEnvMib(name, 0) ?? MEMORY_RESERVATION_MIB[service];
+  const backendPlatform = service === 'platform' && platformRunsBackend(tier);
+  const mib =
+    memorySizeEnvMib(name, 0) ??
+    MEMORY_RESERVATION_MIB[backendPlatform ? 'backend-api' : service];
   const got = JSON.stringify(process.env[name]?.trim());
   if (mib > 0 && mib < DOCKER_MIN_RESERVATION_MIB) {
     throw new Error(
       `Env var ${name} must be 0 or at least ${DOCKER_MIN_RESERVATION_MIB}m; got: ${got}`,
     );
   }
-  const limitMib = MEMORY_LIMIT_MIB[service];
+  const limitMib = MEMORY_LIMIT_MIB[backendPlatform ? 'backend-api' : service];
   if (limitMib !== undefined && mib > limitMib) {
     throw new Error(
       `Env var ${name} must be at most ${limitMib}m, the memory limit of ${service}; got: ${got}`,
@@ -120,9 +133,9 @@ function memoryReservationMib(service: ReservedService): number {
  */
 export function memoryReservation(
   service: ReservedService,
-  config: Pick<ServiceConfig, 'cgroupVersion'>,
+  config: Pick<ServiceConfig, 'cgroupVersion' | 'appTier'>,
 ): Pick<ComposeService, 'mem_reservation'> {
-  const mib = memoryReservationMib(service);
+  const mib = memoryReservationMib(service, config.appTier);
   return mib === 0 || config.cgroupVersion !== 2
     ? {}
     : { mem_reservation: `${mib}m` };
@@ -136,10 +149,12 @@ export function memoryReservation(
  * before it pulls, retags or snapshots anything.
  */
 export function memoryReservationNotice(
-  config: Pick<ServiceConfig, 'cgroupVersion'>,
+  config: Pick<ServiceConfig, 'cgroupVersion' | 'appTier'>,
 ): string | null {
   const services = Object.keys(MEMORY_RESERVATION_MIB) as ReservedService[];
-  const sizes = services.map((service) => memoryReservationMib(service));
+  const sizes = services.map((service) =>
+    memoryReservationMib(service, config.appTier),
+  );
   if (config.cgroupVersion === 2 || sizes.every((mib) => mib === 0)) {
     return null;
   }
@@ -151,19 +166,35 @@ export function memoryReservationNotice(
 }
 
 /**
- * What the stack reserves on its host in all, in MiB: the one database and
- * every replica of the live colour's roles. The spawner's admission leaves at
- * least this much free unless SANDBOX_MIN_FREE_MEMORY says otherwise
- * (memoryReserveBytes, services/sandbox/src/host-memory.ts), so admission and
- * reclaim agree on what the sessions may take. The sum on every engine: what
- * admission leaves free does not depend on the cgroup version.
+ * The reservation variables that are set for a service a colour of this
+ * shape does not run. A `platform` that is a backend process reads its own
+ * variable, never the api's, so `BACKEND_API_MEMORY_RESERVATION` protects
+ * nothing once there is no `backend-api`: a deploy names it, where silence
+ * would leave the whole application on the default.
  */
-export function reservedMemoryMib(): number {
-  const replicas = getReplicaCounts();
-  return (
-    memoryReservationMib('db') +
-    memoryReservationMib('platform') * replicas.platform +
-    memoryReservationMib('backend-api') * replicas['backend-api'] +
-    memoryReservationMib('backend-worker') * replicas['backend-worker']
+export function unusedMemoryReservations(tier: AppTier = THREE_WAY): string[] {
+  return (['backend-api', 'backend-worker'] as const)
+    .filter((service) => !tier.services.includes(service))
+    .map((service) => MEMORY_RESERVATION_ENV[service])
+    .filter((name) => (process.env[name] ?? '').trim() !== '');
+}
+
+/**
+ * What the stack reserves on its host in all, in MiB: the one database and
+ * every replica of the live colour's services, whatever its shape has. The
+ * spawner's admission leaves at least this much free unless
+ * SANDBOX_MIN_FREE_MEMORY says otherwise (memoryReserveBytes,
+ * services/sandbox/src/host-memory.ts), so admission and reclaim agree on
+ * what the sessions may take. The sum on every engine: what admission leaves
+ * free does not depend on the cgroup version.
+ */
+export function reservedMemoryMib(tier: AppTier = THREE_WAY): number {
+  // Quietly: the command that asks for the sum reads the counts itself, and
+  // says once what it clamped.
+  const replicas = tierReplicaCounts(tier, undefined, () => {});
+  return tier.services.reduce(
+    (sum, service) =>
+      sum + memoryReservationMib(service, tier) * replicas[service],
+    memoryReservationMib('db'),
   );
 }

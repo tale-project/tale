@@ -88,7 +88,7 @@ Die Wiederherstellung ersetzt den Inhalt der enthaltenen Daten-Volumes. Sichere 
 
 1. Hole den vollständigen Snapshot, Bereitstellungsordner, passende Schlüssel und Backups externer Speicher zurück. Bereite einen neuen Host zuerst wie oben beschrieben vor.
 2. Wähle mit `tale restore` eine ID und lies die Plattformversion ab. Ist sie unbekannt, ermittle sie vor dem Anwendungsstart aus deinen Bereitstellungsunterlagen.
-3. Stelle bei angehaltenem Stack wieder her. `--stop` hält die Projektcontainer an, die laufen, gerade neu gestartet werden oder pausiert sind. Danach prüft die CLI die Archiv-Prüfsummen und fragt vor dem Ersetzen der Daten nach Bestätigung. Nutze dafür deine aktuelle CLI, bevor Schritt 5 sie wechselt: Eine CLI aus der Zeit vor der Erfassung des Gateway-Speichers überspringt dessen Archiv.
+3. Stelle bei angehaltenem Stack wieder her. `--stop` hält die Projektcontainer an, die laufen, gerade neu gestartet werden oder pausiert sind. Danach prüft die CLI die Archiv-Prüfsummen und fragt vor dem Ersetzen der Daten nach Bestätigung. Nutze dafür deine aktuelle CLI, bevor Schritt 5 sie wechselt: Eine CLI aus der Zeit vor der Erfassung des Gateway-Speichers überspringt dessen Archiv. Führt der Workspace die Anwendung als einen Prozess aus und lief sie in der Version des Snapshots als drei Dienste, kommt etwas zuerst: Setze `TALE_APP_TIER=three-services` und führe `tale deploy` aus, denn die CLI aus Schritt 5 [stellt nur über diesen drei Diensten bereit](/de/self-hosted/operate/upgrades#one-process). Die Wiederherstellung lehnt ab, bevor sie etwas ändert, wo das Image dieser Version noch auf dem Host liegt und das bestätigt; ohne das Image warnt sie nur und fährt fort, prüfe die Version dann selbst.
 
 ```bash
 tale restore <snapshot-id> --stop

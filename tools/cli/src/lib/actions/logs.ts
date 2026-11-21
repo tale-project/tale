@@ -23,6 +23,7 @@ import {
 import { selectRuntime } from '../runtime/select-runtime';
 import type { LogOptions, StackRuntime } from '../runtime/types';
 import { getCurrentColor } from '../state/get-current-color';
+import { colorTier } from './color-lifecycle';
 
 interface LogsOptions {
   service: string;
@@ -71,17 +72,35 @@ export async function logs(options: LogsOptions): Promise<void> {
     if (color === undefined && resolvedColor) {
       logger.info(`Auto-detected active color: ${resolvedColor}`);
     }
-    const replicas = resolvedColor
+    let shown: string = service;
+    let replicas = resolvedColor
       ? await runtime.list({
           stack: `${getProjectId()}-${resolvedColor}`,
           service,
         })
       : [];
+    if (replicas.length === 0 && resolvedColor && service !== 'platform') {
+      // The colour may run this service inside `platform`: one process is the
+      // API and the pages there, and the jobs too unless they have a
+      // `backend-worker` (compose/app-tier.ts). Its log is that process's.
+      const tier = await colorTier(resolvedColor, runtime);
+      if (tier !== null && !tier.services.includes(service)) {
+        shown = 'platform';
+        replicas = await runtime.list({
+          stack: `${getProjectId()}-${resolvedColor}`,
+          service: shown,
+        });
+        if (replicas.length > 0)
+          logger.info(
+            `The ${resolvedColor} colour runs ${service} inside platform, in one process; showing platform.`,
+          );
+      }
+    }
     const first = replicas[0];
     if (first !== undefined) {
       if (replicas.length > 1) {
         logger.info(
-          `${service} runs ${replicas.length} replicas in ${resolvedColor ?? 'this colour'}; showing ${first.name}. Others: ${replicas
+          `${shown} runs ${replicas.length} replicas in ${resolvedColor ?? 'this colour'}; showing ${first.name}. Others: ${replicas
             .slice(1)
             .map((replica) => replica.name)
             .join(', ')}`,

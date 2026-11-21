@@ -69,7 +69,10 @@ can fail before the application starts.
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |
 
 An `api` process serves HTTP/SSE and can enqueue work; a `worker` consumes jobs
-and runs schedules. `all` combines both for local development. Every role runs
+and runs schedules. `all` combines both: local development runs it, and so does
+a workspace, whose `tale deploy` starts one `platform` process per replica in
+this role unless the job runner is asked for apart (`tools/cli`'s
+`lib/compose/app-tier.ts`). Every role runs
 application migrations under the same advisory lock. Auth migrations run where
 auth is configured, and pg-boss manages its own schema when it starts.
 

@@ -45,6 +45,7 @@ const setCurrentColorMock = mock();
 const setPreviousVersionMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
+const loggerWarnMock = mock();
 const loggerErrorMock = mock();
 const loggerSuccessMock = mock();
 const execMock = mock(async () => ({
@@ -74,6 +75,11 @@ const continuedLedger = [
 ];
 let migrateDuringPull = false;
 let targetProtocol: string | undefined;
+/** Set: the target image carries `io.tale.app-in-backend`. */
+let targetServesApp = false;
+/** The role the live colour's `platform` names; unset, as the web tier of a
+ *  colour of three services has always started. */
+let liveRole: 'api' | 'all' | undefined;
 /** Off: no platform tag is on this host yet, as after `tale update --version`. */
 let targetImageLocal = true;
 const noSuchImage = {
@@ -154,7 +160,7 @@ await mockModule('../../utils/prompt', () => ({
 await mockModule('../../utils/logger', () => ({
   info: loggerInfoMock,
   error: loggerErrorMock,
-  warn: mock(),
+  warn: loggerWarnMock,
   step: mock(),
   success: loggerSuccessMock,
   header: mock(),
@@ -202,6 +208,8 @@ beforeEach(() => {
   ledgerOverride = undefined;
   migrateDuringPull = false;
   targetProtocol = undefined;
+  targetServesApp = false;
+  liveRole = undefined;
   targetImageLocal = true;
   execMock.mockImplementation(
     async (_command?: string, args: string[] = []) => {
@@ -210,7 +218,9 @@ beforeEach(() => {
       if (args[0] === 'ps' && args.includes('--no-trunc')) {
         value = args.at(-1)?.includes('.Label')
           ? args.includes(`label=com.docker.compose.project=${project}-blue`)
-            ? `${'c'.repeat(64)}\tbackend-api\n${'d'.repeat(64)}\tbackend-worker`
+            ? liveRole === 'all'
+              ? `${'c'.repeat(64)}\tplatform`
+              : `${'c'.repeat(64)}\tbackend-api\n${'d'.repeat(64)}\tbackend-worker`
             : ''
           : databaseId;
       }
@@ -245,11 +255,18 @@ beforeEach(() => {
             Labels: {
               'com.docker.compose.project': `${project}-blue`,
               'com.docker.compose.service':
-                id === 'c'.repeat(64) ? 'backend-api' : 'backend-worker',
+                liveRole === 'all'
+                  ? 'platform'
+                  : id === 'c'.repeat(64)
+                    ? 'backend-api'
+                    : 'backend-worker',
               'com.docker.compose.container-number': '1',
               'com.docker.compose.oneoff': 'False',
             },
-            Env: ['DATABASE_URL=postgresql://tale:synthetic@db:5432/tale_app'],
+            Env: [
+              'DATABASE_URL=postgresql://tale:synthetic@db:5432/tale_app',
+              ...(liveRole === 'all' ? ['TALE_ROLE=all'] : []),
+            ],
           },
           State: {
             Running: installedWriterProtocol !== 2,
@@ -280,6 +297,9 @@ beforeEach(() => {
                   ? {}
                   : {
                       'io.tale.automation-writer-protocol': targetProtocol,
+                      ...(targetServesApp
+                        ? { 'io.tale.app-in-backend': '1' }
+                        : {}),
                       'org.opencontainers.image.version': '0.9.2',
                       'org.opencontainers.image.revision': 'e'.repeat(40),
                       'org.opencontainers.image.source':
@@ -320,10 +340,42 @@ beforeEach(() => {
     let stdout = '';
     if (args[0] === 'ps' && argv.includes(`project=${project}-blue`)) {
       // The live colour: one platform replica (the version probe reads it)
-      // and one api replica (the retire step drains through it).
-      stdout = argv.includes('service=backend-api')
-        ? `${project}-blue-backend-api-1\tbackend-api\t1\trunning`
-        : `${project}-blue-platform-1\tplatform\t1\trunning`;
+      // and one api replica (the retire step drains through it), unless its
+      // platform is the API too.
+      stdout =
+        argv.includes('service=backend-api') && liveRole === undefined
+          ? `${project}-blue-backend-api-1\tbackend-api\t1\trunning`
+          : argv.includes('service=backend-')
+            ? ''
+            : `${project}-blue-platform-1\tplatform\t1\trunning`;
+    } else if (
+      args[0] === 'container' &&
+      args[1] === 'inspect' &&
+      args.length === 3
+    ) {
+      // One replica read back in full: a colour's shape is read off the role
+      // its platform runs.
+      stdout = JSON.stringify([
+        {
+          Id: 'f'.repeat(64),
+          Name: `/${args[2]}`,
+          Image: `sha256:${'e'.repeat(64)}`,
+          RestartCount: 0,
+          State: { Status: 'running', StartedAt: '2026-10-08T00:00:00Z' },
+          Config: {
+            Image: 'ghcr.io/tale-project/tale/tale-platform:0.9.3',
+            Labels: {
+              'com.docker.compose.project': `${project}-blue`,
+              'com.docker.compose.service': 'platform',
+              'com.docker.compose.container-number': '1',
+              'com.docker.compose.oneoff': 'False',
+            },
+            Env: liveRole === undefined ? [] : [`TALE_ROLE=${liveRole}`],
+          },
+          Mounts: [],
+          NetworkSettings: { Networks: {} },
+        },
+      ]);
     } else if (argv.includes('/api/control/drain-status')) {
       // Nothing in flight, so the retire step's drain returns immediately
       // instead of polling out its whole budget.
@@ -357,6 +409,7 @@ afterEach(() => {
   setPreviousVersionMock.mockReset();
   confirmMock.mockReset();
   loggerInfoMock.mockReset();
+  loggerWarnMock.mockReset();
   loggerErrorMock.mockReset();
   loggerSuccessMock.mockReset();
   execMock.mockClear();
@@ -616,6 +669,136 @@ describe('rollback confirmation', () => {
       expect(infoLines()).toContain(`[DRY-RUN] Would pull: ${target}`);
       expect(infoLines()).not.toContain(pendingCheck);
       expect(loggerSuccessMock).not.toHaveBeenCalled();
+    });
+
+    // The image says which services its colour runs, and a dry run pulls
+    // nothing.
+    const assumed = `[DRY-RUN] ${target} is not on this host yet, and the image says which services its colour runs. This preview shows the ones an image of this release runs; one from before the app moved into the backend process runs platform, backend-api and backend-worker.`;
+
+    test('previews an image that is not pulled yet as one of this release, and says so', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetImageLocal = false;
+      await preview();
+      expect(infoLines()).toContain(assumed);
+      expect(infoLines()).toContain('Rotatable services: platform');
+      expect(infoLines()).toContain(
+        '[DRY-RUN] Would deploy 1× platform in tale-green',
+      );
+      expect(
+        infoLines().some((line) => /Would deploy .*backend-/.test(line)),
+      ).toBe(false);
+    });
+
+    test('previews a local image that serves the app from its backend as one platform', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      targetServesApp = true;
+      await preview();
+      expect(infoLines()).not.toContain(assumed);
+      expect(infoLines()).toContain('Rotatable services: platform');
+      expect(infoLines()).toContain('Replicas: platform×1');
+      expect(infoLines()).toContain(
+        '[DRY-RUN] Would deploy 1× platform in tale-green',
+      );
+    });
+
+    test('previews a local image from before the app moved as its three services', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      await preview();
+      expect(infoLines()).not.toContain(assumed);
+      expect(infoLines()).toContain(
+        'Rotatable services: platform, backend-api, backend-worker',
+      );
+      for (const service of ['platform', 'backend-api', 'backend-worker'])
+        expect(infoLines()).toContain(
+          `[DRY-RUN] Would deploy 1× ${service} in tale-green`,
+        );
+    });
+  });
+
+  describe('the colour a rollback starts', () => {
+    const reservedNotes = () =>
+      loggerWarnMock.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.includes('SANDBOX_RESERVED_MEMORY'));
+    const upOf = (colour: string) =>
+      dockerComposeMock.mock.calls.find(
+        (call) =>
+          (call[2] as { projectName?: string }).projectName ===
+          `tale-${colour}`,
+      )?.[1];
+
+    test('is one platform for a release that serves the app from its backend', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      targetServesApp = true;
+      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      expect(upOf('green')).toEqual([
+        'up',
+        '-d',
+        '--scale',
+        'platform=1',
+        'platform',
+      ]);
+      expect(
+        waitForServiceHealthyMock.mock.calls.map((call) => call[1]),
+      ).toEqual(['platform']);
+      expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+      // The spawner was told what three services reserve, and a rollback
+      // leaves it alone: the operator is told, with the way to update it.
+      expect(reservedNotes()).toEqual([
+        expect.stringContaining(
+          'now runs as platform and reserves 768m with the database, where the colour before it reserved 1152m',
+        ),
+      ]);
+      expect(reservedNotes()[0]).toContain('`tale deploy --services sandbox`');
+    });
+
+    test('says nothing about the spawner where the shape stays what it was', async () => {
+      arrangePatchRollback();
+      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+      expect(reservedNotes()).toEqual([]);
+    });
+
+    test('is the three services for a release from before, over a live colour of one process', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      liveRole = 'all';
+      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      expect(upOf('green')).toEqual([
+        'up',
+        '-d',
+        '--scale',
+        'platform=1',
+        '--scale',
+        'backend-api=1',
+        '--scale',
+        'backend-worker=1',
+        'platform',
+        'backend-api',
+        'backend-worker',
+      ]);
+      expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+      expect(reservedNotes()).toEqual([
+        expect.stringContaining(
+          'now runs as platform, backend-api, backend-worker and reserves 1152m with the database, where the colour before it reserved 768m',
+        ),
+      ]);
+      // The retiring colour's one process took the drain's questions.
+      expect(
+        dockerMock.mock.calls.some(
+          (call) =>
+            call.includes('tale-blue-platform-1') &&
+            call.join(' ').includes('/api/control/drain-status'),
+        ),
+      ).toBe(true);
     });
   });
 

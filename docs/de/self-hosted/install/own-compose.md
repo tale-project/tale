@@ -56,7 +56,7 @@ Setze `HOST`, `SITE_URL` und `TLS_MODE` für den öffentlichen Zugang. [TLS und 
 
 ## Anwendungsebene zusammenstellen
 
-Die drei Rollen teilen sich ein Image. `TALE_ROLE=api` und `TALE_ROLE=worker` wählen Backend-Rollen; beim Webdienst bleibt die Variable ungesetzt. Vergib kein festes `container_name` für Rollen, die du skalieren willst.
+Die drei Rollen teilen sich ein Image. `TALE_ROLE=api` und `TALE_ROLE=worker` wählen Backend-Rollen; beim Webdienst bleibt die Variable ungesetzt. Ein Workspace, den du mit `tale deploy` bereitstellst, führt stattdessen alle drei in einem `platform`-Prozess aus (`TALE_ROLE=all`); diese Seite bleibt bei drei Diensten, die jede Version unterstützt. Vergib kein festes `container_name` für Rollen, die du skalieren willst.
 
 ```yaml
 # Application-tier fragment; add the stores, proxy, and sandbox services.

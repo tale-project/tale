@@ -1,8 +1,8 @@
 /**
  * THE machine channel between the CLI and a running deployment: an exec of
- * `curl localhost:$PORT/api/control/...` in a backend-api replica, through
- * the deployment's runtime (`docker exec` on Docker, an Incus exec on Incus,
- * which the call's budget bounds too).
+ * `curl localhost:$PORT/api/control/...` in a replica that answers the API,
+ * through the deployment's runtime (`docker exec` on Docker, an Incus exec
+ * on Incus, which the call's budget bounds too).
  *
  * Deliberately NOT the proxy — a control call often runs precisely while the
  * proxy is pointing at a container that is going away (deploy drain), and the
@@ -22,14 +22,20 @@
 import { getProjectId } from '../../utils/load-env';
 import type { DeploymentColor } from '../compose/types';
 import { dockerRuntime } from '../runtime/docker/docker-runtime';
-import type { StackRuntime } from '../runtime/types';
+import type { InstanceSummary, StackRuntime } from '../runtime/types';
 import { getOppositeColor } from '../state/get-opposite-color';
 
 /** The api container's in-container port (compose sets PORT=3005). */
 const BACKEND_CONTROL_PORT = '3005';
 
-/** The compose service the api role runs as, in every project shape. */
+/** The compose service the api role runs as, where it has one of its own:
+ *  a colour of three services, and the stateful singleton before that. */
 const BACKEND_API_SERVICE = 'backend-api';
+
+/** The service that answers the API in a colour without a `backend-api`:
+ *  one process is the API and the pages there, and the jobs too unless they
+ *  have a `backend-worker` (compose/app-tier.ts). */
+const PLATFORM_SERVICE = 'platform';
 
 /**
  * Compose projects an api replica can live in, most-specific first:
@@ -60,14 +66,38 @@ function drainWriterProjects(retiring: DeploymentColor): string[] {
   return [`${id}-${getOppositeColor(retiring)}`, `${id}-${retiring}`, id];
 }
 
-/** The running api replicas of one stack, in replica order. */
+/**
+ * The running replicas of one stack that answer the API, in replica order.
+ *
+ * A stack with a running `backend-api` answers there. Without one, its
+ * `platform` answers if its role says it is the API, and the role is read,
+ * never assumed from the missing service. A colour of three services whose
+ * api is down has a `platform` too, the web tier alone with nothing on the
+ * control port, and so has a colour from before the backend joined the
+ * colours, whose backend still runs as the stateful singleton: a call sent
+ * to either would be refused where the stack is down, or where the
+ * singleton answers. The replicas of one service share a role, so the first
+ * one speaks for all of them.
+ */
 async function runningApiReplicas(
   runtime: StackRuntime,
   stack: string,
 ): Promise<string[]> {
-  return (await runtime.list({ stack, service: BACKEND_API_SERVICE }))
-    .filter((replica) => replica.running)
-    .map((replica) => replica.name);
+  const running = (replicas: readonly InstanceSummary[]) =>
+    replicas
+      .filter((replica) => replica.running)
+      .map((replica) => replica.name);
+  const api = running(
+    await runtime.list({ stack, service: BACKEND_API_SERVICE }),
+  );
+  if (api.length > 0) return api;
+  const platform = running(
+    await runtime.list({ stack, service: PLATFORM_SERVICE }),
+  );
+  const first = platform[0];
+  if (first === undefined) return [];
+  const role = (await runtime.inspect(first))?.environment.TALE_ROLE;
+  return role === 'api' || role === 'all' ? platform : [];
 }
 
 /**
@@ -126,7 +156,8 @@ export async function backendApiContainersInColor(
 
 /** How to NAME the api tier in a message when no replica is up to name.
  *  The containers are compose-numbered, so there is no single name to
- *  print — the service is the honest handle. */
+ *  print — the name the API answers under on the network, in a colour of
+ *  any shape, is the honest handle. */
 export const BACKEND_API_LABEL = 'backend-api';
 
 /** Is any backend api replica up? Every control call degrades on `false`

@@ -913,3 +913,20 @@ default means deleting the override and fixing what surfaces:
   `tests/guards/dockerfile-fail-closed.guard.test.ts`. A tree that holds only `backend-dist/`,
   `dist/`, `dist-seo/`, `messages/` and the config catalogs already boots every role, serves
   the app, answers chat turns and indexes a PDF and a spreadsheet.
+- **Three deploy paths still run the application as three services** — `tale deploy` on Docker
+  starts a colour as one `platform` process (`TALE_ROLE=all`; `tools/cli/src/lib/compose/app-tier.ts`,
+  2026-11, #4942). The root `compose.yml`, `deploy --bundle` and the Incus runtime do not: they
+  run `platform` as the web tier alone beside `backend-api` and `backend-worker`: three
+  processes where one rests at about 90 MiB, the web tier alone at about 38 and a worker at
+  about 72. Each path is held by something of its own. `deploy --bundle` requires
+  `RUNTIME_SERVICES` to equal the keys of `compose.yml` and its writer custody to be exactly two
+  backend containers (`deployment/runtime-model.ts`, `runtime-apply.ts`), and it refuses a
+  revision with the Traefik edge until it learns that edge. The Incus compiler refuses the
+  `labels` key the edge routes by (#5282) and plans three roles (`SLOT_ROLES`, `SWITCHED_ROLES`).
+  The generators therefore build three services for a caller that names no shape
+  (`ServiceConfig.appTier`), which keeps both unchanged. Paying it down means, per path and
+  after its edge port: `compose.yml` with the one service `createPlatformBackendService`
+  describes (its parity tests then compare the generated colour of one process), the bundle's
+  custody and acceptance reading a `platform` that is a backend by its role, as
+  `bundledBackendIdentity` already does for a workspace, and the Incus address plan with one
+  switched role. Until then `docs/*/self-hosted` says which path runs which shape.

@@ -5,7 +5,7 @@ description: Beginne bei der fehlerhaften Aktion, prüfe den zuständigen Dienst
 
 Halte Zeitpunkt, betroffene Organisation, URL oder Aktion und Fehlercode fest, bevor du etwas neu startest. Prüfe, ob ein einzelner Eintrag, eine Organisation oder die gesamte Bereitstellung betroffen ist. Davon hängt ab, ob du eine Datei, eine Organisationsverbindung oder gemeinsame Infrastruktur untersuchst.
 
-Beginne bei einer Workspace-Bereitstellung mit `tale status` und `tale logs <service> --tail 200`. In deinem eigenen Compose-Projekt verwendest du `docker compose ps` und `docker compose logs --tail=200 <service>`. Dienstnamen wie `platform` und `backend-api` unterscheiden sich von erzeugten Containernamen.
+Beginne bei einer Workspace-Bereitstellung mit `tale status` und `tale logs <service> --tail 200`. In deinem eigenen Compose-Projekt verwendest du `docker compose ps` und `docker compose logs --tail=200 <service>`. Dienstnamen wie `platform` und `backend-api` unterscheiden sich von erzeugten Containernamen, und ein Workspace, der die Anwendung als [einen Prozess](/de/self-hosted/operate/upgrades#one-process) ausführt, hat `platform`, wo diese Seite `backend-api` oder `backend-worker` sagt: `tale logs` liest sein Log unter jedem der drei Namen.
 
 ## Öffentliche URL, Zertifikat oder Anmeldung scheitert
 
@@ -117,7 +117,7 @@ docker logs --tail 200 <backend-api-container> 2>&1 \
   | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
 ```
 
-Derselbe Eintrag lautet danach `at KKo (backend/env.ts:295:20)`: Datei, Zeile und Spalte in den Quellen dieser Version. Die Funktionsnamen bleiben so, wie der Build sie geschrieben hat, und Zeilen, die zu keinem Stacktrace gehören, bleiben unverändert. Verwende einen Container der Version, die den Stacktrace protokolliert hat, denn jede Version hat eigene Source Maps. Füge den aufgelösten Stacktrace bei, wenn du einen Fehler meldest.
+Derselbe Eintrag lautet danach `at KKo (backend/env.ts:295:20)`: Datei, Zeile und Spalte in den Quellen dieser Version. Die Funktionsnamen bleiben so, wie der Build sie geschrieben hat, und Zeilen, die zu keinem Stacktrace gehören, bleiben unverändert. Verwende einen Container der Version, die den Stacktrace protokolliert hat, denn jede Version hat eigene Source Maps; wo die Anwendung als ein Prozess läuft, ist dieser Container `platform`. Füge den aufgelösten Stacktrace bei, wenn du einen Fehler meldest.
 
 ## Schreibzugriffe scheitern oder Speicher läuft voll
 
