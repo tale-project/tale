@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -14,11 +22,13 @@ import {
   locateOrgObject,
   locateOrgObjectStore,
   ObjectStoreUnconfiguredError,
+  ObjectTooLargeError,
   orgObjectPrefix,
   resolveOrgObjectStore,
   resolveOrgObjectStoresForRead,
   s3DeleteObject,
   s3GetObject,
+  s3GetObjectToFile,
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
@@ -413,6 +423,177 @@ describe('s3GetObject — the stored content type rides with the bytes', () => {
     res.headers.delete('content-type');
     const got = await s3GetObject(storeAnswering(res), 'org/blob-1');
     expect(got.contentType).toBeNull();
+  });
+});
+
+describe('s3GetObjectToFile — an object written to disk as it arrives', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'object-store-file-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A store whose GET answers `res`, and what its fetch was called with. */
+  function storeAnswering(answer: (signal: AbortSignal) => Response) {
+    const store = testStore();
+    const fetch = vi.fn((_url: string, init: RequestInit) =>
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- the verb always passes its signal
+      Promise.resolve(answer(init.signal!)),
+    );
+    Object.assign(store.client, { fetch });
+    return { store, fetch };
+  }
+
+  /** A body that sends `chunks` and then, unless told to end, stays open
+   * until the request is aborted, as a store that stopped answering does. */
+  function body(chunks: string[], signal: AbortSignal, end = true) {
+    const encoder = new TextEncoder();
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+        if (end) {
+          controller.close();
+          return;
+        }
+        signal.addEventListener('abort', () => controller.error(signal.reason));
+      },
+    });
+  }
+
+  it('writes the bytes in order and says how many, with the Content-Type the store holds', async () => {
+    const { store } = storeAnswering(
+      (signal) =>
+        new Response(body(['first,', 'second,', 'third'], signal), {
+          status: 200,
+          headers: { 'content-type': 'text/csv' },
+        }),
+    );
+    const target = path.join(dir, 'object');
+    const seen = createHash('sha256');
+
+    const got = await s3GetObjectToFile(store, 'acme/doc', target, {
+      onChunk: (chunk) => seen.update(chunk),
+    });
+
+    expect(got).toEqual({ size: 18, contentType: 'text/csv' });
+    expect(readFileSync(target, 'utf8')).toBe('first,second,third');
+    expect(seen.digest('hex')).toBe(
+      createHash('sha256').update('first,second,third').digest('hex'),
+    );
+  });
+
+  it('answers null for a missing object and creates no file', async () => {
+    const { store } = storeAnswering(() => new Response(null, { status: 404 }));
+    const target = path.join(dir, 'object');
+
+    expect(await s3GetObjectToFile(store, 'acme/doc', target)).toBeNull();
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('throws what the store refused with, and creates no file', async () => {
+    const { store } = storeAnswering(
+      () =>
+        new Response(
+          '<Error><Code>AccessDenied</Code><Message>no</Message></Error>',
+          { status: 403 },
+        ),
+    );
+    const target = path.join(dir, 'object');
+
+    await expect(s3GetObjectToFile(store, 'acme/doc', target)).rejects.toThrow(
+      'S3 GET acme/doc failed: 403 AccessDenied: no',
+    );
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('ends at one byte over the most it accepts, and leaves no half-written file', async () => {
+    const { store } = storeAnswering(
+      (signal) =>
+        new Response(body(['12345', '67890', 'x'], signal), { status: 200 }),
+    );
+    const target = path.join(dir, 'object');
+
+    const refused = s3GetObjectToFile(store, 'acme/doc', target, {
+      maxBytes: 10,
+    });
+
+    await expect(refused).rejects.toBeInstanceOf(ObjectTooLargeError);
+    await expect(refused).rejects.toMatchObject({ maxBytes: 10 });
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('accepts an object of exactly the most it accepts', async () => {
+    const { store } = storeAnswering(
+      (signal) => new Response(body(['12345', '67890'], signal)),
+    );
+    const target = path.join(dir, 'object');
+
+    expect(
+      await s3GetObjectToFile(store, 'acme/doc', target, { maxBytes: 10 }),
+    ).toMatchObject({ size: 10 });
+  });
+
+  it('gives up on a body that stands still, and leaves no half-written file', async () => {
+    const { store } = storeAnswering(
+      (signal) => new Response(body(['some'], signal, false)),
+    );
+    const target = path.join(dir, 'object');
+
+    await expect(
+      s3GetObjectToFile(store, 'acme/doc', target, { stallTimeoutMs: 20 }),
+    ).rejects.toThrow('S3 GET acme/doc stalled for 20 ms');
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('gives up on a store that never answers its headers', async () => {
+    const store = testStore();
+    Object.assign(store.client, {
+      fetch: vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(init.signal?.reason),
+            );
+          }),
+      ),
+    });
+
+    await expect(
+      s3GetObjectToFile(store, 'acme/doc', path.join(dir, 'object'), {
+        headerTimeoutMs: 20,
+      }),
+    ).rejects.toThrow('S3 GET acme/doc timed out after 20 ms');
+  });
+
+  it("stops when its caller gives up, with the caller's reason", async () => {
+    const { store } = storeAnswering(
+      (signal) => new Response(body(['some'], signal, false)),
+    );
+    const target = path.join(dir, 'object');
+    const caller = new AbortController();
+
+    const transfer = s3GetObjectToFile(store, 'acme/doc', target, {
+      signal: caller.signal,
+    });
+    setTimeout(() => caller.abort(new Error('the job was cancelled')), 20);
+
+    await expect(transfer).rejects.toThrow('the job was cancelled');
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('never writes over a file that is already there', async () => {
+    const { store } = storeAnswering(
+      (signal) => new Response(body(['new'], signal)),
+    );
+    const target = path.join(dir, 'object');
+    writeFileSync(target, 'kept');
+
+    await expect(
+      s3GetObjectToFile(store, 'acme/doc', target),
+    ).rejects.toMatchObject({ code: 'EEXIST' });
+    expect(readFileSync(target, 'utf8')).toBe('kept');
   });
 });
 

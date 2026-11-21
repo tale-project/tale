@@ -31,6 +31,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { open, rm } from 'node:fs/promises';
 
 import { AwsClient } from 'aws4fetch';
 
@@ -624,6 +625,140 @@ export async function s3GetObjectBytes(
   opts: S3TimeoutOpts = {},
 ): Promise<Uint8Array> {
   return (await s3GetObject(store, key, opts)).bytes;
+}
+
+/** What a streamed GET wrote: how many bytes, and the Content-Type the
+ * store holds for them (`null` when it answers none). */
+export interface S3ObjectFile {
+  size: number;
+  contentType: string | null;
+}
+
+/** A streamed GET met more bytes than its caller accepts. */
+export class ObjectTooLargeError extends Error {
+  readonly maxBytes: number;
+
+  constructor(key: string, maxBytes: number) {
+    super(`S3 GET ${key} holds more than the ${maxBytes} bytes accepted`);
+    this.name = 'ObjectTooLargeError';
+    this.maxBytes = maxBytes;
+  }
+}
+
+export interface S3GetToFileOpts {
+  /** Ends the transfer when the caller gives up; its reason is rethrown. */
+  signal?: AbortSignal;
+  /** The most bytes to accept. One more ends the transfer with
+   * {@link ObjectTooLargeError}. */
+  maxBytes?: number;
+  /** Sees every chunk, in order, as it is written: a hash of the object. */
+  onChunk?: (chunk: Uint8Array) => void;
+  /** How long the store may take to answer its headers. */
+  headerTimeoutMs?: number;
+  /** How long the body may stand still before the transfer is given up. */
+  stallTimeoutMs?: number;
+}
+
+/**
+ * GET an object into a file, as its bytes arrive. The object is never held
+ * whole in memory, so a process reads one larger than the memory it has left
+ * (tale-project/tale#4942): the heavy slot hands the file to its child
+ * process, and a recording goes to ffmpeg from the disk.
+ *
+ * `null` when the store answers 404; a thrown error for everything else, as
+ * {@link s3GetObject}. The file is created here and must not exist; one left
+ * half-written by a failure is removed.
+ *
+ * Bounded by progress, not by a total: the headers must arrive within the
+ * metadata bound, and the body may then take as long as it keeps moving. A
+ * total would cut a large object on a slow link mid-stream, and no total
+ * fits both a note and a recording of several hundred megabytes.
+ */
+export async function s3GetObjectToFile(
+  store: S3ObjectStore,
+  key: string,
+  filePath: string,
+  opts: S3GetToFileOpts = {},
+): Promise<S3ObjectFile | null> {
+  const headerTimeoutMs = opts.headerTimeoutMs ?? S3_METADATA_TIMEOUT_MS;
+  const stallTimeoutMs = opts.stallTimeoutMs ?? S3_BODY_TIMEOUT_MS;
+  const controller = new AbortController();
+  const giveUp = (why: string): void =>
+    controller.abort(new Error(`S3 GET ${key} ${why}`));
+  const forwardAbort = (): void => controller.abort(opts.signal?.reason);
+  if (opts.signal?.aborted) forwardAbort();
+  else opts.signal?.addEventListener('abort', forwardAbort, { once: true });
+
+  let timer = setTimeout(
+    () => giveUp(`timed out after ${headerTimeoutMs} ms`),
+    headerTimeoutMs,
+  );
+  let created = false;
+  try {
+    const res = await store.client.fetch(objectUrl(store, key), {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    if (res.status === 404) {
+      await res.body?.cancel();
+      return null;
+    }
+    if (!res.ok) {
+      throw new Error(
+        `S3 GET ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
+      );
+    }
+    const contentType = res.headers.get('content-type');
+    // `wx`: a path that exists is somebody else's file, never overwritten.
+    const file = await open(filePath, 'wx', 0o600);
+    created = true;
+    let size = 0;
+    try {
+      if (res.body !== null) {
+        for await (const chunk of res.body) {
+          clearTimeout(timer);
+          size += chunk.byteLength;
+          if (opts.maxBytes !== undefined && size > opts.maxBytes) {
+            throw new ObjectTooLargeError(key, opts.maxBytes);
+          }
+          opts.onChunk?.(chunk);
+          // The whole chunk, from where the last one ended.
+          await file.writeFile(chunk);
+          timer = setTimeout(
+            () => giveUp(`stalled for ${stallTimeoutMs} ms`),
+            stallTimeoutMs,
+          );
+        }
+      }
+    } finally {
+      await file.close();
+    }
+    return {
+      size,
+      contentType:
+        contentType === null || contentType === '' ? null : contentType,
+    };
+  } catch (error) {
+    // Give the connection back whatever ended the transfer: a body left
+    // unread would hold its socket until the store closed it.
+    controller.abort(error);
+    if (created) {
+      await rm(filePath, { force: true }).catch((cause: unknown) => {
+        console.warn(
+          `[object-store] a half-written ${filePath} could not be removed:`,
+          cause,
+        );
+      });
+    }
+    // The signal's own reason says why the transfer ended: the caller's, a
+    // header that never came, a body that stood still.
+    throw controller.signal.aborted && controller.signal.reason !== error
+      ? controller.signal.reason
+      : error;
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', forwardAbort);
+  }
 }
 
 /** What a HEAD says about a stored object: its authoritative size, the
