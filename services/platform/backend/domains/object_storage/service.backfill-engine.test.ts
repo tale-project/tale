@@ -15,7 +15,7 @@
  */
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runBackfill } from './service.ts';
 
@@ -30,6 +30,9 @@ interface FakeBucket {
   puts: string[];
   /** Every identity-probe marker PUT into this bucket, in order. */
   probes: string[];
+  /** Every PUT whose body was a stream: the length it declared, and how
+   * many bytes the stream then held. */
+  streamed: { key: string; declared: string | null; received: number }[];
   /** When set, a PUT keeps only this many bytes — a copy that lands short. */
   landShort?: number;
   /** When set, every GET moves the (faked) clock forward this far — a copy
@@ -116,7 +119,7 @@ vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => {
 function bucketOf(name: string): FakeBucket {
   let bucket = fakes.buckets.get(name);
   if (bucket === undefined) {
-    bucket = { objects: new Map(), puts: [], probes: [] };
+    bucket = { objects: new Map(), puts: [], probes: [], streamed: [] };
     fakes.buckets.set(name, bucket);
   }
   return bucket;
@@ -157,9 +160,22 @@ async function fakeS3(
         });
   }
   if (method === 'PUT') {
-    const body: unknown = init?.body;
+    const sent: unknown = init?.body;
+    // A marker is PUT as bytes; an object is PUT as the stream it is read
+    // from its source as, under the length the source declared.
+    const body =
+      sent instanceof ReadableStream
+        ? new Uint8Array(await new Response(sent).arrayBuffer())
+        : sent;
     if (!(body instanceof Uint8Array)) throw new Error('fake PUT: body shape');
     const headers = new Headers(init?.headers);
+    if (sent instanceof ReadableStream) {
+      bucket.streamed.push({
+        key,
+        declared: headers.get('content-length'),
+        received: body.byteLength,
+      });
+    }
     const bytes = new Uint8Array(
       bucket.landShort === undefined ? body : body.slice(0, bucket.landShort),
     );
@@ -269,6 +285,25 @@ beforeEach(() => {
   fakes.connections.set('acme', { bucket: 'acme-own' });
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  // An object is PUT as a stream, which the store's signer does not send
+  // itself: the request is signed and goes out through the runtime's own
+  // `fetch`. It reaches the same fake buckets, by the bucket in its path.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : input);
+      const bucket = decodeURIComponent(url.pathname.split('/')[1] ?? '');
+      return fakeS3(
+        fakes.physicalBucketOf({ bucket, endpoint: url.origin }),
+        url.href,
+        init,
+      );
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('runBackfill — moving blobs into the org bucket', () => {
@@ -408,6 +443,26 @@ describe('runBackfill — moving blobs into the org bucket', () => {
     expect(copy?.bytes.byteLength).toBe(10);
     expect(copy?.contentType).toBe('application/pdf');
     expect(bucketOf('default-blobs').objects.has('acme/doc')).toBe(false);
+  });
+
+  // An object used to be read whole and then written whole, with no bound
+  // on its size. It is handed from one store to the other as it is read,
+  // under the length its source declares (tale-project/tale#4942).
+  it('hands an object on as it is read, under the length its source declares [OBJ-R3]', async () => {
+    seed('default-blobs', 'acme/doc', 'ten-bytes!', 'application/pdf');
+    const ledger = fakeLedger({
+      files: [{ id: 'f1', fileName: null, storageRef: 's3:acme/doc' }],
+    });
+
+    await runBackfill(ledger.sql, RUN);
+
+    expect(bucketOf('acme-own').streamed).toEqual([
+      { key: 'acme/doc', declared: '10', received: 10 },
+    ]);
+    const final = ledger.stamps().at(-1);
+    expect(final?.values.slice(1, 5)).toEqual([1, 1, 0, 0]);
+    // [5] bytesMigrated: counted from what the source declared.
+    expect(final?.values[5]).toBe(10);
   });
 
   it('deletes a copy that lands short, keeps the source, and counts it failed [OBJ-R3]', async () => {
