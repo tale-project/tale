@@ -86,8 +86,9 @@ async function scratch(): Promise<string> {
 
 /**
  * The config labels of a pushed platform image: everything Tale declares, its
- * writer protocol, and what a base image leaves behind (one architecture's
- * build, which neither a manifest nor an index of both may repeat).
+ * writer protocol and the capability its Dockerfile writes, and what a base
+ * image leaves behind (one architecture's build, which neither a manifest nor
+ * an index of both may repeat).
  */
 function imageLabels(version: string, revision: string) {
   return {
@@ -102,6 +103,7 @@ function imageLabels(version: string, revision: string) {
     [`${OCI}.vendor`]: 'Tale',
     [`${OCI}.licenses`]: 'MIT',
     'io.tale.automation-writer-protocol': '2',
+    'io.tale.app-in-backend': '1',
     [`${OCI}.base.name`]: 'docker.io/library/debian:bookworm-slim',
     [`${OCI}.base.digest`]: `sha256:${'f'.repeat(64)}`,
     'com.example.base-image-label': 'not ours to republish',
@@ -942,13 +944,25 @@ describe('every pushed image repeats its metadata as manifest annotations', () =
     test.each(services)(
       '%s: hands the build what its Dockerfile declares',
       async (service) => {
-        const declared = labelsOf(finalStage(dockerfile(service)))
-          .filter(({ key }) =>
-            STATIC_KEYS.some((name) => key === `${OCI}.${name}`),
+        const labels = labelsOf(finalStage(dockerfile(service)));
+        const declared = labels
+          .filter(
+            ({ key, raw }) =>
+              STATIC_KEYS.some((name) => key === `${OCI}.${name}`) ||
+              // A capability the Dockerfile writes itself. One it takes from
+              // a build argument is the build's own to repeat.
+              (key.startsWith('io.tale.') && !raw.includes('$')),
           )
           .map(({ key, raw }) => `${key}=${raw.slice(1, -1)}`)
           .toSorted();
-        expect(declared).toHaveLength(STATIC_KEYS.length);
+        expect(
+          declared.filter((line) => line.startsWith(`${OCI}.`)),
+        ).toHaveLength(STATIC_KEYS.length);
+        // The platform image says its backend process serves the app, which
+        // is what `tale deploy` starts one process on.
+        expect(declared.includes('io.tale.app-in-backend=1')).toBe(
+          service === 'platform',
+        );
         for (const name of builds) {
           const result = await resolveIn(name, repository, service);
           expect(result.code, result.output).toBe(0);
@@ -980,6 +994,55 @@ describe('every pushed image repeats its metadata as manifest annotations', () =
       expect(result.code).not.toBe(0);
       expect(result.output).toContain(
         `::error::The final stage of services/db/Dockerfile declares 2 of its OCI labels`,
+      );
+      expect(result.written).toBe('');
+    });
+
+    test('repeats a capability the final stage writes itself, and leaves one from a build argument to the build', async () => {
+      const directory = await scratch();
+      await mkdir(join(directory, 'services/db'), { recursive: true });
+      await writeFile(
+        join(directory, 'services/db/Dockerfile'),
+        [
+          'FROM scratch AS runner',
+          'LABEL io.tale.only-in-a-stage-that-does-not-ship="1"',
+          'FROM scratch',
+          'ARG PROTOCOL',
+          ...STATIC_KEYS.map((key) => `LABEL ${OCI}.${key}="db ${key}"`),
+          '# LABEL io.tale.commented-out="1"',
+          'LABEL io.tale.from-the-build="${PROTOCOL}" \\',
+          '      io.tale.app-in-backend="1"',
+          '',
+        ].join('\n'),
+      );
+      for (const name of builds) {
+        const result = await resolveIn(name, directory, 'db');
+        expect(result.code, result.output).toBe(0);
+        expect(result.written.trimEnd().split('\n').slice(1, -1)).toEqual([
+          ...STATIC_KEYS.map((key) => `${OCI}.${key}=db ${key}`),
+          'io.tale.app-in-backend=1',
+        ]);
+      }
+    });
+
+    test('a capability is no substitute for an OCI label the final stage lacks', async () => {
+      const directory = await scratch();
+      await mkdir(join(directory, 'services/db'), { recursive: true });
+      await writeFile(
+        join(directory, 'services/db/Dockerfile'),
+        [
+          'FROM scratch',
+          ...STATIC_KEYS.slice(1).map(
+            (key) => `LABEL ${OCI}.${key}="db ${key}"`,
+          ),
+          'LABEL io.tale.app-in-backend="1"',
+          '',
+        ].join('\n'),
+      );
+      const result = await resolveIn('build', directory, 'db');
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain(
+        `declares ${STATIC_KEYS.length - 1} of its OCI labels`,
       );
       expect(result.written).toBe('');
     });
@@ -1111,14 +1174,20 @@ esac
         );
       });
 
-      test("refuses a manifest that leaves out the platform image's writer protocol", async () => {
-        const annotations = Object.fromEntries(
-          repeated(imageLabels(VERSION, REVISION)).filter(
-            ([label]) => label !== 'io.tale.automation-writer-protocol',
-          ),
-        );
-        refused(await verify({ annotations }));
-      });
+      test.each([
+        ['writer protocol', 'io.tale.automation-writer-protocol'],
+        ['word that its backend serves the app', 'io.tale.app-in-backend'],
+      ])(
+        "refuses a manifest that leaves out the platform image's %s",
+        async (_what, missing) => {
+          const annotations = Object.fromEntries(
+            repeated(imageLabels(VERSION, REVISION)).filter(
+              ([label]) => label !== missing,
+            ),
+          );
+          refused(await verify({ annotations }));
+        },
+      );
 
       test('refuses an image index where a single image was pushed', async () => {
         refused(

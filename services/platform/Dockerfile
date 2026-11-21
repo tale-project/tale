@@ -495,9 +495,16 @@ RUN test "$(bun -e 'import { ENGINE_PROTOCOL } from "./lib/engine/core/protocol.
 
 # Keep version metadata after filesystem work so new releases reuse its layers.
 # Re-declare VERSION arg (ARGs don't persist after FROM)
+#
+# io.tale.app-in-backend says the `api` and `all` roles serve the built app
+# beside the API. `tale deploy` reads it to start a colour as one `platform`
+# process, where an image without it gets the three services it needs
+# (tools/cli/src/lib/compose/app-tier.ts). The dev stage does not carry it:
+# there the app is the `web` role's own dev server.
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
+      io.tale.app-in-backend="1" \
       org.opencontainers.image.title="tale-platform" \
       org.opencontainers.image.description="Tale Platform — Vite SPA and Postgres backend (web, API and worker roles)" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
@@ -551,6 +558,7 @@ ARG VERSION=dev
 ARG AUTOMATION_WRITER_PROTOCOL
 LABEL org.opencontainers.image.version="${VERSION}" \
       io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
+      io.tale.app-in-backend="1" \
       org.opencontainers.image.title="tale-platform" \
       org.opencontainers.image.description="Tale Platform — Vite SPA and Postgres backend (web, API and worker roles)" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
