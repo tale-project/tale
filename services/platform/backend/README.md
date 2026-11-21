@@ -61,6 +61,8 @@ can fail before the application starts.
 | `AUTOMATION_RUNNER_PROCESSES` | Runner processes one backend process evaluates automation code in (1–16); unset, `2` for the api and one per core but one (at most `4`) for a worker. Each starts only while the others are busy; one beyond the first stops after five idle minutes (`backend/lib/code-runner.ts`) |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
+| `BACKEND_NODE_FLAGS` | Image only. The Node flags the built backend starts with, in place of the ones the entrypoint works out from the container's memory limit (`backend_node_flags` in `docker-entrypoint.sh`); empty starts Node with none |
+| `MALLOC_ARENA_MAX` | Image only. glibc arenas for the process, `2` unless set |
 | `SENTRY_DSN` | Optional error reporting |
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |
 

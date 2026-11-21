@@ -150,6 +150,59 @@ if [ "$(id -u)" = '0' ]; then
 fi
 
 # ============================================================================
+# Node sizing for the backend
+# ----------------------------------------------------------------------------
+# Node sizes its heap for the machine, not for the container: under a 256 MiB
+# limit V8 still allows itself a 259 MiB heap and a 48 MiB young generation,
+# so the kernel kills the container before the collector ever feels short. The
+# backend therefore starts with flags worked out from the container's own
+# limit. Both functions use shell builtins only.
+# ============================================================================
+
+# The memory this container may use, in MiB, from its cgroup (v2 `memory.max`,
+# v1 `memory.limit_in_bytes`); nothing when it has no limit.
+container_memory_limit_mib() {
+  local root="${TALE_CGROUP_ROOT:-/sys/fs/cgroup}" raw=""
+  if [ -r "$root/memory.max" ]; then
+    read -r raw < "$root/memory.max" || true
+  elif [ -r "$root/memory/memory.limit_in_bytes" ]; then
+    read -r raw < "$root/memory/memory.limit_in_bytes" || true
+  fi
+  case "$raw" in
+    '' | *[!0-9]*) return 0 ;; # "max", or nothing readable
+  esac
+  # cgroup v1 writes "no limit" as a number near 2^63: past a petabyte is none.
+  [ "${#raw}" -le 15 ] || return 0
+  echo $((raw / 1048576))
+}
+
+# The node flags the built backend starts with, one per word.
+#   BACKEND_NODE_FLAGS set (even empty): exactly those, whatever the limit.
+#   No limit, or more than 1 GiB:        none; V8 sizes itself.
+#   Up to 1 GiB:                         an 8 MiB semi-space (half the default).
+#   Up to 512 MiB:                       a 4 MiB semi-space, code tuned for size,
+#                                        and an old space of 55 % of the limit:
+#                                        the rest is for the young generation,
+#                                        memory outside the heap and the child
+#                                        processes that share the container.
+backend_node_flags() {
+  if [ "${BACKEND_NODE_FLAGS+set}" = set ]; then
+    echo "$BACKEND_NODE_FLAGS"
+    return 0
+  fi
+  local limit heap
+  limit="$(container_memory_limit_mib)"
+  [ -n "$limit" ] || return 0
+  if [ "$limit" -le 512 ]; then
+    heap=$((limit * 55 / 100))
+    [ "$heap" -ge 96 ] || heap=96
+    echo "--max-old-space-size=${heap} --max-semi-space-size=4 --optimize-for-size"
+  elif [ "$limit" -le 1024 ]; then
+    echo "--max-semi-space-size=8"
+  fi
+}
+
+# ============================================================================
 # 0.5 role dispatch
 # ----------------------------------------------------------------------------
 # The same platform image runs the application backend: compose starts one
@@ -169,6 +222,10 @@ case "${TALE_ROLE:-web}" in
     # http://localhost:8003 — nobody listens there in-container, so every
     # agent start dies in ~20ms with TypeError: fetch failed.
     export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
+    # glibc gives every thread that allocates an arena of its own, up to eight
+    # per core, and returns little of one to the kernel. Two serve a process
+    # whose JavaScript runs on one thread.
+    export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
     # The dev image has no built backend: it names its sources in
     # TALE_BACKEND_DIR and runs them as they are. --experimental-transform-types
     # + the resolve hook let the backend import the shared pure modules
@@ -183,7 +240,16 @@ case "${TALE_ROLE:-web}" in
     # The production image runs the built backend (scripts/build-backend.ts):
     # plain node, no loader, no type transforming, and so none of the source
     # maps that transforming turns on for every module it reads.
-    exec node /app/backend-dist/main.js
+    NODE_FLAGS="$(backend_node_flags)"
+    MEMORY_LIMIT_MIB="$(container_memory_limit_mib)"
+    if [ -n "$MEMORY_LIMIT_MIB" ]; then
+      log_info "Node flags: ${NODE_FLAGS:-none} (container memory limit: ${MEMORY_LIMIT_MIB} MiB)"
+    else
+      log_info "Node flags: ${NODE_FLAGS:-none} (container memory limit: none)"
+    fi
+    # The flags are words on purpose: one flag each.
+    # shellcheck disable=SC2086
+    exec node $NODE_FLAGS /app/backend-dist/main.js
     ;;
   web)
     # Fall through to the platform web flow below.
