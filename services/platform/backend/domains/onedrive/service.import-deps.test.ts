@@ -18,14 +18,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { MAX_UPLOAD_BYTES } from '../files/bounded-body.ts';
-import { putOrgBlobBytes } from '../files/service.ts';
+import { putOrgBlobStream } from '../files/service.ts';
 import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import { createSyncImportDeps, ONEDRIVE_SYNC_ADAPTER } from './service.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+/** What the store was handed, body by body, as the bytes it read. */
+const landed: Uint8Array[] = [];
 vi.mock('../files/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../files/service.ts')>()),
-  putOrgBlobBytes: vi.fn(async () => 'blob-pdf'),
+  // The store's door, reading the body it is handed to its end as the real
+  // one does.
+  putOrgBlobStream: vi.fn(
+    async (_sql: unknown, _org: string, body: ReadableStream<Uint8Array>) => {
+      landed.push(new Uint8Array(await new Response(body).arrayBuffer()));
+      return 'blob-pdf';
+    },
+  ),
 }));
 vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
@@ -84,6 +93,7 @@ const updateStatement = (statements: Statement[]): Statement | undefined =>
 
 afterEach(() => {
   vi.clearAllMocks();
+  landed.length = 0;
 });
 
 describe('createSyncImportDeps.updateDocument', () => {
@@ -249,6 +259,80 @@ describe('createSyncImportDeps.downloadToStorage', () => {
     expect(stored.unauthorized).toBeUndefined();
     expect(stored.refusal).toBeUndefined();
   });
+
+  // A refusal is quoted for the log, never read to its end: a provider that
+  // answers an error with a page of megabytes is not held in memory for it.
+  it("reads only the words of a provider's refusal", async () => {
+    const stored = await download(
+      new Response(new Uint8Array(1024 * 1024).fill(0x78), { status: 503 }),
+    );
+
+    expect(stored).toMatchObject({
+      success: false,
+      error: 'Failed to download file: 503 (an answer too long to quote)',
+    });
+  });
+
+  // The file goes from the vendor to the store as it arrives: the store is
+  // handed the vendor's body under the length the vendor declared, and
+  // nothing of it is held in between (tale-project/tale#4942).
+  it('hands the file on to the store under the length and type the vendor declared', async () => {
+    const stored = await download(
+      new Response('quarterly figures', {
+        status: 200,
+        headers: { 'content-type': 'text/csv', 'content-length': '17' },
+      }),
+    );
+
+    expect(stored).toEqual({
+      success: true,
+      storageId: 'blob-pdf',
+      mimeType: 'text/csv',
+      size: 17,
+    });
+    expect(putOrgBlobStream).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.any(ReadableStream),
+      { contentLength: 17, contentType: 'text/csv' },
+    );
+    expect(new TextDecoder().decode(landed[0])).toBe('quarterly figures');
+  });
+
+  it('counts a file whose length the vendor did not declare, and stores it whole', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('an export '));
+        controller.enqueue(new TextEncoder().encode('in two parts'));
+        controller.close();
+      },
+    });
+
+    const stored = await download(new Response(body, { status: 200 }));
+
+    expect(stored).toMatchObject({
+      success: true,
+      size: 22,
+      mimeType: 'application/octet-stream',
+    });
+    expect(putOrgBlobStream).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.any(ReadableStream),
+      { contentLength: 22, contentType: 'application/octet-stream' },
+    );
+    expect(new TextDecoder().decode(landed[0])).toBe('an export in two parts');
+  });
+
+  it('keeps an empty file a fault, with no words for a person', async () => {
+    const stored = await download(
+      new Response(null, { status: 200, headers: { 'content-length': '0' } }),
+    );
+
+    expect(stored).toMatchObject({ success: false });
+    expect(stored.refusal).toBeUndefined();
+    expect(putOrgBlobStream).not.toHaveBeenCalled();
+  });
 });
 
 /**
@@ -314,10 +398,16 @@ describe('createSyncImportDeps.downloadToStorage with a format', () => {
         size: new TextEncoder().encode(PDF).byteLength,
       });
       expect(fetchMock).toHaveBeenCalledWith(url, expect.anything());
-      expect(putOrgBlobBytes).toHaveBeenCalledWith(expect.anything(), 'org-1', {
-        bytes: expect.any(Uint8Array),
-        contentType: 'application/pdf',
-      });
+      expect(putOrgBlobStream).toHaveBeenCalledWith(
+        expect.anything(),
+        'org-1',
+        expect.any(ReadableStream),
+        {
+          contentLength: new TextEncoder().encode(PDF).byteLength,
+          contentType: 'application/pdf',
+        },
+      );
+      expect(new TextDecoder().decode(landed[0])).toBe(PDF);
     },
   );
 
@@ -333,7 +423,7 @@ describe('createSyncImportDeps.downloadToStorage with a format', () => {
         notConvertible: true,
         error: expect.stringContaining(String(status)),
       });
-      expect(putOrgBlobBytes).not.toHaveBeenCalled();
+      expect(putOrgBlobStream).not.toHaveBeenCalled();
     },
   );
 
@@ -365,8 +455,24 @@ describe('createSyncImportDeps.downloadToStorage with a format', () => {
     expect(await stored).toMatchObject({
       success: false,
       notConvertible: true,
+      error: `The conversion to PDF answered ${new TextEncoder().encode(text).byteLength} bytes that are no PDF`,
     });
-    expect(putOrgBlobBytes).not.toHaveBeenCalled();
+    expect(putOrgBlobStream).not.toHaveBeenCalled();
+  });
+
+  // A PDF says what it is in its first bytes; the rest is not read to tell.
+  it('tells a PDF by its first bytes, however long it is', async () => {
+    const long = new Uint8Array(3 * 1024 * 1024).fill(0x20);
+    long.set(new TextEncoder().encode(PDF), 0);
+
+    const { stored } = convert(new Response(long, { status: 200 }));
+
+    expect(await stored).toMatchObject({
+      success: true,
+      mimeType: 'application/pdf',
+      size: long.byteLength,
+    });
+    expect(landed[0]?.byteLength).toBe(long.byteLength);
   });
 
   it('asks for the item itself when no format is asked, and keeps a 4xx a fault', async () => {

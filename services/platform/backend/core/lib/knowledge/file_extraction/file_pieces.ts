@@ -1,7 +1,8 @@
 'use node';
 
 /**
- * A file read a piece at a time, through one buffer.
+ * A file read a piece at a time, through one buffer, or only as far as its
+ * first bytes.
  */
 
 import { open } from 'node:fs/promises';
@@ -34,6 +35,31 @@ export async function* piecesOfFile(
       if (bytesRead === 0) return;
       yield buffer.subarray(0, bytesRead);
     }
+  } finally {
+    await file.close();
+  }
+}
+
+/**
+ * The first bytes of the file at `path`, at most `bytes` of them: what tells
+ * one kind of file from another, without the file being read.
+ */
+export async function headOfFile(path: string, bytes: number): Promise<Buffer> {
+  const file = await open(path, 'r');
+  try {
+    const buffer = Buffer.allocUnsafe(bytes);
+    let filled = 0;
+    while (filled < bytes) {
+      const { bytesRead } = await file.read(
+        buffer,
+        filled,
+        bytes - filled,
+        filled,
+      );
+      if (bytesRead === 0) break;
+      filled += bytesRead;
+    }
+    return buffer.subarray(0, filled);
   } finally {
     await file.close();
   }

@@ -6,6 +6,7 @@ import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { audienceMirror } from '../../core/lib/audience.ts';
 import { sniffDocumentExtension } from '../../core/lib/knowledge/extraction/sniff.ts';
+import { headOfFile } from '../../core/lib/knowledge/file_extraction/file_pieces.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -19,8 +20,12 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { resolveCloudAccessToken } from '../cloud_import/service.ts';
-import { MAX_UPLOAD_BYTES, readBodyBounded } from '../files/bounded-body.ts';
-import { FileError, putOrgBlobBytes } from '../files/service.ts';
+import {
+  MAX_UPLOAD_BYTES,
+  readBodyBounded,
+  storeBodyBounded,
+} from '../files/bounded-body.ts';
+import { FileError } from '../files/service.ts';
 import {
   buildHubFolderPath,
   findHubFolderByPath,
@@ -508,6 +513,36 @@ function isConversionRefused(status: number): boolean {
   );
 }
 
+/** How much of a vendor's refusal is read: its words, for the log. */
+const VENDOR_ERROR_MAX_BYTES = 64 * 1024;
+
+/** A vendor's answer to a refused download, as far as it is worth quoting. */
+async function vendorErrorText(response: Response): Promise<string> {
+  try {
+    return new TextDecoder().decode(
+      await readBodyBounded(response, VENDOR_ERROR_MAX_BYTES),
+    );
+  } catch (error) {
+    if (error instanceof FileError) return '(an answer too long to quote)';
+    throw error;
+  }
+}
+
+/** How much of a conversion's answer says whether it is a PDF: a PDF says
+ * so in its first bytes. */
+const PDF_HEAD_BYTES = 64 * 1024;
+
+/** A conversion answered bytes that are no PDF. */
+class NotAPdf extends Error {
+  readonly size: number;
+
+  constructor(size: number) {
+    super(`The conversion to PDF answered ${size} bytes that are no PDF`);
+    this.name = 'NotAPdf';
+    this.size = size;
+  }
+}
+
 async function fetchVendorContentToStorage(
   sql: Sql,
   adapter: SyncProviderAdapter,
@@ -542,7 +577,7 @@ async function fetchVendorContentToStorage(
       signal: AbortSignal.timeout(VENDOR_DOWNLOAD_TIMEOUT_MS),
     });
     if (!download.ok) {
-      const errorText = await download.text();
+      const errorText = await vendorErrorText(download);
       return {
         success: false,
         error: `Failed to download file: ${download.status} ${errorText}`,
@@ -551,38 +586,40 @@ async function fetchVendorContentToStorage(
           isConversionRefused(download.status) && { notConvertible: true }),
       };
     }
-    // Buffered (the blob store signs whole bodies), but never unbounded: the
-    // declared length is refused before a byte is read and the received
-    // bytes abort at the cap — `putOrgBlobBytes` re-checks the same ceiling,
-    // it just can no longer be the FIRST check a multi-GB file meets.
-    const bytes = await readBodyBounded(download, MAX_UPLOAD_BYTES);
-    // A conversion is kept only as what was asked for — the bytes decide,
-    // not the declared type: an empty or foreign body is not stored as one.
-    if (
-      args.format === 'pdf' &&
-      (await sniffDocumentExtension(bytes)) !== '.pdf'
-    ) {
-      return {
-        success: false,
-        error: `The conversion to PDF answered ${bytes.byteLength} bytes that are no PDF`,
-        notConvertible: true,
-      };
-    }
     const mimeType =
       args.format === 'pdf'
         ? 'application/pdf'
         : download.headers.get('content-type') || 'application/octet-stream';
-    const ref = await putOrgBlobBytes(sql, args.organizationId, {
-      bytes,
+    // From the vendor to the store as it arrives, never held here: a file
+    // of 512 MiB used to be in this process two and a half times over, and
+    // five imports run at once (tale-project/tale#4942). The declared
+    // length is refused past the cap before a byte is read, and a file that
+    // declares none is counted as it arrives.
+    const stored = await storeBodyBounded(sql, args.organizationId, download, {
+      maxBytes: MAX_UPLOAD_BYTES,
       contentType: mimeType,
+      // A conversion is kept only as what was asked for — the bytes decide,
+      // not the declared type: an empty or foreign body is not stored as
+      // one.
+      ...(args.format === 'pdf' && {
+        inspect: async (file) => {
+          const head = await headOfFile(file.path, PDF_HEAD_BYTES);
+          if ((await sniffDocumentExtension(head)) !== '.pdf') {
+            throw new NotAPdf(file.size);
+          }
+        },
+      }),
     });
     return {
       success: true,
-      storageId: ref,
+      storageId: stored.storageRef,
       mimeType,
-      size: bytes.byteLength,
+      size: stored.size,
     };
   } catch (error) {
+    if (error instanceof NotAPdf) {
+      return { success: false, error: error.message, notConvertible: true };
+    }
     // A file past the size cap is refused in the words the upload door's
     // 413 uses, which a person can read; any other failure is a fault whose
     // text is for the log alone.

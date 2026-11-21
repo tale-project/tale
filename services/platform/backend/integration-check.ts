@@ -37667,19 +37667,21 @@ async function checkOneDriveSync(
       });
     }
     if (leaf === '/content') {
-      const content = node.content ?? '';
+      // The length in bytes, as a vendor declares it: the import counts the
+      // body against it, and a text is longer in bytes than in characters.
+      const content = Buffer.from(node.content ?? '');
       return new Response(content, {
         status: 200,
         headers: {
           'content-type': node.mime ?? 'application/octet-stream',
-          'content-length': String(content.length),
+          'content-length': String(content.byteLength),
         },
       });
     }
     return jsonResponse({
       id: node.id,
       name: node.name,
-      size: (node.content ?? '').length,
+      size: Buffer.byteLength(node.content ?? ''),
       lastModifiedDateTime: node.modified,
       file: { mimeType: node.mime, hashes: { quickXorHash: node.hash } },
     });
@@ -39131,19 +39133,20 @@ async function checkGoogleDriveSync(
       return jsonResponse({ error: { code: 404, message: 'notFound' } }, 404);
     }
     if (url.searchParams.get('alt') === 'media') {
-      const content = node.content ?? '';
+      // In bytes, as the OneDrive stub declares it.
+      const content = Buffer.from(node.content ?? '');
       return new Response(content, {
         status: 200,
         headers: {
           'content-type': node.mime ?? 'application/octet-stream',
-          'content-length': String(content.length),
+          'content-length': String(content.byteLength),
         },
       });
     }
     return jsonResponse({
       id: node.id,
       name: node.name,
-      size: String((node.content ?? '').length),
+      size: String(Buffer.byteLength(node.content ?? '')),
       mimeType: node.mime,
       md5Checksum: node.hash,
     });
