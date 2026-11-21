@@ -9,20 +9,24 @@ import {
   plainTextCoverage,
 } from '../../../lib/knowledge/crawl-parse';
 import { htmlToText } from '../../../lib/knowledge/html-to-text';
-import { safeFetchBinary } from '../../../lib/net/safe-fetch';
+import { safeFetchToFile } from '../../../lib/net/safe-fetch';
 import type { ActionCtx } from '../lib/ctx';
-import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
+import {
+  RENDER_MAX_HTML_BYTES,
+  renderUrlsInSandbox,
+} from '../node_only/sandbox/render_fetch';
 import {
   checkAfterRender,
   fetchAndStorePage,
   scanWebsiteImpl,
 } from './crawl_action';
+import { fetchingToFile } from './crawl_action.test-helpers';
 import { assertCorpusWritable } from './index_health';
 import { getKnowledgePoolForOrg } from './pool';
 
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/net/safe-fetch')>()),
-  safeFetchBinary: vi.fn(),
+  safeFetchToFile: vi.fn(),
 }));
 vi.mock('../node_only/sandbox/render_fetch', async (importOriginal) => ({
   ...(await importOriginal<
@@ -99,16 +103,18 @@ interface Answer {
 }
 
 const answers = (answer: Answer): void => {
-  vi.mocked(safeFetchBinary).mockResolvedValue({
-    status: answer.status ?? 200,
-    statusText: answer.status === 304 ? 'Not Modified' : 'OK',
-    headers: new Headers({
-      'content-type': answer.type ?? 'text/html; charset=utf-8',
-      ...answer.headers,
+  vi.mocked(safeFetchToFile).mockImplementation(
+    fetchingToFile({
+      status: answer.status ?? 200,
+      statusText: answer.status === 304 ? 'Not Modified' : 'OK',
+      headers: new Headers({
+        'content-type': answer.type ?? 'text/html; charset=utf-8',
+        ...answer.headers,
+      }),
+      body: answer.body ?? '',
+      finalUrl: answer.finalUrl ?? URL,
     }),
-    body: new Blob([answer.body ?? '']),
-    finalUrl: answer.finalUrl ?? URL,
-  });
+  );
 };
 
 /** A page a past scan stored, indexed and left something to check it by. */
@@ -130,7 +136,7 @@ const settled = (check: {
 });
 
 const sentHeaders = (): Record<string, string> => {
-  const options = vi.mocked(safeFetchBinary).mock.calls[0]?.[1];
+  const options = vi.mocked(safeFetchToFile).mock.calls[0]?.[2];
   return { ...options?.headers };
 };
 const stamps = (statements: Statement[]) =>
@@ -141,7 +147,7 @@ const probe = (page: Parameters<typeof fetchAndStorePage>[2]) =>
   fetchAndStorePage(corpus().sql, DOMAIN, page, EMPTY_ROBOTS_POLICY);
 
 beforeEach(() => {
-  vi.mocked(safeFetchBinary).mockReset();
+  vi.mocked(safeFetchToFile).mockReset();
   vi.mocked(renderUrlsInSandbox).mockReset();
   vi.mocked(getKnowledgePoolForOrg).mockReset();
   vi.mocked(assertCorpusWritable).mockClear();
@@ -185,6 +191,24 @@ describe('fetchAndStorePage — asking whether a page changed', () => {
 
     expect(sentHeaders()).not.toHaveProperty('If-None-Match');
     expect(outcome).toMatchObject({ kind: 'render' });
+  });
+
+  // A page over the bound a rendered page has is rendered without the
+  // comparison: its plain HTML is on disk, and is not read back to be
+  // compared with a hash it could not have left.
+  it('does not read back the plain HTML of a page larger than a rendered page may be', async () => {
+    const vast = new Uint8Array(RENDER_MAX_HTML_BYTES + 1).fill(0x20);
+    vast.set(new TextEncoder().encode(body(TEXT_V1, 'a')), 0);
+    answers({ body: vast });
+
+    const outcome = await probe(
+      settled({ probe_hash: hashOf(body(TEXT_V1, 'a')) }),
+    );
+
+    expect(outcome).toMatchObject({
+      kind: 'render',
+      probe: { text: null, hash: null },
+    });
   });
 
   it('leaves a page as it is when the server answers 304 [KNOW-R16]', async () => {
@@ -610,19 +634,21 @@ describe('scanWebsiteImpl — a page that changed', () => {
           mode === 'validators' ? 'Fri, 10 Jul 2026 09:11:16 GMT' : null,
       });
       vi.mocked(getKnowledgePoolForOrg).mockResolvedValue(sql);
-      vi.mocked(safeFetchBinary).mockImplementation(async (_url, options) => {
-        const conditional = options?.headers?.['If-None-Match'];
-        return {
-          status: conditional === undefined ? 200 : 304,
-          statusText: 'OK',
-          finalUrl: URL,
-          headers: new Headers({
-            'content-type': 'text/html',
-            etag: '"shell"',
-          }),
-          body: new Blob([conditional === undefined ? plainHtml : '']),
-        };
-      });
+      vi.mocked(safeFetchToFile).mockImplementation(
+        fetchingToFile((_url, options) => {
+          const conditional = options?.headers?.['If-None-Match'];
+          return {
+            status: conditional === undefined ? 200 : 304,
+            statusText: 'OK',
+            finalUrl: URL,
+            headers: new Headers({
+              'content-type': 'text/html',
+              etag: '"shell"',
+            }),
+            body: conditional === undefined ? plainHtml : '',
+          };
+        }),
+      );
       shows(newHtml);
 
       await scanWebsiteImpl(engineCtx(), SCAN);

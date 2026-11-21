@@ -12,6 +12,25 @@ import type { PiiConfig } from '@tale/shared/schemas/pii';
 
 import type { ExtractedFacts } from '../../core/lib/knowledge/extraction/router.ts';
 
+const MIB = 1024 * 1024;
+/** What a child holds before it holds any of a document's text: the
+ * runtime, the readers, the chunker. */
+const BASE_BYTES = 32 * MIB;
+
+/** How much of the cap is a document's to fill. */
+export function textRoom(memoryMb: number): number {
+  return Math.max(MIB, memoryMb * MIB - BASE_BYTES);
+}
+
+/**
+ * The most a reader may write of a document's text, in bytes. The text is
+ * read back whole to be scanned and cut: for a moment it is held twice,
+ * as the bytes it is decoded from and as the string they make.
+ */
+export function textLimit(memoryMb: number): number {
+  return Math.floor(textRoom(memoryMb) / 2);
+}
+
 /** How much the job may take of the file it reads. */
 interface ReadLimits {
   /** The cap the child runs under, in MiB: what it may hold, all told. A

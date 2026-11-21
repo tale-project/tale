@@ -38,27 +38,9 @@ import type {
   PrepareRequest,
   ReadRequest,
 } from './protocol.ts';
+import { textLimit, textRoom } from './protocol.ts';
 
 const ALLOWED: SecretScanResult = { rejected: false, reason: null };
-
-const MIB = 1024 * 1024;
-/** What a child holds before it holds any of a document's text: the
- * runtime, the readers, the chunker. */
-const BASE_BYTES = 32 * MIB;
-
-/** How much of the cap is a document's to fill. */
-function textRoom(memoryMb: number): number {
-  return Math.max(MIB, memoryMb * MIB - BASE_BYTES);
-}
-
-/**
- * The most a reader may write of a document's text, in bytes. The text is
- * read back whole to be scanned and cut: for a moment it is held twice,
- * as the bytes it is decoded from and as the string they make.
- */
-function textLimit(memoryMb: number): number {
-  return Math.floor(textRoom(memoryMb) / 2);
-}
 
 /** What is known of a text before it is read back. */
 interface TextMeasure {

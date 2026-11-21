@@ -9,6 +9,7 @@ import {
   readFileSync,
   rmSync,
   utimesSync,
+  writeFileSync,
 } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -176,6 +177,27 @@ describe.each([
       text: '--- Sheet: Data ---\nname | count\nalpha | 3',
       visionUsed: false,
     });
+  });
+
+  // A caller that has the document in a file already (a page the crawler
+  // fetched) hands over the file: it is read where it is, not copied, and
+  // it is the caller's to remove (tale-project/tale#4942).
+  it('reads a file its caller has on disk where it is, and leaves it there', async () => {
+    const own = mkdtempSync(path.join(tmpdir(), 'caller-'));
+    const filePath = path.join(own, 'body');
+    writeFileSync(filePath, enc('Grüße — café, 東京, 😀'));
+    try {
+      expect(
+        await extractInHeavySlot(
+          { kind: 'file', path: filePath },
+          'notes.txt',
+          background,
+        ),
+      ).toEqual({ text: 'Grüße — café, 東京, 😀', visionUsed: false });
+      expect(readFileSync(filePath, 'utf8')).toBe('Grüße — café, 東京, 😀');
+    } finally {
+      rmSync(own, { recursive: true, force: true });
+    }
   });
 
   it('reads a stored object', async () => {

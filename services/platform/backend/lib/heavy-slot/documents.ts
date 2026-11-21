@@ -13,7 +13,7 @@
  * names the limit and the setting that raises it.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { PiiConfig } from '@tale/shared/schemas/pii';
@@ -32,7 +32,7 @@ import {
 import { BUILT } from '../layout.ts';
 import { chunksFromSpool } from './chunk-spool.ts';
 import { newJobDir, removeJobDir } from './job-dir.ts';
-import type { HeavyAnswer, HeavyRequest } from './protocol.ts';
+import { textLimit, type HeavyAnswer, type HeavyRequest } from './protocol.ts';
 import {
   heavySlotInline,
   heavySlotSettings,
@@ -56,7 +56,10 @@ export type DocumentSource =
       readonly store: S3ObjectStore;
       readonly key: string;
     }
-  | { readonly kind: 'bytes'; readonly bytes: Uint8Array };
+  | { readonly kind: 'bytes'; readonly bytes: Uint8Array }
+  /** A file its caller already has on disk, and keeps: it is read where it
+   * is, and is the caller's to remove. */
+  | { readonly kind: 'file'; readonly path: string };
 
 export interface HeavySlotCall {
   /** Ends the wait for a slot and the work in it; its reason is rethrown. */
@@ -90,6 +93,15 @@ function readLimits(): {
     maxImagePixels: Math.floor(capBytes / 16),
     reopenAfterBytes: Math.max(8 * MIB, Math.floor(capBytes / 6)),
   };
+}
+
+/**
+ * The most text one document may come to, in bytes of UTF-8: what the slot's
+ * child may write of one under the cap. A lane that holds a text the slot
+ * did not make, a page that is plain text already, holds itself to the same.
+ */
+export function documentTextLimitBytes(): number {
+  return textLimit(heavySlotSettings().memoryMb);
 }
 
 /**
@@ -162,6 +174,9 @@ async function spool(
   dir: string,
   options: { signal?: AbortSignal; maxBytes?: number },
 ): Promise<{ path: string; size: number } | null> {
+  if (source.kind === 'file') {
+    return { path: source.path, size: (await stat(source.path)).size };
+  }
   const target = path.join(dir, 'input');
   if (source.kind === 'bytes') {
     await writeFile(target, source.bytes, { mode: 0o600 });
