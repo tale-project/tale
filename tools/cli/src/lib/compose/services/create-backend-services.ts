@@ -142,6 +142,41 @@ function backendBase(
   };
 }
 
+/**
+ * The database connections one process of the whole application opens at
+ * most, where `.env` names no size of its own.
+ *
+ * Every connection is a PostgreSQL process of a few megabytes on the other
+ * side, held open by the polls of an idle deployment, and the backend's own
+ * defaults (ten, ten, five and ten) are those of a replica among many. One
+ * process that is the API, the web tier and the job runner on one host needs
+ * far less: its queries last milliseconds, and six people chatting do not
+ * make four of them wait.
+ *
+ * The job queue's pool follows `DATABASE_POOL_MAX` when `.env` sets that and
+ * no size for the queue, as it did before it had a variable of its own
+ * (`jobsPoolMax` in services/platform/backend/db/sql.ts). The knowledge pool
+ * stays at the worker's concurrency, which the backend warns about below it.
+ */
+export const ONE_PROCESS_POOLS = {
+  DATABASE_POOL_MAX: 4,
+  JOBS_DATABASE_POOL_MAX: 3,
+  AUTH_DATABASE_POOL_MAX: 2,
+  KNOWLEDGE_DB_POOL_MAX: 5,
+} as const;
+
+/** {@link ONE_PROCESS_POOLS} as the environment of the one process: each a
+ *  default that a value in `.env` replaces. */
+function onePoolEnvironment(): Record<string, string> {
+  const pools = ONE_PROCESS_POOLS;
+  return {
+    DATABASE_POOL_MAX: `\${DATABASE_POOL_MAX:-${pools.DATABASE_POOL_MAX}}`,
+    JOBS_DATABASE_POOL_MAX: `\${JOBS_DATABASE_POOL_MAX:-\${DATABASE_POOL_MAX:-${pools.JOBS_DATABASE_POOL_MAX}}}`,
+    AUTH_DATABASE_POOL_MAX: `\${AUTH_DATABASE_POOL_MAX:-${pools.AUTH_DATABASE_POOL_MAX}}`,
+    KNOWLEDGE_DB_POOL_MAX: `\${KNOWLEDGE_DB_POOL_MAX:-${pools.KNOWLEDGE_DB_POOL_MAX}}`,
+  };
+}
+
 /** Env every backend role shares, plus the colour when it has one. */
 function roleEnvironment(
   role: 'api' | 'worker' | 'all',
@@ -286,6 +321,10 @@ export function createPlatformBackendService(
     volumes: ['config-data:/app/data', 'static-assets:/app/static-assets'],
     environment: {
       ...roleEnvironment(role, { colour }),
+      // The whole application in one process is the deployment a small host
+      // runs. With the jobs apart it is a replica among others, on the
+      // backend's own pool sizes.
+      ...(role === 'all' ? onePoolEnvironment() : {}),
       PORT: String(BACKEND_API_PORT),
     },
     // `docker stop` waits this long before SIGKILL. A replica that runs the

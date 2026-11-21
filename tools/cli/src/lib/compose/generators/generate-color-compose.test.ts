@@ -4,6 +4,7 @@ import { parse } from 'yaml';
 
 import { setProjectId } from '../../project/project-context';
 import { SPLIT, THREE_WAY, UNIFIED, type AppTier } from '../app-tier';
+import { ONE_PROCESS_POOLS } from '../services/create-backend-services';
 import type { ComposeService, ServiceConfig } from '../types';
 import { generateColorCompose } from './generate-color-compose';
 
@@ -430,6 +431,61 @@ describe('generateColorCompose ↔ the shape of the application tier', () => {
         expect(shaped(SPLIT).platform?.stop_grace_period).toBe('45s');
       },
     );
+  });
+
+  test('one process opens few database connections, each size a default that .env replaces', () => {
+    // Every connection is a PostgreSQL process on the other side, and the
+    // polls of an idle deployment keep a pool's connections open.
+    const environment = shaped(UNIFIED).platform?.environment ?? {};
+    expect(ONE_PROCESS_POOLS).toEqual({
+      DATABASE_POOL_MAX: 4,
+      JOBS_DATABASE_POOL_MAX: 3,
+      AUTH_DATABASE_POOL_MAX: 2,
+      KNOWLEDGE_DB_POOL_MAX: 5,
+    });
+    expect(environment.DATABASE_POOL_MAX).toBe('${DATABASE_POOL_MAX:-4}');
+    expect(environment.AUTH_DATABASE_POOL_MAX).toBe(
+      '${AUTH_DATABASE_POOL_MAX:-2}',
+    );
+    expect(environment.KNOWLEDGE_DB_POOL_MAX).toBe(
+      '${KNOWLEDGE_DB_POOL_MAX:-5}',
+    );
+    // The job queue's pool follows an application pool .env sized, as it
+    // did before it had a variable of its own.
+    expect(environment.JOBS_DATABASE_POOL_MAX).toBe(
+      '${JOBS_DATABASE_POOL_MAX:-${DATABASE_POOL_MAX:-3}}',
+    );
+  });
+
+  test('the pools of one process hold its queue, its listener and its workers', () => {
+    // The backend warns at boot when the knowledge pool is below the jobs a
+    // worker runs at once (WORKER_CONCURRENCY, 5 unless set).
+    expect(ONE_PROCESS_POOLS.KNOWLEDGE_DB_POOL_MAX).toBeGreaterThanOrEqual(5);
+    // A serializable transaction holds one connection for its whole length,
+    // and the job queue fetches while it settles a job.
+    expect(ONE_PROCESS_POOLS.DATABASE_POOL_MAX).toBeGreaterThanOrEqual(2);
+    expect(ONE_PROCESS_POOLS.JOBS_DATABASE_POOL_MAX).toBeGreaterThanOrEqual(2);
+    for (const size of Object.values(ONE_PROCESS_POOLS))
+      expect(Number.isInteger(size) && size > 0).toBe(true);
+  });
+
+  test('a process that is not the whole application keeps the backend’s own pool sizes', () => {
+    // With the jobs apart, or as three services, a process is a replica
+    // among others: the sizes are the backend's, or the operator's.
+    const sized = (service: ComposeService | undefined): string[] =>
+      Object.keys(service?.environment ?? {}).filter((name) =>
+        name.endsWith('_POOL_MAX'),
+      );
+    expect(sized(shaped(UNIFIED).platform).toSorted()).toEqual([
+      'AUTH_DATABASE_POOL_MAX',
+      'DATABASE_POOL_MAX',
+      'JOBS_DATABASE_POOL_MAX',
+      'KNOWLEDGE_DB_POOL_MAX',
+    ]);
+    for (const service of Object.values(shaped(SPLIT)))
+      expect(sized(service)).toEqual([]);
+    for (const service of Object.values(shaped(THREE_WAY)))
+      expect(sized(service)).toEqual([]);
   });
 
   test('--host reaches platform in every shape, with the blob URL of the run', () => {
