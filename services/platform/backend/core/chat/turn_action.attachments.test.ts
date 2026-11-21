@@ -13,9 +13,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatWireMessage } from '../../../lib/chat/wire-parts';
 import { CHAT_IMAGE_MODEL_MAX_SIZE } from '../../../lib/shared/file-types';
 import type { ActionCtx } from '../lib/ctx';
+import { ObjectTooLargeError } from '../lib/storage/object_store';
 
 const { readBlobBytes, orgSlugFromIdOrNull } = vi.hoisted(() => ({
-  readBlobBytes: vi.fn<(orgSlug: string, ref: string) => Promise<Uint8Array>>(),
+  readBlobBytes:
+    vi.fn<
+      (
+        orgSlug: string,
+        ref: string,
+        opts?: { maxBytes?: number },
+      ) => Promise<Uint8Array>
+    >(),
   orgSlugFromIdOrNull:
     vi.fn<(ctx: unknown, organizationId: string) => Promise<string | null>>(),
 }));
@@ -102,6 +110,59 @@ describe('settleWireAttachments', () => {
     );
     expect(message.images).toHaveLength(1);
   });
+
+  // Regression: the limit was compared after the read, so an attachment of
+  // any size was in memory, three times over, before it was refused, and
+  // again on every turn that still had its message in view. The store is
+  // told the limit and refuses the read itself (tale-project/tale#4942).
+  it('asks the store for no more than a model is shown', async () => {
+    blobs.set('s3:logo.png', new Uint8Array(1000));
+
+    await settleWireAttachments(ctx, 'org-1', [userTurn('logo.png')], {
+      vision: true,
+      cache: new Map(),
+    });
+
+    expect(readBlobBytes).toHaveBeenCalledWith('acme', 's3:logo.png', {
+      maxBytes: CHAT_IMAGE_MODEL_MAX_SIZE,
+    });
+  });
+
+  it.each([
+    [
+      'with the size the store declared',
+      Math.round(3.3 * 1024 * 1024),
+      'the image is 3.30 MB, over the 2 MB limit for one image',
+    ],
+    [
+      'without a size, where the store declared none',
+      null,
+      'the image is over the 2 MB limit for one image',
+    ],
+  ])(
+    'tells the model why an image the store refused as too large was not sent, %s',
+    async (_case, size, reason) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      readBlobBytes.mockRejectedValueOnce(
+        new ObjectTooLargeError(
+          'acme/scan.png',
+          CHAT_IMAGE_MODEL_MAX_SIZE,
+          size,
+        ),
+      );
+      const message = userTurn('scan.png');
+
+      await settleWireAttachments(ctx, 'org-1', [message], {
+        vision: true,
+        cache: new Map(),
+      });
+
+      expect(message.content).toBe(
+        `Which code is in the image?\n\n[attachment: scan.png — not sent to you: ${reason}]`,
+      );
+      expect(message.images).toBeUndefined();
+    },
+  );
 
   it('tells the model when an image could not be read', async () => {
     const message = userTurn('gone.png');

@@ -20,7 +20,10 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { s3GetObjectBytesIfExists } from '../../core/lib/storage/object_store.ts';
+import {
+  ObjectTooLargeError,
+  s3GetObjectBytesIfExists,
+} from '../../core/lib/storage/object_store.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   deleteOrgBlobRefs,
@@ -39,7 +42,10 @@ import {
 } from './project-text.ts';
 import { DocumentError, requireDocumentWriteAccess } from './service.ts';
 
-vi.mock('../../core/lib/storage/object_store.ts', () => ({
+vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../core/lib/storage/object_store.ts')
+  >()),
   s3GetObjectBytesIfExists: vi.fn(),
 }));
 vi.mock('../../lib/object-store.ts', () => ({
@@ -150,6 +156,41 @@ describe('readProjectTextValues', () => {
     if (!(refused instanceof DocumentError)) throw new Error('unreachable');
     expect(refused.code).toBe('PROJECT_TEXT_READ_FAILED');
     expect(refused.status).toBe(503);
+  });
+
+  // The file read back is whichever document carries the settings file's
+  // name, and a document may be 100 MiB: it is not read into memory to be
+  // parsed as a form's values (tale-project/tale#4942).
+  it('asks the store for no more than a settings file can be', async () => {
+    vi.mocked(s3GetObjectBytesIfExists).mockResolvedValueOnce(
+      new TextEncoder().encode('rate: "19"\n'),
+    );
+
+    await readProjectTextValues(fakeSql('s3:acme/policy'), auth, args);
+
+    expect(s3GetObjectBytesIfExists).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme/policy',
+      { maxBytes: 4 * 1024 * 1024 },
+    );
+  });
+
+  it('refuses a file larger than that as one it cannot read, never as an absent one', async () => {
+    vi.mocked(s3GetObjectBytesIfExists).mockRejectedValueOnce(
+      new ObjectTooLargeError('acme/policy', 4 * 1024 * 1024, 90_000_000),
+    );
+    const refused = await readProjectTextValues(
+      fakeSql('s3:acme/policy'),
+      auth,
+      args,
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(refused).toBeInstanceOf(DocumentError);
+    if (!(refused instanceof DocumentError)) throw new Error('unreachable');
+    expect(refused.code).toBe('PROJECT_TEXT_TOO_LARGE');
+    expect(refused.status).toBe(409);
   });
 });
 

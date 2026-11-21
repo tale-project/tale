@@ -13,6 +13,7 @@ import {
 } from '../../core/lib/storage/blob_ref.ts';
 import {
   s3DeleteObject,
+  ObjectTooLargeError,
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
@@ -150,13 +151,18 @@ export async function uploadAutomationPg(
         verifiedKey = key;
         return true;
       },
-      readStagedZip: async (storageId) => {
+      readStagedZip: async (storageId, maxBytes) => {
         const key = stagedKeyOf(storageId);
         if (key === null || key !== verifiedKey) return null;
         try {
           const store = await resolveObjectStore(auth.orgSlug);
-          return await s3GetObjectBytes(store, key);
+          return await s3GetObjectBytes(store, key, { maxBytes });
         } catch (error) {
+          // Over the limit is an answer about the package, not a failed
+          // read: the store said so before a byte of it was in memory.
+          if (error instanceof ObjectTooLargeError) {
+            return { tooLarge: error.size };
+          }
           console.warn('[automations] staged zip read failed:', error);
           return null;
         }

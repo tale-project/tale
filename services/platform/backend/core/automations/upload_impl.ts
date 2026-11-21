@@ -116,8 +116,14 @@ export interface UploadHost {
   bindProject(automationName: string, projectId: string): Promise<void>;
   /** True when the staged blob belongs to an upload of this organization. */
   verifyStagedZip(storageId: string): Promise<boolean>;
-  /** The staged bytes, or null when the blob no longer exists. */
-  readStagedZip(storageId: string): Promise<Uint8Array | null>;
+  /** The staged bytes; null when the blob no longer exists; and
+   * `{ tooLarge }` when it holds more than `maxBytes`, with the size the
+   * store declared where it declared one. A blob over the limit is never
+   * read: the door it was staged through takes files of 512 MiB. */
+  readStagedZip(
+    storageId: string,
+    maxBytes: number,
+  ): Promise<Uint8Array | { tooLarge: number | null } | null>;
   /** Best-effort single-use cleanup (blob + intent), success or failure. */
   cleanupStagedZip(storageId: string): Promise<void>;
   getViewerContext(): Promise<{
@@ -504,15 +510,24 @@ export async function uploadAutomationImpl(
         'The staged blob does not belong to an upload of this organization.',
       );
     }
-    const bytes = await host.readStagedZip(storageId);
-    if (bytes === null) {
+    const staged = await host.readStagedZip(
+      storageId,
+      MAX_AUTOMATION_BUNDLE_TOTAL_BYTES,
+    );
+    if (staged === null) {
       refuse('STORAGE_NOT_FOUND', 'The staged blob no longer exists.');
     }
-    if (bytes.byteLength > MAX_AUTOMATION_BUNDLE_TOTAL_BYTES) {
+    const tooLarge = (size: number | null): never =>
       refuse(
         'PACK_TOO_LARGE',
-        `The package is ${bytes.byteLength} bytes compressed (max ${MAX_AUTOMATION_BUNDLE_TOTAL_BYTES}).`,
+        size === null
+          ? `The package is larger than ${MAX_AUTOMATION_BUNDLE_TOTAL_BYTES} bytes compressed.`
+          : `The package is ${size} bytes compressed (max ${MAX_AUTOMATION_BUNDLE_TOTAL_BYTES}).`,
       );
+    if (!(staged instanceof Uint8Array)) return tooLarge(staged.tooLarge);
+    const bytes = staged;
+    if (bytes.byteLength > MAX_AUTOMATION_BUNDLE_TOTAL_BYTES) {
+      return tooLarge(bytes.byteLength);
     }
 
     const parsed = await parseAutomationPackZip(bytes);

@@ -108,6 +108,7 @@ import {
 } from '../lib/providers/resolve_chat_model';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { readBlobBytes } from '../lib/storage/blob_access';
+import { ObjectTooLargeError } from '../lib/storage/object_store';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import {
@@ -547,15 +548,28 @@ async function loadWireImage(
     );
     return { notSent: IMAGE_UNREADABLE };
   }
+  /** An image over the inline bound, in the words the model reads. */
+  const overTheBound = (size: number | null): WireImageLoad => {
+    console.warn(
+      `[chat] attachment "${ref.name}" is ${size ?? 'more than the bound in'} bytes — over the ${INLINE_IMAGE_MAX_BYTES}-byte inline bound; sending its text surface instead`,
+    );
+    return {
+      notSent:
+        size === null
+          ? `the image is over the ${INLINE_IMAGE_MAX_BYTES / BYTES_PER_MB} MB limit for one image`
+          : `the image is ${(size / BYTES_PER_MB).toFixed(2)} MB, over the ${INLINE_IMAGE_MAX_BYTES / BYTES_PER_MB} MB limit for one image`,
+    };
+  };
   try {
-    const bytes = await readBlobBytes(orgSlug, ref.fileId);
+    // The bound is the store's to apply, before a byte is read: compared
+    // after the read, it let an attachment of any size into memory three
+    // times over, on every turn that still had its message in view
+    // (tale-project/tale#4942).
+    const bytes = await readBlobBytes(orgSlug, ref.fileId, {
+      maxBytes: INLINE_IMAGE_MAX_BYTES,
+    });
     if (bytes.byteLength > INLINE_IMAGE_MAX_BYTES) {
-      console.warn(
-        `[chat] attachment "${ref.name}" is ${bytes.byteLength} bytes — over the ${INLINE_IMAGE_MAX_BYTES}-byte inline bound; sending its text surface instead`,
-      );
-      return {
-        notSent: `the image is ${(bytes.byteLength / BYTES_PER_MB).toFixed(2)} MB, over the ${INLINE_IMAGE_MAX_BYTES / BYTES_PER_MB} MB limit for one image`,
-      };
+      return overTheBound(bytes.byteLength);
     }
     return {
       image: {
@@ -567,6 +581,7 @@ async function loadWireImage(
       },
     };
   } catch (error) {
+    if (error instanceof ObjectTooLargeError) return overTheBound(error.size);
     console.warn(
       `[chat] attachment "${ref.name}" could not be read for the wire: ${error instanceof Error ? error.message : 'unknown'}`,
     );

@@ -5,7 +5,10 @@ import {
   type WebdavStore,
 } from '../../../lib/connectors/natives/index.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import {
+  ObjectTooLargeError,
+  s3GetObjectBytes,
+} from '../../core/lib/storage/object_store.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
@@ -148,16 +151,19 @@ export function pgWebdavStore(sql: Sql): WebdavStore {
         ? doc.fileId.slice(3)
         : doc.fileId;
       const store = await locateOrgObjectStore(orgSlug, key);
-      const bytes = await s3GetObjectBytes(store, key);
-      if (bytes === null) {
-        throw new WebdavStoreError('not-found', 'the blob is gone');
-      }
-      if (bytes.byteLength > maxBytes) {
-        throw new WebdavStoreError(
-          'too-large',
-          `the file is ${bytes.byteLength} bytes; the ceiling is ${maxBytes}`,
-        );
-      }
+      // A document with no size on record is measured by the store, before
+      // it is read: it used to be read whole and refused afterwards.
+      const bytes = await s3GetObjectBytes(store, key, { maxBytes }).catch(
+        (error: unknown) => {
+          if (!(error instanceof ObjectTooLargeError)) throw error;
+          throw new WebdavStoreError(
+            'too-large',
+            error.size === null
+              ? `the file is over the ceiling of ${maxBytes} bytes`
+              : `the file is ${error.size} bytes; the ceiling is ${maxBytes}`,
+          );
+        },
+      );
       return { bytes, contentType: doc.contentType };
     },
 
