@@ -190,6 +190,31 @@ function onePoolEnvironment(): Record<string, string> {
   };
 }
 
+/**
+ * The memory one file may take while it is read, in MiB, where one process
+ * is the whole application and `.env` names no cap of its own.
+ *
+ * The backend reads a document, cuts it into passages and converts a
+ * recording in a process of its own, one file at a time, and stops a file
+ * that takes more than its cap (HEAVY_SLOT_MEMORY_MB, in
+ * services/platform/backend/lib/heavy-slot). Its own cap, 512 MiB, is that
+ * of a replica with gigabytes to itself. On a small host that process
+ * shares 256 MiB with the application: under this cap a spreadsheet of
+ * 60,000 rows by 10 columns peaked at 47 MiB and a 142 MB PDF of ten
+ * scanned pages at 80, and 20 MB of plain text fits. A file that needs more
+ * fails with a sentence that names the cap and the variable, which `.env`
+ * then raises.
+ */
+export const ONE_PROCESS_HEAVY_SLOT_MEMORY_MB = 96;
+
+/** {@link ONE_PROCESS_HEAVY_SLOT_MEMORY_MB} as the environment of the one
+ *  process: a default that a value in `.env` replaces. */
+function oneHeavySlotEnvironment(): Record<string, string> {
+  return {
+    HEAVY_SLOT_MEMORY_MB: `\${HEAVY_SLOT_MEMORY_MB:-${ONE_PROCESS_HEAVY_SLOT_MEMORY_MB}}`,
+  };
+}
+
 /** Env every backend role shares, plus the colour when it has one. */
 function roleEnvironment(
   role: 'api' | 'worker' | 'all',
@@ -341,8 +366,10 @@ export function createPlatformBackendService(
       ...roleEnvironment(role, { colour }),
       // The whole application in one process is the deployment a small host
       // runs. With the jobs apart it is a replica among others, on the
-      // backend's own pool sizes.
-      ...(role === 'all' ? onePoolEnvironment() : {}),
+      // backend's own pool sizes and its own cap for one file.
+      ...(role === 'all'
+        ? { ...onePoolEnvironment(), ...oneHeavySlotEnvironment() }
+        : {}),
       PORT: String(BACKEND_API_PORT),
     },
     // `docker stop` waits this long before SIGKILL. A replica that runs the

@@ -4,7 +4,10 @@ import { parse } from 'yaml';
 
 import { setProjectId } from '../../project/project-context';
 import { SPLIT, THREE_WAY, UNIFIED, type AppTier } from '../app-tier';
-import { ONE_PROCESS_POOLS } from '../services/create-backend-services';
+import {
+  ONE_PROCESS_HEAVY_SLOT_MEMORY_MB,
+  ONE_PROCESS_POOLS,
+} from '../services/create-backend-services';
 import type { ComposeService, ServiceConfig } from '../types';
 import { generateColorCompose } from './generate-color-compose';
 
@@ -463,6 +466,28 @@ describe('generateColorCompose ↔ the shape of the application tier', () => {
     expect(
       shaped(UNIFIED).platform?.environment?.DATABASE_PREPARED_STATEMENTS,
     ).toBe('${DATABASE_PREPARED_STATEMENTS:-false}');
+  });
+
+  test('one process gives one file 96 MiB to be read in, a default that .env replaces', () => {
+    // The backend reads a file in a process of its own and stops one that
+    // takes more than its cap. Its own cap, 512 MiB, is more than a small
+    // host has for the whole application.
+    expect(ONE_PROCESS_HEAVY_SLOT_MEMORY_MB).toBe(96);
+    expect(shaped(UNIFIED).platform?.environment?.HEAVY_SLOT_MEMORY_MB).toBe(
+      '${HEAVY_SLOT_MEMORY_MB:-96}',
+    );
+    // The backend refuses a cap under 64 MiB at boot, which is what a
+    // reader needs to start (HEAVY_SLOT_MEMORY_MB in
+    // services/platform/backend/env.ts).
+    expect(ONE_PROCESS_HEAVY_SLOT_MEMORY_MB).toBeGreaterThanOrEqual(64);
+  });
+
+  test('a process that is not the whole application keeps the backend’s own cap for one file', () => {
+    for (const appTier of [SPLIT, THREE_WAY])
+      for (const service of Object.values(shaped(appTier)))
+        expect(Object.keys(service.environment ?? {})).not.toContain(
+          'HEAVY_SLOT_MEMORY_MB',
+        );
   });
 
   test('the pools of one process hold its queue, its listener and its workers', () => {
