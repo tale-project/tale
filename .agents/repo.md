@@ -897,3 +897,19 @@ default means deleting the override and fixing what surfaces:
   inserts during a roll. Paying it down means a migration, a release after every image reads the
   principal, that drops the trigger, its function and the `conversation_api_bindings_owner`
   index. `owner_user_id` stays as the audit trail.
+- **The platform image still ships its sources, `node_modules` and Bun** — no role reads them:
+  every role starts from the built backend (`backend-dist/`), the web tier included (2026-11,
+  #4942). `tale deploy --bundle` does. Its provisioning and client-export phases run the CLI's
+  interpreted bundle under the container's `bun` and import `/app/backend/auth/auth.ts`,
+  `/app/backend/db/sql.ts` and `better-auth` out of `/app/node_modules`
+  (`tools/cli/src/lib/deployment/native-client.ts`, `apply.ts`, `client-export.ts`,
+  `email-attestation.ts`, `operator-address.ts`), and `acceptance-health.ts` and
+  `runtime-configuration.ts` start `bun --eval` there for a local probe and a configuration
+  read. Paying it down means a built entry for those phases in
+  `services/platform/scripts/build-backend.ts` (a program beside `image-check.js` that takes the
+  phase's input on stdin), the two probes on `node`, and then one change that removes the
+  `pruner` stage, the sources, `packages/`, `node_modules` and the Bun binary from the runner
+  stage of `services/platform/Dockerfile`, with the pruner cases of
+  `tests/guards/dockerfile-fail-closed.guard.test.ts`. A tree that holds only `backend-dist/`,
+  `dist/`, `dist-seo/`, `messages/` and the config catalogs already boots every role, serves
+  the app, answers chat turns and indexes a PDF and a spreadsheet.

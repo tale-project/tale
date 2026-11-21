@@ -297,7 +297,10 @@ RUN HUSKY=0 bun install --production \
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
-# Node runs every role. Bun is here for the protocol check below alone.
+# Node runs every role. Bun stays for what `tale deploy --bundle` runs inside
+# this container (tools/cli/src/lib/deployment): its provisioning and
+# client-export phases, the local serving probe and the configuration read
+# all start `bun` here. The protocol check below uses it too.
 COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
@@ -446,12 +449,18 @@ COPY --from=builder --chown=app:app /app/services/platform/lib ./lib
 # level up (backend/lib/layout.ts).
 COPY --from=backend-build --chown=app:app /app/services/platform/backend-dist ./backend-dist
 # No role reads these sources any more: the web tier, the last one that ran
-# unbundled, starts from the build above.
+# unbundled, starts from the build above. `tale deploy --bundle` still does.
+# Its provisioning and client-export phases run the CLI's interpreted bundle
+# under this image's bun and import the backend's own auth and database
+# modules from here, with `better-auth` and `postgres` out of node_modules
+# (tools/cli/src/lib/deployment/native-client.ts names the paths). The
+# sources, node_modules and bun leave the image together, once those phases
+# start from a built entry.
 COPY --from=builder --chown=app:app /app/services/platform/backend ./backend
 COPY --from=builder --chown=app:app /app/services/platform/messages ./messages
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
-# Workspace packages backing the `@tale/*` symlinks in node_modules, from
-# when the web tier ran unbundled and resolved `@tale/ui/seo/*` through them.
+# Workspace packages backing the `@tale/*` symlinks in node_modules: the
+# backend's sources import `@tale/shared/*` through them.
 COPY --from=builder --chown=app:app /app/packages ./packages
 COPY --from=builder --chown=app:app /app/services/platform/package.json ./
 # Knowledge-corpus DDL. Preparing a NEW corpus (the deployment default on
