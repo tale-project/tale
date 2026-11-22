@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import {
+  MEMORY_BUDGET_BYTES,
+  MEMORY_BUDGET_SHARES_MIB,
+} from '@tale/shared/memory-budget';
 import { parse } from 'yaml';
 
 import { setProjectId } from '../../project/project-context';
@@ -103,12 +107,39 @@ describe('memory reservations of the stack', () => {
 
   test('the shares add up to the 500 MB budget, whatever the shape', () => {
     clear();
+    const shares = Object.values(MEMORY_BUDGET_SHARES_MIB).reduce(
+      (sum, mib) => sum + mib,
+      0,
+    );
     for (const tier of [UNIFIED, SPLIT, THREE_WAY]) {
       expect(reservedMemoryMib(tier), tier.shape).toBe(476);
+      // Every share of the budget reserved, and nothing beside them.
+      expect(reservedMemoryMib(tier), tier.shape).toBe(shares);
       // 500,000,000 bytes is 476.8 MiB.
-      expect(reservedMemoryMib(tier) * 1024 ** 2).toBeLessThanOrEqual(5e8);
+      expect(reservedMemoryMib(tier) * 1024 ** 2).toBeLessThanOrEqual(
+        MEMORY_BUDGET_BYTES,
+      );
     }
     expect(STACK_MIB + APP_TIER_SHARE_MIB).toBe(476);
+  });
+
+  test("each part reserves its share of @tale/shared's budget, the spawner and its egress proxy theirs between them", () => {
+    clear();
+    const mib = (service: ComposeService) =>
+      Number.parseInt(String(service.mem_reservation), 10);
+    expect(mib(createDbService(config))).toBe(
+      MEMORY_BUDGET_SHARES_MIB.postgres,
+    );
+    expect(mib(versitygwOf())).toBe(MEMORY_BUDGET_SHARES_MIB['object-store']);
+    expect(mib(proxyOf())).toBe(MEMORY_BUDGET_SHARES_MIB.edge);
+    // The CLI's own division of the share of the two (20 and 10), which must
+    // add up to it.
+    expect(
+      mib(createSandboxService(config)) +
+        mib(createSandboxEgressService(config)),
+    ).toBe(MEMORY_BUDGET_SHARES_MIB['spawner-egress']);
+    // Each shape divides the app tier's between its services (below).
+    expect(APP_TIER_SHARE_MIB).toBe(MEMORY_BUDGET_SHARES_MIB['app-tier']);
   });
 
   test('each reservation follows its variable, in whole MiB', () => {

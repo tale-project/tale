@@ -1,3 +1,5 @@
+import { MEMORY_BUDGET_SHARES_MIB } from '@tale/shared/memory-budget';
+
 import {
   type AppTier,
   type AppTierShape,
@@ -46,10 +48,12 @@ export function memorySizeEnvMib(
 /**
  * The memory budget of one host (tale-project/tale#4942): 500 MB, 476.8 MiB,
  * for everything `tale deploy` starts there by default, the sandbox sessions
- * aside. It is shared out between the services in MiB, and a service's share
- * is also its memory reservation: the floor its cgroup v2 `memory.low`
- * protects from the reclaim that session memory pressure causes, and part of
- * what the spawner's admission leaves free (reservedMemoryMib).
+ * aside. It is shared out between the parts of the stack in MiB
+ * (@tale/shared/memory-budget, the figures the memory benchmark reads against
+ * too), and a service's share is also its memory reservation: the floor its
+ * cgroup v2 `memory.low` protects from the reclaim that session memory
+ * pressure causes, and part of what the spawner's admission leaves free
+ * (reservedMemoryMib).
  *
  * These are the services outside the application tier, as measured:
  *
@@ -62,9 +66,12 @@ export function memorySizeEnvMib(
  * - sandbox, sandbox-egress: the spawner and its egress proxy share 30.
  */
 const STACK_RESERVATION_MIB = {
-  db: 120,
-  'object-store': 35,
-  proxy: 35,
+  db: MEMORY_BUDGET_SHARES_MIB.postgres,
+  'object-store': MEMORY_BUDGET_SHARES_MIB['object-store'],
+  proxy: MEMORY_BUDGET_SHARES_MIB.edge,
+  // The CLI's own division of the share the two have together
+  // (`spawner-egress`); memory-env.test.ts fails where the two no longer
+  // add up to it.
   sandbox: 20,
   'sandbox-egress': 10,
 } as const;
@@ -84,13 +91,13 @@ const STACK_RESERVED_SERVICES = Object.keys(
  * in every shape: each divides it between the services it runs, and the one
  * that answers the API takes the largest part.
  */
-export const APP_TIER_SHARE_MIB = 256;
+export const APP_TIER_SHARE_MIB = MEMORY_BUDGET_SHARES_MIB['app-tier'];
 
 /** Each shape's division of {@link APP_TIER_SHARE_MIB}, per replica. */
 const APP_TIER_RESERVATION_MIB: Readonly<
   Record<AppTierShape, Readonly<Partial<Record<RotatableService, number>>>>
 > = {
-  unified: { platform: 256 },
+  unified: { platform: APP_TIER_SHARE_MIB },
   split: { platform: 192, 'backend-worker': 64 },
   'three-way': { platform: 64, 'backend-api': 128, 'backend-worker': 64 },
 };
