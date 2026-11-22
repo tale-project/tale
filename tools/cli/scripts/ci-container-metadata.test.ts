@@ -199,13 +199,21 @@ test
   },
 );
 
+/** The one image a case reports apart from the rest, which all pass every
+ * check at 1 MiB: the user or health check it breaks policy with, or its
+ * exact size in bytes. */
+interface Subject {
+  image: string;
+  breach?: 'root' | 'root:app' | '0:10001' | 'health';
+  bytes?: number;
+}
+
 async function imageHarness(
   directory: string,
   secret = '',
   missing = '',
-  gateway = '',
+  subject: Subject | null = null,
   metadataFailure = '',
-  gatewaySize = 255,
   runtimeHistory: { stdout?: string; exitCode?: number } = {},
   bunVersion = expectedBun,
   bunExit = 0,
@@ -218,7 +226,7 @@ args = sys.argv[1:]
 with open(os.environ['PROOF_DIR'] + '/calls', 'a') as stream: stream.write(json.dumps(args) + '\\n')
 if args[0] == 'compose':
     if args[-2:] != ['config', '--images']: sys.exit(91)
-    for service in ['platform', 'db', 'proxy', 'sandbox-llm-gateway', 'sandbox', 'sandbox-egress']:
+    for service in ['platform', 'db', 'proxy', 'sandbox', 'sandbox-egress']:
         if service != os.environ.get('MISSING_SERVICE'): print('ghcr.io/tale-project/tale/tale-' + service + ':latest')
 elif args[:2] == ['image', 'inspect']:
     if any(arg.startswith('--format=') for arg in args):
@@ -226,11 +234,9 @@ elif args[:2] == ['image', 'inspect']:
             print('Injected inspect failure', file=sys.stderr); sys.exit(7)
         if os.environ.get('METADATA_FAILURE') == 'malformed':
             print('{'); sys.exit(0)
-        gateway = 'tale-sandbox-llm-gateway:' in args[-1]
-        case = os.environ.get('GATEWAY_CASE') if gateway else ''
-        size = (301*1024*1024 if case == 'size' else int(os.environ['GATEWAY_SIZE'])) if gateway else 1024*1024
-        if gateway:
-            with open(os.environ['PROOF_DIR'] + '/gateway-size', 'w') as stream: stream.write(str(size))
+        subject = os.environ['SUBJECT'] != '' and 'tale-' + os.environ['SUBJECT'] + ':' in args[-1]
+        case = os.environ['SUBJECT_BREACH'] if subject else ''
+        size = int(os.environ['SUBJECT_BYTES']) if subject else 1024*1024
         print(json.dumps(dict(Config=dict(Labels={'org.opencontainers.image.source':'source'}, User=case if case in ('root', 'root:app', '0:10001') else '10001', Env=json.loads(os.environ['SECRET']) if os.environ['SECRET'].startswith('[') else [os.environ['SECRET']] if os.environ['SECRET'] else [], Healthcheck=dict(Test=['NONE'] if case == 'health' else ['CMD', 'true'])), Size=size)))
 elif args[:2] == ['image', 'history']:
     print(os.environ['RUNTIME_HISTORY'])
@@ -261,9 +267,10 @@ else:
     PULL_POLICY: 'never',
     SECRET: secret,
     MISSING_SERVICE: missing,
-    GATEWAY_CASE: gateway,
+    SUBJECT: subject?.image ?? '',
+    SUBJECT_BREACH: subject?.breach ?? '',
+    SUBJECT_BYTES: String(subject?.bytes ?? 1024 * 1024),
     METADATA_FAILURE: metadataFailure,
-    GATEWAY_SIZE: String(gatewaySize * 1024 * 1024),
     RUNTIME_HISTORY: runtimeHistory.stdout ?? '0\n1048576\n0',
     HISTORY_EXIT: String(runtimeHistory.exitCode ?? 0),
     BUN_VERSION: bunVersion,
@@ -283,9 +290,8 @@ test.skipIf(process.platform === 'win32').each([
       directory,
       '',
       '',
+      null,
       '',
-      '',
-      255,
       {},
       version,
       exitCode,
@@ -313,7 +319,7 @@ test.skipIf(process.platform === 'win32').each([
   'runtime disk gate judges retained unpacked layers with tiny packed metadata: %s',
   async (_label, history, expectedExit, diagnostic) => {
     const directory = await fixture();
-    const result = await imageHarness(directory, '', '', '', '', 255, {
+    const result = await imageHarness(directory, '', '', null, '', {
       stdout: history,
     });
     expect(result.exit, result.stdout + result.stderr).toBe(expectedExit);
@@ -327,7 +333,7 @@ test.skipIf(process.platform === 'win32')(
   'runtime disk gate fails closed when history lookup fails despite valid metadata',
   async () => {
     const directory = await fixture();
-    const result = await imageHarness(directory, '', '', '', '', 255, {
+    const result = await imageHarness(directory, '', '', null, '', {
       exitCode: 7,
     });
     expect(result.exit).toBe(1);
@@ -342,9 +348,6 @@ test.skipIf(process.platform === 'win32')(
     const directory = await fixture();
     const result = await imageHarness(directory);
     expect(result.exit, result.stdout + result.stderr).toBe(0);
-    expect(result.stdout).toContain(
-      'sandbox-llm-gateway: 255 MB ≤ 300 MB budget',
-    );
     const calls: string[][] = (await readFile(join(directory, 'calls'), 'utf8'))
       .trim()
       .split('\n')
@@ -357,7 +360,7 @@ test.skipIf(process.platform === 'win32')(
           args[1] === 'inspect' &&
           args.some((arg) => arg.startsWith('--format=')),
       ),
-    ).toHaveLength(8);
+    ).toHaveLength(7);
     expect(calls.filter((args) => args[1] === 'history')).toEqual([
       [
         'image',
@@ -372,7 +375,6 @@ test.skipIf(process.platform === 'win32')(
       'platform',
       'db',
       'proxy',
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'sandbox-buildkitd',
@@ -425,17 +427,18 @@ test
   },
 );
 
-test.skipIf(process.platform === 'win32').each([255, 300])(
-  'the measured gateway and budget edge pass at %i MiB with all image checks',
-  async (size) => {
+test.skipIf(process.platform === 'win32')(
+  'an image at its exact size budget passes with every image check',
+  async () => {
     const directory = await fixture();
-    const result = await imageHarness(directory, '', '', '', '', size);
+    const result = await imageHarness(directory, '', '', {
+      image: 'proxy',
+      bytes: 260 * 1024 * 1024,
+    });
     expect(result.exit, result.stdout + result.stderr).toBe(0);
-    expect(result.stdout).toContain(
-      `sandbox-llm-gateway: ${size} MB ≤ 300 MB budget`,
-    );
-    expect(result.stdout).toContain('Tests: 50');
-    expect(result.stdout).toContain('Passed: 50');
+    expect(result.stdout).toContain('proxy: 260 MB ≤ 260 MB budget');
+    expect(result.stdout).toContain('Tests: 45');
+    expect(result.stdout).toContain('Passed: 45');
     for (const uid of [65534, 10001])
       expect(result.stdout).toContain(
         `sandbox-runtime: SSH agent and HTTP CONNECT work as uid ${uid}`,
@@ -445,58 +448,48 @@ test.skipIf(process.platform === 'win32').each([255, 300])(
   },
 );
 
+// The runtime is the one image held to a non-root user; a Compose image is
+// held to a HEALTHCHECK and to a budget read from its metadata.
 test.skipIf(process.platform === 'win32').each([
-  ['packed baseline', 90_653_959, 86],
-  ['uncompressed baseline', 268_266_714, 255],
-])(
-  'the raw-byte gateway %s passes without truncating Docker image-store metadata',
-  async (_label, bytes, sizeMb) => {
+  [
+    'root',
+    { image: 'sandbox-runtime', breach: 'root' },
+    'sandbox-runtime: image must not run as root',
+  ],
+  [
+    'health',
+    { image: 'proxy', breach: 'health' },
+    'proxy: no HEALTHCHECK instruction',
+  ],
+  [
+    'size',
+    { image: 'proxy', bytes: 261 * 1024 * 1024 },
+    'proxy: 261 MB exceeds 260 MB budget',
+  ],
+] as const)(
+  'image validation catches %s before reporting all images accepted',
+  async (_policy, subject, diagnostic) => {
     const directory = await fixture();
-    const result = await imageHarness(
-      directory,
-      '',
-      '',
-      '',
-      '',
-      bytes / 1024 / 1024,
-    );
-    expect(await readFile(join(directory, 'gateway-size'), 'utf8')).toBe(
-      String(bytes),
-    );
-    expect(result.exit, result.stdout + result.stderr).toBe(0);
-    expect(result.stdout).toContain(
-      `sandbox-llm-gateway: ${sizeMb} MB ≤ 300 MB budget`,
-    );
-    expect(result.stdout).toContain('Tests: 50');
-    expect(result.stdout).toContain('Passed: 50');
-    expect(result.stdout).toContain('Failed: 0');
-    expect(result.stdout).toContain('ALL IMAGE VALIDATION TESTS PASSED');
-  },
-);
-
-test.skipIf(process.platform === 'win32').each([
-  ['root', 'sandbox-llm-gateway: image must not run as root'],
-  ['health', 'sandbox-llm-gateway: no HEALTHCHECK instruction'],
-  ['size', 'sandbox-llm-gateway: 301 MB exceeds 300 MB budget'],
-])(
-  'gateway validation catches %s before reporting all images accepted',
-  async (policy, diagnostic) => {
-    const directory = await fixture();
-    const result = await imageHarness(directory, '', '', policy);
+    const result = await imageHarness(directory, '', '', subject);
     expect(result.exit, result.stdout + result.stderr).toBe(1);
     expect(result.stdout).toContain(diagnostic);
     expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');
   },
 );
 
-test.skipIf(process.platform === 'win32').each(['root:app', '0:10001'])(
-  'a group suffix cannot disguise gateway root user %s',
+test
+  .skipIf(process.platform === 'win32')
+  .each(['root:app', '0:10001'] as const)(
+  'a group suffix cannot disguise the runtime root user %s',
   async (user) => {
     const directory = await fixture();
-    const result = await imageHarness(directory, '', '', user);
+    const result = await imageHarness(directory, '', '', {
+      image: 'sandbox-runtime',
+      breach: user,
+    });
     expect(result.exit, result.stdout + result.stderr).toBe(1);
     expect(result.stdout).toContain(
-      'sandbox-llm-gateway: image must not run as root',
+      'sandbox-runtime: image must not run as root',
     );
   },
 );
@@ -521,7 +514,7 @@ test.skipIf(process.platform === 'win32').each(['inspect', 'malformed'])(
   'an initial %s metadata failure cannot print an all-images-passed banner',
   async (failure) => {
     const directory = await fixture();
-    const result = await imageHarness(directory, '', '', '', failure);
+    const result = await imageHarness(directory, '', '', null, failure);
     expect(result.exit).toBe(1);
     expect(result.stdout).toContain('Image validation could not complete');
     expect(result.stdout).not.toContain('ALL IMAGE VALIDATION TESTS PASSED');

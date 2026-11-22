@@ -192,10 +192,11 @@ describe('the Incus sandbox declaration', () => {
       ).toBe(false);
   });
 
-  test('publishes the backend API and the LLM gateway on the declared address only', () => {
+  // The model relay a session calls its models at is the backend API's own
+  // second port (tale-project/tale#4942), where the gateway's 8080 was.
+  test('publishes the backend API and its model relay on the declared address only', () => {
     expect(sandboxPorts('10.200.50.2')).toEqual({
-      'backend-api': ['10.200.50.2:3005:3005'],
-      'sandbox-llm-gateway': ['10.200.50.2:8080:8080'],
+      'backend-api': ['10.200.50.2:3005:3005', '10.200.50.2:8080:8080'],
     });
   });
 
@@ -274,7 +275,7 @@ const environmentOf = (compose: ComposeDocument) =>
   compose.services.sandbox.environment as Record<string, string>;
 
 describe('the Incus shape on the Incus runtime', () => {
-  /** The sandbox, backend API and gateway services of a Docker bundle. */
+  /** The sandbox and backend API services of a Docker bundle. */
   function dockerShaped(): ComposeDocument {
     return {
       services: {
@@ -292,7 +293,6 @@ describe('the Incus shape on the Incus runtime', () => {
           ],
         },
         'backend-api': {},
-        'sandbox-llm-gateway': {},
       },
       volumes: {},
       networks: {},
@@ -307,11 +307,10 @@ describe('the Incus shape on the Incus runtime', () => {
     }),
   });
 
-  test('publishes nothing: the sessions reach both services at their plan addresses', () => {
+  test('publishes nothing: the sessions reach the backend API at its plan address', () => {
     const compose = dockerShaped();
     applyIncusShape(compose, bundle, { publish: false });
     expect(compose.services['backend-api']?.ports).toBeUndefined();
-    expect(compose.services['sandbox-llm-gateway']?.ports).toBeUndefined();
     expect(compose.services.sandbox?.volumes).toContain(SANDBOX_INCUS_MOUNT);
     const environment = compose.services.sandbox?.environment as
       | Record<string, string>
@@ -408,10 +407,11 @@ describe('reading a bundle that records the Incus sandbox', () => {
       'published port',
     ],
     [
-      'publishes a port of the proxy beside the pair',
+      'publishes a third port of the backend API beside its two',
       (compose: ComposeDocument) => {
         compose.services['backend-api'].ports = [
           '10.200.50.2:3005:3005',
+          '10.200.50.2:8080:8080',
           '10.200.50.2:3006:3006',
         ];
       },
@@ -425,18 +425,19 @@ describe('reading a bundle that records the Incus sandbox', () => {
       'published port',
     ],
     [
-      'publishes the gateway on another address',
+      'publishes the model relay on another address',
       (compose: ComposeDocument) => {
-        compose.services['sandbox-llm-gateway'].ports = [
+        compose.services['backend-api'].ports = [
+          '10.200.50.2:3005:3005',
           '10.200.50.9:8080:8080',
         ];
       },
       'published port',
     ],
     [
-      'stops publishing the gateway',
+      'stops publishing the model relay',
       (compose: ComposeDocument) => {
-        delete compose.services['sandbox-llm-gateway'].ports;
+        compose.services['backend-api'].ports = ['10.200.50.2:3005:3005'];
       },
       'published port',
     ],
@@ -559,11 +560,9 @@ describe('reading a bundle that records the Incus sandbox', () => {
       'published port',
     ],
     [
-      'publishes the LLM gateway',
+      'publishes the model relay',
       (compose: ComposeDocument) => {
-        compose.services['sandbox-llm-gateway'].ports = [
-          '10.200.50.2:8080:8080',
-        ];
+        compose.services['backend-api'].ports = ['10.200.50.2:8080:8080'];
       },
       'published port',
     ],
@@ -607,7 +606,7 @@ describe('reading a bundle that records the Incus sandbox', () => {
     ]);
   });
 
-  test('keeps every service but three byte-identical to the Docker bundle of the same source', async () => {
+  test('keeps every service but two byte-identical to the Docker bundle of the same source', async () => {
     const { fixture, docker } = create();
     const output = (name: string) => join(fixture.directory, name);
     const options = (name: string, sandbox?: typeof DECLARED) => ({
@@ -621,7 +620,7 @@ describe('reading a bundle that records the Incus sandbox', () => {
     await prepareRuntime(options('incus', DECLARED), docker.dependencies());
     const plain = readRuntimeBundle(output('docker'));
     const incus = readRuntimeBundle(output('incus'));
-    const changed = new Set(['sandbox', 'backend-api', 'sandbox-llm-gateway']);
+    const changed = new Set(['sandbox', 'backend-api']);
     for (const service of RUNTIME_SERVICES.filter((name) => !changed.has(name)))
       expect(incus.compose.services[service]).toEqual(
         plain.compose.services[service],

@@ -157,12 +157,7 @@ describe('what every instance carries (r3)', () => {
         'backend-api',
         'backend-worker',
       ],
-      [STOP_GROUPS.middle]: [
-        'sandbox',
-        'sandbox-llm-gateway',
-        'sandbox-egress',
-        'bgutil-provider',
-      ],
+      [STOP_GROUPS.middle]: ['sandbox', 'sandbox-egress', 'bgutil-provider'],
       [STOP_GROUPS.data]: [
         'db',
         'knowledge-db',

@@ -54,7 +54,8 @@ export interface StackUpOptions {
   /**
    * Interface the processes bind, when it is not `host`: `0.0.0.0` lets
    * containers reach a stack whose URLs stay on loopback (the agent-burst
-   * profile's sandbox relay and LLM gateway).
+   * profile's `backend-relay`, which carries the sessions' calls to the api
+   * and its model relay).
    */
   listenHost?: string;
   stateFile: string;

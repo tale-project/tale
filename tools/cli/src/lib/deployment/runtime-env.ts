@@ -4,7 +4,6 @@ import { join } from 'node:path';
 
 import { parseOrgSessionCutoverAt } from '@tale/shared/utils/org-session-cutover';
 
-import { generateGatewayAdminPassword } from '../crypto/gateway-password';
 import {
   requireRuntime,
   readRegular,
@@ -17,11 +16,21 @@ export const RUNTIME_SECRET_KEYS = [
   'BETTER_AUTH_SECRET',
   'ENCRYPTION_SECRET_HEX',
   'INSTANCE_SECRET',
-  'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
   'SANDBOX_TOKEN',
   'OBJECT_STORE_SECRET_KEY',
   'TALE_AUDIT_PEPPER',
   'TALE_BOOTSTRAP_PASSWORD',
+] as const;
+/**
+ * Secrets an earlier release generated that this one never makes: the admin
+ * password of the sandbox LLM gateway the model relay replaced
+ * (tale-project/tale#4942). A runtime that has one keeps it, its two stores
+ * held to agree like every secret's, and its backend is still given it: with
+ * it the backend reads the spend of the keys a gateway that still runs had
+ * minted, and revokes them.
+ */
+export const RETAINED_SECRET_KEYS = [
+  'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
 ] as const;
 const TOP_UP_KEYS = new Set<string>([
   'SANDBOX_TOKEN',
@@ -31,6 +40,7 @@ const TOP_UP_KEYS = new Set<string>([
 ]);
 const MANAGED_KEYS = new Set<string>([
   ...RUNTIME_SECRET_KEYS,
+  ...RETAINED_SECRET_KEYS,
   'HOST',
   'SITE_URL',
   'ADDITIONAL_SITE_URLS',
@@ -129,8 +139,6 @@ export function parseRuntimeEnvironment(
 }
 
 function newSecret(name: string): string {
-  if (name === 'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD')
-    return generateGatewayAdminPassword();
   if (name === 'DB_PASSWORD') return randomBytes(24).toString('hex');
   if (name === 'OBJECT_STORE_SECRET_KEY')
     return randomBytes(16).toString('hex');
@@ -181,8 +189,8 @@ export function prepareRuntimeEnvironment(
       'Existing runtime has an unrecognized topology override.',
     );
     if (
-      RUNTIME_SECRET_KEYS.includes(
-        key as (typeof RUNTIME_SECRET_KEYS)[number],
+      [...RUNTIME_SECRET_KEYS, ...RETAINED_SECRET_KEYS].some(
+        (secret) => secret === key,
       ) &&
       key !== 'TALE_BOOTSTRAP_PASSWORD'
     ) {
@@ -294,6 +302,11 @@ export function prepareRuntimeEnvironment(
   for (const key of RUNTIME_SECRET_KEYS) {
     if (key !== 'TALE_BOOTSTRAP_PASSWORD')
       environment[key] = secrets[key] ?? '';
+  }
+  for (const key of RETAINED_SECRET_KEYS) {
+    const kept = secrets[key];
+    if (kept !== undefined && kept !== '') environment[key] = kept;
+    else delete environment[key];
   }
   // Source Compose fixes these to attested images/volumes. Refuse old custom
   // routes instead of silently changing a deployment that used different data.

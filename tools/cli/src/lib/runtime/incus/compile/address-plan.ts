@@ -31,7 +31,8 @@ export const SINGLETON_OFFSETS = {
   db: 6,
   'knowledge-db': 7,
   'object-store': 8,
-  'sandbox-llm-gateway': 9,
+  // .9 held the sandbox LLM gateway the model relay replaced: left free, so
+  // no other singleton's address moves.
   'sandbox-egress': 10,
   sandbox: 11,
   'bgutil-provider': 12,

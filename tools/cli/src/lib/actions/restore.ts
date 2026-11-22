@@ -11,7 +11,6 @@ import {
   BACKUP_VOLUME,
   BLOB_VOLUME,
   CONFIG_VOLUME,
-  GATEWAY_VOLUME,
   LEGACY_BLOB_VOLUME,
   LEGACY_CONFIG_VOLUME,
   RESTORABLE_ARCHIVES,
@@ -25,6 +24,7 @@ import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { verifySnapshot } from '../backup/verify-snapshot';
 import type { AppTier } from '../compose/app-tier';
 import {
+  RETIRED_SERVICES,
   ROTATABLE_SERVICES,
   SIDECAR_SERVICES,
   STATEFUL_SERVICES,
@@ -144,6 +144,10 @@ interface LiveContainer {
  * is the only handle that finds all of them. Both are judged by one state
  * word and one predicate, so a replica that is restarting or paused is
  * refused and stopped like the stateful tier already was.
+ *
+ * A model gateway an earlier release left is one of them: an older snapshot
+ * writes its store back, which must not happen under a gateway that is
+ * writing it.
  */
 async function findLiveProjectContainers(
   deps: RestoreDeps,
@@ -151,7 +155,11 @@ async function findLiveProjectContainers(
   const projectId = getProjectId();
   const live: LiveContainer[] = [];
   const named: string[] = [];
-  for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
+  for (const service of [
+    ...STATEFUL_SERVICES,
+    ...SIDECAR_SERVICES,
+    ...RETIRED_SERVICES,
+  ]) {
     named.push(`${projectId}-${service}`);
   }
   // The dev stack pins its names; production runs the same services inside a
@@ -197,15 +205,11 @@ function hasBlobArchive(manifest: SnapshotManifest): boolean {
   );
 }
 
-function hasGatewayArchive(manifest: SnapshotManifest): boolean {
-  return GATEWAY_VOLUME in manifest.volumes;
-}
-
 function printSnapshotList(snapshots: SnapshotManifest[]): void {
   logger.table(
     snapshots.map((snapshot) => [
       snapshot.id,
-      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${kindOf(snapshot)}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}${hasGatewayArchive(snapshot) ? '' : ' · without gateway'}`,
+      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${kindOf(snapshot)}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}`,
     ]),
   );
 }
@@ -422,15 +426,6 @@ export async function restore(
     if (!volumes.includes(CONFIG_VOLUME)) {
       logger.warn(
         `Snapshot ${snapshotId} has no ${CONFIG_VOLUME} (or ${LEGACY_CONFIG_VOLUME}) archive — the org config store is left untouched. This snapshot is incomplete.`,
-      );
-    }
-    // Snapshots taken before the gateway's store was captured still restore
-    // everything they hold. What they cannot do is undo a gateway upgrade: a
-    // newer gateway migrated that store forward-only, and an older release
-    // started on it afterwards runs on the migrated store.
-    if (!volumes.includes(GATEWAY_VOLUME)) {
-      logger.warn(
-        `Snapshot ${snapshotId} has no ${GATEWAY_VOLUME} archive (taken before snapshots captured the model gateway's store, or without a gateway) — the gateway volume is left untouched, so this snapshot cannot return the model gateway to its store from before a gateway upgrade. If the gateway was upgraded after this snapshot, put your own copy of ${prefix}${GATEWAY_VOLUME} back before you deploy the snapshot's release.`,
       );
     }
 

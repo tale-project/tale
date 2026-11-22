@@ -8,11 +8,7 @@ import { z } from 'zod';
 
 import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
-import {
-  GATEWAY_VOLUME,
-  isValidSnapshotId,
-  RESTORABLE_ARCHIVES,
-} from '../backup/constants';
+import { isValidSnapshotId, RESTORABLE_ARCHIVES } from '../backup/constants';
 import { createSnapshot } from '../backup/create-snapshot';
 import { verifySnapshot } from '../backup/verify-snapshot';
 import { verifyArtifactBytes } from '../config/releases/artifacts';
@@ -166,58 +162,6 @@ const deploymentIntentSchema = z.strictObject({
   snapshot: recoverySnapshotSchema.optional(),
   supersededBundles: supersededBundlesSchema.optional(),
 });
-
-/**
- * A newer model gateway migrates its store in `llm-gateway-data` in place,
- * forward-only, the first time it starts on it, and only an archive of that
- * volume taken before then can return it. A snapshot this CLI takes holds the
- * volume whenever it exists, but a pending deployment keeps the recovery point
- * it recorded before it began: a snapshot taken by a CLI that did not capture
- * the gateway store yet, or none after an older CLI's takeover. A snapshot taken now cannot
- * stand in for either: the interrupted rollout may already have migrated the
- * store. So a rollout that would start a gateway image the store has not run
- * is refused, before anything is written, the pending receipt included. A
- * rollout on an image the store has already run only says what the snapshot
- * lacks: whatever that start did to the store is done.
- */
-function requireGatewayRecoveryPoint(
-  snapshot: z.infer<typeof recoverySnapshotSchema> | undefined,
-  retained: boolean,
-  pending: boolean,
-  readyBefore: boolean,
-  preview: RuntimeResult,
-  prefix: string,
-): void {
-  if (snapshot && GATEWAY_VOLUME in snapshot.volumes) return;
-  // A deployment that was never ready records no snapshot: its gateway store
-  // is the one its own rollout created.
-  if (!snapshot && !readyBefore) return;
-  if (!preview.existing || !preview.gateway.volume) return;
-  if (!preview.gateway.newImage) {
-    if (snapshot)
-      logger.warn(
-        `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}: restoring it leaves the model gateway's store as it is now.`,
-      );
-    return;
-  }
-  const volume = `${prefix}${GATEWAY_VOLUME}`;
-  const start = `this rollout would start gateway image ${preview.gateway.target ?? '(unknown)'} on ${volume}, and nothing shows the store has run it (${preview.gateway.running ? `its gateway container runs ${preview.gateway.running}` : 'no gateway container runs'}); a newer gateway migrates that store forward-only`;
-  const onward =
-    'While no runtime rollout is pending, a reviewed bundle that still resolves the gateway image the deployment last ran can take it over (`supersedesPendingBundle`), and the rollout after it takes a snapshot that holds the gateway store; otherwise the CLI has no way forward for this state.';
-  if (!snapshot)
-    throw preconditionError(
-      `The pending deployment recorded no recovery snapshot, and ${start}.`,
-      `Nothing was changed and the pending receipt is kept: its earlier takeover may already have changed the stack, so a snapshot taken now cannot stand in for the missing one. ${onward} That takeover has no recovery point either.`,
-    );
-  throw preconditionError(
-    `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}, and ${start}.`,
-    retained
-      ? `Nothing was changed. Do not remove the pending receipt: a snapshot taken now could already hold a migrated store. ${onward}`
-      : pending
-        ? 'The runtime was not touched and the pending receipt was left as it was; retry to take the snapshot again.'
-        : 'The runtime was not touched and no pending deployment was recorded; retry to take the snapshot again.',
-  );
-}
 
 function nativeInput(
   bundle: DeploymentBundle,
@@ -891,14 +835,6 @@ async function applyVerifiedDeployment(
       snapshot = recoverySnapshotSchema.parse(created);
       snapshotTaken = true;
     }
-    requireGatewayRecoveryPoint(
-      snapshot,
-      intent !== undefined && !snapshotTaken,
-      intent !== undefined,
-      previous !== undefined,
-      preview,
-      `${bundle.spec.composeProject}_`,
-    );
     if (snapshot)
       await (dependencies.verifySnapshot ?? verifySnapshot)(
         `${bundle.spec.composeProject}_`,

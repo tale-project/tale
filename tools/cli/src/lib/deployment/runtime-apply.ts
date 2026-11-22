@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
-import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
+import { BACKUP_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
 import { assertDockerEngineSupported } from '../docker/setup-checks';
 import { cutoverLegacyAutomation } from './automation-cutover';
@@ -669,20 +669,6 @@ export const startedAtSchema = z.iso
   .datetime({ offset: true })
   .regex(/T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/);
 
-/** A running container has started; a stopped one only by a start time in
- * Moby's contract after the Unix epoch, so an empty, malformed or zero time is
- * no evidence that its image ever ran. */
-function hasStarted(container: RuntimeContainer): boolean {
-  if (container.State.Running) return true;
-  const startedAt = startedAtSchema.safeParse(container.State.StartedAt);
-  if (!startedAt.success) return false;
-  // Date.parse keeps milliseconds only. The whole second is exact, and the
-  // fraction decides alone for a start within the epoch's own second.
-  const second = Date.parse(startedAt.data.replace(/\.\d+/, ''));
-  const fraction = /\.(\d+)/.exec(startedAt.data)?.[1] ?? '';
-  return second > 0 || (second === 0 && /[1-9]/.test(fraction));
-}
-
 /** One record of `docker volume ls --format '{{json .}}'`. Its name is opaque:
  * Moby leaves the rule to each volume driver, and a plugin may choose any. */
 const volumeRecordSchema = z.object({ Name: z.string().min(1) });
@@ -690,8 +676,8 @@ const volumeRecordSchema = z.object({ Name: z.string().min(1) });
 /**
  * The names of the volumes Docker listed, read only once every line is a
  * record with a name. A listing that is not a list of records is not an
- * inventory: filtered as one, it would read every volume, the gateway store's
- * included, as absent. An empty listing is a host without volumes.
+ * inventory: filtered as one, it would read every volume as absent. An empty
+ * listing is a host without volumes.
  */
 function projectVolumeName(project: string, source: string): string {
   return `${project}_${source}`;
@@ -704,48 +690,6 @@ function volumeInventory(stdout: string): string[] {
   const parsed = z.array(volumeRecordSchema).safeParse(records);
   requireRuntime(parsed.success, 'Docker volume metadata is incomplete.');
   return parsed.data.map((record) => record.Name);
-}
-
-/**
- * The model gateway's store as the runtime finds it, before anything changes.
- * The store has run the target image when a ready runtime receipt lists it or
- * a gateway container on it has started; only a start on an image the store
- * has not run can migrate it. `inspectedDigests` holds the digests an
- * adoption read for tag-referenced containers.
- */
-function gatewayState(
-  receipt: RuntimeReceipt | null,
-  containers: RuntimeContainer[],
-  bundle: RuntimeBundle,
-  volume: boolean,
-  inspectedDigests: ReadonlyMap<string, string>,
-): RuntimeResult['gateway'] {
-  const target = bundle.images.find((image) =>
-    image.services.includes('sandbox-llm-gateway'),
-  );
-  const container = containers.find(
-    (candidate) =>
-      candidate.Config.Labels?.['com.docker.compose.service'] ===
-      'sandbox-llm-gateway',
-  );
-  const ranTarget =
-    target !== undefined &&
-    ((receipt?.phase === 'ready' &&
-      receipt.images.some(
-        (image) =>
-          image.services.includes('sandbox-llm-gateway') &&
-          image.digest === target.digest,
-      )) ||
-      (container !== undefined &&
-        hasStarted(container) &&
-        (container.Config.Image === target.reference ||
-          inspectedDigests.get(container.Config.Image) === target.digest)));
-  return {
-    volume,
-    newImage: !ranTarget,
-    target: target?.reference ?? null,
-    running: container?.State.Running ? container.Config.Image : null,
-  };
 }
 
 function healthy(
@@ -980,7 +924,6 @@ export async function applyRuntime(
     existsSync(join(options.stateDirectory, 'secrets.env')) ||
     existsSync(join(sourceDirectory, '.env')) ||
     Boolean(receipt?.existing);
-  const inspectedDigests = new Map<string, string>();
   if (!receipt) {
     if (existing) {
       requireRuntime(
@@ -1022,7 +965,6 @@ export async function applyRuntime(
           null,
           dependencies,
         );
-        inspectedDigests.set(container.Config.Image, current.digest);
         if (expected.repository.startsWith(`${TALE_REGISTRY}/`)) {
           const currentRevision = revisionSchema.safeParse(current.revision);
           requireRuntime(
@@ -1101,16 +1043,6 @@ export async function applyRuntime(
     );
   };
   await checkInstalledProtocol();
-  // Read before anything changes: the result keeps what the rollout found.
-  const gateway = gatewayState(
-    receipt,
-    containers,
-    bundle,
-    projectVolumes.includes(
-      projectVolumeName(options.composeProject, GATEWAY_VOLUME),
-    ),
-    inspectedDigests,
-  );
   const environment = prepareRuntimeEnvironment(
     options,
     bundle.revision,
@@ -1213,7 +1145,6 @@ export async function applyRuntime(
     revision: bundle.revision,
     changed,
     existing,
-    gateway,
     dryRun: options.dryRun ?? false,
   });
   if (options.dryRun) {

@@ -74,7 +74,7 @@ jobs:
             echo '::error::Version must be an exact semantic version'; exit 1
           fi
           # Start the longest native builds first within the bounded matrix.
-          SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","session-manager","proxy","sandbox-llm-gateway","sandbox","sandbox-egress","sandbox-buildkitd"]'
+          SERVICE_NAMES='["sandbox-runtime","platform","db","web","docs","ui-docs","session-manager","proxy","sandbox","sandbox-egress","sandbox-buildkitd"]'
           if [ "$SITES_ONLY" = true ]; then SERVICE_NAMES='["web","docs","ui-docs"]'; fi
           {
             echo "sites_only=$SITES_ONLY"

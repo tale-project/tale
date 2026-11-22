@@ -41,7 +41,6 @@ export const RUNTIME_SERVICES = [
   'proxy',
   'sandbox-egress',
   'sandbox',
-  'sandbox-llm-gateway',
 ] as const;
 export const TALE_REGISTRY = 'ghcr.io/tale-project/tale';
 export const RUNTIME_FILES = ['compose.yml', 'Caddyfile.production'] as const;
@@ -105,8 +104,8 @@ export const runtimeBundleSchema = z
      * refusing it, and the reader checks the file against this word. */
     organizationCreatorsDeclared: z.literal(true).optional(),
     /** Recorded only when the deployment declares the Incus sandbox: the
-     * sandbox, backend API and LLM gateway services are then in the Incus
-     * shape, and the reader checks the compose file against this record. */
+     * sandbox and backend API services are then in the Incus shape, and the
+     * reader checks the compose file against this record. */
     sandbox: sandboxBundleSchema.optional(),
     // Legacy bundles remain deployable; read-only acceptance requires the
     // inventory prepared from the exact runtime source, including TS data migrations.
@@ -169,8 +168,8 @@ export interface PrepareRuntimeOptions {
   /** Declared organization creators: the proxy policy hands organization
    * creation to the backend instead of refusing it at the edge. */
   organizationCreators?: readonly string[];
-  /** The declared Incus sandbox: the bundle's sandbox, backend API and LLM
-   * gateway services are prepared in their Incus shape. */
+  /** The declared Incus sandbox: the bundle's sandbox and backend API
+   * services are prepared in their Incus shape. */
   sandbox?: SandboxPrepare;
   /** The Incus runtime (design D-39): images are read from their registry
    * with no Docker daemon, the sandbox is always in its Incus shape on the
@@ -211,20 +210,6 @@ export interface RuntimeResult {
   revision: string;
   changed: boolean;
   existing: boolean;
-  /**
-   * The model gateway's store as this runtime found it, before any change:
-   * whether its volume exists; the gateway image the runtime starts (`target`)
-   * and the one a container runs now (`running`, `null` when none runs); and
-   * whether the store has not run the target yet (`newImage`: no ready runtime
-   * receipt lists it and no gateway container on it has started) — the only
-   * start on which a newer gateway migrates that store forward-only.
-   */
-  gateway: {
-    volume: boolean;
-    newImage: boolean;
-    target: string | null;
-    running: string | null;
-  };
   dryRun: boolean;
 }
 
@@ -297,9 +282,9 @@ export type ComposeDocument = Record<string, unknown> & {
 };
 /**
  * `sandbox` is the Incus record of a bundle that has one. Only then does the
- * sandbox service mount the Incus credentials and do the backend API and the
- * LLM gateway publish the two ports on the declared address; a source and a
- * Docker bundle are refused either.
+ * sandbox service mount the Incus credentials and does the backend API
+ * publish its two ports (the API and the model relay) on the declared
+ * address; a source and a Docker bundle are refused either.
  */
 export function parseCompose(
   source: string,

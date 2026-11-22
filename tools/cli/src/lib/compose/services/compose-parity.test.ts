@@ -45,7 +45,6 @@ import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
 } from './create-sandbox-egress-service';
-import { createSandboxLlmGatewayService } from './create-sandbox-llm-gateway-service';
 import { createSandboxService } from './create-sandbox-service';
 import {
   backendApiLabels,
@@ -518,17 +517,6 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(90 + 15);
     expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
   });
-
-  // The gateway drains its model calls on SIGTERM and then writes its budget
-  // counters; Docker's 10s default would cut the streams and that write
-  // alike.
-  test('model gateway lets its calls in flight finish in both pipelines', () => {
-    const fromCompose =
-      compose.services['sandbox-llm-gateway']?.stop_grace_period;
-    const generated = createSandboxLlmGatewayService(config).stop_grace_period;
-    expect(graceSeconds(fromCompose)).toBe(90);
-    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
-  });
 });
 
 describe('memory reservation parity', () => {
@@ -598,33 +586,32 @@ describe('memory reservation parity', () => {
   });
 });
 
-describe('model gateway memory parity', () => {
-  // The gateway's memory grows with the sessions that run at once. `tale
-  // deploy` derives its limit from SANDBOX_MAX_SESSIONS; compose.yml cannot
-  // derive one variable from another, so its default must be the limit the
-  // CLI gives an unset capacity, and both take SANDBOX_LLM_GATEWAY_MEMORY
-  // first.
-  const original = {
-    memory: process.env.SANDBOX_LLM_GATEWAY_MEMORY,
-    sessions: process.env.SANDBOX_MAX_SESSIONS,
-  };
-
-  afterEach(() => {
-    if (original.memory === undefined) {
-      delete process.env.SANDBOX_LLM_GATEWAY_MEMORY;
-    } else process.env.SANDBOX_LLM_GATEWAY_MEMORY = original.memory;
-    if (original.sessions === undefined)
-      delete process.env.SANDBOX_MAX_SESSIONS;
-    else process.env.SANDBOX_MAX_SESSIONS = original.sessions;
+// The model relay in the backend replaced the sandbox LLM gateway
+// (tale-project/tale#4942). A deployment that ran the gateway may keep its
+// container while keys it minted settle, and its backend still signs in to it
+// with the admin password `.env` holds: both pipelines hand the backend the
+// workspace's `.env` whole, so the password reaches it where it is set.
+describe('the retired model gateway', () => {
+  test('neither pipeline runs the gateway or declares its volume', () => {
+    const stateful = parse(generateStatefulCompose(config, 'localhost')) as {
+      services: Record<string, unknown>;
+      volumes: Record<string, unknown>;
+    };
+    expect(Object.keys(compose.services)).not.toContain('sandbox-llm-gateway');
+    expect(Object.keys(compose.volumes ?? {})).not.toContain(
+      'llm-gateway-data',
+    );
+    expect(Object.keys(stateful.services)).not.toContain('sandbox-llm-gateway');
+    expect(Object.keys(stateful.volumes)).not.toContain('llm-gateway-data');
   });
 
-  test('compose.yml defaults to the limit the CLI gives an unset capacity', () => {
-    delete process.env.SANDBOX_LLM_GATEWAY_MEMORY;
-    delete process.env.SANDBOX_MAX_SESSIONS;
-    const generated = createSandboxLlmGatewayService(config).mem_limit;
-    expect(compose.services['sandbox-llm-gateway']?.mem_limit).toBe(
-      `\${SANDBOX_LLM_GATEWAY_MEMORY:-${generated}}`,
-    );
+  test('both pipelines hand the backend the workspace .env, gateway password included', () => {
+    for (const name of ['backend-api', 'backend-worker'])
+      expect(JSON.stringify(compose.services[name]?.env_file), name).toContain(
+        '.env',
+      );
+    expect(createBackendApiService(config).env_file).toEqual(['.env']);
+    expect(createBackendWorkerService(config).env_file).toEqual(['.env']);
   });
 });
 
@@ -2333,6 +2320,18 @@ describe('the switch role of the proxy image (Incus)', () => {
     expect(settings(':3005')).toEqual([
       'import /switch/backend-api.upstreams',
       'health_uri /admission',
+      'health_interval 2s',
+      'lb_try_duration 5s',
+      'lb_try_interval 250ms',
+      'flush_interval -1',
+    ]);
+    // The model relay of the same replicas, where a session calls its models
+    // (tale-project/tale#4942), admitted by the API's own probe on the API's
+    // port, so a withdrawn replica leaves both.
+    expect(settings(':8080')).toEqual([
+      'import /switch/model-relay.upstreams',
+      'health_uri /admission',
+      'health_port 3005',
       'health_interval 2s',
       'lb_try_duration 5s',
       'lb_try_interval 250ms',

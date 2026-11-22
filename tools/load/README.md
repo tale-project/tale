@@ -219,15 +219,17 @@ skips them).
 The Load workflow's `agent-burst` profile is the reference recipe, on a hosted runner of exactly
 that size:
 
-- It builds the spawner, its egress proxy, the LLM gateway and the session runtime from the
-  checkout and starts them as `bun dev` does beside a host backend: the relay of `compose.dev.yml`
-  carries the sessions' `backend-api` to the host's api, which therefore listens on port 3005.
-- The api and the mock listen on every interface (`stack up --listen-host 0.0.0.0`) so the relay
-  and the gateway reach them across the Docker bridge, while `SITE_URL` stays
-  `http://127.0.0.1:3005`: the platform refuses plain HTTP for any other host. A firewall rule
-  drops what reaches those ports, and the mock's metrics port, on the runner's own interface.
-- The organization's provider is the mock in Anthropic format at the bridge's address: the gateway
-  passes Claude Code's own wire through to it unchanged.
+- It builds the spawner, its egress proxy and the session runtime from the checkout and starts
+  them as `bun dev` does beside a host backend: the `backend-relay` of `compose.dev.yml` carries
+  the sessions' `backend-api` to the host's api, which therefore listens on port 3005, and its
+  model relay, where a session calls its models, on port 3008 (`SANDBOX_RELAY_PORT`).
+- The api and the mock listen on every interface (`stack up --listen-host 0.0.0.0`) so the
+  `backend-relay` reaches the api across the Docker bridge and the api reaches the mock at the
+  bridge's address, while `SITE_URL` stays `http://127.0.0.1:3005`: the platform refuses plain
+  HTTP for any other host. A firewall rule drops what reaches those ports, and the mock's metrics
+  port, on the runner's own interface.
+- The organization's provider is the mock in Anthropic format at the bridge's address: the model
+  relay in the api passes Claude Code's own wire through to it unchanged.
 - Swap is off, so a shortage of memory shows as one rather than as slowness, and the kernel log is
   open to the job's user.
 

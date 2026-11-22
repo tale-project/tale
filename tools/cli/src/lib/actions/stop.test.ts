@@ -47,7 +47,6 @@ function environment(engine: 'docker' | 'incus'): FakeRuntime {
     'proxy',
     'sandbox',
     'sandbox-egress',
-    'sandbox-llm-gateway',
     'bgutil-provider',
     ...(engine === 'incus' ? ['names', 'names-sessions', 'switch'] : []),
   ];
@@ -101,6 +100,34 @@ describe('tale stop', () => {
     expect(fake.journal).toContain(`stop ${PROJECT}-blue-platform-1 -t 45`);
     // A service that declares none keeps Docker's own.
     expect(fake.journal).toContain(`stop ${PROJECT}-bgutil-provider`);
+  });
+
+  // The model relay in the backend replaced the sandbox LLM gateway
+  // (tale-project/tale#4942), and a deploy keeps a gateway an earlier release
+  // left while keys it minted settle. It is a container of the project like
+  // any other: no compose file this CLI writes declares its grace, so it
+  // keeps the stop timeout its own compose file gave it, and the placement
+  // table, which no longer knows it, puts it in the middle group.
+  test('a gateway an earlier release left stops and starts with the middle group, within its own stop timeout', async () => {
+    const fake = environment('docker');
+    const gateway = `${PROJECT}-sandbox-llm-gateway`;
+    fake.seedInstance({
+      name: gateway,
+      stack: PROJECT,
+      service: 'sandbox-llm-gateway',
+      image: 'ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:0.5.95',
+    });
+    expect(stopGroupOf('sandbox-llm-gateway')).toBe(50);
+
+    await stopEnvironment({ deployDir, runtime: fake });
+    expect(fake.journal).toContain(`stop ${gateway}`);
+    expect(groupsOf(fake, 'stop')).toEqual([90, 50, 10]);
+
+    fake.journal.length = 0;
+    await startEnvironment({ deployDir, runtime: fake, healthTimeout: 5 });
+    expect(fake.journal).toContain(`start ${gateway}`);
+    expect(groupsOf(fake, 'start')).toEqual([10, 50, 90]);
+    expect(fake.instances.get(gateway)?.state).toBe('running');
   });
 
   // `platform` as the whole application hands its automation runs on like a

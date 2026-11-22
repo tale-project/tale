@@ -131,10 +131,10 @@ export function sandboxShapeOf(compose: ComposeDocument): SandboxShape {
 export const INCUS_BACKEND_MARKER =
   'services/sandbox/src/backend/incus/incus-config.ts';
 
-/** The ports the backend API and the LLM gateway answer on, which sessions in
- * Incus dial through the address the deployment declares. */
+/** The ports the backend API and its model relay answer on, which sessions
+ * in Incus dial through the address the deployment declares. */
 const BACKEND_API_PORT = 3005;
-const LLM_GATEWAY_PORT = 8080;
+const MODEL_RELAY_PORT = 8080;
 
 /** The six variables the Incus shape sets to a literal. */
 const LITERAL_VARIABLES = [
@@ -281,15 +281,14 @@ export function sandboxBundle(
   });
 }
 
-/** The two port lists that publish the services sessions dial. */
-export function sandboxPorts(address: string): {
-  'backend-api': string[];
-  'sandbox-llm-gateway': string[];
-} {
+/** The port list that publishes what sessions dial: the backend API and
+ * the model relay beside it, which replaced the sandbox LLM gateway
+ * (tale-project/tale#4942). */
+export function sandboxPorts(address: string): { 'backend-api': string[] } {
   return {
-    'backend-api': [`${address}:${BACKEND_API_PORT}:${BACKEND_API_PORT}`],
-    'sandbox-llm-gateway': [
-      `${address}:${LLM_GATEWAY_PORT}:${LLM_GATEWAY_PORT}`,
+    'backend-api': [
+      `${address}:${BACKEND_API_PORT}:${BACKEND_API_PORT}`,
+      `${address}:${MODEL_RELAY_PORT}:${MODEL_RELAY_PORT}`,
     ],
   };
 }
@@ -328,11 +327,11 @@ export interface SandboxShapeOptions {
 }
 
 /**
- * Turn the sandbox, backend API and LLM gateway services of a prepared Docker
- * bundle into their Incus shape, and hold the result to the reader's rule.
- * The other eight services are not touched. On the Incus runtime
- * (`publish: false`) the two services publish nothing: the sessions reach
- * them at their addresses in the plan.
+ * Turn the sandbox and backend API services of a prepared Docker bundle into
+ * their Incus shape, and hold the result to the reader's rule. The other
+ * eight services are not touched. On the Incus runtime (`publish: false`) the
+ * backend API publishes nothing: the sessions reach it at its address in the
+ * plan.
  */
 export function applyIncusShape(
   compose: ComposeDocument,
@@ -363,12 +362,10 @@ export function applyIncusShape(
       (mount) => mount !== DOCKER_SOCKET_MOUNT && mount !== SESSION_ROOT_MOUNT,
     ),
   ];
-  if (shape.publish) {
-    const ports = sandboxPorts(sandbox.address);
-    compose.services['backend-api'].ports = ports['backend-api'];
-    compose.services['sandbox-llm-gateway'].ports =
-      ports['sandbox-llm-gateway'];
-  }
+  if (shape.publish)
+    compose.services['backend-api'].ports = sandboxPorts(sandbox.address)[
+      'backend-api'
+    ];
   assertSandboxShape(compose, sandbox, sandbox.image, shape);
 }
 
@@ -430,15 +427,12 @@ export function assertSandboxShape(
       REMOVED_VARIABLES.every((name) => environment[name] === undefined),
     'Runtime sandbox environment differs from the Incus shape.',
   );
-  const ports = shape.publish
-    ? sandboxPorts(sandbox.address)
-    : { 'backend-api': undefined, 'sandbox-llm-gateway': undefined };
+  const published = shape.publish
+    ? sandboxPorts(sandbox.address)['backend-api']
+    : undefined;
   must(
     JSON.stringify(compose.services['backend-api'].ports) ===
-      JSON.stringify(ports['backend-api']) &&
-      JSON.stringify(compose.services['sandbox-llm-gateway'].ports) ===
-        JSON.stringify(ports['sandbox-llm-gateway']) &&
-      JSON.stringify(service.ports ?? []) === '[]',
+      JSON.stringify(published) && JSON.stringify(service.ports ?? []) === '[]',
     'Runtime published ports differ from the Incus shape.',
   );
 }

@@ -928,6 +928,24 @@ describe('rollback confirmation', () => {
     expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
   });
 
+  // The model relay replaced the sandbox LLM gateway (tale-project/tale#4942).
+  // A rollback runs a release of the same minor, which runs none, so it never
+  // starts a gateway a deploy retired, nor makes its volume again.
+  test('starts no model gateway and makes no volume for one', async () => {
+    arrangePatchRollback();
+
+    await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+
+    expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+    const named = (calls: unknown[][]): boolean =>
+      calls.some((call) => JSON.stringify(call).includes('llm-gateway'));
+    expect(ensureVolumesMock).toHaveBeenCalled();
+    expect(named(ensureVolumesMock.mock.calls)).toBe(false);
+    expect(named(dockerComposeMock.mock.calls)).toBe(false);
+    expect(named(dockerMock.mock.calls)).toBe(false);
+    expect(named(pullImageMock.mock.calls)).toBe(false);
+  });
+
   // What a deploy refuses before it pulls, a rollback refuses there too:
   // both read the same .env.
   test.each([

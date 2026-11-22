@@ -29,10 +29,10 @@ interface DefaultServiceSelection {
  *    colour runs them apart) → always, as one blue-green colour. They are
  *    the stateless application tier: one image and one set of wire
  *    contracts, so they move together.
- *  - always-roll (`sandbox-llm-gateway`, `sandbox`, `sandbox-egress`) →
- *    always, in-place via the stateful compose. The sandbox tier is a
- *    singleton by construction (it holds docker.sock and the session
- *    directory) and is drained via /v1/drain before its recreate (deploy.ts).
+ *  - always-roll (`sandbox`, `sandbox-egress`) → always, in-place via the
+ *    stateful compose. The sandbox tier is a singleton by construction (it
+ *    holds docker.sock and the session directory) and is drained via
+ *    /v1/drain before its recreate (deploy.ts).
  *  - stop-gated (`db`, `proxy`) → only when already stopped, on a first deploy,
  *    or when the operator opts into the downtime with `--stop`; otherwise left
  *    running and surfaced in `leftRunning` so the caller can warn.

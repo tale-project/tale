@@ -32,7 +32,6 @@ const STACK_VIEW = {
 const SESSION_VIEW = {
   'backend-api': ['10.30.1.5'],
   'backend-relay': ['10.30.1.5'],
-  'sandbox-llm-gateway': ['10.30.1.9'],
 };
 
 describe('the resolvers read what the plan names (design D-16, 5.4)', () => {
@@ -67,7 +66,6 @@ describe('the resolvers read what the plan names (design D-16, 5.4)', () => {
         'local=//',
         'local=/backend-api/',
         'local=/backend-relay/',
-        'local=/sandbox-llm-gateway/',
         '',
       ].join('\n'),
     );
@@ -97,7 +95,6 @@ describe('the resolvers read what the plan names (design D-16, 5.4)', () => {
         '# names-hosts/1',
         '10.30.1.5 backend-api',
         '10.30.1.5 backend-relay',
-        '10.30.1.9 sandbox-llm-gateway',
         '',
       ].join('\n'),
     );

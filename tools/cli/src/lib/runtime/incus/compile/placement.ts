@@ -104,12 +104,6 @@ export const PLACEMENT = {
     start: 70,
     stop: STOP_GROUPS.middle,
   },
-  'sandbox-llm-gateway': {
-    kind: 'service',
-    address: { singleton: 'sandbox-llm-gateway' },
-    start: 60,
-    stop: STOP_GROUPS.middle,
-  },
   sandbox: {
     kind: 'service',
     address: { singleton: 'sandbox' },

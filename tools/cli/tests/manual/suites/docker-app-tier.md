@@ -41,6 +41,23 @@ chat and one indexed document in it.
 - [ ] `APP-F8` · **Run `docker inspect <project>-<colour>-platform-1 --format '{{.HostConfig.MemoryReservation}} {{.HostConfig.Memory}} {{.Config.StopTimeout}}'`, then `docker inspect <project>-sandbox --format '{{range .Config.Env}}{{println .}}{{end}}' | grep SANDBOX_RESERVED_MEMORY`** → on a cgroup v2 host that sets no reservation variable the first reads `268435456 12884901888 120` and the second `SANDBOX_RESERVED_MEMORY=768m`.
 - [ ] `APP-F15` · **Leave the app untouched for a minute, then run `docker exec <project>-db psql -U tale -d postgres -Atc "select application_name, datname, count(*) from pg_stat_activity where backend_type = 'client backend' and pid <> pg_backend_pid() group by 1, 2 order by 1, 2"`** → the counts add up to about ten and to no more than 15: at most 4 named `postgres.js` on `tale_app`, at most 4 named `tale-backend` (the job queue's three and the one that listens), at most 2 with no name (sign-in sessions) and at most 5 named `postgres.js` on `tale_knowledge`.
 
+## Retire the model gateway · the workspace of the group above · 20 min
+
+The earlier release ran the sandbox LLM gateway, which the model relay in the
+backend replaced. A deploy retires it once the live backend says no key the
+gateway minted is open; the first deploy of this release asks the earlier
+release's backend, which cannot say. The chat the earlier release made ran no
+agent turn in a sandbox, so no such key is open. **Run this group before any
+other `tale deploy` without `--services`: the first of them retires the
+gateway.**
+
+- [ ] `APP-F31` · **Read the output of the deploy in `APP-F2`, then run `docker ps -a --format '{{.Names}} {{.Status}}' | grep llm-gateway`** → the deploy printed `Kept the model gateway <project>-sandbox-llm-gateway as it is: the backend could not say whether keys it minted are still open (…)` with a reason that names a `404`, and went on to the new colour; the command prints `<project>-sandbox-llm-gateway Up …`, up since before the deploy.
+- [ ] `APP-F32` · **Run `tale stop`, then `docker ps -a --format '{{.Names}} {{.Status}}' | grep llm-gateway`, then `tale start`, then the `docker ps` command again** → `tale stop` names `<project>-sandbox-llm-gateway` in the group with `<project>-sandbox`, and the first command prints a status that begins `Exited`; `tale start` exits `0`, and the second prints `Up …`.
+- [ ] `APP-F33` · **Run `tale deploy --dry-run`, then the `docker ps` command of `APP-F31`** → the preview exits `0` and prints `[DRY-RUN] Would retire the model gateway <project>-sandbox-llm-gateway: no key it minted is open. Its volume <project>_llm-gateway-data would be kept.`; the container is still up.
+- [ ] `APP-F34` · **Run `tale deploy`, then `docker ps -a --format '{{.Names}}' | grep llm-gateway` and `docker volume ls --format '{{.Name}}' | grep llm-gateway`** → the deploy exits `0` and prints `Retired the model gateway <project>-sandbox-llm-gateway: no key it minted is open, …`, naming `<project>_llm-gateway-data` and `docker volume rm <project>_llm-gateway-data`; the first command prints nothing, the second prints `<project>_llm-gateway-data`.
+- [ ] `APP-F35` · **Send a chat message that makes the assistant run code, as in `APP-F6`** → the reply shows the code ran and gives `42`: the session reached its model through the relay, with no gateway running.
+- [ ] `APP-F36` · **Run `tale backup`, then `tale restore` and `docker run --rm -v <project>_backups:/backups:ro alpine:3.22 ls /backups/<the new snapshot>`** → the listing marks no snapshot for leaving the gateway out, and the snapshot holds no `llm-gateway-data.tar.gz`.
+
 ## Replace the one process in place · the workspace of the group above · 10 min
 
 - [ ] `APP-F9` · **Note the ID `docker ps -q --filter name=<project>-<colour>-platform-1` prints, run `tale deploy --services platform`, then print the ID again** → the deploy exits `0`, warns that it replaces the live colour's replicas in place, and prints `Draining in-flight chat turns and automation steps on the <colour> api...` before it recreates the container; the ID changed, the colour did not, and the app answers again.

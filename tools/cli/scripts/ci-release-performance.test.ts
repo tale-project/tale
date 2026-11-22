@@ -345,7 +345,6 @@ const FULL_COHORT = [
   'ui-docs',
   'session-manager',
   'proxy',
-  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',
@@ -529,7 +528,7 @@ test
 test
   .skipIf(process.platform === 'win32')
   .each(['', 'platform', 'sandbox-runtime'])(
-  'final manifest checks preserve all twelve services and aggregate failure %s',
+  'final manifest checks preserve all eleven services and aggregate failure %s',
   async (failure) => {
     const directory = await fixture();
     const services = [
@@ -540,7 +539,6 @@ test
       'docs',
       'ui-docs',
       'session-manager',
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'sandbox-buildkitd',

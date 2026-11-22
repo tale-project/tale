@@ -470,10 +470,6 @@
       "name": "@tale/sandbox-egress",
       "version": "0.1.0",
     },
-    "services/sandbox-llm-gateway": {
-      "name": "@tale/sandbox-llm-gateway",
-      "version": "0.1.0",
-    },
     "services/sandbox-runtime": {
       "name": "@tale/sandbox-runtime",
       "version": "0.1.0",
@@ -2102,8 +2098,6 @@
     "@tale/sandbox-buildkitd": ["@tale/sandbox-buildkitd@workspace:services/sandbox-buildkitd"],
 
     "@tale/sandbox-egress": ["@tale/sandbox-egress@workspace:services/sandbox-egress"],
-
-    "@tale/sandbox-llm-gateway": ["@tale/sandbox-llm-gateway@workspace:services/sandbox-llm-gateway"],
 
     "@tale/sandbox-runtime": ["@tale/sandbox-runtime@workspace:services/sandbox-runtime"],
 

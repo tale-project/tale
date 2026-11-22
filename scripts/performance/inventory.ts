@@ -141,11 +141,6 @@ const coverage: Record<string, Coverage> = {
     remaining:
       'Tinyproxy/container network required: measure allowed and denied proxy throughput plus connection cleanup in an isolated sandbox network.',
   },
-  '@tale/sandbox-llm-gateway': {
-    workloads: [],
-    remaining:
-      'Bifrost image plus controlled mock vendor required: measure streaming/cancel/token-metering throughput without spending live model credits.',
-  },
   '@tale/sandbox-buildkitd': {
     workloads: [],
     remaining:

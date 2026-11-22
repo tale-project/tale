@@ -154,7 +154,6 @@ services/proxy/
 services/sandbox/
 services/sandbox-egress/
 services/sandbox-buildkitd/
-services/sandbox-llm-gateway/
 services/sandbox-runtime/
 !services/sandbox-runtime/daemon/package.json
 packages/incus/

@@ -41,12 +41,14 @@ export const BLOB_VOLUME = 'blob-data';
 export const LEGACY_BLOB_VOLUME = 'object-store-data';
 
 /**
- * The model gateway's store (`sandbox-llm-gateway`, mounted at `/app/data`):
- * SQLite databases holding its admin account, providers and their keys,
- * virtual keys with their budgets and spend, and its request log, each beside
- * its `-wal` and `-shm` files. A newer gateway migrates the store in place,
- * forward-only, on its first start, so only an archive taken before that start
- * can return it. The name predates the service rename and never changes.
+ * The store of the sandbox LLM gateway that earlier releases ran, which the
+ * model relay in the backend replaced (tale-project/tale#4942): SQLite
+ * databases holding its admin account, providers and their keys, the keys it
+ * minted with their budgets and spend, and its request log. A deployment keeps
+ * the volume until its operator removes it (RETIRED_VOLUMES in
+ * ../compose/generators/constants.ts), and no snapshot takes it any more; one
+ * taken while the gateway ran holds its archive, which a restore still puts
+ * back.
  */
 export const GATEWAY_VOLUME = 'llm-gateway-data';
 
@@ -68,7 +70,6 @@ export const SNAPSHOT_VOLUMES = [
   // The edge's ACME account and certificates, and the self-signed CA a
   // device may already trust.
   'proxy-data',
-  GATEWAY_VOLUME,
 ] as const;
 
 /**
@@ -86,6 +87,10 @@ export const RESTORABLE_ARCHIVES = [
   // of that name, where the deployment's blobs then are again, in MinIO's
   // format.
   LEGACY_BLOB_VOLUME,
+  // A snapshot taken while the model gateway ran. It restores into the
+  // gateway's volume, which the release the snapshot names starts its
+  // gateway on again.
+  GATEWAY_VOLUME,
 ] as const;
 
 /** The live volume an archive of this name restores into. */

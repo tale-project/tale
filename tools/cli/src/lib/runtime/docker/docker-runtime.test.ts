@@ -157,15 +157,18 @@ const platformImage = (version: string): string =>
   `${REGISTRY}/tale-platform:${version}`;
 
 /** A host that runs `LIVE` on the blue colour: the stateful tier, the
- *  sidecar and one replica of each colour role. */
+ *  sidecar, the model gateway an earlier release ran (which a deploy
+ *  retires, retire-gateway.ts) and one replica of each colour role. */
 function seedLiveBlue(fake: FakeRuntime): void {
   seedStateful(fake);
   seedColour(fake, 'blue', LIVE, 'three-way');
 }
 
-/** The stateful tier and the sidecar, at `LIVE`. */
+/** The stateful tier, the sidecar and the model gateway with its store, at
+ *  `LIVE`. */
 function seedStateful(fake: FakeRuntime): void {
   for (const name of REQUIRED_VOLUMES) fake.seedVolume(`${PROJECT}_${name}`);
+  fake.seedVolume(`${PROJECT}_llm-gateway-data`);
   // A deployment of today: its blobs are in MinIO's volume, in MinIO's
   // format, and versitygw's exists and holds nothing.
   fake.seedVolume(`${PROJECT}_object-store-data`, {
@@ -313,7 +316,6 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker run --rm -v demo-abc123_object-store-data:/data:ro alpine:3.22 sh -c find /data -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit',
   'docker info --format {{.CgroupVersion}} | silent timeout=10',
   'docker pull ghcr.io/tale-project/tale/tale-platform:0.6.1',
-  'docker pull ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:0.6.1',
   'docker pull ghcr.io/tale-project/tale/tale-sandbox:0.6.1',
   'docker pull ghcr.io/tale-project/tale/tale-sandbox-egress:0.6.1',
   'docker pull ghcr.io/tale-project/tale/tale-proxy:0.6.1',
@@ -358,7 +360,6 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker volume inspect demo-abc123_caddy-data',
   'docker volume inspect demo-abc123_caddy-config',
   'docker volume inspect demo-abc123_proxy-data',
-  'docker volume inspect demo-abc123_llm-gateway-data',
   'docker volume inspect demo-abc123_backups',
   'docker volume create --label project=demo-abc123 demo-abc123_backups',
   'docker ps -q --filter volume=demo-abc123_db-data',
@@ -367,7 +368,6 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker ps -q --filter volume=demo-abc123_caddy-data',
   'docker ps -q --filter volume=demo-abc123_caddy-config',
   'docker ps -q --filter volume=demo-abc123_proxy-data',
-  'docker ps -q --filter volume=demo-abc123_llm-gateway-data',
   'docker ps -q --filter volume=demo-abc123_db-data',
   'docker container inspect --format \u00ab91a7d366815f\u00bb <demo-abc123-db>',
   'docker pause <demo-abc123-db>',
@@ -403,13 +403,7 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker container inspect --format \u00ab91a7d366815f\u00bb <demo-abc123-proxy>',
   'docker ps -q --filter volume=demo-abc123_proxy-data',
   'docker run --rm -v demo-abc123_proxy-data:/data:ro -v demo-abc123_backups:/backup alpine:3.22 sh -c \u00abc829dad8b2b6\u00bb | timeout=1800',
-  'docker ps -q --filter volume=demo-abc123_llm-gateway-data',
-  'docker container inspect --format \u00ab91a7d366815f\u00bb <demo-abc123-sandbox-llm-gateway>',
-  'docker pause <demo-abc123-sandbox-llm-gateway>',
-  'docker run --rm -v demo-abc123_llm-gateway-data:/data:ro -v demo-abc123_backups:/backup alpine:3.22 sh -c \u00abafebf84da42b\u00bb | timeout=1800',
-  'docker unpause <demo-abc123-sandbox-llm-gateway>',
-  'docker container inspect --format \u00ab91a7d366815f\u00bb <demo-abc123-sandbox-llm-gateway>',
-  'docker run --rm -i -v demo-abc123_backups:/backup alpine:3.22 sh -c cat > /backup/<snapshot>/manifest.json | stdin=f62a0861a770',
+  'docker run --rm -i -v demo-abc123_backups:/backup alpine:3.22 sh -c cat > /backup/<snapshot>/manifest.json | stdin=fb794fda1b78',
   'docker volume inspect demo-abc123_backups',
   'docker run --rm -v demo-abc123_backups:/backup:ro alpine:3.22 sh -c for f in /backup/*/manifest.json; do [ -f "$f" ] && cat "$f" && echo; done; true',
   'docker run --rm -v demo-abc123_backups:/backup:ro alpine:3.22 sh -c for d in /backup/*/; do [ -f "${d}manifest.json" ] || basename "$d"; done; true',
@@ -442,7 +436,6 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker volume inspect demo-abc123_db-backup',
   'docker volume inspect demo-abc123_blob-data',
   'docker volume inspect demo-abc123_object-store-data',
-  'docker volume inspect demo-abc123_llm-gateway-data',
   'docker network inspect demo-abc123_internal',
   'docker network inspect tale-sandbox-net',
   'docker network inspect --format {{.Internal}}|{{.EnableIPv6}} tale-sandbox-net',
@@ -451,9 +444,7 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker container inspect --format {{.State.Running}} demo-abc123-sandbox',
   'docker exec demo-abc123-sandbox sh -c \u00ab5bbd5d50106f\u00bb',
   'docker exec demo-abc123-sandbox sh -c \u00ab9fd85dd96812\u00bb',
-  'docker compose -p demo-abc123 -f <deploy-dir>/<compose> up -d sandbox-llm-gateway sandbox sandbox-egress docker-api | cwd=<deploy-dir>',
-  'docker container inspect --format {{.State.Running}} demo-abc123-sandbox-llm-gateway',
-  'docker container inspect --format {{.State.Health.Status}} demo-abc123-sandbox-llm-gateway',
+  'docker compose -p demo-abc123 -f <deploy-dir>/<compose> up -d sandbox sandbox-egress docker-api | cwd=<deploy-dir>',
   'docker container inspect --format {{.State.Running}} demo-abc123-sandbox',
   'docker container inspect --format {{.State.Health.Status}} demo-abc123-sandbox',
   'docker container inspect --format {{.State.Running}} demo-abc123-sandbox-egress',
@@ -462,6 +453,18 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker container inspect --format {{.State.Health.Status}} demo-abc123-docker-api',
   'docker container inspect --format {{.Id}} demo-abc123-bgutil-provider',
   'docker rm -f demo-abc123-bgutil-provider',
+  // The model gateway an earlier release ran (actions/retire-gateway.ts):
+  // the live backend says no key it minted is open, so its container goes,
+  // and the removal hint reads its store, which stays.
+  'docker container inspect --format {{.Id}} demo-abc123-sandbox-llm-gateway',
+  'docker ps -a --filter label=com.docker.compose.project=demo-abc123-blue --filter label=com.docker.compose.service=backend-api --format \u00ab4fc2b80a78e6\u00bb',
+  'docker ps -a --filter label=com.docker.compose.project=demo-abc123-green --filter label=com.docker.compose.service=backend-api --format \u00ab4fc2b80a78e6\u00bb',
+  'docker ps -a --filter label=com.docker.compose.project=demo-abc123-green --filter label=com.docker.compose.service=platform --format \u00ab4fc2b80a78e6\u00bb',
+  'docker ps -a --filter label=com.docker.compose.project=demo-abc123 --filter label=com.docker.compose.service=backend-api --format \u00ab4fc2b80a78e6\u00bb',
+  'docker ps -a --filter label=com.docker.compose.project=demo-abc123 --filter label=com.docker.compose.service=platform --format \u00ab4fc2b80a78e6\u00bb',
+  'docker exec demo-abc123-blue-backend-api-1 sh -c \u00ab8430a89baf50\u00bb',
+  'docker rm -f demo-abc123-sandbox-llm-gateway',
+  'docker volume inspect demo-abc123_llm-gateway-data',
   'docker ps -a --filter label=com.docker.compose.project=demo-abc123-blue --filter label=com.docker.compose.service=platform --format \u00ab4fc2b80a78e6\u00bb',
   'docker container inspect --format \u00ab981aa748b02d\u00bb demo-abc123-blue-platform-1',
   'docker ps -a --filter label=com.docker.compose.project=demo-abc123-green --format \u00ab4fc2b80a78e6\u00bb',
@@ -964,6 +967,156 @@ async function isolatedSuite(): Promise<void> {
         expect(calls.some(({ args }) => args[0] === 'pull')).toBe(false);
         expect(calls.some(({ args }) => args[0] === 'compose')).toBe(false);
         expect(fake.instances.has(SIDECAR)).toBe(true);
+      });
+    });
+
+    // The model relay in the backend replaced the sandbox LLM gateway
+    // (tale-project/tale#4942). A deployment of an earlier release still
+    // runs one, through which keys it minted settle: where the always-roll
+    // tier converges, a deploy asks the live backend how many are open
+    // (retire-gateway.ts, whose own suite holds each answer's words).
+    describe('the model gateway an earlier release left', () => {
+      const GATEWAY = `${PROJECT}-sandbox-llm-gateway`;
+      const STORE = `${PROJECT}_llm-gateway-data`;
+      const lines = (): string[] => calls.map(({ args }) => args.join(' '));
+      /** The live backend answers the gateway's keys with `answer`. */
+      const keysAnswer = (answer: {
+        success: boolean;
+        stdout: string;
+        stderr: string;
+        exitCode: number;
+      }): void => {
+        fake.execHandler = (_instance, argv) =>
+          argv.join(' ').includes('/api/control/gateway-keys')
+            ? answer
+            : undefined;
+      };
+
+      test('is retired once no key it minted is open, after the always-roll tier converged, and its volume stays', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+
+        await run(TARGET);
+
+        expect(fake.instances.has(GATEWAY)).toBe(false);
+        expect(fake.volumes.has(STORE)).toBe(true);
+        expect(lines()).toContain(`rm -f ${GATEWAY}`);
+        expect(lines().some((line) => line.startsWith('volume rm'))).toBe(
+          false,
+        );
+        // No document the deploy brings up names the gateway or its store,
+        // and nothing pulls its image.
+        expect(
+          lines().some(
+            (line) =>
+              (line.startsWith('compose ') || line.startsWith('pull ')) &&
+              line.includes('llm-gateway'),
+          ),
+        ).toBe(false);
+        const question = lines().findIndex((line) =>
+          line.includes('/api/control/gateway-keys'),
+        );
+        const tier = lines().findIndex(
+          (line) =>
+            line.startsWith(`compose -p ${PROJECT} `) &&
+            line.includes(' up -d sandbox sandbox-egress'),
+        );
+        const colour = lines().findIndex((line) =>
+          line.startsWith(`compose -p ${PROJECT}-green `),
+        );
+        expect(tier).toBeGreaterThan(-1);
+        expect(question).toBeGreaterThan(tier);
+        expect(question).toBeLessThan(colour);
+        expect(await getCurrentColor(deployDir)).toBe('green');
+      });
+
+      test('stays as it is while turns settle through it', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        keysAnswer({
+          success: true,
+          stdout: '{"open":2}',
+          stderr: '',
+          exitCode: 0,
+        });
+        const before = fake.instances.get(GATEWAY)?.id;
+
+        await run(TARGET);
+
+        expect(fake.instances.get(GATEWAY)?.id).toBe(before);
+        expect(fake.instances.get(GATEWAY)?.state).toBe('running');
+        expect(
+          lines().some(
+            (line) =>
+              line.includes(GATEWAY) &&
+              /^(rm|stop|start|restart|update) /.test(line),
+          ),
+        ).toBe(false);
+        expect(await getCurrentColor(deployDir)).toBe('green');
+      });
+
+      // The first deploy of this release asks the live colour, which still
+      // runs the earlier release, whose backend has no such door.
+      test('stays as it is where the live backend has no answer, and the deploy goes on', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        keysAnswer({
+          success: false,
+          stdout: '',
+          stderr: 'curl: (22) The requested URL returned error: 404',
+          exitCode: 22,
+        });
+
+        await run(TARGET);
+
+        expect(fake.instances.get(GATEWAY)?.state).toBe('running');
+        expect(lines()).not.toContain(`rm -f ${GATEWAY}`);
+        expect(await getCurrentColor(deployDir)).toBe('green');
+      });
+
+      test('a dry run asks, and retires nothing', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        const { deploy } = await import('../../actions/deploy');
+
+        await deploy({
+          version: TARGET,
+          stop: false,
+          env: {
+            GHCR_REGISTRY: REGISTRY,
+            SITE_URL: 'https://localhost',
+            HEALTH_CHECK_TIMEOUT: 1,
+            DRAIN_TIMEOUT: 0,
+            DEPLOY_DIR: deployDir,
+          },
+          hostAlias: 'localhost',
+          dryRun: true,
+          quiet: true,
+        });
+
+        expect(
+          lines().some((line) => line.includes('/api/control/gateway-keys')),
+        ).toBe(true);
+        expect(fake.instances.has(GATEWAY)).toBe(true);
+        expect(lines().some((line) => line.startsWith('rm '))).toBe(false);
+        expect(await getCurrentColor(deployDir)).toBe('blue');
+      });
+
+      test('--services on the application tier leaves it to the deploy that rolls the always-roll tier', async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+
+        await run(TARGET, { services: ['platform'] });
+
+        expect(fake.instances.has(GATEWAY)).toBe(true);
+        expect(
+          lines().some((line) => line.includes('/api/control/gateway-keys')),
+        ).toBe(false);
       });
     });
 

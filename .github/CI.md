@@ -132,7 +132,7 @@ GitHub-hosted runners.
 - **CLI Incus E2E** (`cli-incus-e2e.yml`, `CI ready (CLI Incus E2E)`) is no part of the
   candidate receipts either. On a runner it builds the same Incus node from
   `services/sandbox/e2e/incus/lab.sh` (`install`, `storage`, `api`, `registry`), builds the
-  CLI and the stack's eight images from the checkout into the local registry (for this
+  CLI and the stack's seven images from the checkout into the local registry (for this
   revision and for an empty commit on top of it, the release it upgrades to), runs
   `@tale/incus`'s real tests in the project bootstrap made, then drives the compiled CLI
   through the managed path: `tale incus bootstrap`, `deploy prepare`, `deploy --bundle`
@@ -141,7 +141,7 @@ GitHub-hosted runners.
   holds as a to-do (`accept`, `observe`, the upgrade's window) is named there. The specification declares the lab's registry as
   `runtime.incus.registryMirrors` for `ghcr.io`, so the images keep the names a release
   gives them. Its PR scope runs the lab for the `cli-incus` paths of `.github/ci-scope.yml`
-  (what the CLI's Incus runtime compiles, plans and applies, the managed path, the eight stack
+  (what the CLI's Incus runtime compiles, plans and applies, the managed path, the seven stack
   images' builds, `packages/incus` and the lab), held by `ci-ready-workflows.test.ts` to the import
   closure of `tools/cli/src/lib/runtime/incus`. While the runtime is experimental the
   verdict blocks only when a pull request touches a `cli-incus-required` path
@@ -155,7 +155,7 @@ GitHub-hosted runners.
 - **Build** distinguishes the platform stack from standalone services: the web, docs and
   ui-docs sites and the session manager, which is no site but ships the same way (its own
   image, compose stack, container test and Playwright job, outside the platform stack).
-  Standalone-only changes run their container tests without building the eight-image
+  Standalone-only changes run their container tests without building the seven-image
   platform stack. Shared package, dependency, toolchain and test-harness inputs expand to
   full coverage. Release candidates always run the complete graph, regardless of changed
   paths.
@@ -163,7 +163,7 @@ GitHub-hosted runners.
   job without the platform stack; shared probes, helper libraries and platform sources
   retain full stack coverage. Storybook still scans those probe files for CSS classes.
   Forks build on their consuming smoke and image-validation runners rather than additionally
-  scheduling eight isolated builds that those runners cannot use. Published image checks
+  scheduling seven isolated builds that those runners cannot use. Published image checks
   preflight every digest receipt, pull at most three images concurrently, and check each
   source revision before tagging it locally. Every child must succeed before the runtime
   alias is created.
@@ -468,9 +468,9 @@ verdict and preserves separate logs. A standalone service is tested exactly when
 built its image: a content-site release builds none for the session manager and runs no test
 of it. Remote manifest inspections have three workers.
 Image validation resolves Compose once and reads one validated metadata snapshot per
-image, including the sandbox LLM gateway. Failed inspection, missing image references,
-disabled health checks, root users with group suffixes and concealed secret values fail
-the gate. Summaries report the actual verdict.
+image. Failed inspection, missing image references, disabled health checks, root users
+with group suffixes and concealed secret values fail the gate. Summaries report the
+actual verdict.
 
 CLI publication downloads exactly five binary artifacts, validates the complete nonempty
 set and refuses symlinks before checksumming. It rechecks the prepared release source
@@ -632,10 +632,12 @@ In [Build run 37265214548](https://github.com/tale-project/tale/actions/runs/372
 new gateway size coverage compared a 100 MiB limit calibrated from packed layers with
 Docker inspection's 255 MiB result. The exact gateway images from this run and
 Build run 37260011687 contain the same seven layer descriptors, totaling 86.45 MiB
-packed; the image did not grow. The gateway limit is now 300 MiB, about 18% above
-its observed inspection size, using the existing metric. Other image budgets stay
-unchanged. Executable fixtures accept 255 and 300 MiB and reject 301 MiB while
-retaining gateway user, health, secret and required-image checks.
+packed; the image did not grow. The gateway limit became 300 MiB, about 18% above
+its observed inspection size, using the existing metric, and other image budgets
+stayed unchanged. Later the backend's model relay replaced the sandbox LLM gateway
+([#4942](https://github.com/tale-project/tale/issues/4942)): CI no longer builds,
+checks or publishes that image, and its budget went with it. The executable fixtures
+now hold the user, health and size checks on the sandbox runtime and the proxy.
 
 [Build run 37283199187](https://github.com/tale-project/tale/actions/runs/37283199187)
 at `4653d3e3b` spent 434 seconds building and pushing the platform image, including

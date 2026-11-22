@@ -29,7 +29,7 @@ Every line a round will see at `warn` or `error` level — in the CLI's output o
 in a service's log — that is **not** a defect, with the reason. Anything not on
 this list is a finding.
 
-None recorded yet.
+- `Kept the model gateway <project>-sandbox-llm-gateway as it is: the backend could not say whether keys it minted are still open (curl: (22) The requested URL returned error: 404). …` on the first `tale deploy` of a release that retires the gateway, over a release that ran it: the deploy asks the live colour, which still runs the earlier release, whose backend has no answer yet. The next deploy asks the new backend and retires the gateway (`src/lib/actions/retire-gateway.ts`).
 
 ## Known debt
 

@@ -1,6 +1,7 @@
 // sandbox: a session the stack's own spawner makes, through its signed API as
-// the platform calls it, reaches the backend API and the LLM gateway by name
-// and nothing else of the stack: no other name resolves, and the database,
+// the platform calls it, reaches the backend API and the model relay beside it
+// by name and nothing else of the stack: no other name resolves (the sandbox
+// LLM gateway the relay replaced no longer either), and the database,
 // the platform, the proxy and the Incus API stay closed by address (design
 // 5.4, 15.5, D-31). The spawner answers its own stack alone, so the suite's
 // signed requests travel from the backend instance, as the backend's do.
@@ -97,7 +98,7 @@ function verdicts(stdout: string): Record<string, string> {
 }
 
 describe('sandbox', () => {
-  test('a session reaches the backend API and the gateway by name, and nothing else', async () => {
+  test('a session reaches the backend API and its model relay by name, and nothing else', async () => {
     deployed(lab);
     globalThis.fetch = relayed;
     const spawner = new SpawnerApi(
@@ -135,7 +136,7 @@ describe('sandbox', () => {
       'done',
       'probe() { if timeout 5 bash -c "</dev/tcp/$2/$3" 2>/dev/null; then echo "$1 open"; else echo "$1 closed"; fi; }',
       'probe reach-backend-api backend-api 3005',
-      'probe reach-sandbox-llm-gateway sandbox-llm-gateway 8080',
+      'probe reach-model-relay backend-api 8080',
       ...Object.entries(closed).map(([what, target]) => {
         const [host, port] = target.split(':');
         return `probe reach-${what} ${host} ${port}`;
@@ -150,13 +151,13 @@ describe('sandbox', () => {
     record(lab, 'sandbox', { probes: seen });
     expect(seen).toEqual({
       'resolve-backend-api': 'yes',
-      'resolve-sandbox-llm-gateway': 'yes',
+      'resolve-sandbox-llm-gateway': 'no',
       'resolve-db': 'no',
       'resolve-platform': 'no',
       'resolve-proxy': 'no',
       'resolve-object-store': 'no',
       'reach-backend-api': 'open',
-      'reach-sandbox-llm-gateway': 'open',
+      'reach-model-relay': 'open',
       'reach-db': 'closed',
       'reach-platform': 'closed',
       'reach-proxy': 'closed',

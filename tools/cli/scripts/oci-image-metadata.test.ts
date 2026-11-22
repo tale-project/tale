@@ -1358,17 +1358,10 @@ describe('every image the Dockerfiles pull is pinned by digest', () => {
  * SIGRTMIN+3 when PID 1 blocks it. Each stack image ships dumb-init 1.2.5 with
  * MAXSIG raised from 31 to 64 at `/init`, so the runtime can rewrite either to
  * the image's stop signal (patches/README.md). One build stage, byte-identical
- * in the six images, builds it from a pinned source; Docker never runs it.
+ * in the five images, builds it from a pinned source; Docker never runs it.
  */
 describe('the stack images ship the patched init at /init', () => {
-  const INIT_IMAGES = [
-    'db',
-    'platform',
-    'proxy',
-    'sandbox',
-    'sandbox-egress',
-    'sandbox-llm-gateway',
-  ];
+  const INIT_IMAGES = ['db', 'platform', 'proxy', 'sandbox', 'sandbox-egress'];
   const INIT = 'dumb-init-1.2.5+maxsig64';
   /** The file formats an infrastructure-tier image reads (D-17, R-02). The
    * proxy names none: its Traefik edge reads no switch upstream file, and the

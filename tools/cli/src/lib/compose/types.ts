@@ -159,12 +159,11 @@ export const STATEFUL_SERVICES = [
   // The edge's read-only Docker API proxy: the proxy image in its
   // `docker-api` role, rolled with the proxy (create-proxy-service.ts).
   'docker-api',
-  'sandbox-llm-gateway',
   // Sandbox tier — the single spawner and its egress proxy. Rolled in place
   // through the stateful compose on every default deploy (see
   // ALWAYS_ROLL_SERVICES); a serialized /v1/drain (drainSandbox) runs first.
-  // NOT colour-rolled: the spawner holds docker.sock, the session directory
-  // and the gateway volume, so it is a singleton by construction.
+  // NOT colour-rolled: the spawner holds docker.sock and the session
+  // directory, so it is a singleton by construction.
   'sandbox',
   'sandbox-egress',
 ] as const;
@@ -203,23 +202,30 @@ export const STOP_GATED_SERVICES = [
 ] as const;
 /**
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
- * default deploy. `sandbox-llm-gateway` is a singleton that owns the single
- * `llm-gateway-data` volume, so it is recreated in place and only when its
- * image actually changed. `sandbox` / `sandbox-egress` are the
- * single-container sandbox tier: they roll in place too, drained first via
- * /v1/drain (drainSandbox, deploy.ts). The wire protocol versions with
- * platform, so they must roll on every deploy.
+ * default deploy. `sandbox` / `sandbox-egress` are the single-container
+ * sandbox tier: they roll in place, drained first via /v1/drain
+ * (drainSandbox, deploy.ts). The wire protocol versions with platform, so
+ * they must roll on every deploy.
  *
  * The application tier is NOT here — `platform`, `backend-api` and
  * `backend-worker` are stateless and deploy as one colour
  * (ROTATABLE_SERVICES). A copy in this list would roll them in place beside
  * the colour that already owns them.
  */
-export const ALWAYS_ROLL_SERVICES = [
-  'sandbox-llm-gateway',
-  'sandbox',
-  'sandbox-egress',
-] as const;
+export const ALWAYS_ROLL_SERVICES = ['sandbox', 'sandbox-egress'] as const;
+
+/**
+ * Services an earlier release ran that this one never creates, but whose
+ * container a deployment may still hold: the sandbox LLM gateway, which the
+ * model relay in the backend replaced (tale-project/tale#4942). Its
+ * container stays while keys it minted still settle through it, until
+ * `tale deploy` retires it (actions/retire-gateway.ts), and its volume stays
+ * until the operator removes it (RETIRED_VOLUMES). Teardown (`reset --all`,
+ * `uninstall --purge`) removes the container like any other of the project,
+ * and `restore` stops it before it writes its volume back; `tale stop` and
+ * `tale start` reach it through the project's label, like every container.
+ */
+export const RETIRED_SERVICES = ['sandbox-llm-gateway'] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];

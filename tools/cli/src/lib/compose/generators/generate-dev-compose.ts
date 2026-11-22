@@ -23,7 +23,6 @@ import {
   createProxyService,
 } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
-import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
@@ -226,7 +225,6 @@ export function buildDevCompose(
       'backend-api': backendApi,
       'backend-worker': backendWorker,
       platform,
-      'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
       'sandbox-egress': createSandboxEgressService(config),
       sandbox,
     },

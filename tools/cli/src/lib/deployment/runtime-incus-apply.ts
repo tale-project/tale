@@ -39,10 +39,7 @@ import {
   assertNoRestorePending,
   readJournal,
 } from '../runtime/incus/apply/journal';
-import {
-  readStack,
-  type ObservedInstance,
-} from '../runtime/incus/apply/readback';
+import { readStack } from '../runtime/incus/apply/readback';
 import {
   type IncusDeclaration,
   type StackTarget,
@@ -786,14 +783,6 @@ export async function applyIncusRuntime(
     revision: bundle.revision,
     changed,
     existing,
-    // The gateway's store migrates forward on the first start of a newer
-    // gateway image, as on Docker; Incus keeps the image digest on the
-    // instance.
-    gateway: gatewayOf(
-      readback.instances,
-      readback.volumes.some((volume) => volume.name === 'llm-gateway-data'),
-      bundle,
-    ),
     dryRun: options.dryRun ?? false,
     plan,
     planLines,
@@ -901,33 +890,6 @@ export async function applyIncusRuntime(
   return result(
     api === undefined ? null : instanceIdentity(runtime.client.project, api),
   );
-}
-
-/** The gateway's store as the deploy found it (`RuntimeResult.gateway`). */
-function gatewayOf(
-  instances: readonly ObservedInstance[],
-  volume: boolean,
-  bundle: RuntimeBundle,
-): RuntimeResult['gateway'] {
-  const image = bundle.images.find((candidate) =>
-    candidate.services.includes('sandbox-llm-gateway'),
-  );
-  const running = instances.find(
-    (instance) =>
-      instance.custody.verdict === 'stack' &&
-      instance.config['user.tale.service'] === 'sandbox-llm-gateway',
-  );
-  const runningDigest = running?.config['user.tale.image'] ?? null;
-  return {
-    volume,
-    newImage: image !== undefined && runningDigest !== image.digest,
-    target: image?.reference ?? null,
-    running:
-      runningDigest === null
-        ? null
-        : (bundle.images.find((candidate) => candidate.digest === runningDigest)
-            ?.reference ?? runningDigest),
-  };
 }
 
 /** Wait until every instance of the target with a health check is healthy. */

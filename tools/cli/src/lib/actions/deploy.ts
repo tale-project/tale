@@ -44,6 +44,7 @@ import {
   type ServiceConfig,
   type StatefulService,
   type StopGatedService,
+  ALWAYS_ROLL_SERVICES,
   STOP_GATED_SERVICES,
   imageRef,
   isRotatableService,
@@ -109,6 +110,7 @@ import {
   type WorkspacePlan,
 } from './incus-deploy';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
+import { retireGateway } from './retire-gateway';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 /** What a deploy says of the PO-token provider it does not run. */
@@ -368,12 +370,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         statefulToUpdate = services.filter(isStatefulService);
       } else {
         // Default deploy uses the three-tier policy (see select-services.ts):
-        // rotatable (platform) blue-green; the always-roll tier (backend-api,
-        // backend-worker, sandbox-llm-gateway, sandbox, sandbox-egress) rolls
-        // in-place via the
-        // stateful compose (sandbox drained first via /v1/drain); stop-gated
-        // (db, proxy) only when stopped / first deploy / --stop, else left
-        // running with a hint.
+        // the application tier (platform, backend-api, backend-worker)
+        // blue-green; the always-roll tier (sandbox, sandbox-egress) rolls
+        // in place via the stateful compose (sandbox drained first via
+        // /v1/drain); stop-gated (db, proxy) only when stopped / first
+        // deploy / --stop, else left running with a hint.
         const runningState = new Map<StopGatedService, boolean>();
         for (const service of STOP_GATED_SERVICES) {
           runningState.set(
@@ -912,6 +913,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
           origin,
         );
 
+        // Where the always-roll tier converges, the model gateway an earlier
+        // release left is retired once the backend says no key it minted is
+        // open (retire-gateway.ts). It is no service of the stateful document
+        // any more, so the converge below leaves its container as it is.
+        const rollsAlwaysRollTier = ALWAYS_ROLL_SERVICES.some((service) =>
+          statefulToUpdate.includes(service),
+        );
+
         // Will this deploy actually recreate the sandbox spawner? Same logic as
         // the backend tier: drain in-flight one-shot executions only when the single
         // sandbox container's image version is changing (or a forced recreate),
@@ -940,6 +949,8 @@ export async function deploy(options: DeployOptions): Promise<void> {
               `${prefix}Would remove the bgutil-provider sidecar: ${POT_PROVIDER_OFF}`,
             );
           }
+          if (rollsAlwaysRollTier)
+            await retireGateway({ dryRun: true, runtime });
         } else {
           // Drain in-flight sandbox executions before the single spawner is
           // recreated below (the tier dropped blue-green — one container rolled
@@ -1029,6 +1040,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
               );
             }
           }
+
+          // After the tier is healthy: a converge that failed above left the
+          // gateway as it was.
+          if (rollsAlwaysRollTier)
+            await retireGateway({ dryRun: false, runtime });
         }
       }
 

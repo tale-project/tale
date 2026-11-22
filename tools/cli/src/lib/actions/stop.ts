@@ -8,7 +8,8 @@
  *
  * 1. the edge, the switch and both colours (90) — nothing new comes in,
  *    and the application tier hands its work on within its grace;
- * 2. the middle tier (50) — the sandbox, its egress and LLM gateway;
+ * 2. the middle tier (50) — the sandbox and its egress, and a model gateway
+ *    an earlier release left, which the table no longer knows;
  * 3. data and the resolvers (10) — the database stops after every writer.
  *
  * Each group stops in parallel, each instance within its own declared grace

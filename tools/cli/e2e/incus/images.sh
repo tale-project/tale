@@ -42,7 +42,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
   exit 2
 }
 
-read -ra services <<<"${SERVICES:-db platform proxy sandbox sandbox-egress sandbox-llm-gateway sandbox-runtime sandbox-buildkitd}"
+read -ra services <<<"${SERVICES:-db platform proxy sandbox sandbox-egress sandbox-runtime sandbox-buildkitd}"
 protocol="$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' "$root/services/platform/lib/engine/core/protocol.ts")"
 case "$protocol" in 1 | 2) ;; *)
   echo 'images.sh: unsupported automation writer protocol' >&2

@@ -73,7 +73,6 @@ const versionInEnvironment = [
 ];
 test.each([
   ...versionInEnvironment,
-  'sandbox-llm-gateway',
   'sandbox-egress',
   'sandbox-buildkitd',
   'sandbox-runtime',
@@ -611,7 +610,7 @@ test.skipIf(process.platform === 'win32')(
         expect(services).toEqual(['web', 'docs', 'ui-docs']);
       else {
         expect(services.slice(0, 2)).toEqual(['sandbox-runtime', 'platform']);
-        expect(new Set(services).size).toBe(12);
+        expect(new Set(services).size).toBe(11);
       }
     }
     expect(file.jobs.build?.strategy?.['max-parallel']).toBe(6);
@@ -1291,17 +1290,16 @@ describe.skipIf(process.platform === 'win32')(
       'db',
       'platform',
       'proxy',
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'sandbox-buildkitd',
       'sandbox-runtime',
     ];
-    // Exercise Release's real three- and twelve-image selections under
-    // macOS Bash 3.2 as well as the eight-image stack.
+    // Exercise Release's real three- and eleven-image selections under
+    // macOS Bash 3.2 as well as the seven-image stack.
     const cases: [string, string, string, string, string[]][] = [
       [
-        'Release stack (8)',
+        'Release stack (7)',
         'release',
         'container-test',
         'Pull release images',
@@ -1315,7 +1313,7 @@ describe.skipIf(process.platform === 'win32')(
         ['web', 'docs', 'ui-docs'],
       ],
       [
-        'Release full (12)',
+        'Release full (11)',
         'release',
         'container-test',
         'Pull release images',
@@ -1328,7 +1326,6 @@ describe.skipIf(process.platform === 'win32')(
           'ui-docs',
           'session-manager',
           'proxy',
-          'sandbox-llm-gateway',
           'sandbox',
           'sandbox-egress',
           'sandbox-buildkitd',

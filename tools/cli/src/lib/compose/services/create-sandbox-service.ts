@@ -41,7 +41,7 @@ import { sandboxLabels } from './traefik-labels';
  * (`tale deploy prepare`) gets the Incus shape from the CLI instead: it drops
  * the socket and session-root mounts, mounts the three PEM files
  * (SANDBOX_INCUS_*_FILE) read-only from `<stateDirectory>/sandbox-incus`, and
- * publishes the backend API and the LLM gateway on the declared address
+ * publishes the backend API and its model relay on the declared address
  * (deployment/runtime-sandbox.ts).
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {

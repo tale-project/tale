@@ -45,7 +45,12 @@ import {
   type IncusDeclaration,
   type StackTarget,
 } from '../compile/stack-target';
-import { PATCHED_INIT, sortKeys, SWITCHED_ROLES } from '../compile/translate';
+import {
+  MODEL_RELAY_PORT,
+  PATCHED_INIT,
+  sortKeys,
+  SWITCHED_ROLES,
+} from '../compile/translate';
 import { registryHosts } from '../verbs/images';
 import { REQUIRED_EXTENSIONS, STACK_PROFILE } from '../verbs/probe';
 import {
@@ -79,14 +84,14 @@ const PEAK_IMAGE_VERSIONS = 2;
 const PUBLIC_SINGLETONS: readonly SingletonRole[] = [
   'proxy',
   'sandbox-egress',
-  'sandbox-llm-gateway',
   'bgutil-provider',
 ];
 const PUBLIC_SLOT_ROLES: readonly SlotRole[] = SLOT_ROLES;
-/** Where a session reaches the stack (design D-31): role → port. */
+/** Where a session reaches the stack (design D-31): the backend API and its
+ * model relay, both through the switch. */
 const SESSION_PORTS = {
-  switch: SWITCHED_ROLES['backend-api'],
-  'sandbox-llm-gateway': 8080,
+  api: SWITCHED_ROLES['backend-api'],
+  relay: MODEL_RELAY_PORT,
 } as const;
 const SESSION_RUNNER_PORT = 8200;
 const DNS_PORT = 53;
@@ -462,7 +467,7 @@ function contractRules(context: RuleContext): ContractRule[] {
         helpers,
       ],
       purpose:
-        'The roles that reach the internet: the backend, the platform, the sessions egress proxy, the LLM gateway, the proxy (ACME) and the bgutil provider.',
+        'The roles that reach the internet: the backend (and its model relay), the platform, the sessions egress proxy, the proxy (ACME) and the bgutil provider.',
       check: 'probe',
     },
     ...(declaration.operatorReach ?? []).map((reach, index): ContractRule => ({
@@ -508,15 +513,16 @@ function contractRules(context: RuleContext): ContractRule[] {
       id: 'backend-api',
       destination: at('switch'),
       protocol: 'tcp',
-      port: SESSION_PORTS.switch,
+      port: SESSION_PORTS.api,
       purpose: 'A session calls the backend API through the switch.',
     },
     {
-      id: 'llm-gateway',
-      destination: at('sandbox-llm-gateway'),
+      id: 'model-relay',
+      destination: at('switch'),
       protocol: 'tcp',
-      port: SESSION_PORTS['sandbox-llm-gateway'],
-      purpose: 'A session calls the LLM gateway.',
+      port: SESSION_PORTS.relay,
+      purpose:
+        'A session calls its models through the switch, at the model relay of the backend API.',
     },
     {
       id: 'egress-proxy',

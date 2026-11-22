@@ -13,7 +13,6 @@ import {
   createProxyService,
 } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
-import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { serveOrigin } from './serve-origin';
@@ -50,7 +49,6 @@ export function buildStatefulCompose(
     // (generate-color-compose.ts). What remains is what holds durable state
     // or a fixed identity — the stores, the entry point, and the sandbox
     // singleton that owns docker.sock.
-    'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),
     // Third-party sidecar, where the deployment asked for it; deploy.ts
@@ -74,10 +72,6 @@ export function buildStatefulCompose(
       'object-store-data': {
         external: true,
         name: `${prefix}object-store-data`,
-      },
-      'llm-gateway-data': {
-        external: true,
-        name: `${prefix}llm-gateway-data`,
       },
     },
     networks: {

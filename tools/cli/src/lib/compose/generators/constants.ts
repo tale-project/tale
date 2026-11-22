@@ -29,7 +29,6 @@ export const DEV_VOLUME_NAMES = [
   'caddy-data',
   'caddy-config',
   'proxy-data',
-  'llm-gateway-data',
 ] as const;
 
 // All volumes that must exist before any `docker compose up` in production.
@@ -51,8 +50,19 @@ export const REQUIRED_VOLUMES = [
   // store (see DEV_VOLUME_NAMES).
   'blob-data',
   'object-store-data',
-  'llm-gateway-data',
 ] as const;
+
+/**
+ * Volumes an earlier release created that this one never creates, but which
+ * a deployment keeps until its operator removes them: `llm-gateway-data`,
+ * the store of the sandbox LLM gateway the model relay replaced
+ * (RETIRED_SERVICES in ../types.ts). It holds the keys of the providers the
+ * gateway reached and the spend of the keys it minted. No deploy, rollback,
+ * stop or restore removes it; a teardown that deletes the project's data
+ * volumes (`tale reset --all`, `tale uninstall --purge`, `tale runtime
+ * migrate --finish`) deletes it with them.
+ */
+export const RETIRED_VOLUMES = ['llm-gateway-data'] as const;
 
 /**
  * Where the backend tier reaches the BUNDLED blob store (`object-store`:

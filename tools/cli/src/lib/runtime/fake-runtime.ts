@@ -242,6 +242,8 @@ function defaultExec(
   const line = argv.join(' ');
   if (line.includes('/api/control/drain-status'))
     return ok('{"draining":true,"inFlight":0}');
+  // No key the retired model gateway minted is open (retire-gateway.ts).
+  if (line.includes('/api/control/gateway-keys')) return ok('{"open":0}');
   if (line.includes('drain-status'))
     return ok('{"draining":true,"sessions":0,"sessionIds":[]}');
   if (stdin?.includes('app_migrations'))

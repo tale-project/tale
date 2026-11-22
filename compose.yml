@@ -927,8 +927,8 @@ services:
   # A managed deployment that declares `sandbox` (`tale deploy prepare`) gets
   # the Incus shape from the CLI instead: it drops the socket and session-root
   # mounts, mounts the three PEM files (SANDBOX_INCUS_*_FILE) read-only from
-  # `<stateDirectory>/sandbox-incus`, and publishes the backend API and the LLM
-  # gateway on the declared address
+  # `<stateDirectory>/sandbox-incus`, and publishes the backend API and its
+  # model relay on the declared address
   # (tools/cli/src/lib/deployment/runtime-sandbox.ts).
   # ============================================================================
   sandbox:
@@ -1047,97 +1047,6 @@ services:
       - internal
       - sandbox
 
-  # ============================================================================
-  # Tale LLM Gateway (maximhq/bifrost core, OSS Apache-2.0) for sandbox AGENT SESSIONS
-  # ----------------------------------------------------------------------------
-  # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
-  # LLM. Dual-homed onto `internal` (platform provisions providers + mints
-  # session virtual keys via the governance API) and `sandbox` (agents reach it
-  # at http://sandbox-llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
-  #
-  # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
-  # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
-  # session destroy. The platform is the source of truth for providers/models;
-  # it provisions the gateway via the governance API on session create
-  # (the backend's llm_gateway_admin lane: provisionProviders +
-  # applyGatewayConfig).
-  #
-  # SECURITY: gateway auth is config-store driven (NOT env vars — the upstream
-  # maximhq/bifrost core never read its old management-token / enforce-virtual-keys
-  # env knobs). applyGatewayConfig() pushes, idempotently on session create:
-  #   - client.enforce_auth_on_inference=true → inference rejects anything but a
-  #     minted virtual key (the data-plane gate).
-  #   - auth_config (admin basic-auth over /api/*) from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
-  #     — REQUIRED: the backend refuses every management call without it, so the
-  #     management plane is never anonymous on the sandbox network.
-  # No published port (loopback publish lives in compose.sandbox-llm-gateway.dev.yml for
-  # the host bun-dev path). Built as a thin wrapper over the PINNED upstream image
-  # — the project has had VK auth regressions.
-  # ============================================================================
-  sandbox-llm-gateway:
-    image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION:-latest}
-    build:
-      context: .
-      dockerfile: services/sandbox-llm-gateway/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-    container_name: tale-sandbox-llm-gateway
-    env_file:
-      # Optional: the stack boots without a .env. Present values win; absent
-      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
-      # always writes a real .env, so production is unaffected.
-      - path: .env
-        required: false
-    # Auth + VK enforcement are config-store fields the platform pushes via
-    # applyGatewayConfig() with its SANDBOX_LLM_GATEWAY_ADMIN_USERNAME /
-    # SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD. The one env value the gateway reads
-    # is that password, from the .env above: its image turns it into the setup
-    # token a fresh gateway demands before it creates the admin account
-    # (services/sandbox-llm-gateway/docker-entrypoint.sh). compose.dev.yml
-    # carries the insecure dev default for both sides.
-    volumes:
-      # SQLite config/log store: the admin account, providers and their keys,
-      # minted virtual keys with their budgets and spend, and the request log. A
-      # newer gateway migrates it forward-only, so CLI snapshots capture it; it
-      # is not a cache to wipe. Volume name predates the service rename (was
-      # `llm-gateway`); kept as-is to avoid a data migration.
-      - llm-gateway-data:/app/data
-    restart: unless-stopped
-    # Graceful shutdown: on SIGTERM the gateway stops taking new calls and
-    # waits for the ones in flight (streamed answers included) to finish. It
-    # writes its in-memory budget counters (the spend the platform books) to
-    # its store only when that drain ends within 30s of the signal, its own
-    # cleanup window. Docker's 10s default would cut every model stream still
-    # running 10s into a deploy's stop.
-    # Mirrors the CLI generator (create-sandbox-llm-gateway-service.ts: 90s).
-    stop_grace_period: 90s
-    # Its memory grows with the agent sessions that run at once (a fixed 512m
-    # was OOM-killed at about 80). The CLI generator derives the limit from
-    # SANDBOX_MAX_SESSIONS (256 MiB and 12 MiB a session, at least 512m);
-    # compose cannot derive one variable from another, so this default is the
-    # CLI's for an unset capacity, which sizes itself to at most 256 sessions.
-    # Set SANDBOX_LLM_GATEWAY_MEMORY for a larger capacity.
-    mem_limit: ${SANDBOX_LLM_GATEWAY_MEMORY:-3328m}
-    healthcheck:
-      # The gateway image ships busybox wget but no curl.
-      test:
-        [
-          'CMD-SHELL',
-          'wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1',
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-    networks:
-      - internal
-      - sandbox
-
 # ============================================================================
 # Volumes
 # ============================================================================
@@ -1224,13 +1133,10 @@ volumes:
   caddy-config:
     driver: local
 
-  # LLM gateway SQLite store (admin account, provisioned providers, minted
-  # session virtual keys with their spend, request log). Survives restarts so
-  # in-flight sessions keep working, and CLI snapshots capture it. Name
-  # predates the `llm-gateway`→`sandbox-llm-gateway` service rename; kept to
-  # avoid a data migration.
-  llm-gateway-data:
-    driver: local
+  # `llm-gateway-data`, the store of the sandbox LLM gateway that earlier
+  # releases ran (the model relay in the backend replaced it), is not
+  # declared any more either: Compose leaves it where it is, `down -v`
+  # included, until its operator removes it.
 
 # ============================================================================
 # Networks

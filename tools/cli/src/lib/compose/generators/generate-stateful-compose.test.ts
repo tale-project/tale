@@ -36,6 +36,22 @@ describe('generateStatefulCompose ↔ the database profile', () => {
   });
 });
 
+// The model relay in the backend replaced the sandbox LLM gateway
+// (tale-project/tale#4942): a deployment never creates the gateway again, nor
+// its volume, which one that ran it keeps until its operator removes it.
+describe('generateStatefulCompose ↔ the retired model gateway', () => {
+  test('declares no gateway service and no gateway volume', () => {
+    const document = parse(
+      generateStatefulCompose(config, 'demo.tale.dev'),
+    ) as {
+      services: Record<string, unknown>;
+      volumes: Record<string, unknown>;
+    };
+    expect(Object.keys(document.services)).not.toContain('sandbox-llm-gateway');
+    expect(Object.keys(document.volumes)).not.toContain('llm-gateway-data');
+  });
+});
+
 describe('generateStatefulCompose ↔ the PO-token provider', () => {
   /** Run `body` with the variable set (or unset), then put it back. */
   const asked = <T>(value: string | undefined, body: () => T): T => {
@@ -65,7 +81,6 @@ describe('generateStatefulCompose ↔ the PO-token provider', () => {
         'proxy',
         'sandbox',
         'sandbox-egress',
-        'sandbox-llm-gateway',
       ]);
     },
   );

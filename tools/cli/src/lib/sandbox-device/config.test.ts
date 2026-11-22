@@ -21,7 +21,7 @@ const JOINED = {
   tunnelUrl: 'wss://acme.tale.dev/sandbox/tunnel',
   relays: [
     { name: 'api' as const, url: 'http://backend-api:3005' },
-    { name: 'gateway' as const, url: 'http://sandbox-llm-gateway:8080' },
+    { name: 'gateway' as const, url: 'http://backend-api:8080' },
   ],
   registry: 'ghcr.io/tale-project/tale',
 };
@@ -56,7 +56,7 @@ describe('sandbox device config', () => {
       autoUpdate: true,
       relays: [
         { name: 'api', url: 'http://backend-api:3005' },
-        { name: 'gateway', url: 'http://sandbox-llm-gateway:8080' },
+        { name: 'gateway', url: 'http://backend-api:8080' },
       ],
       host: { os: 'darwin', arch: 'arm64', hostname: 'studio-mac.local' },
     });

@@ -227,7 +227,7 @@ jobs:
       contents: read
 
     # App Postgres only — not the compose stack. `TALE_DEV_SKIP_DOCKER=1` in
-    # playwright.config.ts leaves sandbox/gateway/knowledge-db/object-store
+    # playwright.config.ts leaves sandbox/knowledge-db/object-store
     # down; the Hono backend applies SQL migrations at boot against this
     # empty database. Credentials match playwright.config.ts + `.env.test`.
     services:

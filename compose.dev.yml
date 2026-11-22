@@ -65,17 +65,13 @@ x-dev-secrets: &dev-secrets
   # way a `tale init` deployment writes them; absent → plaintext email + IP
   # and a [SECURITY] warning at the first write. Rotate for production.
   TALE_AUDIT_PEPPER: ${TALE_AUDIT_PEPPER:-9c1e5b7d3a2f8064e1c7a9d5b3f2e8c604a7d1b9e5c3f8a2d6b0e4c7a1f9d3b5}
-  # The sandbox control plane fails closed without these two: the spawner
-  # refuses to boot without SANDBOX_TOKEN (it holds the docker socket and sits
-  # on the network every session container shares), and the backend refuses
-  # every LLM-gateway management call without the admin password (the gateway
-  # shares one port for inference and /api/* on that same network). Same
-  # literals as services/platform/scripts/dev-secrets.ts so a host `bun dev`
-  # backend and this dockerized spawner / gateway share ONE HMAC key and ONE
-  # admin credential (dev-secrets.test.ts pins the lockstep). The gateway
-  # stores the password's hash in its volume, so the value must stay stable.
+  # The sandbox control plane fails closed without it: the spawner refuses to
+  # boot without SANDBOX_TOKEN (it holds the docker socket and sits on the
+  # network every session container shares). Same literal as
+  # services/platform/scripts/dev-secrets.ts so a host `bun dev` backend and
+  # this dockerized spawner share ONE HMAC key (dev-secrets.test.ts pins the
+  # lockstep).
   SANDBOX_TOKEN: ${SANDBOX_TOKEN:-local-dev-insecure-sandbox-token-do-not-use-in-prod-0123456789abcdef}
-  SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: ${SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD:-Local-dev-insecure-gateway-admin-password-1}
 
 services:
   db:
@@ -114,8 +110,9 @@ services:
   # socat bridge carries the `backend-api` alias there and forwards to the
   # host's api port, so the in-container tool + connector bridges reach the
   # same doors they reach in production. Its 8080 is the model relay's, which
-  # the host backend serves on 3008 (the dev gateway holds the host's 8080),
-  # so a harness reaches its models at `backend-api:8080` as in production.
+  # the host backend serves on 3008 (DEV_MODEL_RELAY_PORT in
+  # services/platform/scripts/dev-secrets.ts), so a harness reaches its models
+  # at `backend-api:8080` as in production.
   backend-relay:
     image: alpine/socat
     entrypoint: ['/bin/sh', '-c']
@@ -204,14 +201,5 @@ services:
     # compose.yml only reads SANDBOX_TOKEN from the optional .env, and the
     # spawner refuses to boot without it — the anchor's dev default keeps the
     # no-.env dev stack bootable (and in lockstep with the host backend).
-    environment:
-      <<: *dev-secrets
-
-  # A fresh gateway creates its first admin account only for the setup token
-  # its image derives from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD, and compose.yml
-  # gives it that password only from the optional .env — the anchor's dev
-  # default lets the backend claim the no-.env dev stack's gateway with the
-  # same literal it signs in with.
-  sandbox-llm-gateway:
     environment:
       <<: *dev-secrets

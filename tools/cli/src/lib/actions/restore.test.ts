@@ -150,7 +150,8 @@ const MANIFEST_WITH_BLOBS = {
   },
 };
 
-/** A snapshot that captured the model gateway's store. */
+/** A snapshot taken while the sandbox LLM gateway ran, which archived its
+ * store; no snapshot does since the model relay replaced it. */
 const MANIFEST_WITH_GATEWAY = {
   ...MANIFEST_RENAMED,
   id: '20260930-080000-deploy',
@@ -807,7 +808,11 @@ describe('restore', () => {
     });
   });
 
-  describe('the model gateway archive', () => {
+  // The model relay in the backend replaced the sandbox LLM gateway
+  // (tale-project/tale#4942): no snapshot takes its store any more, one taken
+  // while it ran still restores it, and a gateway an earlier release left
+  // must not run on the store a restore writes back.
+  describe('the retired model gateway', () => {
     const restoreReady = () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       getContainerStateMock.mockResolvedValue(null);
@@ -824,7 +829,7 @@ describe('restore', () => {
     const warnings = () =>
       loggerWarnMock.mock.calls.map((call) => String(call[0]));
 
-    test('is verified, then restored into the live gateway volume of the same name', async () => {
+    test('of an older snapshot is verified, then restored into the gateway volume of the same name', async () => {
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY]);
       restoreReady();
       const order: string[] = [];
@@ -868,9 +873,7 @@ describe('restore', () => {
       );
     });
 
-    // Every snapshot written before the gateway store was captured restores
-    // as before, but must not read as a way back to the gateway's old store.
-    test('is named as absent by an older snapshot, which leaves the gateway store untouched', async () => {
+    test('a snapshot without its archive restores with no word of the gateway', async () => {
       listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
       restoreReady();
 
@@ -880,38 +883,48 @@ describe('restore', () => {
       expect(
         restoreScripts().some((script) => script.includes('llm-gateway-data')),
       ).toBe(false);
-      const gateway = warnings().filter((line) =>
-        line.includes('llm-gateway-data'),
-      );
-      expect(gateway).toHaveLength(1);
-      expect(gateway[0]).toContain(
-        `Snapshot ${MANIFEST_RENAMED.id} has no llm-gateway-data archive`,
-      );
-      expect(gateway[0]).toContain('left untouched');
-      expect(gateway[0]).toContain(
-        'cannot return the model gateway to its store from before a gateway upgrade',
-      );
-      expect(gateway[0]).toContain(
-        "If the gateway was upgraded after this snapshot, put your own copy of tale_llm-gateway-data back before you deploy the snapshot's release.",
-      );
+      expect(warnings().some((line) => line.includes('gateway'))).toBe(false);
     });
 
-    test('is announced before the consent prompt, so the restore can still be declined', async () => {
-      listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
+    test('a gateway an earlier release left refuses the restore while it runs, and --stop stops it before anything is extracted', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY]);
       restoreReady();
-      let warnedBeforePrompt = false;
-      confirmMock.mockImplementation(() => {
-        warnedBeforePrompt = warnings().some((line) =>
-          line.includes('no llm-gateway-data archive'),
-        );
-        return Promise.resolve(false);
-      });
-
+      let running = true;
+      getContainerStateMock.mockImplementation((name: string) =>
+        Promise.resolve(
+          name === 'tale-sandbox-llm-gateway' && running ? 'running' : null,
+        ),
+      );
       await expect(
-        run({ env, snapshotId: MANIFEST_RENAMED.id }),
-      ).rejects.toThrow('Restore aborted');
-      expect(warnedBeforePrompt).toBe(true);
+        run({ env, snapshotId: MANIFEST_WITH_GATEWAY.id, assumeYes: true }),
+      ).rejects.toThrow(
+        'Refusing to restore while project containers are live: tale-sandbox-llm-gateway (running).',
+      );
       expect(execMock).not.toHaveBeenCalled();
+
+      const order: string[] = [];
+      stopContainerMock.mockImplementation((name: string) => {
+        order.push(`stop ${name}`);
+        running = false;
+        return Promise.resolve(true);
+      });
+      execMock.mockImplementation(() => {
+        order.push('extract');
+        return Promise.resolve({
+          success: true,
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+        });
+      });
+      await run({
+        env,
+        snapshotId: MANIFEST_WITH_GATEWAY.id,
+        stop: true,
+        assumeYes: true,
+      });
+      expect(order[0]).toBe('stop tale-sandbox-llm-gateway');
+      expect(order.filter((entry) => entry === 'extract')).toHaveLength(3);
     });
 
     test('is restored only under its exact name, never under a look-alike one', async () => {
@@ -934,18 +947,14 @@ describe('restore', () => {
       ).toBe(false);
     });
 
-    test('is visible in the listing: snapshots without one are marked', async () => {
+    test('no snapshot is marked in the listing for leaving the gateway out', async () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY, MANIFEST]);
 
       await run({ env });
 
       const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
-      const byId = new Map(rows);
-      expect(byId.get(MANIFEST_WITH_GATEWAY.id)).not.toContain(
-        'without gateway',
-      );
-      expect(byId.get(MANIFEST.id)).toContain('without gateway');
+      for (const [, row] of rows) expect(row).not.toContain('gateway');
     });
   });
 

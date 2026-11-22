@@ -20,13 +20,11 @@ describe('selectDefaultServices', () => {
       'backend-api',
       'backend-worker',
     ]);
-    // The sandbox tier stays a singleton — it holds docker.sock, the session
-    // directory and the gateway volume — and rolls in place.
-    expect(sel.stateful).toEqual([
-      'sandbox-llm-gateway',
-      'sandbox',
-      'sandbox-egress',
-    ]);
+    // The sandbox tier stays a singleton — it holds docker.sock and the
+    // session directory — and rolls in place. The model gateway an earlier
+    // release ran is no service of the stack: a deploy retires what is left
+    // of it (retire-gateway.ts), never rolls it.
+    expect(sel.stateful).toEqual(['sandbox', 'sandbox-egress']);
   });
 
   test('running db/proxy are left untouched without --stop', () => {
@@ -54,7 +52,6 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'db',
@@ -94,7 +91,6 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'db',

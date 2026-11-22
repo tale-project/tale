@@ -4,7 +4,7 @@ import { preconditionError } from '../../../../utils/fail';
 import type { ApplyHooks } from '../apply/apply';
 import { updateJournal } from '../apply/journal';
 import type { StackTarget } from '../compile/stack-target';
-import { SWITCHED_ROLES } from '../compile/translate';
+import { MODEL_RELAY_PORT, SWITCHED_ROLES } from '../compile/translate';
 import type { RenderedFile } from '../plan/plan';
 import { execInInstance, type IncusVerbContext } from './exec';
 import { cachedImageFacts } from './image-facts-cache';
@@ -16,9 +16,11 @@ import { cachedImageFacts } from './image-facts-cache';
  * replicas of both colours, with Caddy's active health checks on each
  * replica's admission probe (`services/proxy/Caddyfile.switch`).
  *
- * Its two upstream files list every slot of their role in every colour the
- * address block holds, and are written once, when the switch instance is
- * made (`RenderedFile.instance`). No flip, in-place roll, rollback or scale
+ * Its upstream files list every slot of their role in every colour the
+ * address block holds: the backend API's twice, on the API's port and on the
+ * port of the model relay beside it, where sessions call their models
+ * (tale-project/tale#4942). They are written once, when the switch instance
+ * is made (`RenderedFile.instance`). No flip, in-place roll, rollback or scale
  * change rewrites them, and nothing reloads the switch: a slot with no
  * replica, or one that is starting, fails the check and gets no traffic. A
  * replica joins once its admission probe passes, as a Docker replica does
@@ -88,24 +90,41 @@ export function renderUpstreams(slots: readonly string[]): string {
   return `to ${slots.join(' ')}\n`;
 }
 
+/** The upstream file of the model relay the switch's `:8080` site imports. */
+export const MODEL_RELAY_UPSTREAMS = 'model-relay.upstreams';
+
 /** The switch's upstream files for `target`, owned by the switch instance:
  * written when it is made, and never again (R3-02). None when the target
  * has no switch. */
 export function switchFiles(target: StackTarget): RenderedFile[] {
   if (!target.volumes.some((volume) => volume.name === SWITCH_VOLUME))
     return [];
-  return Object.keys(SWITCHED_ROLES).map((role): RenderedFile => ({
+  const file = (path: string, slots: readonly string[]): RenderedFile => ({
     volume: SWITCH_VOLUME,
-    path: `${role}.upstreams`,
+    path,
     mode: 0o644,
     uid: 0,
     gid: 0,
-    content: text(
-      renderUpstreams(target.switch[role as keyof typeof SWITCHED_ROLES]),
-    ),
+    content: text(renderUpstreams(slots)),
     write: 'overwrite',
     instance: 'switch',
-  }));
+  });
+  return [
+    ...Object.keys(SWITCHED_ROLES).map((role) =>
+      file(
+        `${role}.upstreams`,
+        target.switch[role as keyof typeof SWITCHED_ROLES],
+      ),
+    ),
+    // The API's own replicas, on the relay's port: the switch admits each
+    // by the API's admission probe, so a replica leaves both at once.
+    file(
+      MODEL_RELAY_UPSTREAMS,
+      target.switch['backend-api'].map(
+        (slot) => `${slot.slice(0, slot.lastIndexOf(':'))}:${MODEL_RELAY_PORT}`,
+      ),
+    ),
+  ];
 }
 
 /** The marker of a switched role; null for any other service. */

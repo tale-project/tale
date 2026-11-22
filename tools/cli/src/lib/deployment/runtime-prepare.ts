@@ -593,8 +593,8 @@ export async function prepareRuntime(
     sandboxDeclaration.data === undefined
       ? undefined
       : sandboxBundle(sandboxDeclaration.data, runtimeImage);
-  // On Incus the sessions reach the backend API and the gateway at their
-  // addresses in the plan: nothing is published.
+  // On Incus the sessions reach the backend API and its model relay at their
+  // address in the plan: nothing is published.
   if (sandbox !== undefined)
     applyIncusShape(compose, sandbox, { publish: incus === undefined });
   const productionCompose = stringify(compose, { lineWidth: 0 });

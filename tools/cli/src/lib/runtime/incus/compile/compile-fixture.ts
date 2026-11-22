@@ -42,8 +42,6 @@ const REVISION = '0123456789abcdef0123456789abcdef01234567';
 /** The process variables the generators read; a test clears them so the
  * environment of the machine running it cannot move a golden. */
 const GENERATOR_VARIABLES = [
-  'SANDBOX_MAX_SESSIONS',
-  'SANDBOX_LLM_GATEWAY_MEMORY',
   'SHUTDOWN_DRAIN_MS',
   'SANDBOX_DOCKER_DATA_ROOT',
   'SANDBOX_DOCKER_DATA_PATH',
@@ -145,12 +143,6 @@ const IMAGE_SHAPES: Record<string, ImageShape> = {
     cmd: null,
     init: true,
     labels: { 'dev.tale.infra-formats': 'names-hosts/1' },
-  },
-  'tale-sandbox-llm-gateway': {
-    entrypoint: ['/usr/local/bin/docker-entrypoint.sh'],
-    cmd: ['/app/main'],
-    user: 'appuser',
-    init: true,
   },
   // The blob store: versitygw's own image, which declares its entrypoint
   // and nothing else (no command, no volume, no user), and the MinIO rebuild

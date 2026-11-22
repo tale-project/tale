@@ -20,6 +20,7 @@ import {
 import { IncusRuntime } from '../incus-runtime';
 import {
   awaitSwitchAdmission,
+  MODEL_RELAY_UPSTREAMS,
   renderUpstreams,
   SWITCH_REACH_TIMEOUT_MS,
   SWITCH_VOLUME,
@@ -68,6 +69,13 @@ describe('the switch lists every slot once (design 5.3, R3-02)', () => {
         write: 'overwrite',
         instance: 'switch',
       },
+      {
+        volume: SWITCH_VOLUME,
+        path: MODEL_RELAY_UPSTREAMS,
+        mode: 0o644,
+        write: 'overwrite',
+        instance: 'switch',
+      },
     ]);
     const slots = (from: number, port: number) =>
       Array.from({ length: 16 }, (_, i) => `10.30.1.${from + i}:${port}`);
@@ -76,6 +84,11 @@ describe('the switch lists every slot once (design 5.3, R3-02)', () => {
     );
     expect(decode(files[1]?.content ?? new Uint8Array())).toBe(
       `to ${[...slots(80, 3005), ...slots(144, 3005)].join(' ')}\n`,
+    );
+    // The model relay a session calls its models at (tale-project/tale#4942):
+    // the same backend API slots, on the relay's port.
+    expect(decode(files[2]?.content ?? new Uint8Array())).toBe(
+      `to ${[...slots(80, 8080), ...slots(144, 8080)].join(' ')}\n`,
     );
   });
 
