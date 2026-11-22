@@ -46,9 +46,6 @@ const SIZE_BUDGETS: Record<string, number> = {
   // Traefik's static binary (174 MiB) on nginx:alpine with njs (59 MiB),
   // measured from the pinned layers; ~11% headroom.
   proxy: 260,
-  // Docker .Size measured 255 MiB in Build37264873673; ~17% headroom.
-  // Registry gzip layers are 86.45 MiB, a different metric from this guard.
-  'sandbox-llm-gateway': 300,
   sandbox: 320,
   'sandbox-egress': 80,
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
@@ -68,7 +65,6 @@ const SERVICES = [
   'platform',
   'db',
   'proxy',
-  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',
@@ -227,7 +223,6 @@ async function main(): Promise<number> {
           `${svc}: root (expected — buildkitd needs root + --privileged for build mount/namespace ops)`,
         );
         break;
-      case 'sandbox-llm-gateway':
       case 'sandbox-runtime':
         if (nonRoot) r.pass(`${svc}: runs as user '${user}' (non-root)`);
         else r.fail(`${svc}: image must not run as root`);

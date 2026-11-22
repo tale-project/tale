@@ -307,11 +307,10 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('--cap-drop=ALL');
     expect(args).toContain('--read-only');
     expect(args).toContain('no-new-privileges');
-    // Gateway + backend origin reachable directly (not via tinyproxy) —
-    // `backend-api` is the bridge/staging host; the retired aliases stay
-    // one release for in-flight sessions.
+    // The backend origin reachable directly (not via tinyproxy) —
+    // `backend-api` is the model relay and the bridge/staging host.
     expect(args).toContain(
-      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+      'NO_PROXY=127.0.0.1,localhost,backend-api,backend-relay',
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);

@@ -72,8 +72,8 @@ export function isHarnessSlug(value: unknown): value is HarnessSlug {
  * The resolved credential a turn runs with — exactly one of the two cases the
  * harness YAML `credentialPolicy` can accept:
  *
- *  - `managed`: the platform LLM gateway with a session-scoped virtual key.
- *    The glue wires the harness-specific route (`/anthropic`, `/openai/v1`,
+ *  - `managed`: the platform's model relay with the turn's own key. The
+ *    glue wires the harness-specific route (`/anthropic`, `/openai/v1`,
  *    `/genai`) onto `baseUrl` and places the key where the CLI reads it.
  *  - `byo`: the user's own provider credentials, built by the caller as an
  *    env map (the variables the harness reads them from — the YAML's
@@ -83,17 +83,18 @@ export type HarnessCredential =
   | {
       readonly mode: 'managed';
       readonly gateway: {
-        /** Gateway root, no trailing slash, e.g. http://sandbox-llm-gateway:8080 */
+        /** The model relay's root, no trailing slash, e.g.
+         * http://backend-api:8080 */
         readonly baseUrl: string;
-        /** Session virtual key minted at session create. */
+        /** The turn's model key, minted for its turn. */
         readonly token: string;
-        /** The gateway's per-stream idle budget in milliseconds: how long it
+        /** The relay's per-stream idle budget in milliseconds: how long it
          * waits for the next upstream byte before it aborts a stream. A CLI
          * with its own client-side idle watchdog must wait at least this
-         * long, or it gives up on — and sends again — a request the gateway
+         * long, or it gives up on — and sends again — a request the relay
          * is still serving. */
         readonly streamIdleTimeoutMs: number;
-        /** The gateway's per-request timeout in milliseconds: how long it
+        /** The relay's per-request timeout in milliseconds: how long it
          * waits for a whole answer (at least its stream idle budget). A CLI
          * with its own request timeout must wait at least this long. */
         readonly requestTimeoutMs: number;

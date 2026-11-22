@@ -630,8 +630,7 @@ export interface SessionCreateResult {
  * closed: the spawner refuses to start without it and answers 401 to anything
  * unsigned (services/sandbox/src/{config,request-auth}.ts), so sending
  * unsigned requests is not a mode, it is a misconfiguration this process can
- * see in its own env. Surfaced before any network call, the same way
- * `requireGatewayAdminPassword` guards the gateway's management plane.
+ * see in its own env. Surfaced before any network call.
  *
  * Trimmed so a whitespace-only value counts as unset — must match the server's
  * trim, or a padded token would derive a different HMAC key on each side.

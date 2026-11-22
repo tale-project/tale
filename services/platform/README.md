@@ -90,8 +90,9 @@ are:
   builtin and system catalogs.
 - `INSTANCE_SECRET`, `BETTER_AUTH_SECRET` and `ENCRYPTION_SECRET_HEX` for distinct
   cryptographic purposes. Preserve the matching secrets with recovery plans.
-- `SANDBOX_URL`, `SANDBOX_TOKEN` and
-  `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` for the sandbox and model gateway.
+- `SANDBOX_URL` and `SANDBOX_TOKEN` for the sandbox spawner. A deployment that
+  ran the retired sandbox LLM gateway keeps `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`
+  while keys that gateway minted still settle there.
 
 Set `TOTP_CLIENT_NAME` and `TOTP_ENVIRONMENT` in the deployment environment
 (the web tier and the backend both read them) so new authenticator entries and

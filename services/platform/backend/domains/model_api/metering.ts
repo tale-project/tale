@@ -389,7 +389,6 @@ export async function openModelApiLease(
   try {
     key = await issueRelayKey(provisioningCtx(sql), {
       organizationId: args.organizationId,
-      sessionId,
       allowedModels: [
         {
           providerSlug: relayModel.providerSlug,
@@ -399,9 +398,6 @@ export async function openModelApiLease(
       ],
       surface: 'model-api',
       actor: { id: args.userId, type: 'api' },
-      budgetCents: allowance.budgetCents,
-      requestScoped: true,
-      requestId: args.requestId,
     });
   } catch (error) {
     console.error(

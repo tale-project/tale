@@ -72,9 +72,9 @@ export interface GatewayRoutingOpts {
  * anthropic-harness sibling (`…__anthropic/<modelId>`) when opts say so — a
  * standard connector on that lane takes the sibling too (its built-in
  * gateway implementation cannot ride the vendor's Anthropic door). Single
- * source of truth shared by the harness glue (model env), the mint (VK
- * binding), and the provisioner (record names) so they can never drift — pass
- * the SAME opts at every call site for one session's model.
+ * source of truth shared by the harness glue (model env) and the model relay,
+ * which reads the same name back to its model, so the two can never drift —
+ * pass the SAME opts at every call site for one session's model.
  */
 export function resolveGatewayRouting(
   organizationId: string,

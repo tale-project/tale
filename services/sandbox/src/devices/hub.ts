@@ -14,7 +14,7 @@
 //     Only placements the hub made route anywhere: a device's own report of
 //     what it holds never claims a session id;
 //   - relays the device's sessions' calls back to the platform's backend and
-//     LLM gateway along the allowlisted paths (relay-policy.ts).
+//     its model relay along the allowlisted paths (relay-policy.ts).
 //
 // Only the WebSocket upgrade and a health probe listen on the hub port; the
 // signed spawner API stays on the internal network.

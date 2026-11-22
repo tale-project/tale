@@ -50,7 +50,6 @@
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/proxy/render/config.js",
         "$TURBO_ROOT$/services/sandbox-egress/outbound-proxies.awk",
-        "$TURBO_ROOT$/services/sandbox-llm-gateway/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox-runtime/Dockerfile",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",

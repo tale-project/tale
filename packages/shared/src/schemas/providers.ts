@@ -902,11 +902,11 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 // Placeholders. Literal strings in argv chunks, env maps, templates, and doc
 // trees (values AND map keys) may reference exactly these spec fields:
 //
-//   ${gateway.baseUrl}  managed gateway root (no trailing slash)
-//   ${gateway.token}    session virtual key (env values only in practice —
+//   ${gateway.baseUrl}  the model relay's root (no trailing slash)
+//   ${gateway.token}    the turn's model key (env values only in practice —
 //                       the hygiene tests enforce where it may land)
 //   ${gateway.streamIdleTimeoutMs}
-//                       the gateway's per-stream idle budget in milliseconds
+//                       the relay's per-stream idle budget in milliseconds
 //                       (what a CLI's own client-side idle watchdog must wait)
 //   ${gateway.requestTimeoutMs}
 //                       the gateway's per-request timeout in milliseconds
@@ -1462,7 +1462,7 @@ export const harnessDefinitionSchema = z
     displayName: displayNameSchema,
     /**
      * Which credential modes the harness accepts: `managed` = routed through
-     * the platform gateway with a session-scoped virtual key; `byo` =
+     * the platform's model relay with the turn's own key; `byo` =
      * user-owned credentials injected into the session environment. At least
      * one must hold, or no credential could ever run the harness.
      */

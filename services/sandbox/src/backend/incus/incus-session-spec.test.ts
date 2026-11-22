@@ -178,8 +178,7 @@ describe('a session started cold', () => {
       // environment
       'environment.HTTPS_PROXY': `http://${INCUS_TEST_ADDRESS}:3128`,
       'environment.HTTP_PROXY': `http://${INCUS_TEST_ADDRESS}:3128`,
-      'environment.NO_PROXY':
-        '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+      'environment.NO_PROXY': '127.0.0.1,localhost,backend-api,backend-relay',
       'environment.HOME': '/agent/.runtime/home',
       'environment.TALE_EXEC_STALL_MS': '2700000',
       'environment.TALE_EXEC_ADMISSION_MEMORY_PERCENT': '90',
@@ -450,7 +449,7 @@ describe('a session started cold', () => {
           profile,
         });
         expect(config['environment.NO_PROXY']).toBe(
-          '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+          '127.0.0.1,localhost,backend-api,backend-relay',
         );
         expect(
           Object.keys(config).filter((key) =>
@@ -464,7 +463,7 @@ describe('a session started cold', () => {
       const plain = buildSessionInstance(incusTestConfig(), input).config;
       const set = buildSessionInstance(withCaches(), input).config;
       expect(set['environment.NO_PROXY']).toBe(
-        '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay,10.200.41.8,10.200.41.9',
+        '127.0.0.1,localhost,backend-api,backend-relay,10.200.41.8,10.200.41.9',
       );
       expect(set['environment.TALE_REGISTRY_CACHE_NPM']).toBe(CACHES.npm);
       expect(set['environment.TALE_REGISTRY_CACHE_PYPI']).toBe(CACHES.pypi);

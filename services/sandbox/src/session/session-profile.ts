@@ -70,10 +70,10 @@ export function sessionLimits(
 }
 
 /** What a session reaches directly instead of through the egress proxy: the
- * loopback, the LLM gateway and the backend origin (the connector bridge and
- * the staging callback). The Docker and Incus launchers set it as NO_PROXY. */
-export const SESSION_NO_PROXY =
-  '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay';
+ * loopback and the backend origin — the model relay, the connector bridge
+ * and the staging callback. The Docker and Incus launchers set it as
+ * NO_PROXY. */
+export const SESSION_NO_PROXY = '127.0.0.1,localhost,backend-api,backend-relay';
 
 /**
  * Does a session resolve the egress proxy's address once at boot and keep

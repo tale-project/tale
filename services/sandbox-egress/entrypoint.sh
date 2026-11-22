@@ -17,7 +17,8 @@ set -e
 #                     SANDBOX_EGRESS_DENIED_HOSTS names hosts to refuse.
 # The IP-layer SSRF firewall (IMDS + link-local + RFC1918 REJECT, installed
 # by docker-entrypoint.sh) applies in EVERY mode. LLM traffic never transits
-# this proxy either way (NO_PROXY=sandbox-llm-gateway on the runtime containers).
+# this proxy either way: the model relay is on backend-api, which NO_PROXY
+# names on the runtime containers.
 if [ -n "$SANDBOX_EGRESS_ALLOWLIST" ] && [ -n "$SANDBOX_EGRESS_DENIED_HOSTS" ]; then
   echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_ALLOWLIST and SANDBOX_EGRESS_DENIED_HOSTS are both set; an allow-list already refuses every host it does not name, so set one of them"
   exit 1

@@ -21,11 +21,11 @@ import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import type { AllowedModelRef } from '../../../lib/shared/providers/gateway_routing';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
-import type { AllowedModelRef } from '../node_only/sandbox/llm_gateway_admin';
 
 const io = vi.hoisted(() => ({
   starts: [] as Array<{ execId: string; env: Record<string, string> }>,

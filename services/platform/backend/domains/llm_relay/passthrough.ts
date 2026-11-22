@@ -1,6 +1,10 @@
 import { Agent } from 'undici';
 
 import { estimateTokens } from '../../../lib/chat/types.ts';
+import {
+  requestTimeoutSeconds,
+  streamIdleSeconds,
+} from '../../../lib/shared/model-relay-budget.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import {
@@ -52,7 +56,6 @@ export interface RelayLifetime {
   streamMs: number;
 }
 
-const DEFAULT_IDLE_SECONDS = 600;
 /** Past the vendor's own budgets, so the vendor's answer about a timeout
  * comes first. */
 const LIFETIME_MARGIN_MS = 60_000;
@@ -60,31 +63,15 @@ const STREAM_CEILING_MS = 60 * 60_000;
 /** The most of a refusal the relay reads before it answers. */
 const MAX_ERROR_BODY_BYTES = 64 * 1024;
 
-/** The idle budget between two chunks of a stream, in seconds:
- * `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` (the name operators set
- * for the gateway), else 600. */
-export function streamIdleSeconds(
-  env: NodeJS.ProcessEnv = process.env,
-): number {
-  const raw = (
-    env.SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS ??
-    env.LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS
-  )?.trim();
-  const seconds = raw === undefined || raw === '' ? Number.NaN : Number(raw);
-  return Number.isFinite(seconds) && seconds > 0
-    ? seconds
-    : DEFAULT_IDLE_SECONDS;
-}
-
-/** The budgets a call lives within: a whole answer and a stream's idle gap
- * at the idle budget (never below 600 s), plus the margin. */
+/** The budgets a call lives within: a whole answer at the request timeout
+ * and a stream's idle gap at the idle budget, the budget a managed harness
+ * is told too (`lib/shared/model-relay-budget.ts`), plus the margin. */
 export function relayLifetime(
   env: NodeJS.ProcessEnv = process.env,
 ): RelayLifetime {
-  const idle = streamIdleSeconds(env);
   return {
-    wholeMs: Math.max(DEFAULT_IDLE_SECONDS, idle) * 1000 + LIFETIME_MARGIN_MS,
-    streamIdleMs: idle * 1000 + LIFETIME_MARGIN_MS,
+    wholeMs: requestTimeoutSeconds(env) * 1000 + LIFETIME_MARGIN_MS,
+    streamIdleMs: streamIdleSeconds(env) * 1000 + LIFETIME_MARGIN_MS,
     streamMs: STREAM_CEILING_MS,
   };
 }

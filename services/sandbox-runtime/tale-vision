@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""tale-vision — batch image analysis for in-sandbox code, via the platform
-LLM gateway.
+"""tale-vision — batch image analysis for in-sandbox code, via the platform's
+model relay.
 
-Analyzes images with the org's vision model THROUGH THE PLATFORM GATEWAY, so
-no raw provider key ever enters the container — the same lane as
+Analyzes images with the org's vision model THROUGH THE PLATFORM'S MODEL RELAY,
+so no raw provider key ever enters the container — the same lane as
 `tale-vision-transcribe` (which stays the single-image Read-hook polyfill;
 this CLI is the batch/code-facing superset).
 
@@ -11,9 +11,9 @@ this CLI is the batch/code-facing superset).
   tale-vision - < image.png                        read one image from stdin
 
 Env contract (injected by the platform when the org has a vision model):
-  TALE_GATEWAY_URL    gateway root, e.g. http://sandbox-llm-gateway:8080
-  TALE_GATEWAY_TOKEN  session virtual key (sent as Bearer)
-  TALE_VISION_MODEL   gateway model id (`--model` overrides)
+  TALE_GATEWAY_URL    the model relay's root, e.g. http://backend-api:8080
+  TALE_GATEWAY_TOKEN  the turn's model key (sent as Bearer)
+  TALE_VISION_MODEL   the model's name on the relay (`--model` overrides)
 
 Behaviour:
   * Downscales before upload (longest edge `--max-edge`, default 2000):
@@ -52,7 +52,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ANTHROPIC_VERSION = "2023-06-01"
 MAX_TOKENS = 1024
-# The gateway lives on the sandbox-internal docker network — never route it
+# The model relay is on the sandbox-internal network — never route it
 # through an egress proxy, whatever HTTP(S)_PROXY says (Node's fetch in
 # tale-vision-transcribe ignores proxy env for the same reason).
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -344,7 +344,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="tale-vision",
         description="Analyze images with the org's vision model via the "
-        "platform LLM gateway. Prints one NDJSON line per input. Animated "
+        "platform's model relay. Prints one NDJSON line per input. Animated "
         "inputs: first frame only.",
     )
     parser.add_argument(

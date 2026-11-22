@@ -1,6 +1,6 @@
 # Sandbox harness — OpenCode (`opencode run`). Managed only: its provider
-# config points at the platform gateway and authenticates with the session
-# virtual key; there is no bring-your-own path. The prompt rides argv for
+# config points at the platform's model relay and authenticates with the
+# turn's model key; there is no bring-your-own path. The prompt rides argv for
 # compatibility with existing runtime images. `opencode run` has no turn-cap flag; the
 # runaway backstop is the platform runner.
 #

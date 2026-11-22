@@ -28,12 +28,6 @@ export const DEV_GATES = {
     severity: 'hard',
     timeoutMs: 180_000,
   },
-  /** LLM gateway is best-effort — pure frontend work survives without it. */
-  llmGateway: {
-    name: 'sandbox-llm-gateway',
-    severity: 'soft',
-    timeoutMs: 30_000,
-  },
   /** Auth HTTP readiness — SOFT on purpose: the client retries; a hard fail here
    *  would abort the boot and strand the WS (cold-start-auth-recovery). */
   authOk: { name: '/api/auth/ok', severity: 'soft', timeoutMs: 90_000 },

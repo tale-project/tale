@@ -27,8 +27,8 @@ credentialPolicy:
 credentialEnvKeys:
   - OPENAI_API_KEY
   - TALE_GATEWAY_TOKEN
-# The pinned CLI speaks ONLY the OpenAI Responses API to the gateway (see the
-# `wire_api` note in the exec section).
+# The pinned CLI speaks ONLY the OpenAI Responses API to the model relay (see
+# the `wire_api` note in the exec section).
 gatewayWire: openai-responses
 modelIdDialect: vendor-native
 promptTransport: stdin-text
@@ -55,10 +55,10 @@ exec:
     # MANAGED: native web search is ungoverned (no audit / untrusted-source
     # wrapping / metering) AND defaults to "live" under a full-access
     # sandbox — force-disable it; web access routes through the capability
-    # bridge instead. Model calls route through the platform gateway via a
-    # custom provider (`model_providers.tale`): the pinned Codex speaks ONLY
+    # bridge instead. Model calls route through the platform's model relay via
+    # a custom provider (`model_providers.tale`): the pinned Codex speaks ONLY
     # the OpenAI Responses API (`wire_api = "chat"` is a startup error), so
-    # the provider pins `wire_api = "responses"` — the gateway serves
+    # the provider pins `wire_api = "responses"` — the relay serves
     # /openai/v1/responses and translates Responses→Chat for chat-only
     # upstreams. The bearer key is read from the exec env via `env_key`,
     # never placed on argv (process lists leak argv).
@@ -76,9 +76,9 @@ exec:
         - '-c'
         - 'model_providers.tale.wire_api="responses"'
         # Codex runs its own idle watchdog per stream and RESENDS the request
-        # when it fires. Its default is shorter than the gateway's own idle
+        # when it fires. Its default is shorter than the relay's own idle
         # budget, so a slow prefill (a local model, a cold cache) had the
-        # gateway still serving turn one while Codex asked for it again.
+        # relay still serving turn one while Codex asked for it again.
         # Both ends now wait the same number of milliseconds; a TOML integer,
         # so the value carries no quotes.
         - '-c'

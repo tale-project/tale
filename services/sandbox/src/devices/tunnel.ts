@@ -3,7 +3,7 @@
 // organization connected). The device dials out, so it works from behind NAT
 // with nothing but outbound HTTPS. Either side opens streams: the hub
 // forwards the platform's session calls to the device, and the device relays
-// its sessions' calls back to the platform's backend and LLM gateway.
+// its sessions' calls back to the platform's backend and its model relay.
 //
 // Frame: [u8 type][u32 BE stream id][payload]. Connection-level frames use
 // stream 0 and carry JSON. A stream is one HTTP exchange:

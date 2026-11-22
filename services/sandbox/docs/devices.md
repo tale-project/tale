@@ -11,8 +11,8 @@ served locally or forwarded to a device.
 ```
 platform ──signed API──▶ spawner (hub) ◀══ WebSocket /sandbox/tunnel ══ device spawner ──▶ session containers
                             │  relays ▲                                    ▲ relay listeners
-                            ▼         └──── backend-api / llm-gateway ─────┘ (sessions' calls)
-                     backend-api, sandbox-llm-gateway
+                            ▼         └──── backend-api :3005 / :8080 ─────┘ (sessions' calls)
+                     backend-api (doors, model relay)
 ```
 
 The device dials out over HTTPS, so it works behind NAT with nothing
@@ -26,12 +26,12 @@ the CLI's generator set `8004`; `0` or unset turns it off). It needs the
 Docker backend: placements live on the spawner's disk and a tunnel lands on
 one process, which holds across neither Kubernetes replicas nor a device.
 
-| Variable                       | Default                                                              | Meaning                                                                                                                                          |
-| ------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SANDBOX_HUB_PORT`             | `0` (off)                                                            | Port of the tunnel door. Only `GET /health` and the WebSocket upgrade at `/sandbox/tunnel` answer there; the signed API stays on `SANDBOX_PORT`. |
-| `SANDBOX_HUB_STATE_DIR`        | `<dirname(SANDBOX_HOST_SESSION_ROOT)>/hub`                           | Where `placements.json` lives (`/var/lib/tale-sandbox/hub`, inside the host bind mount, so it survives redeploys).                               |
-| `SANDBOX_HUB_API_UPSTREAM`     | `SANDBOX_HTTP_API_BASE_URL`, else `http://backend-api:3005`          | Where the `api` relay goes.                                                                                                                      |
-| `SANDBOX_HUB_GATEWAY_UPSTREAM` | `EXTERNAL_AGENT_GATEWAY_URL`, else `http://sandbox-llm-gateway:8080` | Where the `gateway` relay goes.                                                                                                                  |
+| Variable                       | Default                                                                        | Meaning                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SANDBOX_HUB_PORT`             | `0` (off)                                                                      | Port of the tunnel door. Only `GET /health` and the WebSocket upgrade at `/sandbox/tunnel` answer there; the signed API stays on `SANDBOX_PORT`. |
+| `SANDBOX_HUB_STATE_DIR`        | `<dirname(SANDBOX_HOST_SESSION_ROOT)>/hub`                                     | Where `placements.json` lives (`/var/lib/tale-sandbox/hub`, inside the host bind mount, so it survives redeploys).                               |
+| `SANDBOX_HUB_API_UPSTREAM`     | `SANDBOX_HTTP_API_BASE_URL`, else `http://backend-api:3005`                    | Where the `api` relay goes.                                                                                                                      |
+| `SANDBOX_HUB_GATEWAY_UPSTREAM` | `EXTERNAL_AGENT_GATEWAY_URL`, else `http://backend-api:8080` (the model relay) | Where the `gateway` relay goes.                                                                                                                  |
 
 The proxy publishes the door at `<site>/sandbox/tunnel`, routed by the `sandbox` service's Traefik
 labels (`compose.yml`, `tools/cli/src/lib/compose/services/traefik-labels.ts`) to its
@@ -187,7 +187,9 @@ it).
 ## Relays
 
 Sessions on a device call the same addresses as sessions on the server
-(`backend-api:3005`, `sandbox-llm-gateway:8080`, `llm-gateway:8080`). The
+(`backend-api:3005`, and the model relay at `backend-api:8080`; a device
+connected before the relay names the retired `sandbox-llm-gateway:8080` and
+`llm-gateway:8080` in its config, which it answers too). The
 device's spawner answers them on the device network (network aliases of the
 device container) and relays each call through the tunnel; the hub forwards
 it upstream only along the allowlist (`src/devices/relay-policy.ts`):

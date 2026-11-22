@@ -33,6 +33,10 @@ import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
+import {
+  type AllowedModelRef,
+  resolveGatewayRouting,
+} from '../../../lib/shared/providers/gateway_routing';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import { canViewSkill, type SkillViewer } from '../../../lib/skills/visibility';
@@ -94,10 +98,8 @@ import {
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
-  type AllowedModelRef,
   readVirtualKeySpend,
   hashVirtualKey,
-  resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
@@ -1253,10 +1255,10 @@ function relayScope(
 /**
  * Mint what the resolved lane authenticates with — called late (after the
  * session ensure and staging) so a parked or failed start never leaks a
- * minted key. GATEWAY: the session virtual key over serving + vision models,
- * exactly the pre-subscription flow. SUBSCRIPTION: redeem the serving
+ * minted key. GATEWAY: the turn's model relay key over serving + vision
+ * models, exactly the pre-subscription flow. SUBSCRIPTION: redeem the serving
  * provider's default subscription credential (broker failures carry their
- * typed, actionable messages into the node error) and mint NO virtual key —
+ * typed, actionable messages into the node error) and mint NO model key —
  * the vendor token serves inference, while a random session token keeps the
  * capability bridge reachable; there is no gateway spend to meter, and
  * nothing to revoke at settle. Shared by the fresh start and the answered-ask
@@ -1313,10 +1315,9 @@ async function mintWorkflowTurnAuth(
     }
     const budgetCents = reservation.budgetCents;
     // The turn's key for the model relay (domains/llm_relay), which serves
-    // its calls in place of the sandbox LLM gateway.
+    // its calls; the allowance stands on the turn's op.
     const key = await issueRelayKey(ctx, {
       organizationId: args.organizationId,
-      sessionId: args.sessionId,
       allowedModels: [
         {
           providerSlug: args.providerSlug,
@@ -1329,7 +1330,6 @@ async function mintWorkflowTurnAuth(
       ],
       surface: 'automation',
       actor: { id: args.runId, type: 'workflow' },
-      budgetCents,
     });
     return {
       serving: { kind: 'gateway', token: key.token },

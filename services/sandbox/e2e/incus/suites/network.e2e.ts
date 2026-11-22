@@ -325,13 +325,13 @@ describe('a session on the sandbox bridge', () => {
     "a bridge resolver that is given the platform's names answers them for a session pointed at it, with no ACL rule for DNS",
     async () => {
       // How an infrastructure that keeps the bridge's resolver closed (it
-      // forwards nothing) can give a session the names of the LLM gateway and
-      // the backend: `address=` lines on the bridge, and the spawner told to
-      // hand sessions the bridge as their resolver (SANDBOX_INCUS_DNS). The
-      // ACL has no rule for DNS to the bridge: Incus lets it through.
+      // forwards nothing) can give a session the names of the backend, where
+      // it reaches the model relay and the bridges: `address=` lines on the
+      // bridge, and the spawner told to hand sessions the bridge as their
+      // resolver (SANDBOX_INCUS_DNS). The ACL has no rule for DNS to the
+      // bridge: Incus lets it through.
       const closed = 'no-resolv';
       const names = [
-        `address=/sandbox-llm-gateway/${lab.gatewayAddress}`,
         `address=/backend-api/${lab.backendAddress}`,
         `address=/backend-relay/${lab.backendAddress}`,
       ];
@@ -364,16 +364,12 @@ describe('a session on the sandbox bridge', () => {
             .map((line) => line.split(/\s+/)[1]),
         ).toEqual([lab.bridgeAddress]);
         expect(
-          (await sh(api, C, 'getent hosts sandbox-llm-gateway')).trim(),
-        ).toStartWith(lab.gatewayAddress);
-        expect(
           (await sh(api, C, 'getent hosts backend-api')).trim(),
         ).toStartWith(lab.backendAddress);
-        // By name, on the ACL's ports, reached directly (NO_PROXY names them).
-        const gateway = await api.exec(C, {
-          shell: 'curl -sS --max-time 10 http://sandbox-llm-gateway:8080/',
-        });
-        expect(gateway.stdout).toBe('gateway');
+        expect(
+          (await sh(api, C, 'getent hosts backend-relay')).trim(),
+        ).toStartWith(lab.backendAddress);
+        // By name, on the ACL's port, reached directly (NO_PROXY names it).
         const backend = await api.exec(C, {
           shell: 'curl -sS --max-time 10 http://backend-api:3005/',
         });

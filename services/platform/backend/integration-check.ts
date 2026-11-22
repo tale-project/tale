@@ -124,6 +124,7 @@ import { checkAutomationMessages } from './domains/connectors/notify.integration
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkTaskListStep } from './domains/connectors/task-list.integration.ts';
+import { checkControlGatewayKeys } from './domains/control/gateway-keys.integration.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
@@ -43460,10 +43461,10 @@ async function checkApprovalsSurface(
 
 /**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
- * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
- * canned claude-code stream-json turn → harvest (fake workspace file → real
- * MinIO blob) → settle choreography (outputs attached, agent comment,
- * in_review park, VK revoked, op finalized).
+ * ensure (fake spawner) → the turn's relay key → exec streaming a canned
+ * claude-code stream-json turn → harvest (fake workspace file → real MinIO
+ * blob) → settle choreography (outputs attached, agent comment, in_review
+ * park, key closed, op finalized).
  */
 /** A turn's relay key as the relay sees it (tale-project/tale#4942). */
 interface RelayKeyReading {
@@ -43741,71 +43742,9 @@ async function checkTaskAgentTurnDrive(
       ? spawnerAddress.port
       : 0;
 
-  // --- fake bifrost admin --------------------------------------------------
-  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
-  const gateway = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-    req.on('end', () => {
-      const url = req.url ?? '';
-      const method = req.method ?? 'GET';
-      res.setHeader('content-type', 'application/json');
-      if (url === '/api/config') {
-        res.end(JSON.stringify({ client_config: {} }));
-        return;
-      }
-      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
-      if (keysMatch) {
-        const provider = decodeURIComponent(keysMatch[1] ?? '');
-        if (method === 'GET') {
-          res.end(JSON.stringify({ keys: providerKeys.get(provider) ?? [] }));
-          return;
-        }
-        const parsed = z
-          .looseObject({ name: z.string() })
-          .safeParse(JSON.parse(body || '{}'));
-        const list = providerKeys.get(provider) ?? [];
-        if (parsed.success && !list.some((k) => k.name === parsed.data.name)) {
-          list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
-        }
-        providerKeys.set(provider, list);
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/providers/')) {
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/governance/pricing-overrides')) {
-        // The pricing plane: nothing stored, every write accepted.
-        res.end(
-          method === 'GET'
-            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
-            : '{}',
-        );
-        return;
-      }
-      // No virtual keys: a turn's key is the relay's. A mint here would
-      // fail its turn.
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    gateway.listen(0, '127.0.0.1', resolve);
-  });
-  const gatewayAddress = gateway.address();
-  const gatewayPort =
-    gatewayAddress !== null && typeof gatewayAddress === 'object'
-      ? gatewayAddress.port
-      : 0;
-
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: SPAWNER_TOKEN,
-    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
@@ -44297,9 +44236,6 @@ async function checkTaskAgentTurnDrive(
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
-    });
     await agentProvider.close();
   }
 }
@@ -44532,70 +44468,9 @@ async function checkAutomationAgentNode(
       ? spawnerAddress.port
       : 0;
 
-  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
-  const gateway = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-    req.on('end', () => {
-      const url = req.url ?? '';
-      const method = req.method ?? 'GET';
-      res.setHeader('content-type', 'application/json');
-      if (url === '/api/config') {
-        res.end(JSON.stringify({ client_config: {} }));
-        return;
-      }
-      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
-      if (keysMatch) {
-        const provider = decodeURIComponent(keysMatch[1] ?? '');
-        if (method === 'GET') {
-          res.end(JSON.stringify({ keys: providerKeys.get(provider) ?? [] }));
-          return;
-        }
-        const parsed = z
-          .looseObject({ name: z.string() })
-          .safeParse(JSON.parse(body || '{}'));
-        const list = providerKeys.get(provider) ?? [];
-        if (parsed.success && !list.some((k) => k.name === parsed.data.name)) {
-          list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
-        }
-        providerKeys.set(provider, list);
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/providers/')) {
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/governance/pricing-overrides')) {
-        // The pricing plane: nothing stored, every write accepted.
-        res.end(
-          method === 'GET'
-            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
-            : '{}',
-        );
-        return;
-      }
-      // No virtual keys: a turn's key is the relay's. A mint here would
-      // fail its turn.
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    gateway.listen(0, '127.0.0.1', resolve);
-  });
-  const gatewayAddress = gateway.address();
-  const gatewayPort =
-    gatewayAddress !== null && typeof gatewayAddress === 'object'
-      ? gatewayAddress.port
-      : 0;
-
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: SPAWNER_TOKEN,
-    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
@@ -45053,9 +44928,6 @@ async function checkAutomationAgentNode(
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
-    });
   }
 }
 
@@ -45090,8 +44962,8 @@ interface TwoStepDestroyRun {
  * `publish`, the second asking for what the first left in the workspace.
  * The spawner counts every create, exec and delete, holds the first exec
  * (the first step's turn) until the lane releases it, and refuses a delete
- * while the lane says so; the gateway mints and revokes each turn's key and
- * spends nothing. A lane closes the run in its `finally`.
+ * while the lane says so; each turn's key is the relay's, and its calls
+ * spend nothing. A lane closes the run in its `finally`.
  */
 async function startTwoStepDestroyRun(
   sql: Sql,
@@ -45273,71 +45145,9 @@ async function startTwoStepDestroyRun(
     spawnerAddress !== null && typeof spawnerAddress === 'object'
       ? spawnerAddress.port
       : 0;
-  // The gateway: the provider keys the platform syncs. A turn's key is the
-  // relay's, so no virtual key is minted here.
-  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
-  const gateway = createServer((req, res) => {
-    let gatewayBody = '';
-    req.on('data', (chunk: unknown) => {
-      gatewayBody += String(chunk);
-    });
-    req.on('end', () => {
-      const url = req.url ?? '';
-      const method = req.method ?? 'GET';
-      res.setHeader('content-type', 'application/json');
-      if (url === '/api/config') {
-        res.end(JSON.stringify({ client_config: {} }));
-        return;
-      }
-      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
-      if (keysMatch) {
-        const provider = decodeURIComponent(keysMatch[1] ?? '');
-        const list = providerKeys.get(provider) ?? [];
-        if (method !== 'GET') {
-          const parsed = z
-            .looseObject({ name: z.string() })
-            .safeParse(JSON.parse(gatewayBody || '{}'));
-          if (
-            parsed.success &&
-            !list.some((k) => k.name === parsed.data.name)
-          ) {
-            list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
-          }
-          providerKeys.set(provider, list);
-          res.end('{}');
-          return;
-        }
-        res.end(JSON.stringify({ keys: list }));
-        return;
-      }
-      if (url.startsWith('/api/governance/pricing-overrides')) {
-        res.end(
-          method === 'GET'
-            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
-            : '{}',
-        );
-        return;
-      }
-      if (url.startsWith('/api/providers')) {
-        res.end('{}');
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    gateway.listen(0, '127.0.0.1', resolve);
-  });
-  const gatewayAddress = gateway.address();
-  const gatewayPort =
-    gatewayAddress !== null && typeof gatewayAddress === 'object'
-      ? gatewayAddress.port
-      : 0;
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: 'itest-destroy-spawner',
-    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
@@ -45361,9 +45171,6 @@ async function startTwoStepDestroyRun(
     }
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
-    });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
     });
     await agentProvider?.cleanup();
   };
@@ -46902,14 +46709,15 @@ async function checkCorpusScopeReconcile(
 
 /**
  * TEARDOWN CREDENTIAL RECLAIM — every edge that ends a sandbox session has to
- * delete its gateway virtual key (fake bifrost records the DELETEs).
+ * delete the virtual keys the sandbox LLM gateway minted for it before the
+ * model relay served every turn (a fake gateway records the DELETEs).
  *
- * The gateway has NO native TTL and `mintVirtualKey` gives every key a
+ * The gateway has NO native TTL and its mint gave every key a
  * `reset_duration: '1M'` budget window precisely because teardown deletes it
  * first, so a key that outlives its session is a permanent bearer credential
  * with a self-refilling monthly allowance against the org's own provider
- * keys. Three edges reach the same helper, each asserted on the key ids the
- * gateway actually saw:
+ * keys while the gateway runs. Three edges reach the same helper, each
+ * asserted on the key ids the gateway actually saw:
  *
  *  - EXPIRY: the sandbox watchdog's TTL pass (0.4 `teardownExpiredSessions`).
  *  - DESTROY/HEAL: `markSessionDestroyed`, the bottom of the admin Destroy,
@@ -46984,13 +46792,11 @@ async function checkSandboxGatewayKeyReclaim(
   const previousGatewayPassword =
     process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
   process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${port}`;
-  // The admin client refuses to run anonymous — deliberately, since the
-  // management API is reachable from every sandbox session. The fake gateway
-  // below does not check the value, but without one set every revoke fails
-  // authentication and the check would pass its fail-open lane while proving
-  // nothing about the revoke itself. main() defaults the variable before any
-  // lane runs (two earlier lanes mint too); this lane only restores whatever
-  // it found.
+  // The admin client sends no call without the gateway's admin password. The
+  // fake gateway does not check the value, but without one every revoke
+  // fails before it is sent, and the check would pass its fail-open lane
+  // while proving nothing about the revoke itself.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD = 'itest-gateway-admin';
   const now = Date.now();
   const seedSession = async (
     sessionId: string,
@@ -47467,14 +47273,13 @@ async function checkSandboxGatewayKeyReclaim(
   } finally {
     if (previousGatewayUrl === undefined) {
       delete process.env.SANDBOX_LLM_GATEWAY_URL;
-      if (previousGatewayPassword === undefined) {
-        delete process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
-      } else {
-        process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
-          previousGatewayPassword;
-      }
     } else {
       process.env.SANDBOX_LLM_GATEWAY_URL = previousGatewayUrl;
+    }
+    if (previousGatewayPassword === undefined) {
+      delete process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+    } else {
+      process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD = previousGatewayPassword;
     }
     await new Promise<void>((resolve) => {
       gateway.close(() => resolve());
@@ -67002,14 +66807,9 @@ async function main(): Promise<void> {
     // lanes (64 hex chars = 32 bytes) — the one variable both lanes read.
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
   }
-  // The sandbox gateway admin client refuses to run anonymous
-  // (requireGatewayAdminPassword throws before any network call), and three
-  // lanes mint keys against a fake gateway in this order:
-  // checkAutomationAgentNode, checkAutomationRunToolLane,
-  // checkSandboxGatewayKeyReclaim. Default it here, before any lane runs — the
-  // reclaim lane used to be the only setter, so on a machine without the
-  // variable the two earlier lanes failed their `minted === 1` assertions.
-  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
+  // No lane mints a key at the sandbox LLM gateway any more: the suite runs
+  // as a new install does, without its admin password. The lanes that settle
+  // a key it minted before set the password beside their fake gateway.
 
   // Better Auth validates the request Host against baseURL, so the server
   // port must be known BEFORE the auth instance is created: the kernel names
@@ -68423,6 +68223,10 @@ async function main(): Promise<void> {
         () => checkConversationRouting(sql, authCtx, `itest-${orgSuffix}`),
       ],
       ['checkControlDrain', () => checkControlDrain(sql, baseUrl, authCtx)],
+      [
+        'checkControlGatewayKeys',
+        () => checkControlGatewayKeys(sql, baseUrl, authCtx, record),
+      ],
       ['checkProvisioning', () => checkProvisioning(sql)],
       [
         'checkWebdav',

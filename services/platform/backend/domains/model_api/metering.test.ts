@@ -222,7 +222,6 @@ describe('openModelApiLease', () => {
     });
     expect(provisioning.issueRelayKey).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
-      sessionId: 'model-api:key-1',
       allowedModels: [
         {
           providerSlug: 'deepseek',
@@ -230,9 +229,6 @@ describe('openModelApiLease', () => {
           anthropicHarnessLane: false,
         },
       ],
-      budgetCents: 4,
-      requestScoped: true,
-      requestId: 'req-1',
       surface: 'model-api',
       actor: { id: 'user-1', type: 'api' },
     });

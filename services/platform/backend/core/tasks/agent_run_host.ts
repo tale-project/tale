@@ -35,6 +35,10 @@ import {
   agentLanguageGuidance,
   type AgentLanguageContext,
 } from '../../../lib/shared/agent-language';
+import {
+  type AllowedModelRef,
+  resolveGatewayRouting,
+} from '../../../lib/shared/providers/gateway_routing';
 import { parseRunStarter } from '../../../lib/shared/run-starter';
 import {
   liveProgressSink,
@@ -100,11 +104,7 @@ import {
   SpawnerUnreachableError,
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
-import {
-  type AllowedModelRef,
-  hashVirtualKey,
-  resolveGatewayRouting,
-} from '../node_only/sandbox/llm_gateway_admin';
+import { hashVirtualKey } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { brokeredCredentialNames } from '../node_only/sandbox/session_credentials';
 import {
@@ -1031,10 +1031,10 @@ interface PreparedServing {
 /**
  * Mint what the resolved lane authenticates with — called late (after the
  * session ensure and staging) so a parked or failed start never leaks a
- * minted key. GATEWAY: the session virtual key over serving + vision
+ * minted key. GATEWAY: the turn's model relay key over serving + vision
  * models, exactly the pre-subscription flow. SUBSCRIPTION: redeem the
  * pinned provider's default subscription credential (broker failures carry
- * their typed, actionable messages into the run error) and mint NO virtual
+ * their typed, actionable messages into the run error) and mint NO model
  * key — the vendor token serves inference, while a random session token
  * keeps the capability bridge reachable; there is no gateway spend to
  * meter, and nothing to revoke at settle. Shared by the fresh start and the
@@ -1116,14 +1116,12 @@ async function mintTurnServing(
     }
     const budgetCents = reservation.budgetCents;
     // The turn's key for the model relay (domains/llm_relay), which serves
-    // its calls in place of the sandbox LLM gateway.
+    // its calls; the allowance stands on the turn's op.
     const key = await issueRelayKey(ctx, {
       organizationId: args.organizationId,
-      sessionId: args.sessionId,
       allowedModels: [target, ...(vision !== null ? [vision.model] : [])],
       surface: 'task',
       ...(args.actor !== undefined ? { actor: args.actor } : {}),
-      budgetCents,
     });
     return {
       serving: { kind: 'gateway', token: key.token },

@@ -596,7 +596,11 @@ async function checkLifecycleDurability(
   const port =
     address !== null && typeof address === 'object' ? address.port : 0;
   const previousUrl = process.env.SANDBOX_LLM_GATEWAY_URL;
+  const previousPassword = process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
   process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${port}`;
+  // The key the gateway minted is settled there, and no management call
+  // goes out without the admin password; the fake does not check it.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD = 'itest-gateway-admin';
   const failure = new Error('injected failure after the remote effect');
   const spawner = {
     isAlive: async () => alive,
@@ -715,6 +719,11 @@ async function checkLifecycleDurability(
   } finally {
     if (previousUrl === undefined) delete process.env.SANDBOX_LLM_GATEWAY_URL;
     else process.env.SANDBOX_LLM_GATEWAY_URL = previousUrl;
+    if (previousPassword === undefined) {
+      delete process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+    } else {
+      process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD = previousPassword;
+    }
     await new Promise<void>((resolve) => {
       gateway.close(() => resolve());
     });

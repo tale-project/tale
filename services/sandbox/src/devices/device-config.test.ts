@@ -22,7 +22,7 @@ const WRITTEN_BY_THE_CLI = {
   autoUpdate: true,
   relays: [
     { name: 'api', url: 'http://backend-api:3005' },
-    { name: 'gateway', url: 'http://sandbox-llm-gateway:8080' },
+    { name: 'gateway', url: 'http://backend-api:8080' },
   ],
   host: { os: 'darwin', arch: 'arm64', hostname: 'studio-mac.local' },
 };

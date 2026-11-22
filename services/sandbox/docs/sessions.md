@@ -1149,11 +1149,11 @@ The spawner's part:
 
 Secrets entering a sandbox is a graded decision, documented and enforced:
 
-- **Tier 0 — platform-global secrets** (`SANDBOX_TOKEN`, LLM gateway management
-  token, SOPS age key, raw provider API keys): **never enter a sandbox**, ever.
+- **Tier 0 — platform-global secrets** (`SANDBOX_TOKEN`, SOPS age key, raw
+  provider API keys): **never enter a sandbox**, ever.
 - **Tier 1 — proxiable credentials** (LLM provider keys): stay outside. The
-  sandbox holds only a session-scoped gateway virtual key (`sk-bf-*`); LLM
-  traffic transits the gateway, which attaches the real key. Bought: per-key
+  sandbox holds only its turn's model key (`tale-rt-*`); LLM traffic transits
+  the platform's model relay, which attaches the real key. Bought: per-turn
   budget, model allowlist, instant revoke, server-side usage metering.
 - **Tier 2 — managed-entry credentials** (connector secrets — git tokens,
   DB passwords, third-party API keys — that can't be transparently proxied):
@@ -1310,7 +1310,7 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
 ### NetworkPolicy
 
 - Session Pods (`tale.sandbox/role: session`): egress to the egress proxy, the
-  LLM gateway Service (`:8080`), and DNS only.
+  backend's model relay (`:8080`), and DNS only.
 - Ingress to session Pods on `:8200` (runnerd) is allowed **from the spawner
   Deployment only**.
 
@@ -1378,7 +1378,7 @@ storage driver.
   idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC
   deleted); cross-replica exec/destroy. (Pending — requires a kind cluster + the
   built agent image.)
-- Live agent smoke (secret-gated, needs real provider creds via the LLM gateway):
+- Live agent smoke (secret-gated, needs real provider creds via the model relay):
   one real `claude -p` + `agent -p` turn end-to-end. (Pending.)
 
 ### Checkpoint and staging protocol

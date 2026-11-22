@@ -195,12 +195,6 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/outbound-proxies.guard.test.ts',
   },
   {
-    // Run under /bin/sh, not imported: the setup token the gateway image
-    // hands the gateway, paired with the platform's own bootstrap.
-    path: 'services/sandbox-llm-gateway/docker-entrypoint.sh',
-    readers: 'backend/core/node_only/sandbox/gateway_setup_token.test.ts',
-  },
-  {
     path: 'services/sandbox-runtime/build-gemini-settings.ts',
     readers: 'lib/harnesses/gemini-settings-build.test.ts',
   },

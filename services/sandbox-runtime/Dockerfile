@@ -662,9 +662,9 @@ ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 # Deliberately NOT placed in managed-settings.json — that layer is
 # highest-precedence and would make the default impossible to override.
 ENV CLAUDE_CODE_EFFORT_LEVEL=max
-# Apply max effort even when the gateway hands Claude Code a model id it does NOT
-# recognise as effort-capable. CC's built-in capability check matches exact names
-# (`claude-opus-4-8`, …); a gateway-aliased id (e.g. `anthropic/claude-opus-4-8`)
+# Apply max effort even when the model relay hands Claude Code a model id it does
+# NOT recognise as effort-capable. CC's built-in capability check matches exact
+# names (`claude-opus-4-8`, …); a relay-routed id (e.g. `anthropic/claude-opus-4-8`)
 # falls through and silently drops effort. This forces it on for any model.
 ENV CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1
 # Force-enable dynamic workflows ("ultracode") + subagent orchestration. The
@@ -808,14 +808,14 @@ COPY services/sandbox-runtime/tale-connectors-mcp /usr/local/bin/tale-connectors
 # via the transcriber and (2) denies native PDF Reads — pdftotext when the PDF
 # has text, else guide pdftoppm → Read PNG (image path). Native PDF/`file`
 # blocks 400 on text-only models (DeepSeek). `tale-vision-transcribe` relays
-# images to the platform LLM gateway's vision model using the session virtual
-# key (no provider key enters the container). See
+# images to the vision model through the platform's model relay, with the
+# turn's model key (no provider key enters the container). See
 # services/platform/lib/harnesses/exec-builder.ts (`vision.env`).
 COPY services/sandbox-runtime/tale-vision-transcribe /usr/local/bin/tale-vision-transcribe
 COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-read-hook
 
 # Batch vision CLI for in-sandbox code (`run_code` scripts and coding agents):
-# analyzes images via the platform LLM gateway with the session virtual key —
+# analyzes images through the platform's model relay with the turn's model key —
 # same no-provider-key-in-container lane as tale-vision-transcribe (which stays
 # the single-image Read-hook polyfill). Armed (TALE_VISION_MODEL) for every
 # managed gateway turn that resolved a vision model, vision-capable serving

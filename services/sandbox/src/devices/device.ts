@@ -10,8 +10,8 @@
 //      before it expires (RENEW);
 //   3. serve the session calls the hub forwards — in-process, through the
 //      same handlers the spawner's HTTP API uses;
-//   4. answer its sessions' calls to `backend-api` / `sandbox-llm-gateway`
-//      (the relay listeners) by relaying them through the tunnel;
+//   4. answer its sessions' calls to `backend-api` — its doors and its model
+//      relay — (the relay listeners) by relaying them through the tunnel;
 //   5. follow the server's release: when the ticket answer names a newer
 //      release, launch the updater (apply.ts) and let it replace this process.
 //

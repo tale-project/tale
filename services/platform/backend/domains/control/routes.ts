@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import { countOpenGatewayKeys } from '../sandbox/gateway-keys.ts';
 import {
   beginDrain,
   ControlError,
@@ -35,7 +36,13 @@ function controlTokenMatches(c: Context): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function createControlRoutes(deps: { sql: Sql }): Hono {
+export function createControlRoutes(deps: {
+  sql: Sql;
+  /** How many keys the sandbox LLM gateway minted are still open — a seam
+   * for the unit layer; the deployment's own count by default. */
+  openGatewayKeys?: (sql: Sql) => Promise<number>;
+}): Hono {
+  const openGatewayKeys = deps.openGatewayKeys ?? countOpenGatewayKeys;
   const app = new Hono();
 
   app.use(async (c, next) => {
@@ -71,6 +78,15 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
 
   app.get('/drain-status', async (c) => {
     return c.json(await drainStatus(deps.sql));
+  });
+
+  /** `tale deploy` — whether the sandbox LLM gateway an earlier release ran
+   * may go: how many keys it minted are still open, i.e. something will
+   * still read their spend or revoke them at the gateway
+   * (`countOpenGatewayKeys`). The deploy removes the gateway's container at
+   * 0, never its volume, and keeps it otherwise. */
+  app.get('/gateway-keys', async (c) => {
+    return c.json({ open: await openGatewayKeys(deps.sql) });
   });
 
   /** `tale migrate` — re-seed every org's provisioned content (idempotent).

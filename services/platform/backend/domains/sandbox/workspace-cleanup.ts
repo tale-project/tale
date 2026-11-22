@@ -222,7 +222,9 @@ export interface WorkspaceSpawner {
   disconnectDevice: (deviceId: string) => Promise<unknown>;
   revokeKey: (keyId: string) => Promise<void>;
   /** Remove a deleted organization's provider keys and its own provider
-   * records from the gateway; throws until all of them are gone. */
+   * records from the sandbox LLM gateway an earlier release ran; throws
+   * until all of them are gone. A retired gateway, and a deployment that
+   * never ran one, have nothing to remove. */
   removeOrganizationFromGateway: (organizationId: string) => Promise<unknown>;
   /** Drop the spawner's own pin, so a container a refused destroy leaves
    * behind is reaped like any other. */

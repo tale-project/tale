@@ -5,11 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   DEV_MODEL_RELAY_PORT,
-  DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
   DEV_SANDBOX_TOKEN,
+  deriveDevSecrets,
   ensureKnowledgeDatabaseUrl,
   ensureModelRelayPort,
-  ensureSandboxLlmGatewayAdminPassword,
   ensureSandboxToken,
 } from './dev-secrets';
 
@@ -32,32 +31,12 @@ function composeDevDefault(name: string): string {
   return match[1];
 }
 
-// The host `bun dev` backend signs spawner requests (and logs into the gateway)
-// with the values below, while the dockerized spawner / gateway boot from
-// compose.dev.yml's defaults — the two MUST be byte-identical or every sandbox
-// call in the dev stack is a 401.
-describe('dev sandbox control-plane secrets — lockstep with compose.dev.yml', () => {
+// The host `bun dev` backend signs spawner requests with the value below,
+// while the dockerized spawner boots from compose.dev.yml's default — the two
+// MUST be byte-identical or every sandbox call in the dev stack is a 401.
+describe('dev sandbox control-plane secret — lockstep with compose.dev.yml', () => {
   it('SANDBOX_TOKEN fallback equals the compose.dev.yml dev default', () => {
     expect(composeDevDefault('SANDBOX_TOKEN')).toBe(DEV_SANDBOX_TOKEN);
-  });
-
-  it('gateway admin password fallback equals the compose.dev.yml dev default', () => {
-    expect(composeDevDefault('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD')).toBe(
-      DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
-    );
-  });
-
-  // A fresh dockerized dev gateway sets THIS value as its admin password on
-  // first-time auth setup, and Bifrost (>= v1.6.9) rejects one that misses any
-  // class (>=12 chars, upper, lower, digit, special) — then every sandbox call
-  // is a 401. Guard the literal from regressing below the policy.
-  it('gateway admin dev default satisfies the gateway password policy', () => {
-    const pw = DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
-    expect(pw.length).toBeGreaterThanOrEqual(12);
-    expect(pw).toMatch(/[A-Z]/);
-    expect(pw).toMatch(/[a-z]/);
-    expect(pw).toMatch(/[0-9]/);
-    expect(pw).toMatch(/[^A-Za-z0-9]/);
   });
 });
 
@@ -78,27 +57,25 @@ describe('ensureSandboxToken', () => {
   });
 });
 
-describe('ensureSandboxLlmGatewayAdminPassword', () => {
-  it('fills only the gap — an explicit value is never overwritten', () => {
+describe('deriveDevSecrets', () => {
+  // The dev stack runs no sandbox LLM gateway: nothing is derived for one,
+  // so a host backend asks none.
+  it('derives nothing for the retired sandbox LLM gateway', () => {
+    const env: NodeJS.ProcessEnv = { DB_PASSWORD: 'pw' };
+    deriveDevSecrets(env);
+    expect(
+      Object.keys(env).filter((name) => name.includes('LLM_GATEWAY')),
+    ).toEqual([]);
+  });
+
+  it('keeps a gateway setting an existing .env carries, as it was', () => {
     const env: NodeJS.ProcessEnv = {
-      SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: 'real-pw',
+      DB_PASSWORD: 'pw',
+      SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: 'kept-pw',
     };
-    ensureSandboxLlmGatewayAdminPassword(env);
-    expect(env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD).toBe('real-pw');
-  });
-
-  it('treats the pre-rename LLM_GATEWAY_ADMIN_PASSWORD as present', () => {
-    const env: NodeJS.ProcessEnv = { LLM_GATEWAY_ADMIN_PASSWORD: 'old-pw' };
-    ensureSandboxLlmGatewayAdminPassword(env);
-    expect(env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD).toBeUndefined();
-  });
-
-  it('supplies the insecure default when unset', () => {
-    const env: NodeJS.ProcessEnv = {};
-    ensureSandboxLlmGatewayAdminPassword(env);
-    expect(env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD).toBe(
-      DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
-    );
+    deriveDevSecrets(env);
+    expect(env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD).toBe('kept-pw');
+    expect(env.SANDBOX_LLM_GATEWAY_URL).toBeUndefined();
   });
 });
 
@@ -138,24 +115,15 @@ describe('ensureKnowledgeDatabaseUrl', () => {
 });
 
 describe('ensureModelRelayPort', () => {
-  it('gives the host backend’s relay a port the dev gateway does not hold', () => {
+  it('gives the host backend’s relay the port the dev stack’s bridge forwards the relay address to', () => {
     const env: NodeJS.ProcessEnv = {};
     ensureModelRelayPort(env);
     expect(env.SANDBOX_RELAY_PORT).toBe(DEV_MODEL_RELAY_PORT);
-    // The dev gateway publishes 8080 on the host.
-    expect(
-      readFileSync(
-        join(
-          import.meta.dirname,
-          '..',
-          '..',
-          '..',
-          'compose.sandbox-llm-gateway.dev.yml',
-        ),
-        'utf8',
-      ),
-    ).toContain("'127.0.0.1:8080:8080'");
-    expect(env.SANDBOX_RELAY_PORT).not.toBe('8080');
+    // `backend-api:8080` on the sandbox network reaches the host backend's
+    // relay through `backend-relay` (compose.dev.yml).
+    expect(composeDev).toContain(
+      `socat TCP-LISTEN:8080,fork,reuseaddr TCP:host.docker.internal:${DEV_MODEL_RELAY_PORT}`,
+    );
   });
 
   it('keeps a port that is set', () => {
