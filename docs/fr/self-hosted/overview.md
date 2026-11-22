@@ -29,7 +29,7 @@ Les rôles applicatifs utilisent la même image Tale Platform, et `TALE_ROLE` d�
 | --- | --- |
 | `db-data` | `tale_app` : utilisateurs, chats, exécutions, entrées d’audit et secrets chiffrés en base. `tale_knowledge` : contenu extrait, embeddings, index de recherche et pages web récupérées. |
 | `config-data` | Fichiers de configuration des organisations : agents, skills, définitions de fournisseurs, règles de gouvernance, SSO et identité visuelle. |
-| `object-store-data` | Documents importés, pièces jointes, audio et fichiers générés. |
+| `blob-data` | Documents importés, pièces jointes, audio et fichiers générés. Un déploiement installé avant versitygw les conserve dans `object-store-data` jusqu’à [leur déplacement](/fr/self-hosted/operate/upgrades#blob-store). |
 | `caddy-data`, `caddy-config` | Certificats et état du proxy. |
 | `llm-gateway-data` | Configuration de la passerelle, état des accès de session et journal des requêtes de la passerelle (modèle, jetons, durée), sans prompts ni réponses, conservé trois jours par défaut. |
 

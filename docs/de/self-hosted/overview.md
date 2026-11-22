@@ -29,7 +29,7 @@ Die Anwendungsrollen verwenden dasselbe Tale-Platform-Image, und `TALE_ROLE` bes
 | --- | --- |
 | `db-data` | `tale_app`: Nutzer, Chats, Läufe, Audit-Einträge und verschlüsselte Datenbankgeheimnisse. `tale_knowledge`: extrahierte Inhalte, Embeddings, Suchindizes und abgerufene Webseiten. |
 | `config-data` | Konfigurationsdateien der Organisationen, darunter Agenten, Skills, Anbieterdefinitionen, Richtlinien, SSO-Einstellungen und Branding. |
-| `object-store-data` | Hochgeladene Dokumente, Anhänge, Audio und erzeugte Dateien. |
+| `blob-data` | Hochgeladene Dokumente, Anhänge, Audio und erzeugte Dateien. Eine Instanz, die vor versitygw installiert wurde, hält sie bis zu ihrem [Umzug](/de/self-hosted/operate/upgrades#blob-store) in `object-store-data`. |
 | `caddy-data`, `caddy-config` | Zertifikate und Proxy-Zustand. |
 | `llm-gateway-data` | Gateway-Konfiguration, Zugangsdaten für Sitzungen und das Anfrageprotokoll des Gateways mit Modell, Tokens und Dauer, ohne Prompts oder Antworten, standardmäßig drei Tage lang aufbewahrt. |
 

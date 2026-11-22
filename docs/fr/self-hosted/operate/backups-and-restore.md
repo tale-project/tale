@@ -30,7 +30,7 @@ Ces commandes préparent les volumes de configuration et de sauvegarde sans dém
 | `db-data` | Données applicatives et, dans le stack fourni pour un hôte, base de connaissances. |
 | `knowledge-db-data` | Base de connaissances séparée lorsque ce volume existe, notamment avec Compose depuis les sources. |
 | `config-data` | Configuration des organisations, fichiers de secrets associés pris en charge et identité visuelle. Les identifiants de fournisseurs stockés dans Postgres font partie de la sauvegarde de la base. |
-| `object-store-data` | Fichiers importés et médias générés lorsque le stockage par défaut utilise le service fourni. |
+| `blob-data` | Fichiers importés et médias générés lorsque le stockage par défaut utilise le service fourni, avec les attributs étendus dans lesquels versitygw conserve le type de contenu et l’ETag de chaque fichier. Un déploiement dont les fichiers sont encore dans MinIO a `object-store-data` à la place. |
 | `caddy-data`, `caddy-config` | Certificats et état du proxy. |
 | `llm-gateway-data` | Le stockage de la passerelle de modèles : son compte d’administration, les clés des fournisseurs, les clés de session avec leurs budgets et leurs dépenses, et son journal des requêtes. |
 
@@ -90,7 +90,7 @@ La restauration remplace le contenu des volumes inclus. Préserve l’état actu
 tale restore <snapshot-id> --stop
 ```
 
-4. Restaure les bases et buckets externes au point de reprise coordonné, sans rouvrir le trafic. Un snapshot marqué `without blobs` laisse le volume local de fichiers existant intact. Un snapshot marqué `without gateway` laisse `llm-gateway-data` intact et ne peut pas ramener la passerelle au stockage qu’elle avait avant sa mise à niveau ; la CLI le signale avant de demander confirmation. Si la passerelle a été mise à niveau après ce snapshot, remets ta propre copie du volume en place avant l’étape suivante, comme l’explique [Mises à niveau](/fr/self-hosted/operate/upgrades).
+4. Restaure les bases et buckets externes au point de reprise coordonné, sans rouvrir le trafic. Un snapshot marqué `without blobs` laisse le volume local de fichiers existant intact. Un snapshot pris pendant que le déploiement exécutait MinIO contient `object-store-data` ; le restaurer vide aussi `blob-data`, volume que la CLI nomme avant de demander confirmation. Le déploiement exécute ensuite MinIO jusqu’à ce qu’un `tale deploy` avec `--stop` déplace de nouveau les fichiers, comme l’explique [Mises à niveau](/fr/self-hosted/operate/upgrades#blob-store). Un snapshot marqué `without gateway` laisse `llm-gateway-data` intact et ne peut pas ramener la passerelle au stockage qu’elle avait avant sa mise à niveau ; la CLI le signale avant de demander confirmation. Si la passerelle a été mise à niveau après ce snapshot, remets ta propre copie du volume en place avant l’étape suivante, comme l’explique [Mises à niveau](/fr/self-hosted/operate/upgrades).
 5. Sélectionne la version indiquée dans le snapshot et déploie-la, y compris les services persistants :
 
 ```bash

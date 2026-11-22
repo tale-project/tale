@@ -51,7 +51,7 @@ Les sondes transposent les contrôles de santé Compose :
 | `backend-api` | `GET /ping` sur 3005, jusqu’à cinq minutes pour les migrations | `GET /ready` sur 3005 | `GET /ping` sur 3005 |
 | `platform` | `curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]`, jusqu’à trois minutes | la même commande | aucune |
 | `db` | `pg_isready -U tale -d tale && [ -f /tmp/.db_ready ]`, jusqu’à trois minutes | la même commande | `pg_isready -U tale -d tale` |
-| `object-store` | aucune | `mc ready local` | aucune |
+| `object-store` | aucune | `GET /_health` sur 9000 | aucune |
 | `proxy` | aucune | `GET /health` sur 2020 | aucune |
 | `sandbox` | `GET /health` sur 8003 | `GET /health` sur 8003 | aucune |
 | `sandbox-egress` | aucune | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | aucune |
@@ -120,9 +120,9 @@ spec:
 
 `DATABASE_URL` porte le même mot de passe que `DB_PASSWORD` ; la connexion de connaissances utilise par défaut `knowledge-db:5432/tale_knowledge` avec ce mot de passe. `SITE_URL` doit correspondre à l’adresse saisie dans le navigateur, port non standard compris.
 
-## Exécuter les stockages
+## Exécuter les stockages {#run-the-stores}
 
-Le StatefulSet conserve le volume de données à travers les remplacements de Pod et donne à l’image l’arrêt qu’elle attend. MinIO s’exécute comme un Deployment unique sur son propre claim.
+Le StatefulSet conserve le volume de données à travers les remplacements de Pod et donne à l’image l’arrêt qu’elle attend. versitygw s’exécute comme un Deployment unique sur son propre claim, `blob-data`, dont le système de fichiers doit conserver les attributs étendus : versitygw y stocke le type de contenu et l’ETag de chaque objet. Un cluster mis en place à partir d’une version antérieure de cette page exécute MinIO sur `object-store-data`. versitygw ne sait pas lire ce claim : garde donc MinIO jusqu’à ce que tu [déplaces les fichiers](/fr/self-hosted/install/own-compose#blob-store).
 
 ```yaml
 # 10-stores.yaml
@@ -183,7 +183,7 @@ spec:
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
-metadata: { name: object-store-data, namespace: tale }
+metadata: { name: blob-data, namespace: tale }
 spec:
   accessModes: [ReadWriteOnce]
   resources: { requests: { storage: 20Gi } }
@@ -208,28 +208,29 @@ spec:
       enableServiceLinks: false
       terminationGracePeriodSeconds: 30
       containers:
-        - name: minio
-          image: ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z
-          args: ['server', '/data', '--address', ':9000', '--console-address', ':9001']
+        - name: versitygw
+          image: ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+          args: ['--port', ':9000', '--health', '/_health', '--quiet', 'posix', '--fsync', '/data']
           env:
-            - name: MINIO_ROOT_USER
+            - name: ROOT_ACCESS_KEY
               valueFrom: { secretKeyRef: { name: tale-env, key: OBJECT_STORE_ACCESS_KEY } }
-            - name: MINIO_ROOT_PASSWORD
+            - name: ROOT_SECRET_KEY
               valueFrom: { secretKeyRef: { name: tale-env, key: OBJECT_STORE_SECRET_KEY } }
-            - { name: MINIO_BROWSER, value: 'off' }
+            - name: VGW_REGION
+              valueFrom: { secretKeyRef: { name: tale-env, key: OBJECT_STORE_REGION } }
           ports: [{ name: s3, containerPort: 9000 }]
           volumeMounts: [{ name: data, mountPath: /data }]
           readinessProbe:
-            exec: { command: [sh, -c, 'mc ready local'] }
+            httpGet: { path: /_health, port: 9000 }
             periodSeconds: 10
           resources:
-            requests: { cpu: 100m, memory: 256Mi }
+            requests: { cpu: 100m, memory: 64Mi }
       volumes:
         - name: data
-          persistentVolumeClaim: { claimName: object-store-data }
+          persistentVolumeClaim: { claimName: blob-data }
 ```
 
-Pour un Postgres externe, définis `DATABASE_URL` et `KNOWLEDGE_DATABASE_URL` comme décrit dans [Connecter des stockages externes](/fr/self-hosted/install/own-compose#connecter-des-stockages-externes) et omets le StatefulSet et ses Services ; pour un bucket externe, définis les valeurs `OBJECT_STORE_*` et omets les objets MinIO.
+Pour un Postgres externe, définis `DATABASE_URL` et `KNOWLEDGE_DATABASE_URL` comme décrit dans [Connecter des stockages externes](/fr/self-hosted/install/own-compose#connecter-des-stockages-externes) et omets le StatefulSet et ses Services ; pour un bucket externe, définis les valeurs `OBJECT_STORE_*` et omets le Deployment, le Service et le claim du stockage objet.
 
 ## Exécuter les rôles applicatifs
 

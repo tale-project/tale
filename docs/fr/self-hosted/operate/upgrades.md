@@ -49,6 +49,8 @@ Un changement de version ou un remplacement de configuration de l’hôte prend 
 tale deploy --stop
 ```
 
+Sur un déploiement installé avant cette version, cette commande déplace aussi les fichiers de MinIO vers versitygw, comme l’explique [Les fichiers passent de MinIO à versitygw](#blob-store).
+
 `TALE_PLATFORM_REPLICAS` fixe le nombre de réplicas `platform` d’une couleur, de 1 à 16 ; chacun est l’application entière. Définir `TALE_BACKEND_WORKER_REPLICAS` ou `TALE_BACKEND_API_REPLICAS` [fait tourner les workers à part](#one-process), pour les dimensionner séparément. Augmente ce dont les mesures montrent la saturation ; ajouter des workers ne corrige ni une base indisponible ni un quota fournisseur épuisé.
 
 ## Comprendre la bascule
@@ -188,6 +190,44 @@ Vérifie quatre points avant la mise à niveau :
 - **Les images que tu construis ou fixes toi-même.** L’image de l’application ne contient plus `yt-dlp` ; l’image d’exécution de la sandbox le contient. Utilise l’image d’exécution de la sandbox de cette version : avec une image plus ancienne, chaque lien échoue avec « Le traitement vidéo n'est pas encore activé — contacte ton administrateur ».
 
 L’audio d’une vidéo sans sous-titres est désormais stocké tel que la plateforme le sert, le plus souvent dans un fichier WebM ou M4A, alors qu’il était converti en MP3. Les transcriptions ne changent pas. [Configurer l’import de transcriptions vidéo](/fr/self-hosted/configuration/video-ingestion#where-retrieval-runs) décrit où un lien est récupéré et ses limites.
+
+## Les fichiers passent de MinIO à versitygw {#blob-store}
+
+Un nouveau déploiement conserve ses fichiers dans versitygw, un serveur S3 qui enregistre chaque objet comme un fichier à part dans le volume `blob-data`. Ce serveur n’utilise qu’une fraction de la mémoire de MinIO et dispose d’une image pour ARM64. Un déploiement installé auparavant conserve ses fichiers dans `object-store-data`, dans un format propre à MinIO que versitygw ne sait pas lire. `tale deploy` y garde donc MinIO, et l’indique :
+
+```text
+The blob store stays MinIO: this deployment's blobs are in <id>_object-store-data, in MinIO's format. A new install runs versitygw. `tale deploy --stop` moves the blobs to versitygw, pausing the application for the last copy.
+```
+
+Un déploiement qui remplace le stockage déplace les fichiers : `tale deploy --stop`, `tale deploy --services object-store`, ou tout déploiement qui trouve le stockage arrêté. Avec `--dry-run`, il annonce le déplacement sans l’effectuer. Avant de copier quoi que ce soit, la CLI vérifie trois points, et garde MinIO si l’un d’eux échoue :
+
+- `OBJECT_STORE_SECRET_KEY` est défini dans le `.env` de l’espace de travail.
+- Le système de fichiers qui accueille `blob-data`, en général celui de `/var/lib/docker`, a assez de place pour le volume de MinIO, plus un dixième de sa taille et 1 Gio. Les deux volumes y restent jusqu’à ce que tu supprimes celui de MinIO.
+- Un objet que versitygw y écrit se relit avec son type de contenu et son ETag. versitygw conserve les deux dans des attributs étendus, pris en charge par ext4, XFS et Btrfs. Sur un système de fichiers sans attributs étendus, chaque fichier se relirait sans son type.
+
+La CLI copie alors chaque bucket pendant que l’application continue de fonctionner. Elle met ensuite l’application en pause pour une dernière copie : celle-ci reprend ce qui a été écrit depuis le début de la première et supprime ce qui a été effacé entre-temps. Elle compare les buckets, les objets et les octets des deux côtés, démarre versitygw comme stockage et remet l’application en marche. Les requêtes attendent pendant la pause : prévois donc une courte fenêtre de maintenance. La pause s’allonge avec ce qui change pendant la première copie et avec le nombre de fichiers, que la comparaison liste des deux côtés.
+
+Quand le déplacement réussit, le déploiement indique ce qu’il a déplacé et laisse le volume de MinIO tel qu’il était :
+
+```text
+Moved <n> object(s), <size>, to versitygw on <id>_blob-data. <id>_object-store-data is left as it was: remove it once you no longer need it (docker volume rm <id>_object-store-data).
+```
+
+Quand une vérification ou une étape échoue, MinIO sert les fichiers comme avant. La CLI supprime ce que le déplacement a écrit dans `blob-data`, indique la cause et poursuit le déploiement avec MinIO :
+
+```text
+The blobs stay in MinIO (<id>_object-store-data), which serves them as before: <reason>.
+```
+
+Corrige la cause et relance `tale deploy --stop`. Après un déplacement réussi :
+
+1. Télécharge quelques fichiers connus et ouvre-les.
+2. Prends un snapshot avec `tale backup`. Il archive `blob-data` avec ses attributs étendus.
+3. Supprime le volume de MinIO quand tu n’en as plus besoin : `docker volume rm <id>_object-store-data`.
+
+`tale rollback` garde versitygw. Ne ramène pas l’espace de travail à une version antérieure avec `tale update --version` : la CLI de cette version ne connaît que MinIO, et le démarrerait sur son volume tel qu’il était avant le déplacement, sans les fichiers importés depuis, ou sur un volume vide si tu as déjà supprimé celui-ci. Pour revenir à une telle version, restaure un snapshot pris avant le déplacement, comme l’explique [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore).
+
+`tale deploy` déplace les fichiers sur Docker. Pour une stack sur tes propres fichiers Compose ou sur Kubernetes, suis [Déplacer les blobs de MinIO vers versitygw](/fr/self-hosted/install/own-compose#blob-store).
 
 ## Mise à niveau depuis v0.5.77 ou antérieure
 

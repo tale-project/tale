@@ -40,9 +40,9 @@ recipe; by hand:
 # 1. A disposable tale-db and object store
 docker run -d --name tale-load-db -p 127.0.0.1:5452:5432 -e DB_PASSWORD=<pw> \
   -e DB_MAX_CONNECTIONS=600 -e DB_SHARED_BUFFERS=1GB ghcr.io/tale-project/tale/tale-db:latest
-docker run -d --name tale-load-minio -p 127.0.0.1:9471:9000 \
-  -e MINIO_ROOT_USER=taleload -e MINIO_ROOT_PASSWORD=<pw> \
-  quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+docker run -d --name tale-load-object-store -p 127.0.0.1:9471:9000 -v /data \
+  -e ROOT_ACCESS_KEY=taleload -e ROOT_SECRET_KEY=<pw> \
+  ghcr.io/versity/versitygw:v1.11.0 --port :9000 --health /_health --quiet posix --fsync /data
 
 # 2. The platform's environment (see the CI workflow's "Write the stack environment" step):
 #    DATABASE_URL, KNOWLEDGE_DATABASE_URL, BETTER_AUTH_SECRET, ENCRYPTION_SECRET_HEX, SITE_URL,

@@ -30,8 +30,10 @@ Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Relea
 | `sandbox` | `ghcr.io/tale-project/tale/tale-sandbox:<version>` |
 | `sandbox-egress` | `ghcr.io/tale-project/tale/tale-sandbox-egress:<version>` |
 | `sandbox-llm-gateway` | `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:<version>` |
-| `object-store` | `ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z` |
+| `object-store` | `ghcr.io/versity/versitygw:v1.11.0` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
+
+Lege versitygw wie `tale deploy` über seinen Digest fest: `ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5`, mit Images für `linux/amd64` und `linux/arm64`. Ein Stack, der seine Dateien in MinIO hält, nutzt bis zu ihrem [Umzug](#blob-store) `ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z`, nur für `linux/amd64`.
 
 Sitzungscontainer nutzen zusätzlich `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`. Setze `SANDBOX_RUNTIME_IMAGE` am Spawner und lade es vor dem Start. Sein lokaler Entwicklungstag reicht auf einem Host ohne vorherigen Build nicht aus. Bei Docker-in-Container oder gemeinsamem Build-Cache brauchst du außerdem die kompatiblen Laufzeit- und Cache-Images aus der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
 
@@ -46,7 +48,7 @@ Erzeuge vor dem ersten Start eigene Werte und bewahre sie in deiner Geheimnisver
 | `DB_PASSWORD` oder externe Datenbankzugangsdaten | Müssen zur tatsächlich verwendeten Datenbankrolle passen. |
 | `SANDBOX_TOKEN` | Dasselbe zufällige Token in Backend und Spawner. |
 | `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Dasselbe stabile Geheimnis in Backend und Gateway; ein Gateway ohne Admin-Konto legt eines nur für einen Aufrufer an, der es vorweist. Der Benutzername ist standardmäßig `admin`. |
-| `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Gültige Speicherzugangsdaten; bei MinIO auf `MINIO_ROOT_USER` und `MINIO_ROOT_PASSWORD` abbilden. |
+| `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Gültige Speicherzugangsdaten. Das mitgelieferte versitygw erhält sie als `ROOT_ACCESS_KEY` und `ROOT_SECRET_KEY`, dazu `OBJECT_STORE_REGION` als `VGW_REGION`: Eine Anfrage, die für eine andere Region signiert ist, lehnt es ab. MinIO erhält sie als `MINIO_ROOT_USER` und `MINIO_ROOT_PASSWORD`. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | Vom Browser erreichbarer Endpunkt, meist `SITE_URL`, wenn Tales Proxy den mitgelieferten Speicher weiterleitet. |
 | SOPS-age-Identität | Zum Entschlüsseln deiner verschlüsselten Konfigurationsdateien; siehe [Geheimnisse mit SOPS](/de/self-hosted/configuration/secrets-with-sops). |
 
@@ -142,7 +144,7 @@ Einträge unter `environment` haben Vorrang vor `env_file`. Das Beispiel erhält
 | `platform` | Webreplikate im internen Anwendungsnetz. Sie erreichen das Backend unter `TALE_BACKEND_URL`, ohne eigene Angabe `http://backend-api:3005`. |
 | `backend-api` | API-Replikate in Anwendungs- und Sandbox-Netz, erreichbar auf Port 3005. |
 | `knowledge-db` | Wissens-Postgres oder ein Ziel über `KNOWLEDGE_DATABASE_URL`. |
-| `object-store` | Mitgeliefertes MinIO im Anwendungsnetz. |
+| `object-store` | Mitgeliefertes versitygw oder MinIO, bis dessen Dateien umgezogen sind, im Anwendungsnetz. |
 | `sandbox` | Für das Backend erreichbarer Spawner auf Port 8003. |
 | `sandbox-egress` | Für Sandbox-Sitzungen erreichbarer Egress-Proxy auf Port 3128. |
 | `sandbox-llm-gateway` / `llm-gateway` | Gateway für Backend und Sandbox-Sitzungen auf Port 8080. |
@@ -158,7 +160,7 @@ Setze am Proxy `BACKEND_UPSTREAM=backend-api:3005`. Für den mitgelieferten Date
 | --- | --- |
 | Organisationskonfiguration | `config-data:/app/data` schreibbar für Backend-Rollen, nur lesbar für `platform`; am Spawner nur lesbar unter `/app/platform-config`. |
 | Anwendung und mitgelieferte Wissensdaten | `db-data:/var/lib/postgresql/data`; ein separater Wissensdienst braucht ein eigenes dauerhaftes Volume. |
-| Mitgelieferter Objektspeicher | `object-store-data:/data` und MinIO `command: server /data`. |
+| Mitgelieferter Objektspeicher | `blob-data:/data` und für versitygw `command: --port :9000 --health /_health --quiet posix --fsync /data`; damit liegt ein Upload auf der Platte, bevor versitygw ihn bestätigt. Das Dateisystem des Volumes muss erweiterte Attribute bewahren: Darin legt versitygw Inhaltstyp und ETag jedes Objekts ab. Ein Stack, der noch MinIO betreibt, behält `object-store-data:/data` und `command: server /data`. |
 | Zertifikate und Proxy-Zustand | `caddy-data:/data`, `caddy-config:/config`. |
 | Gateway-Zustand | `llm-gateway-data:/app/data`. |
 | Spawner | `/var/run/docker.sock` und `/var/lib/tale-sandbox` unter gleichen Host-/Containerpfaden. Docker-Socket-Zugriff erlaubt Kontrolle über den Host-Daemon. |
@@ -183,7 +185,7 @@ Behalte `db-backup`, wenn deine Datenbankwerkzeuge nach `/var/lib/postgresql/bac
 | `backend-worker` | Web-Healthcheck des Images deaktivieren. | Kein HTTP-Server; Jobs und Fortschritt gesondert überwachen. |
 | `proxy` | `curl -sf http://127.0.0.1:2020/health` | Proxy-Prozess antwortet. |
 | `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres und Initialisierung bereit; Benutzer anpassen. |
-| `object-store` | `mc ready local` | Bereitschaft des mitgelieferten MinIO. |
+| `object-store` | `wget -q -O /dev/null http://127.0.0.1:9000/_health` | versitygw antwortet auf seinem Health-Endpunkt. Für MinIO lautet die Prüfung `mc ready local`. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner nach Vorbereitung des Laufzeit-Images bereit. |
 | `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | Der Proxy beantwortet eine Nicht-Proxy-Anfrage selbst (400-Seite); das belegt, dass er ausliefert, ohne externe Webseiten zu erreichen. Danach beantwortet dnsmasq einen Namen aus seiner eigenen Konfiguration; das belegt, dass der DNS-Forwarder für verschachtelte Container und Builds antwortet, ohne einen vorgelagerten Resolver zu fragen. Den Port nicht mit einer reinen TCP-Verbindung prüfen: tinyproxy protokolliert jedes Verbinden-und-Schließen als Fehler, eine Zeile pro Intervall. |
 | `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Verwendet den vorhandenen Client; das Image enthält kein `curl`. |
@@ -218,3 +220,70 @@ Datenbankmigrationen laufen beim Backend-Start. Dein Bereitstellungsablauf muss 
 
 [Auf Kubernetes bereitstellen](/de/self-hosted/install/kubernetes) überträgt diesen Vertrag in Deployments, Services, StatefulSets und NetworkPolicies, stellt den Sandbox-Spawner auf `SANDBOX_BACKEND=kubernetes` um und nennt die Prüfungen, die ein Cluster bestehen muss, bevor du Nutzer zulässt. Diese Seite bleibt die Referenz für die Dienstnamen, Volumes, Prüfungen und Umgebungsvariablen, die die Kubernetes-Objekte nachbilden müssen.
 
+## Die Blobs von MinIO zu versitygw umziehen {#blob-store}
+
+versitygw kann das Volume von MinIO nicht lesen: MinIO legt Objekte in einem eigenen Format ab, versitygw dagegen jedes Objekt als Datei. Ein Stack, der MinIO betreibt, läuft mit MinIO weiter. Für den Umzug kopierst du jeden Bucket über S3 in ein versitygw auf einem neuen Volume, wie es `tale deploy --stop` bei einem Workspace-Deployment tut. Während der ersten Kopie arbeitet die Anwendung weiter, für die letzte steht sie still.
+
+Prüfe zuerst das Dateisystem des neuen Volumes. Es braucht Platz für das Volume von MinIO und eine Reserve, denn beide Volumes bleiben auf der Platte, bis du das von MinIO entfernst. Außerdem muss es erweiterte Attribute bewahren: Ohne sie würde versitygw jede Datei ohne Inhaltstyp und ETag ausliefern.
+
+1. Füge versitygw als zweiten Dienst auf einem eigenen Volume hinzu, mit Schlüssel und Region des Speichers, und starte ihn:
+
+   ```yaml
+   services:
+     object-store-next:
+       image: ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+       command: --port :9000 --health /_health --quiet posix --fsync /data
+       environment:
+         ROOT_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY}
+         ROOT_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY}
+         VGW_REGION: ${OBJECT_STORE_REGION:-us-east-1}
+       volumes:
+         - blob-data:/data
+       networks: [internal]
+   volumes:
+     blob-data:
+   ```
+
+   ```bash
+   docker compose up -d object-store-next
+   ```
+
+2. Kopiere jeden Bucket, während die Anwendung weiterarbeitet. Das Image von MinIO bringt den Client `mc` mit, sein Container den Schlüssel. Notiere die Zeit, die der Befehl als `began=` ausgibt:
+
+   ```bash
+   docker compose exec object-store bash -c '
+     mc alias set src http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
+     mc alias set dst http://object-store-next:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
+     echo "began=$(date +%s)" &&
+     mc mirror --retry src dst'
+   ```
+
+3. Halte den Proxy und die Anwendung an, damit nichts mehr in den Speicher schreibt:
+
+   ```bash
+   docker compose stop proxy platform backend-api backend-worker
+   ```
+
+4. Kopiere, was seit Beginn der ersten Kopie geschrieben wurde, entferne, was gelöscht wurde, und liste beide Seiten auf. Ersetze `<time>` durch die Zeit aus Schritt 2:
+
+   ```bash
+   docker compose exec object-store bash -c '
+     began=<time> &&
+     mc alias set src http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
+     mc alias set dst http://object-store-next:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
+     mc mirror --retry --overwrite --remove --newer-than "$(( $(date +%s) - began + 60 ))s" src dst &&
+     mc du --depth 2 src && mc du --depth 2 dst'
+   ```
+
+   Beide Listen müssen dieselben Buckets zeigen, jeden mit derselben Anzahl an Objekten und derselben Größe. `--newer-than` beschränkt die Kopie auf das, was sich seit Beginn der ersten Kopie geändert hat, plus eine Minute. Ohne die Option kopiert `mc` jedes Objekt erneut, weil versitygw die Angaben, die `mc` vergleicht, nicht auflistet.
+
+5. Entferne den zweiten Dienst und stelle dann `object-store` auf versitygw um: Image, Befehl, Umgebung, Volume und Zustandsprüfung wie in den Tabellen oben. Lösche `object-store-next` aus der Compose-Datei und starte den Stack:
+
+   ```bash
+   docker compose rm -s -f object-store-next
+   docker compose up -d
+   ```
+
+6. Lade einige bekannte Dateien herunter und öffne sie. Behalte das Volume von MinIO, bis dein nächstes Backup `blob-data` enthält, und entferne es dann mit `docker volume rm`.
+
+Auf Kubernetes sind die Schritte dieselben. Betreibe versitygw als zweites Deployment mit eigenem Service, beide `object-store-next` genannt, auf einem neuen Claim, `blob-data`. Führe die Kopien mit `kubectl -n tale exec deploy/object-store -- bash -c '…'` aus und halte `proxy`, `platform`, `backend-api` und `backend-worker` mit `kubectl -n tale scale --replicas=0` an. Stelle danach auf den Objektspeicher aus [Die Speicher betreiben](/de/self-hosted/install/kubernetes#run-the-stores) um.

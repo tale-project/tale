@@ -34,7 +34,7 @@ Damit entstehen Konfigurations- und Backup-Volume, ohne ein Backend zu starten o
 | `db-data` | Anwendungsdaten und beim mitgelieferten Ein-Host-Stack auch die Wissensdatenbank. |
 | `knowledge-db-data` | Die separate Wissensdatenbank, wenn dieses Volume vorhanden ist, etwa bei Compose aus dem Quellcode. |
 | `config-data` | Organisationskonfiguration, unterstützte Geheimnis-Begleitdateien und Branding. In Postgres gespeicherte Anbieterzugangsdaten gehören zur Datenbanksicherung. |
-| `object-store-data` | Hochgeladene Dateien und erzeugte Medien, wenn der Bereitstellungsstandard den mitgelieferten Speicher verwendet. |
+| `blob-data` | Hochgeladene Dateien und erzeugte Medien, wenn der Bereitstellungsstandard den mitgelieferten Speicher verwendet, samt den erweiterten Attributen, in denen versitygw Inhaltstyp und ETag jeder Datei ablegt. Eine Instanz, deren Dateien noch in MinIO liegen, hat stattdessen `object-store-data`. |
 | `caddy-data`, `caddy-config` | Zertifikate und Proxy-Zustand. |
 | `llm-gateway-data` | Der Speicher des Modell-Gateways: Admin-Konto, Anbieterschlüssel, Sitzungsschlüssel mit ihren Budgets und Ausgaben sowie das Anfrageprotokoll. |
 
@@ -94,7 +94,7 @@ Die Wiederherstellung ersetzt den Inhalt der enthaltenen Daten-Volumes. Sichere 
 tale restore <snapshot-id> --stop
 ```
 
-4. Stelle externe Datenbanken und Buckets bei weiterhin gesperrtem Zugriff auf den abgestimmten Zeitpunkt zurück. Ein als `without blobs` markierter Snapshot lässt das vorhandene lokale Datei-Volume unangetastet. Einer mit der Markierung `without gateway` lässt `llm-gateway-data` unangetastet und kann das Gateway nicht auf seinen Speicher von vor einem Gateway-Upgrade zurückbringen; die CLI warnt davor, bevor sie nach der Bestätigung fragt. Wurde das Gateway nach diesem Snapshot aktualisiert, spiele vor dem nächsten Schritt deine eigene Kopie des Volumes zurück, wie unter [Upgrades](/de/self-hosted/operate/upgrades) beschrieben.
+4. Stelle externe Datenbanken und Buckets bei weiterhin gesperrtem Zugriff auf den abgestimmten Zeitpunkt zurück. Ein als `without blobs` markierter Snapshot lässt das vorhandene lokale Datei-Volume unangetastet. Ein Snapshot aus der Zeit, als die Instanz MinIO betrieb, enthält `object-store-data`; seine Wiederherstellung leert auch `blob-data`, und die CLI nennt dieses Volume, bevor sie nach der Bestätigung fragt. Danach betreibt die Instanz MinIO, bis ein Deploy mit `--stop` die Dateien erneut umzieht, wie unter [Upgrades](/de/self-hosted/operate/upgrades#blob-store) beschrieben. Einer mit der Markierung `without gateway` lässt `llm-gateway-data` unangetastet und kann das Gateway nicht auf seinen Speicher von vor einem Gateway-Upgrade zurückbringen; die CLI warnt davor, bevor sie nach der Bestätigung fragt. Wurde das Gateway nach diesem Snapshot aktualisiert, spiele vor dem nächsten Schritt deine eigene Kopie des Volumes zurück, wie unter [Upgrades](/de/self-hosted/operate/upgrades) beschrieben.
 5. Wähle die im Snapshot vermerkte Version und stelle sie einschließlich der zustandsbehafteten Dienste bereit:
 
 ```bash

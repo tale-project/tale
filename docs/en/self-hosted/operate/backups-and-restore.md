@@ -30,7 +30,7 @@ This prepares the configuration and backup volumes without starting a backend or
 | `db-data` | Application data and, in the packaged single-host stack, the knowledge database. |
 | `knowledge-db-data` | The separate knowledge database when this volume exists, as in source Compose. |
 | `config-data` | Organization configuration, supported secret sidecars, and branding. Provider credentials stored in Postgres belong to the database backup. |
-| `object-store-data` | Uploaded files and generated media when the deployment default uses the bundled store. |
+| `blob-data` | Uploaded files and generated media when the deployment default uses the bundled store, with the extended attributes in which versitygw keeps each file's content type and ETag. A deployment whose files are still in MinIO has `object-store-data` instead. |
 | `caddy-data`, `caddy-config` | Certificates and proxy state. |
 | `llm-gateway-data` | The model gateway's store: its admin account, provider keys, session keys with their budgets and spend, and its request log. |
 
@@ -90,7 +90,7 @@ Restoring replaces the contents of the included data volumes. Preserve the curre
 tale restore <snapshot-id> --stop
 ```
 
-4. Restore external databases and buckets to the coordinated recovery point while traffic remains stopped. A snapshot marked `without blobs` leaves the existing local blob volume untouched. One marked `without gateway` leaves `llm-gateway-data` untouched and cannot return the gateway to its store from before a gateway upgrade; the CLI warns before it asks for confirmation. If the gateway was upgraded after that snapshot, put your own copy of the volume back before the next step, as [Upgrades](/self-hosted/operate/upgrades) describes.
+4. Restore external databases and buckets to the coordinated recovery point while traffic remains stopped. A snapshot marked `without blobs` leaves the existing local blob volume untouched. A snapshot taken while the deployment ran MinIO holds `object-store-data`; restoring it also empties `blob-data`, which the CLI names before it asks. The deployment then runs MinIO until a deploy with `--stop` moves the files again, as [Upgrades](/self-hosted/operate/upgrades#blob-store) describes. One marked `without gateway` leaves `llm-gateway-data` untouched and cannot return the gateway to its store from before a gateway upgrade; the CLI warns before it asks for confirmation. If the gateway was upgraded after that snapshot, put your own copy of the volume back before the next step, as [Upgrades](/self-hosted/operate/upgrades) describes.
 5. Select the version recorded for the snapshot and deploy it, including the stateful services:
 
 ```bash

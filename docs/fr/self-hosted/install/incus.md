@@ -22,7 +22,7 @@ Choisis Incus quand un hôte fait déjà tourner Incus pour d’autres charges, 
 | Un hôte Linux avec Incus 7.2 ou plus récent, hors cluster | La CLI a besoin des extensions d’API `instance_oci`, `instance_oci_entrypoint`, `oci_network_config`, `storage_shifted`, `storage_initial_owner`, `file_storage_volume`, `projects_restricted_backups_and_snapshots`, `projects_restricted_image_servers` et `instance_auto_restart`, et refuse un serveur auquel il en manque une ou qui fait partie d’un cluster. |
 | Linux 5.12 ou plus récent avec les montages idmappés | Chaque volume de la stack est monté décalé (`security.shifted`), ce qui demande les montages idmappés. |
 | Un pool de stockage `zfs`, `btrfs` ou `lvm` | Ces pilotes font respecter la taille d’un volume. Un pool ZFS demande OpenZFS 2.2 ou plus récent, dont les datasets prennent en charge les montages idmappés. Le bootstrap utilise le pool créé à l’installation d’Incus et n’en crée aucun. |
-| Un hôte `x86_64` | Les bundles gérés exigent des images natives pour leur plateforme déclarée, et le stockage objet fourni n’existe qu’en image `linux/amd64`. |
+| Un hôte `x86_64` pour un déploiement dont les fichiers sont encore dans MinIO | Les bundles gérés exigent des images natives pour leur plateforme déclarée. L’image de MinIO n’existe qu’en `linux/amd64` ; versitygw, le stockage d’une nouvelle installation, en a aussi une pour `linux/arm64`. |
 | L’API Incus sur une adresse que le bridge de la stack atteint | La CLI et le spawner de sandbox s’y connectent (`runtime.incus.endpoint`, par défaut la passerelle du bridge sur le port 8443), par exemple après `incus config set core.https_address <passerelle>:8443`. Son certificat serveur doit pouvoir être épinglé : sa propre ancre de confiance (`CA:TRUE`), qui nomme l’adresse du point de terminaison. |
 | L’accès de l’hôte aux registres d’images | Incus tire chaque image par son digest depuis `ghcr.io` et Docker Hub, ou depuis les miroirs que la déclaration nomme. |
 | Root ou membre de `incus-admin`, une fois | Seul `tale incus bootstrap` utilise le socket d’administration local. Chaque commande suivante utilise le certificat restreint. |
@@ -309,6 +309,7 @@ Les smoke checks joignent le nouvel edge à `SITE_URL`. Les périphériques prox
 - `tale stop`, `tale start` et `tale logs` fonctionnent dans un workspace ; un déploiement géré n’en a aucun sur Incus.
 - Une stack tourne sur un seul serveur Incus ; les clusters Incus sont refusés.
 - `tale dev` et les appareils sandbox connectés ne tournent que sur Docker.
+- Le déplacement des fichiers de MinIO vers versitygw ne se fait que sur Docker.
 
 ## Périmètre vérifié {#verified-scope}
 

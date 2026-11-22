@@ -38,6 +38,7 @@ Start by comparing the server's response with the browser's request to the presi
 | `object store (ignored)` | The file is operator-managed. Inspect `default/object-storage/connection.json`; environment reconciliation deliberately leaves it alone. |
 | `seeded` or `reconciled` | The default connection was written or updated from the environment. This does not prove every object permission or browser route works. |
 | Store probe is down | Check endpoint, connectivity, credentials, bucket existence, and the detailed backend error. |
+| `The blobs stay in MinIO …` during `tale deploy` | The move to versitygw stopped before the switch, and MinIO serves the files as before. The line ends with the reason: a missing `OBJECT_STORE_SECRET_KEY`, too little room where `blob-data` lives, or a filesystem without extended attributes. Fix it and run `tale deploy --stop` again; see [Files move from MinIO to versitygw](/self-hosted/operate/upgrades#blob-store). |
 | Server connection test passes but browser upload fails | Check the public endpoint, certificate trust, and bucket CORS for the actual browser origin. Include `GET`, `PUT`, and `HEAD` as required by the file flow. |
 
 `tale_backend_store_up` covers deployment defaults and measures reachability, not a complete upload. An object-store `403` can still produce an up value. Verify an actual controlled upload and download after fixing the connection. [Data residency](/self-hosted/configuration/data-residency) explains connection changes and file migration.

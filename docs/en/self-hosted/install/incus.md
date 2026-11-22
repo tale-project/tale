@@ -22,7 +22,7 @@ Choose Incus when a host already runs Incus for other workloads, or when you wan
 | A Linux host with Incus 7.2 or later, not a cluster member | The CLI needs the API extensions `instance_oci`, `instance_oci_entrypoint`, `oci_network_config`, `storage_shifted`, `storage_initial_owner`, `file_storage_volume`, `projects_restricted_backups_and_snapshots`, `projects_restricted_image_servers` and `instance_auto_restart`, and refuses a server that lacks one or is clustered. |
 | Linux 5.12 or later with idmapped mounts | Every volume of the stack is mounted shifted (`security.shifted`), which needs idmapped mounts. |
 | A storage pool on `zfs`, `btrfs` or `lvm` | These drivers enforce a volume's size. A ZFS pool needs OpenZFS 2.2 or later, whose datasets support idmapped mounts. Bootstrap uses the pool you made when you installed Incus and makes none. |
-| An `x86_64` host | Managed bundles need native images for their declared platform, and the bundled object store ships only a `linux/amd64` image. |
+| An `x86_64` host for a deployment whose files are still in MinIO | Managed bundles need native images for their declared platform. MinIO's image exists only for `linux/amd64`; versitygw, the store of a new install, has one for `linux/arm64` too. |
 | The Incus API on an address the stack's bridge reaches | The CLI and the sandbox spawner dial it (`runtime.incus.endpoint`, by default the bridge gateway on port 8443), for example after `incus config set core.https_address <gateway>:8443`. Its server certificate must be pinnable: its own trust anchor (`CA:TRUE`) that names the endpoint's address. |
 | Pull access from the host to the image registries | Incus pulls each image by digest from `ghcr.io` and Docker Hub, or from the mirrors the declaration names. |
 | Root or membership of `incus-admin`, once | Only `tale incus bootstrap` uses the local administrator socket. Every later command uses the restricted certificate. |
@@ -309,6 +309,7 @@ The smoke checks reach the new edge at `SITE_URL`. NAT proxy devices take no tra
 - `tale stop`, `tale start` and `tale logs` work in a workspace; a managed deployment has none of them on Incus.
 - One stack runs on one Incus server; Incus clusters are refused.
 - `tale dev` and connected sandbox devices run on Docker only.
+- Files move from MinIO to versitygw on Docker only.
 
 ## Verified scope {#verified-scope}
 

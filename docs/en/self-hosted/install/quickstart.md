@@ -12,7 +12,7 @@ You need:
 - Network access to GitHub for the CLI and container registries for the images. The first start downloads several GB; leave room for the images and your data.
 - A supported model provider credential for the first reply. You can create the account and explore the application before connecting a provider.
 
-On ARM64, including Apple Silicon, the bundled object store needs amd64 emulation. Docker Desktop includes it; a standalone Linux Docker host needs emulation configured separately. Check the [architecture requirements](/self-hosted/install/cli-install#before-you-begin) before starting on ARM64 Linux.
+On ARM64, including Apple Silicon, a new installation runs natively. Only a deployment that still keeps its files in MinIO needs amd64 emulation: Docker Desktop includes it, while a standalone Linux Docker host needs it configured separately. The [architecture requirements](/self-hosted/install/cli-install#before-you-begin) give the details.
 
 The default HTTPS port is `443`; the sandbox service also uses `127.0.0.1:8003`. Keep the instance private until you have created its owner account.
 

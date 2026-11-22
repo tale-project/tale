@@ -12,7 +12,7 @@ Il te faut :
 - Un accès réseau à GitHub pour la CLI et aux registres de conteneurs pour les images. Le premier démarrage télécharge plusieurs Go ; prévois de la place pour les images et tes données.
 - Les identifiants d’un fournisseur de modèles compatible pour tester la première réponse. Tu peux créer ton compte et explorer l’application avant de connecter un fournisseur.
 
-Sur ARM64, y compris Apple Silicon, le stockage objet fourni nécessite l’émulation amd64. Docker Desktop l’inclut ; sur un hôte Linux avec Docker autonome, tu dois la configurer séparément. Vérifie les [prérequis d’architecture](/fr/self-hosted/install/cli-install#avant-de-commencer) avant de démarrer sur ARM64 Linux.
+Sur ARM64, y compris Apple Silicon, une nouvelle installation fonctionne en natif. Seul un déploiement qui garde encore ses fichiers dans MinIO nécessite l’émulation amd64 : Docker Desktop l’inclut, tandis que sur un hôte Linux avec Docker autonome, tu dois la configurer séparément. Les [prérequis d’architecture](/fr/self-hosted/install/cli-install#avant-de-commencer) donnent les détails.
 
 Le port HTTPS par défaut est `443` ; le service sandbox utilise aussi `127.0.0.1:8003`. Garde l’instance privée jusqu’à la création de son compte propriétaire.
 

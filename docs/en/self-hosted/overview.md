@@ -29,7 +29,7 @@ The application roles use the same Tale platform image, and `TALE_ROLE` decides 
 | --- | --- |
 | `db-data` | `tale_app`: users, chats, runs, audit records, and encrypted database secrets. `tale_knowledge`: extracted content, embeddings, search indexes, and crawled pages. |
 | `config-data` | Organization configuration files, including agents, skills, provider definitions, governance settings, SSO configuration, and branding. |
-| `object-store-data` | Uploaded documents, attachments, audio, and generated files. |
+| `blob-data` | Uploaded documents, attachments, audio, and generated files. A deployment installed before versitygw keeps them in `object-store-data` until [they move](/self-hosted/operate/upgrades#blob-store). |
 | `caddy-data`, `caddy-config` | Certificates and proxy state. |
 | `llm-gateway-data` | Gateway configuration, session access state, and the gateway's request log of model, tokens and timing, without prompts or answers, kept for three days by default. |
 
