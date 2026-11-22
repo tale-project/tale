@@ -680,7 +680,18 @@ export async function markSessionStopped(
  * expiry), and a turn may then open a fresh incarnation under the same id.
  * That one, and the tokens its turns mint, are not this Destroy's: a token
  * names no row, so the session's tokens go only while the named row is
- * still the newest under the id (`revokeSessionGatewayKeys`). */
+ * still the newest under the id (`revokeSessionGatewayKeys`).
+ *
+ * Settling by the id alone leaves a collected failure what it is: a create
+ * the sandbox host refused for want of room, `failed` and stamped, made
+ * nothing that a destroy could end, and its status is the fact of that
+ * incarnation (`stampFailedSessionCollected`). Work that waits for room
+ * asks under one id each time, so such rows share the id of the session it
+ * gets in the end, by the hundred for a long wait. Settled anew as
+ * `destroyed` they were rows that no sweep deletes: `wait-retention.ts`
+ * knows them as `failed`. The one collected failure a destroy does settle
+ * is the one that sweep keeps, a project agent's newest row, which names a
+ * workspace the collect kept and this destroy took. */
 export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string; rowId?: string },
@@ -705,6 +716,19 @@ export async function markSessionDestroyed(
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status <> 'destroyed'
         AND (${rowId}::text IS NULL OR id = ${rowId})
+        AND (
+          ${rowId}::text IS NOT NULL
+          OR NOT (status = 'failed' AND destroyed_at_ms IS NOT NULL)
+          OR (
+            owner_type = 'project_agent'
+            AND NOT EXISTS (
+              SELECT 1 FROM app.sandbox_sessions newer
+              WHERE newer.session_id = sandbox_sessions.session_id
+                AND (newer.created_at_ms, newer.id)
+                  > (sandbox_sessions.created_at_ms, sandbox_sessions.id)
+            )
+          )
+        )
       RETURNING id
     `;
       if (rows.length === 0) return false;

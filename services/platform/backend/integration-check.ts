@@ -64188,6 +64188,115 @@ async function checkWatchdogs(
     `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions kept=${collectedKept} (want ${wantKept})`,
   );
 
+  // A video that waited for room asked under one session id each time, so
+  // the rows of the creates the sandbox host refused share the id of the
+  // session it got in the end. Ending that session, as the lane does, by
+  // its id, settles every row of the id that still stands for something (a
+  // failed create nothing collected yet, an earlier incarnation left
+  // `active`) and leaves the collected failures what they are, for the
+  // sweep above to delete. Each of them used to read `destroyed`
+  // afterwards, stamped anew, and no sweep deletes those: a hundred and
+  // more rows for a video that waited a quarter of an hour.
+  const waitedSession = `vid-wd-waited-${randomUUID().slice(0, 8)}`;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, ${waitedSession}, 'failed', 'video', ${waitedSession},
+       'itest', ${now - day - 40_000}, ${now + day}, ${now - day - 39_000}),
+      (${orgId}, ${waitedSession}, 'failed', 'video', ${waitedSession},
+       'itest', ${now - day - 30_000}, ${now + day}, ${now - day - 29_000}),
+      (${orgId}, ${waitedSession}, 'failed', 'video', ${waitedSession},
+       'itest', ${now - day - 20_000}, ${now + day}, NULL),
+      (${orgId}, ${waitedSession}, 'active', 'video', ${waitedSession},
+       'itest', ${now - day - 10_000}, ${now + day}, NULL),
+      (${orgId}, ${waitedSession}, 'active', 'video', ${waitedSession},
+       'itest', ${now - day - 1_000}, ${now + day}, NULL)
+  `;
+  const { renderLaneShimHandlers } =
+    await import('./domains/sandbox/render-lane-shim.ts');
+  await renderLaneShimHandlers(sql)[
+    'sandbox/session_mutations:markSessionRowDestroyed'
+  ]?.({ organizationId: orgId, sessionId: waitedSession });
+  const waitedSettled = await sql<
+    { status: string; destroyedAt: number | null }[]
+  >`
+    SELECT status, destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions WHERE session_id = ${waitedSession}
+    ORDER BY created_at_ms
+  `;
+  await sweepRoomWaitLeftovers(sql, { now });
+  const waitedLeft = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE session_id = ${waitedSession} ORDER BY created_at_ms
+  `;
+  const waitedStampsKept =
+    waitedSettled[0]?.destroyedAt === now - day - 39_000 &&
+    waitedSettled[1]?.destroyedAt === now - day - 29_000;
+  // A project agent's newest row is the one collected failure a destroy
+  // settles: collecting a failed create of an agent session kept its
+  // workspace, which that row names and the destroy took. Its older ones
+  // are the sweep's, as a throwaway session's all are. And a destroy that
+  // names its row settles that row, whatever it is.
+  const waitedAgent = `pa-wd-waited-${randomUUID().slice(0, 8)}`;
+  const waitedNamed = `render-wd-named-${randomUUID().slice(0, 8)}`;
+  const namedRow = await sql<{ id: string }[]>`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, ${waitedAgent}, 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 20_000}, ${now + day}, ${now - 19_000}),
+      (${orgId}, ${waitedAgent}, 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 10_000}, ${now + day}, ${now - 9_000}),
+      (${orgId}, ${waitedNamed}, 'failed', 'render', ${waitedNamed},
+       'itest', ${now - 10_000}, ${now + day}, ${now - 9_000})
+    RETURNING id
+  `;
+  const sandboxSessions = await import('./domains/sandbox/sessions.ts');
+  const agentSettled = await sandboxSessions.markSessionDestroyed(sql, {
+    organizationId: orgId,
+    sessionId: waitedAgent,
+  });
+  const namedSettled = await sandboxSessions.markSessionDestroyed(sql, {
+    organizationId: orgId,
+    sessionId: waitedNamed,
+    rowId: namedRow.at(-1)?.id ?? '',
+  });
+  const agentRows = (
+    await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE session_id = ${waitedAgent} ORDER BY created_at_ms
+    `
+  )
+    .map((row) => row.status)
+    .join(',');
+  const namedRows = (
+    await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions WHERE session_id = ${waitedNamed}
+    `
+  )
+    .map((row) => row.status)
+    .join(',');
+  await sql`
+    DELETE FROM app.sandbox_sessions
+    WHERE session_id = ANY(${[waitedSession, waitedAgent, waitedNamed]})
+  `;
+  record(
+    'ending a session that waited for room leaves the collected failures of its id to the sweep',
+    waitedSettled.map((row) => row.status).join(',') ===
+      'failed,failed,destroyed,destroyed,destroyed' &&
+      waitedStampsKept &&
+      waitedLeft.map((row) => row.status).join(',') ===
+        'destroyed,destroyed,destroyed' &&
+      agentSettled &&
+      agentRows === 'failed,destroyed' &&
+      namedSettled &&
+      namedRows === 'destroyed',
+    `settled=${waitedSettled.map((row) => row.status).join(',')} (want failed,failed,destroyed,destroyed,destroyed), the collected rows' stamps kept=${waitedStampsKept}, after the sweep=${waitedLeft.map((row) => row.status).join(',')} (want destroyed,destroyed,destroyed); a project agent's=${agentRows} (want failed,destroyed, its newest row settled); a row named=${namedRows} (want destroyed)`,
+  );
+
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
   // settles idle and the pending placeholder fails.
   const thread = await sql<{ id: string }[]>`
