@@ -4,8 +4,9 @@
  * The catalog entry an explicit model id resolves to in an organization —
  * the one lookup behind a turn's model facts. The chat turn reads its wire
  * and its context window from it; a managed harness turn reads the same
- * context window from it (`resolveHarnessTurnContextWindow`), so both lanes
- * mean the same thing by "the model's window".
+ * context window from it, and its output limit beside it
+ * (`resolveHarnessTurnModelLimits`), so both lanes mean the same thing by
+ * "the model's window".
  */
 
 import type {

@@ -17,14 +17,17 @@
  * confuse a missing task-start event with a finished background task. Older
  * runtimes without checkpoints keep their seq-0 compatibility path.
  * This module owns the lane-neutral
- * core: exec construction (`buildExternalTurnExec`, with the model window
- * `resolveHarnessTurnContextWindow` reads), the window drain
+ * core: exec construction (`buildExternalTurnExec`, with the model limits
+ * `resolveHarnessTurnModelLimits` reads), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
  * bounded event→transcript projection (`HarnessProjection`); each host wraps it
  * with its own token mint, progress sink, and settle.
  */
 
-import { stdinModeHolds } from '@tale/shared/schemas/providers';
+import {
+  stdinModeHolds,
+  type ModelCatalogEntry,
+} from '@tale/shared/schemas/providers';
 import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
@@ -318,20 +321,32 @@ function attributedUserId(attribution: unknown): string {
     : '';
 }
 
+/** How large a managed harness turn's model is, in tokens, as
+ * `buildExternalTurnExec` hands it to the harness: its effective context
+ * window, and the most one answer may take. Each is absent when unknown. */
+export interface HarnessTurnModelLimits {
+  readonly contextWindow?: number;
+  readonly maxOutputTokens?: number;
+}
+
 /**
- * The effective context window of a managed harness turn's model, in tokens:
- * what `buildExternalTurnExec` hands the harness, so a CLI that does not know
- * a foreign model (Claude Code assumes 200,000 tokens) sizes its conversation
- * to the window the model serves. It means what the chat lane means: the
- * serving connector's catalog entry (`resolveModel`, held to that connector),
+ * The limits of a managed harness turn's model, read from one catalog entry
+ * (`HarnessTurnModelLimits`), so a CLI that does not know a foreign model
+ * sizes its conversation and its answers to what the model serves: Claude
+ * Code assumes a window of 200,000 tokens, Pi one of 128,000 and answers of
+ * at most 16,384. The window means what the chat lane means: the serving
+ * connector's catalog entry (`resolveModel`, held to that connector),
  * narrowed by the organization's context limit (`resolveEffectiveWindow`) for
  * the person the turn acts for — the run's starter, whom its spend cap binds.
+ * The output limit is the entry's `maxOutputTokens`, never more than that
+ * window.
  *
  * Best-effort by design, never a reason to fail the turn: an entry that
- * cannot be resolved answers `undefined` (the harness keeps its own sizing),
- * and an unreadable context limit leaves the catalog window standing.
+ * cannot be resolved answers no limit (the harness keeps its own sizing), an
+ * entry without an output limit answers the window alone, and an unreadable
+ * context limit leaves the catalog window standing.
  */
-export async function resolveHarnessTurnContextWindow(
+export async function resolveHarnessTurnModelLimits(
   ctx: ActionCtx,
   args: {
     organizationId: string;
@@ -344,23 +359,22 @@ export async function resolveHarnessTurnContextWindow(
     execId: string;
     kind: 'task-agent' | 'workflow-agent';
   },
-): Promise<number | undefined> {
-  let contextWindow: number;
+): Promise<HarnessTurnModelLimits> {
+  let entry: ModelCatalogEntry;
   try {
-    const { entry } = await resolveModel(
+    ({ entry } = await resolveModel(
       ctx,
       args.organizationId,
       args.modelId,
       args.providerSlug,
       true,
-    );
-    contextWindow = entry.contextWindow;
+    ));
   } catch (err) {
     console.warn(
-      `[harness-turn] ${args.execId}: no catalog window for ${args.providerSlug}/${args.modelId} — the harness sizes its conversation on its own:`,
+      `[harness-turn] ${args.execId}: no catalog entry for ${args.providerSlug}/${args.modelId} — the harness sizes its conversation and its answers on its own:`,
       err,
     );
-    return undefined;
+    return {};
   }
   let governanceMaxContext: number | null = null;
   try {
@@ -387,7 +401,16 @@ export async function resolveHarnessTurnContextWindow(
       err,
     );
   }
-  return resolveEffectiveWindow({ contextWindow, governanceMaxContext });
+  const contextWindow = resolveEffectiveWindow({
+    contextWindow: entry.contextWindow,
+    governanceMaxContext,
+  });
+  return {
+    contextWindow,
+    ...(entry.maxOutputTokens !== undefined
+      ? { maxOutputTokens: Math.min(entry.maxOutputTokens, contextWindow) }
+      : {}),
+  };
 }
 
 /** Build the harness exec for a managed external turn. */
@@ -395,9 +418,13 @@ export function buildExternalTurnExec(args: {
   harness: string;
   gatewayModel: string;
   /** The model's effective context window in tokens, when resolved
-   * (`resolveHarnessTurnContextWindow`); absent leaves the harness to size
+   * (`resolveHarnessTurnModelLimits`); absent leaves the harness to size
    * its conversation on its own. */
   contextWindow?: number;
+  /** The most tokens one answer of the model may take, when resolved
+   * (`resolveHarnessTurnModelLimits`); absent leaves the harness to cap its
+   * answers on its own. */
+  maxOutputTokens?: number;
   serving: ExternalTurnServing;
   instructions: string;
   prompt: string;
@@ -427,6 +454,9 @@ export function buildExternalTurnExec(args: {
     model: args.gatewayModel,
     ...(args.contextWindow !== undefined
       ? { contextWindow: args.contextWindow }
+      : {}),
+    ...(args.maxOutputTokens !== undefined
+      ? { maxOutputTokens: args.maxOutputTokens }
       : {}),
     // BOTH lanes run the managed env shell — the capability bridge, the
     // vision/steering hooks, and the managed model-pin slots all read the

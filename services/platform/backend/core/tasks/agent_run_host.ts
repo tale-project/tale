@@ -60,10 +60,11 @@ import {
   nextWindowDelayMs,
   removeStagedInstructions,
   removeStagedSubscription,
-  resolveHarnessTurnContextWindow,
+  resolveHarnessTurnModelLimits,
   SPAWNER_OUTAGE_BUDGET_MS,
   spawnerOutageOutlasted,
   type ExternalTurnServing,
+  type HarnessTurnModelLimits,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
 import {
@@ -217,9 +218,10 @@ function withheldCredentials(args: {
  * read now (recorded on the run with the agent's and the task's, so which
  * version a run worked from is a fact on the run), whether the run is
  * confined (a run a member started holds none of the agent's credentials),
- * the task's language, and the serving model's window (so the harness
- * compacts before the prompt outgrows what the model serves; unknown leaves
- * it to the harness). None depends on another, so they run together. The
+ * the task's language, and the serving model's window and output limit (so
+ * the harness compacts before the prompt outgrows what the model serves and
+ * asks for no longer answer than it gives; unknown leaves each to the
+ * harness). None depends on another, so they run together. The
  * credential env is resolved after them by the caller, as before: only once
  * every read succeeded and only for a run that is not confined. A project or
  * task that cannot be read fails the start: the turn would work without the
@@ -243,7 +245,7 @@ async function readTurnLaunchContext(
   projectInstructions: string | undefined;
   confined: boolean;
   language: AgentLanguageContext;
-  contextWindow: number | undefined;
+  modelLimits: HarnessTurnModelLimits;
 }> {
   const languageRead: Promise<AgentLanguageContext> = ctx.runQuery(
     internal.tasks.agent_runs.getAgentLanguageContext,
@@ -267,13 +269,13 @@ async function readTurnLaunchContext(
     projectInstructions,
     confined,
     language,
-    contextWindow,
+    modelLimits,
   ] = await Promise.all([
     readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
     projectRead,
     isTurnConfined(ctx, args.runId),
     languageRead,
-    resolveHarnessTurnContextWindow(ctx, {
+    resolveHarnessTurnModelLimits(ctx, {
       organizationId: args.organizationId,
       providerSlug: args.providerSlug,
       modelId: args.modelId,
@@ -287,7 +289,7 @@ async function readTurnLaunchContext(
     projectInstructions: projectInstructions ?? undefined,
     confined,
     language,
-    contextWindow,
+    modelLimits,
   };
 }
 
@@ -1769,7 +1771,7 @@ export async function startTaskAgentTurnImpl(
         projectInstructions,
         confined,
         language,
-        contextWindow,
+        modelLimits,
       } = await readTurnLaunchContext(ctx, {
         organizationId: args.organizationId,
         runId: args.runId,
@@ -1832,7 +1834,7 @@ export async function startTaskAgentTurnImpl(
       const execBase = {
         harness: args.harness,
         gatewayModel: prepared.execModel,
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
+        ...modelLimits,
         serving: prepared.serving,
         instructions,
         execId: args.execId,
@@ -3107,7 +3109,7 @@ export async function steerTaskAgentTurnImpl(
       projectInstructions,
       confined,
       language,
-      contextWindow,
+      modelLimits,
     } = await readTurnLaunchContext(ctx, {
       organizationId: args.organizationId,
       runId: args.runId,
@@ -3162,7 +3164,7 @@ export async function steerTaskAgentTurnImpl(
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: prepared.execModel,
-      ...(contextWindow !== undefined ? { contextWindow } : {}),
+      ...modelLimits,
       serving: prepared.serving,
       instructions,
       // A resumed conversation's turn opens with the ROTATED exec — and, on

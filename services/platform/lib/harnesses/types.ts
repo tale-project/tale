@@ -144,6 +144,13 @@ export interface HarnessRunSpec {
    * serves.
    */
   readonly contextWindow?: number;
+  /**
+   * The most tokens one answer of `model` may take (the catalog's output
+   * limit, never more than `contextWindow`), when the caller could resolve
+   * it. Absent lets the CLI cap its answers on its own — Pi asks every
+   * model it does not know for at most 16,384.
+   */
+  readonly maxOutputTokens?: number;
   /** The resolved credential case (see {@link HarnessCredential}). */
   readonly credential: HarnessCredential;
   /** Working directory inside the session (e.g. /agent/workspace). */

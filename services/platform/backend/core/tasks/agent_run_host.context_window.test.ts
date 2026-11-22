@@ -1,11 +1,12 @@
 /**
- * The serving model's context window — and the organization's Custom
- * instructions — reach every exec a task agent run launches: the REAL start
- * and steer hosts, with only external I/O replaced and the model's catalog
- * entry stubbed. Without it Claude Code assumes a
- * 200,000-token window for a model it does not know — a local model serving
- * 32,768 let a desk turn grow to ~140K before the CLI compacted, and the
- * prefill outlasted the CLI's own 30-minute stream watchdog.
+ * The serving model's context window and output limit — and the
+ * organization's Custom instructions — reach every exec a task agent run
+ * launches: the REAL start and steer hosts, with only external I/O replaced
+ * and the model's catalog entry stubbed. Without the window Claude Code
+ * assumes a 200,000-token window for a model it does not know — a local model
+ * serving 32,768 let a desk turn grow to ~140K before the CLI compacted, and
+ * the prefill outlasted the CLI's own 30-minute stream watchdog; without the
+ * limit Pi asks every request for at most 16,384 output tokens.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -50,7 +51,11 @@ const io = vi.hoisted(() => ({
     env: Record<string, string>;
     stdin?: string;
   }>,
-  builds: [] as Array<{ execId: string; contextWindow?: number }>,
+  builds: [] as Array<{
+    execId: string;
+    contextWindow?: number;
+    maxOutputTokens?: number;
+  }>,
   /** The windows the drain answers, in order; `running` once they run out.
    * An error is thrown instead, as a start the sandbox refused is. */
   windows: [] as unknown[],
@@ -89,6 +94,9 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
         execId: args.execId,
         ...(args.contextWindow !== undefined
           ? { contextWindow: args.contextWindow }
+          : {}),
+        ...(args.maxOutputTokens !== undefined
+          ? { maxOutputTokens: args.maxOutputTokens }
           : {}),
       });
       return actual.buildExternalTurnExec(args);
@@ -198,7 +206,9 @@ const {
   steerTaskAgentTurnImpl,
 } = await import('./agent_run_host');
 
-function servesWindow(contextWindow: number): void {
+/** The serving model's catalog entry: its window, and its output limit when
+ * it names one. */
+function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
   const entry: ModelCatalogEntry = {
     id: 'qwen3-32b',
     provider: 'local-inference',
@@ -206,6 +216,7 @@ function servesWindow(contextWindow: number): void {
     supportsTools: true,
     supportsVision: false,
     contextWindow,
+    ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
   };
   vi.mocked(resolveModel).mockResolvedValue({
     entry,
@@ -916,16 +927,51 @@ describe('a task agent start', () => {
   });
 
   it('narrows the window to the starter’s context limit', async () => {
-    servesWindow(131_072);
+    servesWindow(131_072, 32_768);
     const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' }, 16_384);
 
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
 
     expect(io.starts[0]?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('16384');
+    // The output limit never passes the narrowed window.
+    expect(io.builds).toEqual([
+      { execId: 'exec-1', contextWindow: 16_384, maxOutputTokens: 16_384 },
+    ]);
+  });
+
+  it('hands Pi the serving model’s window and output limit', async () => {
+    servesWindow(49_152, 12_288);
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'pi',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(1);
+    const argv = io.starts[0]?.argv ?? [];
+    const model = argv[argv.indexOf('--model') + 1];
+    // The models.json the wrapper stages from the first line of stdin, for
+    // the model the exec names.
+    const envelope = z
+      .object({
+        models: z.object({
+          providers: z.object({
+            'tale-gateway': z.object({ models: z.array(z.unknown()) }),
+          }),
+        }),
+      })
+      .parse(JSON.parse(io.starts[0]?.stdin?.split('\n')[0] ?? '{}'));
+    expect(envelope.models.providers['tale-gateway'].models).toEqual([
+      { id: model, contextWindow: 49_152, maxTokens: 12_288 },
+    ]);
+    expect(model).toMatch(/\/qwen3-32b$/);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it('keeps the window when a dead resume handle relaunches fresh', async () => {
-    servesWindow(32_768);
+    servesWindow(32_768, 8_192);
     const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
     // The CLI launched with a dead handle: one errored result, no content.
     io.windows = [
@@ -949,6 +995,12 @@ describe('a task agent start', () => {
     for (const start of io.starts) {
       expect(start.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('32768');
     }
+    // The output limit rides both builds too, from the one catalog read.
+    expect(io.builds).toEqual([
+      { execId: 'exec-1', contextWindow: 32_768, maxOutputTokens: 8_192 },
+      { execId: 'exec-1', contextWindow: 32_768, maxOutputTokens: 8_192 },
+    ]);
+    expect(resolveModel).toHaveBeenCalledOnce();
   });
 
   it('still launches, and leaves the CLI to decide, without a catalog entry', async () => {
@@ -970,8 +1022,8 @@ describe('a task agent start', () => {
 });
 
 describe('a task agent steer restart', () => {
-  it('carries the window into the restarted exec', async () => {
-    servesWindow(32_768);
+  it('carries the window and the output limit into the restarted exec', async () => {
+    servesWindow(32_768, 8_192);
     // Codex has no stdin steering, so a comment restarts its process.
     const { ctx, queries } = makeCtx({ status: 'running', execId: 'exec-1' });
 
@@ -986,7 +1038,7 @@ describe('a task agent steer restart', () => {
     } as never);
 
     expect(io.builds).toEqual([
-      { execId: 'exec-rotated', contextWindow: 32_768 },
+      { execId: 'exec-rotated', contextWindow: 32_768, maxOutputTokens: 8_192 },
     ]);
     expect(io.starts.map((s) => s.execId)).toEqual(['exec-rotated']);
     expect(

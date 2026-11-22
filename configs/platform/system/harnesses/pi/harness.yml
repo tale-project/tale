@@ -105,6 +105,13 @@ exec:
             # compacts only near it: under Pi 1.0.1 a conversation past
             # ~124,000 tokens of a larger model got one-token answers and
             # ended without a report. An unknown window leaves the key out.
+            # Beside it the model's output limit as the catalog knows it,
+            # never more than that window: Pi asks every request of a model
+            # without one for at most 16,384 output tokens (observed on 1.0.1
+            # and 1.6.0), however much more the model may write. Pi asks for
+            # the smaller of maxTokens and the room its window leaves, so the
+            # catalog's figure is safe at any size. An unknown limit leaves the
+            # key out, and Pi keeps its 16,384.
             - when: [model]
               set:
                 providers:
@@ -112,6 +119,7 @@ exec:
                     models:
                       - id: '${model}'
                         contextWindow: { $number: '${model.contextWindow}' }
+                        maxTokens: { $number: '${model.maxOutputTokens}' }
       # Staged as <agentDir>/mcp.json (stdio: command/args/env — Pi's MCP
       # server config). Pi offers a server's tools to the model only with
       # `exposure: direct`: its default keeps them inside its code-mode

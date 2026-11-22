@@ -101,6 +101,11 @@ const GOLDEN_VISION_MODEL = 'golden-vision-model';
  * only when the spec's own window reached the exec. */
 const GOLDEN_LOCAL_MODEL = 'golden-local/golden-small-model';
 const GOLDEN_CONTEXT_WINDOW = 32_768;
+/** That model's output limit — distinct from Pi's own 16,384 for a model it
+ * does not know, OpenClaw's fixed 32,000, a quarter of the window and the
+ * window itself, so a golden matches only when the spec's own limit reached
+ * the exec. */
+const GOLDEN_MAX_OUTPUT_TOKENS = 12_288;
 
 /** One golden fixture — the harness-glue test contract. @public */
 export interface GoldenCase {
@@ -182,6 +187,7 @@ export function goldenBattery(): readonly GoldenCase[] {
       spec: managedSpec({
         model: GOLDEN_LOCAL_MODEL,
         contextWindow: GOLDEN_CONTEXT_WINDOW,
+        maxOutputTokens: GOLDEN_MAX_OUTPUT_TOKENS,
       }),
     },
     {

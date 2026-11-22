@@ -914,7 +914,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     // Whom a turn acts for — the run's starter, the subject its spend cap
     // binds — so the host reads that person's context limit for the turn's
-    // model window (`resolveHarnessTurnContextWindow`).
+    // model window (`resolveHarnessTurnModelLimits`).
     'sandbox/session_queries:getSessionOpAttribution': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as {

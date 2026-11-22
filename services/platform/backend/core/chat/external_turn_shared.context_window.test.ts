@@ -6,8 +6,10 @@
  * limit for the person the turn acts for (the run's starter, whom the spend
  * cap binds too). Claude Code otherwise assumes 200,000 tokens for a model it
  * does not know, and a local model serving 32,768 grew a turn to ~140K
- * before the CLI compacted. The resolution is best-effort: it never fails a
- * turn, and an unresolvable model leaves the harness to its own sizing.
+ * before the CLI compacted. The same catalog entry gives the model's output
+ * limit, never more than that window: Pi otherwise asks every request for at
+ * most 16,384 tokens. The resolution is best-effort: it never fails a turn,
+ * and an unresolvable model leaves the harness to its own sizing.
  */
 
 import type {
@@ -22,7 +24,7 @@ import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
 import {
   buildExternalTurnExec,
-  resolveHarnessTurnContextWindow,
+  resolveHarnessTurnModelLimits,
 } from './external_turn_shared';
 
 vi.mock('../lib/providers/resolve_model', () => ({
@@ -38,7 +40,9 @@ const TURN = {
   kind: 'task-agent',
 } as const;
 
-function servesWindow(contextWindow: number): void {
+/** The serving connector's catalog entry: its window, and its output limit
+ * when it names one. */
+function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
   const entry: ModelCatalogEntry = {
     id: TURN.modelId,
     provider: TURN.providerSlug,
@@ -46,6 +50,7 @@ function servesWindow(contextWindow: number): void {
     supportsTools: true,
     supportsVision: false,
     contextWindow,
+    ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
   };
   vi.mocked(resolveModel).mockResolvedValue({
     entry,
@@ -86,16 +91,16 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('resolveHarnessTurnContextWindow', () => {
+describe('resolveHarnessTurnModelLimits', () => {
   it('reads the serving connector’s own catalog entry', async () => {
     servesWindow(32_768);
     const { ctx } = governanceCtx({
       attribution: { userId: 'user-1' },
       cap: null,
     });
-    await expect(resolveHarnessTurnContextWindow(ctx, TURN)).resolves.toBe(
-      32_768,
-    );
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 32_768,
+    });
     // Held to the serving connector: another connector listing the same id
     // must not answer for it.
     expect(resolveModel).toHaveBeenCalledExactlyOnceWith(
@@ -113,9 +118,9 @@ describe('resolveHarnessTurnContextWindow', () => {
       attribution: { userId: 'user-1', agentSlug: 'Invoice desk' },
       cap: 131_072,
     });
-    await expect(resolveHarnessTurnContextWindow(ctx, TURN)).resolves.toBe(
-      131_072,
-    );
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 131_072,
+    });
     expect(calls).toEqual([
       {
         name: 'sandbox/session_queries:getSessionOpAttribution',
@@ -139,17 +144,17 @@ describe('resolveHarnessTurnContextWindow', () => {
       attribution: { userId: 'user-1' },
       cap: 131_072,
     });
-    await expect(resolveHarnessTurnContextWindow(ctx, TURN)).resolves.toBe(
-      32_768,
-    );
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 32_768,
+    });
   });
 
   it('reads the limit for no one in particular when the op names nobody', async () => {
     servesWindow(262_144);
     const { ctx, calls } = governanceCtx({ attribution: null, cap: 100_000 });
-    await expect(resolveHarnessTurnContextWindow(ctx, TURN)).resolves.toBe(
-      100_000,
-    );
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 100_000,
+    });
     // The same subject the spend cap is evaluated for then: the empty id,
     // which only an organization-wide (default) rule matches.
     expect(calls[1]).toEqual({
@@ -166,9 +171,7 @@ describe('resolveHarnessTurnContextWindow', () => {
       attribution: { userId: 'user-1' },
       cap: 32_768,
     });
-    await expect(
-      resolveHarnessTurnContextWindow(ctx, TURN),
-    ).resolves.toBeUndefined();
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({});
     expect(calls).toEqual([]);
     expect(console.warn).toHaveBeenCalledOnce();
   });
@@ -179,14 +182,52 @@ describe('resolveHarnessTurnContextWindow', () => {
       attribution: new Error('database unavailable'),
       cap: null,
     });
-    await expect(resolveHarnessTurnContextWindow(ctx, TURN)).resolves.toBe(
-      32_768,
-    );
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 32_768,
+    });
     expect(console.warn).toHaveBeenCalledOnce();
+  });
+
+  it('reads the output limit from the same catalog entry', async () => {
+    servesWindow(49_152, 12_288);
+    const { ctx } = governanceCtx({
+      attribution: { userId: 'user-1' },
+      cap: null,
+    });
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 49_152,
+      maxOutputTokens: 12_288,
+    });
+    // One lookup answers both.
+    expect(resolveModel).toHaveBeenCalledOnce();
+  });
+
+  it('never lets the output limit pass the starter’s narrower window', async () => {
+    servesWindow(262_144, 65_536);
+    const { ctx } = governanceCtx({
+      attribution: { userId: 'user-1' },
+      cap: 49_152,
+    });
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 49_152,
+      maxOutputTokens: 49_152,
+    });
+  });
+
+  it('keeps the catalog output limit under a context limit above it', async () => {
+    servesWindow(262_144, 65_536);
+    const { ctx } = governanceCtx({
+      attribution: { userId: 'user-1' },
+      cap: 131_072,
+    });
+    await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+      contextWindow: 131_072,
+      maxOutputTokens: 65_536,
+    });
   });
 });
 
-describe('buildExternalTurnExec carries the window to the harness', () => {
+describe('buildExternalTurnExec carries the model limits to the harness', () => {
   const base = {
     harness: 'claude-code',
     gatewayModel: 'local-inference-org-window/qwen3-32b',
@@ -204,6 +245,33 @@ describe('buildExternalTurnExec carries the window to the harness', () => {
   it('leaves Claude Code to decide without one', () => {
     const exec = buildExternalTurnExec(base);
     expect(exec.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('');
+  });
+
+  /** The model entries of the models.json Pi's wrapper stages. */
+  function piModels(exec: { stdin?: string }): unknown {
+    const envelope = JSON.parse(
+      (exec.stdin ?? '{}').split('\n')[0] ?? '{}',
+    ) as {
+      models?: { providers?: Record<string, { models?: unknown }> };
+    };
+    return envelope.models?.providers?.['tale-gateway']?.models;
+  }
+
+  it('hands Pi the window and the output limit', () => {
+    const exec = buildExternalTurnExec({
+      ...base,
+      harness: 'pi',
+      contextWindow: 49_152,
+      maxOutputTokens: 12_288,
+    });
+    expect(piModels(exec)).toEqual([
+      { id: base.gatewayModel, contextWindow: 49_152, maxTokens: 12_288 },
+    ]);
+  });
+
+  it('leaves Pi its own limits without them', () => {
+    const exec = buildExternalTurnExec({ ...base, harness: 'pi' });
+    expect(piModels(exec)).toEqual([{ id: base.gatewayModel }]);
   });
 });
 
@@ -236,10 +304,7 @@ describe('a catalog-less provider’s declared window reaches Claude Code', () =
       attribution: { userId: 'user-1' },
       cap: null,
     });
-    const contextWindow = await resolveHarnessTurnContextWindow(
-      ctx,
-      GATEWAY_TURN,
-    );
+    const limits = await resolveHarnessTurnModelLimits(ctx, GATEWAY_TURN);
     return buildExternalTurnExec({
       harness: 'claude-code',
       gatewayModel: 'claude-gateway-org-window/claude-sonnet-gw',
@@ -247,7 +312,7 @@ describe('a catalog-less provider’s declared window reaches Claude Code', () =
       instructions: '',
       prompt: 'Review the synthetic repository',
       execId: GATEWAY_TURN.execId,
-      ...(contextWindow !== undefined ? { contextWindow } : {}),
+      ...limits,
     }).env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
   }
 

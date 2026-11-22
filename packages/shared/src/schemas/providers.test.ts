@@ -921,15 +921,17 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  /** Whether a harness whose one config document merges `set` is valid. */
+  const withDoc = (set: Record<string, unknown>) =>
+    harnessDefinitionSchema.safeParse({
+      ...VALID_HARNESS,
+      exec: {
+        ...VALID_HARNESS.exec,
+        envDocs: { PROBE_DOC: { fragments: [{ set }] } },
+      },
+    }).success;
+
   it('reads a number template in a doc tree and keeps `$number` out of keys', () => {
-    const withDoc = (set: Record<string, unknown>) =>
-      harnessDefinitionSchema.safeParse({
-        ...VALID_HARNESS,
-        exec: {
-          ...VALID_HARNESS.exec,
-          envDocs: { PROBE_DOC: { fragments: [{ set }] } },
-        },
-      }).success;
     const window = { $number: '${model.contextWindow}' };
     expect(withDoc({ model: { contextWindow: window } })).toBe(true);
     expect(
@@ -942,6 +944,25 @@ describe('harnessDefinitionSchema', () => {
     expect(withDoc({ model: { contextWindow: { $number: 4096 } } })).toBe(
       false,
     );
+  });
+
+  it('takes a whole number as a number template’s default', () => {
+    const limit = { $number: '${model.maxOutputTokens}', default: 32_000 };
+    expect(withDoc({ model: { maxTokens: limit } })).toBe(true);
+    expect(withDoc({ slots: [{ ...limit, default: 0 }] })).toBe(true);
+    // The default stands for the template's number, so it is what the
+    // template's own text must be: a whole number, within the safe range.
+    for (const invalid of [-1, 1.5, '32000', null, 2 ** 53]) {
+      expect(
+        withDoc({ model: { maxTokens: { ...limit, default: invalid } } }),
+      ).toBe(false);
+    }
+    // Without a template, `default` is an ordinary key of the tree; beside
+    // one, nothing else may stand.
+    expect(withDoc({ model: { maxTokens: { default: 32_000 } } })).toBe(true);
+    expect(
+      withDoc({ model: { maxTokens: { ...limit, fallback: 32_000 } } }),
+    ).toBe(false);
   });
 
   it('rejects the retired argv-positional transport spelling', () => {

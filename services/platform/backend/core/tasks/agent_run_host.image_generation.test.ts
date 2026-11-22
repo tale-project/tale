@@ -34,7 +34,7 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
       text: '',
       timeline: [],
     }),
-    resolveHarnessTurnContextWindow: async () => undefined,
+    resolveHarnessTurnModelLimits: async () => ({}),
   };
 });
 vi.mock('../automations/agent_host', () => ({

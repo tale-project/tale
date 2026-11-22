@@ -246,25 +246,24 @@ interface Substitutions {
   readonly [key: string]: string | undefined;
 }
 
-/** The closed placeholder set. `model.raw` and `model.contextWindow` are
- * listed before `model` so the longer name wins the alternation; unknown
- * `${…}` sequences fall outside the pattern and pass through
- * byte-identically (several CLIs resolve their own `${VAR}`/`{env:VAR}`/
- * `$VAR` templates from staged config). */
+/** The closed placeholder set. `model.raw`, `model.contextWindow` and
+ * `model.maxOutputTokens` are listed before `model` so the longer name wins
+ * the alternation; unknown `${…}` sequences fall outside the pattern and
+ * pass through byte-identically (several CLIs resolve their own
+ * `${VAR}`/`{env:VAR}`/`$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model\.maxOutputTokens|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
 
-/** `${model.contextWindow}`: the spec's window as a whole, positive token
- * count — below the exec's declared gate, when it declares one — else ''. */
-function contextWindowText(
-  window: number | undefined,
-  below: number | undefined,
-): string {
-  if (window === undefined || !Number.isSafeInteger(window) || window <= 0) {
+/** A token count of the spec as placeholder text: a whole, positive count —
+ * below `below`, when given — else ''. `${model.contextWindow}` passes the
+ * window through the exec's declared gate; `${model.maxOutputTokens}` takes
+ * the output limit without one. */
+function tokenCountText(tokens: number | undefined, below?: number): string {
+  if (tokens === undefined || !Number.isSafeInteger(tokens) || tokens <= 0) {
     return '';
   }
-  if (below !== undefined && window >= below) return '';
-  return String(window);
+  if (below !== undefined && tokens >= below) return '';
+  return String(tokens);
 }
 
 /** SINGLE-PASS substitution: `String.replace` never rescans replacement
@@ -353,29 +352,37 @@ function isTree(v: unknown): v is DocTree {
 }
 
 /** A number template of a `set` tree (`{ $number: '${model.contextWindow}' }`):
- * an object whose one key is `$number`, holding the template. */
-function isNumberTemplate(value: unknown): value is { $number: string } {
+ * an object holding the template under `$number`, and beside it at most the
+ * number its `default` stands for. */
+interface NumberTemplate {
+  readonly $number: string;
+  readonly default?: number;
+}
+
+function isNumberTemplate(value: unknown): value is NumberTemplate {
   return (
     isTree(value) &&
-    Object.keys(value).length === 1 &&
-    typeof value.$number === 'string'
+    typeof value.$number === 'string' &&
+    Object.keys(value).every((key) => key === '$number' || key === 'default') &&
+    (value.default === undefined || typeof value.default === 'number')
   );
 }
 
-/** What a number template that resolves to nothing becomes: its key, or its
- * array slot, is left out of the document. */
+/** What a number template that resolves to nothing becomes without a
+ * default: its key, or its array slot, is left out of the document. */
 const LEFT_OUT = Symbol('left out');
 
-/** The whole number a number template resolves to, or {@link LEFT_OUT} when
- * it resolves to nothing (`${model.contextWindow}` for an unknown window).
- * Any other text is a config defect, refused without repeating it: the
- * template may have pulled it from a secret. */
+/** The whole number a number template resolves to. When it resolves to
+ * nothing (`${model.contextWindow}` for an unknown window), its `default`,
+ * or {@link LEFT_OUT} without one. Any other text is a config defect,
+ * refused without repeating it: the template may have pulled it from a
+ * secret. */
 function substituteNumber(
-  template: string,
+  template: NumberTemplate,
   subs: Substitutions,
 ): number | typeof LEFT_OUT {
-  const text = substitute(template, subs);
-  if (text === '') return LEFT_OUT;
+  const text = substitute(template.$number, subs);
+  if (text === '') return template.default ?? LEFT_OUT;
   const value = Number(text);
   if (!/^(?:0|[1-9][0-9]*)$/.test(text) || !Number.isSafeInteger(value)) {
     throw new Error(
@@ -395,7 +402,7 @@ function substituteTree(value: unknown, subs: Substitutions): unknown {
       .map((v) => substituteTree(v, subs))
       .filter((v) => v !== LEFT_OUT);
   }
-  if (isNumberTemplate(value)) return substituteNumber(value.$number, subs);
+  if (isNumberTemplate(value)) return substituteNumber(value, subs);
   if (isTree(value)) return substituteRecord(value, subs);
   return value;
 }
@@ -524,10 +531,12 @@ export function buildHarnessExec(
     // Tokens as text, or '' — never absent, unlike the values above: an
     // unknown window is an ordinary state, not a config defect, and the
     // empty value leaves the CLI to size the conversation on its own.
-    'model.contextWindow': contextWindowText(
+    'model.contextWindow': tokenCountText(
       spec.contextWindow,
       exec.contextWindow?.below,
     ),
+    // The output limit the same way: '' leaves the CLI to cap its answers.
+    'model.maxOutputTokens': tokenCountText(spec.maxOutputTokens),
     workdir: spec.workdir,
     execId: spec.execId,
     prompt: spec.prompt,

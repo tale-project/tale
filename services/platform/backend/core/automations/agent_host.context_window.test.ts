@@ -1,13 +1,14 @@
 // @vitest-environment node
 
 /**
- * The serving model's context window — and the organization's Custom
- * instructions — reach every exec an automation agent node launches (the
- * kick's scheduled start and the answered-ask resume) through the REAL
- * hosts, with only external I/O replaced and the model's catalog entry
- * stubbed. Without it Claude Code assumes a 200,000-token window for a model
- * it does not know, and a turn on a local model serving 32,768 grows far past
- * what that model can prefill in time.
+ * The serving model's context window and output limit — and the
+ * organization's Custom instructions — reach every exec an automation agent
+ * node launches (the kick's scheduled start and the answered-ask resume)
+ * through the REAL hosts, with only external I/O replaced and the model's
+ * catalog entry stubbed. Without the window Claude Code assumes 200,000
+ * tokens for a model it does not know, and a turn on a local model serving
+ * 32,768 grows far past what that model can prefill in time; without the
+ * limit Pi asks every request for at most 16,384 output tokens.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -52,6 +53,13 @@ const io = vi.hoisted(() => ({
     execId: string;
     argv: string[];
     env: Record<string, string>;
+    stdin?: string;
+  }>,
+  /** The model limits each exec build was handed. */
+  builds: [] as Array<{
+    execId: string;
+    contextWindow?: number;
+    maxOutputTokens?: number;
   }>,
   /** The organization's model-endpoint rule (GOV-R17); open unless a test
    * turns the EU/EEA rule on. */
@@ -68,11 +76,20 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     ) => {
       io.instructions.push(args.instructions);
       io.prompts.push(args.prompt);
+      io.builds.push({
+        execId: args.execId,
+        ...(args.contextWindow !== undefined
+          ? { contextWindow: args.contextWindow }
+          : {}),
+        ...(args.maxOutputTokens !== undefined
+          ? { maxOutputTokens: args.maxOutputTokens }
+          : {}),
+      });
       return actual.buildExternalTurnExec(args);
     },
     drainHarnessWindow: async (args: {
       execId: string;
-      start?: { argv: string[]; env: Record<string, string> };
+      start?: { argv: string[]; env: Record<string, string>; stdin?: string };
     }) => {
       if (args.start !== undefined) {
         // A refused start launched nothing.
@@ -81,6 +98,9 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
           execId: args.execId,
           argv: args.start.argv,
           env: args.start.env,
+          ...(args.start.stdin !== undefined
+            ? { stdin: args.start.stdin }
+            : {}),
         });
       }
       return { kind: 'running', text: '', timeline: [] };
@@ -133,7 +153,18 @@ const {
   startWorkflowAgentTurnImpl,
 } = await import('./agent_host');
 
-function servesWindow(contextWindow: number): void {
+/** The model entries of the models.json Pi's wrapper stages from the first
+ * line of its stdin. */
+function piStagedModels(stdin: string | undefined): unknown {
+  const envelope = JSON.parse((stdin ?? '{}').split('\n')[0] ?? '{}') as {
+    models?: { providers?: Record<string, { models?: unknown }> };
+  };
+  return envelope.models?.providers?.['tale-gateway']?.models;
+}
+
+/** The serving model's catalog entry: its window, and its output limit when
+ * it names one. */
+function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
   const entry: ModelCatalogEntry = {
     id: 'qwen3-32b',
     provider: 'local-inference',
@@ -141,6 +172,7 @@ function servesWindow(contextWindow: number): void {
     supportsTools: true,
     supportsVision: false,
     contextWindow,
+    ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
   };
   vi.mocked(resolveModel).mockResolvedValue({
     entry,
@@ -285,6 +317,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   io.serving = undefined;
   io.starts = [];
+  io.builds = [];
   io.instructions = [];
   io.prompts = [];
   io.systemPrompt = null;
@@ -526,6 +559,41 @@ describe('an automation agent turn', () => {
       kind: 'workflow-agent',
     });
     // The turn went on to its drive window.
+    expect(scheduled).toEqual([
+      'automations/agent_host:driveWorkflowAgentTurn',
+    ]);
+  });
+
+  it('starts Pi with the serving model’s window and output limit', async () => {
+    servesWindow(49_152, 12_288);
+    const { ctx, scheduled } = makeCtx({ status: 'running' });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'pi',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(piStagedModels(io.starts[0]?.stdin)).toEqual([
+      {
+        id: 'local-inference-org-1/qwen3-32b',
+        contextWindow: 49_152,
+        maxTokens: 12_288,
+      },
+    ]);
+    // One catalog read answers both.
+    expect(resolveModel).toHaveBeenCalledOnce();
     expect(scheduled).toEqual([
       'automations/agent_host:driveWorkflowAgentTurn',
     ]);
@@ -1032,8 +1100,8 @@ describe('an automation agent turn', () => {
     }
   });
 
-  it('resumes after an answer with the window re-resolved', async () => {
-    servesWindow(65_536);
+  it('resumes after an answer with the window and output limit re-resolved', async () => {
+    servesWindow(65_536, 16_000);
     const { ctx, queries } = makeCtx(WAITING_CURSOR);
 
     await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
@@ -1051,6 +1119,13 @@ describe('an automation agent turn', () => {
     const resumed = io.starts[0];
     expect(resumed?.execId).not.toBe('exec-asking');
     expect(resumed?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('65536');
+    expect(io.builds).toEqual([
+      {
+        execId: resumed?.execId,
+        contextWindow: 65_536,
+        maxOutputTokens: 16_000,
+      },
+    ]);
     expect(
       queries.find(
         (q) => q.name === 'sandbox/session_queries:getSessionOpAttribution',

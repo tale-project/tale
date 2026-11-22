@@ -293,6 +293,45 @@ describe('placeholder substitution safety', () => {
     }
   });
 
+  /** Hermes with one managed env var probing `${model.maxOutputTokens}`,
+   * under a window gate the output limit must not read. */
+  function outputLimitProbe(): HarnessDefinition {
+    const doctored = structuredClone(fact('hermes'));
+    doctored.exec.env = {
+      ...doctored.exec.env,
+      managed: {
+        ...doctored.exec.env?.managed,
+        LIMIT_PROBE: '${model.maxOutputTokens}',
+      },
+    };
+    doctored.exec.contextWindow = { below: 1_000 };
+    return doctored;
+  }
+
+  it('substitutes the model output limit, or empty when it is unknown', () => {
+    const probe = outputLimitProbe();
+    // The window's gate is the window's alone.
+    expect(
+      buildHarnessExec(
+        probe,
+        managedSpec({ contextWindow: 262_144, maxOutputTokens: 65_536 }),
+      ).env.LIMIT_PROBE,
+    ).toBe('65536');
+    // Unknown is not an error, as for the window: the template gets an empty
+    // value.
+    expect(
+      buildHarnessExec(probe, managedSpec({ contextWindow: 262_144 })).env
+        .LIMIT_PROBE,
+    ).toBe('');
+    // Only a whole, positive token count is a limit.
+    for (const invalid of [0, -1, 8_192.5, Number.NaN, Infinity]) {
+      expect(
+        buildHarnessExec(probe, managedSpec({ maxOutputTokens: invalid })).env
+          .LIMIT_PROBE,
+      ).toBe('');
+    }
+  });
+
   type DocFragment = NonNullable<
     HarnessDefinition['exec']['envDocs']
   >[string]['fragments'][number];
@@ -334,6 +373,38 @@ describe('placeholder substitution safety', () => {
     expect(probeOf(buildHarnessExec(probe, managedSpec()))).toEqual({
       slots: [1],
     });
+  });
+
+  it('resolves an empty number template to its default instead of leaving it out', () => {
+    const probe = numberProbe({
+      probe: {
+        window: { $number: '${model.contextWindow}', default: 200_000 },
+        limit: { $number: '${model.maxOutputTokens}', default: 32_000 },
+        slots: [1, { $number: '${model.maxOutputTokens}', default: 0 }],
+      },
+    });
+    expect(
+      probeOf(
+        buildHarnessExec(
+          probe,
+          managedSpec({ contextWindow: 49_152, maxOutputTokens: 12_288 }),
+        ),
+      ),
+    ).toEqual({ window: 49_152, limit: 12_288, slots: [1, 12_288] });
+    expect(probeOf(buildHarnessExec(probe, managedSpec()))).toEqual({
+      window: 200_000,
+      limit: 32_000,
+      slots: [1, 0],
+    });
+  });
+
+  it('refuses other text even where a default stands by', () => {
+    const probe = numberProbe({
+      probe: { window: { $number: '${gateway.token}', default: 200_000 } },
+    });
+    expect(() => buildHarnessExec(probe, managedSpec())).toThrow(
+      /whole number/,
+    );
   });
 
   it('refuses a number template that resolves to other text, without repeating it', () => {
@@ -520,6 +591,52 @@ describe("Pi sizes the conversation to the model's window", () => {
       managedSpec({ model: 'claude-opus-4-6' }),
     );
     expect(models(exec)).toEqual([{ id: 'claude-opus-4-6' }]);
+  });
+
+  it('hands its model the catalog output limit', () => {
+    // Pi asks every request of a model without one for at most 16,384
+    // output tokens, however much more the model may write.
+    const exec = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        model: 'claude-opus-4-6',
+        contextWindow: 196_608,
+        maxOutputTokens: 65_536,
+      }),
+    );
+    expect(models(exec)).toEqual([
+      { id: 'claude-opus-4-6', contextWindow: 196_608, maxTokens: 65_536 },
+    ]);
+  });
+
+  it('leaves an unknown output limit to Pi, and takes each limit on its own', () => {
+    const windowOnly = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', contextWindow: 196_608 }),
+    );
+    expect(models(windowOnly)).toEqual([
+      { id: 'claude-opus-4-6', contextWindow: 196_608 },
+    ]);
+    const limitOnly = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', maxOutputTokens: 65_536 }),
+    );
+    expect(models(limitOnly)).toEqual([
+      { id: 'claude-opus-4-6', maxTokens: 65_536 },
+    ]);
+  });
+
+  it('stages no model limits on a bring-your-own run', () => {
+    // byo resolves the model against Pi's own registry, which knows it.
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'anthropic/claude-opus-4-6',
+      contextWindow: 196_608,
+      maxOutputTokens: 65_536,
+    });
+    expect(piEnvelope(byo)).not.toHaveProperty('models');
   });
 });
 

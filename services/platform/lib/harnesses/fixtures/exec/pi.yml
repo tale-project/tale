@@ -76,7 +76,7 @@ managed-model-context-window:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768}]}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768,"maxTokens":12288}]}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-plan:

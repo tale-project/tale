@@ -54,8 +54,23 @@ export const harnessResumesConversations: typeof Harness.harnessResumesConversat
   () => true;
 export const harnessRequiresSubscriptionAccountId: typeof Harness.harnessRequiresSubscriptionAccountId =
   () => false;
-export const resolveHarnessTurnContextWindow: typeof Harness.resolveHarnessTurnContextWindow =
-  async () => undefined;
+/** The released window resolver's arguments. */
+interface ReleasedContextWindowArgs {
+  organizationId: string;
+  providerSlug: string;
+  modelId: string;
+  sessionId: string;
+  execId: string;
+  kind: 'task-agent' | 'workflow-agent';
+}
+/** The released window resolver: the model's window in tokens, or nothing.
+ * The live one answers the window and the output limit together
+ * (`resolveHarnessTurnModelLimits`); the released flow still calls this port
+ * by its name. */
+export const resolveHarnessTurnContextWindow = async (
+  _ctx: ActionCtx,
+  _args: ReleasedContextWindowArgs,
+): Promise<number | undefined> => undefined;
 export const readMandatoryInstructions: typeof import('../../../backend/core/chat/guardrails.ts').readMandatoryInstructions =
   async () => undefined;
 export const orgSlugFromId: typeof import('../../../backend/core/lib/helpers/org_slug.ts').orgSlugFromId =

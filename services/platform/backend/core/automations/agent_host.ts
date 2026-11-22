@@ -58,7 +58,7 @@ import {
   isManagedHarness,
   nextWindowDelayMs,
   removeStagedSubscription,
-  resolveHarnessTurnContextWindow,
+  resolveHarnessTurnModelLimits,
   SKILLS_DIR,
   SPAWNER_OUTAGE_BUDGET_MS,
   spawnerOutageOutlasted,
@@ -1821,10 +1821,11 @@ export async function startWorkflowAgentTurnImpl(
               askId: args.resume.askId,
             })
           : undefined;
-      // The serving model's window, so the harness compacts before the
-      // prompt outgrows what the model serves; unknown leaves it to the
+      // The serving model's window and output limit, so the harness
+      // compacts before the prompt outgrows what the model serves and asks
+      // for no longer answer than it gives; unknown leaves each to the
       // harness.
-      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+      const modelLimits = await resolveHarnessTurnModelLimits(ctx, {
         organizationId: args.organizationId,
         providerSlug: args.providerSlug,
         modelId: args.modelId,
@@ -1835,7 +1836,7 @@ export async function startWorkflowAgentTurnImpl(
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
+        ...modelLimits,
         serving: auth.serving,
         instructions,
         prompt:
@@ -2595,7 +2596,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       });
       // Re-resolved with the serving, like the key: the org's catalog or
       // context limit may have moved while the question waited.
-      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+      const modelLimits = await resolveHarnessTurnModelLimits(ctx, {
         organizationId: args.organizationId,
         providerSlug: serving.providerSlug,
         modelId: serving.modelId,
@@ -2606,7 +2607,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       const exec = buildExternalTurnExec({
         harness: agent.harness,
         gatewayModel: keys.gatewayModel,
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
+        ...modelLimits,
         serving: auth.serving,
         instructions,
         prompt,

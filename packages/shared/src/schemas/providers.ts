@@ -919,6 +919,11 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //                       '' when it is unknown or not below the exec's
 //                       `contextWindow.below` gate (never an error: a CLI
 //                       reads the empty value as unset)
+//   ${model.maxOutputTokens}
+//                       the most tokens one answer of the model may take, as
+//                       its catalog entry says (never more than its effective
+//                       context window), or '' when the catalog names none
+//                       (never an error, like the window)
 //   ${workdir}          the session working directory
 //   ${execId}           the platform exec id of the turn
 //   ${prompt}           the turn prompt
@@ -999,10 +1004,17 @@ const docPathSchema = z
  * `{ $number: '${model.contextWindow}' }` is the model's context window. It
  * becomes the whole number its template resolves to, and nothing when that
  * is empty (an unknown window): its key, or its array slot, is left out, so
- * the CLI keeps its own default. Any other text is a config defect. */
-type DocNumberTemplate = { $number: string };
+ * the CLI keeps its own default. With a `default`
+ * (`{ $number: '${model.contextWindow}', default: 200000 }`) an empty
+ * template becomes that number instead, for a CLI whose own default must not
+ * apply. Any other text is a config defect. */
+type DocNumberTemplate = { $number: string; default?: number };
 const docNumberTemplateSchema = z
-  .object({ $number: z.string().min(1).max(4096) })
+  .object({
+    $number: z.string().min(1).max(4096),
+    /** A whole number, as the template's own text must be. */
+    default: z.number().int().nonnegative().optional(),
+  })
   .strict();
 
 /** A key of a `set` tree. `$number` is the number template's alone. */
