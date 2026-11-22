@@ -92,3 +92,15 @@ deploys only over the two backend services.
 
 - [ ] `APP-B2` · **Add `TALE_APP_TIER=three` to the workspace's `.env` and run `tale deploy`** → it exits `3` with `TALE_APP_TIER must be one-process, workers-apart, three-services, or unset; got: "three"` before it pulls an image; `docker ps` lists the same containers as before.
 - [ ] `APP-F14` · **Change the line to `TALE_APP_TIER=three-services`, run `tale deploy`, then `docker ps --format '{{.Names}}' | grep '^<project>-<colour>-'`** → the deploy exits `0` and prints `Replicas: platform×1, backend-api×1, backend-worker×1`; the live colour is `platform-1`, `backend-api-1` and `backend-worker-1`, and the app signs in, answers a chat message and indexes a document.
+
+## Move the blobs to versitygw · the workspace of the group above · 25 min
+
+The workspace runs MinIO since its earlier release and holds the files the
+groups above uploaded. A new install runs versitygw; this one moves its blobs
+when a deploy may replace its store.
+
+- [ ] `APP-F27` · **Run `tale deploy`, then `docker inspect <project>-object-store --format '{{.Config.Image}}'`** → the deploy prints that the blob store stays MinIO, names `<project>_object-store-data`, and that `tale deploy --stop` moves the blobs; the image is `ghcr.io/tale-project/ops/minio:…`.
+- [ ] `APP-F28` · **Run `tale deploy --stop`, and while it runs reload a page of the app** → it prints `Moving the blobs from <project>_object-store-data`, then that the application is paused, then `Moved <n> object(s)`; the page answers late while the application is paused and normally after; the store's image is now `ghcr.io/versity/versitygw:…`.
+- [ ] `APP-F29` · **In the app, download the files the groups above uploaded and open one** → each downloads under its name and opens as what it is (a PDF as a PDF); `docker volume ls` still lists `<project>_object-store-data`.
+- [ ] `APP-F30` · **Run `tale backup`, upload one more file, then `tale restore <the snapshot> --stop` and `tale deploy --stop`** → the restore names `<project>_blob-data`; the file uploaded after the snapshot is gone, and every file from before downloads and opens as before.
+- [ ] `APP-B6` · **Run `tale deploy --stop` again** → it moves nothing: no `Moving the blobs` line, and the store stays versitygw.

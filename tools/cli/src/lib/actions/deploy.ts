@@ -11,6 +11,7 @@ import {
 } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { runStepsInParallel } from '../../utils/progress';
+import { BLOB_VOLUME, LEGACY_BLOB_VOLUME } from '../backup/constants';
 import { createSnapshot } from '../backup/create-snapshot';
 import { rotateSnapshots } from '../backup/rotate-snapshots';
 import {
@@ -62,6 +63,7 @@ import {
   admitTagAutomationImage,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
+import { migrateBlobStore } from '../docker/migrate-blob-store';
 import {
   minioNotice,
   resolveObjectStore,
@@ -416,19 +418,24 @@ export async function deploy(options: DeployOptions): Promise<void> {
       );
 
       // Which blob store this deployment runs is what its volumes hold,
-      // read before the pull: the image depends on it.
-      const objectStore = await resolveObjectStore(
-        `${getProjectId()}_`,
-        runtime,
-      );
-      if (objectStore === 'minio') {
-        logger.info(minioNotice(`${getProjectId()}_`));
+      // read before the pull: the image depends on it. Blobs in MinIO's
+      // volume move to versitygw on a deploy that replaces the store
+      // (`--stop`, a store that is not running, `--services object-store`):
+      // the move pauses the application, as replacing a stop-gated service
+      // stops it. Any other deploy keeps MinIO.
+      const blobsIn = await resolveObjectStore(`${getProjectId()}_`, runtime);
+      const moveBlobs =
+        blobsIn === 'minio' && statefulToUpdate.includes('object-store');
+      if (blobsIn === 'minio' && !moveBlobs) {
+        logger.info(
+          `${minioNotice(`${getProjectId()}_`)} \`tale deploy --stop\` moves the blobs to versitygw, pausing the application for the last copy.`,
+        );
       }
       const serviceConfig: ServiceConfig = {
         version,
         registry: env.GHCR_REGISTRY,
         cgroupVersion: await probeCgroupVersion(),
-        objectStore,
+        objectStore: moveBlobs ? 'versitygw' : blobsIn,
       };
       const reservationNotice = memoryReservationNotice(serviceConfig);
       if (reservationNotice) logger.warn(reservationNotice);
@@ -837,6 +844,57 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // services.
       await checkInstalledWriter();
       await ensureInfrastructure(prefix, dryRun, runtime);
+
+      // The move of the blobs from MinIO to versitygw, with both volumes
+      // there now and before the stateful services converge
+      // (docker/migrate-blob-store.ts). A move that does not happen leaves
+      // the store MinIO for this deploy, and says why.
+      if (moveBlobs) {
+        const minioVolume = `${getProjectId()}_${LEGACY_BLOB_VOLUME}`;
+        if (dryRun) {
+          logger.info(
+            `${prefix}Would move the blobs from ${minioVolume} to versitygw on ${getProjectId()}_${BLOB_VOLUME}, pausing the application for the last copy`,
+          );
+        } else {
+          const store = `${getProjectId()}-object-store`;
+          const move = await migrateBlobStore({
+            prefix: `${getProjectId()}_`,
+            project: getProjectId(),
+            accessKey: process.env.OBJECT_STORE_ACCESS_KEY?.trim() || 'tale',
+            secretKey: process.env.OBJECT_STORE_SECRET_KEY?.trim() ?? '',
+            convergeStore: async (engine) => {
+              const up = await runtime.converge(
+                {
+                  stack: getProjectId(),
+                  compose: generateStatefulCompose(
+                    { ...serviceConfig, objectStore: engine },
+                    hostAlias,
+                    origin,
+                  ),
+                  cwd: env.DEPLOY_DIR,
+                },
+                { services: ['object-store'], forceRecreate: false },
+              );
+              if (!up.success) {
+                logger.warn(
+                  `${prefix}The store did not start as ${engine}: ${up.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+                );
+                return false;
+              }
+              return runtime.waitHealthy(store, {
+                timeout: env.HEALTH_CHECK_TIMEOUT,
+                streamLogs,
+              });
+            },
+          });
+          if (!move.moved) {
+            serviceConfig.objectStore = 'minio';
+            logger.warn(
+              `${prefix}The blobs stay in MinIO (${minioVolume}), which serves them as before: ${move.reason}.`,
+            );
+          }
+        }
+      }
 
       // Deploy stateful services if any
       if (statefulToUpdate.length > 0) {

@@ -519,6 +519,18 @@ async function isolatedSuite(): Promise<void> {
   let calls: RecordedCall[] = [];
   /** A call the daemon refuses, for one test: true for the argv to fail. */
   let refuses: (args: readonly string[]) => boolean = () => false;
+  /** The move of the blobs from MinIO, which its own tests hold
+   * (docker/migrate-blob-store.test.ts): here, what the deploy hands it and
+   * does with its answer. */
+  type Move = typeof import('../../docker/migrate-blob-store').migrateBlobStore;
+  let moves: Parameters<Move>[0][] = [];
+  let move: Move = async () => ({ moved: false, reason: 'not asked' });
+  await mockModule('../../docker/migrate-blob-store', () => ({
+    migrateBlobStore: (...args: Parameters<Move>) => {
+      moves.push(args[0]);
+      return move(...args);
+    },
+  }));
   await mockModule('../../docker/exec', () => ({
     exec: async (
       command: string,
@@ -543,6 +555,8 @@ async function isolatedSuite(): Promise<void> {
     cli = fakeDockerCli(fake);
     calls = [];
     refuses = () => false;
+    moves = [];
+    move = async () => ({ moved: false, reason: 'not asked' });
     deployDir = mkdtempSync(join(tmpdir(), 'tale-runtime-argv-'));
     setProjectId(PROJECT);
     delete process.env.DATABASE_URL;
@@ -1392,25 +1406,63 @@ async function isolatedSuite(): Promise<void> {
     };
     const store = () => fake.instances.get(STORE);
 
-    test("a deployment whose blobs are in MinIO's volume keeps MinIO, on that volume, when its store is replaced", async () => {
+    // A deploy that replaces the store (`--services object-store` here,
+    // `--stop` on a running store) moves the blobs; the move switches the
+    // stack's store itself, through what the deploy hands it.
+    test("a deploy that replaces the store moves the blobs in MinIO's volume, and runs versitygw after", async () => {
       seedLiveBlue(fake);
+      process.env.OBJECT_STORE_SECRET_KEY = 'se/cr:et@x';
+      move = async (options) => {
+        expect(await options.convergeStore('versitygw')).toBe(true);
+        return { moved: true, objects: 3, bytes: 300 };
+      };
+
+      try {
+        await deployWith({ services: ['object-store'] });
+      } finally {
+        delete process.env.OBJECT_STORE_SECRET_KEY;
+      }
+
+      expect(moves).toHaveLength(1);
+      expect(moves[0]).toMatchObject({
+        prefix: `${PROJECT}_`,
+        project: PROJECT,
+        accessKey: 'tale',
+        secretKey: 'se/cr:et@x',
+      });
+      expect(store()?.image).toBe(THIRD_PARTY_IMAGES['object-store']);
+      // The image the move starts was pulled before it.
+      expect(
+        calls.some(
+          ({ args }) =>
+            args[0] === 'pull' &&
+            args.includes(THIRD_PARTY_IMAGES['object-store']),
+        ),
+      ).toBe(true);
+    });
+
+    test('a move that does not happen leaves the store MinIO, on its volume', async () => {
+      seedLiveBlue(fake);
+      move = async () => ({ moved: false, reason: 'no room' });
 
       await deployWith({ services: ['object-store'] });
 
+      expect(moves).toHaveLength(1);
       // MinIO, on MinIO's volume: the shape of each server is
       // compose-parity.test.ts's to hold.
       expect(store()?.image).toBe(MINIO_IMAGE);
       // Nothing was written into versitygw's volume.
       expect(fake.volumes.get(`${PROJECT}_blob-data`)?.size ?? 0).toBe(0);
-      // The pull asked for MinIO's image for the architecture it has.
-      expect(
-        calls.some(
-          ({ args }) =>
-            args[0] === 'pull' &&
-            args.includes('linux/amd64') &&
-            args.includes(MINIO_IMAGE),
-        ),
-      ).toBe(true);
+    });
+
+    test('a deploy that leaves the running store alone moves nothing and keeps MinIO', async () => {
+      seedLiveBlue(fake);
+      const before = store()?.image;
+
+      await deployWith({ services: ['sandbox'] });
+
+      expect(moves).toEqual([]);
+      expect(store()?.image).toBe(before);
     });
 
     test('a deployment whose blobs are in versitygw’s volume runs versitygw', async () => {
