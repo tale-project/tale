@@ -81,7 +81,7 @@ afterEach(() => {
 });
 
 describe('buildProviderProvision', () => {
-  it('builds an api-key provision from the shipped connector + full catalog', async () => {
+  it('builds an api-key provision from the shipped connector', async () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
     const provision = await buildProviderProvision(fakeCtx(), {
       organizationId: 'org_1',
@@ -92,7 +92,6 @@ describe('buildProviderProvision', () => {
       baseUrl: 'https://openrouter.ai/api/v1',
       apiFormat: 'openai',
       apiKey: 'sk-live',
-      models: ['anthropic/claude-sonnet-5', 'openai/gpt-5.5'],
       // The connector's Anthropic endpoint, which the Claude Code lane rides.
       harnessEndpoint: {
         baseUrl: 'https://openrouter.ai/api',
@@ -118,13 +117,12 @@ describe('buildProviderProvision', () => {
     expect(provision?.apiKey).toBe('from-env');
   });
 
-  it("prefers the credential's own model allowlist over the catalog", async () => {
+  it('reads no catalog: the turn named its models when it was resolved', async () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
-    const provision = await buildProviderProvision(
-      fakeCtx({ modelAllowlist: ['anthropic/claude-fable-5'] }),
-      { organizationId: 'org_1', providerSlug: 'openrouter' },
-    );
-    expect(provision?.models).toEqual(['anthropic/claude-fable-5']);
+    await buildProviderProvision(fakeCtx(), {
+      organizationId: 'org_1',
+      providerSlug: 'openrouter',
+    });
     expect(mockedCatalog).not.toHaveBeenCalled();
   });
 

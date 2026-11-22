@@ -40,19 +40,11 @@ import {
   type ModelEndpointSurface,
 } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
-import { internal } from '../../lib/handler_names';
-import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
 import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import { hashVirtualKey } from './llm_gateway_admin';
 import { RELAY_KEY_PREFIX } from './relay_keys';
-
-/** The credential-row fields this module reads back (the internal query
- * returns the full row as `v.any()`). */
-interface CredentialRowFacts {
-  modelAllowlist?: string[];
-}
 
 /**
  * One connector with the credential it was resolved with: what a relay key
@@ -66,9 +58,6 @@ export interface ProviderProvision {
   /** The connector's wire format. Absent ⇒ 'openai'. */
   apiFormat?: 'openai' | 'anthropic';
   apiKey: string;
-  /** Catalog model ids (the connector's own dialect) this credential may
-   * serve. */
-  models: string[];
   /** The connector's native Anthropic harness endpoint, which an
    * anthropic-wire harness rides (see `GatewayRoutingOpts.anthropicHarnessLane`
    * in `lib/shared/providers/gateway_routing.ts`). */
@@ -124,9 +113,6 @@ export function gatewayProvisioningFailureStage(
  * Returns null for a subscription credential, which only its vendor's own
  * harness may use, and for a connector whose endpoint is the credential's.
  *
- * The model list is the credential's own allowlist when one is set — the
- * operator's word is authoritative even where the fetched catalog lags —
- * else the connector's full catalog.
  */
 export async function buildProviderProvision(
   ctx: ActionCtx,
@@ -171,23 +157,11 @@ export async function buildProviderProvision(
     return null;
   }
 
-  const row: CredentialRowFacts | null = await ctx.runQuery(
-    internal.provider_credentials.queries.getCredentialInternal,
-    { credentialId: resolved.credentialId },
-  );
-  const allowlist = row?.modelAllowlist;
-
-  const models =
-    allowlist !== undefined && allowlist.length > 0
-      ? allowlist
-      : (await getProviderCatalog(connector)).map((entry) => entry.id);
-
   return {
     name: connector.name,
     baseUrl: connector.baseUrl,
     apiFormat: connector.apiFormat,
     apiKey: resolved.secret,
-    models,
     // Carried so an anthropic-wire harness (Claude Code) rides the
     // connector's native Anthropic endpoint.
     ...(connector.harnessEndpoint

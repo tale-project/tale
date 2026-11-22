@@ -59,7 +59,6 @@ beforeEach(() => {
     name: 'acme',
     baseUrl: 'https://llm.acme.example/v1',
     apiKey: 'sk-acme',
-    models: ['acme-large'],
     credentialId: 'cred_turn',
   });
   vi.mocked(resolveProvidersForOrgId).mockResolvedValue([
