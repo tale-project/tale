@@ -26,10 +26,16 @@ import {
   VIDEO_RELAY_GRANT_TTL_MS,
 } from '../../core/video_links/relay_token.ts';
 import {
+  BASE_FLAGS,
+  classifyYtDlpStderr,
+  proxyFailedRun,
+} from '../../core/video_links/ytdlp.ts';
+import {
   connectTarget,
   installVideoProxyRelay,
   RELAY_MAX_TUNNELS,
   RELAY_MAX_TUNNELS_PER_JOB,
+  RELAY_OPEN_TIMEOUT_MS,
   type VideoProxyRelayOptions,
 } from './proxy-relay.ts';
 
@@ -351,6 +357,18 @@ describe('the video proxy relay', () => {
       // Nothing was dialed for it.
       expect(proxy.events).toEqual([]);
     });
+
+    // yt-dlp reports a refused tunnel by its status and reason. A 403 would
+    // read as the video's platform turning the proxy's address away: the
+    // video would go on through the other proxies, and its browser session
+    // be reported blocked, for what is the deployment's own settings.
+    it('in words that blame neither the proxy nor the platform', () => {
+      const stderr =
+        "ERROR: [youtube] x: Unable to download API page: ('Unable to connect to proxy', OSError('Tunnel connection failed: 531 Relay Token Refused'))";
+
+      expect(classifyYtDlpStderr(stderr)).toBe('transient');
+      expect(proxyFailedRun(stderr, true)).toBe(false);
+    });
   });
 
   // Nothing reads a client the relay refused, so the client's own end would
@@ -615,6 +633,21 @@ describe('the video proxy relay', () => {
     await closed;
     clearInterval(busy);
     await vi.waitFor(async () => expect(await relay.connections()).toBe(0));
+  });
+
+  // yt-dlp gives up on a socket after `--socket-timeout`. A relay that waits
+  // as long for its proxy answers a moment too late: yt-dlp has then failed
+  // with a timeout that names no proxy, and the video stays on the one that
+  // does not answer.
+  it('gives a proxy less time to open a tunnel than yt-dlp waits for an answer', () => {
+    const socketTimeout = Number(
+      BASE_FLAGS[BASE_FLAGS.indexOf('--socket-timeout') + 1],
+    );
+    expect(socketTimeout).toBeGreaterThan(0);
+    expect(RELAY_OPEN_TIMEOUT_MS).toBe(20_000);
+    expect(RELAY_OPEN_TIMEOUT_MS).toBeLessThanOrEqual(
+      socketTimeout * 1000 - 5_000,
+    );
   });
 
   it('ends the far side when its client is done, with what the client had sent', async () => {

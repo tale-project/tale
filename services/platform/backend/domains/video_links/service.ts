@@ -652,6 +652,9 @@ export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
 
 function videoShimHandlers(sql: Sql): ShimHandlers {
   return {
+    // With the chat handlers come the sandbox session verbs of the render
+    // lane (`renderLaneShimHandlers`), which a video's session is reserved,
+    // activated and settled through as a render's is.
     ...chatShimHandlers(sql),
     'video_links/internal_queries:getJobById': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
@@ -755,7 +758,12 @@ function videoScheduler(sql: Sql): ShimScheduler {
   return async (name, delayMs, args) => {
     if (name === 'video_links/ingest_video_link:ingestVideoLink') {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine self-retries with exactly this shape
-      const payload = args as { jobId: string; userLocale?: string };
+      const payload = args as {
+        jobId: string;
+        userLocale?: string;
+        waitingSince?: number;
+        waitingAs?: string;
+      };
       await addJobInTx(
         sql,
         'video.ingest',
@@ -763,6 +771,12 @@ function videoScheduler(sql: Sql): ShimScheduler {
           jobId: payload.jobId,
           ...(payload.userLocale !== undefined
             ? { userLocale: payload.userLocale }
+            : {}),
+          ...(payload.waitingSince !== undefined
+            ? { waitingSince: payload.waitingSince }
+            : {}),
+          ...(payload.waitingAs !== undefined
+            ? { waitingAs: payload.waitingAs }
             : {}),
         },
         delayMs > 0 ? { startAfter: new Date(Date.now() + delayMs) } : {},
@@ -785,7 +799,12 @@ function videoScheduler(sql: Sql): ShimScheduler {
  * for an unresolvable org and fails loud on the shim. */
 export async function runVideoIngestJob(
   sql: Sql,
-  payload: { jobId: string; userLocale?: string },
+  payload: {
+    jobId: string;
+    userLocale?: string;
+    waitingSince?: number;
+    waitingAs?: string;
+  },
 ): Promise<void> {
   const ctx = createCtxShim(videoShimHandlers(sql), {
     scheduler: videoScheduler(sql),
@@ -795,6 +814,12 @@ export async function runVideoIngestJob(
     jobId: payload.jobId,
     ...(payload.userLocale !== undefined
       ? { userLocale: payload.userLocale }
+      : {}),
+    ...(payload.waitingSince !== undefined
+      ? { waitingSince: payload.waitingSince }
+      : {}),
+    ...(payload.waitingAs !== undefined
+      ? { waitingAs: payload.waitingAs }
       : {}),
   });
 }

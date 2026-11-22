@@ -29,8 +29,8 @@ function loginWall(): YtDlpError {
 }
 
 const ytdlpJson = vi.fn<(url: string) => Promise<YtDlpMetadata>>();
-const ytdlpWriteSubs = vi.fn<(url: string) => Promise<string | null>>();
-const ytdlpExtractAudio = vi.fn<(url: string) => Promise<string>>();
+const ytdlpWriteSubs = vi.fn<(url: string) => Promise<null>>();
+const ytdlpFetchAudio = vi.fn<(url: string) => Promise<never>>();
 /** The proxy route each yt-dlp call was given, in call order. */
 const routes: unknown[] = [];
 
@@ -38,12 +38,6 @@ vi.mock('./ytdlp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./ytdlp')>();
   return {
     ...actual,
-    createJobDir: vi.fn(() =>
-      Promise.resolve({
-        jobDir: '/tmp/vlink-embed-test',
-        cleanup: () => Promise.resolve(),
-      }),
-    ),
     ytdlpJson: (...args: unknown[]) => {
       routes.push(args[4]);
       return ytdlpJson(args[0] as string);
@@ -52,10 +46,23 @@ vi.mock('./ytdlp', async (importOriginal) => {
       routes.push((args[3] as { route?: unknown } | undefined)?.route);
       return ytdlpWriteSubs(args[0] as string);
     },
-    ytdlpExtractAudio: (...args: unknown[]) => {
+    ytdlpFetchAudio: (...args: unknown[]) => {
       routes.push(args[4]);
-      return ytdlpExtractAudio(args[0] as string);
+      return ytdlpFetchAudio(args[0] as string);
     },
+  };
+});
+// The place a video's yt-dlp runs in: a directory here, where a deployment
+// opens a sandbox session. yt-dlp itself is replaced above.
+vi.mock('./session_place', async () => {
+  const { localYtdlpPlace } =
+    await vi.importActual<typeof import('./ytdlp')>('./ytdlp');
+  return {
+    inYtdlpPlace: (
+      _ctx: unknown,
+      _video: unknown,
+      work: (place: ReturnType<typeof localYtdlpPlace>) => Promise<unknown>,
+    ) => work(localYtdlpPlace('/tmp/vlink-embed-test')),
   };
 });
 vi.mock('./url_safety', async (importOriginal) => {
@@ -178,14 +185,14 @@ describe('the Vimeo embed fallback', () => {
     // watch URL is walled, so re-using it here would fail the whole ingest
     // one phase later than before.
     ytdlpWriteSubs.mockResolvedValueOnce(null);
-    ytdlpExtractAudio.mockRejectedValueOnce(
+    ytdlpFetchAudio.mockRejectedValueOnce(
       new YtDlpError('transient', 'boom', 'ERROR: network'),
     );
 
     await ingestVideoLinkImpl(h.ctx, { jobId: 'job-1' });
 
     expect(ytdlpWriteSubs).toHaveBeenCalledWith(EMBED_URL);
-    expect(ytdlpExtractAudio).toHaveBeenCalledWith(EMBED_URL);
+    expect(ytdlpFetchAudio).toHaveBeenCalledWith(EMBED_URL);
     // All four calls, the watch page's and the embed's alike, go through one
     // proxy route: the platform sees one address for the video.
     expect(routes).toHaveLength(4);

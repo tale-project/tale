@@ -381,6 +381,7 @@ videoLink:
     retryCooldown: Dieses Video wurde gerade gedrosselt — bitte einige Minuten warten
     timeout: Anfrage hat zu lange gedauert — erneut versuchen
     outputValidationFailed: Heruntergeladene Video-Datei konnte nicht validiert werden
+    videoTooLarge: Video ist zu groß für die Verarbeitung
     videoTooLong: Video überschreitet das 4-Stunden-Limit
     whisperFailed: Transkription fehlgeschlagen
     invalidUrl: URL ist ungültig

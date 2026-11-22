@@ -2,7 +2,7 @@
 
 /**
  * The transcript a caption ingest stores, end to end through the worker:
- * metadata → track selection → the VTT on disk → `parseVtt` →
+ * metadata → track selection → the VTT in the place → `parseVtt` →
  * `rollingWindowDedup` → the paragraphizer → the stored blob and the
  * synthetic file row. yt-dlp is replaced at its module boundary (no process
  * runs) and the VTT is a fixed fixture, so the run is deterministic.
@@ -33,24 +33,31 @@ vi.mock('./ytdlp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./ytdlp')>();
   return {
     ...actual,
-    createJobDir: vi.fn(() =>
-      Promise.resolve({
-        jobDir: fixture.jobDir,
-        cleanup: () => Promise.resolve(),
-      }),
-    ),
     ytdlpJson: vi.fn(() => Promise.resolve(fixture.metadata)),
-    // What `yt-dlp --write-subs --convert-subs vtt` leaves in the job dir.
+    // What `yt-dlp --write-subs` leaves where it works, and names.
     ytdlpWriteSubs: vi.fn(
-      async (_url: string, lang: string, jobDir: string) => {
-        const path = join(jobDir, `track.${lang}.vtt`);
-        await writeFile(path, fixture.vtt);
-        return path;
+      async (_url: string, lang: string, place: { dir: string }) => {
+        const name = `subs.${lang}.vtt`;
+        await writeFile(join(place.dir, name), fixture.vtt);
+        return { name, format: 'vtt' };
       },
     ),
-    ytdlpExtractAudio: vi.fn(() =>
-      Promise.reject(new Error('the caption path must not extract audio')),
+    ytdlpFetchAudio: vi.fn(() =>
+      Promise.reject(new Error('the caption path must not fetch the sound')),
     ),
+  };
+});
+// The place a video's yt-dlp runs in: a directory here, where a deployment
+// opens a sandbox session. yt-dlp itself is replaced above.
+vi.mock('./session_place', async () => {
+  const { localYtdlpPlace } =
+    await vi.importActual<typeof import('./ytdlp')>('./ytdlp');
+  return {
+    inYtdlpPlace: (
+      _ctx: unknown,
+      _video: unknown,
+      work: (place: ReturnType<typeof localYtdlpPlace>) => Promise<unknown>,
+    ) => work(localYtdlpPlace(fixture.jobDir)),
   };
 });
 vi.mock('./url_safety', async (importOriginal) => {
@@ -65,6 +72,9 @@ vi.mock('../lib/storage/blob_access', () => ({
     fixture.blobs.push({ bytes, contentType });
     return Promise.resolve(`s3:itest-org/blob-${fixture.blobs.length}`);
   }),
+  putBlobStream: vi.fn(() =>
+    Promise.reject(new Error('the caption path stores no sound')),
+  ),
   deleteBlob: vi.fn(() => Promise.resolve()),
 }));
 

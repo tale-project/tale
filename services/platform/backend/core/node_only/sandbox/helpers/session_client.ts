@@ -713,6 +713,12 @@ export interface SessionCreateBody {
   profile: 'default' | 'agent' | 'agent-light';
   ttlMs?: number;
   idleTimeoutMs?: number;
+  /** The most one file of a `default` session may weigh, where the work
+   * needs more than the profile's own 100 MiB: at most 2 GiB
+   * (`SESSION_MAX_FILE_BYTES_CEILING`, services/sandbox). Docker and Incus
+   * hold a session to it; a spawner from before the field keeps the
+   * profile's own. */
+  maxFileBytes?: number;
   env?: Record<string, string>;
   /** `device`: may start on one of the organization's connected devices
    * (the hub picks one with room, else the server). Absent = the server. A

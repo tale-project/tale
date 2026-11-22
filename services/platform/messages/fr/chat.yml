@@ -380,6 +380,7 @@ videoLink:
     retryCooldown: Cette vidéo vient d'être limitée — attends quelques minutes avant de réessayer
     timeout: Récupération trop longue — réessaie
     outputValidationFailed: Impossible de valider le fichier vidéo téléchargé
+    videoTooLarge: La vidéo est trop volumineuse pour être traitée
     videoTooLong: La vidéo dépasse la limite de 4 heures
     whisperFailed: Échec de la transcription
     invalidUrl: URL invalide

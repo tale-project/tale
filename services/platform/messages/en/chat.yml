@@ -379,6 +379,7 @@ videoLink:
     retryCooldown: This video was just rate-limited — wait a few minutes before retrying
     timeout: Took too long to fetch — try again
     outputValidationFailed: Couldn't validate the downloaded video file
+    videoTooLarge: Video is too large to process
     videoTooLong: Video exceeds the 4h length limit
     whisperFailed: Transcription failed
     invalidUrl: URL is malformed

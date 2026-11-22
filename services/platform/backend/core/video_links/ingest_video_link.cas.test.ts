@@ -24,15 +24,22 @@ vi.mock('./ytdlp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./ytdlp')>();
   return {
     ...actual,
-    createJobDir: vi.fn(() =>
-      Promise.resolve({
-        jobDir: '/tmp/vlink-cas-test',
-        cleanup: () => Promise.resolve(),
-      }),
-    ),
     ytdlpJson: (...args: unknown[]) => ytdlpJson(...(args as [])),
     ytdlpWriteSubs: vi.fn(),
-    ytdlpExtractAudio: vi.fn(),
+    ytdlpFetchAudio: vi.fn(),
+  };
+});
+// The place a video's yt-dlp runs in: a directory here, where a deployment
+// opens a sandbox session. yt-dlp itself is replaced above.
+vi.mock('./session_place', async () => {
+  const { localYtdlpPlace } =
+    await vi.importActual<typeof import('./ytdlp')>('./ytdlp');
+  return {
+    inYtdlpPlace: (
+      _ctx: unknown,
+      _video: unknown,
+      work: (place: ReturnType<typeof localYtdlpPlace>) => Promise<unknown>,
+    ) => work(localYtdlpPlace('/tmp/vlink-cas-test')),
   };
 });
 vi.mock('./url_safety', async (importOriginal) => {
@@ -153,8 +160,13 @@ describe('ingestVideoLinkImpl yt-dlp failure paths CAS on the owned phase', () =
 
     expect(h.row.status).toBe('skipped');
     expect(h.row.attempts).toBe(0);
-    const requeue = h.updates.find((u) => u.status === 'queued');
-    expect(requeue?.expectedStatus).toBe('fetching_metadata');
+    // The row is stamped as the run takes it up, and the retry is a CAS on
+    // the phase the run owned when yt-dlp failed.
+    const queued = h.updates.filter((u) => u.status === 'queued');
+    expect(queued.map((u) => u.expectedStatus)).toEqual([
+      'queued',
+      'fetching_metadata',
+    ]);
     // A lost CAS schedules neither the cleanup nor the retry.
     expect(h.scheduled).toEqual([]);
     expect(

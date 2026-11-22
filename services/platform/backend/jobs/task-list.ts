@@ -1433,6 +1433,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .object({
           jobId: z.string().min(1),
           userLocale: z.string().optional(),
+          waitingSince: z.number().int().positive().optional(),
+          waitingAs: z
+            .string()
+            .regex(/^[0-9a-f-]{36}$/)
+            .optional(),
         })
         .parse(payload);
       await runVideoIngestJob(deps.sql, input);

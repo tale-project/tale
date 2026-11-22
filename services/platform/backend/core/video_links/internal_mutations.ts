@@ -21,6 +21,7 @@ export type VideoLinkErrorReason =
   | 'binaryNotInstalled'
   | 'timeout'
   | 'outputValidationFailed'
+  | 'videoTooLarge'
   // UrlSafetyError.kind
   | 'invalidUrl'
   | 'unsupportedProtocol'

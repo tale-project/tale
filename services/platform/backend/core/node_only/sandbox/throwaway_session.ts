@@ -47,6 +47,9 @@ export interface ThrowawaySession {
   /** How long the session may sit with nothing running before the spawner
    * reaps it: what bounds an orphan whose work died before its destroy. */
   readonly idleTimeoutMs: number;
+  /** The most one file of the session may weigh, for work that writes more
+   * than a session's own 100 MiB (`SessionCreateBody.maxFileBytes`). */
+  readonly maxFileBytes?: number;
   /** The lane's name in a log line. */
   readonly lane: string;
   /** What one piece of the lane's work is called in a log line. */
@@ -122,6 +125,9 @@ export async function withThrowawaySession<T>(
         // organization's device.
         placement: 'server',
         idleTimeoutMs: session.idleTimeoutMs,
+        ...(session.maxFileBytes === undefined
+          ? {}
+          : { maxFileBytes: session.maxFileBytes }),
       });
       created = true;
     } catch (error) {

@@ -22,15 +22,22 @@ vi.mock('./ytdlp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./ytdlp')>();
   return {
     ...actual,
-    createJobDir: vi.fn(() =>
-      Promise.resolve({
-        jobDir: '/tmp/vlink-session-test',
-        cleanup: () => Promise.resolve(),
-      }),
-    ),
     ytdlpJson: (...args: unknown[]) => ytdlpJson(...(args as [])),
     ytdlpWriteSubs: vi.fn(),
-    ytdlpExtractAudio: vi.fn(),
+    ytdlpFetchAudio: vi.fn(),
+  };
+});
+// The place a video's yt-dlp runs in: a directory here, where a deployment
+// opens a sandbox session. yt-dlp itself is replaced above.
+vi.mock('./session_place', async () => {
+  const { localYtdlpPlace } =
+    await vi.importActual<typeof import('./ytdlp')>('./ytdlp');
+  return {
+    inYtdlpPlace: (
+      _ctx: unknown,
+      _video: unknown,
+      work: (place: ReturnType<typeof localYtdlpPlace>) => Promise<unknown>,
+    ) => work(localYtdlpPlace('/tmp/vlink-session-test')),
   };
 });
 vi.mock('./url_safety', async (importOriginal) => {
@@ -128,6 +135,18 @@ describe('the reason a bot check ends a video with', () => {
 
   it('is YouTube’s own wall where the deployment has a provider', async () => {
     vi.stubEnv('VIDEO_INGEST_POT_PROVIDER_URL', 'http://pot.example:4416');
+    expect(await run('youtube', 'https://www.youtube.com/watch?v=abc')).toEqual(
+      ['botDetection'],
+    );
+  });
+
+  it('is YouTube’s own wall where the deployment turned its bundled provider on', async () => {
+    // The plugin that asks the provider is in the session's image, not on
+    // this machine: a deployment that turned the provider on had its tokens.
+    vi.stubEnv('VIDEO_INGEST_LANE', '');
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER', 'true');
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER_URL', '');
+    vi.stubEnv('VIDEO_INGEST_PO_TOKEN', '');
     expect(await run('youtube', 'https://www.youtube.com/watch?v=abc')).toEqual(
       ['botDetection'],
     );

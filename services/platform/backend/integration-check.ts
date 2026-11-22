@@ -42249,7 +42249,10 @@ if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
   esac
 fi
 if [[ "$*" == *"--write-subs"* ]]; then
-  cat > "$home_dir/capt1.en.vtt" <<'VTT'
+  # A track as the platform serves it, under the name the lane asks for.
+  [[ "$*" == *"-o subs.%(ext)s"* ]] || { echo "Missing the subtitle output template" >&2; exit 1; }
+  [[ "$*" != *"--convert-subs"* ]] || { echo "A run converts nothing" >&2; exit 1; }
+  cat > "$home_dir/subs.en.vtt" <<'VTT'
 WEBVTT
 
 00:00:00.000 --> 00:00:04.000
@@ -42260,16 +42263,23 @@ Second cue with more caption words for the transcript body.
 VTT
   exit 0
 fi
-if [[ "$*" == *" -x "* || "\${args[0]}" == "-x" ]]; then
+if [[ "$*" == *"-o media.%(ext)s"* ]]; then
+  # The sound as a platform serves it: a download, and nothing done to it.
+  [[ "$*" == *"-f bestaudio/"* ]] || { echo "Missing the format selection" >&2; exit 1; }
+  [[ "$*" == *"--fixup never"* ]] || { echo "A run fixes nothing up" >&2; exit 1; }
+  [[ "$*" == *"-S lang,size:200M"* ]] || { echo "Missing the size the sound is chosen for" >&2; exit 1; }
+  [[ "$*" == *"--max-filesize 1000M"* ]] || { echo "Missing the size limit" >&2; exit 1; }
+  [[ " $* " != *" -x "* ]] || { echo "A run extracts nothing" >&2; exit 1; }
   # Distinct audio per video: the transcription lane reuses a completed
   # transcript for identical bytes within an org, and whis2's injected
   # provider failure must actually reach the provider.
   freq=440
   case "$vid" in whis2) freq=660;; esac
-  # Exercise the production toolchain's resolved executable, including
-  # Homebrew paths on macOS; the child deliberately has a stripped PATH.
+  # The fake has no platform to download from: it makes the stream with the
+  # toolchain's resolved executable, including Homebrew paths on macOS; the
+  # child deliberately has a stripped PATH.
   [[ -n "$ffmpeg_bin" ]] || { echo "Missing --ffmpeg-location" >&2; exit 1; }
-  "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -b:a 32k "$home_dir/whis1.mp3" || exit $?
+  "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -c:a libopus -b:a 32k "$home_dir/media.webm" || exit $?
   exit 0
 fi
 echo "ERROR: itest fake yt-dlp got unexpected args: $*" >&2
@@ -42278,6 +42288,10 @@ exit 1
   await writeFile(path.join(binDir, 'yt-dlp'), fakeYtdlp, { mode: 0o755 });
   const savedBinDir = process.env.VIDEO_INGEST_BIN_DIR;
   process.env.VIDEO_INGEST_BIN_DIR = binDir;
+  // The fake stands on this machine: the lane runs it here, where a
+  // deployment runs yt-dlp in a sandbox session.
+  const savedLane = process.env.VIDEO_INGEST_LANE;
+  process.env.VIDEO_INGEST_LANE = 'local';
   const savedFfmpegLocation = process.env.VIDEO_INGEST_FFMPEG_LOCATION;
 
   try {
@@ -42914,6 +42928,11 @@ exit 1
     }
   } finally {
     whisperServer.close();
+    if (savedLane === undefined) {
+      delete process.env.VIDEO_INGEST_LANE;
+    } else {
+      process.env.VIDEO_INGEST_LANE = savedLane;
+    }
     if (savedBinDir === undefined) {
       delete process.env.VIDEO_INGEST_BIN_DIR;
     } else {

@@ -485,8 +485,16 @@ export interface TaskPayloads {
     attempt?: number;
   };
   /** One video-link ingest attempt (the reused orchestrator; its
-   * [30s,60s,120s] retry self-chain re-enters this queue). */
-  'video.ingest': { jobId: string; userLocale?: string };
+   * [30s,60s,120s] retry self-chain re-enters this queue). `waitingSince`
+   * is when the video began waiting for a sandbox session, on a job that
+   * came back because there was none to be had, and `waitingAs` the key of
+   * the run that began the wait, under which the job asks again. */
+  'video.ingest': {
+    jobId: string;
+    userLocale?: string;
+    waitingSince?: number;
+    waitingAs?: string;
+  };
   /** Materialize a donor transcript for a clone job (no yt-dlp). */
   'video.clone': {
     jobId: string;
