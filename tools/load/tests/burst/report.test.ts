@@ -24,6 +24,8 @@ function run(id: string, overrides: Partial<RunTrack> = {}): RunTrack {
     agentId: 'agent-1',
     trigger: 'assignment',
     place: 'settled',
+    harness: 'claude-code',
+    engine: 'harness',
     failureCode: null,
     error: null,
     resultText: ANSWER,

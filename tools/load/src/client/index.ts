@@ -1,6 +1,13 @@
 /** The client layer virtual users run on: HTTP, cookies, sessions, SSE. */
 
-export { HttpClient, HttpResponse, createAgent, errorCode } from './http.ts';
+export {
+  BROWSER_HEADERS,
+  HttpClient,
+  HttpResponse,
+  createAgent,
+  createBrowserAgent,
+  errorCode,
+} from './http.ts';
 export type {
   AgentOptions,
   HttpClientOptions,

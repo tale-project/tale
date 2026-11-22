@@ -20,6 +20,8 @@ function row(overrides: Partial<RunRow> = {}): RunRow {
     agentId: 'agent-1',
     sessionId: 'session-1',
     trigger: 'assignment',
+    harness: null,
+    engine: null,
     failureCode: null,
     error: null,
     resultText: null,
@@ -102,6 +104,22 @@ describe('parseRunRows', () => {
       runs: [{ id: 'run-3', status: 'settled', resultText: 'Done.' }],
     });
     expect(settled?.resultText).toBe('Done.');
+  });
+
+  test('keeps the runtime a run ran on and the engine that drives it', () => {
+    const [run] = parseRunRows({
+      runs: [
+        { id: 'run-4', status: 'settled', harness: 'pi', engine: 'harness' },
+      ],
+    });
+    expect(run?.harness).toBe('pi');
+    expect(run?.engine).toBe('harness');
+    const track = newRunTrack(
+      'task-1',
+      row({ harness: 'pi', engine: 'native' }),
+      1_500,
+    );
+    expect([track.harness, track.engine]).toEqual(['pi', 'native']);
   });
 });
 

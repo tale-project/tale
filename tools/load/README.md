@@ -4,10 +4,11 @@ Smoke, stress and performance testing for Tale: realistic virtual users against 
 deployment, a realistic mock model provider, a bulk seeder, and reports that say what held, what
 broke and why.
 
-It is a separate, manually started test. Nothing here runs in the merge gate: the **Load**
-workflow (`.github/workflows/load.yml`) is dispatched by hand, and a distributed run against a
-real deployment is started from wherever the generators run. A passing unit test proves a
-contract; a passing load run proves the platform held a crowd.
+It is a separate test. Nothing here runs in the merge gate: the **Load** workflow
+(`.github/workflows/load.yml`) is dispatched by hand, the **Memory budget** workflow
+(`.github/workflows/memory-budget.yml`) runs nightly, and a distributed run against a real
+deployment is started from wherever the generators run. A passing unit test proves a contract; a
+passing load run proves the platform held a crowd.
 
 > **Never point a load run at a production deployment.** The seeder creates users and
 > organizations, opens sign-up, and the journeys write threads, tasks, documents and API keys.
@@ -23,6 +24,7 @@ contract; a passing load run proves the platform held a crowd.
 | Merge         | `merge`                | Folds the reports of a distributed run's shards into one exact distribution.                                                                                                                                                                                          |
 | Local stack   | `stack up/down/status` | Runs N `api` and M `worker` processes of the platform from a checkout (plus the mock) against your own database, for horizontal-scaling runs on one machine.                                                                                                          |
 | Agent burst   | `burst`                | Starts a burst of agent runs across a project's agents on the host that carries the platform and its sandboxes, samples the host's memory, the spawner's admission, the api's readiness and the kernel's OOM kills meanwhile, and judges whether the host held it.    |
+| Memory budget | `budget`               | Reads a `tale deploy` deployment's memory, every container's cgroup v2 `memory.stat` every 250 ms, while the reference workload of tale#4942 runs against it, and judges it against the 500 MB budget. |
 
 Run every command from the repository root with Node 22 (Node runs the TypeScript directly):
 
@@ -240,6 +242,146 @@ SANDBOX_TOKEN=<the spawner's token> node tools/load/src/cli.ts burst --plan plan
   --stack-state .tale-load-stack.json --report runs/burst.json
 ```
 
+## Memory budget
+
+`budget` reads what tale#4942 decided (decision of 2026-11-14): a deployment stays within
+**500 MB** (500,000,000 bytes, 476.8 MiB) for everything `tale deploy` starts on one host by
+default, sandbox sessions and sandbox-lane jobs aside, at its peak across a stated workload, on
+native Linux amd64 and arm64. The decision's figures (the limit, each part's share and the
+overlap bound) are written once, in `packages/shared/src/memory-budget.ts`
+(`@tale/shared/memory-budget`), where the CLI takes each service's memory reservation from too;
+`src/budget/limits.ts` adds how the benchmark reads them.
+
+**The reading.** Every 250 ms, each container's cgroup v2 `memory.stat` is read, one container
+after the other within one turn of the event loop. `anon + shmem + slab_unreclaimable +
+kernel_stack + pagetables + sock` are counted; the page cache, `file`, is reported beside them
+and not counted (it includes the `shmem` that is counted). The deployment's reading at an instant
+is the sum over its containers at that instant, and the result is the peak of that sum, with the
+instant and what each container held then. Each container's own peak, its page cache then and
+its own peak page cache are reported too.
+
+**The containers** are found as the CLI finds them, by Compose's labels: the stateful project
+(`<id>`, the `id` in the workspace's `tale.json`: `db`, `object-store`, `proxy`, `docker-api`,
+`sandbox`, `sandbox-egress`) and one project per colour of the app tier (`<id>-blue`,
+`<id>-green`: `platform`), each container that Compose made (a container number, no one-off).
+The sessions the spawner starts carry no Compose project, so they are left out by construction.
+A container's cgroup is found from its main process (`/proc/<pid>/cgroup`, narrowed to the
+segment that names the container; a path that names no container is not taken), and else at the
+conventional path of the engine's driver (`system.slice/docker-<id>.scope` for systemd,
+`docker/<id>` for cgroupfs). A container whose cgroup is one another container is read from is
+not read, since its memory would count twice, and is named. The list is read again every second,
+each container's process by one `docker inspect`, or by one per container where that fails (it
+fails as a whole when a container stopped since the listing): a container that starts is read
+from then on, one that stops is read no more, and nothing is carried over from an instant it was
+not read at. Two colours of the app tier at one instant are a blue/green overlap: outside the
+ceiling, bounded to one extra app-tier share. At such an instant the smaller colour's app tier is
+reported as the overlap and left out of the deployment's reading. An engine the reading does not
+hold on is refused before anything runs (exit 2): cgroup v1, a rootless engine (`name=rootless`
+among its security options) and the `none` cgroup driver, whose containers have no cgroup of
+their own under the host's tree.
+
+**The workload** is the decision's: finding 1's, plus a spreadsheet and a PDF indexed at the
+same time, one transcription and ten sign-ins. Every person is a browser of their own
+(`createBrowserAgent` and `BROWSER_HEADERS` in `src/client/http.ts`): their own connections to
+the deployment, HTTP/2 where the edge offers it in the TLS handshake, every answer decoded as a
+browser decodes it, and a browser's `Accept-Encoding: gzip, deflate, br, zstd` and
+`Accept-Language` on every request, event stream and upload, so the deployment answers as it
+answers a browser: the app's precompressed files, and the edge's compression of the rest. Before
+the reading starts, the plan's first organization's owner pins the standard agent to pi
+(`--harness`) and to the plan's model and makes it the project's agent, seven people sign in,
+and the reference files are made (`src/data/reference-files.ts`: a 60,000 × 10 spreadsheet of
+15 MB written by SheetJS, a 300-page text PDF, ten minutes of 16 kHz mono WAV). After `--settle`
+seconds at rest every part starts at once:
+
+| Part | What happens | Done when |
+| --- | --- | --- |
+| Chat | six people open the app as a browser does — the start page and the files it loads, the dashboard's reads, their organization's dashboard and its reads, the app's event stream, Home's reads — then start a conversation and send four turns each, reading each reply first | all 24 turns settle `completed`, and every page, file and read of the app was answered and no event stream refused |
+| `run_code` | a seventh opens the app the same way and asks for a chart; the mock answers with a `run_code` call (`[[mock:run-code]]`) | the turn completes and its `run_code` result is `ok` |
+| Agent task | the owner hands a task to the standard agent, in progress | its run ends `settled` on pi as a run of the `harness` engine: one on another runtime, or on the engine a chat reply runs on, is not the task the decision names |
+| Documents | the owner uploads the spreadsheet and the PDF together into the documents | both are indexed (`completed`) |
+| Transcription | the owner uploads the recording as the composer does | its transcription is `completed` (not `skipped`) |
+| Sign-ins | once both documents are handed over for indexing, ten more people sign in at once, each from a browser of their own | ten sign-ins (a refusal for load is asked again after its `Retry-After`) |
+
+Opening the app (`src/api/page.ts`; the reads are `src/api/dashboard.ts`'s, which a virtual user
+of `run` boots with too) fetches `/` and `/dashboard/<org>`, each file the document names that a browser
+fetches to show it (scripts, style sheets, module preloads, the manifest, icons) and the modules
+those scripts import statically, each once per person and six at a time, as a browser keeps and
+fetches them. The modules the app imports on demand once it runs (a screen's own code, a
+locale's messages) are not fetched: which of them a screen needs is decided by running the app,
+and the harness does not run it. So a first visit's largest files, the app's entry and vendor
+modules, are in the reading, and a screen's own chunks are not.
+
+A part did not complete when it says what went wrong: a turn, a page, a file or a read that
+failed, an event stream the deployment refused (401, 403, 404) or stopped, a run on the wrong
+runtime. The report counts the HTTP errors the whole run met, by request and kind: every
+unexpected answer, failed connection and stream error.
+
+The workload ends when every part has ended or `--deadline` passed. With `--flip-command`, that
+command runs next while the reading goes on: a blue/green flip of the app tier, the workspace's
+`tale deploy`, which starts the other colour beside the live one, waits for it, drains the old
+one and stops it (every deploy without `--services` does, the same release included); it is
+stopped after `--flip-deadline` seconds (900). Then the reading goes on for `--tail` seconds.
+
+**The verdict** holds four expectations, each held, missed, inconclusive or not tested. The run
+fails (exit 1) when one missed, is inconclusive (exit 2) when none missed and one is
+inconclusive, and passes (exit 0) otherwise:
+
+| Expectation | Held when | Otherwise |
+| --- | --- | --- |
+| Every container of the deployment is read every 250 ms | each service of `--services` was read; no running container was left unread, read with failures or read from another's cgroup; no gap over a second between instants; never five seconds without a listing | inconclusive: the reading is a lower bound |
+| The reference workload runs to its end | every part completed | missed: a deployment that did less held less |
+| The deployment stays within 500,000,000 bytes | the peak is within the limit on a whole reading | missed when the peak is above the limit, on a whole reading or not, since what a reading missed can only add to it; inconclusive when it is within on a reading that is not whole |
+| A blue/green overlap adds at most one app-tier share (256 MiB) | a flip overlapped two colours within the bound on a whole reading, and finished | missed above the bound, on a whole reading or not; not tested without `--flip-command`, deciding nothing; inconclusive when a flip was asked for and no instant read two colours, or the flip failed or ran out of time within the bound |
+
+Each part's peak is also read against its share (app tier 256 MiB, Postgres 120, object store 35,
+edge 35, spawner and egress 30): informative, it decides nothing. The report's title gives the
+peak and the limit in bytes, and so does a miss's account of how far over it went: a peak a few
+kilobytes over never reads as equal to the limit. The run writes the JSON report, its Markdown
+rendering and every instant as CSV (`--report budget.json` writes `budget.md` and `budget.csv`
+beside it). A setup that fails exits 2 before anything is read.
+
+**In CI**, `.github/workflows/memory-budget.yml` runs it on a fresh hosted runner of each
+architecture: it builds the stack's images from the checkout into a registry on the runner
+(`tools/cli/e2e/incus/images.sh`), builds the CLI as that release, deploys with `tale init` and
+`tale deploy` as an operator does (`GHCR_REGISTRY` pointed at the registry; the site on
+`https://localhost`, its edge terminating TLS with the certificate of its own local authority,
+whose root, `/data/pki/root.crt` in the edge's container, the harness trusts through
+`NODE_EXTRA_CA_CERTS`), starts the mock where the platform reaches it (`host.docker.internal`),
+seeds one organization of 18 and runs `budget` with the workspace's `tale deploy` as its
+`--flip-command`. The deploy step prints the HTTP version the edge answered with. Swap is off, so
+nothing the deployment holds is swapped out of `anon`.
+
+It runs on every push to a release line (`release/**`) that changes what the deployment or the
+benchmark is built from (the stack's services, the packages, the platform's configs, the
+patches, `compose.yml`, the CLI, this tool, the manifests and the lockfile, the setup action or
+the workflow), and nightly and on dispatch. GitHub starts a scheduled workflow, and offers a
+dispatched one, only from the default branch's copy of the file, which does not carry a release
+line's work: on a line, the push runs the line's own copy, on the code it measures. A run in
+progress finishes, and newer pushes to the same line wait in one pending run that measures the
+newest; a scheduled or dispatched run is never cancelled.
+
+**By hand**, on the host that runs the deployment (rootful Docker with cgroup v2; the reading
+needs the host's `/proc` and `/sys/fs/cgroup`), with the mock where the platform reaches it and
+the workspace's `.env` carrying `TALE_ALLOW_OPEN_SIGN_UP=true`,
+`TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` and `TALE_PROVIDER_KEY_LOADMOCK`. A deployment whose edge
+certifies itself (`TLS_MODE=selfsigned`, `tale init`'s default) is verified against its own
+root, never with certificate checks off. From the workspace's directory:
+
+```bash
+node tools/load/src/cli.ts mock --host 0.0.0.0 --port 4199 --tool-call-rate 0 \
+  --rate-429 0 --rate-5xx 0 --mid-stream-error-rate 0
+docker exec "$(jq -r .id tale.json)-proxy" cat /data/pki/root.crt > root.crt
+export NODE_EXTRA_CA_CERTS="$PWD/root.crt"
+node tools/load/src/cli.ts seed --target https://localhost --users 18 --org-size 18 \
+  --provider-base-url http://host.docker.internal:4199/v1 --output plan.json
+node tools/load/src/cli.ts budget --plan plan.json --project "$(jq -r .id tale.json)" \
+  --flip-command 'tale --yes deploy --skip-backup' --report runs/budget.json
+```
+
+`--services` names the services a whole reading must include (the default stack's seven);
+`--cgroup-root`, `--proc` and `--docker` say where the readings and the engine are. The sampler's
+own lab test reads a real systemd scope: `TALE_LOAD_CGROUP_LAB=1 bun test tests/budget/lab.test.ts`.
+
 ## The mock provider
 
 ```bash
@@ -256,6 +398,11 @@ default the next one (`stack up` records where as `mockMetricsUrl`). A message m
 behaviour with a directive: `[[mock:429]]`, `[[mock:500]]`, `[[mock:503]]`,
 `[[mock:midstream-error]]`, `[[mock:stall=<ms>]]`, `[[mock:ttft=<ms>]]`, `[[mock:tokens=<n>]]`,
 `[[mock:tool]]`, `[[mock:no-tool]]`, `[[mock:empty]]` (`run --provider-fault-rate` sends them).
+`[[mock:run-code]]` answers a chat turn that offers the light sandbox's `run_code` with a call of
+it: a Python program that draws a bar chart with matplotlib into `/agent/output/`
+(`src/mock/run-code.ts`); the request carrying its result is answered in prose. `budget` sends it.
+The catalog lists one speech-to-text model, `load-transcribe` (type `transcription`, priced per
+second of audio), so an organization configured for the mock transcribes recordings with it.
 `[[mock:hog=<MiB>]]` answers a turn that offers a shell tool (Claude Code's `Bash`, Codex's
 `shell`) with a call of it that holds that much memory, every page written, and keeps a CPU busy
 for `[[mock:hog-seconds=<s>]]` (60 by default); the next request, which carries the result, is

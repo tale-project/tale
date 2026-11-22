@@ -307,7 +307,13 @@ describe('chat', () => {
     });
     const transcript = await listMessages(api, 'o1', 't1');
     expect(transcript.body).toEqual([
-      { id: 'a', role: 'assistant', text: 'Hi', status: undefined },
+      {
+        id: 'a',
+        role: 'assistant',
+        text: 'Hi',
+        status: undefined,
+        parts: [{ type: 'text', text: 'Hi' }],
+      },
     ]);
 
     expect(metricNames(metrics).sort()).toEqual([

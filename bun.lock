@@ -617,6 +617,7 @@
         "postgres": "3.4.7",
         "typescript": "6.0.2",
         "undici": "7.30.1",
+        "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
         "zod": "4.6.6",
       },
     },

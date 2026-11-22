@@ -46,6 +46,7 @@ import {
   randomId,
   type Random,
 } from './random.ts';
+import { findRunCodeTool, runCodeArguments } from './run-code.ts';
 import { estimateTokens, truncateToTokens } from './tokens.ts';
 import {
   chooseTool,
@@ -211,6 +212,26 @@ function hogCall(
   };
 }
 
+/**
+ * The `run_code` tool a `[[mock:run-code]]` turn calls, or null when the turn
+ * is not one to chart: it ends on a tool result (the chart was drawn, and
+ * the turn is answered in prose), it offers no `run_code`, or its tool
+ * choice or a `[[mock:no-tool]]` rules the call out.
+ */
+function runCodeCall(
+  input: ChatTurnInput,
+  directives: MockDirectives,
+): OfferedTool | null {
+  if (directives.runCode !== true || directives.tool === false) return null;
+  if (input.toolResult !== null || input.toolChoice.kind === 'none')
+    return null;
+  const tool = findRunCodeTool(input.tools);
+  if (tool === null) return null;
+  const choice = input.toolChoice;
+  if (choice.kind === 'named' && tool.name !== choice.name) return null;
+  return tool;
+}
+
 function jsonContent(
   random: Random,
   format: ResponseFormat,
@@ -339,10 +360,15 @@ export function planReply(
   let reasoningTokens = estimateTokens(reasoning);
 
   const hog = directives.empty === true ? null : hogCall(input, directives);
+  const chart =
+    directives.empty === true || hog !== null
+      ? null
+      : runCodeCall(input, directives);
   const tool =
     directives.empty === true
       ? null
       : (hog?.shell.tool ??
+        chart ??
         shouldCallTool(random, input, directives, options.toolCallRate));
   let toolCall: PlannedToolCall | null = null;
   let content: string;
@@ -353,7 +379,9 @@ export function planReply(
     const argumentsJson = JSON.stringify(
       hog !== null
         ? hogArguments(random, hog.shell, hog.hog, hints)
-        : generateToolArguments(random, tool.parameters, hints),
+        : chart !== null
+          ? runCodeArguments(random, chart, hints)
+          : generateToolArguments(random, tool.parameters, hints),
     );
     toolCall = {
       id:

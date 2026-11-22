@@ -29,32 +29,20 @@ import {
   discardingMetrics,
 } from '../api/client.ts';
 import {
+  dashboardBootReads,
+  homeBootReads,
+  homeTaskReads,
+  organizationBootReads,
+} from '../api/dashboard.ts';
+import {
   type Hint,
   type ThreadEvent,
   type StreamTarget,
   openOrgEvents,
   openThreadStream,
 } from '../api/realtime.ts';
-import {
-  type ComposerModel,
-  automationsListing,
-  composerModels,
-  conversationApiSources,
-  currentUser,
-  lastActiveOrganization,
-  memberContext,
-  myOrganizations,
-  myTeams,
-  passwordExpiry,
-  spaShell,
-  twoFactorStatus,
-  userPreferences,
-} from '../api/shell.ts';
-import {
-  OPEN_TASK_STATUSES,
-  listProjectBoard,
-  listTasksAcrossProjects,
-} from '../api/tasks.ts';
+import { type ComposerModel, spaShell } from '../api/shell.ts';
+import { listProjectBoard } from '../api/tasks.ts';
 import {
   listProjects,
   myUnreadCount,
@@ -578,15 +566,7 @@ export class VirtualUser implements ApiObserver {
   async #bootDashboard(
     activeOrganizationId: string | undefined,
   ): Promise<void> {
-    await Promise.all([
-      twoFactorStatus(this.api),
-      passwordExpiry(this.api),
-      currentUser(this.api),
-    ]);
-    const [, lastActive] = await Promise.all([
-      myOrganizations(this.api),
-      lastActiveOrganization(this.api),
-    ]);
+    const { lastActive } = await dashboardBootReads(this.api);
     const seats = [this.homeSeat, this.megaSeat].filter(
       (seat): seat is Seat => seat !== null,
     );
@@ -617,10 +597,7 @@ export class VirtualUser implements ApiObserver {
     if (this.web !== null) {
       await spaShell(this.web, `/dashboard/${encodeURIComponent(seat.org.id)}`);
     }
-    const [context] = await Promise.all([
-      memberContext(this.api, seat.org.id),
-      myTeams(this.api, seat.org.id),
-    ]);
+    const { context } = await organizationBootReads(this.api, seat.org.id);
     if (context.ok && context.body?.status !== 'ok') {
       this.metrics.error(
         'GET /api/app/members/me',
@@ -641,17 +618,11 @@ export class VirtualUser implements ApiObserver {
   async homeReads(): Promise<void> {
     const orgId = this.orgId;
     if (orgId === '') return;
-    const [threads, , , , , , , models] = await Promise.all([
-      listThreads(this.api, orgId),
-      listProjects(this.api, orgId),
-      this.#homeTaskReads(),
-      userPreferences(this.api, orgId),
-      orgUnreadCount(this.api, orgId),
-      myUnreadCount(this.api, orgId),
-      automationsListing(this.api, orgId),
-      composerModels(this.api, orgId),
-      conversationApiSources(this.api, orgId),
-    ]);
+    const { threads, models } = await homeBootReads(
+      this.api,
+      orgId,
+      this.userId,
+    );
     if (threads.body !== undefined) {
       const memory = this.memory(orgId);
       memory.threads = threads.body.slice(0, MEMORY_CAP).map((row) => row.id);
@@ -659,19 +630,8 @@ export class VirtualUser implements ApiObserver {
     if (models.body !== undefined) this.#chooseModel(models.body);
   }
 
-  async #homeTaskReads(): Promise<void> {
-    const userId = this.userId;
-    if (userId === undefined) return;
-    await Promise.all([
-      listTasksAcrossProjects(this.api, this.orgId, {
-        statuses: OPEN_TASK_STATUSES,
-        assigneeId: userId,
-      }),
-      listTasksAcrossProjects(this.api, this.orgId, {
-        status: 'in_review',
-        reviewerId: userId,
-      }),
-    ]);
+  #homeTaskReads(): Promise<void> {
+    return homeTaskReads(this.api, this.orgId, this.userId);
   }
 
   #chooseModel(models: ComposerModel[]): void {
