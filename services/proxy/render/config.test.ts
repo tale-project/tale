@@ -388,6 +388,12 @@ describe('renderEdge', () => {
     expect(closed['tale-control'].rule).toBe(
       'Path(`/api/control`) || PathPrefix(`/api/control/`)',
     );
+    // The relay of a sandbox session's yt-dlp is the backend's and the
+    // sandbox network's alone, like the control plane.
+    expect(closed['tale-video-relay']).toEqual({
+      ...closed['tale-control'],
+      rule: 'Path(`/api/video-relay`) || PathPrefix(`/api/video-relay/`)',
+    });
     expect(
       regexpOf(closed['tale-metrics-unauthorized'].rule).test(
         '/METRICS/backend',
@@ -438,6 +444,7 @@ describe('renderEdge', () => {
       .map(([name]) => name);
     expect(outranked).toEqual([]);
     expect(edge['tale-control'].priority).toBeGreaterThan(highest);
+    expect(edge['tale-video-relay'].priority).toBeGreaterThan(highest);
     expect(edge['tale-dot-segments-dav'].priority).toBeGreaterThan(highest);
     expect(JSON.stringify([edge, labelled]).toLowerCase()).not.toContain(
       'convex',

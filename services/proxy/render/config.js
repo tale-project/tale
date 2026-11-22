@@ -523,6 +523,16 @@ export function renderEdge(s) {
       priority: 800,
       ...answer('not-found'),
     },
+    // Nor is the relay a sandbox session's yt-dlp reaches the PO-token
+    // provider through (services/platform, domains/video_links): a session
+    // asks the backend directly, on the sandbox's own network, and nothing
+    // on this side of the edge has a token for it or any business there.
+    'tale-video-relay': {
+      entryPoints: all,
+      rule: 'Path(`/api/video-relay`) || PathPrefix(`/api/video-relay/`)',
+      priority: 800,
+      ...answer('not-found'),
+    },
     // Every /metrics path answers 401 unless the gate below lets it through,
     // so scrapers (e.g. Grafana Cloud) know auth is required.
     'tale-metrics-unauthorized': {

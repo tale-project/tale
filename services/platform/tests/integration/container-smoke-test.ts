@@ -377,11 +377,15 @@ async function main(): Promise<number> {
 
   // The deployment control channel is docker-exec localhost, never public.
   // The plain edge refusal distinguishes it from a backend token refusal.
+  // Nor is the relay a sandbox session's yt-dlp asks the backend through.
   for (const path of [
     '/api/control',
     '/api/control/',
     '/api/control/drain-status?probe=1',
     '/api/%63ontrol/drain-status',
+    '/api/video-relay',
+    '/api/video-relay/pot/a-token/ping',
+    '/api/video-%72elay/pot/a-token/get_pot',
   ]) {
     const probe = await capture([
       'docker',
@@ -400,7 +404,7 @@ async function main(): Promise<number> {
       '\n%{http_code}',
       `https://localhost${path}`,
     ]);
-    const label = `Public proxy refuses deployment control ${path}`;
+    const label = `Public proxy refuses the internal path ${path}`;
     if (probe.exitCode === 0 && probe.stdout === 'Not found\n404') {
       r.pass(label);
     } else {
