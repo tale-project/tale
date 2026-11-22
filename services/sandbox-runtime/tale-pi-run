@@ -6,8 +6,9 @@ The platform adapter (pi/adapter.ts) sends ONE JSON object on stdin:
   {"prompt": ..., "system_prompt"?: ..., "models"?: {...}, "settings"?: {...},
    "mcp"?: {"mcpServers": {...}}}
 and pi/parse.ts normalizes the CLI's JSON event stream into AgentEvent[]. The
-wrapper exists because four inputs have no safe CLI flag and must be ON DISK
-before the CLI starts (verified @earendil-works/pi-coding-agent 1.0.1):
+wrapper exists because four inputs must be ON DISK before the CLI starts, and
+three of them have no CLI flag at all (verified
+@earendil-works/pi-coding-agent 1.0.1):
 
   - models.json (managed gateway provider: baseUrl <gateway>/openai/v1 +
     apiKey "$TALE_GATEWAY_TOKEN" env interpolation, so the file never holds
@@ -20,9 +21,12 @@ before the CLI starts (verified @earendil-works/pi-coding-agent 1.0.1):
     environment when it starts the server) — same per-exec dir, the
     user-level file Pi reads without asking for project trust. Written only
     when the turn mounts a server.
-  - the system-prompt APPEND — staged as <config dir>/APPEND_SYSTEM.md,
-    which Pi auto-discovers and APPENDS to its default system prompt
-    (SYSTEM.md would replace it and drop the defaults).
+  - the system-prompt APPEND, which Pi adds to its default system prompt —
+    staged as <stage dir>/instructions.md, outside the config dir, and
+    handed over as `--append-system-prompt <that path>`: Pi reads a path
+    that exists as the file's contents, so the text stays off argv. Given
+    on the command line, the append is exactly the platform's: Pi then
+    looks for no APPEND_SYSTEM.md file at all.
 
 Sessions stay OUT of the per-exec dir: PI_CODING_AGENT_SESSION_DIR pins them
 to a stable HOME path so `--resume <id>` (Pi `--session <id>`) finds prior
@@ -193,10 +197,12 @@ def main() -> int:
                 os.path.join(agent_dir, "models.json"), "w", encoding="utf-8"
             ) as f:
                 json.dump(models, f)
+        instructions = None
         if system_prompt is not None:
-            with open(
-                os.path.join(agent_dir, "APPEND_SYSTEM.md"), "w", encoding="utf-8"
-            ) as f:
+            # Outside the config dir: Pi must find no APPEND_SYSTEM.md of
+            # ours to discover; it reads this file because argv names it.
+            instructions = os.path.join(stage_dir, "instructions.md")
+            with open(instructions, "w", encoding="utf-8") as f:
                 f.write(system_prompt)
         if mcp is not None:
             with open(os.path.join(agent_dir, "mcp.json"), "w", encoding="utf-8") as f:
@@ -223,6 +229,10 @@ def main() -> int:
             cmd += ["--model", args.model]
         if args.resume:
             cmd += ["--session", args.resume]
+        # Only a file that was written: Pi would append a path that does
+        # not exist as literal text.
+        if instructions is not None:
+            cmd += ["--append-system-prompt", instructions]
 
         # stdout/stderr stay as they are: the CLI's JSON event stream goes
         # straight to the platform's stdout reader; human noise stays on

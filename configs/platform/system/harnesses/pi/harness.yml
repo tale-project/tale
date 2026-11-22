@@ -10,12 +10,13 @@
 # native headless prompt source). The MCP servers (the browser and the
 # capability bridge, which carries every workspace tool) are staged as
 # <agentDir>/mcp.json, the user-level file Pi reads without asking for
-# project trust. Instructions are staged as
-# <agentDir>/APPEND_SYSTEM.md — auto-discovered and APPENDED to Pi's default
-# system prompt without replacing it (SYSTEM.md would replace it and drop
-# the defaults). Pi has NO native web tools (built-in tools: read, bash,
-# edit, write, grep, find, ls) and no interactive-question tool, so there is
-# nothing to deny for managed runs; additionalDirs needs no wiring either —
+# project trust. Instructions are staged beside that dir and named with
+# --append-system-prompt <file>: APPENDED to Pi's default system prompt
+# without replacing it, and exactly the platform's (given on the command
+# line, Pi looks for no APPEND_SYSTEM.md file). Pi has NO native web tools
+# (built-in tools: read, bash, edit, write, grep, find, ls) and no
+# interactive-question tool, so there is nothing to deny for managed runs;
+# additionalDirs needs no wiring either —
 # Pi's file tools are not cwd-scoped. No fallback and no turn cap — the
 # pinned CLI has neither flag; the runaway backstop is the platform runner.
 #
@@ -46,12 +47,12 @@ exec:
   bin: tale-pi-run
   argv:
     - args: ['--workdir', '${workdir}']
-    # Pi keeps the system prompt in the session as named sections, re-reads
-    # the staged APPEND_SYSTEM.md every process and stores what changed as a
-    # section update ahead of the new turn; the request carries the newest
-    # value of each section. So a resumed session reads this exec's
-    # instructions. Observed on 1.0.1 against a local stand-in for the chat
-    # API.
+    # Pi keeps the system prompt in the session as named sections, reads the
+    # instructions file the wrapper names every process and stores what
+    # changed as a section update ahead of the new turn; the request carries
+    # the newest value of each section. So a resumed session reads this
+    # exec's instructions. Observed on 1.0.1 against a local stand-in for the
+    # chat API, a workspace .pi/APPEND_SYSTEM.md included.
     - resume: { flag: '--resume', instructions: current }
     # Managed: pin the staged gateway provider so model resolution never
     # wanders into Pi's built-in catalog (its default provider is google).
