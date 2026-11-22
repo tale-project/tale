@@ -72,6 +72,45 @@ export async function putBlob(
   return encodeS3Ref(key);
 }
 
+/**
+ * Store a body AS IT IS READ for an org and return the stored reference:
+ * what {@link putBlob} is for bytes in hand, for bytes that lie in a file
+ * or are still arriving. Nothing of the body is held here
+ * (tale-project/tale#4942). `contentLength` is how many bytes the body
+ * holds; exactly that many are stored, or nothing, and the body is released
+ * however the transfer ends (`s3PutObjectStream`).
+ */
+export async function putBlobStream(
+  orgSlug: string,
+  body: ReadableStream<Uint8Array>,
+  args: { contentLength: number; contentType: string; signal?: AbortSignal },
+): Promise<BlobRef> {
+  let handedOn = false;
+  try {
+    const store = await resolveOrgObjectStore(orgSlug);
+    const key = buildObjectKey(store, orgSlug);
+    handedOn = true;
+    await s3PutObjectStream(store, key, body, {
+      contentLength: args.contentLength,
+      contentType: args.contentType,
+      ...(args.signal !== undefined && { signal: args.signal }),
+    });
+    return encodeS3Ref(key);
+  } finally {
+    // The transfer releases the body it was handed. One that never reached
+    // it is released here, so that whatever it is read from does not wait
+    // on a reader that is not coming.
+    if (!handedOn) {
+      await body.cancel().catch((error: unknown) => {
+        console.warn(
+          '[blobs] a body that was not stored could not be released:',
+          error,
+        );
+      });
+    }
+  }
+}
+
 /** Read a blob's raw bytes from the org's store. Throws
  * {@link UnsupportedBlobRefError} for a non-`s3:` ref, and
  * `ObjectTooLargeError` for a blob over the `maxBytes` its caller accepts,
