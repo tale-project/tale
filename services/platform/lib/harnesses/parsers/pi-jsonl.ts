@@ -15,6 +15,9 @@
 //   { type: "tool_execution_end", toolCallId, toolName, result, isError }
 //   { type: "auto_retry_start", attempt, maxAttempts, errorMessage }
 //   { type: "auto_retry_end", success, attempt, finalError? }
+//   { type: "entry_appended", … }                 ← a session entry (1.x)
+//   { type: "agent_settled", aborted? }           ← LAST: nothing more follows
+//     (1.0.x carries no `aborted`; observed on 1.0.1 and 1.6.0)
 // AssistantMessage: { role: "assistant", content: [text|thinking|toolCall],
 //   model, usage: { input, output, cacheRead, cacheWrite, totalTokens,
 //   cost: { total } }, stopReason: "stop"|"length"|"toolUse"|"error"|
@@ -26,6 +29,11 @@
 // So an ERROR `agent_end` is never terminal by itself: the parser HOLDS the
 // error result and only emits it when the stream ends (or `auto_retry_end`
 // reports failure); a successful retried cycle emits `completed` instead.
+//
+// No `agent_end` is terminal by itself either: a steer, a follow-up, a retry
+// or a compaction can start another run after it. `agent_settled` says that
+// nothing more will happen, so the turn ends there. A stream that ends
+// without it (a CLI before 1.0) ends at its last clean `agent_end`.
 //
 // The wrapper (tale-pi-run) reports its own failures as
 // { type: "wrapper_error", message } — not a Pi event; defined by the
@@ -70,6 +78,7 @@ const checkpointSchema = z.object({
   lastText: z.string(),
   lastStopReason: z.string().optional(),
   lastError: z.string().optional(),
+  cleanEnd: z.boolean().optional(),
   totalInput: z.number(),
   totalOutput: z.number(),
 });
@@ -85,6 +94,10 @@ class PiJsonlParser implements HarnessEventParser {
   /** Terminal state of the most recent assistant message. */
   private lastStopReason: string | undefined;
   private lastError: string | undefined;
+  /** Whether the last run ended cleanly (`agent_end` after a message that
+   * was neither an error nor aborted): the end of a stream that never
+   * settled. */
+  private cleanEnd = false;
   /** Turn totals across cycles — retried cycles consumed real tokens too.
    * pi-ai's `input` is only the uncached remainder (it subtracts cached
    * tokens from an OpenAI prompt count and keeps Anthropic's split), so
@@ -103,6 +116,7 @@ class PiJsonlParser implements HarnessEventParser {
       lastText: this.lastText,
       lastStopReason: this.lastStopReason,
       lastError: this.lastError,
+      cleanEnd: this.cleanEnd,
       totalInput: this.totalInput,
       totalOutput: this.totalOutput,
     };
@@ -117,6 +131,7 @@ class PiJsonlParser implements HarnessEventParser {
     this.lastText = state.lastText;
     this.lastStopReason = state.lastStopReason;
     this.lastError = state.lastError;
+    this.cleanEnd = state.cleanEnd ?? false;
     this.totalInput = state.totalInput;
     this.totalOutput = state.totalOutput;
   }
@@ -127,13 +142,16 @@ class PiJsonlParser implements HarnessEventParser {
 
   end(): HarnessEvent[] {
     const events = this.lines.flush().flatMap((line) => this.line(line));
-    // Only a held failure can be finalized at EOF. A successful model
-    // message (including a toolUse stop) does not finish the agent loop: the
-    // process may have died before executing its tools or emitting agent_end.
-    // Leave that exit without a result so the host reports an interrupted turn.
+    // A stream that never settled ends at a held failure or at its last
+    // clean agent_end. A successful model message (including a toolUse stop)
+    // with no agent_end after it does not finish the agent loop: the process
+    // may have died before executing its tools. Leave that exit without a
+    // result so the host reports an interrupted turn.
     if (
       !this.resultEmitted &&
-      (this.lastStopReason === 'error' || this.lastStopReason === 'aborted')
+      (this.cleanEnd ||
+        this.lastStopReason === 'error' ||
+        this.lastStopReason === 'aborted')
     ) {
       events.push(...this.result());
     }
@@ -291,24 +309,32 @@ class PiJsonlParser implements HarnessEventParser {
     }
 
     if (type === 'agent_end') {
+      // One run ended. Another may follow (an auto-retry after an error
+      // cycle, a steer, a follow-up), so the turn ends at agent_settled.
+      this.cleanEnd =
+        this.lastStopReason !== 'error' && this.lastStopReason !== 'aborted';
+      return this.maybeStart(ev);
+    }
+
+    if (type === 'agent_settled') {
       const events = this.maybeStart(ev);
-      // An error cycle may be followed by an auto-retry — hold the error
-      // result until the stream ends. A clean cycle is terminal: print mode
-      // sends exactly one prompt, so nothing follows a successful agent_end.
-      if (
-        !this.resultEmitted &&
-        this.lastStopReason !== 'error' &&
-        this.lastStopReason !== 'aborted'
-      ) {
+      if (!this.resultEmitted) {
+        if (ev.aborted === true) this.lastStopReason = 'aborted';
         events.push(...this.result());
       }
       return events;
+    }
+
+    if (type === 'agent_start') {
+      this.cleanEnd = false;
+      return this.maybeStart(ev);
     }
 
     if (type === 'auto_retry_start') {
       // A retry cycle follows — the held error is no longer terminal.
       this.lastStopReason = undefined;
       this.lastError = undefined;
+      this.cleanEnd = false;
       return this.maybeStart(ev);
     }
 
@@ -345,7 +371,7 @@ class PiJsonlParser implements HarnessEventParser {
 
     // Known high-frequency lifecycle noise — consumed, not surfaced.
     if (
-      type === 'agent_start' ||
+      type === 'entry_appended' ||
       type === 'turn_start' ||
       type === 'turn_end' ||
       type === 'message_start' ||
