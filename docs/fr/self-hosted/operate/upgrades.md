@@ -262,6 +262,19 @@ Corrige la cause et relance `tale deploy --stop`. Après un déplacement réussi
 
 `tale deploy` déplace les fichiers sur Docker. Pour une stack sur tes propres fichiers Compose ou sur Kubernetes, suis [Déplacer les blobs de MinIO vers versitygw](/fr/self-hosted/install/own-compose#blob-store).
 
+## Pi est l’environnement d’agent par défaut {#pi-default}
+
+Les tours d’agent qui n’indiquent aucun environnement d’agent s’exécutent désormais sur Pi : l’étape agent d’une automatisation laissée sur **Par défaut (Pi)**, et l’[agent standard](/fr/platform/admin/governance/content-models#standard-agent) de l’organisation tant que son **Environnement d'agent** est sur **Automatique**. Les versions précédentes les exécutaient sur Claude Code. Rien d’enregistré ne change : une organisation existante bascule à sa prochaine exécution, et les agents et étapes qui indiquent un environnement le gardent.
+
+Un modèle que seul un abonnement sert continue de s’exécuter dans l’environnement d’agent auquel cet abonnement est lié, par exemple Claude Code pour un abonnement Claude, au lieu d’être refusé. Une étape en cours au moment de la mise à niveau termine son tour là où il a commencé ; si elle est relancée, la relance commence une nouvelle conversation sur Pi dans le même espace de travail. Le journal de l’agent de chaque exécution indique dans quel environnement un tour s’est exécuté et pourquoi.
+
+Pour garder Claude Code, indique-le là où l’exécution prend son environnement :
+
+- Pour l’étape agent d’une automatisation, choisis **Claude Code** dans son champ **Environnement d'agent**, ou définis `harness: claude-code` sur le nœud.
+- Pour l’agent standard, choisis **Claude Code** comme **Environnement d'agent** sous **Paramètres > Gouvernance > Modèles**, ou définis `harness: claude-code` dans son [fichier de règle](/fr/self-hosted/configuration/providers#configure-the-standard-agent).
+
+Les agents de projet que tu as créés indiquent déjà leur environnement et ne changent pas.
+
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
 À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.

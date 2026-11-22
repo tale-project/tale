@@ -424,7 +424,9 @@ projects-list row ⋯ menu.
   default language, carries the badge **Standard**
   (`projects.agents.standard.badge`) and the note
   `projects.agents.standard.managedNote`, names its agent type, provider and
-  model, counts the document skills available to the project, and its row
+  model (the agent type Pi, unless the standard-agent policy pins another or
+  only a subscription serves the model), counts the document skills
+  available to the project, and its row
   menu offers **View** (`common.actions.view`) and **Delete**
   (`common.actions.delete`) but no **Edit** (`common.actions.edit`).
 - [ ] `PROJ-F38` · **The standard agent gives way to the project's own** —

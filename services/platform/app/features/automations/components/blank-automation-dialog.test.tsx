@@ -7,7 +7,8 @@ import { BlankAutomationDialog } from './blank-automation-dialog';
 
 // The picker's roster: the SAME model served by a direct OpenRouter key and
 // an Anthropic subscription (lookalike ids), the Anthropic id again through
-// an EU gateway's key, plus a subscription entry bound to another harness.
+// an EU gateway's key, plus subscription entries bound to other harnesses —
+// one the roster runs, one it does not.
 // The wizard used to collapse options by id and store a bare model string —
 // the saved node then resolved to whichever provider the walk reached first,
 // never the one picked on screen. The box lets a case empty the roster: an
@@ -48,6 +49,16 @@ const { fullRoster, roster } = vi.hoisted(() => {
         constraints: { harness: 'codex' },
       },
     },
+    {
+      id: 'hermes-plan-model',
+      label: 'hermes-plan-model',
+      providerSlug: 'nous',
+      providerLabel: 'Nous',
+      credential: {
+        authMethod: 'subscription-key',
+        constraints: { harness: 'hermes' },
+      },
+    },
   ];
   return { fullRoster: rows, roster: { models: rows } };
 });
@@ -55,7 +66,11 @@ const { fullRoster, roster } = vi.hoisted(() => {
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({
     data: {
-      harnesses: [{ harness: 'claude-code', label: 'Claude Code' }],
+      harnesses: [
+        { harness: 'claude-code', label: 'Claude Code' },
+        { harness: 'codex', label: 'Codex' },
+        { harness: 'pi', label: 'Pi' },
+      ],
       models: roster.models,
     },
     isError: false,
@@ -520,9 +535,15 @@ describe('BlankAutomationDialog model pin', () => {
     });
     expect(subscriptionRow).toBeVisible();
     expect(subscriptionRow.textContent).toContain('Anthropic · Subscription');
-    // The scaffolded node runs on the DEFAULT harness (claude-code), so a
-    // subscription entry bound to another harness is not offered.
-    expect(screen.queryByRole('option', { name: /gpt-6-codex/ })).toBeNull();
+    // The scaffolded node runs on Default: a subscription's model on the
+    // runtime its subscription is bound to — Codex's here — and nothing
+    // bound to a runtime the roster does not run.
+    expect(
+      screen.getByRole('option', { name: /^OpenAI · gpt-6-codex/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('option', { name: /hermes-plan-model/ }),
+    ).toBeNull();
   });
 
   it('stores the picked (model, modelProvider) pair on the scaffolded node', async () => {

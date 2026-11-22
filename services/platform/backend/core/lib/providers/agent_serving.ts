@@ -38,6 +38,7 @@ import {
   modelIdsEquivalent,
 } from '@tale/shared/utils/model-ref';
 
+import { DEFAULT_HARNESS } from '../../../../lib/shared/harness-offer';
 import { answersChatTurns } from '../../../../lib/shared/providers/chat_turn_models';
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
@@ -710,4 +711,57 @@ export async function resolveWorkflowAgentServing(
   throw new Error(
     `no configured provider serves model "${args.model}" for this agent turn — the model must be listed in a connected provider's catalog and permitted by its credential: a direct api-key/env credential, or a subscription credential whose forced harness is the turn's ("${args.harness}")${unreachableDetail}${refusalDetail}`,
   );
+}
+
+/** The managed runtimes a subscription credential can be bound to and
+ * drive (their YAML declares a `subscription` delivery), other than the
+ * default — where a step on "Default" goes when only a subscription serves
+ * its model. In the order the system catalog lists them. */
+function subscriptionBoundHarnesses(): string[] {
+  return loadHarnesses()
+    .filter(
+      (harness) =>
+        harness.credentialPolicy.managed &&
+        harness.subscription !== undefined &&
+        harness.slug !== DEFAULT_HARNESS,
+    )
+    .map((harness) => harness.slug);
+}
+
+/**
+ * The runtime and serving of an automation agent step that names no runtime
+ * ("Default"): the default runtime ({@link DEFAULT_HARNESS}) when a
+ * credential it can use serves the model; otherwise, when only a
+ * subscription serves it, the runtime that subscription is bound to — a
+ * Claude subscription keeps a step on Default in Claude Code instead of
+ * refusing it (tale-project/tale#4942). Every other refusal stays the
+ * default's own: a directly served model the default cannot run (its tools
+ * need the Responses API) is not moved to a runtime that can, since a person
+ * picked no runtime for it. `resolve` is the serving walk (the host's
+ * injectable one); the editor's preview asks the same question.
+ */
+export async function resolveDefaultWorkflowServing(
+  ctx: ActionCtx,
+  args: { organizationId: string; model: string; modelProvider?: string },
+  resolve: typeof resolveWorkflowAgentServing = resolveWorkflowAgentServing,
+): Promise<{ harness: string; serving: AgentTurnServing }> {
+  try {
+    const serving = await resolve(ctx, { ...args, harness: DEFAULT_HARNESS });
+    return { harness: DEFAULT_HARNESS, serving };
+  } catch (defaultRefusal) {
+    const refusals: string[] = [];
+    for (const harness of subscriptionBoundHarnesses()) {
+      try {
+        const serving = await resolve(ctx, { ...args, harness });
+        if (serving.lane === 'subscription') return { harness, serving };
+        refusals.push(`"${harness}": served directly, not by a subscription`);
+      } catch (error) {
+        refusals.push(`"${harness}": ${describe(error)}`);
+      }
+    }
+    console.warn(
+      `[agent-serving] no subscription-bound runtime serves model "${args.model}" for a step on the default runtime either — the default's refusal stands (${refusals.join('; ')})`,
+    );
+    throw defaultRefusal;
+  }
 }

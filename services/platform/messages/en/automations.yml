@@ -685,7 +685,10 @@ editor:
   nodeSheetDescription: Edit the node's fields, then save or discard the change.
   agent:
     equipmentLabel: Equipment
-    harnessDefault: Default (Claude Code)
+    harnessDefault: Default (Pi)
+    # Under the runtime field of a step on Default whose model only a
+    # subscription serves: the step runs where that subscription works.
+    harnessDefaultBound: 'This step runs on {runtime}: only a subscription serves its model, and that subscription works only there.'
     modelUnlisted: 'No connected provider offers the saved model "{model}"
       for this agent runtime — pick one from the list.'
   # The llm node's model picker: what the organization's providers serve,

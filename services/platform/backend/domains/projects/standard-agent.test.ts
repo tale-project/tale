@@ -50,7 +50,12 @@ vi.mock('./service.ts', () => {
         throw new ProjectError('PROJECT_ARCHIVED', 'Project is archived', 403);
       }
     },
-    eligibleProjectAgentHarnesses: () => ['claude-code', 'codex', 'opencode'],
+    eligibleProjectAgentHarnesses: () => [
+      'claude-code',
+      'codex',
+      'opencode',
+      'pi',
+    ],
   };
 });
 
@@ -64,13 +69,14 @@ import {
   standardAgentServingForKick,
 } from './standard-agent.ts';
 
-const ELIGIBLE = ['claude-code', 'codex', 'opencode'];
+const ELIGIBLE = ['claude-code', 'codex', 'opencode', 'pi'];
 // What the shipped harnesses run: Codex speaks the Responses API, and Qwen
 // Code runs no model served through Anthropic's API.
 const FITS: ReadonlyMap<string, HarnessModelFit> = new Map([
   ['claude-code', { wire: 'anthropic', anthropicModels: true }],
   ['codex', { wire: 'openai-responses', anthropicModels: true }],
   ['opencode', { wire: 'openai-chat', anthropicModels: true }],
+  ['pi', { wire: 'openai-chat', anthropicModels: true }],
   ['qwen-code', { wire: 'openai-chat', anthropicModels: false }],
 ]);
 
@@ -107,7 +113,7 @@ function subscription(
 }
 
 describe('chooseStandardAgentServing — what runs the standard agent', () => {
-  it('runs automatically native first, with Claude Code to hand over to, on the chat Auto choice for document work', () => {
+  it('runs automatically native first, with Pi to hand over to, on the chat Auto choice for document work', () => {
     const serving = chooseStandardAgentServing(
       [
         option('cheap-model', 'openrouter', {
@@ -122,11 +128,29 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
 
     expect(serving).toEqual({
       ok: true,
-      harness: 'claude-code',
+      harness: 'pi',
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
       source: 'preferred',
       engine: 'native',
+    });
+  });
+
+  it('keeps an organization whose only credentials are a Claude subscription on Claude Code', () => {
+    // Pi cannot drive a Claude subscription: the standard agent runs where
+    // the subscription works, from the start.
+    expect(
+      chooseStandardAgentServing(
+        [subscription('claude-sonnet-5', 'anthropic', 'claude-code')],
+        {},
+        ELIGIBLE,
+        FITS,
+      ),
+    ).toMatchObject({
+      ok: true,
+      harness: 'claude-code',
+      model: 'claude-sonnet-5',
+      engine: 'harness',
     });
   });
 
@@ -196,7 +220,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ),
     ).toEqual({
       ok: true,
-      harness: 'claude-code',
+      harness: 'pi',
       model: 'gpt-5.5',
       modelProvider: 'openai',
       source: 'pinned',
@@ -259,7 +283,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
         ELIGIBLE,
         FITS,
       ),
-    ).toMatchObject({ ok: true, harness: 'claude-code', model: 'modest' });
+    ).toMatchObject({ ok: true, harness: 'pi', model: 'modest' });
     // Without any runtime that speaks it, nothing runs it.
     expect(
       chooseStandardAgentServing(
@@ -470,7 +494,7 @@ describe('readStandardAgentAvailability — agrees with the kick', () => {
       }),
     ).resolves.toMatchObject({
       available: true,
-      harness: 'claude-code',
+      harness: 'pi',
       engine: 'native',
     });
   });
@@ -517,7 +541,7 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
     const { tx } = fakeTx(managedRow);
 
     await expect(standardAgentServingForKick(tx, args)).resolves.toEqual({
-      harness: 'claude-code',
+      harness: 'pi',
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
       engine: 'native',
@@ -530,7 +554,7 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
       expect.anything(),
       { id: 'agent-1', organizationId: 'org-1', projectId: 'project-1' },
       {
-        harness: 'claude-code',
+        harness: 'pi',
         model: 'claude-sonnet-5',
         modelProvider: 'anthropic',
         skills: ['docx', 'xlsx'],
@@ -644,7 +668,7 @@ describe('ensureStandardAgent — the door a Member hands a project work through
       expect.objectContaining({ id: 'project-1' }),
       {
         name: 'Standard-Agent',
-        harness: 'claude-code',
+        harness: 'pi',
         model: 'claude-sonnet-5',
         modelProvider: 'anthropic',
         skills: ['docx', 'pdf'],

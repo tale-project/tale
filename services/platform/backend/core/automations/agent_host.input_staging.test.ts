@@ -67,7 +67,11 @@ vi.mock(
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
 }));
-vi.mock('../lib/providers/agent_serving', () => ({
+vi.mock('../lib/providers/agent_serving', async (importActual) => ({
+  // The real Default resolution: the host hands it the walk mocked below.
+  resolveDefaultWorkflowServing: (
+    await importActual<typeof import('../lib/providers/agent_serving')>()
+  ).resolveDefaultWorkflowServing,
   resolveWorkflowAgentServing: async () => ({
     lane: 'gateway',
     providerSlug: 'local-inference',

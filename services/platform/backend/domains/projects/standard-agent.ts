@@ -7,6 +7,7 @@ import {
   eligibleChatCandidates,
 } from '../../../lib/chat/model-choice.ts';
 import { DOCUMENT_SKILL_SLUGS } from '../../../lib/shared/document-skills.ts';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer.ts';
 import {
   type HarnessModelFit,
   harnessModelFit,
@@ -54,9 +55,10 @@ import {
  */
 
 /** The runtime an automatic standard agent runs on: the one automation
- * agent steps default to, and able to run any directly served model through
- * the gateway. */
-const STANDARD_AGENT_DEFAULT_HARNESS = 'claude-code';
+ * agent steps default to (Pi), able to run any directly served model through
+ * the model relay. A model only a subscription serves runs on the runtime
+ * that subscription is bound to instead (`chooseStandardAgentServing`). */
+const STANDARD_AGENT_DEFAULT_HARNESS = DEFAULT_HARNESS;
 
 /** The standing instructions a standard agent works with unless the policy
  * replaces them. General on purpose: it is every project's agent until the

@@ -266,6 +266,19 @@ Behebe den Grund und führe `tale deploy --stop` erneut aus. Nach einem gelungen
 
 `tale deploy` zieht die Dateien auf Docker um. Für einen Stack mit eigenen Compose-Dateien oder auf Kubernetes folge [Die Blobs von MinIO zu versitygw umziehen](/de/self-hosted/install/own-compose#blob-store).
 
+## Pi ist die voreingestellte Agent-Laufzeit {#pi-default}
+
+Agenten-Runden, die keine Agent-Laufzeit nennen, laufen jetzt auf Pi: der Agent-Schritt einer Automatisierung auf **Standard (Pi)** und der [Standard-Agent](/de/platform/admin/governance/content-models#standard-agent) der Organisation, solange seine **Agent-Laufzeit** auf **Automatisch** steht. Frühere Versionen ließen sie auf Claude Code laufen. An gespeicherten Einstellungen ändert sich nichts. Eine bestehende Organisation wechselt deshalb bei ihrem nächsten Lauf, und Agenten und Schritte, die eine Laufzeit nennen, behalten sie.
+
+Ein Modell, das nur ein Abo bereitstellt, läuft weiter auf der Agent-Laufzeit, an die dieses Abo gebunden ist, etwa auf Claude Code bei einem Claude-Abo, statt abgelehnt zu werden. Ein Schritt, der beim Upgrade lief, beendet seine Runde dort, wo sie begann; wird er erneut versucht, beginnt der neue Versuch eine neue Konversation auf Pi im selben Arbeitsbereich. Das Agenten-Log jedes Laufs nennt, auf welcher Laufzeit eine Runde lief und warum.
+
+Um bei Claude Code zu bleiben, nenne es dort, wo der Lauf seine Laufzeit bezieht:
+
+- Beim Agent-Schritt einer Automatisierung wählst du im Feld **Agent-Laufzeit** **Claude Code** oder setzt `harness: claude-code` an der Node.
+- Beim Standard-Agenten wählst du unter **Einstellungen > Richtlinien > Modelle** als **Agent-Laufzeit** **Claude Code** oder setzt `harness: claude-code` in seiner [Richtliniendatei](/de/self-hosted/configuration/providers#configure-the-standard-agent).
+
+Projektagenten, die du angelegt hast, nennen ihre Laufzeit bereits und ändern sich nicht.
+
 ## Upgrade von v0.5.77 oder älter
 
 Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.

@@ -72,7 +72,10 @@ import {
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
-import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
+import {
+  resolveDefaultWorkflowServing,
+  resolveWorkflowAgentServing,
+} from '../lib/providers/agent_serving';
 import { resolveTurnImageGeneration } from '../lib/providers/resolve_image_model';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import {
@@ -414,7 +417,22 @@ export function automationAgentHost(
       notBefore,
       claimEpoch,
     }) => {
-      const harness = request.harness ?? DEFAULT_HARNESS;
+      const modelPick = {
+        organizationId,
+        model: request.model,
+        ...(request.modelProvider !== undefined
+          ? { modelProvider: request.modelProvider }
+          : {}),
+      };
+      // A step that names no runtime runs on the default — or, when only a
+      // subscription serves its model, on the runtime that subscription is
+      // bound to, never refused for being on Default. Resolved at every kick,
+      // so the credentials it has now decide.
+      const onDefault =
+        request.harness === undefined
+          ? await resolveDefaultWorkflowServing(ctx, modelPick, resolveServing)
+          : undefined;
+      const harness = request.harness ?? onDefault?.harness ?? DEFAULT_HARNESS;
       if (!isManagedHarness(harness)) {
         throw new Error(
           `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
@@ -430,14 +448,9 @@ export function automationAgentHost(
       // sandbox session a start spends, and before the retries a refused
       // start would earn.
       withStagedInput(request.files, request.input);
-      const serving = await resolveServing(ctx, {
-        organizationId,
-        model: request.model,
-        ...(request.modelProvider !== undefined
-          ? { modelProvider: request.modelProvider }
-          : {}),
-        harness,
-      });
+      const serving =
+        onDefault?.serving ??
+        (await resolveServing(ctx, { ...modelPick, harness }));
       // The exec's model string: the gateway ref on the gateway lane, the
       // vendor-native catalog id on the subscription lane (the vendor CLI
       // authenticates directly and knows nothing of gateway refs).

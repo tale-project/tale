@@ -44579,6 +44579,9 @@ async function checkAutomationAgentNode(
           type: 'agent',
           model: 'itest-agent-model',
           prompt: 'Analyze the input: {{ input.subject }}',
+          // The lane's fake CLI speaks Claude Code's stream; a step that
+          // names no runtime runs on Pi.
+          harness: 'claude-code',
         },
       ],
       output: '{{ nodes.work.output }}',
@@ -45275,12 +45278,15 @@ async function startTwoStepDestroyRun(
             version: 1,
             name,
             nodes: [
+              // The lane's fake CLI speaks Claude Code's stream; a step that
+              // names no runtime runs on Pi.
               {
                 id: 'draft',
                 type: 'agent',
                 model: 'itest-agent-model',
                 prompt:
                   'Draft notes on {{ input.subject }} into the workspace.',
+                harness: 'claude-code',
               },
               {
                 id: 'publish',
@@ -45288,6 +45294,7 @@ async function startTwoStepDestroyRun(
                 model: 'itest-agent-model',
                 prompt:
                   'Publish the notes you drafted: {{ nodes.draft.output.text }}',
+                harness: 'claude-code',
               },
             ],
             output: '{{ nodes.publish.output }}',

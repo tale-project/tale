@@ -245,12 +245,13 @@ describe('catalogLabel', () => {
         modelProvider: 'openrouter',
         ...(harness !== undefined ? { harness } : {}),
       });
-    // The default runtime, Claude Code, is offered OpenRouter's alone.
+    // The default runtime, Pi, is offered OpenRouter's alone.
     expect(catalogLabel(agent(), named)).toBe('Agent · GPT 5.6 Luna');
     expect(catalogLabel(agent('codex'), named)).toBe(
       'Agent · OpenRouter · GPT 5.6 Luna',
     );
-    // A pick its runtime is not offered still names its own provider.
+    // On Default the subscription's pick runs on Codex, its subscription's
+    // runtime, where OpenRouter's reads alike: it names its provider.
     expect(
       catalogLabel(
         node({

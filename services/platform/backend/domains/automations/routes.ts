@@ -32,7 +32,10 @@ import {
   findConnector,
   loadConnectorDefinitions,
 } from '../../core/connector_credentials/connector_catalog.ts';
-import { resolveWorkflowAgentServing } from '../../core/lib/providers/agent_serving.ts';
+import {
+  resolveDefaultWorkflowServing,
+  resolveWorkflowAgentServing,
+} from '../../core/lib/providers/agent_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
   invalidBodyIssuesResponse,
@@ -606,31 +609,41 @@ export function createAutomationRoutes(deps: {
   // What an UNPINNED agent-node model pick would run on RIGHT NOW — the
   // runtime's own workflow resolver, so the editor can never drift from a
   // run. A resolution failure is a RESULT, not an error (the 0.4 contract).
+  // An empty harness is a step on Default, resolved as the kick resolves it
+  // (`resolveDefaultWorkflowServing`): the answer names the runtime too.
   app.get('/serving-preview', async (c) => {
     const organizationId = c.get('orgId');
     const model = c.req.query('model') ?? '';
     const harness = c.req.query('harness') ?? '';
-    if (model.length === 0 || harness.length === 0) {
-      return c.json({ error: 'model and harness are required' }, 400);
+    if (model.length === 0) {
+      return c.json({ error: 'model is required' }, 400);
     }
     // The knowledge shim = credential reads + the better-auth org lookup the
     // provider walk resolves slugs through.
     const shim = createCtxShim(knowledgeShimHandlers(deps.sql));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver; its ctx facilities (org lookup + default-credential read) are covered by knowledgeShimHandlers
+    const ctx = shim as unknown as Parameters<
+      typeof resolveWorkflowAgentServing
+    >[0];
     try {
-      const serving = await resolveWorkflowAgentServing(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver; its ctx facilities (org lookup + default-credential read) are covered by knowledgeShimHandlers
-        shim as unknown as Parameters<typeof resolveWorkflowAgentServing>[0],
-        {
-          organizationId,
-          model,
-          harness,
-        },
-      );
+      const resolved =
+        harness.length === 0
+          ? await resolveDefaultWorkflowServing(ctx, { organizationId, model })
+          : {
+              harness,
+              serving: await resolveWorkflowAgentServing(ctx, {
+                organizationId,
+                model,
+                harness,
+              }),
+            };
+      const serving = resolved.serving;
       return c.json({
         ok: true as const,
         providerSlug: serving.providerSlug,
         modelId: serving.modelId,
         lane: serving.lane,
+        harness: resolved.harness,
       });
     } catch (error) {
       return c.json({

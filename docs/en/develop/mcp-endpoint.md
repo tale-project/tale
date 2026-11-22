@@ -249,7 +249,7 @@ Both deployed-run tools use the durable runner with the same authorization and e
 | Tool | What it does |
 | --- | --- |
 | `list_models` | The models you may use, filtered by your model access: each with `providerSlug` (an `agent` node saves it as `modelProvider`), `lane` (`direct` when a provider serves it, `subscription` or `broker` when a member's subscription does), the `nodeTypes` it suits (an `llm` node takes only a directly served model) and the agent runtimes it is offered to (`harnesses`). `nodeType` and `harness` filter the list. |
-| `list_harnesses` | The agent runtimes an `agent` node can name as `harness`, the `default` one that runs when it names none, and whether a subscription can serve each. |
+| `list_harnesses` | The agent runtimes an `agent` node can name as `harness`, the `default` one that runs when it names none (Pi; a model only a subscription serves runs on the runtime that subscription is bound to), and whether a subscription can serve each. |
 | `list_skills` | The organization's skills; with `projectId`, also the team skills of that project, the ones a run in it can use. A project you can't read answers `PROJECT_NOT_FOUND`. |
 | `list_connectors` | The connectors this deployment offers, whether your organization connected each (`connected`) and how many actions it has; `query` filters. A connector whose credential also opens Git remotes names the host as `gitHost`: `github.com`, or `endpoint` for the host of each credential's instance address. `search_catalog` lists the actions. |
 | `list_agent_secrets` | The names of the organization's agent secrets with a masked `preview`, never a value. Owners, Admins and Developers see them; anyone else gets an empty list with a `note`. |

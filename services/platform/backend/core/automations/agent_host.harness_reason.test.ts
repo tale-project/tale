@@ -51,28 +51,50 @@ function kickCtx() {
   return { ctx, opens };
 }
 
+/** The serving walk for a model `serving` stands for: a subscription bound
+ * to Claude Code serves it there alone, refusing every other runtime as the
+ * real walk does; a directly served model runs anywhere. */
+function walkFor(serving: AgentTurnServing) {
+  return async (_ctx: unknown, args: { harness: string }) => {
+    if (serving.lane === 'subscription' && args.harness !== 'claude-code') {
+      throw new Error(
+        `no configured provider serves model "${serving.modelId}" for this agent turn`,
+      );
+    }
+    return serving;
+  };
+}
+
 describe('the op an automation agent step opens', () => {
   it.each([
-    ['a step that names its runtime', 'codex', SUBSCRIPTION, 'pinned'],
+    [
+      'a step that names its runtime',
+      'claude-code',
+      SUBSCRIPTION,
+      'claude-code',
+      'pinned',
+    ],
     [
       'a step on the default whose model only a subscription serves',
       undefined,
       SUBSCRIPTION,
+      'claude-code',
       'subscription_bound',
     ],
     [
       'a step on the default whose model is served directly',
       undefined,
       GATEWAY,
+      'pi',
       'default',
     ],
   ] as const)(
     'records why %s runs where it runs',
-    async (_label, harness, serving, reason) => {
+    async (_label, harness, serving, ranOn, reason) => {
       const { ctx, opens } = kickCtx();
 
-      await automationAgentHost(ctx, 'org-1', {
-        resolveServing: async () => serving,
+      const kicked = await automationAgentHost(ctx, 'org-1', {
+        resolveServing: walkFor(serving),
       }).kick({
         runId: 'run-1',
         nodeId: 'triage',
@@ -83,10 +105,12 @@ describe('the op an automation agent step opens', () => {
         },
       });
 
+      expect(kicked.harness).toBe(ranOn);
       expect(opens).toHaveLength(1);
       expect(opens[0]).toMatchObject({
         kind: 'workflow-agent',
         status: 'running',
+        harness: ranOn,
         harnessReason: reason,
       });
     },

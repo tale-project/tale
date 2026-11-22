@@ -1019,7 +1019,9 @@ agent.
   line names the model and agent type it uses for you: with **Agent type**
   on **Automatic** and a model served directly it is
   `governance.standardAgent.currentNative` (works with the model, hands over
-  to the agent type when a task needs a full workspace); with an agent type
+  to the agent type when a task needs a full workspace), and the agent type
+  it names is Pi; in an organization whose only credentials are a Claude
+  subscription it names Claude Code instead; with an agent type
   chosen, or a model only an agent type can run, it is
   `governance.standardAgent.current` (runs on the agent type with the model).
   **Model** lists only models the chosen agent type can run.

@@ -692,7 +692,10 @@ editor:
     Änderung oder verwirf sie.
   agent:
     equipmentLabel: Ausrüstung
-    harnessDefault: Standard (Claude Code)
+    harnessDefault: Standard (Pi)
+    # Unter dem Laufzeit-Feld eines Schritts auf Standard, dessen Modell
+    # nur ein Abo bereitstellt: Der Schritt läuft dort, wo das Abo funktioniert.
+    harnessDefaultBound: 'Dieser Schritt läuft auf {runtime}: Nur ein Abo stellt sein Modell bereit, und dieses Abo funktioniert nur dort.'
     modelUnlisted: 'Kein verbundener Anbieter bietet das gespeicherte Modell
       "{model}" für diese Agent-Laufzeit an — wähle eines aus der Liste.'
   # Die Modellauswahl der llm-Node: was die Anbieter der Organisation

@@ -610,7 +610,13 @@ function servingPreviewFetch(
   const orgId = orgOf(args, ctx);
   const model = typeof args.model === 'string' ? args.model : '';
   const harness = typeof args.harness === 'string' ? args.harness : '';
-  if (orgId === undefined || model.length === 0 || harness.length === 0) {
+  // An automation step on Default asks with no harness, and the route
+  // resolves it as the kick does; a task's agent always names one.
+  if (
+    orgId === undefined ||
+    model.length === 0 ||
+    (harness.length === 0 && domain === 'tasks')
+  ) {
     return null;
   }
   const params = new URLSearchParams({ model, harness });

@@ -1937,7 +1937,7 @@ standardAgent:
   description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
   enabledLabel: Provide a standard agent
   harnessLabel: Agent runtime
-  harnessHint: Automatic works with the same tools as the chat and hands over to Claude Code, or to the agent runtime a subscription model is bound to, when a task needs a full workspace. Choose an agent runtime to run every task on it.
+  harnessHint: Automatic works with the same tools as the chat and hands over to Pi, or to the agent runtime a subscription model is bound to, when a task needs a full workspace. Choose an agent runtime to run every task on it.
   modelLabel: Model
   modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
   automaticLabel: Automatic

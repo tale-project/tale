@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 313 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 314 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -368,6 +368,22 @@ output:
       subscription serves its model, on the runtime that subscription works
       in (`automations.runs.agentLog.harnessReason.subscriptionBound`). A
       step that ran before this release shows no such sentence.
+- [ ] `AUTO-F253` · **A step on Default runs on Pi, or where its subscription
+      works** — (env-gated: a Claude subscription credential and a directly
+      served model) In an agent step, leave **Agent runtime**
+      (`automations.editor.fields.harness`) on **Default (Pi)**
+      (`automations.editor.agent.harnessDefault`) → **Model** offers the
+      directly served models and the Claude subscription's, marked
+      `projects.agents.modelProviderSubscription`; with the subscription's
+      model picked, the runtime field says the step runs on Claude Code
+      (`automations.editor.agent.harnessDefaultBound`), and with a directly
+      served one it says nothing more. Run each → the step on the
+      subscription's model runs on Claude Code and its **Agent log** says why
+      (`automations.runs.agentLog.harnessReason.subscriptionBound`), the
+      other on Pi (`automations.runs.agentLog.harnessReason.default`); neither
+      is refused for being on Default. With the subscription's model picked,
+      switching **Agent runtime** to Codex clears the model, while Claude
+      Code and then Default again keep it.
 - [ ] `AUTO-F24` · **Bounded run log** — Author a transform whose output is
       huge (e.g. a 100 KB string built in code) → Test run → inspect the node **In
       this run** → The run completes and its row persists (the write never dies on

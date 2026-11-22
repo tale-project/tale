@@ -135,6 +135,47 @@ describe('AgentNodeFields model pin', () => {
     expect(screen.queryByText(/without a pinned provider/)).toBeNull();
   });
 
+  // A step on Default runs a subscription's model where the subscription
+  // works — the host does, and "Default" alone would name a runtime the
+  // step does not use (tale-project/tale#4942).
+  const BOUND_SENTENCE =
+    'This step runs on Claude Code: only a subscription serves its model, and that subscription works only there.';
+
+  it('offers a step on Default a Claude subscription’s model, and says it runs on Claude Code', () => {
+    previewState.data = undefined;
+    renderFields({
+      id: 'agent',
+      type: 'agent',
+      model: 'claude-fable-5',
+      modelProvider: 'anthropic',
+    });
+    expect(screen.getByText('claude-fable-5')).toBeVisible();
+    expect(screen.getByText(BOUND_SENTENCE)).toBeVisible();
+  });
+
+  it('says where the run’s own resolution takes a pinless pick on Default', () => {
+    previewState.data = {
+      ok: true,
+      providerSlug: 'anthropic',
+      modelId: 'claude-fable-5',
+      lane: 'subscription',
+      harness: 'claude-code',
+    };
+    renderFields(PINLESS);
+    expect(screen.getByText(BOUND_SENTENCE)).toBeVisible();
+  });
+
+  it('says nothing more for a model the default runtime runs', () => {
+    previewState.data = undefined;
+    renderFields({
+      id: 'agent',
+      type: 'agent',
+      model: 'anthropic/claude-fable-5',
+      modelProvider: 'openrouter',
+    });
+    expect(screen.queryByText(BOUND_SENTENCE)).toBeNull();
+  });
+
   it('names a model two providers offer by its provider, and groups the list by provider', async () => {
     previewState.data = undefined;
     rosterState.moreModels = [

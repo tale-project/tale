@@ -29,7 +29,7 @@ import { pinnedModelName } from '@/app/features/shared/models/model-name';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { isUnknown, toTs, type Shape } from '@/lib/engine/core/typing/shape';
 import {
-  DEFAULT_HARNESS,
+  defaultHarnessFor,
   toModelOptions,
   type AgentRoster,
 } from '@/lib/shared/harness-offer';
@@ -93,9 +93,18 @@ export function servedModelLabel(roster: AgentRoster | undefined): ModelLabel {
     if (providerSlug === undefined) {
       return served.find((model) => model.id === id)?.label;
     }
+    // A node on Default runs the pick where the host does: a subscription's
+    // model on its bound runtime, any other on the default.
+    const runtime =
+      harness ??
+      defaultHarnessFor(
+        served.find(
+          (model) => model.id === id && model.providerSlug === providerSlug,
+        ),
+      );
     return pinnedModelName(
       { id, providerSlug },
-      harness ?? DEFAULT_HARNESS,
+      runtime,
       served,
       roster?.harnesses,
     );

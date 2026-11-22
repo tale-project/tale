@@ -155,7 +155,9 @@ async function listModels(
 
 /** The runtimes an agent step can run on — the managed lane's roster the
  * pickers list — with the default and whether a subscription can serve
- * each. */
+ * each. A step that names none runs on the default, or on the runtime a
+ * subscription is bound to when only that subscription serves its model
+ * (`resolveDefaultWorkflowServing`), which the hint says. */
 function listHarnessesTool(): unknown {
   const declared = new Map(
     loadHarnesses().map((harness) => [
@@ -171,7 +173,7 @@ function listHarnessesTool(): unknown {
       toolCallingWire: runtime.toolCallingWire,
       subscription: declared.get(runtime.harness) ?? false,
     })),
-    hint: 'an agent step names one as harness; leave harness out for the default — list_models with harness shows the models it can run',
+    hint: 'an agent step names one as harness; leave harness out for the default, where a model only a subscription serves runs on the runtime that subscription is bound to (list_models names it under harnesses) — list_models with harness shows the models it can run',
   };
 }
 

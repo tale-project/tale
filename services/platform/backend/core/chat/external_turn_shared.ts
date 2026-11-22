@@ -40,6 +40,7 @@ import {
   type HarnessEvent,
   type HarnessExec,
 } from '../../../lib/harnesses/types';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
 import {
   requestTimeoutSeconds,
   streamIdleSeconds,
@@ -642,8 +643,10 @@ export async function drainHarnessWindow(args: {
    * from its start. */
   spawnerOutageSince?: number;
 }): Promise<HarnessWindowResult> {
+  // A slug this image does not know (a row from a newer image) is parsed as
+  // the default runtime's stream.
   const glue = getHarnessGlue(
-    isHarnessSlug(args.harness) ? args.harness : 'claude-code',
+    isHarnessSlug(args.harness) ? args.harness : DEFAULT_HARNESS,
     loadHarnesses(),
   );
   const parser = glue.createParser();

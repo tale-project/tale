@@ -35,6 +35,8 @@ vi.mock('./org_providers', () => ({
 vi.mock('./load_system_config', () => ({ loadHarnesses }));
 
 import {
+  type AgentTurnServing,
+  resolveDefaultWorkflowServing,
   resolveWorkflowAgentServing,
   walkDirectServing,
 } from './agent_serving';
@@ -1091,5 +1093,97 @@ describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => 
       providerSlug: 'deepseek',
       modelId: 'deepseek-v4-flash',
     });
+  });
+});
+
+// A step on Default (tale-project/tale#4942): Pi, or a subscription's runtime.
+describe('resolveDefaultWorkflowServing — a step that names no runtime', () => {
+  const turnCtx = {} as ActionCtx;
+  const args = { organizationId: ORG, model: 'claude-fable-5' };
+  const SUBSCRIPTION: AgentTurnServing = {
+    lane: 'subscription',
+    providerSlug: 'anthropic',
+    modelId: 'claude-fable-5',
+    apiBaseUrl: 'https://api.anthropic.com',
+    vision: { readable: true },
+  };
+  const DIRECTLY_SERVED: AgentTurnServing = {
+    lane: 'gateway',
+    providerSlug: 'openrouter',
+    modelId: 'anthropic/claude-fable-5',
+  };
+
+  beforeEach(() => {
+    loadHarnesses.mockReturnValue([
+      harness('claude-code', { managed: true, byo: true }, true),
+      harness('codex', { managed: true, byo: true }, true, 'openai-responses'),
+      harness('cursor', { managed: false, byo: true }, true),
+      harness('pi', { managed: true, byo: true }, false, 'openai-chat'),
+    ]);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  it('runs on Pi when a credential Pi can use serves the model', async () => {
+    const resolve = vi.fn(async () => DIRECTLY_SERVED);
+    await expect(
+      resolveDefaultWorkflowServing(turnCtx, args, resolve),
+    ).resolves.toEqual({ harness: 'pi', serving: DIRECTLY_SERVED });
+    expect(resolve).toHaveBeenCalledExactlyOnceWith(turnCtx, {
+      ...args,
+      harness: 'pi',
+    });
+  });
+
+  it('runs on the runtime a subscription is bound to when only that subscription serves the model', async () => {
+    const resolve = vi.fn(
+      async (_ctx: ActionCtx, turn: { harness: string }) => {
+        if (turn.harness !== 'claude-code') {
+          throw new Error(
+            `no configured provider serves it on "${turn.harness}"`,
+          );
+        }
+        return SUBSCRIPTION;
+      },
+    );
+    await expect(
+      resolveDefaultWorkflowServing(turnCtx, args, resolve),
+    ).resolves.toEqual({ harness: 'claude-code', serving: SUBSCRIPTION });
+    // The default first, then the managed runtimes a subscription can
+    // drive; a byo-only runtime is never asked.
+    expect(resolve.mock.calls.map(([, turn]) => turn.harness)).toEqual([
+      'pi',
+      'claude-code',
+    ]);
+  });
+
+  it('keeps the default’s refusal for a model another runtime serves directly', async () => {
+    // A Responses-only model: Codex would run it, but nobody picked Codex.
+    const refusal = new Error(
+      'model "gpt-6.1-sol" takes tools only through the Responses API',
+    );
+    const resolve = vi.fn(
+      async (_ctx: ActionCtx, turn: { harness: string }) => {
+        if (turn.harness === 'pi') throw refusal;
+        return DIRECTLY_SERVED;
+      },
+    );
+    await expect(
+      resolveDefaultWorkflowServing(turnCtx, args, resolve),
+    ).rejects.toBe(refusal);
+  });
+
+  it('keeps the default’s refusal when nothing serves the model', async () => {
+    const refusal = new Error(
+      'no configured provider serves model "claude-fable-5"',
+    );
+    const resolve = vi.fn(
+      async (_ctx: ActionCtx, turn: { harness: string }) => {
+        throw turn.harness === 'pi' ? refusal : new Error('refused');
+      },
+    );
+    await expect(
+      resolveDefaultWorkflowServing(turnCtx, args, resolve),
+    ).rejects.toBe(refusal);
+    expect(console.warn).toHaveBeenCalledOnce();
   });
 });

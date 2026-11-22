@@ -2045,7 +2045,7 @@ standardAgent:
   description: L'agent que Tale fournit dans chaque projet qui n'en a pas, pour que toute personne qui peut ouvrir le projet puisse lui confier une tâche, membres compris.
   enabledLabel: Fournir un agent standard
   harnessLabel: Environnement d'agent
-  harnessHint: Automatique travaille avec les mêmes outils que le chat et passe la main à Claude Code, ou à l'environnement d'agent auquel un modèle d'abonnement est lié, quand une tâche demande un espace de travail complet. Choisis un environnement d'agent pour y exécuter toutes les tâches.
+  harnessHint: Automatique travaille avec les mêmes outils que le chat et passe la main à Pi, ou à l'environnement d'agent auquel un modèle d'abonnement est lié, quand une tâche demande un espace de travail complet. Choisis un environnement d'agent pour y exécuter toutes les tâches.
   modelLabel: Modèle
   modelHint: Automatique choisit un modèle recommandé que la personne qui lance la tâche peut utiliser. Un modèle choisi reste en vigueur jusqu'à ce que tu le changes, même s'il devient indisponible.
   automaticLabel: Automatique

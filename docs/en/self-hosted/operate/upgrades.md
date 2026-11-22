@@ -262,6 +262,19 @@ Fix the reason and run `tale deploy --stop` again. After a successful move:
 
 `tale deploy` moves the files on Docker. For a stack on your own Compose files or on Kubernetes, follow [Move the blobs from MinIO to versitygw](/self-hosted/install/own-compose#blob-store).
 
+## Pi is the default agent runtime {#pi-default}
+
+Agent turns that name no agent runtime now run on Pi: an automation's agent step left on **Default (Pi)**, and the organization's [standard agent](/platform/admin/governance/content-models#standard-agent) while its **Agent runtime** is **Automatic**. Earlier releases ran them on Claude Code. Nothing stored changes, so an existing organization moves at its next run, and agents and steps that name a runtime keep it.
+
+A model that only a subscription serves keeps running on the agent runtime that subscription is bound to, such as Claude Code for a Claude subscription, instead of being refused. A step that was running when you upgraded finishes its turn where it began; if it is retried, the retry starts a new conversation on Pi over the same workspace. Each run's agent log says which runtime ran a turn and why.
+
+To keep Claude Code, name it where the run takes its runtime:
+
+- For an automation's agent step, choose **Claude Code** in its **Agent runtime** field, or set `harness: claude-code` on the node.
+- For the standard agent, choose **Claude Code** as its **Agent runtime** under **Settings > Governance > Models**, or set `harness: claude-code` in its [policy file](/self-hosted/configuration/providers#configure-the-standard-agent).
+
+Project agents you created name their runtime already and do not change.
+
 ## Upgrade from v0.5.77 or earlier
 
 Releases from v0.5.78 on write automation runs with writer protocol 2. Their migration `0163` puts every run that is still queued, running or waiting **On hold**, and a held run never resumes. The first upgrade from v0.5.77 therefore stops the old backend while no run is unfinished, and only then starts the new version. `tale deploy` does this itself, once.

@@ -691,7 +691,10 @@ editor:
     modification ou abandonne-la.
   agent:
     equipmentLabel: Équipement
-    harnessDefault: Par défaut (Claude Code)
+    harnessDefault: Par défaut (Pi)
+    # Sous le champ d’environnement d’une étape par défaut dont seul un
+    # abonnement sert le modèle : l’étape s’exécute là où l’abonnement fonctionne.
+    harnessDefaultBound: 'Cette étape s’exécute sur {runtime} : seul un abonnement sert son modèle, et cet abonnement ne fonctionne que là.'
     modelUnlisted: 'Aucun fournisseur connecté ne propose le modèle
       enregistré "{model}" pour cet environnement d''agent — choisis-en un dans la liste.'
   # Le sélecteur de modèle du nœud llm : ce que servent les fournisseurs

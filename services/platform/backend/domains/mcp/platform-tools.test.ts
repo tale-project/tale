@@ -279,16 +279,47 @@ describe('list_models', () => {
 
 describe('list_harnesses', () => {
   it('names the runtimes, the default, and which a subscription can serve', async () => {
+    mocks.listManagedHarnesses.mockReturnValue([
+      {
+        harness: 'claude-code',
+        label: 'Claude Code',
+        toolCallingWire: 'anthropic',
+        anthropicModels: true,
+      },
+      {
+        harness: 'codex',
+        label: 'Codex',
+        toolCallingWire: 'openai-responses',
+        anthropicModels: true,
+      },
+      {
+        harness: 'pi',
+        label: 'Pi',
+        toolCallingWire: 'openai-chat',
+        anthropicModels: true,
+      },
+    ]);
     const answer = await call(mia, 'list_harnesses');
     expect(answer.harnesses).toEqual([
       expect.objectContaining({
         slug: 'claude-code',
         label: 'Claude Code',
-        default: true,
+        default: false,
         subscription: true,
       }),
       expect.objectContaining({ slug: 'codex', default: false }),
+      expect.objectContaining({
+        slug: 'pi',
+        label: 'Pi',
+        default: true,
+        subscription: false,
+      }),
     ]);
+    // A step that leaves harness out runs a model only a subscription serves
+    // where that subscription works, and the hint says so.
+    expect(answer.hint).toContain(
+      'a model only a subscription serves runs on the runtime that subscription is bound to',
+    );
   });
 });
 
