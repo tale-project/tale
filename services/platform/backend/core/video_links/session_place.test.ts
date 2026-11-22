@@ -18,7 +18,7 @@ import type {
   SessionExecResult,
   SessionFsEntry,
 } from '../node_only/sandbox/helpers/session_client';
-import { isRelayProxyUrl, RELAY_POT_PATH } from './relay';
+import { isRelayProxyUrl, RELAY_POT_PATH, tokenOfPotPath } from './relay';
 import { verifyVideoRelayToken, videoProxyDigest } from './relay_token';
 import { inYtdlpPlace, sessionYtdlpPlace } from './session_place';
 import {
@@ -468,12 +468,12 @@ describe('a sandbox session as the place a video is fetched in', () => {
       expect(reach.pluginDir).toBe('/opt/yt-dlp/plugins');
       expect(
         reach.potProviderUrl?.startsWith(
-          `http://backend-api:3005${RELAY_POT_PATH}/v1.`,
+          `http://backend-api:3005${RELAY_POT_PATH}/`,
         ),
       ).toBe(true);
       expect(
         verifyVideoRelayToken(
-          reach.potProviderUrl?.split('/').at(-1) ?? '',
+          tokenOfPotPath(reach.potProviderUrl?.split('/').at(-1) ?? '') ?? '',
           KEY,
         ),
       ).toMatchObject({ use: 'pot', job: 'job-1' });

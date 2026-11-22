@@ -29,7 +29,10 @@
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 
-import { isRelayProxyUrl } from '../../core/video_links/relay.ts';
+import {
+  isRelayProxyUrl,
+  tokenOfPotPath,
+} from '../../core/video_links/relay.ts';
 import { verifyVideoRelayToken } from '../../core/video_links/relay_token.ts';
 import { potProviderUrl } from '../../core/video_links/ytdlp.ts';
 
@@ -129,7 +132,11 @@ export function createVideoPotRelayRoutes(
   /** The job a request's token is for, or `null` for a token that is not a
    * PO-token grant of this deployment. */
   const jobOf = (c: Context): string | null => {
-    const grant = verifyVideoRelayToken(c.req.param('token') ?? '', env, now());
+    // In hex, as the path carries it: yt-dlp hands the plugin its base URL
+    // in lower case (`potPathToken`).
+    const token = tokenOfPotPath(c.req.param('token') ?? '');
+    if (token === null) return null;
+    const grant = verifyVideoRelayToken(token, env, now());
     return grant?.use === 'pot' ? grant.job : null;
   };
 

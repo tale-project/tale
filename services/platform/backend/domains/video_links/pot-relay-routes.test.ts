@@ -3,7 +3,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  potPathToken,
   relayPotBaseUrl,
+  tokenOfPotPath,
   relayProxyUrl,
 } from '../../core/video_links/relay.ts';
 import {
@@ -254,7 +256,9 @@ describe('the PO-token relay', () => {
       [
         'the relay with a token for the provider itself',
         () => {
-          const pot = relayPotBaseUrl('job-1', ENV)?.split('/').at(-1);
+          const pot = tokenOfPotPath(
+            relayPotBaseUrl('job-1', ENV)?.split('/').at(-1) ?? '',
+          );
           return `http://tale:${pot}@backend-api:3005`;
         },
       ],
@@ -275,7 +279,14 @@ describe('the PO-token relay', () => {
       ['no token of this deployment', '/not-a-token'],
       [
         'a token for a proxy',
-        `/${new URL(relayProxyUrl(PROXY, 'job-1', ENV) ?? 'http://x').password}`,
+        `/${potPathToken(new URL(relayProxyUrl(PROXY, 'job-1', ENV) ?? 'http://x').password)}`,
+      ],
+      [
+        // One form and not two: the token is answered in hex alone, the
+        // form that yt-dlp's lower-casing of the plugin's base URL leaves
+        // whole.
+        'its own token as it is signed, not as the path carries it',
+        `/${tokenOfPotPath(relayPotBaseUrl('job-1', ENV)?.split('/').at(-1) ?? '')}`,
       ],
       [
         'a token that has expired',

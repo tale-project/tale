@@ -24,15 +24,20 @@
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { beforeAll, describe, expect, it, type TestContext } from 'vitest';
 
+import { RELAY_POT_PATH, relayPotBaseUrl, tokenOfPotPath } from './relay';
+import { verifyVideoRelayToken } from './relay_token';
 import {
   MEDIA_SELECTION,
   YtDlpError,
   buildSpawnPath,
+  pluginDirFlagsFromEnv,
+  youtubeExtractorArgsFromEnv,
   ytdlpJson,
   ytdlpWriteSubs,
   type YtDlpMetadata,
@@ -207,6 +212,100 @@ describe.skipIf(!LIVE)(
       expect(headerLine).not.toContain('none');
       expect(headerLine).toContain('yt_dlp_plugins');
     }, 60_000);
+
+    // A session's yt-dlp is given the PO-token relay's address as an
+    // extractor argument, and yt-dlp hands the plugin that value in lower
+    // case: the plugin reads it without asking for its case. So the address
+    // must say the same either way, which a token in base64url did not (the
+    // relay refused the plugin's every call, and no test without the plugin
+    // could know). Here the real plugin asks a provider that only records,
+    // at an address made the way a session's is, and the token it shows is
+    // read back. It asks once YouTube has answered its first request: a run
+    // that asked nothing is skipped, as a walled one is.
+    it('asks the PO-token relay at the address a session is given', async (ctx) => {
+      const key = { WEBDAV_APP_PASSWORD_HMAC_KEY: 'k'.repeat(64) };
+      const asked: string[] = [];
+      const provider = createServer((req, res) => {
+        asked.push(req.url ?? '');
+        req.resume();
+        req.on('end', () => {
+          res.setHeader('content-type', 'application/json');
+          res.end(
+            JSON.stringify(
+              (req.url ?? '').endsWith('/ping')
+                ? { server_uptime: 1, version: '1.3.1' }
+                : { poToken: 'none-that-a-platform-takes' },
+            ),
+          );
+        });
+      });
+      await new Promise<void>((resolve) => {
+        provider.listen(0, '127.0.0.1', resolve);
+      });
+      try {
+        const address = provider.address();
+        const port =
+          address !== null && typeof address === 'object' ? address.port : 0;
+        const base = relayPotBaseUrl('job-live', {
+          ...key,
+          SANDBOX_HTTP_API_BASE_URL: `http://127.0.0.1:${port}`,
+        });
+        expect(base).not.toBeNull();
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn(
+            'yt-dlp',
+            [
+              '--no-config',
+              '--ignore-config',
+              '--no-update',
+              '--no-playlist',
+              '--socket-timeout',
+              '20',
+              ...pluginDirFlagsFromEnv(process.env),
+              ...youtubeExtractorArgsFromEnv({}, undefined, true, {
+                potProviderUrl: base,
+              }),
+              '--simulate',
+              '--',
+              VIDEO_URL,
+            ],
+            {
+              stdio: 'ignore',
+              env: {
+                PATH: buildSpawnPath(process.env),
+                HOME: tmpdir(),
+                LANG: 'C.UTF-8',
+              },
+            },
+          );
+          // Whether YouTube let the video through is not what is asked here.
+          proc.on('close', () => resolve());
+          proc.on('error', reject);
+        });
+        if (asked.length === 0) {
+          console.warn(
+            '[live] yt-dlp asked the PO-token provider nothing this run; skipping',
+          );
+          ctx.skip();
+        }
+        expect(asked.some((path) => path.endsWith('/ping'))).toBe(true);
+        for (const path of asked) {
+          expect(path.startsWith(`${RELAY_POT_PATH}/`)).toBe(true);
+          const token = tokenOfPotPath(
+            path.slice(RELAY_POT_PATH.length + 1).split('/')[0] ?? '',
+          );
+          expect(verifyVideoRelayToken(token ?? '', key)).toMatchObject({
+            use: 'pot',
+            job: 'job-live',
+          });
+        }
+      } finally {
+        await new Promise<void>((resolve) => {
+          provider.close(() => resolve());
+          provider.closeAllConnections();
+        });
+      }
+    }, 180_000);
 
     // Which stream the lane's selection takes is yt-dlp's reading of it, so
     // the real yt-dlp says: from a video's description (`--load-info-json`),

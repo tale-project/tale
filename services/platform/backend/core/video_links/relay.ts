@@ -17,7 +17,8 @@
  *   (`domains/video_links/proxy-relay.ts`);
  * - `youtubepot-bgutilhttp:base_url=<api>/api/video-relay/pot/<token>`: the
  *   listener passes the plugin's two calls on to the provider
- *   (`domains/video_links/pot-relay-routes.ts`).
+ *   (`domains/video_links/pot-relay-routes.ts`). The token rides that path
+ *   in hex ({@link potPathToken}).
  */
 
 import {
@@ -54,6 +55,29 @@ export const RELAY_PROXY_UNREACHABLE_STATUS = 530;
  * hold different keys or proxies).
  */
 export const RELAY_REFUSED_STATUS = 531;
+
+/**
+ * A relay token as the PO-token relay's path carries it: in lower-case hex.
+ *
+ * The path is part of an extractor argument, and yt-dlp hands an extractor
+ * argument's value on in lower case unless whoever reads it asks for its
+ * case. The bgutil plugin (1.3.1) reads its `base_url` without asking. A
+ * token is base64url, whose case is half of what it says: lower-cased, its
+ * signature holds for nothing, the relay refused the plugin's every call,
+ * and the provider was never asked (measured with the plugin against a
+ * provider that records, 2026-11-22). Hex says the same in either case.
+ */
+export function potPathToken(token: string): string {
+  return Buffer.from(token, 'utf8').toString('hex');
+}
+
+/** The relay token a path segment of the PO-token relay carries, or `null`
+ * for a segment that is no {@link potPathToken}: a token as it is signed is
+ * none, so that a deployment answers one form and not two. */
+export function tokenOfPotPath(segment: string): string | null {
+  if (!/^(?:[0-9a-f]{2}){1,1024}$/.test(segment)) return null;
+  return Buffer.from(segment, 'hex').toString('utf8');
+}
 
 /** The platform's API listener as a session reaches it. */
 function sessionApiBase(env: NodeJS.ProcessEnv): URL {
@@ -102,7 +126,7 @@ export function relayPotBaseUrl(
   );
   if (token === null) return null;
   const base = sessionApiBase(env);
-  return `${base.origin}${RELAY_POT_PATH}/${token}`;
+  return `${base.origin}${RELAY_POT_PATH}/${potPathToken(token)}`;
 }
 
 /** Whether `proxyUrl` is a relay proxy URL of this deployment: the listener

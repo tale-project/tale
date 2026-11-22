@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import {
   isRelayProxyUrl,
   RELAY_POT_PATH,
+  potPathToken,
   relayPotBaseUrl,
+  tokenOfPotPath,
   relayProxyUrl,
 } from './relay';
 import {
@@ -153,18 +155,45 @@ describe('the addresses a session is given', () => {
   it('names the PO-token provider by a route of the listener, with a token for the job', () => {
     const url = relayPotBaseUrl('job-1', ENV, NOW);
 
-    expect(
-      url?.startsWith(`http://backend-api:3005${RELAY_POT_PATH}/v1.`),
-    ).toBe(true);
+    expect(url?.startsWith(`http://backend-api:3005${RELAY_POT_PATH}/`)).toBe(
+      true,
+    );
     // yt-dlp splits extractor arguments at these: none may be in a base URL.
     expect(url).not.toMatch(/[,;= ]/);
     expect(
-      verifyVideoRelayToken(url?.split('/').at(-1) ?? '', ENV, NOW),
+      verifyVideoRelayToken(
+        tokenOfPotPath(url?.split('/').at(-1) ?? '') ?? '',
+        ENV,
+        NOW,
+      ),
     ).toEqual({
       use: 'pot',
       job: 'job-1',
       exp: NOW + VIDEO_RELAY_GRANT_TTL_MS,
     });
+  });
+
+  it('names the provider by an address that says the same in lower case', () => {
+    // yt-dlp hands the plugin its base URL in lower case (measured with the
+    // bgutil plugin 1.3.1): a token in base64url does not survive that.
+    const url = relayPotBaseUrl('job-1', ENV, NOW) ?? '';
+    const proxyToken = new URL(relayProxyUrl(PROXY, 'job-1', ENV, NOW) ?? '')
+      .password;
+
+    expect(url).toBe(url.toLowerCase());
+    // The token as it is signed is not such an address: the reason for hex.
+    expect(proxyToken).not.toBe(proxyToken.toLowerCase());
+    expect(tokenOfPotPath(potPathToken(proxyToken))).toBe(proxyToken);
+  });
+
+  it.each([
+    ['a token as it is signed', 'v1.eyJ1c2UiOiJwb3QifQ.c2lnbmF0dXJl'],
+    ['hex in upper case', 'AB12'],
+    ['hex of half a byte', 'abc'],
+    ['nothing', ''],
+    ['more than a token is long', 'ab'.repeat(1025)],
+  ])('reads no token from a path segment that is %s', (_name, segment) => {
+    expect(tokenOfPotPath(segment)).toBeNull();
   });
 
   it('follows the address the deployment gives its sessions', () => {
