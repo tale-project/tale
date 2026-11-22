@@ -8,7 +8,7 @@ The platform adapter (pi/adapter.ts) sends ONE JSON object on stdin:
 and pi/parse.ts normalizes the CLI's JSON event stream into AgentEvent[]. The
 wrapper exists because four inputs must be ON DISK before the CLI starts, and
 three of them have no CLI flag at all (verified
-@earendil-works/pi-coding-agent 1.0.1):
+@earendil-works/pi-coding-agent 1.6.0):
 
   - models.json (managed gateway provider: baseUrl <gateway>/openai/v1 +
     apiKey "$TALE_GATEWAY_TOKEN" env interpolation, so the file never holds
@@ -214,8 +214,11 @@ def main() -> int:
         env["PI_CODING_AGENT_SESSION_DIR"] = os.path.join(
             home, ".pi", "agent", "sessions"
         )
-        # No startup update-check network round-trip inside the sandbox.
+        # No startup update-check network round-trip inside the sandbox,
+        # and no other network activity of Pi's own (its model catalog
+        # refresh): its one network peer is the model relay.
         env["PI_SKIP_VERSION_CHECK"] = "1"
+        env["PI_OFFLINE"] = "1"
 
         cmd = [
             "pi",

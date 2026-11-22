@@ -578,7 +578,7 @@ RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cach
     && codex --version
 
 FROM harness-base AS pi-build
-ARG PI_CODING_AGENT_VERSION=1.0.1
+ARG PI_CODING_AGENT_VERSION=1.6.0
 RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
     npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
     && npm cache clean --force \

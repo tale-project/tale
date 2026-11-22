@@ -51,10 +51,10 @@ exec:
     # instructions file the wrapper names every process and stores what
     # changed as a section update ahead of the new turn; the request carries
     # the newest value of each section. So a resumed session reads this
-    # exec's instructions. Observed on 1.0.1 against a local stand-in for the
-    # chat API, a workspace .pi/APPEND_SYSTEM.md included.
+    # exec's instructions. Observed on 1.0.1 and 1.6.0 against a local
+    # stand-in for the chat API, a workspace .pi/APPEND_SYSTEM.md included.
     - resume: { flag: '--resume', instructions: current }
-    # Managed: pin the staged gateway provider so model resolution never
+    # Managed: pin the staged relay provider so model resolution never
     # wanders into Pi's built-in catalog (its default provider is google).
     # byo: the caller-resolved catalog id (or raw ref) resolves against Pi's
     # own registry with the user's credentials.
@@ -66,14 +66,18 @@ exec:
     envelope:
       - prompt: {}
       # Staged as <agentDir>/settings.json. Default-on install telemetry
-      # pings home; a sandbox turn must not.
+      # pings home; a sandbox turn must not. Cache warming (default "idle"
+      # since 1.5.1) sends paid requests to keep a provider's prompt cache
+      # warm, during a run and for up to 30 minutes after: a turn pays only
+      # for its own calls.
       - doc:
           key: settings
           fragments:
             - set:
                 enableInstallTelemetry: false
+                cacheWarming: 'off'
       - instructions: { key: system_prompt }
-      # MANAGED: OpenAI-compatible route on the platform gateway, wired as a
+      # MANAGED: OpenAI-compatible route on the model relay, wired as a
       # Pi custom provider in a staged models.json. The session key rides
       # `$TALE_GATEWAY_TOKEN` env interpolation (Pi's models.json value
       # resolution), never the staged JSON itself (the staged file may get
@@ -90,9 +94,9 @@ exec:
                     apiKey: $TALE_GATEWAY_TOKEN
             # The model's context window as the catalog knows it. Pi takes
             # 128,000 tokens for a model it does not know, caps each request's
-            # output at that window minus its estimate of the conversation
-            # (one token at least) and compacts only near it: a conversation
-            # past ~124,000 tokens of a larger model got one-token answers and
+            # output at the room that window leaves after the conversation and
+            # compacts only near it: under Pi 1.0.1 a conversation past
+            # ~124,000 tokens of a larger model got one-token answers and
             # ended without a report. An unknown window leaves the key out.
             - when: [model]
               set:
