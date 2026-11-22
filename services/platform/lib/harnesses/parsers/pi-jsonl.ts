@@ -38,6 +38,14 @@
 // The wrapper (tale-pi-run) reports its own failures as
 // { type: "wrapper_error", message } — not a Pi event; defined by the
 // wrapper.
+//
+// RPC mode (`tale-pi-run --rpc`, the steerable one) streams the same events
+// with no session header — the wrapper prints { type: "session", id } for
+// the session it names — and answers each command on stdin:
+//   { type: "response", command, success, data? | error? }
+// A refused prompt starts no run, so it ends the turn with its error; a
+// prompt Pi handled without a run (disposition "handled") ends it too. A
+// steer's answer changes nothing; a refused one is surfaced as raw.
 
 import { z } from 'zod';
 
@@ -360,6 +368,31 @@ class PiJsonlParser implements HarnessEventParser {
           this.lastError = finalError;
         }
         if (this.lastStopReason !== undefined) events.push(...this.result());
+      }
+      return events;
+    }
+
+    if (type === 'response') {
+      const events = this.maybeStart(ev);
+      if (asString(ev.command) !== 'prompt') {
+        // A steer queued, or a line Pi could not read: the run goes on.
+        if (ev.success === false) {
+          events.push({ type: 'raw', harness: this.slug, payload: ev });
+        }
+        return events;
+      }
+      if (this.resultEmitted) return events;
+      if (ev.success === false) {
+        // Refused before any run started: nothing else will come.
+        this.lastStopReason = 'error';
+        this.lastError = asString(ev.error) ?? 'Pi refused the prompt';
+        events.push(...this.result());
+      } else if (
+        isRecord(ev.data) &&
+        asString(ev.data.disposition) === 'handled'
+      ) {
+        // Handled without a run: there is no agent_settled to wait for.
+        events.push(...this.result());
       }
       return events;
     }

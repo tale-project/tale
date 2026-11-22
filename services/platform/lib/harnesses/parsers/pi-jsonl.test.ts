@@ -437,6 +437,95 @@ describe('pi-jsonl parser', () => {
     ]);
   });
 
+  it('reads a turn Pi 1.6.0 ran over RPC and was steered in, to where it settled', () => {
+    const SESSION_RPC = '29cce009-9292-4ce8-92ca-01757c8b5be7';
+    const events = createParser('pi').feed(
+      `${readFixture('pi', 'rpc-steered-turn')}\n`,
+    );
+    expect(events[0]).toEqual({
+      type: 'turn-started',
+      harness: 'pi',
+      sessionId: SESSION_RPC,
+    });
+    // The command answers (the prompt started, the steer queued) end nothing.
+    expect(events.filter((event) => event.type === 'raw')).toEqual([]);
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: SESSION_RPC,
+      finalText: 'Steered.',
+      usageTotals: { inputTokens: 200, outputTokens: 20 },
+    });
+  });
+
+  it('ends an RPC turn whose prompt Pi refused, with its error', () => {
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', id: 'pi-rpc-refused' },
+        {
+          type: 'response',
+          command: 'prompt',
+          success: false,
+          error: 'Model not found: tale-gateway/none',
+        },
+      ]),
+    );
+    expect(events.slice(-2)).toEqual([
+      { type: 'error', message: 'Model not found: tale-gateway/none' },
+      {
+        type: 'turn-ended',
+        status: 'error',
+        sessionId: 'pi-rpc-refused',
+        isError: true,
+      },
+    ]);
+  });
+
+  it('ends an RPC turn whose prompt Pi handled without a run', () => {
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', id: 'pi-rpc-handled' },
+        {
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'handled' },
+        },
+      ]),
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: 'pi-rpc-handled',
+    });
+  });
+
+  it('keeps an RPC turn running past a steer Pi could not read', () => {
+    const refused = {
+      type: 'response',
+      command: 'parse',
+      success: false,
+      error: 'Failed to parse command',
+    };
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', id: 'pi-rpc-steer' },
+        {
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'started' },
+        },
+        { type: 'agent_start' },
+        refused,
+      ]),
+    );
+    expect(events).toEqual([
+      { type: 'turn-started', harness: 'pi', sessionId: 'pi-rpc-steer' },
+      { type: 'raw', harness: 'pi', payload: refused },
+    ]);
+  });
+
   it('consumes lifecycle noise silently and passes unknown events as raw', () => {
     const unknown = { type: 'novel_pi_event', w: 5 };
     const events = collectEvents(
