@@ -10,6 +10,44 @@
  * the provisioning and the environment it exports).
  */
 
+/** The video tools as the step resolved them on this machine. */
+export interface ResolvedVideoToolchain {
+  readonly binDir: string;
+  readonly ffmpegLocation: string;
+  readonly pluginDir: string;
+}
+
+/**
+ * What the step adds to the environment the backend inherits, given what is
+ * there already: the settings that say where the tools are, each only where
+ * it is not set (a developer's own value wins), and the lane.
+ *
+ * A deployment fetches a video in a sandbox session, whose image carries
+ * yt-dlp. `bun dev` has resolved the tools on this machine, and the session
+ * image a developer built may predate them: it fetches a video here
+ * (`VIDEO_INGEST_LANE=local`). A developer who sets `VIDEO_INGEST_LANE=sandbox`
+ * keeps the deployment's lane.
+ *
+ * `toolchain` is `null` where the developer named the tools' places
+ * themselves and nothing was resolved.
+ */
+export function videoToolchainEnv(
+  env: NodeJS.ProcessEnv,
+  toolchain: ResolvedVideoToolchain | null,
+): Record<string, string> {
+  const add: Record<string, string> = {};
+  const fill = (name: string, value: string): void => {
+    if (!env[name]) add[name] = value;
+  };
+  if (toolchain !== null) {
+    fill('VIDEO_INGEST_BIN_DIR', toolchain.binDir);
+    fill('VIDEO_INGEST_FFMPEG_LOCATION', toolchain.ffmpegLocation);
+    fill('VIDEO_INGEST_YTDLP_PLUGIN_DIRS', toolchain.pluginDir);
+  }
+  fill('VIDEO_INGEST_LANE', 'local');
+  return add;
+}
+
 /** The step label while the toolchains are resolved (a cold cache downloads
  * binaries, so the wait is worth naming). */
 export const EXTERNAL_TOOLCHAINS_STEP = {

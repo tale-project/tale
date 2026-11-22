@@ -66,6 +66,7 @@ import {
   EXTERNAL_TOOLCHAINS_E2E_SKIP,
   EXTERNAL_TOOLCHAINS_STEP,
   externalToolchainsUnavailable,
+  videoToolchainEnv,
 } from './dev-toolchains';
 
 const platformRoot = join(import.meta.dir, '..');
@@ -225,15 +226,17 @@ function envNormalizeCommon() {
 // The external toolchains the backend spawns — today the video ingest lane's.
 // The step's lines live in `./dev-toolchains`.
 //
-// Production BAKES those binaries into the platform image on
-// pinned paths; a host `bun dev` backend has neither, so ingestion used to fail
+// A deployment runs yt-dlp in a sandbox session, whose image carries it on
+// pinned paths. A host `bun dev` backend runs it on this machine instead
+// (`VIDEO_INGEST_LANE=local`), which has none, so ingestion used to fail
 // "yt-dlp binary not found" until the operator hand-set VIDEO_INGEST_* (#2746).
 // Reuse the SAME self-provisioner the live YouTube test uses — download yt-dlp +
-// deno into a per-user cache, resolve ffmpeg — and export the paths the node
-// action reads (VIDEO_INGEST_BIN_DIR / _FFMPEG_LOCATION / _YTDLP_PLUGIN_DIRS).
-// The explicit-value-wins rule (only fill gaps) lets a self-hoster pin their own
-// baked paths. Best-effort: a download/network failure warns and continues —
-// video ingestion is optional and the rest of the stack must still boot. The
+// deno into a per-user cache, resolve ffmpeg — and export the paths the lane
+// reads (VIDEO_INGEST_BIN_DIR / _FFMPEG_LOCATION / _YTDLP_PLUGIN_DIRS), with
+// the lane (`videoToolchainEnv`). The explicit-value-wins rule (only fill
+// gaps) lets a developer pin their own paths, or the deployment's lane.
+// Best-effort: a download/network failure warns and continues — video
+// ingestion is optional and the rest of the stack must still boot. The
 // backend inherits the exported vars from this process.
 async function provisionVideoToolchain(): Promise<void> {
   // The hermetic E2E stack (TALE_E2E, set by playwright.config.ts's webServer
@@ -249,15 +252,15 @@ async function provisionVideoToolchain(): Promise<void> {
     process.env.VIDEO_INGEST_BIN_DIR &&
     process.env.VIDEO_INGEST_FFMPEG_LOCATION
   ) {
-    return; // Operator pinned both — respect it, skip the download.
+    // Operator pinned both — respect it, skip the download.
+    Object.assign(process.env, videoToolchainEnv(process.env, null));
+    return;
   }
   try {
     const { ensureVideoToolchain } =
       await import('../backend/core/video_links/ytdlp_toolchain');
     const tc = await ensureVideoToolchain();
-    process.env.VIDEO_INGEST_BIN_DIR ||= tc.binDir;
-    process.env.VIDEO_INGEST_FFMPEG_LOCATION ||= tc.ffmpegLocation;
-    process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
+    Object.assign(process.env, videoToolchainEnv(process.env, tc));
   } catch (err) {
     warnLine(externalToolchainsUnavailable(err));
   }
