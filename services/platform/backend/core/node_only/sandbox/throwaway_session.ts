@@ -3,8 +3,8 @@
 /**
  * A sandbox session one piece of the deployment's own work opens, uses and
  * destroys: a batch of pages rendered for a crawl or a chat read
- * (`render_fetch.ts`). The session's life around the work is here, apart
- * from the work, for the next lane that needs one.
+ * (`render_fetch.ts`), a video link's yt-dlp (`core/video_links`). The work
+ * differs; the session's life around it does not, and it is here once.
  *
  * - A slot is reserved against the organization's budget for such sessions
  *   first. A spent budget, and a sandbox host with no room for one more, is
@@ -36,12 +36,13 @@ export interface ThrowawaySession {
    * the same session and is told it exists. */
   readonly sessionId: string;
   /**
-   * Whose session this is to the sandbox's bookkeeping: it counts against
-   * the organization's render budget (`core/sandbox/quota_policy.ts`), and
-   * the watchdog's release pass reaps one left behind
+   * Whose sessions these are to the sandbox's bookkeeping: both count
+   * against the organization's render budget
+   * (`core/sandbox/quota_policy.ts`), and each has the watchdog pass that
+   * releases one left behind, after as long as its work may take
    * (`domains/sandbox/watchdogs.ts`).
    */
-  readonly ownerType: 'render';
+  readonly ownerType: 'render' | 'video';
   readonly createdBy: string;
   /** How long the session may sit with nothing running before the spawner
    * reaps it: what bounds an orphan whose work died before its destroy. */

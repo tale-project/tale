@@ -31,7 +31,10 @@ export function sessionBudgetForOwnerType(
 ): SessionBudget | null {
   if (ownerType === 'thread') return null;
   if (ownerType === 'workflow_run') return 'workflow';
-  if (ownerType === 'render') return 'render';
+  // A video link's session (`video`) is the same kind of thing as a crawl's
+  // render session: one the deployment opens for an organization's
+  // knowledge work, uses for minutes and destroys. They share the budget.
+  if (ownerType === 'render' || ownerType === 'video') return 'render';
   if (ownerType === 'light') return 'light';
   // `project_agent` standing sandboxes — plus any legacy per-user rows —
   // draw from the org's main session budget.

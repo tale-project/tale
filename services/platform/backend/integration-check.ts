@@ -63615,6 +63615,16 @@ async function checkWatchdogs(
        ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-release-project', 'active', 'project',
        'wd-release-project', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      -- A video link's session lives as long as its job may: one past a
+      -- render's age is still its job's, and only one past its own is left
+      -- behind.
+      (${orgId}, 'wd-release-video-running', 'active', 'video',
+       'wd-release-video-running', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-video-abandoned', 'active', 'video',
+       'wd-release-video-abandoned', 'itest:wd',
+       ${now - sandboxWatchdogs.SANDBOX_VIDEO_SESSION_MAX_AGE_MS - 60_000},
        ${now + 24 * 3_600_000})
   `;
   const releaseAsked: string[] = [];
@@ -63671,6 +63681,13 @@ async function checkWatchdogs(
       stillActive('wd-release-project') &&
       releaseTick.released >= 2,
     `rows=${releaseRows.map((row) => `${row.sessionId.replace('wd-release-', '')}=${row.status}`).join(' ')} asked=${releaseAsked.filter((id) => id.startsWith('wd-release-')).join(',')} released=${releaseTick.released} (want abandoned+creating destroyed, rendering asked and active, fresh and project never asked)`,
+  );
+  record(
+    "sandbox watchdog releases a video link's session only past the life of its job: one a render would long have left is still its job's and is never asked",
+    released('wd-release-video-abandoned') &&
+      !releaseAsked.includes('wd-release-video-running') &&
+      stillActive('wd-release-video-running'),
+    `video-running=${stillActive('wd-release-video-running') ? 'active' : 'gone'} asked=${releaseAsked.includes('wd-release-video-running')} video-abandoned=${released('wd-release-video-abandoned') ? 'destroyed' : 'kept'} (want running active and never asked, abandoned destroyed)`,
   );
   await sql`
     DELETE FROM app.sandbox_sessions WHERE session_id LIKE 'wd-release-%'

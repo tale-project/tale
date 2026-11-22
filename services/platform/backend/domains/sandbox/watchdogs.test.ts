@@ -44,6 +44,7 @@ import {
   runSandboxWatchdog,
   SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
   SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+  SANDBOX_VIDEO_SESSION_MAX_AGE_MS,
   SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
   type WatchdogSpawner,
 } from './watchdogs.ts';
@@ -132,7 +133,7 @@ function fakeSql(script: {
     if (text.includes("WHERE status = 'failed' AND destroyed_at_ms IS NULL")) {
       return Promise.resolve(script.collect?.shift() ?? []);
     }
-    if (text.includes("WHERE owner_type = 'render'")) {
+    if (text.includes("owner_type = 'render' AND created_at_ms <")) {
       return Promise.resolve(script.release?.shift() ?? []);
     }
     if (
@@ -884,7 +885,7 @@ describe('runSandboxWatchdog — release of abandoned render sessions', () => {
       sessionId: abandoned.sessionId,
     });
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('render-session release failed'),
+      expect.stringContaining('lane-session release failed'),
       expect.any(Error),
     );
     // All three were visited: stamped so the rotation moves on.
@@ -904,7 +905,7 @@ describe('runSandboxWatchdog — release of abandoned render sessions', () => {
     await runSandboxWatchdog(sql, { spawner: scriptedSpawner() });
 
     const select = statements.find((s) =>
-      s.text.includes("WHERE owner_type = 'render'"),
+      s.text.includes("owner_type = 'render' AND created_at_ms <"),
     );
     expect(select).toBeDefined();
     // A destroyed, failed or expired row holds no slot; nothing to release.
@@ -926,6 +927,61 @@ describe('runSandboxWatchdog — release of abandoned render sessions', () => {
     );
   });
 
+  // A video link's session draws on the same budget and is left behind the
+  // same way, by a job that was cut off; its job may run far longer than a
+  // render's batch, so it is given the life of its job first.
+  it("gives a video link's session the life of its job before it releases it", async () => {
+    const { sql, statements } = fakeSql({});
+    const before = Date.now();
+
+    await runSandboxWatchdog(sql, { spawner: scriptedSpawner() });
+
+    const select = statements.find((s) =>
+      s.text.includes("owner_type = 'video' AND created_at_ms <"),
+    );
+    expect(select).toBeDefined();
+    const horizons = (select?.values ?? []).filter(
+      (value): value is number =>
+        typeof value === 'number' && value > 1_000_000_000_000,
+    );
+    // The render horizon, then the video one, in the order of the query.
+    expect(horizons).toHaveLength(2);
+    expect(horizons[1]).toBeLessThanOrEqual(
+      Date.now() - SANDBOX_VIDEO_SESSION_MAX_AGE_MS,
+    );
+    expect(horizons[1]).toBeGreaterThanOrEqual(
+      before - SANDBOX_VIDEO_SESSION_MAX_AGE_MS,
+    );
+    expect(SANDBOX_VIDEO_SESSION_MAX_AGE_MS).toBe(30 * 60_000);
+    expect(SANDBOX_VIDEO_SESSION_MAX_AGE_MS).toBeGreaterThan(
+      SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+    );
+  });
+
+  it('takes each horizon from its own setting', async () => {
+    const { sql, statements } = fakeSql({});
+    const before = Date.now();
+
+    await runSandboxWatchdog(sql, {
+      spawner: scriptedSpawner(),
+      renderMaxAgeMs: 1_000,
+      videoMaxAgeMs: 5_000,
+    });
+
+    const horizons = (
+      statements.find((s) =>
+        s.text.includes("owner_type = 'video' AND created_at_ms <"),
+      )?.values ?? []
+    ).filter(
+      (value): value is number =>
+        typeof value === 'number' && value > 1_000_000_000_000,
+    );
+    expect(horizons[0]).toBeGreaterThanOrEqual(before - 1_000);
+    expect(horizons[0]).toBeLessThanOrEqual(Date.now() - 1_000);
+    expect(horizons[1]).toBeGreaterThanOrEqual(before - 5_000);
+    expect(horizons[1]).toBeLessThanOrEqual(Date.now() - 5_000);
+  });
+
   it('is skipped with the other spawner-facing passes', async () => {
     const { sql, statements } = fakeSql({ release: [[candidate('never')]] });
     const spawner = scriptedSpawner();
@@ -938,7 +994,9 @@ describe('runSandboxWatchdog — release of abandoned render sessions', () => {
     expect(result.released).toBe(0);
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
     expect(
-      statements.some((s) => s.text.includes("WHERE owner_type = 'render'")),
+      statements.some((s) =>
+        s.text.includes("owner_type = 'render' AND created_at_ms <"),
+      ),
     ).toBe(false);
   });
 });

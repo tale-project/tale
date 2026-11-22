@@ -86,6 +86,15 @@ export const SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS = 10 * 60_000;
  */
 export const SANDBOX_RENDER_SESSION_MAX_AGE_MS = 10 * 60_000;
 
+/**
+ * How long a video link's session may hold its slot. It lives for one run
+ * of the link's job, which fetches the metadata, the captions and the sound
+ * in it and destroys it, and the job is cut off after 25 minutes
+ * (`video.ingest`, `jobs/tasks.ts`). A video row still holding compute past
+ * this belongs to a run that was cut off.
+ */
+export const SANDBOX_VIDEO_SESSION_MAX_AGE_MS = 30 * 60_000;
+
 export interface SandboxWatchdogOptions {
   /** Each independent spawner-facing pass owns this time budget. At most
    * four rows are in flight (one per pass), below the job's 300s expiry. */
@@ -99,9 +108,10 @@ export interface SandboxWatchdogOptions {
   /** Failed creates whose leftovers are collected per tick. */
   collectBatch?: number;
   collectGraceMs?: number;
-  /** Abandoned render sessions released per tick. */
+  /** Abandoned render and video sessions released per tick. */
   releaseBatch?: number;
   renderMaxAgeMs?: number;
+  videoMaxAgeMs?: number;
   /** Finalized ops whose gateway-key settlement is still open, settled per
    * tick. */
   settleBatch?: number;
@@ -201,7 +211,10 @@ export interface SandboxWatchdogResult {
  *    left every website scan of the organization unable to render a page
  *    for that long. A render row still holding compute past
  *    `SANDBOX_RENDER_SESSION_MAX_AGE_MS` is destroyed when idle and
- *    settled; a worker still rendering in it is left for the next tick.
+ *    settled; a worker still rendering in it is left for the next tick. A
+ *    video link's session is the same thing with a longer life: it draws on
+ *    the same budget, and a row past `SANDBOX_VIDEO_SESSION_MAX_AGE_MS` is
+ *    released the same way.
  */
 export async function runSandboxWatchdog(
   sql: Sql,
@@ -291,9 +304,12 @@ export async function runSandboxWatchdog(
         now,
         signal: passSignal(),
       }),
-      releaseAbandonedRenderSessions(sql, spawner, {
+      releaseAbandonedLaneSessions(sql, spawner, {
         batch: options.releaseBatch ?? 25,
-        maxAgeMs: options.renderMaxAgeMs ?? SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+        renderMaxAgeMs:
+          options.renderMaxAgeMs ?? SANDBOX_RENDER_SESSION_MAX_AGE_MS,
+        videoMaxAgeMs:
+          options.videoMaxAgeMs ?? SANDBOX_VIDEO_SESSION_MAX_AGE_MS,
         now,
         signal: passSignal(),
       }),
@@ -638,23 +654,33 @@ async function reclaimEndedRunSessions(
 }
 
 /**
- * Release the render sessions of cut-off scan links — see the RELEASE lane
- * above. Only a compute-holding `render` row older than a link can keep one
- * is a candidate, and the spawner destroys its session only when idle
- * (`if_idle`), as the reclaim does: busy and errors leave the row for a
- * later tick.
+ * Release the render sessions of cut-off scan links and the sessions of
+ * cut-off video jobs — see the RELEASE lane above. Only a compute-holding
+ * `render` or `video` row older than its work can keep one is a candidate,
+ * and the spawner destroys its session only when idle (`if_idle`), as the
+ * reclaim does: busy and errors leave the row for a later tick.
  */
-async function releaseAbandonedRenderSessions(
+async function releaseAbandonedLaneSessions(
   sql: Sql,
   spawner: WatchdogSpawner,
-  args: { batch: number; maxAgeMs: number; now: number; signal?: AbortSignal },
+  args: {
+    batch: number;
+    renderMaxAgeMs: number;
+    videoMaxAgeMs: number;
+    now: number;
+    signal?: AbortSignal;
+  },
 ): Promise<number> {
-  const horizon = args.now - args.maxAgeMs;
+  const renderHorizon = args.now - args.renderMaxAgeMs;
+  const videoHorizon = args.now - args.videoMaxAgeMs;
   const candidates = await sql<Candidate[]>`
     SELECT id, session_id AS "sessionId", org_id AS "orgId"
     FROM app.sandbox_sessions
-    WHERE owner_type = 'render' AND status IN ('creating', 'active')
-      AND created_at_ms < ${horizon}
+    WHERE status IN ('creating', 'active')
+      AND (
+        (owner_type = 'render' AND created_at_ms < ${renderHorizon})
+        OR (owner_type = 'video' AND created_at_ms < ${videoHorizon})
+      )
     ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC, id ASC
     LIMIT ${args.batch}
   `;
@@ -672,7 +698,7 @@ async function releaseAbandonedRenderSessions(
       // Spawner unreachable or refusing ⇒ the container may survive; the row
       // must not settle ahead of it. Next tick retries.
       console.warn(
-        `[watchdog] render-session release failed for ${candidate.sessionId}:`,
+        `[watchdog] lane-session release failed for ${candidate.sessionId}:`,
         error,
       );
       continue;
