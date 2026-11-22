@@ -359,7 +359,7 @@ describe("a video's sound on its way to the transcription lane", () => {
 
   // The size of a video's sound is the video's own: a retry would fetch the
   // same bytes up to the same limit.
-  it('fails a video whose sound is too large for good, on its first attempt', async () => {
+  it('fails a video whose sound is too large for good, on its first attempt [VID-R9]', async () => {
     fixture.soundError = () =>
       new YtDlpError(
         'videoTooLarge',
@@ -432,7 +432,7 @@ describe('a run that takes a video up', () => {
   });
 });
 
-describe('a video for which no sandbox session is to be had', () => {
+describe('a video for which no sandbox session is to be had [VID-R8]', () => {
   const busy = (retryAfterMs?: number) => () =>
     Promise.reject(
       new SandboxLaneCapacityError(

@@ -710,7 +710,7 @@ describe('inYtdlpPlace — the place a video is fetched in, opened and closed', 
   const ctx = { marker: 'ctx' } as never;
   const video = { organizationId: 'org-1', jobId: 'job-1', runKey: 'run-1' };
 
-  it('opens a sandbox session for the video, and does the work in it', async () => {
+  it('opens a sandbox session for the video, and does the work in it [VID-R8]', async () => {
     delete process.env.VIDEO_INGEST_LANE;
     client.session.mockImplementation(
       (_ctx: unknown, _session: unknown, work: () => Promise<unknown>) =>

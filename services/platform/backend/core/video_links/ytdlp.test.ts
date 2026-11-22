@@ -980,7 +980,7 @@ describe('what a run asks yt-dlp for, and what it takes of what yt-dlp leaves', 
     readFileSync(join(dir, 'args'), 'utf8').trim().split('\n');
   const URL_ = 'https://www.youtube.com/watch?v=x';
 
-  describe('the sound', () => {
+  describe('the sound [VID-R9]', () => {
     it('is asked for as it is served, a stream of sound alone first, and nothing is done to it', async () => {
       const dir = job(['media.webm']);
 
