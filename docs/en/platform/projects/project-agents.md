@@ -146,7 +146,7 @@ A project without agents of its own can still take on agent work. Unless an admi
 
 <Frame caption="The Agents tab of a project whose tasks go to the standard agent.">
 
-![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row ends in its actions menu.](/images/platform/project-agents-standard.webp)
+![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, which runs on Pi with a model from OpenRouter, and the note Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row ends in its actions menu.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 

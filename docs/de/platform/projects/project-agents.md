@@ -146,7 +146,7 @@ Auch ein Projekt ohne eigene Agenten kann Arbeit an einen Agenten übergeben. So
 
 <Frame caption="Der Tab Agenten eines Projekts, dessen Aufgaben an den Standard-Agenten gehen.">
 
-![Der Tab Agenten des Projekts Customer onboarding portal mit einer Zeile: der Standard-Agent mit dem Abzeichen Standard, Claude Code, OpenRouter, dem Modell anthropic/claude-haiku-4.5 und vier Ausstattungen. Ein Hinweis sagt, dass Tale ihn für dieses Projekt eingerichtet hat und Agent-Laufzeit, Modell und Anweisungen den Einstellungen der Organisation folgen. Die Zeile endet mit ihrem Aktionsmenü.](/images/platform/project-agents-standard.webp)
+![Der Tab Agenten des Projekts Customer onboarding portal mit einer Zeile: der Standard-Agent mit dem Abzeichen Standard, der mit Pi und einem Modell von OpenRouter läuft. Ein Hinweis sagt, dass Tale ihn für dieses Projekt eingerichtet hat und Agent-Laufzeit, Modell und Anweisungen den Einstellungen der Organisation folgen. Die Zeile endet mit ihrem Aktionsmenü.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 

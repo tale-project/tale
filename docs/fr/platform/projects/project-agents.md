@@ -146,7 +146,7 @@ Un projet sans agents propres peut quand même confier du travail à un agent. S
 
 <Frame caption="L’onglet Agents d’un projet dont les tâches vont à l’agent standard.">
 
-![L’onglet Agents du projet Customer onboarding portal avec une seule ligne : l’agent standard avec le badge Standard, Claude Code, OpenRouter, le modèle anthropic/claude-haiku-4.5 et quatre équipements. Une note indique que Tale l’a mis en place pour ce projet et que son environnement d’agent, son modèle et ses instructions suivent les réglages de l’organisation. La ligne se termine par son menu d’actions.](/images/platform/project-agents-standard.webp)
+![L’onglet Agents du projet Customer onboarding portal avec une seule ligne : l’agent standard avec le badge Standard, qui fonctionne avec Pi et un modèle d’OpenRouter. Une note indique que Tale l’a mis en place pour ce projet et que son environnement d’agent, son modèle et ses instructions suivent les réglages de l’organisation. La ligne se termine par son menu d’actions.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 

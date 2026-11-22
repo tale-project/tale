@@ -3325,6 +3325,10 @@ export const SHOTS: readonly Shot[] = [
         ),
     sanitize: replaceRigNames,
     capture: (page) => standardAgentSection(page),
+    // On a phone the section is nearly a screen tall, and the bottom
+    // navigation and the page's floating Save bar, fixed to the foot of the
+    // screen, covered its last line. A taller phone keeps them clear of it.
+    phone: { viewport: { width: 390, height: 1400 } },
   },
   {
     // Governance > Models — the model endpoints for API keys, switched on in
