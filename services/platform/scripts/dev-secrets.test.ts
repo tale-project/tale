@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DEV_MODEL_RELAY_PORT,
   DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
   DEV_SANDBOX_TOKEN,
   ensureKnowledgeDatabaseUrl,
+  ensureModelRelayPort,
   ensureSandboxLlmGatewayAdminPassword,
   ensureSandboxToken,
 } from './dev-secrets';
@@ -132,5 +134,33 @@ describe('ensureKnowledgeDatabaseUrl', () => {
     expect(env.KNOWLEDGE_DATABASE_URL).toBe(
       'postgresql://tale:pw@localhost:5433/tale_knowledge',
     );
+  });
+});
+
+describe('ensureModelRelayPort', () => {
+  it('gives the host backend’s relay a port the dev gateway does not hold', () => {
+    const env: NodeJS.ProcessEnv = {};
+    ensureModelRelayPort(env);
+    expect(env.SANDBOX_RELAY_PORT).toBe(DEV_MODEL_RELAY_PORT);
+    // The dev gateway publishes 8080 on the host.
+    expect(
+      readFileSync(
+        join(
+          import.meta.dirname,
+          '..',
+          '..',
+          '..',
+          'compose.sandbox-llm-gateway.dev.yml',
+        ),
+        'utf8',
+      ),
+    ).toContain("'127.0.0.1:8080:8080'");
+    expect(env.SANDBOX_RELAY_PORT).not.toBe('8080');
+  });
+
+  it('keeps a port that is set', () => {
+    const env: NodeJS.ProcessEnv = { SANDBOX_RELAY_PORT: '9090' };
+    ensureModelRelayPort(env);
+    expect(env.SANDBOX_RELAY_PORT).toBe('9090');
   });
 });

@@ -156,6 +156,7 @@ import {
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
 } from './domains/knowledge_entries/write-races.integration.ts';
+import { checkModelRelay } from './domains/llm_relay/relay.integration.ts';
 import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { checkMemberLookup } from './domains/members/lookup.integration.ts';
 import { checkMemberSearch } from './domains/members/search.integration.ts';
@@ -68622,6 +68623,7 @@ async function main(): Promise<void> {
         'checkSandboxGatewayKeyReclaim',
         () => checkSandboxGatewayKeyReclaim(sql, baseUrl, authCtx),
       ],
+      ['checkModelRelay', () => checkModelRelay(sql, authCtx, record)],
       ['checkStuckSendRecovery', () => checkStuckSendRecovery(sql, authCtx)],
       [
         'checkDeferredSendRecovery',

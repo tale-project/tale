@@ -273,7 +273,7 @@ describe('a call relayed on its own wire', () => {
     });
   });
 
-  it('aborts the call upstream when the client hangs up, and books what it counted', async () => {
+  it('aborts the call upstream when the client hangs up, and books what it counted [RELAY-R8]', async () => {
     const { fetcher, sent } = upstream(
       (call) =>
         new Response(
@@ -315,7 +315,7 @@ describe('a call relayed on its own wire', () => {
     expect(outcomes[0]?.usage.outputTokens).toBeGreaterThanOrEqual(100);
   });
 
-  it('ends a stream that goes silent past its idle budget', async () => {
+  it('ends a stream that goes silent past its idle budget [RELAY-R8]', async () => {
     const { fetcher, sent } = upstream(
       (call) =>
         new Response(

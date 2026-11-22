@@ -77,6 +77,7 @@ async function loadHttpSurface() {
     { BACKEND_SERVER_OPTIONS, installClientErrorEnvelope },
     { installVideoProxyRelay },
     { startWebServer, webPort },
+    { startModelRelay },
   ] = await Promise.all([
     import('@hono/node-server'),
     import('./app.ts'),
@@ -87,6 +88,7 @@ async function loadHttpSurface() {
     import('./lib/http-hygiene.ts'),
     import('./domains/video_links/proxy-relay.ts'),
     import('../server.ts'),
+    import('./domains/llm_relay/start.ts'),
   ]);
   return {
     serve,
@@ -102,6 +104,7 @@ async function loadHttpSurface() {
     installVideoProxyRelay,
     startWebServer,
     webPort,
+    startModelRelay,
   };
 }
 
@@ -366,6 +369,20 @@ async function main(): Promise<void> {
     http !== null && server !== null
       ? http.installVideoProxyRelay(server)
       : null;
+  // The model relay, on a port of its own where only sandbox sessions reach
+  // it: the harnesses' model calls, in place of the sandbox LLM gateway
+  // (domains/llm_relay). A container that cannot bind where it must fails
+  // its start here.
+  const modelRelay =
+    http !== null && server !== null
+      ? http.startModelRelay({
+          sql,
+          serve: http.serve,
+          env,
+          serverOptions: http.BACKEND_SERVER_OPTIONS,
+        })
+      : null;
+  if (modelRelay !== null) await listening(modelRelay);
 
   // The web tier, in this process and on a port of its own: the built app,
   // its shell, the status page and the other doors of `../server.ts`. It
@@ -438,7 +455,12 @@ async function main(): Promise<void> {
             // request nor closes when forced: left open, it keeps the close
             // below from ever finishing.
             endVideoProxyRelay?.();
-            await closeServerGracefully(server);
+            await Promise.all([
+              closeServerGracefully(server),
+              ...(modelRelay !== null
+                ? [closeServerGracefully(modelRelay)]
+                : []),
+            ]);
           }
         : null,
       stopBoss: (options) => boss.stop(options),

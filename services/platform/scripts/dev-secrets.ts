@@ -101,6 +101,22 @@ export function ensureSandboxLlmGatewayUrl(env: NodeJS.ProcessEnv): void {
   env.SANDBOX_LLM_GATEWAY_URL = 'http://127.0.0.1:8080';
 }
 
+/** The host `bun dev` backend's model relay port, unless one is set. */
+export const DEV_MODEL_RELAY_PORT = '3008';
+
+/**
+ * The model relay's port for the host `bun dev` backend
+ * (`backend/domains/llm_relay`). A container's relay listens on 8080, but on
+ * the host that port is the dev LLM gateway's (`127.0.0.1:8080`,
+ * `compose.sandbox-llm-gateway.dev.yml`), and the relay could not bind it:
+ * the host backend takes a port of its own. An explicit SANDBOX_RELAY_PORT
+ * wins.
+ */
+export function ensureModelRelayPort(env: NodeJS.ProcessEnv): void {
+  if (env.SANDBOX_RELAY_PORT) return;
+  env.SANDBOX_RELAY_PORT = DEV_MODEL_RELAY_PORT;
+}
+
 /**
  * Insecure local fallbacks for the two sandbox control-plane secrets. Both
  * sides fail closed without them — the spawner refuses to boot without
@@ -154,7 +170,8 @@ export function ensureSandboxLlmGatewayAdminPassword(
 /**
  * The ordered secret-derivation chain: instance secret → better-auth secret →
  * WebDAV HMAC key (reused) → encryption key → knowledge-db URL → gateway URL →
- * the sandbox control-plane pair (spawner token, gateway admin password).
+ * model relay port → the sandbox control-plane pair (spawner token, gateway
+ * admin password).
  * Each fills a gap only; the HMAC and encryption keys necessarily derive from
  * whatever INSTANCE_SECRET resolved to.
  */
@@ -165,6 +182,7 @@ export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureEncryptionSecret(env);
   ensureKnowledgeDatabaseUrl(env);
   ensureSandboxLlmGatewayUrl(env);
+  ensureModelRelayPort(env);
   ensureSandboxToken(env);
   ensureSandboxLlmGatewayAdminPassword(env);
   ensureAppDatabaseUrl(env);

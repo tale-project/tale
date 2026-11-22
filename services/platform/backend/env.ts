@@ -55,6 +55,31 @@ const envFields = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().min(1).optional(),
   ),
+  /**
+   * The model relay's port (`domains/llm_relay`): the listener a sandbox
+   * session's harness calls its models on, in place of the sandbox LLM
+   * gateway (tale-project/tale#4942). It serves model calls and the video
+   * relays, and nothing else.
+   */
+  SANDBOX_RELAY_PORT: z.coerce.number().int().min(1).max(65535).default(8080),
+  /**
+   * The interface the model relay listens on. Unset: this container's
+   * address in `SANDBOX_NETWORK_SUBNET` when that is set, else the API's
+   * (`BACKEND_LISTEN_HOST`, every interface when that is unset).
+   */
+  SANDBOX_RELAY_LISTEN_HOST: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  /**
+   * The sandbox network's IPv4 subnet (CIDR), which `tale deploy` reads off
+   * `tale-sandbox-net`: the model relay listens on this container's address
+   * in it alone, so only a sandbox session reaches it.
+   */
+  SANDBOX_NETWORK_SUBNET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   ROLE: z.enum(['api', 'worker', 'all']).default('all'),
   SANDBOX_AGENT_PROFILE: z.enum(['agent', 'agent-light']).default('agent'),
   TALE_SANDBOX_CLAUDE_EFFORT: z.preprocess(
