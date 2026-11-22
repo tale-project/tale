@@ -8,6 +8,7 @@ import {
   upstreamHeaders,
   upstreamUrl,
 } from './endpoint.ts';
+import { estimatedPromptTokens } from './estimate.ts';
 import {
   foldUsage,
   NO_USAGE,
@@ -111,7 +112,9 @@ export type UpstreamFetch = (
   init: RequestInit,
 ) => Promise<Response>;
 
-const defaultFetch: UpstreamFetch = (url, init) =>
+/** A call upstream through the relay's pool, with its long budgets: what
+ * the translated path's provider packages fetch with too. */
+export const relayFetch: UpstreamFetch = (url, init) =>
   fetch(url, { ...init, dispatcher: relayDispatcher() } as RequestInit & {
     dispatcher: Agent;
   });
@@ -129,8 +132,72 @@ export interface PassthroughArgs {
   signal: AbortSignal;
   /** Called exactly once, however the call ended. */
   onDone: (outcome: RelayCallOutcome) => void;
+  /** The model the answer names, where a door promises its caller the id
+   * it asked for (the model endpoints for API keys); unset, the answer
+   * goes back exactly as the vendor wrote it. */
+  answerModel?: string;
   lifetime?: Partial<RelayLifetime>;
   fetcher?: UpstreamFetch;
+}
+
+/** The system codes of a connection that was never made: no request left
+ * this process, so no vendor read a prompt. undici's `fetch failed` carries
+ * the reason on its `cause`. */
+const NOT_CONNECTED_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/** Whether a failed call never had a connection. */
+export function neverConnected(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && isRecord(current); depth++) {
+    const code = current.code;
+    if (typeof code === 'string' && NOT_CONNECTED_CODES.has(code)) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+/** A whole answer naming `model`, where the wire names one. */
+function withAnswerModel(
+  wire: UpstreamWire,
+  answer: Record<string, unknown>,
+  model: string,
+): Record<string, unknown> {
+  return 'model' in answer || wire !== 'anthropic'
+    ? { ...answer, model }
+    : answer;
+}
+
+/** A stream event naming `model` where the wire names it: every Chat
+ * Completions chunk, the response a Responses event carries, Anthropic's
+ * opening message. Any other event passes as it came. */
+function withEventModel(
+  wire: UpstreamWire,
+  raw: string,
+  event: Record<string, unknown>,
+  model: string,
+): string {
+  let named: Record<string, unknown> | null = null;
+  if (wire === 'openai-chat' && 'model' in event) {
+    named = { ...event, model };
+  } else if (wire === 'openai-responses' && isRecord(event.response)) {
+    named = { ...event, response: { ...event.response, model } };
+  } else if (
+    wire === 'anthropic' &&
+    event.type === 'message_start' &&
+    isRecord(event.message)
+  ) {
+    named = { ...event, message: { ...event.message, model } };
+  }
+  if (named === null) return raw;
+  const lines = raw.split(/\r?\n/).filter((line) => line.startsWith('event:'));
+  return `${[...lines, `data: ${JSON.stringify(named)}`].join('\n')}\n\n`;
 }
 
 /** The headers a client may hand on to the vendor through `x-bf-eh-<name>`
@@ -181,12 +248,17 @@ function upstreamBody(
   return sent;
 }
 
-/** What the relay sent, estimated: the request's text at the usual rate. */
+/** What the relay sent, estimated (`estimate.ts`): the request's words at
+ * the usual rate, each image or document as one image. */
 function estimatedInput(body: Record<string, unknown>): number {
   const { messages, input, system, instructions, tools } = body;
-  return estimateTokens(
-    JSON.stringify({ messages, input, system, instructions, tools }),
-  );
+  return estimatedPromptTokens({
+    messages,
+    input,
+    system,
+    instructions,
+    tools,
+  });
 }
 
 /** The text an event carries, for the estimate of output the vendor never
@@ -356,14 +428,21 @@ async function upstreamRefusal(
 export async function relayPassthrough(
   args: PassthroughArgs,
 ): Promise<Response> {
-  const { endpoint, stream } = args;
+  // Only what the call needs is kept: never the request's body past the
+  // send, which can be tens of megabytes and would live as long as the
+  // stream.
+  const { endpoint, stream, onDone, signal, answerModel } = args;
   const wire = endpoint.wire;
   const lifetime = { ...relayLifetime(), ...args.lifetime };
-  const fetcher = args.fetcher ?? defaultFetch;
-  const sentBody = upstreamBody(wire, args.body, endpoint.modelId, stream);
+  const fetcher = args.fetcher ?? relayFetch;
   const clientAskedUsage =
     isRecord(args.body.stream_options) &&
     args.body.stream_options.include_usage === true;
+  const sentBody = JSON.stringify(
+    upstreamBody(wire, args.body, endpoint.modelId, stream),
+  );
+  const inputEstimate = estimatedInput(args.body);
+  const headers = upstreamHeaders(endpoint, args.forwarded, args.extraHeaders);
 
   let reported = NO_USAGE;
   let reportedInput = false;
@@ -372,7 +451,8 @@ export async function relayPassthrough(
   let done = false;
   // A completed answer books what the vendor reported; one that ended early
   // books at least what the relay counted, since a vendor reports output
-  // only as it goes (Anthropic) or once at the end (Chat Completions).
+  // only as it goes (Anthropic) or once at the end (Chat Completions) — and
+  // its prompt, which the vendor read once the request reached it.
   const finish = (
     status: RelayCallOutcome['status'],
     upstreamStatus?: number,
@@ -380,17 +460,29 @@ export async function relayPassthrough(
     if (done) return;
     done = true;
     const completed = status === 'completed';
-    const inputTokens = reportedInput
-      ? reported.inputTokens
-      : estimatedInput(args.body);
+    const inputTokens = reportedInput ? reported.inputTokens : inputEstimate;
     const outputTokens =
       completed && reportedOutput
         ? reported.outputTokens
         : Math.max(reported.outputTokens, countedOutput);
-    args.onDone({
+    onDone({
       status,
       usage: { ...reported, inputTokens, outputTokens },
       estimated: !reportedInput || !reportedOutput || !completed,
+      ...(upstreamStatus !== undefined ? { upstreamStatus } : {}),
+    });
+  };
+  /** An ending that consumed nothing at a vendor. */
+  const nothing = (
+    status: RelayCallOutcome['status'],
+    upstreamStatus?: number,
+  ) => {
+    if (done) return;
+    done = true;
+    onDone({
+      status,
+      usage: NO_USAGE,
+      estimated: false,
       ...(upstreamStatus !== undefined ? { upstreamStatus } : {}),
     });
   };
@@ -401,21 +493,20 @@ export async function relayPassthrough(
     if (reading.outputTokens !== undefined) reportedOutput = true;
   };
 
-  if (args.signal.aborted) {
+  if (signal.aborted) {
     // The client left while the request was being governed: nothing was
     // sent, nothing is booked.
-    done = true;
-    args.onDone({ status: 'cancelled', usage: NO_USAGE, estimated: false });
+    nothing('cancelled');
     return new Response(null, { status: 499 });
   }
 
   const upstream = new AbortController();
   const onClientAbort = () => upstream.abort(new Error('the client hung up'));
-  args.signal.addEventListener('abort', onClientAbort, { once: true });
+  signal.addEventListener('abort', onClientAbort, { once: true });
   const timers: ReturnType<typeof setTimeout>[] = [];
   const clear = () => {
     for (const timer of timers) clearTimeout(timer);
-    args.signal.removeEventListener('abort', onClientAbort);
+    signal.removeEventListener('abort', onClientAbort);
   };
   timers.push(
     setTimeout(
@@ -428,36 +519,49 @@ export async function relayPassthrough(
   try {
     response = await fetcher(upstreamUrl(endpoint), {
       method: 'POST',
-      headers: upstreamHeaders(endpoint, args.forwarded, args.extraHeaders),
-      body: JSON.stringify(sentBody),
+      headers,
+      body: sentBody,
       signal: upstream.signal,
     });
   } catch (error) {
     clear();
-    if (args.signal.aborted) {
+    // The detail names addresses and stays in the log; the client hears
+    // what happened.
+    console.warn(
+      `[llm-relay] a call to "${endpoint.connector}" ended before its answer: ${sanitizeError(error, 300)}`,
+    );
+    if (neverConnected(error)) {
+      // No request reached a vendor: nothing to book.
+      nothing('failed');
+      return errorResponse(
+        wire,
+        'upstream',
+        'The model provider could not be reached.',
+      );
+    }
+    // The request left: the vendor may bill the prompt it read.
+    if (signal.aborted) {
       finish('cancelled');
       return new Response(null, { status: 499 });
     }
-    // Nothing reached a vendor that answered: nothing to book.
-    done = true;
-    args.onDone({ status: 'failed', usage: NO_USAGE, estimated: false });
-    return errorResponse(
-      wire,
-      upstream.signal.aborted ? 'timeout' : 'upstream',
-      `The model provider could not be reached: ${sanitizeError(error, 300)}`,
-    );
+    finish('failed');
+    return upstream.signal.aborted
+      ? errorResponse(
+          wire,
+          'timeout',
+          'The model provider did not answer in time.',
+        )
+      : errorResponse(
+          wire,
+          'upstream',
+          'The model provider stopped answering.',
+        );
   }
 
   if (!response.ok) {
     clear();
-    done = true;
     // A refused request consumed nothing.
-    args.onDone({
-      status: 'failed',
-      usage: NO_USAGE,
-      estimated: false,
-      upstreamStatus: response.status,
-    });
+    nothing('failed', response.status);
     return upstreamRefusal(wire, response);
   }
 
@@ -480,19 +584,24 @@ export async function relayPassthrough(
       }
       note(usageOfAnswer(wire, parsed));
       finish('completed', response.status);
-      return new Response(text, {
+      const named =
+        answerModel !== undefined && isRecord(parsed)
+          ? JSON.stringify(withAnswerModel(wire, parsed, answerModel))
+          : text;
+      return new Response(named, {
         status: response.status,
         headers: { 'content-type': contentType || 'application/json' },
       });
     } catch (error) {
       clear();
-      finish(args.signal.aborted ? 'cancelled' : 'failed', response.status);
+      console.warn(
+        `[llm-relay] a whole answer from "${endpoint.connector}" broke off: ${sanitizeError(error, 300)}`,
+      );
+      finish(signal.aborted ? 'cancelled' : 'failed', response.status);
       return errorResponse(
         wire,
-        upstream.signal.aborted && !args.signal.aborted
-          ? 'timeout'
-          : 'upstream',
-        `The model provider's answer broke off: ${sanitizeError(error, 300)}`,
+        upstream.signal.aborted && !signal.aborted ? 'timeout' : 'upstream',
+        'The model provider’s answer broke off.',
       );
     }
   }
@@ -524,7 +633,9 @@ export async function relayPassthrough(
     ) {
       return null;
     }
-    return raw;
+    return answerModel === undefined
+      ? raw
+      : withEventModel(wire, raw, event, answerModel);
   };
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -547,7 +658,7 @@ export async function relayPassthrough(
         }
       } catch (error) {
         clear();
-        finish(args.signal.aborted ? 'cancelled' : 'failed', response.status);
+        finish(signal.aborted ? 'cancelled' : 'failed', response.status);
         controller.error(error);
       }
     },

@@ -11,9 +11,12 @@ import {
 import { estimateTokens } from '../../../../lib/chat/types.ts';
 import { sanitizeError } from '../../../core/lib/utils/sanitize_secrets.ts';
 import type { UpstreamEndpoint } from '../endpoint.ts';
+import { estimatedPromptTokens } from '../estimate.ts';
 import {
+  neverConnected,
   type RelayCallOutcome,
   type RelayLifetime,
+  relayFetch,
   relayLifetime,
   type UpstreamFetch,
 } from '../passthrough.ts';
@@ -118,11 +121,28 @@ function refusalOf(error: unknown): {
       message: `The request cannot be sent to this model's provider: ${sanitizeError(error.message, 300)}`,
     };
   }
+  // A transport failure's wording names addresses: it stays in the log.
+  console.warn(
+    `[llm-relay] a translated call failed: ${sanitizeError(error, 300)}`,
+  );
   return {
     kind: 'upstream',
     status: statusOf('upstream'),
-    message: `The model provider could not be reached: ${sanitizeError(error, 300)}`,
+    message: 'The model provider could not be reached.',
   };
+}
+
+/** The request without its conversation: what the answer's writer reads is
+ * the request's options (whether it asked for usage, which tools were
+ * custom), never its messages. */
+function lightRequest(body: Record<string, unknown>): Record<string, unknown> {
+  const {
+    messages: _messages,
+    input: _input,
+    contents: _contents,
+    ...options
+  } = body;
+  return options;
 }
 
 /** The text a part carries, for the estimate of output the vendor never
@@ -181,23 +201,44 @@ export async function relayTranslated(args: TranslatedArgs): Promise<Response> {
       stream ? lifetime.streamMs : lifetime.wholeMs,
     ),
   );
-  const fetcher: UpstreamFetch =
-    args.fetcher ?? ((url, init) => fetch(url, init));
+  const fetcher: UpstreamFetch = args.fetcher ?? relayFetch;
+  // Whether the request left for the vendor: one that ends before its
+  // answer then books the prompt the vendor read, unless no connection was
+  // ever made.
+  let sent = false;
   const model =
     args.model ??
     (await languageModelFor(
       endpoint,
-      (input, init) =>
-        fetcher(
+      (input, init) => {
+        sent = true;
+        return fetcher(
           typeof input === 'string'
             ? input
             : input instanceof URL
               ? input.href
               : input.url,
           { ...init, signal: upstream.signal },
-        ),
+        );
+      },
       args.extraHeaders,
     ));
+  const inputEstimate = estimatedPromptTokens(parsed.options.prompt);
+  /** A call that ended before its answer: the prompt, where the vendor read
+   * it; nothing, where it never got there. */
+  const endedEarly = (
+    status: RelayCallOutcome['status'],
+    error: unknown,
+  ): RelayCallOutcome =>
+    (sent || args.model !== undefined) &&
+    !neverConnected(error) &&
+    !(APICallError.isInstance(error) && error.statusCode !== undefined)
+      ? {
+          status,
+          usage: { ...NO_USAGE, inputTokens: inputEstimate },
+          estimated: true,
+        }
+      : { status, usage: NO_USAGE, estimated: false };
   const providerOptions = upstreamProviderOptions(endpoint);
   const reasoning = reasoningForUpstream(endpoint, parsed.options.reasoning);
   const { reasoning: _asked, ...asked } = parsed.options;
@@ -212,10 +253,11 @@ export async function relayTranslated(args: TranslatedArgs): Promise<Response> {
     model: args.requestedModel,
     id: randomUUID().replaceAll('-', ''),
     created: Math.floor(Date.now() / 1000),
-    request: args.body,
+    // What the answer's writer may read of the request: all but the
+    // conversation, which can be tens of megabytes and would otherwise live
+    // as long as the stream.
+    request: lightRequest(args.body),
   };
-  const estimatedInput = () =>
-    estimateTokens(JSON.stringify(parsed.options.prompt));
 
   if (!stream) {
     try {
@@ -231,14 +273,24 @@ export async function relayTranslated(args: TranslatedArgs): Promise<Response> {
     } catch (error) {
       clear();
       if (args.signal.aborted) {
-        report({ status: 'cancelled', usage: NO_USAGE, estimated: false });
+        report(endedEarly('cancelled', error));
         return new Response(null, { status: 499 });
       }
+      if (upstream.signal.aborted) {
+        report(endedEarly('failed', error));
+        return errorResponse(
+          inbound,
+          'timeout',
+          'The model provider did not answer in time.',
+        );
+      }
+      report(endedEarly('failed', error));
       const refusal = refusalOf(error);
-      return refuse(
-        upstream.signal.aborted ? 'timeout' : refusal.kind,
+      return errorResponse(
+        inbound,
+        refusal.kind,
         refusal.message,
-        upstream.signal.aborted ? undefined : refusal.status,
+        refusal.status,
       );
     }
   }
@@ -249,11 +301,24 @@ export async function relayTranslated(args: TranslatedArgs): Promise<Response> {
   } catch (error) {
     clear();
     if (args.signal.aborted) {
-      report({ status: 'cancelled', usage: NO_USAGE, estimated: false });
+      report(endedEarly('cancelled', error));
       return new Response(null, { status: 499 });
     }
+    report(endedEarly('failed', error));
+    if (upstream.signal.aborted) {
+      return errorResponse(
+        inbound,
+        'timeout',
+        'The model provider did not answer in time.',
+      );
+    }
     const refusal = refusalOf(error);
-    return refuse(refusal.kind, refusal.message, refusal.status);
+    return errorResponse(
+      inbound,
+      refusal.kind,
+      refusal.message,
+      refusal.status,
+    );
   }
 
   // The parts, watched on their way to the adapter: the usage the finish
@@ -295,7 +360,7 @@ export async function relayTranslated(args: TranslatedArgs): Promise<Response> {
           status,
           usage: {
             ...(usage ?? NO_USAGE),
-            inputTokens: usage?.inputTokens ?? estimatedInput(),
+            inputTokens: usage?.inputTokens ?? inputEstimate,
             outputTokens: Math.max(usage?.outputTokens ?? 0, counted),
           },
           estimated: true,

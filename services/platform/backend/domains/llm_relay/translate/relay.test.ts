@@ -163,7 +163,11 @@ describe('a call translated between wires', () => {
       content: [{ type: 'text', text: 'Hello' }],
       model: 'anthropic/claude-sonnet-5-5',
     });
-    expect(theAdapter.contexts[0]?.request).toBe(base.body);
+    // The answer's writer reads the request's options, never its
+    // conversation, which would otherwise live as long as the stream.
+    expect(theAdapter.contexts[0]?.request).toEqual({
+      model: 'anthropic/claude-sonnet-5-5',
+    });
     expect(theAdapter.contexts[0]?.id).toMatch(/^[0-9a-f]{32}$/);
     expect(outcomes).toEqual([
       {

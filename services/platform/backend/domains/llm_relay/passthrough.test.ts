@@ -398,20 +398,109 @@ describe('a call relayed on its own wire', () => {
     });
   });
 
-  it('answers an unreachable vendor with 502, and books nothing', async () => {
+  it('answers an unreachable vendor with 502 that names no address, and books nothing', async () => {
     const { onDone, outcomes } = outcomeOf();
+    const answer = await relayPassthrough({
+      endpoint: endpoint('openai-chat'),
+      body: { model: 'm', messages: [{ role: 'user', content: 'hi' }] },
+      stream: false,
+      signal: new AbortController().signal,
+      onDone,
+      fetcher: async () => {
+        throw Object.assign(new TypeError('fetch failed'), {
+          cause: { code: 'ECONNREFUSED', address: '10.1.2.3', port: 443 },
+        });
+      },
+    });
+    expect(answer.status).toBe(502);
+    const said = JSON.stringify(await answer.json());
+    expect(said).toContain('could not be reached');
+    expect(said).not.toContain('10.1.2.3');
+    expect(outcomes[0]).toMatchObject({
+      status: 'failed',
+      estimated: false,
+      usage: { inputTokens: 0, outputTokens: 0 },
+    });
+  });
+
+  it('books the prompt of a call that was sent and broke before its answer, an image as one image [RELAY-R5]', async () => {
+    const { onDone, outcomes } = outcomeOf();
+    const image = 'A'.repeat(200_000);
+    const answer = await relayPassthrough({
+      endpoint: endpoint('anthropic'),
+      body: {
+        model: 'm',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What is in this picture?' },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/png',
+                  data: image,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      stream: true,
+      signal: new AbortController().signal,
+      onDone,
+      fetcher: async () => {
+        throw new TypeError('other side closed');
+      },
+    });
+    expect(answer.status).toBe(502);
+    expect(outcomes[0]?.status).toBe('failed');
+    expect(outcomes[0]?.estimated).toBe(true);
+    // The picture weighs about what a vendor bills for one, not its base64.
+    expect(outcomes[0]?.usage.inputTokens).toBeGreaterThan(1_600);
+    expect(outcomes[0]?.usage.inputTokens).toBeLessThan(1_700);
+  });
+
+  it('names the caller’s model in the answer where a door asks it to', async () => {
+    const { fetcher } = upstream(() =>
+      Response.json({ id: 'c1', model: 'gpt-6-2026-11-01', choices: [] }),
+    );
     const answer = await relayPassthrough({
       endpoint: endpoint('openai-chat'),
       body: { model: 'm', messages: [] },
       stream: false,
       signal: new AbortController().signal,
-      onDone,
-      fetcher: async () => {
-        throw new TypeError('fetch failed');
-      },
+      onDone: () => {},
+      answerModel: 'openai/gpt-6',
+      fetcher,
     });
-    expect(answer.status).toBe(502);
-    expect(outcomes[0]).toMatchObject({ status: 'failed', estimated: false });
+    expect(await answer.json()).toEqual({
+      id: 'c1',
+      model: 'openai/gpt-6',
+      choices: [],
+    });
+    const streamed = await relayPassthrough({
+      endpoint: endpoint('openai-chat'),
+      body: { model: 'm', stream: true, messages: [] },
+      stream: true,
+      signal: new AbortController().signal,
+      onDone: () => {},
+      answerModel: 'openai/gpt-6',
+      fetcher: upstream(
+        () =>
+          new Response(
+            streamOf([
+              sse({ id: 'c1', model: 'gpt-6-2026-11-01', choices: [] }),
+              'data: [DONE]\n\n',
+            ]),
+            { headers: { 'content-type': 'text/event-stream' } },
+          ),
+      ).fetcher,
+    });
+    expect(await streamed.text()).toBe(
+      `data: ${JSON.stringify({ id: 'c1', model: 'openai/gpt-6', choices: [] })}\n\ndata: [DONE]\n\n`,
+    );
   });
 
   it('sends nothing for a client that left while its request was governed', async () => {
