@@ -17,7 +17,7 @@ Grenze eine Störung anhand der Dienstzuständigkeit ein, bevor du Container än
 | Dateien lassen sich nicht hoch- oder herunterladen | `backend-api`, danach `object-store` oder externer Bucket | Aufgelöste Organisationsverbindung, Zugangsdaten, öffentlicher Endpunkt und Browser-CORS. |
 | Eine Agent-Laufzeit startet nicht oder erreicht ihr Modell nicht | `sandbox`, `sandbox-llm-gateway` | Sitzungserstellung, Gateway-Anmeldung, Modellverfügbarkeit und Laufzeit-Image. |
 | Sandbox-Netzzugriff oder Seitenrendering scheitert | `sandbox-egress`, `sandbox` | Zielhost, erlaubte Ports, Egress-Regeln und Sitzungsprotokolle. |
-| Videotranskript wird nicht abgerufen | `backend-worker`, `bgutil-provider` | Videozugriff, Extraktionsfehler, konfigurierter Proxy und Browsersitzungsstatus. |
+| Videotranskript wird nicht abgerufen | `backend-worker`, `sandbox`, `sandbox-egress`, `bgutil-provider` | Videozugriff, Extraktionsfehler, eine freie Sandbox-Sitzung, Sandbox-Egress, konfigurierter Proxy und Browsersitzungsstatus. |
 
 Nutze logische Dienstnamen mit `tale logs <service>`. Für deinen eigenen Compose-Stack gilt `docker compose logs --tail=200 <service>`. Erzeugte Containernamen können Projekt, Farbe und Replikatnummer enthalten.
 

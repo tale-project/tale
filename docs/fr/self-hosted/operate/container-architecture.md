@@ -17,7 +17,7 @@ Commence par la responsabilité de chaque service pour circonscrire une panne av
 | Impossible d’envoyer ou télécharger des fichiers | `backend-api`, puis `object-store` ou bucket externe | Connexion résolue de l’organisation, identifiants, point d’accès public et CORS du navigateur. |
 | Un environnement d’agent ne démarre pas ou n’atteint pas son modèle | `sandbox`, `sandbox-llm-gateway` | Création de session, authentification de la passerelle, disponibilité du modèle et image d’exécution. |
 | Accès réseau sandbox ou rendu de page en échec | `sandbox-egress`, `sandbox` | Hôte cible, ports autorisés, règles de sortie et journaux de session. |
-| Échec de récupération d’une transcription vidéo | `backend-worker`, `bgutil-provider` | Accès à la vidéo, erreurs de l’extracteur, proxy et état des sessions de navigateur. |
+| Échec de récupération d’une transcription vidéo | `backend-worker`, `sandbox`, `sandbox-egress`, `bgutil-provider` | Accès à la vidéo, erreurs de l’extracteur, session sandbox libre, sortie de la sandbox, proxy et état des sessions de navigateur. |
 
 Utilise les noms logiques avec `tale logs <service>`. Pour ton propre Compose, utilise `docker compose logs --tail=200 <service>`. Les noms de conteneurs générés peuvent inclure le projet, la couleur et le numéro de réplica.
 

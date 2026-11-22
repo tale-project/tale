@@ -17,7 +17,7 @@ Use service ownership to narrow an incident before changing containers. The pack
 | Files cannot be uploaded or downloaded | `backend-api`, then `object-store` or the external bucket | The resolved organization connection, credentials, public endpoint, and browser CORS. |
 | An agent runtime cannot start or reach its model | `sandbox`, `sandbox-llm-gateway` | Session creation, gateway authentication, model availability, and runtime image. |
 | Sandboxed network access or page rendering fails | `sandbox-egress`, `sandbox` | Target hostname, allowed ports, egress policy, and session logs. |
-| Video transcript retrieval fails | `backend-worker`, `bgutil-provider` | Video access, extractor errors, configured proxy, and browser-session status. |
+| Video transcript retrieval fails | `backend-worker`, `sandbox`, `sandbox-egress`, `bgutil-provider` | Video access, extractor errors, a free sandbox session, sandbox egress, configured proxy, and browser-session status. |
 
 Use logical service names with `tale logs <service>`. For your own Compose stack, use `docker compose logs --tail=200 <service>`; generated container names may include a project, colour, and replica number.
 

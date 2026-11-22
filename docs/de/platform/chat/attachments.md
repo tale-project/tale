@@ -70,5 +70,7 @@ Lege ein Briefing oder eine Richtlinie für wiederkehrende Fragen einmal im pass
 | Eine wartende Nachricht wird nicht gesendet | Prüfe den Status aller Anhänge einschließlich Videolinks. Entferne fehlerhafte Einträge oder versuche sie erneut. |
 | Ein entfernter Videolink erscheint wieder | Tale konnte ihn nicht entfernen; die eingeblendete Meldung nennt den Grund. Der Link bleibt angehängt. Entferne ihn erneut, sobald die Ursache behoben ist, etwa wenn deine Verbindung wieder steht oder nachdem du dich neu angemeldet hast. |
 | Ein YouTube-Link meldet, der Server solle nachweisen, kein Bot zu sein | YouTube hat die Adresse eurer Instanz auf die Probe gestellt, und die Instanz hat keinen Token-Anbieter, um zu antworten. Bitte einen Admin, den [Token-Anbieter zu aktivieren](/de/self-hosted/configuration/video-ingestion#token-provider). Hänge bis dahin die Aufnahme selbst oder ihr Transkript an. |
+| Ein Videolink meldet, das Video sei zu groß für die Verarbeitung | Das Audio des Videos ist größer, als Tale aus einem Link liest. Hänge stattdessen die Aufnahme selbst oder ihr Transkript an. |
+| Ein Videolink bleibt minutenlang **In Warteschlange** | Er wartet auf eine freie Sandbox eurer Instanz und startet von selbst, sobald eine frei ist. Scheitert er als vorübergehender Fehler, versuche es später erneut oder bitte einen Admin, die [Sandbox-Kapazität](/de/platform/admin/sandboxes) zu prüfen. |
 
 Unter [Fragen im Chat stellen](/de/platform/chat/basics) erfährst du, wie du Quellen prüfst und das Gespräch fortsetzt.

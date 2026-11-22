@@ -176,6 +176,19 @@ HEAVY_SLOT_MEMORY_MB=512
 
 Utilise ensuite **Relancer l'indexation** sur un document en échec. [Mémoire pour lire les fichiers](/fr/self-hosted/configuration/environment-reference#file-memory) indique ce qui passe et comment lire plusieurs fichiers à la fois.
 
+## Les liens vidéo sont récupérés dans une session sandbox {#video-sandbox}
+
+Jusqu’à cette version, le backend lançait `yt-dlp` à côté de lui pour lire un lien vidéo. Il l’exécute désormais dans une session sandbox propre au lien. Ce qu’un membre colle est ainsi récupéré selon les règles de la sandbox et admis par l’hôte des sandboxes, pas dans l’application.
+
+Vérifie quatre points avant la mise à niveau :
+
+- **Les destinations de la sandbox.** Les requêtes d’un lien sortent désormais par le proxy de sortie de la sandbox. Si `SANDBOX_EGRESS_ALLOWLIST` est défini, ajoute les plateformes vidéo que tes membres utilisent et les hôtes depuis lesquels elles servent leurs médias. Le backend lui-même ne se connecte plus à une plateforme vidéo, seulement à un proxy que tu as configuré pour la vidéo.
+- **Les sessions de rendu.** Chaque lien en cours occupe l’une des **Sessions de rendu** de l’organisation, que l’analyse des sites utilise aussi. La valeur par défaut est 2. Un lien qui n’en trouve aucune de libre attend ; si des liens restent **En file d'attente** pendant l’analyse de sites, augmente la limite sous **Paramètres > Sandboxes**.
+- **Les réglages de développement.** `VIDEO_INGEST_BIN_DIR`, `VIDEO_INGEST_FFMPEG_LOCATION` et `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` désignent des outils sur la machine du backend. La session d’un déploiement utilise les outils de son image et les ignore.
+- **Les images que tu construis ou fixes toi-même.** L’image de l’application ne contient plus `yt-dlp` ; l’image d’exécution de la sandbox le contient. Utilise l’image d’exécution de la sandbox de cette version : avec une image plus ancienne, chaque lien échoue avec « Le traitement vidéo n'est pas encore activé — contacte ton administrateur ».
+
+L’audio d’une vidéo sans sous-titres est désormais stocké tel que la plateforme le sert, le plus souvent dans un fichier WebM ou M4A, alors qu’il était converti en MP3. Les transcriptions ne changent pas. [Configurer l’import de transcriptions vidéo](/fr/self-hosted/configuration/video-ingestion#where-retrieval-runs) décrit où un lien est récupéré et ses limites.
+
 ## Mise à niveau depuis v0.5.77 ou antérieure
 
 À partir de v0.5.78, les versions écrivent les exécutions d’automatisation avec le protocole d’écriture 2. Leur migration `0163` fait passer à l’état **Suspendue** chaque exécution encore en file d’attente, en cours ou en attente, et une exécution suspendue ne reprend jamais. La première mise à niveau depuis v0.5.77 arrête donc l’ancien backend une fois toutes les exécutions terminées, et ne démarre qu’ensuite la nouvelle version. `tale deploy` s’en charge lui-même, une seule fois.

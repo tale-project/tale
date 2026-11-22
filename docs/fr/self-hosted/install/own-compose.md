@@ -146,7 +146,7 @@ Les entrées `environment` remplacent `env_file`. Le fragment conserve donc les 
 | `sandbox` | Spawner accessible au backend sur le port 8003. |
 | `sandbox-egress` | Proxy de sortie accessible aux sessions sur le port 3128. |
 | `sandbox-llm-gateway` / `llm-gateway` | Passerelle accessible au backend et aux sessions sur le port 8080. |
-| `bgutil-provider` | Fournisseur de jetons accessible au worker sur le port 4416. |
+| `bgutil-provider` | Fournisseur de jetons accessible au backend sur le port 4416. La session sandbox d’une vidéo l’interroge par l’intermédiaire de `backend-api`. |
 
 Le réseau sandbox doit être isolé des sorties directes. Le stack généré le nomme `tale-sandbox-net` ; si tu choisis un autre nom, garde `SANDBOX_EGRESS_NETWORK` cohérent avec le réseau réel. La sortie doit toujours passer par `sandbox-egress`.
 

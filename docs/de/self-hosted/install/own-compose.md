@@ -146,7 +146,7 @@ Einträge unter `environment` haben Vorrang vor `env_file`. Das Beispiel erhält
 | `sandbox` | Für das Backend erreichbarer Spawner auf Port 8003. |
 | `sandbox-egress` | Für Sandbox-Sitzungen erreichbarer Egress-Proxy auf Port 3128. |
 | `sandbox-llm-gateway` / `llm-gateway` | Gateway für Backend und Sandbox-Sitzungen auf Port 8080. |
-| `bgutil-provider` | Vom Worker erreichbarer Token-Sidecar auf Port 4416. |
+| `bgutil-provider` | Vom Backend erreichbarer Token-Sidecar auf Port 4416. Die Sandbox-Sitzung eines Videos fragt ihn über `backend-api`. |
 
 Das Sandbox-Netz darf keinen direkten Ausgang erlauben. Der erzeugte Stack nennt es `tale-sandbox-net`. Bei einem anderen Namen müssen `SANDBOX_EGRESS_NETWORK` und das tatsächliche Netz übereinstimmen. Ausgehender Verkehr muss weiterhin über `sandbox-egress` laufen.
 

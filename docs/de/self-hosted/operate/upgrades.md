@@ -180,6 +180,19 @@ HEAVY_SLOT_MEMORY_MB=512
 
 Wähle danach bei einem fehlgeschlagenen Dokument **Indexierung erneut versuchen**. [Arbeitsspeicher zum Lesen von Dateien](/de/self-hosted/configuration/environment-reference#file-memory) nennt, was passt und wie ein Replikat mehrere Dateien gleichzeitig liest.
 
+## Videolinks werden in einer Sandbox-Sitzung abgerufen {#video-sandbox}
+
+Bis zu diesem Release hat das Backend `yt-dlp` neben sich selbst gestartet, um einen Videolink zu lesen. Jetzt führt es `yt-dlp` in einer eigenen Sandbox-Sitzung des Links aus. Was ein Mitglied einfügt, wird so nach den Regeln der Sandbox abgerufen und vom Sandbox-Host zugelassen, nicht in der Anwendung.
+
+Prüfe vor dem Upgrade vier Dinge:
+
+- **Sandbox-Ziele.** Die Anfragen eines Links verlassen die Instanz jetzt über den Egress-Proxy der Sandbox. Ist `SANDBOX_EGRESS_ALLOWLIST` gesetzt, ergänze die Videoplattformen, die deine Mitglieder nutzen, und die Hosts, von denen diese Plattformen Medien ausliefern. Das Backend selbst verbindet sich nicht mehr mit einer Videoplattform, nur noch mit einem Proxy, den du für Videos konfiguriert hast.
+- **Render-Sitzungen.** Jeder Link in Arbeit belegt eine der **Render-Sitzungen** der Organisation, die auch Website-Scans nutzen. Der Standard ist 2. Findet ein Link keine freie, wartet er; bleiben Links **In Warteschlange**, während Websites gescannt werden, erhöhe das Limit unter **Einstellungen > Sandboxes**.
+- **Entwicklungseinstellungen.** `VIDEO_INGEST_BIN_DIR`, `VIDEO_INGEST_FFMPEG_LOCATION` und `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` nennen Werkzeuge auf dem Rechner des Backends. Die Sitzung eines Deployments nutzt die Werkzeuge ihres Images und ignoriert sie.
+- **Images, die du selbst baust oder festlegst.** Das Anwendungs-Image enthält kein `yt-dlp` mehr; das Sandbox-Runtime-Image enthält es. Betreibe das Sandbox-Runtime-Image dieses Release: Mit einem älteren scheitert jeder Link mit „Video-Verarbeitung noch nicht aktiviert — Administrator kontaktieren“.
+
+Das Audio eines Videos ohne Untertitel wird jetzt so gespeichert, wie die Plattform es ausliefert, meist als WebM- oder M4A-Datei; bisher wurde es in MP3 umgewandelt. Transkripte ändern sich nicht. [Videotranskripte importieren](/de/self-hosted/configuration/video-ingestion#where-retrieval-runs) beschreibt, wo ein Link abgerufen wird und welche Grenzen gelten.
+
 ## Upgrade von v0.5.77 oder älter
 
 Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.

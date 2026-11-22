@@ -146,7 +146,7 @@ Explicit `environment` entries override `env_file`. The fragment therefore prese
 | `sandbox` | Spawner reachable by the backend on port 8003. |
 | `sandbox-egress` | Egress proxy reachable by sandbox sessions on port 3128. |
 | `sandbox-llm-gateway` / `llm-gateway` | Gateway reachable from backend and sandbox sessions on port 8080. |
-| `bgutil-provider` | Token sidecar reachable by the worker on port 4416. |
+| `bgutil-provider` | Token sidecar reachable by the backend on port 4416. A video's sandbox session asks it through `backend-api`. |
 
 The sandbox network must be isolated from direct outbound access. The generated stack names it `tale-sandbox-net`; if you choose another name, keep `SANDBOX_EGRESS_NETWORK` and the actual network consistent. Egress must still go through `sandbox-egress`.
 

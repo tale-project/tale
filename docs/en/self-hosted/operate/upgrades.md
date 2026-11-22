@@ -176,6 +176,19 @@ HEAVY_SLOT_MEMORY_MB=512
 
 Afterwards, use **Retry indexing** on a document that failed. [Memory for reading files](/self-hosted/configuration/environment-reference#file-memory) lists what fits and how to read more than one file at once.
 
+## Video links are fetched in a sandbox session {#video-sandbox}
+
+Until this release, the backend ran `yt-dlp` beside itself to read a video link. It now runs it in a sandbox session of the link's own, so that whatever a member pastes is fetched under the sandbox's rules and admitted by the sandbox host, not inside the application.
+
+Check four things before you upgrade:
+
+- **Sandbox destinations.** A link's requests now leave through the sandbox's egress proxy. If `SANDBOX_EGRESS_ALLOWLIST` is set, add the video platforms your members use and the hosts those platforms serve media from. The backend itself no longer connects to a video platform, only to a proxy you configured for video.
+- **Render sessions.** Each link in progress holds one of the organization's **Render sessions**, which website crawling uses too. The default is 2. A link that finds none free waits; if links stay **Queued** while sites are crawled, raise the limit under **Settings > Sandboxes**.
+- **Development settings.** `VIDEO_INGEST_BIN_DIR`, `VIDEO_INGEST_FFMPEG_LOCATION` and `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` name tools on the backend's own machine. A deployment's session uses the tools of its image and ignores them.
+- **Images you build or pin yourself.** The application image no longer carries `yt-dlp`; the sandbox runtime image does. Run the sandbox runtime image of this release: with an older one, every link fails with "Video processing is not enabled yet — contact your administrator".
+
+The audio of a video without captions is now stored as the platform serves it, typically as a WebM or M4A file, where it used to be converted to MP3. Transcripts are unchanged. [Configure video transcript ingestion](/self-hosted/configuration/video-ingestion#where-retrieval-runs) describes where a link is fetched and its limits.
+
 ## Upgrade from v0.5.77 or earlier
 
 Releases from v0.5.78 on write automation runs with writer protocol 2. Their migration `0163` puts every run that is still queued, running or waiting **On hold**, and a held run never resumes. The first upgrade from v0.5.77 therefore stops the old backend while no run is unfinished, and only then starts the new version. `tale deploy` does this itself, once.
