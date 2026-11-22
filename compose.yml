@@ -391,52 +391,62 @@ services:
   # Internal-only: blobs reach the browser through presigned URLs the backend
   # signs and the proxy forwards, never by exposing the store itself.
   #
-  # The image is MinIO's own release, rebuilt: MinIO archived its community
-  # edition and withdrew the free images from Docker Hub (2026-09-11) and
-  # quay.io (2026-09-24), so tale-project/ops rebuilds Dockerfile.release
-  # for this release from the GitHub release assets — the same binaries,
-  # verified against MinIO's minisign key — and publishes it under the
-  # upstream tag (ops: .github/images/minio). The tag is never rebuilt in
-  # place; `object-store` in tools/cli THIRD_PARTY_IMAGES is the one pin.
+  # The server is versitygw (Apache-2.0): an S3 gateway over a directory of
+  # files, in its publisher's own image for amd64 and arm64, pinned by digest.
+  # `object-store` in tools/cli THIRD_PARTY_IMAGES is the one pin. It holds
+  # about a tenth of the memory MinIO did at rest (tale-project/tale#4942).
+  #
+  # Earlier releases ran MinIO here, on the volume `object-store-data`, in a
+  # format versitygw does not read. This service never mounts that volume, so
+  # a stack that held blobs under an earlier release starts with an empty
+  # store beside the untouched old one: move the blobs across before you
+  # update (docs: self-hosted/operate/upgrades). `tale deploy` reads which
+  # store a deployment's blobs are in and keeps MinIO until they are moved.
   object-store:
-    image: ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z
-    # The ops rebuild (see above) publishes ONLY linux/amd64 — no arm64
-    # manifest exists, so an unpinned pull fails outright on Apple Silicon /
-    # arm64 hosts ("no matching manifest for linux/arm64/v8"). Pin the arch
-    # so compose requests it explicitly. ARM hosts need amd64 emulation;
-    # Docker Desktop and OrbStack provide it, standalone Linux needs setup.
-    platform: linux/amd64
+    image: ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
     pull_policy: missing
 
     container_name: tale-object-store
 
-    # Flush in-flight multipart writes before SIGKILL.
+    # Let a write in flight reach the disk before SIGKILL.
     stop_grace_period: 30s
 
-    command: server /data --address ':9000' --console-address ':9001'
+    # `--health`: the path the healthcheck asks, one no bucket can be named.
+    # `--quiet`: no line per request, each of which would name an object.
+    # `--fsync`: an object is on the disk before its upload is answered.
+    command: --port :9000 --health /_health --quiet posix --fsync /data
 
+    # No `env_file`: the edge forwards the internet's requests for presigned
+    # URLs to this service, and it gets no secret of the deployment but its
+    # own key. Presigned URLs are signed by the backend, so the store needs
+    # no public origin.
     environment:
-      MINIO_ROOT_USER: ${OBJECT_STORE_ACCESS_KEY:-tale}
-      MINIO_ROOT_PASSWORD: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
-      # Presigned URLs are signed by the backend against the internal
-      # endpoint; the proxy forwards them, so the store needs no public origin.
-      MINIO_BROWSER: 'off'
+      ROOT_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      ROOT_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # The region a request is signed for; the backend reads the same setting.
+      VGW_REGION: ${OBJECT_STORE_REGION:-us-east-1}
 
-    env_file:
-      - path: .env
-        required: false
-
+    # An object is a file under its bucket's directory, and what S3 says of it
+    # (content type, ETag) is in the file's extended attributes. The volume's
+    # filesystem has to support them, and whatever copies or archives the
+    # volume has to keep them: `tale backup` does.
     volumes:
-      - object-store-data:/data
+      - blob-data:/data
 
     restart: unless-stopped
 
     healthcheck:
-      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      # The image's busybox. GET, which is all the health path answers.
+      test:
+        ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9000/_health']
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 20s
+      start_period: 10s
+
+    # It needs no privilege: it serves a port above 1024 from files it owns.
+    cap_drop:
+      - ALL
 
     logging:
       driver: 'json-file'
@@ -1192,7 +1202,11 @@ volumes:
   # generated media). Separate from the config store on purpose: config is
   # small, text, and diffable; blobs are large and opaque, and an operator
   # relocating one should not have to move the other.
-  object-store-data:
+  #
+  # `object-store-data`, the volume of the MinIO that earlier releases ran,
+  # is not declared any more: Compose leaves a volume it does not declare
+  # where it is, `down -v` included.
+  blob-data:
     driver: local
 
   # The proxy's ACME account and certificates, and its self-signed CA

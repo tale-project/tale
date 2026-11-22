@@ -530,8 +530,14 @@ const REFUSAL_CASES: Record<RefusalId, () => CompileInput> = {
     return { ...input, images: {} };
   },
   'platform-mismatch': () => single('db', { platform: 'linux/arm64' }),
+  // A deployment whose blobs are still in MinIO's volume: the store asks for
+  // the one architecture MinIO's image has. versitygw's names none.
   'object-store-architecture': () =>
-    single('object-store', {}, { architecture: 'arm64' }),
+    single(
+      'object-store',
+      { platform: 'linux/amd64' },
+      { architecture: 'arm64' },
+    ),
   'entrypoint-words': () => single('db', { command: ['postgres', 'a\nb'] }),
   'healthcheck-missing': () => single('db', { healthcheck: undefined }),
   duration: () => single('db', { stop_grace_period: 'soon' }),

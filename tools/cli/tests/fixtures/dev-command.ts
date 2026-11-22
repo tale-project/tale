@@ -67,6 +67,12 @@ mock.module('../../src/lib/docker/ensure-config-mountpoints', () => ({
 mock.module('../../src/lib/docker/migrate-config-volume', () => ({
   migrateConfigVolume: async () => {},
 }));
+// Which blob store the dev stack runs is read from its volumes, by helper
+// containers: here it is the one a new stack gets.
+mock.module('../../src/lib/docker/resolve-object-store', () => ({
+  resolveObjectStore: async () => 'versitygw',
+  minioNotice: () => '',
+}));
 mock.module('../../src/lib/docker/ensure-volumes', () => ({
   ensureVolumes: async () => true,
 }));

@@ -13,6 +13,7 @@ import { delimiter, join } from 'node:path';
 import { createModuleMocks } from '../../../utils/module-mock-fixture';
 import { REQUIRED_VOLUMES } from '../../compose/generators/constants';
 import type { DeploymentColor, ServiceName } from '../../compose/types';
+import { MINIO_IMAGE, THIRD_PARTY_IMAGES } from '../../compose/types';
 import { setProjectId } from '../../project/project-context';
 import { getFlipPending, setFlipPending } from '../../state/flip-pending';
 import { getCurrentColor } from '../../state/get-current-color';
@@ -304,6 +305,12 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker container inspect --format {{.State.Running}} demo-abc123-object-store',
   'docker container inspect --format {{.State.Running}} demo-abc123-proxy',
   'docker container inspect --format {{.State.Running}} demo-abc123-docker-api',
+  // Which blob store the deployment runs, read from its volumes before the
+  // pull (docker/resolve-object-store.ts): MinIO, whose volume holds blobs.
+  'docker volume inspect demo-abc123_blob-data',
+  'docker run --rm -v demo-abc123_blob-data:/data:ro alpine:3.22 sh -c find /data -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit',
+  'docker volume inspect demo-abc123_object-store-data',
+  'docker run --rm -v demo-abc123_object-store-data:/data:ro alpine:3.22 sh -c find /data -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit',
   'docker info --format {{.CgroupVersion}} | silent timeout=10',
   'docker pull ghcr.io/tale-project/tale/tale-platform:0.6.1',
   'docker pull ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:0.6.1',
@@ -1343,6 +1350,100 @@ async function isolatedSuite(): Promise<void> {
       expect(await backendApiContainer(null, createDockerRuntime())).toBe(
         `${PROJECT}-backend-api`,
       );
+    });
+  });
+
+  // Which server the blob store runs is what the deployment's volumes hold
+  // (docker/resolve-object-store.ts, tale-project/tale#4942).
+  describe('a deploy runs the blob store its blobs are in', () => {
+    const STORE = `${PROJECT}-object-store`;
+    const deployWith = async (
+      options: { stop?: boolean; services?: ServiceName[] } = {},
+    ): Promise<void> => {
+      writeFileSync(
+        join(deployDir, 'tale.json'),
+        JSON.stringify({
+          version: 1,
+          cliVersion: TARGET,
+          createdAt: '2026-11-12T00:00:00.000Z',
+          id: PROJECT,
+        }),
+      );
+      await setCurrentColor(deployDir, 'blue');
+      const { deploy } = await import('../../actions/deploy');
+      await deploy({
+        version: TARGET,
+        stop: options.stop ?? false,
+        env: {
+          GHCR_REGISTRY: REGISTRY,
+          SITE_URL: 'https://localhost',
+          HEALTH_CHECK_TIMEOUT: 1,
+          DRAIN_TIMEOUT: 0,
+          DEPLOY_DIR: deployDir,
+        },
+        hostAlias: 'localhost',
+        dryRun: false,
+        quiet: true,
+        skipBackup: true,
+        ...(options.services === undefined
+          ? {}
+          : { services: options.services }),
+      });
+    };
+    const store = () => fake.instances.get(STORE);
+
+    test("a deployment whose blobs are in MinIO's volume keeps MinIO, on that volume, when its store is replaced", async () => {
+      seedLiveBlue(fake);
+
+      await deployWith({ services: ['object-store'] });
+
+      // MinIO, on MinIO's volume: the shape of each server is
+      // compose-parity.test.ts's to hold.
+      expect(store()?.image).toBe(MINIO_IMAGE);
+      // Nothing was written into versitygw's volume.
+      expect(fake.volumes.get(`${PROJECT}_blob-data`)?.size ?? 0).toBe(0);
+      // The pull asked for MinIO's image for the architecture it has.
+      expect(
+        calls.some(
+          ({ args }) =>
+            args[0] === 'pull' &&
+            args.includes('linux/amd64') &&
+            args.includes(MINIO_IMAGE),
+        ),
+      ).toBe(true);
+    });
+
+    test('a deployment whose blobs are in versitygw’s volume runs versitygw', async () => {
+      seedLiveBlue(fake);
+      fake.seedVolume(`${PROJECT}_blob-data`, { 'tale-blobs/org/a': 'blob' });
+
+      await deployWith({ services: ['object-store'] });
+
+      expect(store()?.image).toBe(THIRD_PARTY_IMAGES['object-store']);
+    });
+
+    test('a deployment that never stored a blob gets versitygw', async () => {
+      seedLiveBlue(fake);
+      // MinIO's volume exists and is empty: the store never ran there.
+      fake.seedVolume(`${PROJECT}_object-store-data`);
+
+      await deployWith({ services: ['object-store'] });
+
+      expect(store()?.image).toBe(THIRD_PARTY_IMAGES['object-store']);
+    });
+
+    test('a deploy that cannot look into the blob volumes stops before it pulls or changes anything', async () => {
+      seedLiveBlue(fake);
+      refuses = (args) =>
+        args[0] === 'run' && String(args.at(-1)).includes('-print -quit');
+      const before = store()?.image;
+
+      await expect(deployWith({ services: ['object-store'] })).rejects.toThrow(
+        /Could not inspect demo-abc123_blob-data for existing blobs/,
+      );
+
+      expect(calls.some(({ args }) => args[0] === 'pull')).toBe(false);
+      expect(store()?.image).toBe(before);
     });
   });
 

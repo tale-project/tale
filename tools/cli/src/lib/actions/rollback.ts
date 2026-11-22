@@ -36,6 +36,7 @@ import {
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
 import type { pullImage } from '../docker/pull-image';
+import { resolveObjectStore } from '../docker/resolve-object-store';
 import { probeCgroupVersion } from '../docker/setup-checks';
 import { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { selectRuntime } from '../runtime/select-runtime';
@@ -266,6 +267,9 @@ export async function rollback(
       version: rollbackVersion,
       registry: env.GHCR_REGISTRY,
       cgroupVersion: await probeCgroupVersion(),
+      // The store the deployment's blobs are in, whatever release rolls
+      // back: a rollback never changes the server under them.
+      objectStore: await resolveObjectStore(`${getProjectId()}_`, runtime),
     };
     const reservationNotice = memoryReservationNotice(serviceConfig);
     if (reservationNotice) logger.warn(reservationNotice);

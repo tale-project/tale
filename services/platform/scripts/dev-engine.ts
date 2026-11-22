@@ -39,6 +39,7 @@ import {
   type SupervisorState,
   SUPERVISOR_LIMITS,
 } from './backend-supervisor';
+import { minioDevBlobsNotice } from './dev-blob-store';
 import { DEV_GATES } from './dev-gates';
 import { isTruthy, shouldOpenBrowser } from './dev-modes';
 import {
@@ -97,6 +98,7 @@ const DEV_DOCKER_SERVICES = [
   // The blob store. S3-compatible storage is the ONLY blob backend, so
   // without this every upload in the dev stack fails closed — the host
   // backend seeds the deployment-default connection against it at boot.
+  // versitygw, on `blob-data` (dev-blob-store.ts).
   'object-store',
   'sandbox-llm-gateway',
   'sandbox',
@@ -757,6 +759,15 @@ async function ensureDockerDependencies(): Promise<void> {
   }
 
   ensureSandboxNetwork();
+  // Asked before `up`, which creates the blob store's new volume.
+  const blobsNotice = minioDevBlobsNotice((args) => {
+    const ran = spawnSync('docker', [...args], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return { status: ran.status, stdout: ran.stdout ?? '' };
+  }, dockerComposeArgs([]));
   const dockerUp = await runStep(
     {
       active: 'Starting Docker backing services',
@@ -812,6 +823,7 @@ async function ensureDockerDependencies(): Promise<void> {
   );
 
   if (dockerUp) {
+    if (blobsNotice !== null) warnLine(blobsNotice);
     await waitForLlmGateway();
     await ensureSandboxRuntimeImage();
   }

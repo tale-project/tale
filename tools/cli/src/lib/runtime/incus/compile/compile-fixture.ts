@@ -152,6 +152,13 @@ const IMAGE_SHAPES: Record<string, ImageShape> = {
     user: 'appuser',
     init: true,
   },
+  // The blob store: versitygw's own image, which declares its entrypoint
+  // and nothing else (no command, no volume, no user), and the MinIO rebuild
+  // a deployment keeps while its blobs are in MinIO's volume.
+  versitygw: {
+    entrypoint: ['/usr/local/bin/docker-entrypoint.sh'],
+    cmd: null,
+  },
   minio: {
     entrypoint: ['/usr/bin/docker-entrypoint.sh'],
     cmd: ['minio'],

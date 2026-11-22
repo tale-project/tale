@@ -218,8 +218,8 @@ export function buildDevCompose(
       // The blob store the backend tier depends on (it seeds the deployment-
       // default blob connection at boot and refuses every upload without
       // one). Same service as the stateful stack — dev writes real blobs to
-      // the `object-store-data` dev volume, and the proxy forwards the
-      // presigned `/<bucket>/*` URLs to it exactly as in production.
+      // the `blob-data` dev volume, and the proxy forwards the presigned
+      // `/<bucket>/*` URLs to it exactly as in production.
       'object-store': createObjectStorageService(config),
       proxy,
       'docker-api': createDockerApiService(config),

@@ -62,6 +62,10 @@ import {
   admitTagAutomationImage,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
+import {
+  minioNotice,
+  resolveObjectStore,
+} from '../docker/resolve-object-store';
 import { probeCgroupVersion } from '../docker/setup-checks';
 import { discoverOrgs } from '../project/org-dirs';
 import { IncusRuntime } from '../runtime/incus/incus-runtime';
@@ -411,10 +415,20 @@ export async function deploy(options: DeployOptions): Promise<void> {
         `Stateful services: ${statefulToUpdate.join(', ') || 'none'}`,
       );
 
+      // Which blob store this deployment runs is what its volumes hold,
+      // read before the pull: the image depends on it.
+      const objectStore = await resolveObjectStore(
+        `${getProjectId()}_`,
+        runtime,
+      );
+      if (objectStore === 'minio') {
+        logger.info(minioNotice(`${getProjectId()}_`));
+      }
       const serviceConfig: ServiceConfig = {
         version,
         registry: env.GHCR_REGISTRY,
         cgroupVersion: await probeCgroupVersion(),
+        objectStore,
       };
       const reservationNotice = memoryReservationNotice(serviceConfig);
       if (reservationNotice) logger.warn(reservationNotice);

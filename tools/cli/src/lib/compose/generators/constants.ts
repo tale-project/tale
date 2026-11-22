@@ -55,8 +55,9 @@ export const REQUIRED_VOLUMES = [
 ] as const;
 
 /**
- * Where the backend tier reaches the BUNDLED blob store (`object-store`, the
- * MinIO service on `object-store-data`). The backend seeds the deployment
+ * Where the backend tier reaches the BUNDLED blob store (`object-store`:
+ * versitygw on `blob-data`, or MinIO on `object-store-data` where a
+ * deployment's blobs still are in it). The backend seeds the deployment
  * default `default/object-storage/connection.json` against this address at
  * boot, so a default connection that still points here means the blobs live
  * on the local volume — the test the backup uses to decide whether to

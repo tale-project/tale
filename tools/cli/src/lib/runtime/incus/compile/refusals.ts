@@ -26,7 +26,7 @@ export const REFUSAL_REASONS = {
   'platform-mismatch':
     'Incus does not emulate another architecture, so an image must match the server.',
   'object-store-architecture':
-    'The bundled object store image exists only for amd64; on another architecture OBJECT_STORE_ENDPOINT must name an external S3 store.',
+    "The MinIO image a deployment's blob store runs while its blobs are in MinIO's volume exists only for amd64; on another architecture OBJECT_STORE_ENDPOINT must name an external S3 store.",
   'entrypoint-words':
     'Incus splits oci.entrypoint as a shell does, so every word of the command must survive quoting.',
   'healthcheck-missing':

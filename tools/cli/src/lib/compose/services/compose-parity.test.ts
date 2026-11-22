@@ -23,6 +23,7 @@ import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
   BUILDKITD_MIRROR_IMAGE,
+  MINIO_IMAGE,
   THIRD_PARTY_IMAGES,
   imagePlatform,
   imageRef,
@@ -99,10 +100,12 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       command?: string;
       volumes?: string[];
       security_opt?: string[];
+      env_file?: unknown;
       pull_policy?: string;
     }
   >;
   networks?: Record<string, { internal?: boolean } | null>;
+  volumes?: Record<string, unknown>;
 };
 
 function networkNames(networks: unknown): string[] {
@@ -890,9 +893,106 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     // `tale deploy` auto-generates OBJECT_STORE_SECRET_KEY into .env; the
     // `:?` form makes a missing one fail the compose up instead of silently
     // standing up a world-writable store on a published default.
-    const password =
-      createObjectStorageService(config).environment?.MINIO_ROOT_PASSWORD;
-    expect(password).toContain('OBJECT_STORE_SECRET_KEY:?');
+    expect(
+      createObjectStorageService(config).environment?.ROOT_SECRET_KEY,
+    ).toContain('OBJECT_STORE_SECRET_KEY:?');
+    // And the same of the MinIO a deployment keeps while its blobs are in
+    // MinIO's volume.
+    expect(
+      createObjectStorageService({ ...config, objectStore: 'minio' })
+        .environment?.MINIO_ROOT_PASSWORD,
+    ).toContain('OBJECT_STORE_SECRET_KEY:?');
+  });
+
+  // versitygw (tale-project/tale#4942). What it is started with decides
+  // whether an upload survives a power cut, whether its healthcheck can
+  // pass, and where its files are: both pipelines say the same.
+  test('both pipelines start versitygw the same way, on its own volume', () => {
+    const generated = createObjectStorageService(config);
+    const shipped = compose.services['object-store'];
+
+    expect(generated.command).toBe(
+      '--port :9000 --health /_health --quiet posix --fsync /data',
+    );
+    expect(shipped?.command).toBe(generated.command);
+    expect(generated.volumes).toEqual(['blob-data:/data']);
+    expect(shipped?.volumes).toEqual(generated.volumes);
+    expect<unknown>(shipped?.healthcheck).toEqual(generated.healthcheck);
+    // GET on a path no bucket can be named: the image's busybox wget.
+    expect(generated.healthcheck).toMatchObject({
+      test: [
+        'CMD',
+        'wget',
+        '-q',
+        '-O',
+        '/dev/null',
+        'http://127.0.0.1:9000/_health',
+      ],
+    });
+    expect(Object.keys(generated.environment ?? {}).sort()).toEqual([
+      'ROOT_ACCESS_KEY',
+      'ROOT_SECRET_KEY',
+      'VGW_REGION',
+    ]);
+    expect(Object.keys(shipped?.environment ?? {}).sort()).toEqual(
+      Object.keys(generated.environment ?? {}).sort(),
+    );
+    // The region requests are signed for is the one the backend signs with.
+    expect(generated.environment?.VGW_REGION).toBe(
+      '${OBJECT_STORE_REGION:-us-east-1}',
+    );
+    expect(shipped?.environment?.VGW_REGION).toBe(
+      generated.environment?.VGW_REGION,
+    );
+    expect(
+      compose.services['backend-api']?.environment?.OBJECT_STORE_REGION,
+    ).toBe('${OBJECT_STORE_REGION:-us-east-1}');
+    expect(compose.volumes).toHaveProperty('blob-data');
+  });
+
+  // The edge forwards the internet's requests for presigned URLs to the
+  // store. MinIO was handed the whole of `.env`, the database's password and
+  // every provider key in it.
+  test('versitygw is handed no secret of the deployment but its own key, and no privilege', () => {
+    for (const service of [
+      createObjectStorageService(config),
+      compose.services['object-store'],
+    ]) {
+      expect(service?.env_file).toBeUndefined();
+      expect(service?.cap_drop).toEqual(['ALL']);
+      // Nothing the Incus runtime refuses an instance for.
+      expect(service?.security_opt).toBeUndefined();
+      expect(service?.platform).toBeUndefined();
+    }
+  });
+
+  test('a deployment whose blobs are in MinIO’s volume gets MinIO as it always ran', () => {
+    const minio = createObjectStorageService({
+      ...config,
+      objectStore: 'minio',
+    });
+
+    expect(minio.image).toBe(MINIO_IMAGE);
+    expect(minio.platform).toBe('linux/amd64');
+    expect(minio.command).toBe(
+      "server /data --address ':9000' --console-address ':9001'",
+    );
+    expect(minio.volumes).toEqual(['object-store-data:/data']);
+    expect(minio.healthcheck).toMatchObject({
+      test: ['CMD-SHELL', 'mc ready local || exit 1'],
+    });
+    expect(minio.env_file).toEqual(['.env']);
+    // Either server answers under the one name, on the one port, at the one
+    // route: nothing that reaches the store knows which it is.
+    expect(minio.networks).toEqual(createObjectStorageService(config).networks);
+    expect(minio.labels).toEqual(createObjectStorageService(config).labels);
+    expect(minio.container_name).toBe(
+      createObjectStorageService(config).container_name,
+    );
+    // Neither volume is the other's.
+    expect(createObjectStorageService(config).volumes).not.toContain(
+      'object-store-data:/data',
+    );
   });
 });
 
@@ -987,8 +1087,8 @@ describe('service → image parity', () => {
 
   test('the object-store pin is one value, shared by every lane', () => {
     // compose.yml, the CLI creator, and the deploy pull list must agree on
-    // the minio pin; THIRD_PARTY_IMAGES is the source the CLI lanes share and
-    // this holds compose.yml to it.
+    // the store's pin; THIRD_PARTY_IMAGES is the source the CLI lanes share
+    // and this holds compose.yml to it.
     expect(createObjectStorageService(config).image).toBe(
       THIRD_PARTY_IMAGES['object-store'],
     );
@@ -999,6 +1099,17 @@ describe('service → image parity', () => {
     const platform = imagePlatform(THIRD_PARTY_IMAGES['object-store']);
     expect(createObjectStorageService(config).platform).toBe(platform);
     expect(compose.services['object-store']?.platform).toBe(platform);
+    // versitygw's image is its publisher's, for amd64 and arm64, by digest.
+    expect(platform).toBeUndefined();
+    expect(THIRD_PARTY_IMAGES['object-store']).toMatch(
+      /^ghcr\.io\/versity\/versitygw:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}$/,
+    );
+    // MinIO's, which a deployment keeps while its blobs are in MinIO's
+    // volume, exists for amd64 alone: the pull and Compose both ask for it.
+    expect(imagePlatform(MINIO_IMAGE)).toBe('linux/amd64');
+    expect(imageRef({ ...config, objectStore: 'minio' }, 'object-store')).toBe(
+      MINIO_IMAGE,
+    );
   });
 });
 

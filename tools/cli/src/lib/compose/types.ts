@@ -87,6 +87,14 @@ export interface ComposeConfig {
 
 export type DeploymentColor = 'blue' | 'green';
 
+/**
+ * The server the bundled blob store runs (tale-project/tale#4942):
+ * versitygw, an S3 gateway over a directory of files, on `blob-data`; or
+ * MinIO, on `object-store-data`, for a deployment whose blobs are still in
+ * MinIO's format. Neither reads what the other wrote.
+ */
+export type ObjectStoreEngine = 'versitygw' | 'minio';
+
 export interface ServiceConfig {
   version: string;
   registry: string;
@@ -104,6 +112,12 @@ export interface ServiceConfig {
    * (memory-env.ts); left out, the engine counts as unread.
    */
   cgroupVersion?: 1 | 2 | null;
+  /**
+   * The server the bundled blob store runs here, which the deployment's own
+   * volumes say (docker/resolve-object-store.ts). Left out, the generators
+   * build the store a new install gets.
+   */
+  objectStore?: ObjectStoreEngine;
 }
 
 /**
@@ -221,8 +235,22 @@ export function isStatefulService(name: string): name is StatefulService {
  * and the deploy pull list share.
  */
 export const THIRD_PARTY_IMAGES = {
-  'object-store': 'ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z',
+  // versitygw (Apache-2.0), its publisher's own image for amd64 and arm64,
+  // pinned by digest so every host runs the same bytes.
+  'object-store':
+    'ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5',
 } as const satisfies Partial<Record<ServiceName, string>>;
+
+/**
+ * MinIO, the blob store of a deployment whose blobs are still in MinIO's
+ * volume. It is MinIO's own release, rebuilt: MinIO archived its community
+ * edition and withdrew the free images, so tale-project/ops rebuilds
+ * Dockerfile.release from the GitHub release assets, checked against
+ * MinIO's minisign key, and publishes it under the upstream tag, for amd64
+ * alone. The tag is never rebuilt in place.
+ */
+export const MINIO_IMAGE =
+  'ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z';
 
 /**
  * The pull-through registry mirror the spawner runs beside each
@@ -238,12 +266,10 @@ export const BUILDKITD_MIRROR_IMAGE =
 /**
  * A single-architecture image needs the same selection in Compose and the
  * deploy pre-pull. ARM hosts also need amd64 emulation already configured.
- * Remove this exception once the object-store pin has a native arm64 build.
+ * The one such image is MinIO's: versitygw's is built for both.
  */
 export function imagePlatform(image: string): 'linux/amd64' | undefined {
-  return image === THIRD_PARTY_IMAGES['object-store']
-    ? 'linux/amd64'
-    : undefined;
+  return image === MINIO_IMAGE ? 'linux/amd64' : undefined;
 }
 
 /**
@@ -266,9 +292,15 @@ export function imageRepoForService(
 
 /** The full image reference a service runs under the given registry+version. */
 export function imageRef(
-  config: Pick<ServiceConfig, 'registry' | 'version' | 'platformImage'>,
+  config: Pick<
+    ServiceConfig,
+    'registry' | 'version' | 'platformImage' | 'objectStore'
+  >,
   service: ServiceName,
 ): string {
+  if (service === 'object-store' && config.objectStore === 'minio') {
+    return MINIO_IMAGE;
+  }
   if (service in THIRD_PARTY_IMAGES) {
     return THIRD_PARTY_IMAGES[service as keyof typeof THIRD_PARTY_IMAGES];
   }

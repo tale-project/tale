@@ -72,6 +72,7 @@ describe('reset-keeps-backups', () => {
     expect(volumesAfterReset).toContain('backups');
     expect(volumesBefore).toContain('db-data');
     expect(volumesAfterReset).not.toContain('db-data');
+    expect(volumesAfterReset).not.toContain('blob-data');
     expect(volumesAfterReset).not.toContain('object-store-data');
     expect(listedAfterReset).toContain(id);
     // The deploy after the reset started from empty data …

@@ -1004,9 +1004,12 @@ jobs:
           set -euo pipefail
           docker run -d --name tale-itest-db --shm-size 256m \
             -p 127.0.0.1:5432:5432 -e DB_PASSWORD="$ITEST_DB_PASSWORD" tale-db:itest
-          docker run -d --name tale-itest-object-store -p 127.0.0.1:9000:9000 \
-            -e MINIO_ROOT_USER="$ITEST_S3_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$ITEST_S3_SECRET_KEY" \
-            -e MINIO_BROWSER=off "$OBJECT_STORE_IMAGE" server /data --address ':9000'
+          # versitygw, as compose starts it: on a volume (it refuses a
+          # directory that is not there, and keeps an object's metadata in
+          # extended attributes), answering its health path.
+          docker run -d --name tale-itest-object-store -p 127.0.0.1:9000:9000 -v /data \
+            -e ROOT_ACCESS_KEY="$ITEST_S3_ACCESS_KEY" -e ROOT_SECRET_KEY="$ITEST_S3_SECRET_KEY" \
+            "$OBJECT_STORE_IMAGE" --port :9000 --health /_health --quiet posix --fsync /data
           # The image's readiness marker, not pg_isready alone: the bootstrap
           # server answers before the init scripts and migrations have run.
           for _ in $(seq 1 90); do
@@ -1017,10 +1020,10 @@ jobs:
           docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
             "SELECT string_agg(extname || ' ' || extversion, ', ' ORDER BY extname) FROM pg_extension"
           for _ in $(seq 1 60); do
-            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/_health; then break; fi
             sleep 1
           done
-          curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
+          curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/_health || { echo '::error::the object store never became ready'; exit 1; }
 
       - name: Verify and record integration services
         env:

@@ -504,12 +504,13 @@ async function main(): Promise<number> {
     r.fail('Platform → backend-api /ping connectivity');
   }
   // The backend must reach the blob store it seeds the deployment default
-  // against at boot — an unreachable store means every upload 503s.
+  // against at boot — an unreachable store means every upload 503s. The
+  // store is versitygw, which answers its health path (`--health`, compose).
   if (
     await dockerExecOk(backendContainer, [
       'curl',
       '-sf',
-      'http://object-store:9000/minio/health/live',
+      'http://object-store:9000/_health',
     ])
   ) {
     r.pass('Backend → object-store health connectivity');
