@@ -17,8 +17,9 @@ three of them have no CLI flag at all (verified
     each other's provider config.
   - settings.json (enableInstallTelemetry off) — same per-exec dir.
   - mcp.json (the browser and the capability bridge, `exposure: direct`;
-    the bridge's key as "${TALE_GATEWAY_TOKEN}", which Pi resolves from its
-    environment when it starts the server) — same per-exec dir, the
+    the bridge is the platform's MCP server, reached over HTTP, its bearer
+    token "${TALE_GATEWAY_TOKEN}" in the Authorization header, which Pi
+    resolves from its environment when it connects) — same per-exec dir, the
     user-level file Pi reads without asking for project trust. Written only
     when the turn mounts a server.
   - the system-prompt APPEND, which Pi adds to its default system prompt —

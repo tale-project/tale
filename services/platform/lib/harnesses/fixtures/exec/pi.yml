@@ -156,7 +156,7 @@ managed-mcp-headless-bridge:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"url":"http://platform.internal/bridge/mcp","headers":{"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-mcp-bridge-only:
@@ -169,7 +169,7 @@ managed-mcp-bridge-only:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"connectors":{"url":"http://platform.internal/bridge/mcp","headers":{"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-vision:
@@ -227,7 +227,7 @@ managed-kitchen-sink:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6","input":["text"]}]}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6","input":["text"]}]}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"url":"http://platform.internal/bridge/mcp","headers":{"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 byo-baseline:

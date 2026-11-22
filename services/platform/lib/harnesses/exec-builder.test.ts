@@ -534,18 +534,17 @@ describe('Pi offers the mounted servers to the model', () => {
         args: [...(PLAYWRIGHT_MCP_ARG_SETS[0] ?? [])],
         exposure: 'direct',
       },
+      // The platform's MCP server over HTTP: no relay process starts.
       connectors: {
-        command: 'tale-connectors-mcp',
-        env: {
-          TALE_CONNECTORS_URL: BRIDGE,
-          TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}',
-        },
+        url: `${BRIDGE}/mcp`,
+        headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
         exposure: 'direct',
       },
     });
-    // The session key reaches the bridge through Pi's environment, never the
-    // staged file.
+    // The session key reaches the bridge through Pi's environment, which it
+    // reads into the header, never the staged file.
     expect(exec.stdin).not.toContain(GOLDEN_GATEWAY.token);
+    expect(exec.stdin).not.toContain('tale-connectors-mcp');
     expect(exec.env.TALE_GATEWAY_TOKEN).toBe(GOLDEN_GATEWAY.token);
   });
 
@@ -736,7 +735,7 @@ describe("a CLI reaches the bridge as the platform's MCP server", () => {
   // A CLI that mounts the platform's MCP server ([CONN-R34]) starts no relay
   // process; its bearer token stays where the relay's env put it before:
   // claude's argv JSON, codex's exec env, an env reference in the gemini
-  // family's settings and in OpenCode's config.
+  // family's settings, in Pi's mcp.json and in OpenCode's config.
   it('claude-code posts to it with the session key in its --mcp-config', () => {
     const { argv } = exec('claude-code');
     const config = JSON.parse(argv[argv.indexOf('--mcp-config') + 1]);
@@ -781,7 +780,20 @@ describe("a CLI reaches the bridge as the platform's MCP server", () => {
     },
   );
 
-  it.each(['claude-code', 'codex', 'gemini', 'qwen-code', 'opencode'])(
+  // Pi reads a `url` as Streamable HTTP and resolves `${VAR}` in a header
+  // value from its environment.
+  it('pi reads it from its mcp.json with the env key as a reference', () => {
+    const { mcp } = JSON.parse(
+      (exec('pi').stdin ?? '{}').split('\n')[0] ?? '{}',
+    );
+    expect(mcp.mcpServers.connectors).toEqual({
+      url: SERVER,
+      headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+      exposure: 'direct',
+    });
+  });
+
+  it.each(['claude-code', 'codex', 'gemini', 'qwen-code', 'pi', 'opencode'])(
     '%s starts no relay process',
     (slug) => {
       expect(execCarries(exec(slug), 'tale-connectors-mcp')).toBe(false);

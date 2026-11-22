@@ -1104,9 +1104,12 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *    own MCP server (`<bridge URL>/mcp`) with those request headers, and no
  *    relay process starts.
  *    `serverShape`: `command-args` = `{command, args}` objects, and a remote
- *    bridge as `{httpUrl, headers}`; `opencode-local` = `{type: "local",
- *    command: [bin, …args], enabled}`, and a remote bridge as `{type:
- *    "remote", url, headers, oauth: false, enabled}`.
+ *    bridge as `{httpUrl, headers}` (the gemini family: qwen-code reads a
+ *    bare `url` as SSE); `mcp-json` = the same `{command, args}` objects,
+ *    and a remote bridge as `{url, headers}`, the common mcp.json format
+ *    (Pi); `opencode-local` = `{type: "local", command: [bin, …args],
+ *    enabled}`, and a remote bridge as `{type: "remote", url, headers,
+ *    oauth: false, enabled}`.
  *    `bridgeCallTimeout`: the field (and its unit) under which the CLI takes
  *    one MCP call's timeout, for a CLI whose default gives up before the
  *    bridge's longest tool can answer and whose calls are not kept alive by
@@ -1133,7 +1136,7 @@ const docFragmentSchema = z.union([
       mcpServers: z
         .object({
           path: docPathSchema,
-          serverShape: z.enum(['command-args', 'opencode-local']),
+          serverShape: z.enum(['command-args', 'mcp-json', 'opencode-local']),
           bridgeEnvField: z.enum(['env', 'environment']).optional(),
           bridgeEnv: envTemplateMapSchema.optional(),
           bridgeHeaders: headerTemplateMapSchema.optional(),

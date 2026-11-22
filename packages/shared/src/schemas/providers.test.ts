@@ -1111,6 +1111,13 @@ describe('harnessDefinitionSchema', () => {
       expect(
         issues(withDocMcp({ bridgeEnvField: 'env', bridgeEnv: RELAY_ENV })),
       ).toEqual([]);
+      // The common mcp.json format (Pi): a remote server as `{url, headers}`.
+      expect(
+        issues(withDocMcp({ serverShape: 'mcp-json', bridgeHeaders: HEADERS })),
+      ).toEqual([]);
+      expect(
+        issues(withDocMcp({ serverShape: 'mcp-url', bridgeHeaders: HEADERS })),
+      ).not.toEqual([]);
     });
 
     it('rejects a channel that mounts the bridge both ways or neither', () => {

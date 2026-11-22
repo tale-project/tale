@@ -228,11 +228,16 @@ const BRIDGE_MCP_PATH = '/mcp';
 /** A CLI's remote mount of the platform's MCP server: the request headers it
  * sends with each call, and the dialect its config reads a remote server in
  * (`claude-flag`: claude's `--mcp-config` argv; `command-args`: the gemini
- * family's settings; `opencode-local`: OpenCode's config). A channel mounts
- * the bridge one way: this remote form, or the stdio relay (`bridgeEnv`). */
+ * family's settings; `mcp-json`: the common mcp.json format Pi reads;
+ * `opencode-local`: OpenCode's config). A channel mounts the bridge one way:
+ * this remote form, or the stdio relay (`bridgeEnv`). */
 interface BridgeRemote {
   readonly headers: Readonly<Record<string, string>>;
-  readonly dialect: 'claude-flag' | 'command-args' | 'opencode-local';
+  readonly dialect:
+    | 'claude-flag'
+    | 'command-args'
+    | 'mcp-json'
+    | 'opencode-local';
 }
 
 // ---------------------------------------------------------------------------
@@ -620,12 +625,13 @@ export function buildHarnessExec(
    * every server's entry (Pi's `exposure`). A channel that declares the
    * remote mount takes the platform's MCP server in its CLI's remote form:
    * claude's `--mcp-config` an `http` server, the gemini family's settings
-   * an `httpUrl` (qwen-code reads a `url` as SSE), OpenCode a `remote` one
-   * without its OAuth discovery (the bridge takes the session's bearer
-   * token). Any other channel mounts the stdio relay with `bridgeEnv` as its
-   * child env under `bridgeEnvField`. */
+   * an `httpUrl` (qwen-code reads a `url` as SSE), Pi's mcp.json a `url`
+   * (Pi reads a `url` as Streamable HTTP), OpenCode a `remote` one without
+   * its OAuth discovery (the bridge takes the session's bearer token). Any
+   * other channel mounts the stdio relay with `bridgeEnv` as its child env
+   * under `bridgeEnvField`. */
   const buildMcpServers = (
-    serverShape: 'command-args' | 'opencode-local',
+    serverShape: 'command-args' | 'mcp-json' | 'opencode-local',
     bridgeEnvField: string | undefined,
     bridgeEnv: Readonly<Record<string, string>> | undefined,
     visionOmitsImages: boolean,
@@ -642,7 +648,7 @@ export function buildHarnessExec(
           : []),
       ];
       servers.playwright =
-        serverShape === 'command-args'
+        serverShape !== 'opencode-local'
           ? { command: PLAYWRIGHT_MCP_COMMAND, args, ...serverFields }
           : {
               type: 'local',
@@ -669,20 +675,22 @@ export function buildHarnessExec(
             ? { type: 'http', url, headers, ...timeout, ...serverFields }
             : bridgeRemote.dialect === 'command-args'
               ? { httpUrl: url, headers, ...timeout, ...serverFields }
-              : {
-                  type: 'remote',
-                  url,
-                  headers,
-                  oauth: false,
-                  enabled: true,
-                  ...timeout,
-                  ...serverFields,
-                };
+              : bridgeRemote.dialect === 'mcp-json'
+                ? { url, headers, ...timeout, ...serverFields }
+                : {
+                    type: 'remote',
+                    url,
+                    headers,
+                    oauth: false,
+                    enabled: true,
+                    ...timeout,
+                    ...serverFields,
+                  };
       } else {
         const env = substituteMap(bridgeEnv ?? {}, subs);
         const envField = bridgeEnvField ?? 'env';
         servers.connectors =
-          serverShape === 'command-args'
+          serverShape !== 'opencode-local'
             ? {
                 command: BRIDGE_MCP_COMMAND,
                 [envField]: env,

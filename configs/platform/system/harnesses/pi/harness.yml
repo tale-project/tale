@@ -152,26 +152,30 @@ exec:
                           value: [text, image]
                           else: [text]
                         reasoning: { $when: [model-reasoning], value: true }
-      # Staged as <agentDir>/mcp.json (stdio: command/args/env — Pi's MCP
-      # server config). Pi offers a server's tools to the model only with
-      # `exposure: direct`: its default keeps them inside its code-mode
-      # scripts, where an agent told to call the workspace tools by name
-      # never finds them. The bridge token rides `${TALE_GATEWAY_TOKEN}`,
-      # which Pi resolves from its own environment when it starts the server
-      # (its stdio servers inherit that environment), so the staged file
-      # never holds the key. No call timeout: Pi asks every call for progress,
-      # and the bridge's reports on a long one (an image generation) restart
-      # Pi's 60 s timer.
+      # Staged as <agentDir>/mcp.json (the common mcp.json format Pi reads:
+      # command/args for the browser, url/headers for a remote server). Pi
+      # offers a server's tools to the model only with `exposure: direct`:
+      # its default keeps them inside its code-mode scripts, where an agent
+      # told to call the workspace tools by name never finds them. The
+      # bridge is the platform's MCP server, reached over HTTP (`url`, which
+      # Pi reads as Streamable HTTP), so no relay process starts in the
+      # sandbox. Its bearer token rides `${TALE_GATEWAY_TOKEN}`, which Pi
+      # resolves from its own environment in a header value, so the staged
+      # file never holds the key. No call timeout: Pi asks every call for
+      # progress (and takes an event stream), and the bridge's reports on a
+      # long one (an image generation) restart Pi's 60 s timer. Observed on
+      # 1.6.0 against a loopback stand-in for the bridge: initialize,
+      # tools/list and tools/call, each with the session token, the call
+      # with a progress token; a 75 s call that reported progress every 15 s
+      # was answered, and one that reported none timed out at 60 s.
       - doc:
           key: mcp
           fragments:
             - mcpServers:
                 path: mcpServers
-                serverShape: command-args
-                bridgeEnvField: env
-                bridgeEnv:
-                  TALE_CONNECTORS_URL: '${bridgeUrl}'
-                  TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                serverShape: mcp-json
+                bridgeHeaders:
+                  Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}'
                 serverFields:
                   exposure: direct
   env:
