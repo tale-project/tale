@@ -1774,6 +1774,14 @@ export async function ytdlpWriteSubs(
  * each is stored as: the containers video platforms serve sound in, alone or
  * with a picture. What yt-dlp writes under another extension is not taken
  * for sound.
+ *
+ * The extension is the one yt-dlp names the platform's format by, which is
+ * not always what the bytes are: a stream a platform serves in MPEG-TS
+ * segments is written as they come, under the format's `.mp4`, because the
+ * fix-up that would make an MP4 of it is ffmpeg's and a run has none.
+ * Nothing here relabels it. The transcription lane's ffmpeg reads a
+ * recording by its content (the image's ffmpeg 5.1 read such a file from
+ * Dailymotion as `mpegts`, 2026-11-22).
  */
 const MEDIA_TYPES: ReadonlyMap<string, string> = new Map([
   ['webm', 'audio/webm'],

@@ -42279,6 +42279,14 @@ if [[ "$*" == *"-o media.%(ext)s"* ]]; then
   # toolchain's resolved executable, including Homebrew paths on macOS; the
   # child deliberately has a stripped PATH.
   [[ -n "$ffmpeg_bin" ]] || { echo "Missing --ffmpeg-location" >&2; exit 1; }
+  if [[ "$vid" == whis2 ]]; then
+    # A platform that serves its stream in MPEG-TS segments. A run has no
+    # ffmpeg to make an MP4 of them, so yt-dlp writes them as they come,
+    # under the .mp4 its format is named by. The transcription lane has to
+    # read that file by what is in it.
+    "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -c:a aac -b:a 64k -f mpegts "$home_dir/media.mp4" || exit $?
+    exit 0
+  fi
   "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -c:a libopus -b:a 32k "$home_dir/media.webm" || exit $?
   exit 0
 fi
@@ -42856,6 +42864,25 @@ exit 1
         whis2After?.status === 'completed' &&
         (whis2After.attempts ?? 0) === 1,
       `failedRow=${whis2Failed?.status}/${whis2Failed?.errorReasonCode} (want failed/whisperFailed) error=${jobError(whis2Failed)}, retryDoor=${retryDoor.status} (want 200; the un-retryable dead-end 409s), afterRetry=${whis2After?.status} attempts=${whis2After?.attempts}`,
+    );
+    // That video's sound came as MPEG-TS under an `.mp4` name (the fake
+    // above), which is how a run without ffmpeg leaves a stream served in
+    // such segments. It was stored so, and transcribed all the same.
+    const whis2Stored = whis2After?.storageRef
+      ? await sql<{ contentType: string | null; fileName: string | null }[]>`
+          SELECT content_type AS "contentType", file_name AS "fileName"
+          FROM app.file_metadata
+          WHERE org_id = ${orgId} AND storage_ref = ${whis2After.storageRef}
+          LIMIT 1
+        `
+      : [];
+    record(
+      'video links: MPEG-TS under an .mp4 name is stored as it came and transcribed',
+      whis2After?.status === 'completed' &&
+        whis2After.transcriptSource === 'whisper' &&
+        whis2Stored[0]?.contentType === 'video/mp4' &&
+        (whis2Stored[0].fileName ?? '').endsWith('.mp4'),
+      `job=${whis2After?.status}/${whis2After?.transcriptSource} stored=${whis2Stored[0]?.contentType}/${whis2Stored[0]?.fileName}`,
     );
 
     // 5. REGRESSION (slot cap): parked-but-settled handoff rows (the debt
