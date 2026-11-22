@@ -259,14 +259,15 @@ export function sessionYtdlpPlace(
       const stderr = streamed
         ? said.stderr
         : Buffer.from(result.stderrBase64, 'base64').toString('utf8');
-      // A command the session could not start: its image carries no yt-dlp,
-      // which is one from before this lane.
+      // A command the session could not start. Where it found no yt-dlp,
+      // its image is one from before this lane, and the failure says which
+      // carries it. Anything else is the session's own trouble (a host out
+      // of processes starts nothing), which a later attempt may not meet.
       if (result.exitCode === null && result.errorCode === 'RUNTIME_ERROR') {
+        const missing = /ENOENT/.test(result.errorMessage ?? '');
         throw new YtDlpError(
-          /ENOENT/.test(result.errorMessage ?? '')
-            ? 'binaryNotInstalled'
-            : 'transient',
-          `yt-dlp could not be started in the sandbox session: ${result.errorMessage ?? 'no reason given'}. A sandbox runtime image of this release carries it.`,
+          missing ? 'binaryNotInstalled' : 'transient',
+          `yt-dlp could not be started in the sandbox session: ${result.errorMessage ?? 'no reason given'}${missing ? '. A sandbox runtime image of this release carries it.' : ''}`,
           '',
         );
       }

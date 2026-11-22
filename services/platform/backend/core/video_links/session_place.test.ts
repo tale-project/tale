@@ -416,6 +416,9 @@ describe('a sandbox session as the place a video is fetched in', () => {
         expect(error.message).toContain(
           errorCode === 'RUNTIME_ERROR' ? 'EACCES' : errorCode,
         );
+        // Which image carries yt-dlp is said where none was found, and
+        // nowhere else: the image is not what was wrong here.
+        expect(error.message).not.toContain('runtime image');
       },
     );
   });
