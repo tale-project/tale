@@ -231,6 +231,7 @@ describe('ensureEnv — the retired model gateway', () => {
       `SOPS_AGE_KEY=${age.secretKey}`,
       'SANDBOX_TOKEN=existing-sandbox',
       'OBJECT_STORE_SECRET_KEY=existing-object-store',
+      'TALE_CONTROL_TOKEN=existing-control',
       ...extra,
       '',
     ].join('\n');
@@ -292,6 +293,62 @@ describe('ensureEnv — the retired model gateway', () => {
   });
 });
 
+// The control door (/api/control) exists only where the backend has its
+// bearer: the deploy's drain and its check before it retires the model
+// gateway, the reseed and owner recovery all call it.
+describe('ensureEnv — the control token', () => {
+  test('a fresh .env carries a 64-hex TALE_CONTROL_TOKEN', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-control-'));
+    try {
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).toMatch(
+        /^TALE_CONTROL_TOKEN=[0-9a-f]{64}$/m,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a deployment from before it gets one on its next deploy, and keeps it after', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-control-topup-'));
+    try {
+      const age = generateAgeKeypair();
+      writeFileSync(
+        join(dir, '.env'),
+        [
+          'HOST=demo.tale.dev',
+          'SITE_URL=https://demo.tale.dev',
+          'TLS_MODE=letsencrypt',
+          'BETTER_AUTH_SECRET=existing-better-auth',
+          'ENCRYPTION_SECRET_HEX=existing-encryption',
+          'INSTANCE_SECRET=existing-instance',
+          'DB_PASSWORD=existing-password',
+          `SOPS_AGE_KEY=${age.secretKey}`,
+          'SANDBOX_TOKEN=existing-sandbox',
+          'TALE_AUDIT_PEPPER=existing-pepper',
+          'OBJECT_STORE_SECRET_KEY=existing-object-store',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      const first = await ensureEnv({ deployDir: dir });
+      expect(first.regeneratedAutoSecrets).toEqual(['TALE_CONTROL_TOKEN']);
+      const token = /^TALE_CONTROL_TOKEN=([0-9a-f]{64})$/m.exec(
+        readFileSync(join(dir, '.env'), 'utf-8'),
+      )?.[1];
+      expect(token).toBeDefined();
+      const again = await ensureEnv({ deployDir: dir });
+      expect(again.regeneratedAutoSecrets ?? []).toEqual([]);
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).toContain(
+        `TALE_CONTROL_TOKEN=${token}`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('ensureEnv — a dry run writes nothing', () => {
   test('no .env yet: the run succeeds and none is created', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-dry-fresh-'));
@@ -321,6 +378,7 @@ describe('ensureEnv — a dry run writes nothing', () => {
           `SOPS_AGE_KEY=${age.secretKey}`,
           'SANDBOX_TOKEN=existing-sandbox',
           'OBJECT_STORE_SECRET_KEY=existing-object-store',
+          'TALE_CONTROL_TOKEN=existing-control',
           '',
         ].join('\n'),
         'utf-8',

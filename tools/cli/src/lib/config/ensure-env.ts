@@ -326,6 +326,11 @@ export async function ensureEnv(
       // both read it, so a change takes the two replaced together (`tale
       // deploy --stop`). Its blobs stay readable under a new key.
       'OBJECT_STORE_SECRET_KEY',
+      // Bearer of the backend's control door (/api/control): the deploy's
+      // drain and its check before it retires the model gateway, the
+      // reseed, and owner recovery. Unset, the door does not exist. Read
+      // inside the container only (docker/control-call.ts).
+      'TALE_CONTROL_TOKEN',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -413,6 +418,7 @@ async function runHeadlessAutoSecretFill(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
     OBJECT_STORE_SECRET_KEY: generatePassword,
+    TALE_CONTROL_TOKEN: generateHexSecret,
   };
 
   const updates: Record<string, string> = {};
@@ -538,6 +544,7 @@ async function runPartialEnvSetup(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
     OBJECT_STORE_SECRET_KEY: generatePassword,
+    TALE_CONTROL_TOKEN: generateHexSecret,
   };
 
   let generatedCount = 0;
@@ -608,6 +615,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sandboxToken: generateHexSecret(),
     auditPepper: generateHexSecret(),
     objectStoreSecretKey: generatePassword(),
+    controlToken: generateHexSecret(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
@@ -631,6 +639,7 @@ interface EnvConfig {
   sandboxToken: string;
   auditPepper: string;
   objectStoreSecretKey: string;
+  controlToken: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -727,6 +736,14 @@ function generateEnvContent(config: EnvConfig): string {
     '# itself). Set, new rows carry hashes; unset, plaintext email + IP. Keep it',
     '# STABLE — rotating it breaks correlation across the rotation boundary.',
     `TALE_AUDIT_PEPPER=${config.auditPepper}`,
+    '',
+    '# ============================================================================',
+    '# Control door',
+    '# ============================================================================',
+    "# Bearer of the backend's control door, which `tale deploy`, `tale migrate`",
+    '# and `tale auth reset-owner` call inside the backend container. Generated',
+    '# here; keep it as it is.',
+    `TALE_CONTROL_TOKEN=${config.controlToken}`,
     '',
     '# ============================================================================',
     "# Object store (the deployment's blob backend)",
