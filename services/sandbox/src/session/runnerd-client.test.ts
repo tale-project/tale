@@ -17,6 +17,7 @@ import {
   runnerdAttach,
   RunnerdAttachBusyError,
   runnerdExec,
+  fileReadTimeoutMs,
   runnerdReadFile,
   runnerdStageFiles,
   RunnerdStageBusyError,
@@ -658,6 +659,34 @@ test('file reads expose the first bytes before the upstream file finishes', asyn
     finish.resolve();
     await server.stop(true);
   }
+});
+
+test('a file read asks for what its caller takes, and is given the time to send it', async () => {
+  const asked: string[] = [];
+  const server = Bun.serve({
+    port: 0,
+    fetch(request) {
+      asked.push(new URL(request.url).search);
+      return new Response('bytes');
+    },
+  });
+  try {
+    const options = { baseUrl: server.url.origin, token: 'test' };
+    await (await runnerdReadFile(options, 'out/a b.opus'))?.text();
+    await (
+      await runnerdReadFile(options, 'out/a b.opus', undefined, 104_857_600)
+    )?.text();
+    expect(asked).toEqual([
+      '?path=out%2Fa%20b.opus',
+      '?path=out%2Fa%20b.opus&maxBytes=104857600',
+    ]);
+  } finally {
+    await server.stop(true);
+  }
+  // Any call's thirty seconds, and a second for every mebibyte asked for.
+  expect(fileReadTimeoutMs(undefined)).toBe(30_000);
+  expect(fileReadTimeoutMs(1)).toBe(31_000);
+  expect(fileReadTimeoutMs(100 * 1024 * 1024)).toBe(130_000);
 });
 
 test('cancelling a file consumer detaches the upstream body', async () => {

@@ -476,7 +476,13 @@ the workspace; Linux pins the destination directory while downloading. At
 most two stage requests, including body intake, are admitted at once; a busy
 request must be retried. `/fs/read` streams an opened regular file within the
 20 MiB read cap and fixes its range before sending bytes, so later growth does
-not bypass the limit.
+not bypass the limit. It declares the file's length, and the spawner passes
+that on as `x-tale-file-size` on `GET /v1/sessions/:id/files/content`, a header
+of its own because a streamed answer may be framed in chunks. The 20 MiB cap is
+what a caller may hold whole. A caller that passes the bytes on as they arrive
+names how much it will take with `maxBytes`, a whole number of bytes above 0,
+and the file is refused over that instead; any other value answers 400. Such a
+read is given 30 seconds and one more for every mebibyte asked for.
 
 A file may carry an immutable `sourceId` (or `cacheKey`) supplied by the platform,
 or a `sha256` digest for content verification. runnerd

@@ -964,13 +964,30 @@ export async function readWorkspaceFile(
   }
 }
 
+/** The most a read hands out to a caller that names no limit: such a
+ * caller is taken to hold the file whole. */
+const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
+
+/**
+ * How much one read may hand out. A caller that reads the file as a stream
+ * and holds none of it says how much it will take (`maxBytes`), and the file
+ * is refused over that instead of over the 20 MiB a caller may hold. `null`
+ * for a value that is no whole number of bytes above 0.
+ */
+export function fileReadLimit(maxBytes: string | null): number | null {
+  if (maxBytes === null) return FILE_READ_MAX_BYTES;
+  if (!/^[1-9][0-9]{0,15}$/.test(maxBytes)) return null;
+  return Number(maxBytes);
+}
+
 /** Read a regular file relative to its pinned workspace parent, never a
- * followed symlink. The range is fixed by fstat, so a growing file cannot
- * bypass the byte ceiling. Read traversal never creates directories. */
+ * followed symlink, and say how many bytes it is. The range is fixed by
+ * fstat, so a growing file cannot bypass the byte ceiling and the size told
+ * is the size sent. Read traversal never creates directories. */
 export async function streamWorkspaceFile(
   rel: string,
   maxBytes: number,
-): Promise<Readable | null> {
+): Promise<{ stream: Readable; size: number } | null> {
   let file: FileHandle | undefined;
   try {
     file = (await openWorkspaceFile(rel)) ?? undefined;
@@ -982,13 +999,16 @@ export async function streamWorkspaceFile(
     }
     if (info.size === 0) {
       await file.close();
-      return Readable.from([]);
+      return { stream: Readable.from([]), size: 0 };
     }
-    return file.createReadStream({
-      start: 0,
-      end: info.size - 1,
-      autoClose: true,
-    });
+    return {
+      stream: file.createReadStream({
+        start: 0,
+        end: info.size - 1,
+        autoClose: true,
+      }),
+      size: info.size,
+    };
   } catch {
     await file?.close().catch(() => {});
     return null;

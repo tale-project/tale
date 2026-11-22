@@ -7,6 +7,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  truncateSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -112,6 +113,49 @@ async function currentActiveOperations(): Promise<number> {
 }
 
 describe('runnerd HTTP service', () => {
+  test('a file read declares its length, and hands out what its caller says it takes', async () => {
+    writeFileSync(`${workspace}/declared.bin`, Buffer.alloc(300_000, 3));
+    writeFileSync(`${workspace}/none.bin`, '');
+    const read = (query: string) =>
+      fetch(`${baseUrl}/fs/read?${query}`, { headers });
+
+    const whole = await read('path=declared.bin');
+    expect(whole.status).toBe(200);
+    expect(whole.headers.get('content-length')).toBe('300000');
+    expect((await whole.arrayBuffer()).byteLength).toBe(300_000);
+
+    const empty = await read('path=none.bin');
+    expect(empty.headers.get('content-length')).toBe('0');
+    expect((await empty.arrayBuffer()).byteLength).toBe(0);
+
+    // Over what its caller takes it is no file to it, and a limit that is
+    // none is the caller's mistake.
+    expect((await read('path=declared.bin&maxBytes=299999')).status).toBe(404);
+    const exact = await read('path=declared.bin&maxBytes=300000');
+    expect(exact.status).toBe(200);
+    expect((await exact.arrayBuffer()).byteLength).toBe(300_000);
+    const refused = await read('path=declared.bin&maxBytes=lots');
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({
+      error: 'bad_request',
+      message: 'maxBytes must be a whole number of bytes above 0',
+    });
+
+    // More than a caller may hold whole: only one that names it is sent it.
+    const large = 21 * 1024 * 1024;
+    writeFileSync(`${workspace}/large.bin`, '');
+    truncateSync(`${workspace}/large.bin`, large);
+    expect((await read('path=large.bin')).status).toBe(404);
+    const streamed = await read(`path=large.bin&maxBytes=${large}`);
+    expect(streamed.status).toBe(200);
+    expect(streamed.headers.get('content-length')).toBe(String(large));
+    let sent = 0;
+    if (streamed.body !== null) {
+      for await (const chunk of streamed.body) sent += chunk.byteLength;
+    }
+    expect(sent).toBe(large);
+  });
+
   test('a failed Docker capability blocks readiness and new execs without hiding live process state', async () => {
     const snapshot = spyOn(
       InnerDockerHealth.prototype,

@@ -90,6 +90,62 @@ describe('session HTTP routes', () => {
     }
   });
 
+  test("a file read passes its caller's limit on, and refuses one that is no number of bytes", async () => {
+    const content = spyOn(
+      SessionRoutes.prototype,
+      'handleFileContent',
+    ).mockImplementation(async () => new Response('bytes'));
+    const read = (path: string) => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method: 'GET',
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              'GET',
+              path,
+              timestamp,
+              '',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    const at = '/v1/sessions/sess1/files/content?path=out%2Fa.opus';
+    try {
+      expect((await read(at)).status).toBe(200);
+      expect(content).toHaveBeenLastCalledWith(
+        'sess1',
+        'out/a.opus',
+        expect.anything(),
+        undefined,
+      );
+      expect((await read(`${at}&maxBytes=104857600`)).status).toBe(200);
+      expect(content).toHaveBeenLastCalledWith(
+        'sess1',
+        'out/a.opus',
+        expect.anything(),
+        104_857_600,
+      );
+      for (const refused of ['', '0', '-5', '1.5', 'lots']) {
+        const response = await read(`${at}&maxBytes=${refused}`);
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({
+          error: 'bad_request',
+          message: 'maxBytes must be a whole number of bytes above 0',
+        });
+      }
+      expect(content).toHaveBeenCalledTimes(2);
+    } finally {
+      content.mockRestore();
+    }
+  });
+
   test('image warmup queues only new local sessions while existing sessions remain addressable', async () => {
     const pending = spyOn(ImageWarmup.prototype, 'pending').mockReturnValue(
       true,

@@ -88,6 +88,12 @@ export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 export const ORG_ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 
+/** Response header of `GET /v1/sessions/:id/files/content`: how many bytes
+ * the file is, said before the first of them. A header of its own, since a
+ * server may frame a streamed body in chunks and drop the length it was
+ * given. Absent where the session's runtime declares no length. */
+export const FILE_SIZE_HEADER = 'x-tale-file-size';
+
 // ---------------------------------------------------------------------------
 // Persistent sessions (sessions plan, milestone A). The `/v1/sessions` API is
 // a sibling of the one-shot `/v1/execute` path; literals live here so the

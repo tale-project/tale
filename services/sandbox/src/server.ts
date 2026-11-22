@@ -516,13 +516,26 @@ async function handleSessionRoutes(
   if (req.method === 'POST' && deleteMatch) {
     return getSessionRoutes().handleFilesDelete(deleteMatch[1] ?? '', body);
   }
-  // GET /v1/sessions/:id/files/content?path=  (must precede the bare files RE)
+  // GET /v1/sessions/:id/files/content?path=[&maxBytes=]  (must precede the
+  // bare files RE). `maxBytes` is what a caller that passes the bytes on
+  // will take, in place of the 20 MiB a caller may hold.
   const fileContentMatch = path.match(SESSION_FILES_CONTENT_RE);
   if (req.method === 'GET' && fileContentMatch) {
+    const maxBytes = url.searchParams.get('maxBytes');
+    if (maxBytes !== null && !/^[1-9][0-9]{0,15}$/.test(maxBytes)) {
+      return jsonResponse(
+        {
+          error: 'bad_request',
+          message: 'maxBytes must be a whole number of bytes above 0',
+        },
+        400,
+      );
+    }
     return getSessionRoutes().handleFileContent(
       fileContentMatch[1] ?? '',
       url.searchParams.get('path') ?? '',
       req.signal,
+      maxBytes === null ? undefined : Number(maxBytes),
     );
   }
   // GET /v1/sessions/:id/files?path=  (directory listing)

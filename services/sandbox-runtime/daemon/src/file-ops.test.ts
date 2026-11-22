@@ -28,6 +28,7 @@ import {
   listDir,
   readWorkspaceFile,
   stageFiles,
+  fileReadLimit,
   streamWorkspaceFile,
 } from './file-ops.ts';
 
@@ -923,12 +924,14 @@ describe('bounded atomic staging', () => {
         },
       );
       try {
-        const stream = await streamWorkspaceFile(
+        const file = await streamWorkspaceFile(
           'read-parent/anchored-leaf.txt',
           100,
         );
         let text = '';
-        if (stream) for await (const chunk of stream) text += chunk.toString();
+        if (file) {
+          for await (const chunk of file.stream) text += chunk.toString();
+        }
         expect(swapped).toBe(true);
         expect(text).toBe('inside');
       } finally {
@@ -949,13 +952,50 @@ describe('bounded atomic staging', () => {
 
   test('streamed reads retain their opened file range and reject oversize', async () => {
     writeFileSync(join(ROOT, 'range.txt'), 'original');
-    const stream = await streamWorkspaceFile('range.txt', 8);
-    expect(stream).not.toBeNull();
+    const file = await streamWorkspaceFile('range.txt', 8);
+    expect(file).not.toBeNull();
     writeFileSync(join(ROOT, 'range.txt'), 'original-appended');
     let text = '';
-    if (stream) for await (const chunk of stream) text += chunk.toString();
+    if (file) for await (const chunk of file.stream) text += chunk.toString();
     expect(text).toBe('original');
+    // The size told is the size sent, whatever the file has become since.
+    expect(file?.size).toBe(8);
     expect(await streamWorkspaceFile('range.txt', 8)).toBeNull();
+  });
+
+  test('a streamed read says how many bytes it sends, an empty file included', async () => {
+    writeFileSync(join(ROOT, 'sized.bin'), Buffer.alloc(70_000, 7));
+    writeFileSync(join(ROOT, 'empty.bin'), '');
+
+    const sized = await streamWorkspaceFile('sized.bin', 70_000);
+    let read = 0;
+    if (sized) for await (const chunk of sized.stream) read += chunk.length;
+    expect(sized?.size).toBe(70_000);
+    expect(read).toBe(70_000);
+
+    const empty = await streamWorkspaceFile('empty.bin', 1);
+    let chunks = 0;
+    if (empty) for await (const _chunk of empty.stream) chunks += 1;
+    expect(empty?.size).toBe(0);
+    expect(chunks).toBe(0);
+  });
+
+  test('a read hands out 20 MiB unless its caller names how much it takes', () => {
+    expect(fileReadLimit(null)).toBe(20 * 1024 * 1024);
+    expect(fileReadLimit('1')).toBe(1);
+    expect(fileReadLimit('104857600')).toBe(104_857_600);
+    for (const refused of [
+      '',
+      '0',
+      '-1',
+      '1.5',
+      '1e3',
+      '0x10',
+      ' 5',
+      '12345678901234567',
+    ]) {
+      expect(fileReadLimit(refused)).toBeNull();
+    }
   });
 });
 

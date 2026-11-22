@@ -81,6 +81,8 @@ const destroyed = new Set<string>();
 const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
 const stageBodies: unknown[] = [];
+/** The query of every file read the runtime was asked for. */
+const fileReads: string[] = [];
 let stageFailure: string | undefined;
 // Each POST /execs/:id/cancel runnerd received, path and query.
 const cancelRequests: string[] = [];
@@ -526,6 +528,26 @@ beforeAll(() => {
         });
       }
       if (url.pathname === '/fs/read') {
+        fileReads.push(url.search);
+        // A runtime from before a read declared its length: the body comes
+        // in chunks, a turn apart, so that no server can count it first.
+        if (url.searchParams.get('path') === 'repo/undeclared.bin') {
+          let sent = false;
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              async pull(controller) {
+                await Bun.sleep(1);
+                if (sent) {
+                  controller.close();
+                  return;
+                }
+                sent = true;
+                controller.enqueue(new TextEncoder().encode('file-bytes'));
+              },
+            }),
+            { headers: { 'content-type': 'application/octet-stream' } },
+          );
+        }
         return new Response('file-bytes', {
           headers: { 'content-type': 'application/octet-stream' },
         });
@@ -2201,12 +2223,34 @@ describe('SessionRoutes (fake runnerd)', () => {
     };
     expect(listed.entries[0]).toMatchObject({ name: 'README.md' });
 
-    // file content (raw bytes).
+    // file content (raw bytes), with how many they are said first.
+    fileReads.length = 0;
     const contentRes = await routes.handleFileContent('s2', 'repo/README.md');
     expect(contentRes.headers.get('content-type')).toBe(
       'application/octet-stream',
     );
+    expect(contentRes.headers.get('x-tale-file-size')).toBe('10');
     expect(await contentRes.text()).toBe('file-bytes');
+    expect(fileReads).toEqual(['?path=repo%2FREADME.md']);
+
+    // A caller that passes the bytes on names how much it takes, and the
+    // runtime is asked for that much.
+    const streamedRes = await routes.handleFileContent(
+      's2',
+      'repo/README.md',
+      undefined,
+      104_857_600,
+    );
+    expect(await streamedRes.text()).toBe('file-bytes');
+    expect(fileReads[1]).toBe('?path=repo%2FREADME.md&maxBytes=104857600');
+
+    // A runtime that declares no length has none passed on for it.
+    const undeclared = await routes.handleFileContent(
+      's2',
+      'repo/undeclared.bin',
+    );
+    expect(undeclared.headers.get('x-tale-file-size')).toBeNull();
+    expect(await undeclared.text()).toBe('file-bytes');
 
     // attach re-stream.
     const attachRes = await routes.handleExecAttach(
