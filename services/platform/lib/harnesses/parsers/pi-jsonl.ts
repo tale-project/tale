@@ -55,6 +55,19 @@ import type {
   HarnessTurnStatus,
 } from '../types';
 
+/**
+ * One newline-terminated command of Pi's RPC mode (`pi --mode rpc`): the
+ * turn's prompt, and a steer the platform pushes while it runs, which Pi
+ * delivers after the current assistant turn's tool calls, before its next
+ * model call. The single source for both, so they cannot drift.
+ */
+export function buildPiRpcCommand(
+  type: 'prompt' | 'steer',
+  message: string,
+): string {
+  return `${JSON.stringify({ type, message })}\n`;
+}
+
 /** Text blocks of an assistant message, joined. Pi's terminal `agent_end`
  * carries no final text of its own — the LAST assistant message IS the reply
  * (matches `pi -p` text mode, which prints the last message's text

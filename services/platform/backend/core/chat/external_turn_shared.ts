@@ -24,6 +24,7 @@
  * with its own token mint, progress sink, and settle.
  */
 
+import { stdinModeHolds } from '@tale/shared/schemas/providers';
 import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
@@ -156,13 +157,13 @@ export function isManagedHarness(harness: string): boolean {
   return def?.credentialPolicy.managed === true;
 }
 
-/** Whether a harness holds its stdin open as a steering channel (the
- * `ndjson-user-message` stdin mode): such a CLI answers turn after turn and
+/** Whether a harness holds its stdin open as a steering channel (a held
+ * stdin mode, `stdinModeHolds`): such a CLI answers turn after turn and
  * exits only on stdin EOF. */
 function harnessHoldsStdin(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
-  return def?.exec.stdin.mode === 'ndjson-user-message';
+  return def !== undefined && stdinModeHolds(def.exec.stdin.mode);
 }
 
 /** The session-relative file a harness's subscription credential is staged

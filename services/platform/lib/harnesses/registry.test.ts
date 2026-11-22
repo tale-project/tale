@@ -143,7 +143,7 @@ describe('schema coherence (the retired behavior-probing validator)', () => {
     const hermes = factOf(facts, 'hermes');
     hermes.capabilities.steering = true;
     expect(schemaProblems(hermes)).toMatch(
-      /capabilities\.steering must match the ndjson-user-message stdin mode/,
+      /capabilities\.steering must match a held stdin mode/,
     );
   });
 
@@ -152,7 +152,34 @@ describe('schema coherence (the retired behavior-probing validator)', () => {
     const claude = factOf(facts, 'claude-code');
     claude.capabilities.steering = false;
     expect(schemaProblems(claude)).toMatch(
-      /capabilities\.steering must match the ndjson-user-message stdin mode/,
+      /capabilities\.steering must match a held stdin mode/,
+    );
+  });
+
+  it('accepts a held RPC stdin as a steering channel, and refuses a prompt entry in its envelope', () => {
+    const facts = clonedFacts();
+    const pi = factOf(facts, 'pi');
+    const stdin = pi.exec.stdin;
+    if (stdin.mode !== 'json-envelope' && stdin.mode !== 'json-envelope-rpc') {
+      throw new Error('pi stages a JSON envelope');
+    }
+    const envelope = stdin.envelope.filter((entry) => !('prompt' in entry));
+    pi.exec.stdin = { mode: 'json-envelope-rpc', envelope, rpc: 'pi' };
+    pi.capabilities.steering = true;
+    expect(schemaProblems(pi)).toBe('');
+
+    pi.capabilities.steering = false;
+    expect(schemaProblems(pi)).toMatch(
+      /capabilities\.steering must match a held stdin mode/,
+    );
+    pi.capabilities.steering = true;
+    pi.exec.stdin = {
+      mode: 'json-envelope-rpc',
+      envelope: [{ prompt: {} }, ...envelope],
+      rpc: 'pi',
+    };
+    expect(schemaProblems(pi)).toMatch(
+      /a json-envelope-rpc envelope carries no prompt entry/,
     );
   });
 

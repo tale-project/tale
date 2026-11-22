@@ -19,7 +19,9 @@ import {
   isClaudeModelRef,
   PLAYWRIGHT_MCP_ARG_SETS,
   stagedInstructionsPathForExec,
+  steerLine,
 } from './exec-builder';
+import { buildStdinUserMessage } from './parsers/claude-stream-json';
 import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
 
@@ -1185,4 +1187,53 @@ describe('operator reasoning effort', () => {
       expect(foreign.env.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
     },
   );
+});
+
+describe('a held RPC stdin the platform steers over', () => {
+  /** Pi on the held RPC stdin: the envelope without its prompt entry. */
+  function rpcPi(): HarnessDefinition {
+    const doctored = structuredClone(fact('pi'));
+    const stdin = doctored.exec.stdin;
+    if (stdin.mode !== 'json-envelope' && stdin.mode !== 'json-envelope-rpc') {
+      throw new Error('pi stages a JSON envelope');
+    }
+    doctored.exec.stdin = {
+      mode: 'json-envelope-rpc',
+      envelope: stdin.envelope.filter((entry) => !('prompt' in entry)),
+      rpc: 'pi',
+    };
+    doctored.capabilities.steering = true;
+    return doctored;
+  }
+
+  it("writes the envelope as one line, then the prompt as Pi's prompt command, and holds stdin open", () => {
+    const exec = buildHarnessExec(
+      rpcPi(),
+      managedSpec({
+        prompt: 'Write the report.\nThen say done.',
+        instructions: 'Be brief.',
+      }),
+    );
+    expect(exec.stdinMode).toBe('hold');
+    const lines = (exec.stdin ?? '').split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[2]).toBe('');
+    const envelope = JSON.parse(lines[0] ?? '') as Record<string, unknown>;
+    expect(envelope).toMatchObject({ system_prompt: 'Be brief.' });
+    expect(envelope).not.toHaveProperty('prompt');
+    expect(JSON.parse(lines[1] ?? '')).toEqual({
+      type: 'prompt',
+      message: 'Write the report.\nThen say done.',
+    });
+  });
+
+  it('steers each harness in the dialect of its held stdin, and none that holds none', () => {
+    expect(steerLine(rpcPi(), 'Use the new figures.')).toBe(
+      '{"type":"steer","message":"Use the new figures."}\n',
+    );
+    expect(steerLine(fact('claude-code'), 'Use the new figures.')).toBe(
+      buildStdinUserMessage('Use the new figures.'),
+    );
+    expect(steerLine(fact('codex'), 'Use the new figures.')).toBeNull();
+  });
 });

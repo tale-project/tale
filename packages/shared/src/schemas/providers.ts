@@ -1303,7 +1303,12 @@ const stdinEnvelopeEntrySchema = z.union([
  * (the tale-*-run wrappers read it to EOF); `ndjson-user-message` = the
  * prompt as one stream-json user-message line with stdin HELD OPEN — the
  * mid-turn steering channel (claude); `promptTransform` names the in-code
- * prompt rewrite applied first (claude's ultrathink keyword).
+ * prompt rewrite applied first (claude's ultrathink keyword);
+ * `json-envelope-rpc` = the envelope as ONE line, then the prompt as the
+ * `rpc` dialect's prompt command on a second line, with stdin HELD OPEN —
+ * the wrapper reads the first line alone and hands the rest of stdin to the
+ * CLI's RPC mode, where a steer arrives as that dialect's steer command
+ * (pi).
  */
 const execStdinSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('none') }).strict(),
@@ -1320,7 +1325,27 @@ const execStdinSchema = z.discriminatedUnion('mode', [
       envelope: z.array(stdinEnvelopeEntrySchema).min(1),
     })
     .strict(),
+  z
+    .object({
+      mode: z.literal('json-envelope-rpc'),
+      envelope: z.array(stdinEnvelopeEntrySchema).min(1),
+      rpc: z.literal('pi'),
+    })
+    .strict(),
 ]);
+
+/** The stdin modes that stay open after the prompt: a CLI that keeps
+ * reading them answers turn after turn, takes steering lines while it runs,
+ * and exits on EOF. */
+export const HELD_STDIN_MODES = [
+  'ndjson-user-message',
+  'json-envelope-rpc',
+] as const;
+
+/** Whether a stdin mode is held open (`HELD_STDIN_MODES`). */
+export function stdinModeHolds(mode: string): boolean {
+  return (HELD_STDIN_MODES as readonly string[]).includes(mode);
+}
 
 /**
  * The full exec construction facts. `bin` + the ordered `argv` slots build
@@ -1582,11 +1607,11 @@ export const harnessDefinitionSchema = z
       );
     }
 
-    // Steering ⇔ the held-open NDJSON stdin channel.
-    const holdsStdin = provider.exec.stdin.mode === 'ndjson-user-message';
+    // Steering ⇔ a held-open stdin channel.
+    const holdsStdin = stdinModeHolds(provider.exec.stdin.mode);
     if (provider.capabilities.steering !== holdsStdin) {
       issue(
-        'capabilities.steering must match the ndjson-user-message stdin mode (the held-open steering channel)',
+        'capabilities.steering must match a held stdin mode (ndjson-user-message or json-envelope-rpc, the held-open steering channel)',
       );
     }
     if (provider.exec.steering && !provider.capabilities.steering) {
@@ -1597,10 +1622,17 @@ export const harnessDefinitionSchema = z
     const stdinMode = provider.exec.stdin.mode;
     const hasArgvPrompt = (counts.get('prompt') ?? 0) > 0;
     const envelope =
-      provider.exec.stdin.mode === 'json-envelope'
+      provider.exec.stdin.mode === 'json-envelope' ||
+      provider.exec.stdin.mode === 'json-envelope-rpc'
         ? provider.exec.stdin.envelope
         : [];
     const envelopeHasPrompt = envelope.some((e) => 'prompt' in e);
+    // The RPC envelope's prompt rides its own line, as a prompt command.
+    if (provider.exec.stdin.mode === 'json-envelope-rpc' && envelopeHasPrompt) {
+      issue(
+        'a json-envelope-rpc envelope carries no prompt entry: the prompt is its second line',
+      );
+    }
     switch (provider.promptTransport) {
       case 'argv':
         if (stdinMode !== 'none' || !hasArgvPrompt) {
@@ -1618,10 +1650,11 @@ export const harnessDefinitionSchema = z
         if (
           hasArgvPrompt ||
           (stdinMode !== 'ndjson-user-message' &&
+            stdinMode !== 'json-envelope-rpc' &&
             !(stdinMode === 'json-envelope' && envelopeHasPrompt))
         ) {
           issue(
-            'promptTransport stdin-ndjson requires an ndjson-user-message or prompt-carrying json-envelope stdin',
+            'promptTransport stdin-ndjson requires an ndjson-user-message, json-envelope-rpc or prompt-carrying json-envelope stdin',
           );
         }
         break;

@@ -20,6 +20,7 @@ import type {
 } from '@tale/shared/schemas/providers';
 
 import { buildStdinUserMessage } from './parsers/claude-stream-json';
+import { buildPiRpcCommand } from './parsers/pi-jsonl';
 import type { HarnessExec, HarnessRunSpec } from './types';
 import { DEFAULT_MAX_TURNS } from './types';
 
@@ -291,6 +292,26 @@ function instructionsPathFor(
   return exec.stagedInstructions === undefined
     ? undefined
     : substitute(exec.stagedInstructions.pathTemplate, subs);
+}
+
+/**
+ * The line a live turn reads for a steer, in the dialect of its harness's
+ * held stdin: Claude Code's stream-json user message, or Pi's RPC steer
+ * command. Null for a harness whose stdin is not held open: it is steered by
+ * a restart instead. Newline-terminated, one JSON line, as runnerd requires.
+ */
+export function steerLine(
+  fact: Pick<HarnessDefinition, 'exec'>,
+  text: string,
+): string | null {
+  switch (fact.exec.stdin.mode) {
+    case 'ndjson-user-message':
+      return buildStdinUserMessage(text);
+    case 'json-envelope-rpc':
+      return buildPiRpcCommand('steer', text);
+    default:
+      return null;
+  }
 }
 
 /** Where the builder stages one exec's instructions addendum (OpenCode's
@@ -824,7 +845,10 @@ export function buildHarnessExec(
     // while the process lingers; the runner sends EOF once the turn's
     // terminal event arrived and no background tasks remain.
     stdinMode = 'hold';
-  } else if (exec.stdin.mode === 'json-envelope') {
+  } else if (
+    exec.stdin.mode === 'json-envelope' ||
+    exec.stdin.mode === 'json-envelope-rpc'
+  ) {
     const envelope: DocTree = {};
     for (const entry of exec.stdin.envelope) {
       if ('prompt' in entry) {
@@ -838,7 +862,15 @@ export function buildHarnessExec(
         envelope[entry.doc.key] = buildDoc(entry.doc.fragments);
       }
     }
-    stdin = JSON.stringify(envelope);
+    if (exec.stdin.mode === 'json-envelope') {
+      stdin = JSON.stringify(envelope);
+    } else {
+      // The envelope as one line (the wrapper reads it alone and stages it),
+      // then the prompt as the CLI's own RPC prompt command, held open: the
+      // platform's steer lines follow it (steerLine).
+      stdin = `${JSON.stringify(envelope)}\n${buildPiRpcCommand('prompt', spec.prompt)}`;
+      stdinMode = 'hold';
+    }
   }
 
   // -------------------------------------------------------------------------

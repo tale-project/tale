@@ -29,7 +29,7 @@ import {
   type TaskHandoff,
   type TaskRequester,
 } from '../../../lib/agent/task-brief';
-import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
+import { steerLine } from '../../../lib/harnesses/exec-builder';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
 import {
   agentLanguageGuidance,
@@ -2687,15 +2687,17 @@ async function releaseProjectAgentSlotAfterSettle(
 // Mid-run comment steering — the @mention door's live-engine branch
 // ---------------------------------------------------------------------------
 
-/** Which steering lane a harness supports: `stdin` when its YAML declares
- * the steering capability (a held-open NDJSON stdin the CLI keeps reading),
- * else `restart` — the CLI takes no input once launched, so the comment
+/** The steering line a live turn of this harness reads, or null when the
+ * harness takes the `restart` lane. A harness whose YAML declares the
+ * steering capability holds its stdin open and keeps reading it (Claude
+ * Code's stream-json, Pi's RPC commands): the line is in that dialect
+ * (`steerLine`). Any other CLI takes no input once launched, so the comment
  * reaches the run by killing the exec and continuing on a fresh
- * incarnation. Exported for its unit test. */
-function steerLaneForHarness(harness: string): 'stdin' | 'restart' {
-  if (!isHarnessSlug(harness)) return 'restart';
+ * incarnation. */
+function steerLineForHarness(harness: string, text: string): string | null {
+  if (!isHarnessSlug(harness)) return null;
   const def = loadHarnesses().find((h) => h.slug === harness);
-  return def?.capabilities.steering === true ? 'stdin' : 'restart';
+  return def?.capabilities.steering === true ? steerLine(def, text) : null;
 }
 
 /** The injected line a live turn reads for a mid-run task comment — or,
@@ -2763,7 +2765,7 @@ const STEER_MAX_ATTEMPTS = 15;
  * Deliver a mid-run task comment INTO the live turn — scheduled by the
  * @mention door when the mentioned agent is the one already running
  * (`triggerMentionedProjectAgent`). Two lanes by harness capability
- * (`steerLaneForHarness`); every miss degrades and none errors: a run found
+ * (`steerLineForHarness`); every miss degrades and none errors: a run found
  * terminal falls back to a fresh `trigger:'mention'` kick — exactly what
  * the mention means with no live engine — and a turn caught mid-settle is
  * retried until its run settles and takes that same fallback. The comment
@@ -2886,14 +2888,15 @@ export async function steerTaskAgentTurnImpl(
     return await retry(args.execId);
   }
 
-  if (steerLaneForHarness(args.harness) === 'stdin') {
-    const line = buildStdinUserMessage(
-      buildSteerCommentText(args.author, args.feedback, args.mentionSource),
-    );
+  const line = steerLineForHarness(
+    args.harness,
+    buildSteerCommentText(args.author, args.feedback, args.mentionSource),
+  );
+  if (line !== null) {
     try {
-      // buildStdinUserMessage is already newline-terminated, and runnerd
-      // fail-closes on anything but exactly one \n-terminated JSON line
-      // (a malformed line kills Claude Code's stream-json reader).
+      // steerLine is already newline-terminated, and runnerd fail-closes on
+      // anything but exactly one \n-terminated JSON line (a malformed line
+      // kills Claude Code's stream-json reader and Pi's RPC reader).
       const wrote = await sessionWriteExecStdin(args.sessionId, args.execId, {
         dataBase64: Buffer.from(line, 'utf8').toString('base64'),
       });
