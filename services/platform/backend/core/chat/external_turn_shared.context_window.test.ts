@@ -40,9 +40,13 @@ const TURN = {
   kind: 'task-agent',
 } as const;
 
-/** The serving connector's catalog entry: its window, and its output limit
- * when it names one. */
-function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
+/** The serving connector's catalog entry: its window, its output limit
+ * when it names one, and its reasoning knob when it has one. */
+function servesWindow(
+  contextWindow: number,
+  maxOutputTokens?: number,
+  reasoning?: ModelCatalogEntry['reasoning'],
+): void {
   const entry: ModelCatalogEntry = {
     id: TURN.modelId,
     provider: TURN.providerSlug,
@@ -51,6 +55,7 @@ function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
     supportsVision: false,
     contextWindow,
     ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+    ...(reasoning !== undefined ? { reasoning } : {}),
   };
   vi.mocked(resolveModel).mockResolvedValue({
     entry,
@@ -214,6 +219,40 @@ describe('resolveHarnessTurnModelLimits', () => {
     });
   });
 
+  it('says the model can be told how hard to think when its entry has a reasoning knob', async () => {
+    for (const knob of [
+      { knob: 'effort' as const },
+      { knob: 'effort' as const, off: 'none' as const },
+      { knob: 'budget-tokens' as const },
+    ]) {
+      servesWindow(200_000, 64_000, knob);
+      const { ctx } = governanceCtx({ attribution: {}, cap: null });
+      await expect(resolveHarnessTurnModelLimits(ctx, TURN)).resolves.toEqual({
+        contextWindow: 200_000,
+        maxOutputTokens: 64_000,
+        reasoning: true,
+      });
+    }
+  });
+
+  it('says no for a model without a knob, and for one whose endpoint refuses an effort beside tools', async () => {
+    servesWindow(200_000);
+    const plain = governanceCtx({ attribution: {}, cap: null });
+    await expect(
+      resolveHarnessTurnModelLimits(plain.ctx, TURN),
+    ).resolves.not.toHaveProperty('reasoning');
+    // An agent turn always carries tools.
+    servesWindow(200_000, undefined, {
+      knob: 'effort',
+      off: 'none',
+      toolsRequireOff: true,
+    });
+    const refused = governanceCtx({ attribution: {}, cap: null });
+    await expect(
+      resolveHarnessTurnModelLimits(refused.ctx, TURN),
+    ).resolves.not.toHaveProperty('reasoning');
+  });
+
   it('keeps the catalog output limit under a context limit above it', async () => {
     servesWindow(262_144, 65_536);
     const { ctx } = governanceCtx({
@@ -265,13 +304,31 @@ describe('buildExternalTurnExec carries the model limits to the harness', () => 
       maxOutputTokens: 12_288,
     });
     expect(piModels(exec)).toEqual([
-      { id: base.gatewayModel, contextWindow: 49_152, maxTokens: 12_288 },
+      {
+        id: base.gatewayModel,
+        contextWindow: 49_152,
+        maxTokens: 12_288,
+        input: ['text'],
+      },
     ]);
   });
 
   it('leaves Pi its own limits without them', () => {
     const exec = buildExternalTurnExec({ ...base, harness: 'pi' });
-    expect(piModels(exec)).toEqual([{ id: base.gatewayModel }]);
+    expect(piModels(exec)).toEqual([
+      { id: base.gatewayModel, input: ['text'] },
+    ]);
+  });
+
+  it('tells Pi the model can be told how hard to think', () => {
+    const exec = buildExternalTurnExec({
+      ...base,
+      harness: 'pi',
+      reasoning: true,
+    });
+    expect(piModels(exec)).toEqual([
+      { id: base.gatewayModel, input: ['text'], reasoning: true },
+    ]);
   });
 });
 

@@ -581,7 +581,7 @@ describe("Pi sizes the conversation to the model's window", () => {
       managedSpec({ model: 'claude-opus-4-6', contextWindow: 196_608 }),
     );
     expect(models(exec)).toEqual([
-      { id: 'claude-opus-4-6', contextWindow: 196_608 },
+      { id: 'claude-opus-4-6', contextWindow: 196_608, input: ['text'] },
     ]);
   });
 
@@ -590,7 +590,7 @@ describe("Pi sizes the conversation to the model's window", () => {
       fact('pi'),
       managedSpec({ model: 'claude-opus-4-6' }),
     );
-    expect(models(exec)).toEqual([{ id: 'claude-opus-4-6' }]);
+    expect(models(exec)).toEqual([{ id: 'claude-opus-4-6', input: ['text'] }]);
   });
 
   it('hands its model the catalog output limit', () => {
@@ -605,7 +605,12 @@ describe("Pi sizes the conversation to the model's window", () => {
       }),
     );
     expect(models(exec)).toEqual([
-      { id: 'claude-opus-4-6', contextWindow: 196_608, maxTokens: 65_536 },
+      {
+        id: 'claude-opus-4-6',
+        contextWindow: 196_608,
+        maxTokens: 65_536,
+        input: ['text'],
+      },
     ]);
   });
 
@@ -615,14 +620,14 @@ describe("Pi sizes the conversation to the model's window", () => {
       managedSpec({ model: 'claude-opus-4-6', contextWindow: 196_608 }),
     );
     expect(models(windowOnly)).toEqual([
-      { id: 'claude-opus-4-6', contextWindow: 196_608 },
+      { id: 'claude-opus-4-6', contextWindow: 196_608, input: ['text'] },
     ]);
     const limitOnly = buildHarnessExec(
       fact('pi'),
       managedSpec({ model: 'claude-opus-4-6', maxOutputTokens: 65_536 }),
     );
     expect(models(limitOnly)).toEqual([
-      { id: 'claude-opus-4-6', maxTokens: 65_536 },
+      { id: 'claude-opus-4-6', maxTokens: 65_536, input: ['text'] },
     ]);
   });
 
@@ -637,6 +642,88 @@ describe("Pi sizes the conversation to the model's window", () => {
       maxOutputTokens: 65_536,
     });
     expect(piEnvelope(byo)).not.toHaveProperty('models');
+  });
+});
+
+describe('Pi reads images, thinks and waits as the relay does', () => {
+  /** The one model entry of the models.json tale-pi-run stages. */
+  const model = (exec: HarnessExec): Record<string, unknown> | undefined =>
+    (
+      piEnvelope(exec) as {
+        models?: {
+          providers?: Record<string, { models?: Record<string, unknown>[] }>;
+        };
+      }
+    ).models?.providers?.['tale-gateway']?.models?.[0];
+  const settings = (exec: HarnessExec): unknown => piEnvelope(exec).settings;
+
+  it('lists images among the inputs of a model that reads them itself', () => {
+    // Pi replaces every image with a placeholder for a model whose input
+    // lists text alone; no polyfill reads them for a model that sees.
+    const sees = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        model: 'claude-opus-4-6',
+        vision: { model: 'claude-opus-4-6', polyfillReads: false },
+      }),
+    );
+    expect(model(sees)?.input).toEqual(['text', 'image']);
+  });
+
+  it('keeps a text-only model on text, polyfilled or without a vision lane', () => {
+    const polyfilled = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        model: 'deepseek-chat',
+        vision: { model: 'qwen3-vl', polyfillReads: true },
+      }),
+    );
+    expect(model(polyfilled)?.input).toEqual(['text']);
+    const noLane = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'deepseek-chat' }),
+    );
+    expect(model(noLane)?.input).toEqual(['text']);
+  });
+
+  it('marks a model it may tell how hard to think, and only that one', () => {
+    const reasons = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', reasoning: true }),
+    );
+    expect(model(reasons)?.reasoning).toBe(true);
+    const plain = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6' }),
+    );
+    expect(model(plain)).not.toHaveProperty('reasoning');
+  });
+
+  it('thinks at its high level, on a managed run and on a bring-your-own one', () => {
+    const managed = buildHarnessExec(fact('pi'), managedSpec());
+    expect(settings(managed)).toMatchObject({ defaultThinkingLevel: 'high' });
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'anthropic/claude-opus-4-6',
+    });
+    expect(settings(byo)).toMatchObject({ defaultThinkingLevel: 'high' });
+  });
+
+  it('waits for a silent stream as long as the relay does, on a managed run alone', () => {
+    // Pi gives up on a response idle past 300 s by default and asks again
+    // while the relay still serves the first request.
+    const managed = buildHarnessExec(fact('pi'), managedSpec());
+    expect(settings(managed)).toMatchObject({
+      httpIdleTimeoutMs: GOLDEN_GATEWAY.streamIdleTimeoutMs,
+    });
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+    });
+    expect(settings(byo)).not.toHaveProperty('httpIdleTimeoutMs');
   });
 });
 
@@ -1134,8 +1221,26 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
     ).toBe(false);
   });
 
+  // Pi gives up on a response idle past its httpIdleTimeoutMs (300 s by
+  // default, its provider request timeout too) and asks again; its knob is
+  // a key of the settings.json it is staged.
+  it('pi pins the same budget in its settings', () => {
+    const raised = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        credential: {
+          mode: 'managed',
+          gateway: { ...GOLDEN_GATEWAY, streamIdleTimeoutMs: 1_800_000 },
+        },
+      }),
+    );
+    expect(piEnvelope(raised).settings).toMatchObject({
+      httpIdleTimeoutMs: 1_800_000,
+    });
+  });
+
   const others = loadHarnesses().filter(
-    (h) => h.exec.bin !== 'claude' && h.slug !== 'codex',
+    (h) => h.exec.bin !== 'claude' && h.slug !== 'codex' && h.slug !== 'pi',
   );
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the budget',

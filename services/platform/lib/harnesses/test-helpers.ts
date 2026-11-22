@@ -188,6 +188,8 @@ export function goldenBattery(): readonly GoldenCase[] {
         model: GOLDEN_LOCAL_MODEL,
         contextWindow: GOLDEN_CONTEXT_WINDOW,
         maxOutputTokens: GOLDEN_MAX_OUTPUT_TOKENS,
+        // The model can be told how hard to think (`model-reasoning`).
+        reasoning: true,
       }),
     },
     {

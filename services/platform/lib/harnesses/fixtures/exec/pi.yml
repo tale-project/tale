@@ -8,7 +8,7 @@ managed-baseline:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-model-opus:
@@ -25,7 +25,7 @@ managed-model-opus:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6"}]}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6","input":["text"]}]}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-model-gateway-ref:
@@ -42,7 +42,7 @@ managed-model-gateway-ref:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"openrouter/anthropic/claude-sonnet-4.6"}]}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"openrouter/anthropic/claude-sonnet-4.6","input":["text"]}]}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-model-default:
@@ -59,7 +59,7 @@ managed-model-default:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"default"}]}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"default","input":["text"]}]}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-model-context-window:
@@ -76,7 +76,7 @@ managed-model-context-window:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768,"maxTokens":12288}]}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768,"maxTokens":12288,"input":["text"],"reasoning":true}]}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-plan:
@@ -89,7 +89,7 @@ managed-plan:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-act:
@@ -102,7 +102,7 @@ managed-act:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-resume:
@@ -117,7 +117,7 @@ managed-resume:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-instructions:
@@ -130,7 +130,7 @@ managed-instructions:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-dirs:
@@ -143,7 +143,7 @@ managed-dirs:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-mcp-headless-bridge:
@@ -156,7 +156,7 @@ managed-mcp-headless-bridge:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-mcp-bridge-only:
@@ -169,7 +169,7 @@ managed-mcp-bridge-only:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-vision:
@@ -182,7 +182,7 @@ managed-vision:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-vision-lane:
@@ -195,7 +195,7 @@ managed-vision-lane:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-steer:
@@ -208,7 +208,7 @@ managed-steer:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 managed-kitchen-sink:
@@ -227,7 +227,7 @@ managed-kitchen-sink:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6"}]}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6","input":["text"]}]}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 byo-baseline:
@@ -240,7 +240,7 @@ byo-baseline:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 byo-model:
@@ -255,7 +255,7 @@ byo-model:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 byo-model-default:
@@ -270,7 +270,7 @@ byo-model-default:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"mcp":{}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"mcp":{}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold
 byo-kitchen-sink:
@@ -287,6 +287,6 @@ byo-kitchen-sink:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: |
-    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all"},"system_prompt":"Golden instructions: follow the org runbook.","mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"system_prompt":"Golden instructions: follow the org runbook.","mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
     {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
   stdinMode: hold

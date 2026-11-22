@@ -585,11 +585,14 @@ describe('an automation agent turn', () => {
 
     expect(console.error).not.toHaveBeenCalled();
     expect(io.starts).toHaveLength(1);
+    // A text-only model with no reasoning knob: Pi keeps it on text and
+    // sends it no reasoning effort.
     expect(piStagedModels(io.starts[0]?.stdin)).toEqual([
       {
         id: 'local-inference-org-1/qwen3-32b',
         contextWindow: 49_152,
         maxTokens: 12_288,
+        input: ['text'],
       },
     ]);
     // One catalog read answers both.

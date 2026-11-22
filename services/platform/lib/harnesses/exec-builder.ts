@@ -392,18 +392,60 @@ function substituteNumber(
   return value;
 }
 
+/** The condition atoms a `when` list ANDs over (schema-derived). */
+type ExecCondition = NonNullable<
+  Extract<DocFragments[number], { set: unknown }>['when']
+>[number];
+
+/** Whether every atom of a `when` list holds for this build. */
+type Holds = (when: readonly ExecCondition[] | undefined) => boolean;
+
+/** A conditional value of a `set` tree
+ * (`{ $when: [model-images], value: [text, image], else: [text] }`): an
+ * object holding its condition atoms under `$when`, the value they pick
+ * under `value`, and at most the value a failed condition picks under
+ * `else`. */
+interface WhenValue {
+  readonly $when: readonly ExecCondition[];
+  readonly value: unknown;
+  readonly else?: unknown;
+}
+
+function isWhenValue(value: unknown): value is WhenValue {
+  return (
+    isTree(value) &&
+    Array.isArray(value.$when) &&
+    'value' in value &&
+    Object.keys(value).every(
+      (key) => key === '$when' || key === 'value' || key === 'else',
+    )
+  );
+}
+
 /** Clone a literal fragment tree, substituting placeholders in every string
  * — map KEYS included (opencode keys its per-model entry by `${model}`) —
- * and resolving its number templates. */
-function substituteTree(value: unknown, subs: Substitutions): unknown {
+ * resolving its number templates, and choosing the branch of each
+ * conditional value that this build's conditions pick (a failed condition
+ * without an `else` leaves its key, or its array slot, out). */
+function substituteTree(
+  value: unknown,
+  subs: Substitutions,
+  holds: Holds,
+): unknown {
   if (typeof value === 'string') return substitute(value, subs);
   if (Array.isArray(value)) {
     return value
-      .map((v) => substituteTree(v, subs))
+      .map((v) => substituteTree(v, subs, holds))
       .filter((v) => v !== LEFT_OUT);
   }
   if (isNumberTemplate(value)) return substituteNumber(value, subs);
-  if (isTree(value)) return substituteRecord(value, subs);
+  if (isWhenValue(value)) {
+    const chosen = holds(value.$when) ? value.value : value.else;
+    return chosen === undefined
+      ? LEFT_OUT
+      : substituteTree(chosen, subs, holds);
+  }
+  if (isTree(value)) return substituteRecord(value, subs, holds);
   return value;
 }
 
@@ -412,10 +454,11 @@ function substituteTree(value: unknown, subs: Substitutions): unknown {
 function substituteRecord(
   value: Readonly<Record<string, unknown>>,
   subs: Substitutions,
+  holds: Holds,
 ): DocTree {
   const out: DocTree = {};
   for (const [key, v] of Object.entries(value)) {
-    const resolved = substituteTree(v, subs);
+    const resolved = substituteTree(v, subs, holds);
     if (resolved === LEFT_OUT) continue;
     out[substitute(key, subs)] = resolved;
   }
@@ -506,16 +549,18 @@ export function buildHarnessExec(
   }
 
   // The condition atoms a `when` list ANDs over.
-  const conditions: Record<'managed' | 'byo' | 'model' | 'no-model', boolean> =
-    {
-      managed,
-      byo: spec.credential.mode === 'byo',
-      model: spec.model !== undefined,
-      'no-model': spec.model === undefined,
-    };
-  const holds = (
-    when: ReadonlyArray<keyof typeof conditions> | undefined,
-  ): boolean => (when ?? []).every((atom) => conditions[atom]);
+  const conditions: Record<ExecCondition, boolean> = {
+    managed,
+    byo: spec.credential.mode === 'byo',
+    model: spec.model !== undefined,
+    'no-model': spec.model === undefined,
+    // The serving model reads images itself: the vision lane armed no
+    // polyfill for its reads (a text-only model's are routed through the
+    // vision model; a turn with no vision lane at all is text-only).
+    'model-images': spec.vision?.polyfillReads === false,
+    'model-reasoning': spec.reasoning === true,
+  };
+  const holds: Holds = (when) => (when ?? []).every((atom) => conditions[atom]);
 
   const subs: Substitutions = {
     'gateway.baseUrl': gateway?.baseUrl,
@@ -663,7 +708,7 @@ export function buildHarnessExec(
     for (const fragment of fragments) {
       if ('set' in fragment) {
         if (!holds(fragment.when)) continue;
-        mergeTree(doc, substituteRecord(fragment.set, subs));
+        mergeTree(doc, substituteRecord(fragment.set, subs, holds));
       } else if ('maxTurns' in fragment) {
         setPath(doc, fragment.maxTurns.path, DEFAULT_MAX_TURNS);
       } else if ('mcpServers' in fragment) {

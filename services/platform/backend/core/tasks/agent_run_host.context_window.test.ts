@@ -1044,8 +1044,10 @@ describe('a task agent start', () => {
         }),
       })
       .parse(JSON.parse(io.starts[0]?.stdin?.split('\n')[0] ?? '{}'));
+    // A text-only model with no reasoning knob: Pi keeps it on text and
+    // sends it no reasoning effort.
     expect(envelope.models.providers['tale-gateway'].models).toEqual([
-      { id: model, contextWindow: 49_152, maxTokens: 12_288 },
+      { id: model, contextWindow: 49_152, maxTokens: 12_288, input: ['text'] },
     ]);
     expect(model).toMatch(/\/qwen3-32b$/);
     expect(console.error).not.toHaveBeenCalled();

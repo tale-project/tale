@@ -327,6 +327,9 @@ function attributedUserId(attribution: unknown): string {
 export interface HarnessTurnModelLimits {
   readonly contextWindow?: number;
   readonly maxOutputTokens?: number;
+  /** Beside the limits, from the same entry: the model can be told how hard
+   * to think on a turn that carries tools (`HarnessRunSpec.reasoning`). */
+  readonly reasoning?: true;
 }
 
 /**
@@ -410,6 +413,13 @@ export async function resolveHarnessTurnModelLimits(
     ...(entry.maxOutputTokens !== undefined
       ? { maxOutputTokens: Math.min(entry.maxOutputTokens, contextWindow) }
       : {}),
+    // A model with a reasoning knob can be told how hard to think — except
+    // where its endpoint refuses any effort beside tools, which an agent
+    // turn always carries.
+    ...(entry.reasoning !== undefined &&
+    entry.reasoning.toolsRequireOff !== true
+      ? { reasoning: true as const }
+      : {}),
   };
 }
 
@@ -425,6 +435,9 @@ export function buildExternalTurnExec(args: {
    * (`resolveHarnessTurnModelLimits`); absent leaves the harness to cap its
    * answers on its own. */
   maxOutputTokens?: number;
+  /** The model can be told how hard to think on a turn with tools
+   * (`resolveHarnessTurnModelLimits`); absent counts as no. */
+  reasoning?: boolean;
   serving: ExternalTurnServing;
   instructions: string;
   prompt: string;
@@ -458,6 +471,7 @@ export function buildExternalTurnExec(args: {
     ...(args.maxOutputTokens !== undefined
       ? { maxOutputTokens: args.maxOutputTokens }
       : {}),
+    ...(args.reasoning === true ? { reasoning: true } : {}),
     // BOTH lanes run the managed env shell — the capability bridge, the
     // vision/steering hooks, and the managed model-pin slots all read the
     // gateway pair. A subscription turn substitutes its session bridge

@@ -982,11 +982,24 @@ const headerTemplateMapSchema = z.record(
 );
 
 /**
- * Condition atoms gating a conditional doc fragment or envelope doc; a
- * `when` list is an AND over its atoms. `managed`/`byo` follow the spec's
- * credential mode; `model`/`no-model` whether a model was resolved.
+ * Condition atoms gating a conditional doc fragment, envelope doc or value
+ * (`$when`); a `when` list is an AND over its atoms. `managed`/`byo` follow
+ * the spec's credential mode; `model`/`no-model` whether a model was
+ * resolved; `model-images` whether the serving model reads images itself
+ * (no vision polyfill reads them for it); `model-reasoning` whether it can
+ * be told how hard to think on a turn that carries tools (its catalog entry
+ * declares a reasoning knob, and the endpoint does not refuse one with
+ * tools).
  */
-const execConditionSchema = z.enum(['managed', 'byo', 'model', 'no-model']);
+const execConditionSchema = z.enum([
+  'managed',
+  'byo',
+  'model',
+  'no-model',
+  'model-images',
+  'model-reasoning',
+]);
+type ExecCondition = z.infer<typeof execConditionSchema>;
 const whenSchema = z.array(execConditionSchema).min(1);
 
 /** Dotted key path inside a config document (`model.maxSessionTurns`,
@@ -1017,25 +1030,38 @@ const docNumberTemplateSchema = z
   })
   .strict();
 
-/** A key of a `set` tree. `$number` is the number template's alone. */
+/** A key of a `set` tree. `$number` and `$when` are templates' alone. */
 const docKeySchema = z
   .string()
   .min(1)
   .max(200)
-  .refine((key) => key !== '$number', {
-    message: '`$number` is a number template, not a key',
+  .refine((key) => key !== '$number' && key !== '$when', {
+    message: '`$number` and `$when` are templates, not keys',
   });
+
+/** A value a CLI's config takes only when the build meets conditions:
+ * `{ $when: [model-images], value: [text, image], else: [text] }` becomes
+ * `value` when every atom of `$when` holds, and `else` when one does not —
+ * without an `else`, nothing: its key, or its array slot, is left out, so
+ * the CLI keeps its own default. Both are trees like any other. */
+type DocWhenValue = {
+  $when: ExecCondition[];
+  value: DocValue;
+  else?: DocValue;
+};
 
 /** JSON-shaped literal tree for `set` fragments. Strings — keys included —
  * go through placeholder substitution; a number template
- * ({@link DocNumberTemplate}) becomes the number it resolves to; everything
- * else is verbatim. */
+ * ({@link DocNumberTemplate}) becomes the number it resolves to, and a
+ * conditional value ({@link DocWhenValue}) the branch its conditions pick;
+ * everything else is verbatim. */
 type DocValue =
   | string
   | number
   | boolean
   | null
   | DocNumberTemplate
+  | DocWhenValue
   | DocValue[]
   | { [key: string]: DocValue };
 const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
@@ -1045,6 +1071,13 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
     z.boolean(),
     z.null(),
     docNumberTemplateSchema,
+    z
+      .object({
+        $when: whenSchema,
+        value: docValueSchema,
+        else: docValueSchema.optional(),
+      })
+      .strict(),
     z.array(docValueSchema),
     z.record(docKeySchema, docValueSchema),
   ]),
@@ -1058,7 +1091,7 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  * order is first-insertion order, which the byte-exact golden fixtures pin.
  *
  *  - `set`: merge a literal tree (optionally gated by `when`), its number
- *    templates resolved first.
+ *    templates and conditional values resolved first.
  *  - `maxTurns`: set the fixed runaway backstop (`DEFAULT_MAX_TURNS`) as a
  *    number at `path`.
  *  - `mcpServers`: mount the requested MCP servers at `path` — the

@@ -75,7 +75,13 @@ exec:
       # since 1.5.1) sends paid requests to keep a provider's prompt cache
       # warm, during a run and for up to 30 minutes after: a turn pays only
       # for its own calls. Every steer queued is delivered at once, as
-      # Claude Code takes them.
+      # Claude Code takes them. A model Pi may tell how hard to think
+      # (`reasoning` below) thinks at Pi's "high", the most it asks without
+      # a per-model map, as Claude Code thinks at its most on every turn
+      # (the claude-ultrathink transform); the relay carries "high" to every
+      # upstream wire. Observed on 1.6.0 against a local stand-in for the
+      # chat API: a model marked `reasoning` is asked with reasoning_effort
+      # "high", one without it with no effort at all.
       - doc:
           key: settings
           fragments:
@@ -83,6 +89,17 @@ exec:
                 enableInstallTelemetry: false
                 cacheWarming: 'off'
                 steeringMode: all
+                defaultThinkingLevel: high
+            # MANAGED: wait for a silent stream as long as the model relay
+            # does. Pi gives up on a response whose headers or next bytes
+            # take longer than httpIdleTimeoutMs (300 s by default, also its
+            # provider request timeout) and asks again while the relay still
+            # serves the first request; a slow prefill outlasts that.
+            # Observed on 1.6.0: a staged 3 s abandoned a response withheld
+            # for 8 s and asked again; a staged 20 s waited for it.
+            - when: [managed]
+              set:
+                httpIdleTimeoutMs: { $number: '${gateway.streamIdleTimeoutMs}' }
       - instructions: { key: system_prompt }
       # MANAGED: OpenAI-compatible route on the model relay, wired as a
       # Pi custom provider in a staged models.json. The session key rides
@@ -112,6 +129,16 @@ exec:
             # the smaller of maxTokens and the room its window leaves, so the
             # catalog's figure is safe at any size. An unknown limit leaves the
             # key out, and Pi keeps its 16,384.
+            # Pi treats a model as text-only unless `input` lists images, and
+            # then replaces every image — an attachment it reads, a tool's
+            # screenshot — with a placeholder: a model that reads images
+            # itself is staged with them (Pi has no vision polyfill; a
+            # text-only model keeps text). Observed on 1.6.0: a PNG Pi read
+            # reached a model staged with images as the image itself, and a
+            # text-only one as "(tool image omitted: model does not support
+            # images)". Pi sends a reasoning effort only for a model marked
+            # `reasoning`: one whose catalog entry can be told how hard to
+            # think beside tools.
             - when: [model]
               set:
                 providers:
@@ -120,6 +147,11 @@ exec:
                       - id: '${model}'
                         contextWindow: { $number: '${model.contextWindow}' }
                         maxTokens: { $number: '${model.maxOutputTokens}' }
+                        input:
+                          $when: [model-images]
+                          value: [text, image]
+                          else: [text]
+                        reasoning: { $when: [model-reasoning], value: true }
       # Staged as <agentDir>/mcp.json (stdio: command/args/env — Pi's MCP
       # server config). Pi offers a server's tools to the model only with
       # `exposure: direct`: its default keeps them inside its code-mode

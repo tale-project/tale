@@ -151,6 +151,14 @@ export interface HarnessRunSpec {
    * model it does not know for at most 16,384.
    */
   readonly maxOutputTokens?: number;
+  /**
+   * `model` can be told how hard to think on a turn that carries tools: its
+   * catalog entry declares a reasoning knob, and its endpoint does not
+   * refuse one beside tools (`toolsRequireOff`). The `model-reasoning`
+   * condition of a harness YAML; absent counts as no — Pi then sends no
+   * reasoning effort at all.
+   */
+  readonly reasoning?: boolean;
   /** The resolved credential case (see {@link HarnessCredential}). */
   readonly credential: HarnessCredential;
   /** Working directory inside the session (e.g. /agent/workspace). */

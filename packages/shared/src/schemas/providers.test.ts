@@ -965,6 +965,47 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('reads a conditional value in a doc tree and keeps `$when` out of keys', () => {
+    const input = {
+      $when: ['model-images'],
+      value: ['text', 'image'],
+      else: ['text'],
+    };
+    expect(withDoc({ models: [{ id: '${model}', input }] })).toBe(true);
+    // Without an `else`, a failed condition leaves the key out; the value
+    // is a tree like any other, its conditions an AND of known atoms.
+    expect(
+      withDoc({
+        model: { reasoning: { $when: ['model-reasoning'], value: true } },
+      }),
+    ).toBe(true);
+    expect(
+      withDoc({
+        model: {
+          limit: {
+            $when: ['managed', 'model'],
+            value: { $number: '${model.maxOutputTokens}' },
+          },
+        },
+      }),
+    ).toBe(true);
+    // An unknown atom, an empty condition, no value, a key beside the
+    // template, or `$when` as a key of its own are config defects.
+    expect(
+      withDoc({
+        model: { reasoning: { $when: ['model-vision'], value: true } },
+      }),
+    ).toBe(false);
+    expect(withDoc({ model: { reasoning: { $when: [], value: true } } })).toBe(
+      false,
+    );
+    expect(withDoc({ model: { reasoning: { $when: ['model'] } } })).toBe(false);
+    expect(
+      withDoc({ model: { input: { ...input, otherwise: ['text'] } } }),
+    ).toBe(false);
+    expect(withDoc({ model: { $when: 'model-images' } })).toBe(false);
+  });
+
   it('rejects the retired argv-positional transport spelling', () => {
     expect(
       harnessDefinitionSchema.safeParse({
