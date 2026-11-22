@@ -775,11 +775,13 @@ describe('an automation agent turn', () => {
       typeof workflowAgentRetryResume
     >[0] & { reason: string };
     const resume = workflowAgentRetryResume(result, result.reason, parked, {
+      slug: parked.harness,
       resumable: harnessResumesConversations(parked.harness),
     });
     expect(resume).toEqual({
       agentSessionId: 'claude-session-1',
       reason: result.reason,
+      harness: parked.harness,
       askId: 'ask-1',
     });
     io.execRefusal = undefined;

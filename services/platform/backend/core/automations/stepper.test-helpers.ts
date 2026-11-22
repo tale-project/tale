@@ -97,7 +97,9 @@ function clone<T>(value: T): T {
 /**
  * A run of `document`, in `mode`, with nothing recorded yet. `connector`
  * answers each connector call (the door's `{ status, output, effects }`); by
- * default every call succeeds as a write and echoes its input.
+ * default every call succeeds as a write and echoes its input. `liveAgentOp`
+ * is the still-running agent op the store answers for the run (the turn a
+ * crashed kick left in flight); by default there is none.
  */
 export function fakeStepperWorld(options: {
   document: Automation;
@@ -106,6 +108,7 @@ export function fakeStepperWorld(options: {
   checkpoints?: Record<string, unknown>;
   saved?: Record<string, FakeSaved>;
   connector?: (args: Record<string, unknown>) => Promise<unknown>;
+  liveAgentOp?: Record<string, unknown>;
 }): FakeWorld {
   const world: Omit<FakeWorld, 'ctx'> = {
     run: {
@@ -236,7 +239,11 @@ export function fakeStepperWorld(options: {
       if (name.endsWith(':probeCredentialUsableInternal')) {
         return { usable: true };
       }
-      if (name.endsWith(':loadLiveAgentOpForRun')) return null;
+      if (name.endsWith(':loadLiveAgentOpForRun')) {
+        return options.liveAgentOp === undefined
+          ? null
+          : clone(options.liveAgentOp);
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {

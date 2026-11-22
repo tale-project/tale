@@ -15281,7 +15281,8 @@ async function checkAutomationRunLifecycle(
   );
 
   // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not
-  // re-kick) and returns null once it settles.
+  // re-kick) with the harness its op records, and returns null once it
+  // settles.
   const opRun = await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx<{ id: string }[]>`
@@ -15299,11 +15300,11 @@ async function checkAutomationRunLifecycle(
   const opSessionId = naming.sessionIdForWorkflowExecution(opRunId);
   await sql`
     INSERT INTO app.sandbox_session_ops (
-      org_id, session_id, exec_id, kind, status, model_ref, deadline_ms,
-      heartbeat_at_ms, started_at_ms
+      org_id, session_id, exec_id, kind, status, model_ref, harness,
+      deadline_ms, heartbeat_at_ms, started_at_ms
     ) VALUES (
       ${orgId}, ${opSessionId}, 'exec-live-1', 'workflow-agent', 'running',
-      'anthropic/claude-sonnet-4-20250514', ${Date.now() + 600_000},
+      'anthropic/claude-sonnet-4-20250514', 'codex', ${Date.now() + 600_000},
       ${Date.now()}, ${Date.now()}
     )
   `;
@@ -15319,6 +15320,7 @@ async function checkAutomationRunLifecycle(
       deadlineAt: z.number(),
       providerSlug: z.string(),
       gatewayModel: z.string(),
+      harness: z.string().optional(),
     })
     .safeParse(liveOp);
   await sql`
@@ -15334,13 +15336,14 @@ async function checkAutomationRunLifecycle(
     return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
   });
   record(
-    'live-op query adopts an in-flight agent turn and clears once settled',
+    'live-op query adopts an in-flight agent turn on its own harness and clears once settled',
     liveOpView.success &&
       liveOpView.data.execId === 'exec-live-1' &&
       liveOpView.data.providerSlug === 'anthropic' &&
       liveOpView.data.gatewayModel === 'claude-sonnet-4-20250514' &&
+      liveOpView.data.harness === 'codex' &&
       settledOp === null,
-    `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
+    `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel} on ${liveOpView.data.harness ?? 'no harness'}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
   );
 
   // ---- #5b: the agent node's folder mounts list through the run's shim —

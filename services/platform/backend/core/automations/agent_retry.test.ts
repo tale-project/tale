@@ -17,6 +17,7 @@ import {
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
   resourceExhaustedRekickAtMs,
+  resumeOnHarness,
   retryResumePrompt,
   sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
@@ -24,7 +25,7 @@ import {
 } from './agent_retry';
 
 /** Every harness but Gemini CLI continues its conversations. */
-const RESUMES = { resumable: true };
+const RESUMES = { slug: 'claude-code', resumable: true };
 
 describe('workflowAgentRetryResume', () => {
   it('continues the failed conversation when the harness left a handle', () => {
@@ -38,6 +39,7 @@ describe('workflowAgentRetryResume', () => {
     ).toEqual({
       agentSessionId: 'conv-1',
       reason: 'the agent turn failed: API Error: 502',
+      harness: 'claude-code',
     });
     // A settle from before the failure code existed still resumes.
     expect(
@@ -47,7 +49,11 @@ describe('workflowAgentRetryResume', () => {
         {},
         RESUMES,
       ),
-    ).toEqual({ agentSessionId: 'conv-1', reason: 'crashed' });
+    ).toEqual({
+      agentSessionId: 'conv-1',
+      reason: 'crashed',
+      harness: 'claude-code',
+    });
   });
 
   it('starts fresh when there is no conversation to continue', () => {
@@ -82,7 +88,7 @@ describe('workflowAgentRetryResume on a harness that never resumes', () => {
   it('starts fresh even with a handle, a plain cut, and a cooled-down resume to pick up', () => {
     // Gemini CLI: `capabilities.resume: false` — its `--resume` replays every
     // tool result twice, so the conversation it names cannot be continued.
-    const gemini = { resumable: false };
+    const gemini = { slug: 'gemini', resumable: false };
     expect(
       workflowAgentRetryResume(
         { failureCode: 'harness_error', agentSessionId: 'conv-1' },
@@ -104,6 +110,26 @@ describe('workflowAgentRetryResume on a harness that never resumes', () => {
   });
 });
 
+describe('resumeOnHarness', () => {
+  const resume = {
+    agentSessionId: 'conv-1',
+    reason: 'the agent turn failed: API Error: 502',
+    harness: 'claude-code',
+  };
+
+  it('keeps the conversation for a re-kick on the harness that holds it', () => {
+    expect(resumeOnHarness(resume, 'claude-code')).toBe(resume);
+  });
+
+  it('starts fresh when the re-kick resolves another harness than the conversation ran on', () => {
+    // A step on the default that began on Claude Code and is retried after
+    // the default moved to Pi: Pi cannot continue Claude Code's
+    // conversation, so the retry starts fresh over the workspace.
+    expect(resumeOnHarness(resume, 'pi')).toBeUndefined();
+    expect(resumeOnHarness(undefined, 'claude-code')).toBeUndefined();
+  });
+});
+
 describe('workflowAgentRetryResume after a start the cooling pool refused', () => {
   it('resumes the conversation the refused attempt was to resume, with the cut that ended it', () => {
     // A 429 cut `conv-1`; the retry that was to resume it was refused while
@@ -121,6 +147,7 @@ describe('workflowAgentRetryResume after a start the cooling pool refused', () =
     ).toEqual({
       agentSessionId: 'conv-1',
       reason: 'the agent turn failed: API Error: 429',
+      harness: 'claude-code',
     });
     // Nothing was to be resumed: still fresh.
     expect(
@@ -391,7 +418,11 @@ describe('planWorkflowAgentRetry', () => {
         { resumedFrom: 'conv-7', resumeReason: 'the stream broke' },
         RESUMES,
       ),
-    ).toEqual({ agentSessionId: 'conv-7', reason: 'the stream broke' });
+    ).toEqual({
+      agentSessionId: 'conv-7',
+      reason: 'the stream broke',
+      harness: 'claude-code',
+    });
     expect(
       workflowAgentRetryResume(
         { failureCode: 'sandbox_capacity', agentSessionId: 'conv-new' },
@@ -419,6 +450,7 @@ describe('planWorkflowAgentRetry', () => {
     ).toEqual({
       agentSessionId: 'conv-ask',
       reason: 'waiting for room',
+      harness: 'claude-code',
       askId: 'ask-1',
     });
     // A re-kick refused again carries the undelivered answer on.
@@ -436,6 +468,7 @@ describe('planWorkflowAgentRetry', () => {
     ).toEqual({
       agentSessionId: 'conv-ask',
       reason: 'waiting for room',
+      harness: 'claude-code',
       askId: 'ask-1',
     });
     // No handle to the asking conversation: the fresh start folds every
@@ -454,6 +487,7 @@ describe('planWorkflowAgentRetry', () => {
         'waiting for room',
         {},
         {
+          slug: 'claude-code',
           resumable: false,
         },
       ),

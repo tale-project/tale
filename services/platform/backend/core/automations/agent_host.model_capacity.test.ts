@@ -426,7 +426,7 @@ describe('the re-kick of a node the model refused', () => {
       prompt: 'Triage the inbox.',
     },
     excludeBrokerTokenHashes: ['account-a'],
-    resume: { agentSessionId: 'thr-1', reason: CAPACITY },
+    resume: { agentSessionId: 'thr-1', reason: CAPACITY, harness: 'codex' },
     claimEpoch: 7,
   };
 
@@ -515,5 +515,20 @@ describe('the re-kick of a node the model refused', () => {
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0]?.delayMs).toBe(0);
     expect(scheduled[0]?.args).not.toHaveProperty('claimEpoch');
+  });
+
+  it('starts fresh when it resolves another harness than the conversation ran on', async () => {
+    // The conversation is Claude Code's; this kick runs Codex, which cannot
+    // continue it: the start gets no handle and opens a fresh conversation.
+    const { ctx, scheduled } = kickCtx();
+
+    await automationAgentHost(ctx, 'org-1', { resolveServing }).kick({
+      ...kickArgs,
+      resume: { ...kickArgs.resume, harness: 'claude-code' },
+    });
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.args).toMatchObject({ harness: 'codex' });
+    expect(scheduled[0]?.args).not.toHaveProperty('resume');
   });
 });

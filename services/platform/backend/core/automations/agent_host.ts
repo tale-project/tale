@@ -146,6 +146,7 @@ import {
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { isCredentialRotation } from '../tasks/task_auto_retry';
 import {
+  resumeOnHarness,
   retryResumePrompt,
   SANDBOX_ROOM_RETRY_CEILING_MS,
   type WorkflowAgentFailureCode,
@@ -198,8 +199,10 @@ export interface AutomationAgentHost {
     /** Broker-token hashes burned by prior failed attempts of this node
      * execution — the mint rotates away from them (softly). */
     excludeBrokerTokenHashes?: string[];
-    /** An auto-retry's continuation: the failed turn's conversation handle
-     * and why it ended. Absent, the turn is a fresh conversation. */
+    /** An auto-retry's continuation: the failed turn's conversation handle,
+     * the harness that holds it, and why it ended. Absent — or held by
+     * another harness than the kick resolves ({@link resumeOnHarness}) —
+     * the turn is a fresh conversation. */
     resume?: WorkflowAgentRetryResume;
     /** Hold the turn's start until then, epoch ms — a subscription broker
      * whose every account was cooling down has its first one back. */
@@ -416,6 +419,11 @@ export function automationAgentHost(
           `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
         );
       }
+      // A retry continues the failed conversation only on the harness that
+      // holds it: one resolved anew to another harness (the default moved
+      // with an upgrade, the model's credentials changed) starts fresh over
+      // the preserved workspace — no CLI resumes another CLI's session.
+      const continued = resumeOnHarness(resume, harness);
       // An input the start could not stage fails the step here, in the words
       // its staging would use: before the op row, the scheduled start and the
       // sandbox session a start spends, and before the retries a refused
@@ -534,7 +542,7 @@ export function automationAgentHost(
           excludeBrokerTokenHashes.length > 0
             ? { excludeBrokerTokenHashes }
             : {}),
-          ...(resume !== undefined ? { resume } : {}),
+          ...(continued !== undefined ? { resume: continued } : {}),
           // A held start runs long after this kick, when the walker that
           // kicked it may have lost the run: it runs only on that walker's
           // park or claim. A start at once keeps the lenient gate.

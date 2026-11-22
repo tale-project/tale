@@ -185,6 +185,9 @@ export function isWorkflowAgentRetryable(code: string | undefined): boolean {
 export interface WorkflowAgentRetryResume {
   agentSessionId: string;
   reason: string;
+  /** The harness that holds the conversation — the one the failed attempt
+   * ran on. No other CLI can continue it ({@link resumeOnHarness}). */
+  harness: string;
   /** An answered question the conversation has not seen: the resume opens
    * with its answer instead of the retry prompt. */
   askId?: string;
@@ -219,7 +222,9 @@ const NEVER_LAUNCHED_FAILURE_CODES: ReadonlySet<string> = new Set([
  * and so does the asking conversation an answered question's delivery was
  * refused for (`settled.undeliveredAskId`), which the re-kick resumes with
  * that answer; without a handle to it, the fresh start folds every answer
- * into its prompt.
+ * into its prompt. `harness` is the failed attempt's: every conversation
+ * the resume names ran there (a re-kick on another harness never carries
+ * one, {@link resumeOnHarness}).
  */
 export function workflowAgentRetryResume(
   settled: {
@@ -232,7 +237,7 @@ export function workflowAgentRetryResume(
     WorkflowAgentAttempt,
     'resumedFrom' | 'resumeReason' | 'resumeAskId'
   >,
-  harness: { resumable: boolean },
+  harness: { slug: string; resumable: boolean },
 ): WorkflowAgentRetryResume | undefined {
   if (!harness.resumable) return undefined;
   if (settled.undeliveredAskId !== undefined) {
@@ -240,6 +245,7 @@ export function workflowAgentRetryResume(
       ? {
           agentSessionId: settled.agentSessionId,
           reason,
+          harness: harness.slug,
           askId: settled.undeliveredAskId,
         }
       : undefined;
@@ -252,6 +258,7 @@ export function workflowAgentRetryResume(
     return {
       agentSessionId: parked.resumedFrom,
       reason: parked.resumeReason ?? reason,
+      harness: harness.slug,
       ...(parked.resumeAskId !== undefined
         ? { askId: parked.resumeAskId }
         : {}),
@@ -264,7 +271,31 @@ export function workflowAgentRetryResume(
   ) {
     return undefined;
   }
-  return { agentSessionId: settled.agentSessionId, reason };
+  return {
+    agentSessionId: settled.agentSessionId,
+    reason,
+    harness: harness.slug,
+  };
+}
+
+/**
+ * The resume a re-kick on `harness` carries: the conversation it names only
+ * when that harness holds it, else none. A step's harness is resolved at
+ * every kick — on the default, after an upgrade moved the default or when
+ * the model's credentials changed, a retry can resolve another one than the
+ * conversation ran on — and no CLI can continue another CLI's conversation:
+ * the re-kick starts fresh over the preserved workspace, the task lane's
+ * rule for a harness switch (`resolveTaskKickResume`). The host drops the
+ * handle by this rule before the start sees it, and the stepper records the
+ * resume only where it stood.
+ */
+export function resumeOnHarness(
+  resume: WorkflowAgentRetryResume | undefined,
+  harness: string,
+): WorkflowAgentRetryResume | undefined {
+  return resume !== undefined && resume.harness === harness
+    ? resume
+    : undefined;
 }
 
 /** The message a resumed conversation opens with: the cut was the
