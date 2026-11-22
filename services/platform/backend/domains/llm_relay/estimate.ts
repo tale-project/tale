@@ -13,7 +13,7 @@ import { estimateTokens } from '../../../lib/chat/types.ts';
  */
 
 /** What a vendor bills for an inline image of about a megapixel. */
-export const MEDIA_TOKENS = 1_600;
+const MEDIA_TOKENS = 1_600;
 
 /** A string that is a payload rather than words: a data URL, or a long run
  * of base64 alone. */

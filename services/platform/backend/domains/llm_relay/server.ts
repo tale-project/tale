@@ -67,7 +67,7 @@ export interface RelayHandlerDeps {
 
 /** The most of a request body the relay reads: a long agent conversation
  * with images, the bound the model endpoints use too. */
-export const MAX_BODY_BYTES = 32 * 1024 * 1024;
+const MAX_BODY_BYTES = 32 * 1024 * 1024;
 
 /** How long a token's grant is remembered: short enough that a revoked or
  * ended turn's token stops working within seconds. */

@@ -8,7 +8,7 @@
  * logical name `gateway` there, and a video job's yt-dlp reaches its proxy
  * and PO-token relays there.
  */
-export const DEFAULT_MODEL_RELAY_URL = 'http://backend-api:8080';
+const DEFAULT_MODEL_RELAY_URL = 'http://backend-api:8080';
 
 /** The model relay as a session reaches it, without a trailing slash. */
 export function modelRelayUrlForSessions(

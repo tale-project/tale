@@ -30,9 +30,7 @@ export const RUNTIME_SECRET_KEYS = [
  * it the backend reads the spend of the keys a gateway that still runs had
  * minted, and revokes them.
  */
-export const RETAINED_SECRET_KEYS = [
-  'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
-] as const;
+const RETAINED_SECRET_KEYS = ['SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD'] as const;
 const TOP_UP_KEYS = new Set<string>([
   'SANDBOX_TOKEN',
   'TALE_CONTROL_TOKEN',

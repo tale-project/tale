@@ -31,7 +31,7 @@ import { controlCall, DEFAULT_CONTROL_TIMEOUT_S } from '../docker/control-call';
 import type { StackRuntime } from '../runtime/types';
 
 /** The service the gateway ran as; its container is `<project>-<service>`. */
-export const GATEWAY_SERVICE = 'sandbox-llm-gateway';
+const GATEWAY_SERVICE = 'sandbox-llm-gateway';
 
 /** The control door that counts the keys the gateway minted which have not
  * settled yet: turns whose spend is unread or whose key is unrevoked, and

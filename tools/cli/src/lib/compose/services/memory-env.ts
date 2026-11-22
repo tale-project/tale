@@ -19,10 +19,7 @@ const MIB = 1024 ** 2;
  * services/sandbox/src/config.ts) also read. A value below `minMib` fails the
  * compose generation, before any container is recreated.
  */
-export function memorySizeEnvMib(
-  name: string,
-  minMib: number,
-): number | undefined {
+function memorySizeEnvMib(name: string, minMib: number): number | undefined {
   const value = process.env[name]?.trim();
   if (value === undefined || value === '') return undefined;
   const m = /^(\d+)([kmg]?)b?$/i.exec(value);
