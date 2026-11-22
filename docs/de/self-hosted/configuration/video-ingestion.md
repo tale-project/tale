@@ -35,7 +35,7 @@ Ein Deployment muss dafür drei Dinge bereitstellen:
 
 ## Grenzen für Länge und Größe {#limits}
 
-Tale liest Untertitel, die eine Plattform als WebVTT oder SubRip ausliefert. Hat ein Video keine in einem dieser Formate, lädt der Worker sein Audio für das Transkriptionsmodell herunter. Er speichert das Audio so, wie die Plattform es ausliefert, meist als WebM-, M4A- oder MP4-Datei, und bevorzugt einen Stream bis 200 MiB: den besten reinen Audio-Stream, der hineinpasst, oder den kleinsten, wenn keiner passt. Von einer Plattform, die Audio nur zusammen mit einem Bild ausliefert, nimmt er ein Bild mit höchstens 480 Zeilen.
+Tale liest Untertitel, die eine Plattform als WebVTT oder SubRip ausliefert. Hat ein Video keine in einem dieser Formate, lädt der Worker sein Audio für das Transkriptionsmodell herunter. Er speichert das Audio so, wie die Plattform es ausliefert, meist als WebM-, M4A- oder MP4-Datei, und bevorzugt einen Stream bis 200 MiB: den besten reinen Audio-Stream, der hineinpasst, oder den kleinsten, wenn keiner passt. Von einer Plattform, die Audio nur zusammen mit einem Bild ausliefert, nimmt er ein kleines Bild: höchstens 480 Pixel hoch, bei einem Video im Hochformat höchstens 480 Pixel breit.
 
 | Grenze | Wert | Darüber |
 | --- | --- | --- |

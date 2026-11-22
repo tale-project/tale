@@ -1833,6 +1833,45 @@ const MEDIA_MAX_FILESIZE = '1000M';
  */
 const MEDIA_PREFERRED_SIZE = '200M';
 
+/**
+ * Which stream of a video its sound is taken from: the streams yt-dlp is
+ * asked for, in the order it tries them, and how it tells the streams of a
+ * kind apart.
+ *
+ * `bestaudio` is a stream of sound alone, which the large platforms serve.
+ * A platform that serves sound only with a picture is asked for a small
+ * picture, which the transcription lane drops: one of at most 480 pixels in
+ * height, or in width, which is the side an upright picture is small on. A
+ * portrait clip's renditions run 360x640, 480x848, 720x1280 and 1080x1920;
+ * asked by height alone, a minute of one came at its full 36 MB, and a
+ * minute of one that is served at 20 Mbit/s too at 147 MB (measured against
+ * Dailymotion, 2026-11-22). Where no picture is that small, or none says
+ * its size, a stream of a modest bitrate is asked for, and whatever the
+ * platform has where it has none of those.
+ *
+ * `-S`: among the streams of a kind, the largest that stays under the
+ * preferred size, and the smallest there is where none does: by its
+ * declared size, else by its bitrate and the video's length. `lang` comes
+ * first, as it does in yt-dlp's own order: sorted by size alone, a dubbed
+ * track that happens to weigh more is taken for the original.
+ *
+ * What yt-dlp makes of it is yt-dlp's to say: `ytdlp_live.test.ts` asks the
+ * real one, offline, for ladders of each shape.
+ */
+export const MEDIA_SELECTION: readonly string[] = [
+  '-f',
+  [
+    'bestaudio',
+    'best[height<=480]',
+    'best[width<=480]',
+    'best[tbr<=1000]',
+    'best[tbr<=2500]',
+    'best',
+  ].join('/'),
+  '-S',
+  `lang,size:${MEDIA_PREFERRED_SIZE}`,
+];
+
 /** yt-dlp's words for a download it did not start because the platform
  * declared more than `--max-filesize`. It exits 0 all the same. */
 const OVER_MAX_FILESIZE_STDOUT = /File is larger than max-filesize/;
@@ -1858,10 +1897,7 @@ function videoTooLarge(detail: string, stderr = ''): YtDlpError {
  * came from. Now the stream is stored as it is and converted once, by the
  * transcription lane, and a run needs no ffmpeg (tale-project/tale#4942).
  *
- * `bestaudio` is a stream of sound alone, which the large platforms serve.
- * A platform that serves sound only with a picture is asked for a small one
- * (at most 480 lines), and for whatever it has where it has none that
- * small; the transcription lane drops the picture.
+ * Which of a video's streams that is: {@link MEDIA_SELECTION}.
  */
 export async function ytdlpFetchAudio(
   url: string,
@@ -1871,15 +1907,7 @@ export async function ytdlpFetchAudio(
   route?: YtdlpRoute,
 ): Promise<YtdlpMediaFile> {
   const args = [
-    '-f',
-    'bestaudio/best[height<=480]/best',
-    // Among the streams of a kind, the largest that stays under the
-    // preferred size, and the smallest there is where none does: by its
-    // declared size, else by its bitrate and the video's length. `lang`
-    // comes first, as it does in yt-dlp's own order: sorted by size alone,
-    // a dubbed track that happens to weigh more is taken for the original.
-    '-S',
-    `lang,size:${MEDIA_PREFERRED_SIZE}`,
+    ...MEDIA_SELECTION,
     // No fix-up of a container after the download: that is ffmpeg's work,
     // and whatever would be fixed, ffmpeg reads as it is later.
     '--fixup',

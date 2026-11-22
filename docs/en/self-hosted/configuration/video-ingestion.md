@@ -35,7 +35,7 @@ A deployment has to provide three things for that:
 
 ## Limits on length and size {#limits}
 
-Tale reads captions that a platform serves as WebVTT or SubRip. When a video has none in either format, the worker downloads its audio for the transcription model. It stores the audio as the platform serves it, typically as a WebM, M4A or MP4 file, and prefers a stream of up to 200 MiB: the best audio-only stream that fits, or the smallest one where none does. From a platform that serves audio only together with a picture, it takes a picture of at most 480 lines.
+Tale reads captions that a platform serves as WebVTT or SubRip. When a video has none in either format, the worker downloads its audio for the transcription model. It stores the audio as the platform serves it, typically as a WebM, M4A or MP4 file, and prefers a stream of up to 200 MiB: the best audio-only stream that fits, or the smallest one where none does. From a platform that serves audio only together with a picture, it takes a small picture: at most 480 pixels high, or 480 pixels wide for a portrait video.
 
 | Limit | Value | Beyond it |
 | --- | --- | --- |

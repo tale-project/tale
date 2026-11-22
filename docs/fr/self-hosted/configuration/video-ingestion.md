@@ -35,7 +35,7 @@ Un déploiement doit fournir trois choses pour cela :
 
 ## Limites de durée et de taille {#limits}
 
-Tale lit les sous-titres qu’une plateforme sert en WebVTT ou en SubRip. Quand une vidéo n’en a dans aucun de ces formats, le worker télécharge son audio pour le modèle de transcription. Il stocke l’audio tel que la plateforme le sert, le plus souvent dans un fichier WebM, M4A ou MP4, et préfère un flux d’au plus 200 Mio : le meilleur flux audio seul qui tient dans cette taille, ou le plus petit quand aucun n’y tient. D’une plateforme qui ne sert l’audio qu’avec une image, il prend une image d’au plus 480 lignes.
+Tale lit les sous-titres qu’une plateforme sert en WebVTT ou en SubRip. Quand une vidéo n’en a dans aucun de ces formats, le worker télécharge son audio pour le modèle de transcription. Il stocke l’audio tel que la plateforme le sert, le plus souvent dans un fichier WebM, M4A ou MP4, et préfère un flux d’au plus 200 Mio : le meilleur flux audio seul qui tient dans cette taille, ou le plus petit quand aucun n’y tient. D’une plateforme qui ne sert l’audio qu’avec une image, il prend une petite image : au plus 480 pixels de haut, ou 480 pixels de large pour une vidéo au format portrait.
 
 | Limite | Valeur | Au-delà |
 | --- | --- | --- |

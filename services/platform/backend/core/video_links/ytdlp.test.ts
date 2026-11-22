@@ -987,8 +987,14 @@ describe('what a run asks yt-dlp for, and what it takes of what yt-dlp leaves', 
       await ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000);
 
       const asked = args(dir);
+      // Sound alone first; then a small picture, by its height or, for one
+      // that stands upright, by its width; then a modest bitrate; then
+      // whatever there is.
       expect(asked.slice(asked.indexOf('-f'), asked.indexOf('-f') + 2)).toEqual(
-        ['-f', 'bestaudio/best[height<=480]/best'],
+        [
+          '-f',
+          'bestaudio/best[height<=480]/best[width<=480]/best[tbr<=1000]/best[tbr<=2500]/best',
+        ],
       );
       expect(
         asked.slice(asked.indexOf('--fixup'), asked.indexOf('--fixup') + 2),

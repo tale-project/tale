@@ -22,7 +22,7 @@
  * provisioning + network calls never fire in the normal suite.
  */
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,6 +30,7 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it, type TestContext } from 'vitest';
 
 import {
+  MEDIA_SELECTION,
   YtDlpError,
   buildSpawnPath,
   ytdlpJson,
@@ -206,6 +207,178 @@ describe.skipIf(!LIVE)(
       expect(headerLine).not.toContain('none');
       expect(headerLine).toContain('yt_dlp_plugins');
     }, 60_000);
+
+    // Which stream the lane's selection takes is yt-dlp's reading of it, so
+    // the real yt-dlp says: from a video's description (`--load-info-json`),
+    // with nothing fetched and no platform in it. The ladders are the shapes
+    // platforms serve; the portrait one is Dailymotion's, measured.
+    describe('which stream the sound of a video is taken from [VID-R9]', () => {
+      interface Rendition {
+        format_id: string;
+        [key: string]: unknown;
+      }
+      const picture = (
+        id: string,
+        width: number | null,
+        height: number | null,
+        tbr: number | null,
+      ): Rendition => ({
+        format_id: id,
+        url: `https://example.invalid/${id}.m3u8`,
+        ext: 'mp4',
+        vcodec: 'avc1.4d401e',
+        acodec: 'mp4a.40.2',
+        protocol: 'm3u8_native',
+        ...(width === null ? {} : { width }),
+        ...(height === null ? {} : { height }),
+        ...(tbr === null ? {} : { tbr }),
+      });
+      const soundAlone = (id: string, abr: number): Rendition => ({
+        format_id: id,
+        url: `https://example.invalid/${id}.m4a`,
+        ext: 'm4a',
+        vcodec: 'none',
+        acodec: 'mp4a.40.2',
+        protocol: 'https',
+        abr,
+        tbr: abr,
+      });
+      const PORTRAIT = [
+        picture('p-380', 360, 640, 460),
+        picture('p-480', 480, 848, 836),
+        picture('p-720', 720, 1280, 2149),
+        picture('p-1080', 1080, 1920, 4706),
+      ];
+      const LANDSCAPE = [
+        picture('l-240', 426, 240, 250),
+        picture('l-380', 640, 360, 460),
+        picture('l-480', 854, 480, 836),
+        picture('l-720', 1280, 720, 2149),
+        picture('l-1080', 1920, 1080, 4706),
+      ];
+
+      /** The format yt-dlp takes of `formats` under the lane's selection. */
+      async function taken(
+        seconds: number,
+        formats: Rendition[],
+      ): Promise<string> {
+        const dir = await mkdtemp(join(tmpdir(), 'ytlive-pick-'));
+        const info = join(dir, 'video.info.json');
+        await writeFile(
+          info,
+          JSON.stringify({
+            _type: 'video',
+            id: 'pick',
+            title: 'pick',
+            extractor: 'generic',
+            extractor_key: 'Generic',
+            webpage_url: 'https://example.invalid/pick',
+            original_url: 'https://example.invalid/pick',
+            duration: seconds,
+            formats,
+          }),
+        );
+        return await new Promise<string>((resolve, reject) => {
+          const proc = spawn(
+            'yt-dlp',
+            [
+              '--no-config',
+              '--ignore-config',
+              '--no-update',
+              '--load-info-json',
+              info,
+              '--simulate',
+              '--print',
+              'format_id',
+              ...MEDIA_SELECTION,
+            ],
+            {
+              stdio: ['ignore', 'pipe', 'pipe'],
+              env: {
+                PATH: buildSpawnPath(process.env),
+                HOME: dir,
+                LANG: 'C.UTF-8',
+              },
+            },
+          );
+          let out = '';
+          let err = '';
+          proc.stdout.on('data', (d) => {
+            out += d.toString();
+          });
+          proc.stderr.on('data', (d) => {
+            err += d.toString();
+          });
+          proc.on('close', (code) => {
+            if (code === 0) resolve(out.trim());
+            else
+              reject(new Error(`yt-dlp exited ${code}: ${err.slice(0, 400)}`));
+          });
+          proc.on('error', reject);
+        });
+      }
+
+      it.each<[string, number, Rendition[], string]>([
+        // 480 pixels wide: no rendition of it is 480 high or less.
+        ['a portrait clip', 62, PORTRAIT, 'p-480'],
+        [
+          'a portrait clip that is served at 20 Mbit/s too',
+          57,
+          [...PORTRAIT, picture('p-2160', 2160, 3840, 20_000)],
+          'p-480',
+        ],
+        ['a landscape clip', 62, LANDSCAPE, 'l-480'],
+        // None of the small ones fits the preferred size: the smallest.
+        ['three hours in landscape', 3 * 3600, LANDSCAPE, 'l-240'],
+        [
+          'a clip with no rendition that small',
+          60,
+          [
+            picture('t-576', 576, 1024, 900),
+            picture('t-720', 720, 1280, 1800),
+            picture('t-1080', 1080, 1920, 3500),
+          ],
+          't-576',
+        ],
+        [
+          'a clip in high definition alone',
+          60,
+          [
+            picture('h-720', 1280, 720, 2500),
+            picture('h-1080', 1920, 1080, 5000),
+          ],
+          'h-720',
+        ],
+        [
+          'a clip whose renditions say no size',
+          60,
+          [
+            picture('n-low', null, null, 500),
+            picture('n-mid', null, null, 1500),
+            picture('n-high', null, null, 4000),
+          ],
+          'n-low',
+        ],
+        [
+          'a video with one stream that says nothing of itself',
+          600,
+          [picture('only', null, null, null)],
+          'only',
+        ],
+        [
+          'a video with sound alone beside its pictures',
+          600,
+          [...PORTRAIT, soundAlone('a-64', 64), soundAlone('a-128', 128)],
+          'a-128',
+        ],
+      ])(
+        'of %s',
+        async (_name, seconds, formats, expected) => {
+          expect(await taken(seconds, formats)).toBe(expected);
+        },
+        60_000,
+      );
+    });
 
     it('fetches video metadata past the bot wall', async (ctx) => {
       const jobDir = await mkdtemp(join(tmpdir(), 'ytlive-meta-'));

@@ -64,11 +64,15 @@ attempts.
 ### VID-R9 · A video's sound is fetched as it is served, and may weigh 1 GiB
 
 Nothing is converted while a video is fetched. Of the streams a platform offers, the best one
-of sound alone that weighs up to 200 MiB is taken, and the smallest one where none does. A
-sound over 1 GiB fails the video as too large (`videoTooLarge`), and it is not tried again.
+of sound alone that weighs up to 200 MiB is taken, and the smallest one where none does. From
+a platform that serves sound only with a picture, a small picture is taken: at most 480 pixels
+in height, or in width for a video that stands upright. A sound over 1 GiB fails the video as
+too large (`videoTooLarge`), and it is not tried again.
 
 - **Example**: Mia pastes a four-hour talk whose best sound stream weighs 230 MB → a smaller
   stream of the same talk is fetched.
+- **Example**: Mia pastes a one-minute portrait clip that its platform serves from 360 to
+  1080 pixels wide, each with its sound → the one 480 pixels wide is fetched, about 6 MB.
 - **Example**: Mia pastes a video whose only stream weighs 3 GB → the video fails as too
   large, without a retry.
 
