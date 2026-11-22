@@ -163,6 +163,7 @@
         "$TURBO_ROOT$/services/sandbox-egress/docker-entrypoint.sh",
         "$TURBO_ROOT$/patches/dumb-init/maxsig-64.patch",
         "$TURBO_ROOT$/services/platform/Dockerfile",
+        "$TURBO_ROOT$/services/sandbox-runtime/Dockerfile",
         "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/platform/env.sh",
         "$TURBO_ROOT$/services/db/Dockerfile",

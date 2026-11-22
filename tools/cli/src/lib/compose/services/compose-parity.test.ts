@@ -709,10 +709,24 @@ describe('bgutil PO-token provider parity (YouTube ingestion)', () => {
   // path silently loses PO tokens (YouTube bot wall returns): always in
   // compose.yml, whose backend is told so, and on request from the CLI
   // generator, whose backend then hears the same word. The tag must also
-  // match BGUTIL_POT_VERSION in services/platform/Dockerfile (checked there
-  // via the pinned SHA256) — asserted here as a constant so a bump touches
-  // both.
+  // match the plugin a sandbox session's yt-dlp asks it with: plugin and
+  // provider speak one protocol version. The plugin is pinned in the sandbox
+  // runtime image (BGUTIL_POT_VERSION in services/sandbox-runtime/Dockerfile).
   const EXPECTED_IMAGE = 'brainicism/bgutil-ytdlp-pot-provider:1.3.1';
+  const runtimeDockerfile = readFileSync(
+    resolve(repoRoot, 'services/sandbox-runtime/Dockerfile'),
+    'utf8',
+  );
+
+  test('the provider image is the version of the plugin the session image carries', () => {
+    const plugin = /^ARG BGUTIL_POT_VERSION=(\S+)$/m.exec(
+      runtimeDockerfile,
+    )?.[1];
+    expect(plugin).toBeDefined();
+    expect(EXPECTED_IMAGE).toBe(
+      `brainicism/bgutil-ytdlp-pot-provider:${plugin}`,
+    );
+  });
 
   test('compose.yml defines bgutil-provider on the pinned image', () => {
     expect(compose.services['bgutil-provider']?.image).toBe(EXPECTED_IMAGE);
@@ -764,12 +778,10 @@ describe('bgutil PO-token provider parity (YouTube ingestion)', () => {
   // yt-dlp --plugin-dirs DIR does DIR.iterdir() then looks for yt_dlp_plugins
   // under each child. Unzipping the bgutil zip (which already contains
   // yt_dlp_plugins/) straight into DIR yields Plugin directories: none. The
-  // Dockerfile must nest under /opt/yt-dlp/plugins/bgutil/.
+  // Dockerfile must nest under /opt/yt-dlp/plugins/bgutil/. The plugin is in
+  // the sandbox runtime image, where a video link's yt-dlp runs.
   test('Dockerfile unzips the bgutil plugin under a named child of plugin-dirs', () => {
-    const dockerfile = readFileSync(
-      resolve(repoRoot, 'services/platform/Dockerfile'),
-      'utf8',
-    );
+    const dockerfile = runtimeDockerfile;
     expect(dockerfile).toContain(
       'unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil',
     );
