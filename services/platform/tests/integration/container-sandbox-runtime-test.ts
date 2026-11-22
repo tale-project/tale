@@ -28,6 +28,12 @@ import { sleep } from './lib/docker';
 import { capture, ok, projectRoot, stdoutOf, stream } from './lib/exec';
 import { BOLD, GREEN, NC, RED } from './lib/log';
 import { checkPiBridgeRoundTrip } from './lib/pi-bridge-round-trip';
+import {
+  checkWindowReach,
+  WINDOW_REACH_RUNTIMES,
+  WINDOW_REACH_TOKENS,
+  windowReachInImage,
+} from './lib/window-reach';
 
 const PROJECT_ROOT = projectRoot();
 const IMAGE = process.env.IMAGE || 'tale-sandbox-runtime:contest';
@@ -626,6 +632,20 @@ try {
   );
 } catch (error) {
   fail(`pi bridge round trip: ${String(error)}`);
+}
+// Each runtime runs past a 49,152-token window against a loopback model of
+// that window (tale-project/tale#5417): it compacts at its own threshold,
+// sends no request the window cannot hold, its output cap included, and a
+// resumed exec reads on from the summary.
+for (const runtime of WINDOW_REACH_RUNTIMES) {
+  try {
+    const reach = await checkWindowReach(runtime, windowReachInImage(IMAGE));
+    pass(
+      `${runtime.slug} runs past a ${WINDOW_REACH_TOKENS}-token window: ${reach.requests} requests, the largest ${reach.largest} tokens, ${reach.compactions.length} compactions at its own threshold, resumed from the summary at ${reach.resumedAt} tokens`,
+    );
+  } catch (error) {
+    fail(`${runtime.slug} window reach: ${String(error)}`);
+  }
 }
 // The entrypoint creates every harness state root a harness.yml points at
 // under HOME, or the harness refuses to start (Codex above). Registry and
