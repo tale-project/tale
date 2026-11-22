@@ -9,7 +9,7 @@ import {
   servedByDirectCredential,
 } from '../../core/chat/composer.ts';
 import {
-  gatewayModelRefusal,
+  relayModelRefusal,
   type HiddenModelsRule,
   type ModelEndpointPolicy,
   type ModelEndpointRefusalData,
@@ -93,18 +93,16 @@ export function ridesModelApiAnthropicLane(
 /**
  * The EU/EEA processing rule's verdict on `model`'s requests on `wire`
  * (GOV-R17) — undefined when it lets them through. The endpoint is the one
- * the gateway would call ({@link gatewayModelRefusal}, which the session key's
- * provision judges by too): a custom provider's own, and on the Anthropic
- * lane the connector's native Anthropic endpoint; a vendor the gateway
- * implements itself it reaches through its built-in connection, whatever
- * endpoint the provider names.
+ * the model relay calls ({@link relayModelRefusal}, which the request's key
+ * is minted under too): the provider's own, and on the Anthropic lane the
+ * connector's native Anthropic endpoint.
  */
 export function modelApiEndpointRefusal(
   policy: ModelEndpointPolicy,
   wire: ModelApiWire,
   model: Pick<ModelApiModel, 'connector'>,
 ): ModelEndpointRefusalData | undefined {
-  return gatewayModelRefusal(
+  return relayModelRefusal(
     policy,
     model.connector,
     ridesModelApiAnthropicLane(wire, model),

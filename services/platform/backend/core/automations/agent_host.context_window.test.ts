@@ -1271,15 +1271,15 @@ describe('an automation agent turn under the EU/EEA rule [GOV-R17]', () => {
     expectLaunchedAt('https://api.anthropic.com', mutations);
   });
 
-  it('hands the gateway lane’s provisioning the automation surface and the run, and settles its refusal the same way', async () => {
+  it('hands the relay key’s mint the automation surface and the run, and settles its refusal the same way', async () => {
     euRule();
-    const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
+    const message = `${RULE}, and the provider "local-inference" names no endpoint, so the call was not sent.`;
     vi.mocked(issueRelayKey).mockRejectedValueOnce(
       new ModelEndpointRefusal({
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message,
         provider: 'local-inference',
-        reason: 'gateway-builtin',
+        reason: 'unknown-endpoint',
       }),
     );
 

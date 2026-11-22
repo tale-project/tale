@@ -422,13 +422,20 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     ...POLICY,
     euProcessing: { enabled: true, hosts: ['llm.example.eu'] },
   };
-  /** OpenRouter pointed at its EU endpoint — which the gateway's built-in
-   * connection to OpenRouter does not use. */
+  /** OpenRouter pointed at its EU endpoint, where the relay calls it. */
   const OPENROUTER: Model = {
     ...MODELS[0],
     connector: {
       name: 'openrouter',
       baseUrl: 'https://eu.openrouter.ai/api/v1',
+    },
+  };
+  /** OpenRouter at its global endpoint, which may process anywhere. */
+  const OPENROUTER_GLOBAL: Model = {
+    ...MODELS[0],
+    connector: {
+      name: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
     },
   };
   const withAnthropicEndpoint = (baseUrl: string): Model => ({
@@ -451,14 +458,25 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     });
   });
 
-  it('refuses a provider the gateway reaches through its built-in connection, even one pointed at its EU endpoint, before anything is held', async () => {
+  it('relays a standard provider at the EU endpoint it names', async () => {
+    provider(() => Response.json({ model: 'gw', choices: [], usage: {} }));
     listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
+    const response = await post('/openai/chat/completions', CHAT);
+    expect(response.status).toBe(200);
+    expect(providerCalls[0]?.url).toBe(
+      'https://eu.openrouter.ai/api/v1/chat/completions',
+    );
+    expect(audit.recordModelEndpointRefusal).not.toHaveBeenCalled();
+  });
+
+  it('refuses a standard provider at its global endpoint before anything is held', async () => {
+    listing.listModelApiModels.mockResolvedValue([OPENROUTER_GLOBAL]);
     const response = await post('/openai/chat/completions', CHAT);
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({
       error: {
         message: expect.stringContaining(
-          'the model gateway reaches the provider "openrouter" through its built-in connection',
+          'An admin can serve the model through a provider whose endpoint is eu.openrouter.ai instead.',
         ),
         type: 'permission_error',
         param: 'model',
@@ -472,7 +490,8 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
         surface: 'model-api',
         provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4.6',
-        reason: 'gateway-builtin',
+        host: 'openrouter.ai',
+        reason: 'vendor-global',
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message: expect.stringContaining(
           'This organization processes prompts only in the EU/EEA',
@@ -485,7 +504,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     expect(providerCalls).toHaveLength(0);
   });
 
-  it('relays the Anthropic wire over the connector’s native EU endpoint, and refuses its global one and the chat wire', async () => {
+  it('relays the Anthropic wire over the connector’s native EU endpoint and the chat wire over its base URL, and refuses its global one', async () => {
     provider(() =>
       Response.json({
         type: 'message',
@@ -503,9 +522,13 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     expect(providerCalls[0]?.url).toBe(
       'https://eu.openrouter.ai/api/v1/messages',
     );
-    // The chat wire keeps the gateway's built-in connection.
+    // The chat wire goes to the connector's base URL, its EU endpoint too.
+    provider(() => Response.json({ model: 'gw', choices: [], usage: {} }));
     const chat = await post('/openai/chat/completions', CHAT);
-    expect(chat.status).toBe(403);
+    expect(chat.status).toBe(200);
+    expect(providerCalls[1]?.url).toBe(
+      'https://eu.openrouter.ai/api/v1/chat/completions',
+    );
 
     listing.listModelApiModels.mockResolvedValue([
       withAnthropicEndpoint('https://openrouter.ai/api'),
@@ -529,7 +552,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
         reason: 'vendor-global',
       }),
     );
-    expect(providerCalls).toHaveLength(1);
+    expect(providerCalls).toHaveLength(2);
   });
 
   it('relays a custom provider on an attested endpoint, and refuses one on any other', async () => {
@@ -571,7 +594,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
 
   it('lists only the models the rule lets through on the OpenAI wire [GOV-R22]', async () => {
     listing.listModelApiModels.mockResolvedValue([
-      OPENROUTER,
+      OPENROUTER_GLOBAL,
       deepseekAt('https://llm.example.eu/v1'),
     ]);
     const response = await mount().request('http://localhost/openai/models');
@@ -589,7 +612,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     audit.recordModelEndpointRefusal.mockRejectedValueOnce(
       new Error('database unavailable'),
     );
-    listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
+    listing.listModelApiModels.mockResolvedValue([OPENROUTER_GLOBAL]);
     const response = await post('/openai/chat/completions', CHAT);
     expect(response.status).toBe(403);
     expect(console.warn).toHaveBeenCalledWith(
@@ -606,7 +629,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
       policy: { ...POLICY, euProcessing: { enabled: false } },
     });
     provider(() => Response.json({ model: 'gw', choices: [], usage: {} }));
-    listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
+    listing.listModelApiModels.mockResolvedValue([OPENROUTER_GLOBAL]);
     const response = await post('/openai/chat/completions', CHAT);
     expect(response.status).toBe(200);
     expect(audit.recordModelEndpointRefusal).not.toHaveBeenCalled();

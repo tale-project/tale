@@ -26,7 +26,6 @@ import {
   ensureModelPricingOverride,
   mintVirtualKey,
   provisionProviders,
-  resolveGatewayRouting,
   scheduleProviderPoolShrink,
 } from './llm_gateway_admin';
 
@@ -1045,7 +1044,7 @@ describe('gatewayProvisioningFailureStage', () => {
   });
 });
 
-describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
+describe('issueRelayKey — the EU/EEA rule [GOV-R17]', () => {
   const EU: ModelEndpointPolicy = { kind: 'eu', attestedHosts: [] };
   const DEEPSEEK = { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' };
   const SONNET = 'anthropic/claude-sonnet-5';
@@ -1088,20 +1087,11 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
     ]);
   }
 
-  /** The record name the mint binds a model to. */
-  function recordOf(
-    providerSlug: string,
-    modelId: string,
-    anthropicHarnessLane = false,
-  ): string {
-    return resolveGatewayRouting('org_1', providerSlug, modelId, {
-      anthropicHarnessLane,
-    }).gatewayProvider;
-  }
-
-  function expectNothingServed(): void {
+  /** The rule refused before any credential resolved; nothing was pushed
+   * anywhere either way. */
+  function expectNothingResolved(): void {
+    expect(mockedResolve).not.toHaveBeenCalled();
     expect(provisionProviders).not.toHaveBeenCalled();
-    expect(applyGatewayConfig).not.toHaveBeenCalled();
     expect(mintVirtualKey).not.toHaveBeenCalled();
   }
 
@@ -1117,7 +1107,7 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
 
   it('refuses an upstream outside the EU/EEA before any credential resolves, and audits it', async () => {
     const refusal = await refusalOf(
-      provisionSessionGatewayKey(fakeCtx({}, EU), {
+      issueRelayKey(fakeCtx({}, EU), {
         organizationId: 'org_1',
         sessionId: 'sess-eu',
         allowedModels: [DEEPSEEK],
@@ -1147,11 +1137,10 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
       message: expect.stringContaining('api.deepseek.com is not an endpoint'),
       actor: { id: 'user-7', type: 'user' },
     });
-    expect(mockedResolve).not.toHaveBeenCalled();
-    expectNothingServed();
+    expectNothingResolved();
   });
 
-  it("lets a custom record on a vendor's EU endpoint through", async () => {
+  it("lets a provider on a vendor's EU endpoint through", async () => {
     withConnectors(
       ownConnector('openai', {
         name: 'openai-eu',
@@ -1159,7 +1148,7 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
       }),
     );
 
-    await provisionSessionGatewayKey(fakeCtx({}, EU), {
+    const key = await issueRelayKey(fakeCtx({}, EU), {
       organizationId: 'org_1',
       sessionId: 'sess-eu',
       allowedModels: [{ providerSlug: 'openai-eu', modelId: 'gpt-5.5' }],
@@ -1167,22 +1156,12 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
       budgetCents: 100,
     });
 
-    expect(provisionProviders).toHaveBeenCalledWith(
-      'org_1',
-      [
-        expect.objectContaining({
-          name: recordOf('openai-eu', 'gpt-5.5'),
-          baseUrl: 'https://eu.api.openai.com/v1',
-        }),
-      ],
-      expect.anything(),
-    );
-    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(key.servingCredentials).toEqual({ 'openai-eu': 'cred-1' });
     expect(audit).not.toHaveBeenCalled();
   });
 
   it('lets a host an admin attested through', async () => {
-    await provisionSessionGatewayKey(
+    const key = await issueRelayKey(
       fakeCtx({}, { kind: 'eu', attestedHosts: ['api.deepseek.com'] }),
       {
         organizationId: 'org_1',
@@ -1193,88 +1172,77 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
       },
     );
 
-    expect(provisionProviders).toHaveBeenCalledWith(
-      'org_1',
-      [
-        expect.objectContaining({
-          name: recordOf('deepseek', 'deepseek-v4-flash'),
-          baseUrl: 'https://api.deepseek.com',
-        }),
-      ],
-      expect.anything(),
-    );
-    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(key.relayModels).toEqual([DEEPSEEK]);
     expect(audit).not.toHaveBeenCalled();
   });
 
   describe('OpenRouter passes only through eu.openrouter.ai', () => {
-    it("refuses the gateway's built-in record, even when the provider names eu.openrouter.ai", async () => {
+    it('lets the OpenRouter provider through where it names eu.openrouter.ai, as the relay calls it there', async () => {
       withConnectors(
         ownConnector('openrouter', {
           baseUrl: 'https://eu.openrouter.ai/api/v1',
         }),
       );
 
-      const refusal = await refusalOf(
-        provisionSessionGatewayKey(fakeCtx({}, EU), {
-          organizationId: 'org_1',
-          sessionId: 'sess-eu',
-          allowedModels: [{ providerSlug: 'openrouter', modelId: SONNET }],
-          surface: 'task',
-          budgetCents: 100,
-        }),
-      );
-
-      expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
-      expect(refusal).toMatchObject({
-        data: { provider: 'openrouter', reason: 'gateway-builtin' },
+      const key = await issueRelayKey(fakeCtx({}, EU), {
+        organizationId: 'org_1',
+        sessionId: 'sess-eu',
+        allowedModels: [{ providerSlug: 'openrouter', modelId: SONNET }],
+        surface: 'task',
+        budgetCents: 100,
       });
-      expect(audit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          provider: 'openrouter',
-          model: SONNET,
-          reason: 'gateway-builtin',
-        }),
-      );
-      expectNothingServed();
+
+      expect(key.servingCredentials).toEqual({ openrouter: 'cred-1' });
+      expect(audit).not.toHaveBeenCalled();
     });
 
-    it('refuses its Anthropic lane on openrouter.ai', async () => {
-      const refusal = await refusalOf(
-        provisionSessionGatewayKey(fakeCtx({}, EU), {
-          organizationId: 'org_1',
-          sessionId: 'sess-eu',
-          allowedModels: [
-            {
-              providerSlug: 'openrouter',
-              modelId: SONNET,
-              anthropicHarnessLane: true,
-            },
-          ],
-          surface: 'task',
-          budgetCents: 100,
-        }),
-      );
+    it('refuses it at openrouter.ai, on the chat wire and the Anthropic lane alike', async () => {
+      for (const anthropicHarnessLane of [false, true]) {
+        vi.mocked(audit).mockClear();
+        const refusal = await refusalOf(
+          issueRelayKey(fakeCtx({}, EU), {
+            organizationId: 'org_1',
+            sessionId: 'sess-eu',
+            allowedModels: [
+              {
+                providerSlug: 'openrouter',
+                modelId: SONNET,
+                ...(anthropicHarnessLane ? { anthropicHarnessLane } : {}),
+              },
+            ],
+            surface: 'task',
+            budgetCents: 100,
+          }),
+        );
 
-      expect(refusal).toMatchObject({
-        data: { host: 'openrouter.ai', reason: 'vendor-global' },
-      });
-      expectNothingServed();
+        expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
+        expect(refusal).toMatchObject({
+          data: {
+            provider: 'openrouter',
+            host: 'openrouter.ai',
+            reason: 'vendor-global',
+          },
+        });
+        expect(audit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            provider: 'openrouter',
+            model: SONNET,
+            reason: 'vendor-global',
+          }),
+        );
+      }
+      expectNothingResolved();
     });
 
-    it('lets through a custom provider on eu.openrouter.ai, and the Anthropic lane of one that names it', async () => {
+    it('lets through the Anthropic lane of a provider whose coding-agent endpoint is eu.openrouter.ai', async () => {
       withConnectors(
         ownConnector('openrouter', {
-          baseUrl: 'https://eu.openrouter.ai/api/v1',
+          baseUrl: 'https://openrouter.ai/api/v1',
           harnessBaseUrl: 'https://eu.openrouter.ai/api',
         }),
-        ownConnector('openrouter', {
-          name: 'openrouter-eu',
-          baseUrl: 'https://eu.openrouter.ai/api/v1',
-        }),
       );
 
-      await provisionSessionGatewayKey(fakeCtx({}, EU), {
+      await issueRelayKey(fakeCtx({}, EU), {
         organizationId: 'org_1',
         sessionId: 'sess-eu',
         allowedModels: [
@@ -1283,43 +1251,18 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
             modelId: SONNET,
             anthropicHarnessLane: true,
           },
-          { providerSlug: 'openrouter-eu', modelId: SONNET },
         ],
         surface: 'task',
         budgetCents: 100,
       });
 
-      expect(provisionProviders).toHaveBeenCalledWith(
-        'org_1',
-        [
-          expect.objectContaining({
-            name: recordOf('openrouter', SONNET, true),
-            baseUrl: 'https://eu.openrouter.ai/api',
-          }),
-          expect.objectContaining({
-            name: recordOf('openrouter-eu', SONNET),
-            baseUrl: 'https://eu.openrouter.ai/api/v1',
-          }),
-        ],
-        expect.anything(),
-      );
-      expect(mintVirtualKey).toHaveBeenCalledTimes(1);
       expect(audit).not.toHaveBeenCalled();
     });
   });
 
-  it('judges a model whose provider builds no provision by the record the mint would bind it to', async () => {
-    // The serving model is on an attested custom provider; the vision model
-    // is on OpenAI, whose credential is now a subscription. The gateway may
-    // still hold the org's older OpenAI key, which the mint would bind.
-    mockedResolve.mockImplementation(async (_ctx, args) =>
-      args.providerSlug === 'openai'
-        ? SUBSCRIPTION_RESOLUTION
-        : apiKeyResolution(),
-    );
-
+  it('refuses at the first model the rule refuses, before any credential resolves', async () => {
     const refusal = await refusalOf(
-      provisionSessionGatewayKey(
+      issueRelayKey(
         fakeCtx({}, { kind: 'eu', attestedHosts: ['api.deepseek.com'] }),
         {
           organizationId: 'org_1',
@@ -1336,12 +1279,16 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
 
     expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
     expect(refusal).toMatchObject({
-      data: { provider: 'openai', reason: 'gateway-builtin' },
+      data: {
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+      },
     });
-    expectNothingServed();
+    expectNothingResolved();
   });
 
-  it('refuses an allowed provider whose credential the gateway cannot serve: the mint would bind its older record', async () => {
+  it('refuses a credential the relay cannot serve as a credential failure, not the rule', async () => {
     withConnectors(
       ownConnector('openai', {
         name: 'openai-eu',
@@ -1349,16 +1296,15 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
       }),
     );
     mockedResolve.mockResolvedValue(SUBSCRIPTION_RESOLUTION);
-    const args = {
-      organizationId: 'org_1',
-      sessionId: 'sess-eu',
-      allowedModels: [{ providerSlug: 'openai-eu', modelId: 'gpt-5.5' }],
-      surface: 'task' as const,
-      budgetCents: 100,
-    };
 
     const refusal = await refusalOf(
-      provisionSessionGatewayKey(fakeCtx({}, EU), args),
+      issueRelayKey(fakeCtx({}, EU), {
+        organizationId: 'org_1',
+        sessionId: 'sess-eu',
+        allowedModels: [{ providerSlug: 'openai-eu', modelId: 'gpt-5.5' }],
+        surface: 'task',
+        budgetCents: 100,
+      }),
     );
 
     expect(refusal).not.toBeInstanceOf(ModelEndpointRefusal);
@@ -1366,16 +1312,12 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
     expect((refusal as Error).message).toContain(
       'Provider "openai-eu" cannot serve this session',
     );
-    expectNothingServed();
-
-    // With the switch off a session key still skips it, as before.
-    await provisionSessionGatewayKey(fakeCtx(), args);
-    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(audit).not.toHaveBeenCalled();
   });
 
-  it('refuses every record while the policy cannot be read', async () => {
+  it('refuses every model while the policy cannot be read', async () => {
     const refusal = await refusalOf(
-      provisionSessionGatewayKey(fakeCtx({}, { kind: 'unreadable' }), {
+      issueRelayKey(fakeCtx({}, { kind: 'unreadable' }), {
         organizationId: 'org_1',
         sessionId: 'sess-eu',
         allowedModels: [DEEPSEEK],
@@ -1387,12 +1329,12 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
     expect(refusal).toMatchObject({
       data: { code: 'MODEL_ENDPOINT_POLICY_UNREADABLE', provider: 'deepseek' },
     });
-    expectNothingServed();
+    expectNothingResolved();
   });
 
   it('names the model API request and its key owner in the audit entry', async () => {
     await refusalOf(
-      provisionSessionGatewayKey(fakeCtx({}, EU), {
+      issueRelayKey(fakeCtx({}, EU), {
         organizationId: 'org_1',
         sessionId: 'model-api:key-1',
         allowedModels: [DEEPSEEK],
@@ -1413,7 +1355,7 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
   });
 
   it('changes nothing with the switch off', async () => {
-    await provisionSessionGatewayKey(fakeCtx(), {
+    const key = await issueRelayKey(fakeCtx(), {
       organizationId: 'org_1',
       sessionId: 'sess-open',
       allowedModels: [
@@ -1424,18 +1366,10 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
       budgetCents: 100,
     });
 
-    expect(provisionProviders).toHaveBeenCalledWith(
-      'org_1',
-      [
-        expect.objectContaining({
-          name: recordOf('deepseek', 'deepseek-v4-flash'),
-          baseUrl: 'https://api.deepseek.com',
-        }),
-        expect.objectContaining({ name: 'openrouter' }),
-      ],
-      expect.anything(),
-    );
-    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(key.servingCredentials).toEqual({
+      deepseek: 'cred-1',
+      openrouter: 'cred-1',
+    });
     expect(audit).not.toHaveBeenCalled();
   });
 });
@@ -1531,22 +1465,5 @@ describe('issueRelayKey — a turn key for the model relay', () => {
     expect((refusal as Error).message).toContain(
       'cannot be served through the model relay',
     );
-  });
-
-  it('refuses an upstream outside the EU/EEA before any credential resolves [GOV-R17]', async () => {
-    const refusal = await refusalOf(
-      issueRelayKey(fakeCtx({}, { kind: 'eu', attestedHosts: [] }), {
-        organizationId: 'org_1',
-        sessionId: 'sess-relay-eu',
-        allowedModels: [
-          { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
-        ],
-        surface: 'task',
-        actor: { id: 'user-7', type: 'user' },
-        budgetCents: 100,
-      }),
-    );
-    expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
-    expect(mockedResolve).not.toHaveBeenCalled();
   });
 });

@@ -49,7 +49,7 @@ import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { traceSandboxPhase } from '../../../tracing';
 import {
-  gatewayModelRefusal,
+  relayModelRefusal,
   readModelEndpointPolicy,
   refuseModelEndpoint,
   type ModelEndpointActor,
@@ -345,9 +345,8 @@ export interface SessionGatewayKey {
 
 /**
  * The EU/EEA rule (GOV-R17) on every model the key may call, judged by the
- * record the mint binds it to ({@link gatewayModelRefusal}) — whether or not
- * this call provisions that record, since the mint falls back to the org's
- * record of an earlier provision. The first refused model is audited and
+ * endpoint the model relay calls it at ({@link relayModelRefusal}) — whether
+ * or not this call resolves the model's connector. The first refused model is audited and
  * thrown; a connector nobody defines is left to the provision, which refuses
  * it.
  */
@@ -362,7 +361,7 @@ async function assertRecordsAllowed(
       (entry) => entry.name === ref.providerSlug,
     );
     if (!connector) continue;
-    const refusal = gatewayModelRefusal(
+    const refusal = relayModelRefusal(
       policy,
       connector,
       ref.anthropicHarnessLane === true,

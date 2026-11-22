@@ -874,9 +874,8 @@ agent.
   OpenAI transcription model, dictate in the chat composer → the request
   answers 403 `MODEL_ENDPOINT_OUTSIDE_EU` with the sentence, and no audio
   reaches OpenAI; with the model endpoints on (GOV-F41), a Developer's chat
-  completion naming an OpenAI model → 403 `MODEL_API_MODEL_FORBIDDEN` whose
-  message says the model gateway calls the vendor's own endpoint and names a
-  custom provider as the way out. Each refusal adds one **Model access
+  completion naming an OpenAI model → 403 `MODEL_API_MODEL_FORBIDDEN` with
+  the sentence, which names `eu.api.openai.com`. Each refusal adds one **Model access
   denied** row to **Logs** with its surface (`automation`, `transcription`,
   `model-api`). Turn the switch off → each call goes through again.
 - [ ] `GOV-F78` · **With the EU/EEA rule on, the pickers offer only what it lets through** —
@@ -906,8 +905,9 @@ agent.
   step uses the same agent → the step fails with the same sentence and
   **Logs** adds a row with the surface `automation`. Give a custom provider the
   base URL `https://eu.openrouter.ai/api/v1` and run the agent on one of its
-  models → the agent starts and answers; the OpenRouter catalog provider is
-  refused even with that base URL, because the gateway calls `openrouter.ai`.
+  models → the agent starts and answers; so does the OpenRouter catalog
+  provider once its base URL is that endpoint, since the model relay calls it
+  there, while at `openrouter.ai` it is refused.
   Attest a custom provider's host and its agent starts too. Turn the switch
   off → every refused agent starts again. Restore the state you found.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
