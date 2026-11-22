@@ -71,6 +71,18 @@ export class SessionFileTooLargeError extends Error {
   }
 }
 
+/** A session's runtime sent a file without saying how long it is: one
+ * from before it did. A reader that passes the bytes on must name their
+ * count before the first of them, so the file cannot be passed on. */
+export class SessionFileLengthUnknownError extends Error {
+  constructor(filePath: string) {
+    super(
+      `the sandbox runtime sent ${filePath} without its length; a runtime image that carries this release declares it`,
+    );
+    this.name = 'SessionFileLengthUnknownError';
+  }
+}
+
 /** The spawner answered an attach with its "exec <id> not found" error
  * event: the session is alive but knows no such exec. Distinguished so the
  * resilient drain can tell "the exec was never created" (re-POST it) from a
@@ -2242,6 +2254,84 @@ export async function sessionReadFile(
   const contentType =
     res.headers.get('content-type') ?? 'application/octet-stream';
   return { bytes, contentType };
+}
+
+/** The header the spawner says a file's length in, before the first of
+ * its bytes (`FILE_SIZE_HEADER`, services/sandbox/src/wire.ts). */
+const FILE_SIZE_HEADER = 'x-tale-file-size';
+
+/** How long a read of up to `maxBytes` may take: the thirty seconds any
+ * call gets, and a second for every mebibyte asked for, as the spawner
+ * gives the session (`fileReadTimeoutMs`, services/sandbox). */
+function fileStreamTimeoutMs(maxBytes: number): number {
+  return 30_000 + Math.ceil(maxBytes / (1024 * 1024)) * 1000;
+}
+
+/** A session file on its way through: its bytes, and how many they are. */
+export interface SessionFileStream {
+  readonly body: ReadableStream<Uint8Array>;
+  readonly size: number;
+}
+
+/**
+ * GET /v1/sessions/:id/files/content?path=&maxBytes= — a workspace file as a
+ * stream whose length is known first, for a caller that passes it on and
+ * holds none of it. `sessionReadFile` holds the file, and the session hands
+ * it no more than 20 MiB of one; here the caller names what it takes
+ * (`maxBytes`) and the session refuses a larger file, which reads as `null`
+ * like a missing or unsafe path.
+ *
+ * Throws {@link SessionFileLengthUnknownError} when the runtime declares no
+ * length, and {@link SessionFileTooLargeError} when it declares more than
+ * was asked for. The caller owns the body: it reads it to its end or cancels
+ * it. `signal` gives the transfer up.
+ */
+export async function sessionOpenFile(
+  sessionId: string,
+  filePath: string,
+  options: { maxBytes: number; signal?: AbortSignal },
+): Promise<SessionFileStream | null> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/content?path=${encodeURIComponent(filePath)}&maxBytes=${options.maxBytes}`;
+  const res = await spawnerFetch('GET', path, {
+    signal: AbortSignal.any([
+      AbortSignal.timeout(fileStreamTimeoutMs(options.maxBytes)),
+      ...(options.signal === undefined ? [] : [options.signal]),
+    ]),
+  });
+  const letGo = async (): Promise<void> => {
+    await res.body?.cancel().catch((error: unknown) => {
+      console.warn('[session_client] letting a file read go failed:', error);
+    });
+  };
+  if (res.status === 404) {
+    await letGo();
+    return null;
+  }
+  if (!res.ok) {
+    await letGo();
+    throw new Error(`sandbox session file read failed (${res.status})`);
+  }
+  const declared =
+    res.headers.get(FILE_SIZE_HEADER) ?? res.headers.get('content-length');
+  if (declared === null || !/^[0-9]{1,15}$/.test(declared)) {
+    await letGo();
+    throw new SessionFileLengthUnknownError(filePath);
+  }
+  const size = Number(declared);
+  if (size > options.maxBytes) {
+    await letGo();
+    throw new SessionFileTooLargeError(filePath, options.maxBytes);
+  }
+  return {
+    body:
+      res.body ??
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    size,
+  };
 }
 
 export interface SessionExecBody {
