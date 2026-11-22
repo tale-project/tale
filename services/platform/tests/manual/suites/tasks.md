@@ -242,6 +242,16 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   reaches **Done** after reload, and any project **editor** can decide — the
   gate is not locked to one reviewer; pending review notifications clear
   ([notifications.md](notifications.md) NOTIF-F7b/NOTIF-F7c)
+- [ ] `TASK-F100` · **A Pi agent takes a comment in its running turn** — Mode B
+  with a project agent on **Pi**: start it on a task whose description asks it
+  to run a slow shell command first (`sleep 60`, then summarise the
+  workspace), and while the Run row reads **Working…**
+  (`tasks.agentRun.status.running`) comment with an **@-mention** of the agent
+  asking for one more thing (a line count of the README) → The run is not
+  cancelled and no new run starts: the Run row keeps reading **Working…**, the
+  agent answers the comment once the shell command has finished, before it
+  writes its report, and the report includes the line count. A comment after
+  the run finished starts a new run instead (TASK-F15).
 - [ ] `TASK-F16` · **History & archive** — Read the task's conversation; then
   **Archive** (`tasks.actions.archive`) → confirm
   (`tasks.archive.confirmTitle`); restore via list + **Show archived** →

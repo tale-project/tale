@@ -24,12 +24,12 @@ Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platfor
 | Hermes | Gérée ou directe | Non | Non |
 | OpenClaw | Gérée ou directe | Non | Oui |
 | OpenCode | Gérée uniquement | Non | Oui |
-| Pi | Gérée ou directe | Non | Oui |
+| Pi | Gérée ou directe | Oui | Oui |
 | Qwen Code | Gérée ou directe | Non | Oui |
 
 **Claude Code (compact prompt)** est une option pour les workflows ciblés qui fournissent déjà des consignes complètes. Elle raccourcit les instructions intégrées et certaines descriptions d’outils, tout en conservant les outils, les hooks, MCP et les consignes ajoutées par Tale. Vérifie les résultats et la durée avec ton modèle avant de l’adopter : un prompt plus court ne garantit pas une exécution plus rapide. Choisis **Claude Code** pour retrouver le prompt complet à la prochaine nouvelle exécution. Un abonnement fournisseur réservé à Claude Code ne prend pas automatiquement en charge cette variante.
 
-Pour guider le travail, commente la tâche et mentionne son agent. Claude Code reçoit le message entre deux appels d’outils. Pour les autres environnements, Tale arrête le processus et poursuit la même conversation dans un nouveau processus avec ton commentaire. Cela explique un redémarrage du processus après une nouvelle consigne.
+Pour guider le travail, commente la tâche et mentionne son agent. Claude Code reçoit le message entre deux appels d’outils, et Pi dès que les outils qu’il exécute ont fini, avant son prochain appel au modèle. Pour les autres environnements, Tale arrête le processus et poursuit la même conversation dans un nouveau processus avec ton commentaire. Cela explique un redémarrage du processus après une nouvelle consigne.
 
 Gemini CLI fait exception : Tale ne poursuit jamais une de ses conversations. Un commentaire ultérieur, une nouvelle tentative automatique ou la réponse à une question posée par l’agent démarre une nouvelle conversation dans le même espace de travail, en rappelant la consigne de la tâche et les échanges précédents, parce que l’environnement ne peut pas reprendre une conversation dans laquelle il a appelé un outil. Les fichiers et les résultats sont conservés ; seule la conversation repart de zéro.
 

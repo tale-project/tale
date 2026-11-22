@@ -1192,16 +1192,32 @@ describe('drainHarnessWindow end-of-turn rules', () => {
 
     // Another exec: the stand-in keeps one checkpoint for all of them.
     transport.checkpoint = null;
-    transport.stdout = readFixture('pi', 'shell-turn');
+    transport.stdout = readFixture('gemini', 'shell-turn');
     transport.exitAfterStdout = true;
     const closed = await drainHarnessWindow({
       sessionId: 'sandbox',
-      execId: 'pi-turn',
-      harness: 'pi',
+      execId: 'gemini-turn',
+      harness: 'gemini',
     });
     expect(closed.kind).toBe('terminal');
 
     expect(transport.stdinWrites).toEqual([]);
+  });
+
+  it("ends a Pi turn's held RPC stdin once Pi has settled", async () => {
+    // Pi over RPC reads its stdin until EOF: the window closes it when the
+    // turn settled, which ends the process (tale-project/tale#4942).
+    transport.stdout = `${readFixture('pi', 'rpc-steered-turn')}\n`;
+    const settled = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'pi-rpc-turn',
+      harness: 'pi',
+      windowMs: 50,
+    });
+    expect(settled.kind).not.toBe('error');
+    expect(transport.stdinWrites).toEqual([
+      { execId: 'pi-rpc-turn', eof: true },
+    ]);
   });
 });
 

@@ -116,10 +116,28 @@ with open(os.path.join(spec['cwd'], '.pi', 'APPEND_SYSTEM.md'), 'w') as handle:
 proc = subprocess.Popen([local(arg) for arg in spec['argv']], cwd=spec['cwd'], env=env,
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         text=True, start_new_session=True)
+held = spec.get('stdinMode') == 'hold'
+err_lines = []
+threading.Thread(target=lambda: err_lines.extend(proc.stderr), daemon=True).start()
 try:
-    stdout, stderr = proc.communicate(local(spec['stdin']), timeout=75)
-    sys.stdout.write(stdout)
-    sys.stderr.write(stderr)
+    # A held stdin (Pi over RPC) stays open until Pi settles, as the platform
+    # keeps it: an EOF before then aborts the run. Then its EOF ends Pi.
+    proc.stdin.write(local(spec['stdin']))
+    proc.stdin.flush()
+    if not held:
+        proc.stdin.close()
+    out_lines = []
+    for line in proc.stdout:
+        out_lines.append(line)
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if held and isinstance(event, dict) and event.get('type') == 'agent_settled':
+            proc.stdin.close()
+    proc.wait(timeout=15)
+    sys.stdout.write(''.join(out_lines))
+    sys.stderr.write(''.join(err_lines))
     assert proc.returncode == 0, f'Pi exited {proc.returncode}'
     assert not errors, errors
     assert len(requests) == 2, f'expected a tool round trip, got {len(requests)} model requests'

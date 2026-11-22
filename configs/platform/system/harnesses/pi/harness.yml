@@ -6,8 +6,11 @@
 # catalog dialect.
 #
 # The wrapper stages the config files into a private per-exec
-# PI_CODING_AGENT_DIR, then pipes the prompt into the CLI's stdin (Pi's
-# native headless prompt source). The MCP servers (the browser and the
+# PI_CODING_AGENT_DIR from the first line of stdin, then becomes Pi in its
+# RPC mode (--rpc), which reads the rest of stdin: the prompt as its prompt
+# command, then the platform's steer commands while the turn runs. stdin is
+# held open until the turn has settled; its EOF ends Pi (an EOF before then
+# aborts the run). The MCP servers (the browser and the
 # capability bridge, which carries every workspace tool) are staged as
 # <agentDir>/mcp.json, the user-level file Pi reads without asking for
 # project trust. Instructions are staged beside that dir and named with
@@ -39,14 +42,16 @@ modelIdDialect: catalog
 promptTransport: stdin-ndjson
 capabilities:
   planMode: false
-  steering: false
+  # Over its RPC stdin: a steer is delivered after the current assistant
+  # turn's tool calls, before Pi's next model call.
+  steering: true
   mcp: true
   resume: true
 parser: pi-jsonl
 exec:
   bin: tale-pi-run
   argv:
-    - args: ['--workdir', '${workdir}']
+    - args: ['--workdir', '${workdir}', '--rpc']
     # Pi keeps the system prompt in the session as named sections, reads the
     # instructions file the wrapper names every process and stores what
     # changed as a section update ahead of the new turn; the request carries
@@ -62,20 +67,22 @@ exec:
         flag: '--model'
         managedPrefixArgs: ['--provider', 'tale-gateway']
   stdin:
-    mode: json-envelope
+    mode: json-envelope-rpc
+    rpc: pi
     envelope:
-      - prompt: {}
       # Staged as <agentDir>/settings.json. Default-on install telemetry
       # pings home; a sandbox turn must not. Cache warming (default "idle"
       # since 1.5.1) sends paid requests to keep a provider's prompt cache
       # warm, during a run and for up to 30 minutes after: a turn pays only
-      # for its own calls.
+      # for its own calls. Every steer queued is delivered at once, as
+      # Claude Code takes them.
       - doc:
           key: settings
           fragments:
             - set:
                 enableInstallTelemetry: false
                 cacheWarming: 'off'
+                steeringMode: all
       - instructions: { key: system_prompt }
       # MANAGED: OpenAI-compatible route on the model relay, wired as a
       # Pi custom provider in a staged models.json. The session key rides

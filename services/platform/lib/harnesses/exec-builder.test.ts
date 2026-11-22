@@ -44,6 +44,14 @@ function fact(slug: string): HarnessDefinition {
   return found;
 }
 
+/** Pi's staging envelope: the first line of its held RPC stdin. */
+function piEnvelope(exec: HarnessExec): Record<string, unknown> {
+  return JSON.parse((exec.stdin ?? '{}').split('\n')[0] ?? '{}') as Record<
+    string,
+    unknown
+  >;
+}
+
 function managedSpec(overrides?: Partial<HarnessRunSpec>): HarnessRunSpec {
   return {
     prompt: 'hygiene probe prompt',
@@ -297,7 +305,7 @@ describe('placeholder substitution safety', () => {
     const doctored = structuredClone(fact('pi'));
     const stdin = doctored.exec.stdin;
     const models =
-      stdin.mode === 'json-envelope'
+      stdin.mode === 'json-envelope' || stdin.mode === 'json-envelope-rpc'
         ? stdin.envelope.find(
             (entry) => 'doc' in entry && entry.doc.key === 'models',
           )
@@ -309,8 +317,7 @@ describe('placeholder substitution safety', () => {
     return doctored;
   }
   const probeOf = (exec: HarnessExec): unknown =>
-    (JSON.parse(exec.stdin ?? '{}') as { models?: { probe?: unknown } }).models
-      ?.probe;
+    (piEnvelope(exec) as { models?: { probe?: unknown } }).models?.probe;
 
   it('resolves a number template to its number, and leaves an empty one out', () => {
     const probe = numberProbe({
@@ -440,8 +447,7 @@ describe('Pi offers the mounted servers to the model', () => {
   const BRIDGE = 'http://platform.internal/api/connectors';
   /** The `mcpServers` of the mcp.json tale-pi-run stages, if any. */
   const servers = (exec: HarnessExec): unknown =>
-    (JSON.parse(exec.stdin ?? '{}') as { mcp?: { mcpServers?: unknown } }).mcp
-      ?.mcpServers;
+    (piEnvelope(exec) as { mcp?: { mcpServers?: unknown } }).mcp?.mcpServers;
 
   it('stages the browser and the bridge, each exposed directly', () => {
     const exec = buildHarnessExec(
@@ -490,7 +496,7 @@ describe("Pi sizes the conversation to the model's window", () => {
   /** The model entries of the models.json tale-pi-run stages. */
   const models = (exec: HarnessExec): unknown =>
     (
-      JSON.parse(exec.stdin ?? '{}') as {
+      piEnvelope(exec) as {
         models?: { providers?: Record<string, { models?: unknown }> };
       }
     ).models?.providers?.['tale-gateway']?.models;
