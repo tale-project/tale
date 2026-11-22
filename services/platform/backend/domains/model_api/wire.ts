@@ -228,8 +228,8 @@ export interface TextSegment {
 
 /** What the door reads off a request before it relays it. */
 export interface WireRequest {
-  /** The parsed body; the door relays it after rewriting `model`, the
-   * masked text and the gateway-only fields. */
+  /** The parsed body; the door relays it with the masked text, without the
+   * gateway-only fields. */
   body: Record<string, unknown>;
   /** The model id the caller named. */
   model: string;
@@ -322,9 +322,9 @@ export function estimatePromptTokens(request: WireRequest): number {
   );
 }
 
-/** Body fields the gateway reads as its own instructions, never relayed:
- * `fallbacks` would reroute the call to models the caller never named and
- * the key was never scoped to. */
+/** Body fields a model gateway reads as its own instructions, never
+ * relayed: `fallbacks` would have a gateway upstream reroute the call to
+ * models the caller never named and the key was never scoped to. */
 export const GATEWAY_ONLY_FIELDS = ['fallbacks'] as const;
 
 /** A URL an image or document may ride as: inline (`data:`) or a public

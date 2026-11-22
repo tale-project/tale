@@ -114,7 +114,7 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   // The session token IS the minted gateway key, hashed the way the bridge
   // hashes a bearer.
-  provisionSessionGatewayKey: async () => ({
+  issueRelayKey: async () => ({
     token: io.nextKey,
     keyId: `id-${io.nextKey}`,
     keyHash: createHash('sha256').update(io.nextKey).digest('hex'),

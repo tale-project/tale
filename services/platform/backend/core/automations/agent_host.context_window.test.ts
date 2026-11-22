@@ -19,7 +19,7 @@ import { harnessResumesConversations } from '../chat/external_turn_shared';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   ROOM_PLACE_RENEW_MS,
   SessionMemoryBusyError,
@@ -117,7 +117,7 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
   },
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: vi.fn(async () => ({
+  issueRelayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
@@ -1274,7 +1274,7 @@ describe('an automation agent turn under the EU/EEA rule [GOV-R17]', () => {
   it('hands the gateway lane’s provisioning the automation surface and the run, and settles its refusal the same way', async () => {
     euRule();
     const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
-    vi.mocked(provisionSessionGatewayKey).mockRejectedValueOnce(
+    vi.mocked(issueRelayKey).mockRejectedValueOnce(
       new ModelEndpointRefusal({
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message,
@@ -1293,7 +1293,7 @@ describe('an automation agent turn under the EU/EEA rule [GOV-R17]', () => {
       'gateway',
     );
 
-    expect(provisionSessionGatewayKey).toHaveBeenCalledWith(
+    expect(issueRelayKey).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         surface: 'automation',

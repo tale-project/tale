@@ -156,7 +156,10 @@ import {
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
 } from './domains/knowledge_entries/write-races.integration.ts';
-import { checkModelRelay } from './domains/llm_relay/relay.integration.ts';
+import {
+  checkModelRelay,
+  laneRelay,
+} from './domains/llm_relay/relay.integration.ts';
 import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { checkMemberLookup } from './domains/members/lookup.integration.ts';
 import { checkMemberSearch } from './domains/members/search.integration.ts';
@@ -43462,6 +43465,51 @@ async function checkApprovalsSurface(
  * MinIO blob) → settle choreography (outputs attached, agent comment,
  * in_review park, VK revoked, op finalized).
  */
+/** A turn's relay key as the relay sees it (tale-project/tale#4942). */
+interface RelayKeyReading {
+  /** The key its op carries. */
+  keyId: string;
+  /** The key's session tokens, and how many of them still admit a call. */
+  tokens: number;
+  live: number;
+}
+
+/** The relay key of a session's op: the given exec's, else the latest. */
+async function readRelayKey(
+  sql: Sql,
+  sessionId: string,
+  execId?: string,
+): Promise<RelayKeyReading> {
+  const op = (
+    await sql<{ keyId: string | null }[]>`
+      SELECT minted_key_id AS "keyId" FROM app.sandbox_session_ops
+      WHERE session_id = ${sessionId}
+        AND (${execId ?? null}::text IS NULL OR exec_id = ${execId ?? null})
+      ORDER BY started_at_ms DESC LIMIT 1
+    `
+  )[0];
+  const keyId = op?.keyId ?? '';
+  const tokens = (
+    await sql<{ tokens: number; live: number }[]>`
+      SELECT count(*)::int AS tokens,
+             (count(*) FILTER (WHERE revoked_at_ms IS NULL))::int AS live
+      FROM app.sandbox_session_tokens
+      WHERE llm_gateway_key_id = ${keyId}
+    `
+  )[0];
+  return { keyId, tokens: tokens?.tokens ?? 0, live: tokens?.live ?? 0 };
+}
+
+/** A relay key was minted, and once its turn settled or stood down none of
+ * its tokens admits a call any more. */
+function relayKeyClosed(key: RelayKeyReading): boolean {
+  return key.keyId.startsWith('tr_') && key.tokens > 0 && key.live === 0;
+}
+
+function relayKeyText(key: RelayKeyReading): string {
+  return `${key.keyId.startsWith('tr_') ? 'tr_' : JSON.stringify(key.keyId)}/tokens=${key.tokens}/live=${key.live}`;
+}
+
 async function checkTaskAgentTurnDrive(
   sql: Sql,
   base: string,
@@ -43483,7 +43531,9 @@ async function checkTaskAgentTurnDrive(
   const SPAWNER_TOKEN = 'itest-drive-spawner';
   const REPORT_BYTES = '# Report\n\nAll good.';
   const FINAL_TEXT = 'Wrote the report to the box.';
-  const gatewayCalls = { minted: 0, revoked: 0 };
+  // Each exec's harness makes one model call through the relay, with the
+  // token the host put in its env: 3 cents, booked on the turn's op.
+  const relay = laneRelay(sql, 3);
   let boxTaskDir = '';
 
   // The session whose canned turn ends SUCCESSFULLY with an EMPTY result —
@@ -43568,59 +43618,67 @@ async function checkTaskAgentTurnDrive(
         // The canned claude-code stream-json turn, then the exec result. The
         // reportless session's turn ends SUCCESSFULLY with an empty result —
         // the parser then sets no finalText, which is the no-report signal.
-        res.setHeader('content-type', 'text/event-stream');
-        const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
-        const reportless = (exec[1] ?? '') === reportlessSessionId;
-        const conv = reportless ? 'conv-43' : 'conv-42';
-        const events = [
-          line({
-            type: 'system',
-            subtype: 'init',
-            session_id: conv,
-            model: 'itest-agent-model',
-          }),
-          line({
-            type: 'assistant',
-            message: {
-              id: 'm1',
+        const writeTurn = (): void => {
+          res.setHeader('content-type', 'text/event-stream');
+          const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+          const reportless = (exec[1] ?? '') === reportlessSessionId;
+          const conv = reportless ? 'conv-43' : 'conv-42';
+          const events = [
+            line({
+              type: 'system',
+              subtype: 'init',
+              session_id: conv,
               model: 'itest-agent-model',
-              content: [
-                {
-                  type: 'text',
-                  text: reportless
-                    ? 'Mapping the table structure…'
-                    : 'Working on the report…',
-                },
-              ],
-              usage: { input_tokens: 120, output_tokens: 40 },
-            },
-          }),
-          line({
-            type: 'result',
-            subtype: 'success',
-            session_id: conv,
-            result: reportless ? '' : FINAL_TEXT,
-            duration_ms: 850,
-          }),
-        ];
-        let seq = 0;
-        for (const text of events) {
-          seq += 1;
+            }),
+            line({
+              type: 'assistant',
+              message: {
+                id: 'm1',
+                model: 'itest-agent-model',
+                content: [
+                  {
+                    type: 'text',
+                    text: reportless
+                      ? 'Mapping the table structure…'
+                      : 'Working on the report…',
+                  },
+                ],
+                usage: { input_tokens: 120, output_tokens: 40 },
+              },
+            }),
+            line({
+              type: 'result',
+              subtype: 'success',
+              session_id: conv,
+              result: reportless ? '' : FINAL_TEXT,
+              duration_ms: 850,
+            }),
+          ];
+          let seq = 0;
+          for (const text of events) {
+            seq += 1;
+            res.write(
+              `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
+            );
+          }
           res.write(
-            `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
+            `event: result\ndata: ${JSON.stringify({
+              status: 'completed',
+              exitCode: 0,
+              durationMs: 850,
+              stdoutBase64: '',
+              stderrBase64: '',
+              truncated: { stdout: false, stderr: false },
+            } satisfies SessionExecResult)}\n\n`,
           );
-        }
-        res.write(
-          `event: result\ndata: ${JSON.stringify({
-            status: 'completed',
-            exitCode: 0,
-            durationMs: 850,
-            stdoutBase64: '',
-            stderrBase64: '',
-            truncated: { stdout: false, stderr: false },
-          } satisfies SessionExecResult)}\n\n`,
-        );
-        res.end();
+          res.end();
+        };
+        // The harness calls its model first: through the relay, with the
+        // token the host put in the exec's env.
+        relay.call(body).then(writeTurn, (error: unknown) => {
+          console.error('[itest] relayed model call failed:', error);
+          writeTurn();
+        });
         return;
       }
       if (url.pathname.endsWith('/files/stage')) {
@@ -43729,43 +43787,8 @@ async function checkTaskAgentTurnDrive(
         );
         return;
       }
-      if (url === '/api/governance/virtual-keys' && method === 'POST') {
-        gatewayCalls.minted += 1;
-        // Unique per mint: the session-token row hashes the key VALUE, so a
-        // second turn re-minting a byte-identical key would die on the
-        // token-hash unique constraint before its exec ever starts. The
-        // `budgets` array mirrors the real gateway's multi-budget response —
-        // the mint refuses a key that comes back without one.
-        res.end(
-          JSON.stringify({
-            virtual_key: {
-              id: `vk-drive-${gatewayCalls.minted}`,
-              value: `sk-bf-drive-${gatewayCalls.minted}`,
-              budgets: [
-                {
-                  id: `budget-drive-${gatewayCalls.minted}`,
-                  max_limit: 5,
-                  current_usage: 0,
-                },
-              ],
-            },
-          }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/governance/virtual-keys/')) {
-        if (method === 'DELETE') {
-          gatewayCalls.revoked += 1;
-          res.end('{}');
-          return;
-        }
-        res.end(
-          JSON.stringify({
-            virtual_key: { budgets: [{ current_usage: 0.03 }] },
-          }),
-        );
-        return;
-      }
+      // No virtual keys: a turn's key is the relay's. A mint here would
+      // fail its turn.
       res.statusCode = 404;
       res.end('{}');
     });
@@ -43908,6 +43931,13 @@ async function checkTaskAgentTurnDrive(
       WHERE org_id = ${orgId} AND file_name = 'report.md'
         AND source = 'task-output'
     `;
+    // The turn's model call went through the relay with the credential the
+    // org saved, and was booked on the op the settle then read (3 cents).
+    const turnKey = await readRelayKey(sql, `pa-${agentId}`);
+    const servedWith =
+      relay.vendorKeys[0] === 'Bearer sk-itest-agent'
+        ? 'the saved credential'
+        : JSON.stringify(relay.vendorKeys[0]?.slice(0, 16));
 
     record(
       'task-agent turn drive (reused host: exec→harvest→settle)',
@@ -43926,9 +43956,10 @@ async function checkTaskAgentTurnDrive(
         opRows[0].finalizedAt !== null &&
         opRows[0].spentCents === 3 &&
         Number(metadataRows[0]?.count ?? '0') >= 1 &&
-        gatewayCalls.minted === 1 &&
-        gatewayCalls.revoked === 1,
-      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, report=${JSON.stringify(report?.body)} notice=${JSON.stringify(notice?.body)}, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+        relayKeyClosed(turnKey) &&
+        relay.statuses[0] === 200 &&
+        servedWith === 'the saved credential',
+      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, report=${JSON.stringify(report?.body)} notice=${JSON.stringify(notice?.body)}, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents} (want 3), metadata=${metadataRows[0]?.count}, key=${relayKeyText(turnKey)} (want tr_/tokens>0/live=0), relayed=${relay.statuses.join(',')} (want 200 first) with ${servedWith}`,
     );
 
     // --- a SUCCESSFUL end with no final text fails the run retryably ------
@@ -44086,8 +44117,7 @@ async function checkTaskAgentTurnDrive(
       sessionId: string;
       threw: string;
       start: (id: string) => Promise<string>;
-      minted: number;
-      revoked: number;
+      key: RelayKeyReading;
     }> => {
       const agentN = z.object({ agentId: z.string() }).safeParse(
         await (
@@ -44165,8 +44195,6 @@ async function checkTaskAgentTurnDrive(
           return error instanceof Error ? error.message : String(error);
         }
       };
-      const minted = gatewayCalls.minted;
-      const revoked = gatewayCalls.revoked;
       onSessionCreate = () => handOver(runId);
       const threw = await start(execId);
       return {
@@ -44174,8 +44202,7 @@ async function checkTaskAgentTurnDrive(
         sessionId,
         threw,
         start,
-        minted: gatewayCalls.minted - minted,
-        revoked: gatewayCalls.revoked - revoked,
+        key: await readRelayKey(sql, sessionId, execId),
       };
     };
 
@@ -44206,9 +44233,8 @@ async function checkTaskAgentTurnDrive(
         rotatedRun.execId === 'exec-standdown-rotated-2' &&
         rotatedRun.launchedAt === null &&
         rotatedSession === 'active' &&
-        rotated.minted === 1 &&
-        rotated.revoked === 1,
-      `threw="${rotated.threw}" spawned=${JSON.stringify(rotatedSpawned)} (want none), op=${rotatedOp?.status}/finalized=${rotatedOp?.finalizedAt !== null} (want cancelled), run=${rotatedRun?.status}/${rotatedRun?.execId}/launched=${rotatedRun?.launchedAt} (want queued/exec-standdown-rotated-2/null), session=${rotatedSession} (want active), vk mint/revoke=${rotated.minted}/${rotated.revoked} (want 1/1)`,
+        relayKeyClosed(rotated.key),
+      `threw="${rotated.threw}" spawned=${JSON.stringify(rotatedSpawned)} (want none), op=${rotatedOp?.status}/finalized=${rotatedOp?.finalizedAt !== null} (want cancelled), run=${rotatedRun?.status}/${rotatedRun?.execId}/launched=${rotatedRun?.launchedAt} (want queued/exec-standdown-rotated-2/null), session=${rotatedSession} (want active), key=${relayKeyText(rotated.key)} (want tr_/tokens>0/live=0)`,
     );
 
     // …and the successor's start launches normally on the kept session.
@@ -44263,9 +44289,8 @@ async function checkTaskAgentTurnDrive(
         cancelledRun.execId === 'exec-standdown-cancelled' &&
         cancelledRun.launchedAt === null &&
         cancelledSession === 'stopped' &&
-        cancelled.minted === 1 &&
-        cancelled.revoked === 1,
-      `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), vk mint/revoke=${cancelled.minted}/${cancelled.revoked} (want 1/1)`,
+        relayKeyClosed(cancelled.key),
+      `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), key=${relayKeyText(cancelled.key)} (want tr_/tokens>0/live=0)`,
     );
   } finally {
     restoreEnv();
@@ -44307,7 +44332,6 @@ async function checkAutomationAgentNode(
   const SPAWNER_TOKEN = 'itest-node-spawner';
   const NODE_TEXT = 'Analysis complete; wrote note.md.';
   const NOTE_BYTES = 'automation note';
-  const gatewayCalls = { minted: 0, revoked: 0 };
   // The ask lane: armed before a start, the next FRESH exec asks a question
   // through the real tool door (the bearer the kick minted, lifted from the
   // exec body) and ends cleanly; the exec that resumes the conversation
@@ -44442,7 +44466,7 @@ async function checkAutomationAgentNode(
       if (method === 'POST' && url.pathname.endsWith('/exec')) {
         respondExec(res, {
           isResume: body.includes(ASK_CONVERSATION),
-          bearer: /sk-bf-node-\d+/.exec(body)?.[0] ?? '',
+          bearer: /tale-rt-[\w-]+/.exec(body)?.[0] ?? '',
         }).catch((error: unknown) => {
           console.warn('[itest] fake spawner exec failed:', error);
           res.statusCode = 500;
@@ -44553,40 +44577,8 @@ async function checkAutomationAgentNode(
         );
         return;
       }
-      if (url === '/api/governance/virtual-keys' && method === 'POST') {
-        gatewayCalls.minted += 1;
-        // `budgets` mirrors the real gateway's multi-budget response — the
-        // mint refuses a key that comes back without one.
-        res.end(
-          JSON.stringify({
-            virtual_key: {
-              id: `vk-node-${gatewayCalls.minted}`,
-              value: `sk-bf-node-${gatewayCalls.minted}`,
-              budgets: [
-                {
-                  id: `budget-node-${gatewayCalls.minted}`,
-                  max_limit: 5,
-                  current_usage: 0,
-                },
-              ],
-            },
-          }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/governance/virtual-keys/')) {
-        if (method === 'DELETE') {
-          gatewayCalls.revoked += 1;
-          res.end('{}');
-          return;
-        }
-        res.end(
-          JSON.stringify({
-            virtual_key: { budgets: [{ current_usage: 0.01 }] },
-          }),
-        );
-        return;
-      }
+      // No virtual keys: a turn's key is the relay's. A mint here would
+      // fail its turn.
       res.statusCode = 404;
       res.end('{}');
     });
@@ -44659,8 +44651,11 @@ async function checkAutomationAgentNode(
     `;
     const run = runRows[0];
     const outputRaw = JSON.stringify(run?.output ?? null);
-    const opRows = await sql<{ status: string }[]>`
-      SELECT status FROM app.sandbox_session_ops
+    const opRows = await sql<
+      { status: string; sessionId: string; execId: string }[]
+    >`
+      SELECT status, session_id AS "sessionId", exec_id AS "execId"
+      FROM app.sandbox_session_ops
       WHERE kind = 'workflow-agent'
       ORDER BY started_at_ms DESC LIMIT 1
     `;
@@ -44670,6 +44665,11 @@ async function checkAutomationAgentNode(
         AND (owner_id = ${runId} OR owner_id LIKE ${runId + ':%'})
       ORDER BY created_at_ms DESC LIMIT 1
     `;
+    const nodeKey = await readRelayKey(
+      sql,
+      opRows[0]?.sessionId ?? '',
+      opRows[0]?.execId,
+    );
 
     record(
       'automation agent node (kick→park→turn→settle→resume→finish)',
@@ -44679,9 +44679,8 @@ async function checkAutomationAgentNode(
         outputRaw.includes('note.md') &&
         opRows[0]?.status === 'completed' &&
         sessionRows[0]?.status === 'stopped' &&
-        gatewayCalls.minted === 1 &&
-        gatewayCalls.revoked === 1,
-      `run=${run?.status}${run?.detail ? ` (${run.detail.slice(0, 120)})` : ''}, output has text=${outputRaw.includes(NODE_TEXT)} file=${outputRaw.includes('note.md')}, op=${opRows[0]?.status}, session=${sessionRows[0]?.status} (want stopped), vk=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+        relayKeyClosed(nodeKey),
+      `run=${run?.status}${run?.detail ? ` (${run.detail.slice(0, 120)})` : ''}, output has text=${outputRaw.includes(NODE_TEXT)} file=${outputRaw.includes('note.md')}, op=${opRows[0]?.status}, session=${sessionRows[0]?.status} (want stopped), key=${relayKeyText(nodeKey)} (want tr_/tokens>0/live=0)`,
     );
 
     // ---- the drive chain's scheduler seam maps the self-chained ref -------
@@ -44965,7 +44964,7 @@ async function checkAutomationAgentNode(
       version: 1,
       origin: appOrigin('itest:legacy'),
     });
-    const spentBefore = { ...gatewayCalls };
+    const keysFrom = Date.now();
     const subAgentRun = await startLiveAndSettle('ops/parent-agentic');
     const subAgentOps = await runSessionOps(subAgentRun.runId);
     const subAgentSessions = await sql<{ count: string }[]>`
@@ -44979,6 +44978,15 @@ async function checkAutomationAgentNode(
       WHERE name IN (${physicalTaskQueue('automation.agent_turn')}, ${physicalTaskQueue('automation.agent_drive')})
         AND data ->> 'runId' = ${subAgentRun.runId}
     `;
+    // A relay key lives in its tokens: none written means none minted.
+    const keysMinted = (
+      await sql<{ count: number }[]>`
+        SELECT count(DISTINCT llm_gateway_key_id)::int AS count
+        FROM app.sandbox_session_tokens
+        WHERE org_id = ${orgId} AND created_at_ms >= ${keysFrom}
+          AND starts_with(llm_gateway_key_id, 'tr_')
+      `
+    )[0]?.count;
     record(
       'automation agent node: a subautomation refuses an agent node before spending a turn',
       subAgentRun.status === 'failed' &&
@@ -44988,8 +44996,8 @@ async function checkAutomationAgentNode(
         subAgentOps.length === 0 &&
         subAgentSessions[0]?.count === '0' &&
         subAgentJobs[0]?.count === '0' &&
-        gatewayCalls.minted === spentBefore.minted,
-      `deploy(sub=${subAgentDeploy}, parent=${parentAgentDeploy}), run=${subAgentRun.status} (${(subAgentRun.detail ?? '').slice(0, 140)}), ops=${subAgentOps.length} sessions=${subAgentSessions[0]?.count} agentJobs=${subAgentJobs[0]?.count} (want 0/0/0), keysMinted=${gatewayCalls.minted - spentBefore.minted} (want 0)`,
+        keysMinted === 0,
+      `deploy(sub=${subAgentDeploy}, parent=${parentAgentDeploy}), run=${subAgentRun.status} (${(subAgentRun.detail ?? '').slice(0, 140)}), ops=${subAgentOps.length} sessions=${subAgentSessions[0]?.count} agentJobs=${subAgentJobs[0]?.count} (want 0/0/0), keysMinted=${keysMinted} (want 0)`,
     );
 
     // The default policy holds every outbound write for a person; inside a
@@ -45265,8 +45273,8 @@ async function startTwoStepDestroyRun(
     spawnerAddress !== null && typeof spawnerAddress === 'object'
       ? spawnerAddress.port
       : 0;
-  // The gateway: the provider keys the platform syncs, each turn's key
-  // minted and revoked, nothing spent.
+  // The gateway: the provider keys the platform syncs. A turn's key is the
+  // relay's, so no virtual key is minted here.
   const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
   const gateway = createServer((req, res) => {
     let gatewayBody = '';
@@ -45307,29 +45315,6 @@ async function startTwoStepDestroyRun(
           method === 'GET'
             ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
             : '{}',
-        );
-        return;
-      }
-      if (url === '/api/governance/virtual-keys' && method === 'POST') {
-        const id = `vk-destroy-${randomUUID()}`;
-        res.end(
-          JSON.stringify({
-            virtual_key: {
-              id,
-              value: `sk-bf-${id}`,
-              budgets: [{ id: `budget-${id}`, max_limit: 5, current_usage: 0 }],
-            },
-          }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/governance/virtual-keys/')) {
-        res.end(
-          method === 'DELETE'
-            ? '{}'
-            : JSON.stringify({
-                virtual_key: { budgets: [{ current_usage: 0 }] },
-              }),
         );
         return;
       }

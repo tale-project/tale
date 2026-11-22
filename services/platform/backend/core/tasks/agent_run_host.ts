@@ -85,7 +85,7 @@ import {
   type CapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   ExecDiskFullError,
   isSessionExecLimitResult,
@@ -101,6 +101,7 @@ import {
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
+  type AllowedModelRef,
   hashVirtualKey,
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
@@ -1009,6 +1010,11 @@ interface PreparedServing {
   tokenHash: string;
   /** The session-token scope's model allowlist (gateway refs). */
   allowedModels: string[];
+  /** What the model relay serves the key: each model with its connector and
+   * lane, and the credential each connector was minted under. Absent on the
+   * subscription lane, which calls no model through the relay. */
+  relayModels?: AllowedModelRef[];
+  servingCredentials?: Record<string, string>;
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
   /** The gateway model of the sandbox's vision lane (`tale-vision`,
@@ -1109,7 +1115,9 @@ async function mintTurnServing(
       throw new TurnBudgetExceededError(reservation.reason);
     }
     const budgetCents = reservation.budgetCents;
-    const key = await provisionSessionGatewayKey(ctx, {
+    // The turn's key for the model relay (domains/llm_relay), which serves
+    // its calls in place of the sandbox LLM gateway.
+    const key = await issueRelayKey(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       allowedModels: [target, ...(vision !== null ? [vision.model] : [])],
@@ -1124,6 +1132,8 @@ async function mintTurnServing(
       mintedKeyId: key.keyId,
       tokenHash: key.keyHash,
       allowedModels: [routing.gatewayModel],
+      relayModels: key.relayModels,
+      servingCredentials: key.servingCredentials,
       budgetCents,
       ...(visionModelRef !== undefined ? { visionModelRef } : {}),
       ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
@@ -1251,7 +1261,12 @@ export async function insertTaskTurnSessionToken(
     deadlineAt: number;
     prepared: Pick<
       PreparedServing,
-      'tokenHash' | 'mintedKeyId' | 'allowedModels' | 'budgetCents'
+      | 'tokenHash'
+      | 'mintedKeyId'
+      | 'allowedModels'
+      | 'budgetCents'
+      | 'relayModels'
+      | 'servingCredentials'
     >;
   },
 ): Promise<void> {
@@ -1279,6 +1294,12 @@ export async function insertTaskTurnSessionToken(
     scope: {
       agentKind: args.harness,
       allowedModels: args.prepared.allowedModels,
+      ...(args.prepared.relayModels !== undefined
+        ? { relayModels: args.prepared.relayModels }
+        : {}),
+      ...(args.prepared.servingCredentials !== undefined
+        ? { servingCredentials: args.prepared.servingCredentials }
+        : {}),
       connectorGrants: [...args.connectors],
       budgetCents: args.prepared.budgetCents,
       // Baseline knowledge retrieval (visibility derives from THIS

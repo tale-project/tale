@@ -363,16 +363,10 @@ async function main(): Promise<void> {
   // (408), a header block past the budget (431), bytes that are not HTTP
   // (400) — in the JSON envelope the doors speak (lib/http-hygiene.ts).
   if (http !== null && server !== null) http.installClientErrorEnvelope(server);
-  // The tunnels a sandbox session's yt-dlp asks this listener for, to one of
-  // video ingestion's proxies (domains/video_links/proxy-relay.ts).
-  const endVideoProxyRelay =
-    http !== null && server !== null
-      ? http.installVideoProxyRelay(server)
-      : null;
   // The model relay, on a port of its own where only sandbox sessions reach
-  // it: the harnesses' model calls, in place of the sandbox LLM gateway
-  // (domains/llm_relay). A container that cannot bind where it must fails
-  // its start here.
+  // it: the harnesses' model calls, in place of the sandbox LLM gateway, and
+  // a video job's PO-token relay (domains/llm_relay). A container that
+  // cannot bind where it must fails its start here.
   const modelRelay =
     http !== null && server !== null
       ? http.startModelRelay({
@@ -383,6 +377,12 @@ async function main(): Promise<void> {
         })
       : null;
   if (modelRelay !== null) await listening(modelRelay);
+  // The tunnels a sandbox session's yt-dlp asks the relay's listener for, to
+  // one of video ingestion's proxies (domains/video_links/proxy-relay.ts).
+  const endVideoProxyRelay =
+    http !== null && modelRelay !== null
+      ? http.installVideoProxyRelay(modelRelay)
+      : null;
 
   // The web tier, in this process and on a port of its own: the built app,
   // its shell, the status page and the other doors of `../server.ts`. It

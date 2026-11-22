@@ -24,7 +24,7 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveModel } from '../lib/providers/resolve_model';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import type { AllowedModelRef } from '../node_only/sandbox/llm_gateway_admin';
 
 const io = vi.hoisted(() => ({
@@ -60,7 +60,7 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
   ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: vi.fn(async () => ({
+  issueRelayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
@@ -221,15 +221,14 @@ const START = {
 
 /** The first allowed-model ref the start's mint bound the key to. */
 function mintedRef(): AllowedModelRef | undefined {
-  return vi.mocked(provisionSessionGatewayKey).mock.calls[0]?.[1]
-    .allowedModels[0];
+  return vi.mocked(issueRelayKey).mock.calls[0]?.[1].allowedModels[0];
 }
 
 beforeEach(() => {
   io.starts = [];
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveWorkflowAgentServing).mockReset();
-  vi.mocked(provisionSessionGatewayKey).mockClear();
+  vi.mocked(issueRelayKey).mockClear();
   const entry: ModelCatalogEntry = {
     id: 'deepseek-flash',
     provider: 'deepseek',

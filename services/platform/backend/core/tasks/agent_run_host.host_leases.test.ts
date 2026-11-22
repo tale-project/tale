@@ -76,7 +76,7 @@ vi.mock('../lib/providers/resolve_image_model', () => ({
   resolveTurnImageGeneration: vi.fn(),
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  issueRelayKey: async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',

@@ -9,6 +9,8 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { resolveGatewayRouting } from '../../../lib/shared/providers/gateway_routing.ts';
+import { relayDeps } from './deps.ts';
 import type { RelayConnector } from './endpoint.ts';
 import type { UpstreamFetch } from './passthrough.ts';
 import { createRelayHandler, tokenHashOf } from './server.ts';
@@ -249,4 +251,114 @@ export async function checkModelRelay(
     await sql`DELETE FROM app.sandbox_session_tokens WHERE session_id = ${sessionId}`;
     await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ${sessionId}`;
   }
+}
+
+/** The prompt a lane's harness sends, in tokens. */
+const TURN_PROMPT_TOKENS = 1000;
+
+/**
+ * The model relay a lane's fake harness calls: in process, on the backend's
+ * own deps (`relayDeps`). It admits the token the host put in an exec's env
+ * for the turn's model, serves the call with the credential the turn was
+ * minted with, and books it on the turn's op, where the settle reads it.
+ * The vendor is the fetch seam, and the model's catalog entry is priced so
+ * one call costs `cents`.
+ */
+export function laneRelay(
+  sql: Sql,
+  cents: number,
+): {
+  /** One call with the relay token an exec's body carries; returns once
+   * the relay has booked it. */
+  call: (execBody: string) => Promise<void>;
+  /** Each call's status: 0 when the body carried no live relay token. */
+  statuses: number[];
+  /** The authorization each call reached the vendor with. */
+  vendorKeys: string[];
+} {
+  const live = relayDeps(sql);
+  const statuses: number[] = [];
+  const vendorKeys: string[] = [];
+  const relay = createRelayHandler({
+    ...live,
+    connectorFor: async (grant, providerSlug, modelId) => {
+      const served = await live.connectorFor(grant, providerSlug, modelId);
+      return {
+        connector: served.connector,
+        entry:
+          served.entry === undefined
+            ? undefined
+            : {
+                ...served.entry,
+                pricing: {
+                  inputCentsPerMillion:
+                    (cents * 1_000_000) / TURN_PROMPT_TOKENS,
+                  outputCentsPerMillion: 0,
+                },
+              },
+      };
+    },
+    fetcher: async (_url, init) => {
+      vendorKeys.push(new Headers(init.headers).get('authorization') ?? '');
+      return Response.json({
+        id: 'chatcmpl-itest-turn',
+        object: 'chat.completion',
+        created: 0,
+        model: 'itest-agent-model',
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'On it.' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: TURN_PROMPT_TOKENS,
+          completion_tokens: 20,
+          total_tokens: TURN_PROMPT_TOKENS + 20,
+        },
+      });
+    },
+  });
+  const call = async (execBody: string): Promise<void> => {
+    const token = /tale-rt-[\w-]+/.exec(execBody)?.[0];
+    const grant =
+      token === undefined ? null : await grantOf(sql, tokenHashOf(token));
+    const model = grant?.allowedModels[0];
+    if (token === undefined || grant === null || model === undefined) {
+      statuses.push(0);
+      return;
+    }
+    const answer = await relay(
+      new Request('http://relay/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: resolveGatewayRouting(
+            grant.organizationId,
+            model.providerSlug,
+            model.modelId,
+            { anthropicHarnessLane: model.anthropicHarnessLane === true },
+          ).gatewayModel,
+          messages: [{ role: 'user', content: 'Do the work.' }],
+        }),
+      }),
+    );
+    await answer.text();
+    statuses.push(answer.status);
+    if (answer.status !== 200) return;
+    // Booking runs once the answer has ended: wait for the count to move.
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const rows = await sql<{ calls: number }[]>`
+        SELECT relay_calls AS calls FROM app.sandbox_session_ops
+        WHERE minted_key_id = ${grant.keyId}
+      `;
+      if ((rows[0]?.calls ?? 0) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+  };
+  return { call, statuses, vendorKeys };
 }

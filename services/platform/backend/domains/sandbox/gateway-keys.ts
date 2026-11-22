@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { settleGatewayKey } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
-import { revokeVirtualKey } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import { revokeTurnKey } from '../llm_relay/keys.ts';
 import { pgGatewayKeySettlementPort } from './spend-settlement.ts';
 
 /**
@@ -67,7 +67,7 @@ async function revokeGatewayKeys(
       if (turn === undefined) {
         // A key with no op behind it (the session row's parked key): nothing
         // to book — delete it.
-        await revokeVirtualKey(keyId);
+        await revokeTurnKey(sql, keyId);
         outcomes.set(keyId, true);
         continue;
       }

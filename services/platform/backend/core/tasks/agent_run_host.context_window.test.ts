@@ -24,7 +24,7 @@ import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { encryptSecret } from '../lib/secret_box';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionMemoryBusyError,
   SpawnerUnreachableError,
@@ -181,7 +181,7 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: vi.fn(async () => ({
+  issueRelayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
@@ -1422,7 +1422,7 @@ describe('a task agent turn under the EU/EEA rule [GOV-R17]', () => {
   it('hands the gateway lane’s provisioning the task surface and the starter, and settles its refusal the same way', async () => {
     euRule();
     const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
-    vi.mocked(provisionSessionGatewayKey).mockRejectedValueOnce(
+    vi.mocked(issueRelayKey).mockRejectedValueOnce(
       new ModelEndpointRefusal({
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message,
@@ -1433,7 +1433,7 @@ describe('a task agent turn under the EU/EEA rule [GOV-R17]', () => {
 
     const { mutations } = await start({ startedBy: 'api-key:user-8' });
 
-    expect(provisionSessionGatewayKey).toHaveBeenCalledWith(
+    expect(issueRelayKey).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         surface: 'task',

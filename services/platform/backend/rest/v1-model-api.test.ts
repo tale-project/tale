@@ -1,21 +1,22 @@
 // @vitest-environment node
 
 /**
- * The model endpoints, route by route, with the domain's gates and the
- * gateway scripted: the door shut or refused in each wire's own error
- * shape, the OpenAI listing, the model resolution, the capability checks,
- * the guardrails' block and mask, the budget refusal, and a relayed call —
- * streamed and whole, tools included — whose end closes its lease with the
- * usage the answer reported; a caller who hangs up while the request is
- * governed has it closed unsent, with nothing to book; and, with the EU/EEA
- * processing rule on, a model the gateway would serve from an endpoint
- * outside the region refused and audited before anything is held.
+ * The model endpoints, route by route, with the domain's gates scripted and
+ * a provider behind the model relay: the door shut or refused in each wire's
+ * own error shape, the OpenAI listing, the model resolution, the capability
+ * checks, the guardrails' block and mask, the budget refusal, and a relayed
+ * call — streamed and whole, tools included — whose end closes its lease
+ * with the usage the relay booked; a caller who hangs up while the request
+ * is governed has it closed unsent, with nothing to book; and, with the
+ * EU/EEA processing rule on, a model whose endpoint is outside the region
+ * refused and audited before anything is held.
  */
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ModelApiRelayDeps } from '../domains/model_api/relay.ts';
 import type { RestEnv } from './shared.ts';
 
 const gate = vi.hoisted(() => ({
@@ -56,6 +57,19 @@ vi.mock('../domains/model_api/metering.ts', async (importOriginal) => ({
   ...metering,
 }));
 
+/** The relay's connector resolution and booking, as `provider` scripts
+ * them. */
+const relay = vi.hoisted(() => ({
+  deps: null as ModelApiRelayDeps | null,
+}));
+vi.mock('../domains/model_api/relay.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../domains/model_api/relay.ts')>()),
+  modelApiRelayDeps: () => {
+    if (relay.deps === null) throw new Error('no provider scripted');
+    return relay.deps;
+  },
+}));
+
 const audit = vi.hoisted(() => ({
   recordModelEndpointRefusal: vi.fn(async (): Promise<void> => undefined),
 }));
@@ -72,10 +86,10 @@ vi.mock('../auth/membership.ts', async (importOriginal) => ({
 }));
 
 const { createModelApiRestRoutes } = await import('./v1-model-api.ts');
-const { setGatewayFetchForTests } =
-  await import('../domains/model_api/relay.ts');
 const { ModelApiRefusal } = await import('../domains/model_api/wire.ts');
 const { spendFactsOf } = await import('../domains/model_api/metering.ts');
+const { ridesModelApiAnthropicLane } =
+  await import('../domains/model_api/models.ts');
 
 const POLICY = {
   enabled: true,
@@ -90,7 +104,23 @@ const POLICY = {
   modelApi: { enabled: true },
 };
 
-const MODELS = [
+interface Model {
+  id: string;
+  providerSlug: string;
+  modelId: string;
+  label: string;
+  vision: boolean;
+  tools: boolean;
+  contextWindow: number;
+  pricing?: { inputCentsPerMillion: number; outputCentsPerMillion: number };
+  connector: {
+    name: string;
+    baseUrl?: string;
+    harnessEndpoint?: { baseUrl: string; apiFormat: 'openai' | 'anthropic' };
+  };
+}
+
+const MODELS: Model[] = [
   {
     id: 'openrouter/anthropic/claude-sonnet-4.6',
     providerSlug: 'openrouter',
@@ -100,7 +130,14 @@ const MODELS = [
     tools: true,
     contextWindow: 200_000,
     pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
-    connector: { name: 'openrouter' },
+    connector: {
+      name: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      harnessEndpoint: {
+        baseUrl: 'https://openrouter.ai/api',
+        apiFormat: 'anthropic',
+      },
+    },
   },
   {
     id: 'deepseek/deepseek-v4-flash',
@@ -110,32 +147,80 @@ const MODELS = [
     vision: false,
     tools: true,
     contextWindow: 128_000,
-    connector: { name: 'deepseek' },
+    connector: { name: 'deepseek', baseUrl: 'https://api.deepseek.com' },
   },
 ];
 
-const LEASE = {
-  organizationId: 'org-1',
-  sessionId: 'model-api:key-1',
-  execId: 'req-uuid',
-  token: 'sk-bf-lease',
-  keyId: 'vk-1',
-  gatewayModel: 'openrouter/anthropic/claude-sonnet-4.6',
-};
+/** The lease `openModelApiLease` hands the door for a model on a wire. */
+function leaseFor(wire: 'openai' | 'anthropic', model: Model = MODELS[0]) {
+  const anthropicLane = ridesModelApiAnthropicLane(wire, model);
+  return {
+    organizationId: 'org-1',
+    sessionId: 'model-api:key-1',
+    execId: 'req-uuid',
+    keyId: 'tr_1',
+    relayModel: {
+      providerSlug: model.providerSlug,
+      modelId: model.modelId,
+      anthropicLane,
+      ref: `${model.providerSlug}/${model.modelId}`,
+    },
+    servingCredentials: {},
+  };
+}
 
-let gatewayCalls: { url: string; body: Record<string, unknown> }[] = [];
-let restoreGateway: () => void = () => undefined;
+let providerCalls: { url: string; body: Record<string, unknown> }[] = [];
+let booked: { usage: unknown; cents: number }[] = [];
 
-function gateway(respond: () => Response) {
-  restoreGateway = setGatewayFetchForTests(async (url, init) => {
-    gatewayCalls.push({
-      url,
-      body: JSON.parse(
-        typeof init.body === 'string' ? init.body : '{}',
-      ) as Record<string, unknown>,
-    });
-    return respond();
-  });
+/** Script the provider behind the relay: each listed model's connector,
+ * called through the scripted fetch. */
+function provider(respond: () => Response) {
+  relay.deps = {
+    connectorFor: async (_grant, providerSlug, modelId) => {
+      // The listing as the test set it, read without counting as a call.
+      const models =
+        ((await listing.listModelApiModels.getMockImplementation()?.()) ??
+          []) as Model[];
+      const model = models.find(
+        (candidate) =>
+          candidate.providerSlug === providerSlug &&
+          candidate.modelId === modelId,
+      );
+      if (model === undefined) throw new Error(`no model "${modelId}"`);
+      return {
+        connector: {
+          name: model.connector.name,
+          apiFormat: 'openai',
+          baseUrl: model.connector.baseUrl,
+          apiKey: 'sk-org',
+          ...(model.connector.harnessEndpoint !== undefined
+            ? { harnessEndpoint: model.connector.harnessEndpoint }
+            : {}),
+        },
+        entry: {
+          id: model.modelId,
+          provider: model.providerSlug,
+          tags: ['chat'],
+          supportsTools: model.tools,
+          supportsVision: model.vision,
+          contextWindow: model.contextWindow,
+          ...(model.pricing !== undefined ? { pricing: model.pricing } : {}),
+        },
+      };
+    },
+    bookCall: async (_keyId, usage, cents) => {
+      booked.push({ usage, cents });
+    },
+    fetcher: async (url, init) => {
+      providerCalls.push({
+        url,
+        body: JSON.parse(
+          typeof init.body === 'string' ? init.body : '{}',
+        ) as Record<string, unknown>,
+      });
+      return respond();
+    },
+  };
 }
 
 function mount(options: { apiKeyId?: string; role?: string } = {}) {
@@ -180,19 +265,26 @@ const MESSAGES = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  gatewayCalls = [];
+  providerCalls = [];
+  booked = [];
+  relay.deps = null;
   gate.resolveModelApiGate.mockResolvedValue({ kind: 'open', policy: POLICY });
   listing.listModelApiModels.mockResolvedValue(MODELS);
   guardrails.buildModelApiGuardrails.mockResolvedValue({
     apply: guardrails.apply,
   });
-  metering.openModelApiLease.mockResolvedValue(LEASE);
+  metering.openModelApiLease.mockImplementation(
+    async (
+      _sql: unknown,
+      args: { wire: 'openai' | 'anthropic'; model: Model },
+    ) => leaseFor(args.wire, args.model),
+  );
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
 afterEach(() => {
-  restoreGateway();
+  relay.deps = null;
 });
 
 describe('the door is shut', () => {
@@ -332,21 +424,21 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
   };
   /** OpenRouter pointed at its EU endpoint — which the gateway's built-in
    * connection to OpenRouter does not use. */
-  const OPENROUTER = {
+  const OPENROUTER: Model = {
     ...MODELS[0],
     connector: {
       name: 'openrouter',
       baseUrl: 'https://eu.openrouter.ai/api/v1',
     },
   };
-  const withAnthropicEndpoint = (baseUrl: string) => ({
+  const withAnthropicEndpoint = (baseUrl: string): Model => ({
     ...OPENROUTER,
     connector: {
       ...OPENROUTER.connector,
       harnessEndpoint: { baseUrl, apiFormat: 'anthropic' as const },
     },
   });
-  const deepseekAt = (baseUrl: string) => ({
+  const deepseekAt = (baseUrl: string): Model => ({
     ...MODELS[1],
     connector: { name: 'deepseek', baseUrl },
   });
@@ -390,11 +482,11 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     );
     expect(guardrails.buildModelApiGuardrails).not.toHaveBeenCalled();
     expect(metering.openModelApiLease).not.toHaveBeenCalled();
-    expect(gatewayCalls).toHaveLength(0);
+    expect(providerCalls).toHaveLength(0);
   });
 
   it('relays the Anthropic wire over the connector’s native EU endpoint, and refuses its global one and the chat wire', async () => {
-    gateway(() =>
+    provider(() =>
       Response.json({
         type: 'message',
         model: 'gw',
@@ -407,7 +499,10 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     ]);
     const relayed = await post('/anthropic/v1/messages', MESSAGES);
     expect(relayed.status).toBe(200);
-    expect(gatewayCalls).toHaveLength(1);
+    expect(providerCalls).toHaveLength(1);
+    expect(providerCalls[0]?.url).toBe(
+      'https://eu.openrouter.ai/api/v1/messages',
+    );
     // The chat wire keeps the gateway's built-in connection.
     const chat = await post('/openai/chat/completions', CHAT);
     expect(chat.status).toBe(403);
@@ -434,16 +529,19 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
         reason: 'vendor-global',
       }),
     );
-    expect(gatewayCalls).toHaveLength(1);
+    expect(providerCalls).toHaveLength(1);
   });
 
   it('relays a custom provider on an attested endpoint, and refuses one on any other', async () => {
-    gateway(() => Response.json({ model: 'gw', choices: [], usage: {} }));
+    provider(() => Response.json({ model: 'gw', choices: [], usage: {} }));
     listing.listModelApiModels.mockResolvedValue([
       deepseekAt('https://llm.example.eu/v1'),
     ]);
     const relayed = await post('/openai/chat/completions', DEEPSEEK_CHAT);
     expect(relayed.status).toBe(200);
+    expect(providerCalls[0]?.url).toBe(
+      'https://llm.example.eu/v1/chat/completions',
+    );
     expect(audit.recordModelEndpointRefusal).not.toHaveBeenCalled();
 
     listing.listModelApiModels.mockResolvedValue([
@@ -468,7 +566,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
         reason: 'not-attested',
       }),
     );
-    expect(gatewayCalls).toHaveLength(1);
+    expect(providerCalls).toHaveLength(1);
   });
 
   it('lists only the models the rule lets through on the OpenAI wire [GOV-R22]', async () => {
@@ -499,7 +597,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
       expect.any(Error),
     );
     expect(metering.openModelApiLease).not.toHaveBeenCalled();
-    expect(gatewayCalls).toHaveLength(0);
+    expect(providerCalls).toHaveLength(0);
   });
 
   it('changes nothing while the rule is off', async () => {
@@ -507,7 +605,7 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
       kind: 'open',
       policy: { ...POLICY, euProcessing: { enabled: false } },
     });
-    gateway(() => Response.json({ model: 'gw', choices: [], usage: {} }));
+    provider(() => Response.json({ model: 'gw', choices: [], usage: {} }));
     listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
     const response = await post('/openai/chat/completions', CHAT);
     expect(response.status).toBe(200);
@@ -534,7 +632,7 @@ describe('guardrails and budget', () => {
       },
     });
     expect(metering.openModelApiLease).not.toHaveBeenCalled();
-    expect(gatewayCalls).toHaveLength(0);
+    expect(providerCalls).toHaveLength(0);
   });
 
   it('relays the text as the guardrails masked it [MAPI-R6]', async () => {
@@ -543,11 +641,11 @@ describe('guardrails and budget', () => {
         segment.write(segment.read().replace('jane@example.com', '[EMAIL]'));
       }
     });
-    gateway(() =>
+    provider(() =>
       Response.json({
         id: 'msg',
         type: 'message',
-        model: 'openrouter/anthropic/claude-sonnet-4.6',
+        model: 'anthropic/claude-sonnet-4.6',
         content: [{ type: 'text', text: 'ok' }],
         usage: { input_tokens: 5, output_tokens: 1 },
       }),
@@ -556,7 +654,7 @@ describe('guardrails and budget', () => {
       ...MESSAGES,
       messages: [{ role: 'user', content: 'write to jane@example.com' }],
     });
-    expect(gatewayCalls[0]?.body.messages).toEqual([
+    expect(providerCalls[0]?.body.messages).toEqual([
       { role: 'user', content: 'write to [EMAIL]' },
     ]);
   });
@@ -587,11 +685,11 @@ describe('guardrails and budget', () => {
       type: 'error',
       error: { type: 'rate_limit_error', code: 'BUDGET_EXCEEDED' },
     });
-    expect(gatewayCalls).toHaveLength(0);
+    expect(providerCalls).toHaveLength(0);
   });
 
   it('holds the request’s worst case for the key holder and the key [MAPI-R7]', async () => {
-    gateway(() => Response.json({ model: 'x', choices: [], usage: {} }));
+    provider(() => Response.json({ model: 'x', choices: [], usage: {} }));
     await post('/openai/chat/completions', { ...CHAT, max_tokens: 1_000 });
     expect(metering.openModelApiLease).toHaveBeenCalledWith(
       expect.anything(),
@@ -628,17 +726,17 @@ describe('guardrails and budget', () => {
   });
 
   it('sends the held output cap upstream when the caller named none', async () => {
-    gateway(() => Response.json({ model: 'x', choices: [], usage: {} }));
+    provider(() => Response.json({ model: 'x', choices: [], usage: {} }));
     await post('/openai/chat/completions', CHAT);
-    expect(gatewayCalls[0]?.body.max_completion_tokens).toBeGreaterThan(0);
+    expect(providerCalls[0]?.body.max_completion_tokens).toBeGreaterThan(0);
   });
 });
 
 describe('a relayed call', () => {
-  it('streams an OpenAI answer with a tool call, then closes the lease with its usage', async () => {
+  it('streams an OpenAI answer with a tool call as the provider sent it, then closes the lease with its usage', async () => {
     const chunk = (body: Record<string, unknown>) =>
-      `data: ${JSON.stringify({ object: 'chat.completion.chunk', model: 'gw', ...body })}\n\n`;
-    gateway(
+      `data: ${JSON.stringify({ object: 'chat.completion.chunk', model: 'anthropic/claude-sonnet-4.6', ...body })}\n\n`;
+    provider(
       () =>
         new Response(
           [
@@ -682,31 +780,29 @@ describe('a relayed call', () => {
     expect(response.status).toBe(200);
     const text = await response.text();
     expect(text).toContain('"name":"weather"');
-    expect(text).toContain('"model":"openrouter/anthropic/claude-sonnet-4.6"');
-    // The usage chunk the door asked for is not the caller's.
+    expect(text).toContain('data: [DONE]');
+    // The usage chunk the relay asked for is not the caller's.
     expect(text).not.toContain('prompt_tokens');
-    expect(gatewayCalls[0]?.body).toMatchObject({
-      model: 'openrouter/anthropic/claude-sonnet-4.6',
+    // The relay names the model as the provider knows it.
+    expect(providerCalls[0]?.url).toBe(
+      'https://openrouter.ai/api/v1/chat/completions',
+    );
+    expect(providerCalls[0]?.body).toMatchObject({
+      model: 'anthropic/claude-sonnet-4.6',
       stream: true,
       stream_options: { include_usage: true },
     });
-    expect(metering.closeModelApiLease).toHaveBeenCalledWith(
-      expect.anything(),
-      LEASE,
-      {
-        outcome: {
-          status: 'completed',
-          usage: { inputTokens: 40, outputTokens: 9 },
-          countedOutputTokens: expect.any(Number),
-        },
-        model: MODELS[0],
-        promptTokens: expect.any(Number),
-      },
+    await vi.waitFor(() =>
+      expect(metering.closeModelApiLease).toHaveBeenCalledWith(
+        expect.anything(),
+        leaseFor('openai'),
+        { status: 'completed', usage: { inputTokens: 40, outputTokens: 9 } },
+      ),
     );
   });
 
   it('accepts the query parameters an Anthropic SDK adds', async () => {
-    gateway(() =>
+    provider(() =>
       Response.json({
         type: 'message',
         model: 'gw',
@@ -718,7 +814,7 @@ describe('a relayed call', () => {
       'anthropic-version': '2023-06-01',
     });
     expect(response.status).toBe(200);
-    expect(gatewayCalls[0]?.url).toMatch(/\/anthropic\/v1\/messages$/);
+    expect(providerCalls[0]?.url).toBe('https://openrouter.ai/api/v1/messages');
   });
 
   it('refuses a key-less call [MAPI-R3]', async () => {
@@ -731,7 +827,7 @@ describe('a relayed call', () => {
 });
 
 describe('a caller who hangs up while the request is governed', () => {
-  type Ending = Parameters<typeof spendFactsOf>[0];
+  type Outcome = Parameters<typeof spendFactsOf>[0];
 
   function postChat(signal: AbortSignal) {
     return mount().request('http://localhost/openai/chat/completions', {
@@ -742,20 +838,22 @@ describe('a caller who hangs up while the request is governed', () => {
     });
   }
 
-  /** What the lease was closed with — the ending its settlement books. */
-  function ending(): Ending {
-    expect(metering.closeModelApiLease).toHaveBeenCalledTimes(1);
-    const [, lease, closed] = metering.closeModelApiLease.mock.calls[0] as [
+  /** How the lease was closed — the outcome its settlement books. */
+  async function closedWith(): Promise<Outcome> {
+    await vi.waitFor(() =>
+      expect(metering.closeModelApiLease).toHaveBeenCalledTimes(1),
+    );
+    const [, lease, outcome] = metering.closeModelApiLease.mock.calls[0] as [
       unknown,
       unknown,
-      Ending,
+      Outcome,
     ];
-    expect(lease).toEqual(LEASE);
-    return closed;
+    expect(lease).toEqual(leaseFor('openai'));
+    return outcome;
   }
 
   beforeEach(() => {
-    gateway(() =>
+    provider(() =>
       Response.json({
         model: 'gw',
         choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
@@ -764,31 +862,32 @@ describe('a caller who hangs up while the request is governed', () => {
     );
   });
 
-  it('sends nothing and books no prompt when the caller leaves while the guardrails judge it', async () => {
+  it('sends nothing and books nothing when the caller leaves while the guardrails judge it', async () => {
     const caller = new AbortController();
     guardrails.apply.mockImplementationOnce(async () => {
       caller.abort();
       await new Promise((resolve) => setTimeout(resolve, 5));
     });
     await postChat(caller.signal);
-    expect(gatewayCalls).toHaveLength(0);
-    const closed = ending();
-    expect(closed.outcome).toEqual({ status: 'cancelled' });
+    const closed = await closedWith();
+    expect(providerCalls).toHaveLength(0);
+    expect(closed).toEqual({ status: 'cancelled' });
     expect(spendFactsOf(closed).floorCents).toBeNull();
+    expect(booked).toEqual([]);
   });
 
-  it('sends nothing and books no prompt when the caller leaves while its key is minted', async () => {
+  it('sends nothing and books nothing when the caller leaves while its key is minted', async () => {
     const caller = new AbortController();
     metering.openModelApiLease.mockImplementationOnce(async () => {
       caller.abort();
       await new Promise((resolve) => setTimeout(resolve, 5));
-      return LEASE;
+      return leaseFor('openai');
     });
     await postChat(caller.signal);
-    expect(gatewayCalls).toHaveLength(0);
-    const closed = ending();
-    expect(closed.outcome).toEqual({ status: 'cancelled' });
-    expect(spendFactsOf(closed).floorCents).toBeNull();
+    const closed = await closedWith();
+    expect(providerCalls).toHaveLength(0);
+    expect(closed).toEqual({ status: 'cancelled' });
+    expect(booked).toEqual([]);
   });
 
   it('relays a caller who stays through the same work, and books what the answer reported', async () => {
@@ -798,13 +897,13 @@ describe('a caller who hangs up while the request is governed', () => {
     });
     const response = await postChat(caller.signal);
     expect(response.status).toBe(200);
-    expect(gatewayCalls).toHaveLength(1);
-    const closed = ending();
-    expect(closed.outcome).toEqual({
+    expect(providerCalls).toHaveLength(1);
+    const closed = await closedWith();
+    expect(closed).toEqual({
       status: 'completed',
       usage: { inputTokens: 1_000_000, outputTokens: 2 },
     });
-    // 1M input tokens at the catalog's 300c/M.
-    expect(spendFactsOf(closed).expectedCents).toBeGreaterThanOrEqual(300);
+    // 1M input tokens at the catalog's 300c/M, booked by the relay.
+    expect(booked[0]?.cents).toBeGreaterThanOrEqual(300);
   });
 });

@@ -1,3 +1,4 @@
+import { modelRelayUrlForSessions } from '../../../lib/shared/model-relay-url.ts';
 import type { SandboxDeviceRelay } from '../../../lib/shared/schemas/sandbox-devices.ts';
 import {
   basePath,
@@ -41,13 +42,9 @@ export function deviceRelays(): SandboxDeviceRelay[] {
         process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
       ).replace(/\/+$/, ''),
     },
-    {
-      name: 'gateway',
-      url: (
-        process.env.EXTERNAL_AGENT_GATEWAY_URL ??
-        'http://sandbox-llm-gateway:8080'
-      ).replace(/\/+$/, ''),
-    },
+    // The model relay, which the hub reaches by the logical name `gateway`
+    // (tale-project/tale#2873).
+    { name: 'gateway', url: modelRelayUrlForSessions() },
   ];
 }
 

@@ -23,6 +23,7 @@ import {
   removeOrganizationFromGateway,
   revokeVirtualKey,
 } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import { isRelayKeyId } from '../../core/node_only/sandbox/relay_keys.ts';
 import {
   isProjectAgentSession,
   isStandingProjectAgentSession,
@@ -238,7 +239,11 @@ const DEFAULT_SPAWNER: WorkspaceSpawner = {
   usage: (organizationId) => sandboxWorkspaceUsage(organizationId),
   teardownOrganization: sandboxOrganizationTeardown,
   disconnectDevice: sandboxDeviceDisconnect,
-  revokeKey: revokeVirtualKey,
+  // A relay key has nothing to delete anywhere: the organization's tokens
+  // go with its retirement, and the relay serves no token of an
+  // organization whose providers are gone. A gateway key is deleted there.
+  revokeKey: (keyId) =>
+    isRelayKeyId(keyId) ? Promise.resolve() : revokeVirtualKey(keyId),
   removeOrganizationFromGateway,
   unpin: (sessionId) => sessionSetPinned(sessionId, false),
 };

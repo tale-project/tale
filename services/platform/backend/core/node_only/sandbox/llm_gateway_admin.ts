@@ -1016,6 +1016,10 @@ export interface ProviderProvision {
    * record when an anthropic-wire harness rides this provider. See
    * {@link GatewayRoutingOpts.anthropicHarnessLane}. */
   harnessEndpoint?: { baseUrl: string; apiFormat: 'openai' | 'anthropic' };
+  /** Platform-side metadata only (never pushed to the gateway): the
+   * credential the provision resolved, which a model relay key serves its
+   * turn with (`issueRelayKey`). */
+  credentialId?: string;
 }
 
 /**

@@ -41,6 +41,8 @@
  * `ModelEndpointRefusal`.
  */
 
+import { randomBytes, randomUUID } from 'node:crypto';
+
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
@@ -74,6 +76,7 @@ import {
   type GatewayReuseOptions,
   type ProviderProvision,
 } from './llm_gateway_admin';
+import { RELAY_KEY_PREFIX } from './relay_keys';
 
 /** The credential-row fields this module reads back (the internal query
  * returns the full row as `v.any()`). */
@@ -197,6 +200,7 @@ export async function buildProviderProvision(
     ...(connector.harnessEndpoint
       ? { harnessEndpoint: connector.harnessEndpoint }
       : {}),
+    credentialId: resolved.credentialId,
   };
 }
 
@@ -563,5 +567,77 @@ async function provisionSessionGatewayKeyInner(
     token: minted.key,
     keyId: minted.keyId,
     keyHash: hashVirtualKey(minted.key),
+  };
+}
+
+/** A turn's key for the in-process model relay (`domains/llm_relay`): the
+ * plaintext the harness presents, the id its op and token rows carry, its
+ * hash — the only form stored — and what the relay serves the turn: its
+ * models with their connectors and lanes, and the credential each
+ * connector was resolved with. */
+export interface SessionRelayKey extends SessionGatewayKey {
+  relayModels: AllowedModelRef[];
+  servingCredentials: Record<string, string>;
+}
+
+/**
+ * Mint a key for the model relay that replaces the sandbox LLM gateway
+ * (tale-project/tale#4942). FAIL-CLOSED like the gateway's mint: the EU/EEA
+ * rule judges every model the key may call, and every connector's credential
+ * must resolve NOW to one the relay can serve, or nothing is minted. Nothing
+ * is pushed anywhere: the relay resolves a model's connector at each call,
+ * with the credential named here, so a key serves its turn with the
+ * credential it was minted under, as a gateway key did.
+ */
+export function issueRelayKey(
+  ctx: ActionCtx,
+  args: SessionGatewayArgs,
+): Promise<SessionRelayKey> {
+  return traceSandboxPhase('gateway', () => issueRelayKeyInner(ctx, args));
+}
+
+async function issueRelayKeyInner(
+  ctx: ActionCtx,
+  args: SessionGatewayArgs,
+): Promise<SessionRelayKey> {
+  const policy = await readModelEndpointPolicy(ctx, args.organizationId);
+  if (policy.kind !== 'open') await assertRecordsAllowed(ctx, args, policy);
+
+  const servingCredentials: Record<string, string> = {};
+  for (const providerSlug of new Set(
+    args.allowedModels.map((ref) => ref.providerSlug),
+  )) {
+    let base: ProviderProvision | null;
+    try {
+      base = await buildProviderProvision(ctx, {
+        organizationId: args.organizationId,
+        providerSlug,
+        credentialId: args.credentialIds?.[providerSlug],
+      });
+    } catch (err) {
+      throw new GatewayProvisioningError(
+        'credential',
+        `Provider "${providerSlug}" cannot serve this session: ${describeFailure(err)}`,
+        { cause: err },
+      );
+    }
+    if (base === null) {
+      throw new GatewayProvisioningError(
+        'credential',
+        `Provider "${providerSlug}" cannot serve this session: its credential cannot be served through the model relay (a subscription runs only in its vendor's harness, and a per-credential endpoint is not served)`,
+      );
+    }
+    if (base.credentialId !== undefined) {
+      servingCredentials[providerSlug] = base.credentialId;
+    }
+  }
+
+  const token = `tale-rt-${randomBytes(32).toString('base64url')}`;
+  return {
+    token,
+    keyId: `${RELAY_KEY_PREFIX}${randomUUID()}`,
+    keyHash: hashVirtualKey(token),
+    relayModels: args.allowedModels,
+    servingCredentials,
   };
 }

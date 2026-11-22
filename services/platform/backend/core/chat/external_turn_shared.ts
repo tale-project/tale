@@ -36,6 +36,7 @@ import {
   type HarnessEvent,
   type HarnessExec,
 } from '../../../lib/harnesses/types';
+import { modelRelayUrlForSessions } from '../../../lib/shared/model-relay-url';
 import { traceSandboxPhase } from '../../tracing';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
@@ -128,12 +129,10 @@ export function nextWindowDelayMs(window: HarnessWindowResult): number {
     : 0;
 }
 
-/** The gateway base URL as a session's CONTAINER reaches it (sandbox network
- * alias, never the host address). */
+/** The model relay's base URL as a session's CONTAINER reaches it (sandbox
+ * network alias, never the host address). */
 function gatewayBaseUrlForSessions(): string {
-  const url =
-    process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
-  return url.replace(/\/$/, '');
+  return modelRelayUrlForSessions();
 }
 
 /** The connectors-bridge base URL as a session's CONTAINER reaches it — the

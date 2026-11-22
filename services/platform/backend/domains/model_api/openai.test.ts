@@ -6,11 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  inspectOpenAiChatRequest,
-  openAiStreamIncludesUsage,
-  openAiUpstreamBody,
-} from './openai.ts';
+import { inspectOpenAiChatRequest, openAiUpstreamBody } from './openai.ts';
 import { ModelApiRefusal } from './wire.ts';
 
 const IMAGE = `data:image/png;base64,${'A'.repeat(600)}`;
@@ -426,7 +422,7 @@ describe('openAiUpstreamBody', () => {
       model: 'm/x',
       messages: [{ role: 'user', content: 'hi' }],
     });
-    expect(openAiUpstreamBody(open, 'gw/model', 8192)).toMatchObject({
+    expect(openAiUpstreamBody(open, 8192)).toMatchObject({
       max_completion_tokens: 8192,
     });
     const capped = inspectOpenAiChatRequest({
@@ -434,40 +430,24 @@ describe('openAiUpstreamBody', () => {
       max_tokens: 100,
       messages: [{ role: 'user', content: 'hi' }],
     });
-    const body = openAiUpstreamBody(capped, 'gw/model', 100);
+    const body = openAiUpstreamBody(capped, 100);
     expect(body).not.toHaveProperty('max_completion_tokens');
     expect(body.max_tokens).toBe(100);
   });
 
-  it('names the gateway model and asks a stream for its usage chunk', () => {
+  it('leaves the caller’s stream options as sent: whether the usage chunk reaches the caller is theirs to ask', () => {
     const request = inspectOpenAiChatRequest({
       model: 'openrouter/openai/gpt-5',
       stream: true,
       stream_options: { include_obfuscation: false },
       messages: [{ role: 'user', content: 'hi' }],
     });
-    expect(openAiStreamIncludesUsage(request.body)).toBe(false);
-    expect(
-      openAiUpstreamBody(request, 'openrouter/openai/gpt-5', 4096),
-    ).toMatchObject({
+    expect(openAiUpstreamBody(request, 4096)).toEqual({
       model: 'openrouter/openai/gpt-5',
-      stream_options: { include_obfuscation: false, include_usage: true },
-    });
-  });
-
-  it('leaves a non-streamed body without stream options', () => {
-    const request = inspectOpenAiChatRequest({
-      model: 'openrouter/openai/gpt-5',
+      stream: true,
+      stream_options: { include_obfuscation: false },
       messages: [{ role: 'user', content: 'hi' }],
+      max_completion_tokens: 4096,
     });
-    expect(openAiUpstreamBody(request, 'gw/model', 4096)).not.toHaveProperty(
-      'stream_options',
-    );
-  });
-
-  it('knows when the caller asked for the usage chunk itself', () => {
-    expect(
-      openAiStreamIncludesUsage({ stream_options: { include_usage: true } }),
-    ).toBe(true);
   });
 });

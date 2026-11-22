@@ -742,8 +742,8 @@ export class DeviceAgent {
     );
   }
 
-  /** Answer the platform addresses (`backend-api:3005`,
-   * `sandbox-llm-gateway:8080`) this device's sessions call. */
+  /** Answer the platform addresses (`backend-api:3005`, the model relay's
+   * `backend-api:8080`) this device's sessions call. */
   private startRelays(): void {
     for (const relay of this.opts.config.relays) {
       const { port } = relayEndpoint(relay.url);

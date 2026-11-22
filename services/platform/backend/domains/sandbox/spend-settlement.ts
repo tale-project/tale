@@ -11,12 +11,9 @@ import {
   settleGatewayKey,
   settlementPending,
 } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
-import {
-  readVirtualKeySpend,
-  revokeVirtualKey,
-} from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
+import { readTurnKeySpend, revokeTurnKey } from '../llm_relay/keys.ts';
 import {
   resolveSessionOpAttribution,
   withSessionOpBillingProjects,
@@ -351,7 +348,7 @@ export function pgGatewayKeySettlementPort(
   const hints = args.hints;
   return {
     readSpend: async () => {
-      const reading = await readVirtualKeySpend(args.keyId);
+      const reading = await readTurnKeySpend(sql, args.keyId);
       return hints === undefined ? reading : adjustSpendReading(reading, hints);
     },
     recordSpend: async (cents) => {
@@ -361,7 +358,7 @@ export function pgGatewayKeySettlementPort(
         spentCents: cents,
       });
     },
-    revokeKey: () => revokeVirtualKey(args.keyId),
+    revokeKey: () => revokeTurnKey(sql, args.keyId),
     markKeyRevoked: () =>
       markSessionOpKeyRevoked(sql, {
         sessionId: args.sessionId,

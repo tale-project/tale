@@ -21,6 +21,7 @@
  *   in hex ({@link potPathToken}).
  */
 
+import { modelRelayUrlForSessions } from '../../../lib/shared/model-relay-url';
 import {
   signVideoRelayToken,
   VIDEO_RELAY_GRANT_TTL_MS,
@@ -79,9 +80,11 @@ export function tokenOfPotPath(segment: string): string | null {
   return Buffer.from(segment, 'hex').toString('utf8');
 }
 
-/** The platform's API listener as a session reaches it. */
-function sessionApiBase(env: NodeJS.ProcessEnv): URL {
-  return new URL(env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005');
+/** The model relay's listener as a session reaches it: the video relays
+ * are served there, on the port only sandbox sessions reach, never on the
+ * API's (tale-project/tale#4942). */
+function sessionRelayBase(env: NodeJS.ProcessEnv): URL {
+  return new URL(modelRelayUrlForSessions(env));
 }
 
 /**
@@ -105,7 +108,7 @@ export function relayProxyUrl(
     env,
   );
   if (token === null) return null;
-  const base = sessionApiBase(env);
+  const base = sessionRelayBase(env);
   // A token is base64url and dots: nothing a URL's credentials escape.
   return `http://${RELAY_PROXY_USER}:${token}@${base.host}`;
 }
@@ -125,7 +128,7 @@ export function relayPotBaseUrl(
     env,
   );
   if (token === null) return null;
-  const base = sessionApiBase(env);
+  const base = sessionRelayBase(env);
   return `${base.origin}${RELAY_POT_PATH}/${potPathToken(token)}`;
 }
 
@@ -144,7 +147,7 @@ export function isRelayProxyUrl(
   }
   return (
     url.protocol === 'http:' &&
-    url.host === sessionApiBase(env).host &&
+    url.host === sessionRelayBase(env).host &&
     url.username === RELAY_PROXY_USER
   );
 }

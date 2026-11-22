@@ -961,7 +961,9 @@ export function loadConfig(): SpawnerConfig {
         gateway:
           process.env.SANDBOX_HUB_GATEWAY_UPSTREAM?.trim() ||
           process.env.EXTERNAL_AGENT_GATEWAY_URL?.trim() ||
-          'http://sandbox-llm-gateway:8080',
+          // The model relay on the backend, which replaced the sandbox LLM
+          // gateway (tale-project/tale#4942).
+          'http://backend-api:8080',
       },
     };
   }

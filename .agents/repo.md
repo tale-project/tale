@@ -815,18 +815,15 @@ default means deleting the override and fixing what surfaces:
   and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
   pre-pass and the answer came back short of its limit, with a case in
   `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
-- **The pinned model gateway books nothing for a call cut short** — Bifrost
-  (`services/sandbox-llm-gateway/Dockerfile`) cancels the vendor call when its caller hangs up,
-  whole answer or stream, but keeps none of the usage the call had reached unless the vendor
-  reported it before the cut (an Anthropic stream's input tokens; an OpenAI-wire stream reports
-  usage only in its closing frame). It also ends an OpenAI-wire stream on two keepalive comments
-  after the finish reason, so an upstream that sends them before its usage frame is booked at
-  nothing. So the model endpoints for API keys (`services/platform/backend/domains/model_api/`)
-  book an answer that ended early at a local floor (the prompt and the relayed output at the
-  catalog price) instead of the vendor's own figure, and a sandbox turn's call cut mid-answer
-  books only what the gateway kept (2026-09). Paying it down means a gateway release that keeps
-  the usage a cancelled call had reached, then booking the gateway's figure alone in
-  `metering.ts`.
+- **A model call cut short is booked at the relay's own count** — the model relay
+  (`services/platform/backend/domains/llm_relay/`) cancels the vendor call when its caller hangs
+  up or the call outlives its budget, and books what the vendor had reported by then plus its
+  own count of what it had not: the prompt it sent (each image or document as one image,
+  `estimate.ts`) and the output it relayed. A vendor reports no usage for a call cancelled before
+  its end (an OpenAI-wire stream reports it only in its closing frame), so a sandbox turn's or a
+  model endpoint's call cut short is booked at that estimate, not the vendor's own figure
+  (2026-11, tale-project/tale#4942). Paying it down needs a vendor that reports a cancelled
+  call's usage, read by `usage.ts` like any other report.
 - **Gemini CLI never continues a conversation** — the pinned CLI's `--resume` replays every tool
   result of the recorded session twice (its `toolCalls[].result` and the user record it also
   writes for the same response — google-gemini/gemini-cli#29365, fix PRs open), so the first

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +18,7 @@ import { resolveProviderCredential } from '../../provider_credentials/resolve_cr
 import {
   buildProviderProvision,
   gatewayProvisioningFailureStage,
+  issueRelayKey,
   provisionSessionGatewayKey,
 } from './gateway_provisioning';
 import {
@@ -128,6 +131,8 @@ describe('buildProviderProvision', () => {
         baseUrl: 'https://openrouter.ai/api',
         apiFormat: 'anthropic',
       },
+      // The credential resolved, which a relay key serves its turn with.
+      credentialId: 'cred-1',
     });
   });
 
@@ -1432,5 +1437,116 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
     );
     expect(mintVirtualKey).toHaveBeenCalledTimes(1);
     expect(audit).not.toHaveBeenCalled();
+  });
+});
+
+describe('issueRelayKey — a turn key for the model relay', () => {
+  beforeEach(() => {
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+  });
+
+  it('mints a key the relay serves, with each connector’s credential, pushing nothing to the gateway', async () => {
+    const key = await issueRelayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-relay',
+      allowedModels: [
+        { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+        {
+          providerSlug: 'openrouter',
+          modelId: 'anthropic/claude-sonnet-5',
+          anthropicHarnessLane: true,
+        },
+      ],
+      surface: 'task',
+      budgetCents: 100,
+    });
+
+    expect(key.token).toMatch(/^tale-rt-[A-Za-z0-9_-]{43}$/);
+    expect(key.keyId).toMatch(/^tr_[0-9a-f-]{36}$/);
+    expect(key.keyHash).toBe(
+      createHash('sha256').update(key.token).digest('hex'),
+    );
+    expect(key.relayModels).toEqual([
+      { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+      {
+        providerSlug: 'openrouter',
+        modelId: 'anthropic/claude-sonnet-5',
+        anthropicHarnessLane: true,
+      },
+    ]);
+    expect(key.servingCredentials).toEqual({ openrouter: 'cred-1' });
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+    // Each key is its own.
+    const again = await issueRelayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-relay',
+      allowedModels: [
+        { providerSlug: 'openrouter', modelId: 'openai/gpt-5.5' },
+      ],
+      surface: 'task',
+      budgetCents: 100,
+    });
+    expect(again.token).not.toBe(key.token);
+    expect(again.keyId).not.toBe(key.keyId);
+  });
+
+  it('refuses, as a credential failure, a connector whose credential does not resolve', async () => {
+    mockedResolve.mockRejectedValue(new Error('the credential was deleted'));
+    const refusal = await refusalOf(
+      issueRelayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-relay',
+        allowedModels: [
+          { providerSlug: 'openrouter', modelId: 'openai/gpt-5.5' },
+        ],
+        surface: 'task',
+        budgetCents: 100,
+      }),
+    );
+    expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+    expect((refusal as Error).message).toContain('the credential was deleted');
+  });
+
+  it('refuses a subscription credential, which runs only in its vendor’s own harness', async () => {
+    mockedResolve.mockResolvedValue({
+      authMethod: 'subscription-key',
+      credentialId: asCredId('cred-sub'),
+      name: 'Claude subscription',
+      secret: 'sk-ant-oat-x',
+    } as const);
+    const refusal = await refusalOf(
+      issueRelayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-relay',
+        allowedModels: [
+          { providerSlug: 'anthropic', modelId: 'claude-sonnet-5' },
+        ],
+        surface: 'task',
+        budgetCents: 100,
+      }),
+    );
+    expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+    expect((refusal as Error).message).toContain(
+      'cannot be served through the model relay',
+    );
+  });
+
+  it('refuses an upstream outside the EU/EEA before any credential resolves [GOV-R17]', async () => {
+    const refusal = await refusalOf(
+      issueRelayKey(fakeCtx({}, { kind: 'eu', attestedHosts: [] }), {
+        organizationId: 'org_1',
+        sessionId: 'sess-relay-eu',
+        allowedModels: [
+          { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
+        ],
+        surface: 'task',
+        actor: { id: 'user-7', type: 'user' },
+        budgetCents: 100,
+      }),
+    );
+    expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
+    expect(mockedResolve).not.toHaveBeenCalled();
   });
 });

@@ -471,7 +471,7 @@ describe('a sandbox session as the place a video is fetched in', () => {
       expect(reach.pluginDir).toBe('/opt/yt-dlp/plugins');
       expect(
         reach.potProviderUrl?.startsWith(
-          `http://backend-api:3005${RELAY_POT_PATH}/`,
+          `http://backend-api:8080${RELAY_POT_PATH}/`,
         ),
       ).toBe(true);
       expect(

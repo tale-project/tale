@@ -6,6 +6,7 @@ import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
 } from '../../../lib/shared/agent-run-waiting.ts';
+import type { AllowedModelRef } from '../../../lib/shared/providers/gateway_routing.ts';
 import { readCheckpoints } from '../../core/automations/checkpoints.ts';
 import type { TurnConnectorCaller } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import {
@@ -763,6 +764,13 @@ export async function markSessionDestroyed(
 export interface SessionTokenScope {
   agentKind: string;
   allowedModels: string[];
+  /** What the model relay serves the key (`domains/llm_relay`): each model
+   * with its connector and lane. A key the sandbox LLM gateway served, and
+   * a bridge-only one, carry none. */
+  relayModels?: AllowedModelRef[];
+  /** The credential each connector was minted under, by connector name, so
+   * the relay serves the turn with it. Ids, never secrets. */
+  servingCredentials?: Record<string, string>;
   connectorGrants: string[];
   budgetCents: number;
   toolGrants?: string[];

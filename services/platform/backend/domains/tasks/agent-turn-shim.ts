@@ -880,6 +880,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           spendSettledAt: number | null;
           keyRevokedAt: number | null;
           budgetCents: number | null;
+          relaySpentCents: number;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
@@ -888,7 +889,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                resumed_by AS "resumedBy",
                spend_settled_at_ms::float8 AS "spendSettledAt",
                key_revoked_at_ms::float8 AS "keyRevokedAt",
-               budget_cents::float8 AS "budgetCents"
+               budget_cents::float8 AS "budgetCents",
+               relay_spent_cents::float8 AS "relaySpentCents"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -905,6 +907,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         keyRevoked: row.keyRevokedAt !== null,
         // The hold the turn took: 0 for a subscription turn's request.
         ...(row.budgetCents !== null ? { budgetCents: row.budgetCents } : {}),
+        // What the model relay booked on a relay key (0 for a gateway key).
+        relaySpentCents: row.relaySpentCents,
       };
     },
 

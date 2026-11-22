@@ -87,7 +87,16 @@ install_ssrf_firewall() {
   if command -v ip >/dev/null 2>&1; then
     connected_subnets="$(ip -4 route show scope link | awk '{print $1}')"
   fi
-  if [ -n "$connected_subnets" ]; then
+  # An operator who admits self-hosted providers on private networks
+  # (TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1: an Ollama on the LAN, a vLLM in the
+  # VPC) means this process to reach them: the model relay calls a sandbox
+  # agent's providers from here (tale-project/tale#4942), as the chat path
+  # does. The RFC1918 fence then stays off — the application's own checks
+  # still hold every other outbound lane — and IMDS and link-local stay
+  # rejected.
+  if [ "${TALE_ALLOW_PRIVATE_PROVIDER_HOSTS:-0}" = "1" ]; then
+    log_warn "TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 — RFC1918 fence NOT installed (private provider hosts admitted); IMDS + link-local guards active"
+  elif [ -n "$connected_subnets" ]; then
     for subnet in $connected_subnets; do
       iptables -A OUTPUT -d "$subnet" -j ACCEPT 2>/dev/null || \
         log_warn "iptables: failed to accept connected subnet ${subnet}"

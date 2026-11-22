@@ -81,7 +81,7 @@ import {
   settleGatewayKey,
   settlementPending,
 } from '../node_only/sandbox/gateway_key_settlement';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   describeStageSkips,
   renewSessionPlace,
@@ -94,12 +94,14 @@ import {
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
+  type AllowedModelRef,
   readVirtualKeySpend,
   hashVirtualKey,
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
+import { isRelayKeyId } from '../node_only/sandbox/relay_keys';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isDestroyPendingRefusal,
@@ -672,7 +674,18 @@ export async function releaseTurnKey(
         keyRevoked: op?.keyRevoked === true,
       },
       {
-        readSpend: () => readVirtualKeySpend(mintedKeyId),
+        // A relay key's spend is what the relay booked on the op; a key the
+        // sandbox LLM gateway served is read from the gateway.
+        readSpend: () =>
+          isRelayKeyId(mintedKeyId)
+            ? Promise.resolve({
+                status: 'ok' as const,
+                cents:
+                  typeof op?.relaySpentCents === 'number'
+                    ? op.relaySpentCents
+                    : 0,
+              })
+            : readVirtualKeySpend(mintedKeyId),
         recordSpend: async (cents) => {
           await ctx.runMutation(
             internal.sandbox.session_mutations.recordSessionOpSpend,
@@ -686,7 +699,12 @@ export async function releaseTurnKey(
             },
           );
         },
-        revokeKey: () => revokeVirtualKey(mintedKeyId),
+        // A relay key is revoked by revoking its tokens, which
+        // markKeyRevoked below does; a gateway key is deleted there.
+        revokeKey: () =>
+          isRelayKeyId(mintedKeyId)
+            ? Promise.resolve()
+            : revokeVirtualKey(mintedKeyId),
         markKeyRevoked: async () => {
           await ctx.runMutation(
             internal.sandbox.session_mutations.markSessionTokenRevokedByKeyId,
@@ -1203,11 +1221,33 @@ interface WorkflowTurnAuth {
   tokenHash: string;
   /** The session-token scope's model allowlist (gateway refs). */
   allowedModels: string[];
+  /** What the model relay serves the key: each model with its connector and
+   * lane, and the credential each connector was minted under. Absent on the
+   * subscription lane, which calls no model through the relay. */
+  relayModels?: AllowedModelRef[];
+  servingCredentials?: Record<string, string>;
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
   /** Opaque broker-scoped account hash this turn was minted on — only the
    * subscription-broker branch, where a retry can rotate accounts. */
   brokerTokenHash?: string;
+}
+
+/** The relay's part of a turn's token scope, where the mint gave one. */
+function relayScope(
+  auth: Pick<WorkflowTurnAuth, 'relayModels' | 'servingCredentials'>,
+): {
+  relayModels?: AllowedModelRef[];
+  servingCredentials?: Record<string, string>;
+} {
+  return {
+    ...(auth.relayModels !== undefined
+      ? { relayModels: auth.relayModels }
+      : {}),
+    ...(auth.servingCredentials !== undefined
+      ? { servingCredentials: auth.servingCredentials }
+      : {}),
+  };
 }
 
 /**
@@ -1272,7 +1312,9 @@ async function mintWorkflowTurnAuth(
       throw new TurnBudgetExceededError(reservation.reason);
     }
     const budgetCents = reservation.budgetCents;
-    const key = await provisionSessionGatewayKey(ctx, {
+    // The turn's key for the model relay (domains/llm_relay), which serves
+    // its calls in place of the sandbox LLM gateway.
+    const key = await issueRelayKey(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       allowedModels: [
@@ -1294,6 +1336,8 @@ async function mintWorkflowTurnAuth(
       mintedKeyId: key.keyId,
       tokenHash: key.keyHash,
       allowedModels: [args.gatewayModel],
+      relayModels: key.relayModels,
+      servingCredentials: key.servingCredentials,
       budgetCents,
     };
   }
@@ -1651,6 +1695,7 @@ export async function startWorkflowAgentTurnImpl(
           scope: {
             agentKind: args.harness,
             allowedModels: auth.allowedModels,
+            ...relayScope(auth),
             connectorGrants: [...(args.request.connectors ?? [])],
             budgetCents: auth.budgetCents,
             ...workflowTurnToolScope(
@@ -2397,6 +2442,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           scope: {
             agentKind: agent.harness,
             allowedModels: auth.allowedModels,
+            ...relayScope(auth),
             connectorGrants: [...(request.connectors ?? [])],
             budgetCents: auth.budgetCents,
             // Same grant set as the node's first start.

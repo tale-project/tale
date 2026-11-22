@@ -135,10 +135,10 @@ describe('a video relay token', () => {
 });
 
 describe('the addresses a session is given', () => {
-  it('stands the API listener in for a proxy, with a token for that proxy and job', () => {
+  it('stands the model relay’s listener in for a proxy, with a token for that proxy and job', () => {
     const url = relayProxyUrl(PROXY, 'job-1', ENV, NOW);
 
-    expect(url).toMatch(/^http:\/\/tale:v1\.[A-Za-z0-9_.-]+@backend-api:3005$/);
+    expect(url).toMatch(/^http:\/\/tale:v1\.[A-Za-z0-9_.-]+@backend-api:8080$/);
     const token = new URL(url ?? '').password;
     expect(verifyVideoRelayToken(token, ENV, NOW)).toEqual({
       use: 'proxy',
@@ -152,10 +152,10 @@ describe('the addresses a session is given', () => {
     expect(isRelayProxyUrl(url ?? '', ENV)).toBe(true);
   });
 
-  it('names the PO-token provider by a route of the listener, with a token for the job', () => {
+  it('names the PO-token provider by a route of the relay’s listener, with a token for the job', () => {
     const url = relayPotBaseUrl('job-1', ENV, NOW);
 
-    expect(url?.startsWith(`http://backend-api:3005${RELAY_POT_PATH}/`)).toBe(
+    expect(url?.startsWith(`http://backend-api:8080${RELAY_POT_PATH}/`)).toBe(
       true,
     );
     // yt-dlp splits extractor arguments at these: none may be in a base URL.
@@ -199,14 +199,14 @@ describe('the addresses a session is given', () => {
   it('follows the address the deployment gives its sessions', () => {
     const env = {
       ...ENV,
-      SANDBOX_HTTP_API_BASE_URL: 'http://10.30.1.4:3005',
+      EXTERNAL_AGENT_GATEWAY_URL: 'http://10.30.1.4:8080',
     };
 
     expect(relayProxyUrl(PROXY, 'job-1', env, NOW)).toContain(
-      '@10.30.1.4:3005',
+      '@10.30.1.4:8080',
     );
     expect(
-      relayPotBaseUrl('job-1', env, NOW)?.startsWith('http://10.30.1.4:3005/'),
+      relayPotBaseUrl('job-1', env, NOW)?.startsWith('http://10.30.1.4:8080/'),
     ).toBe(true);
     expect(
       isRelayProxyUrl(relayProxyUrl(PROXY, 'job-1', env, NOW) ?? '', env),
@@ -224,8 +224,10 @@ describe('the addresses a session is given', () => {
 
   it.each([
     'http://sandbox-egress:3128',
-    'socks5h://tale:x@backend-api:3005',
-    'http://someone:x@backend-api:3005',
+    'socks5h://tale:x@backend-api:8080',
+    'http://someone:x@backend-api:8080',
+    // The API's listener serves no relay.
+    'http://tale:x@backend-api:3005',
     'not a url',
   ])('does not take %s for the relay', (url) => {
     expect(isRelayProxyUrl(url, ENV)).toBe(false);

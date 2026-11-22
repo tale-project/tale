@@ -3,12 +3,11 @@
  * worst case it holds (whole or not at all, the key holder measured with the
  * key, the op stamped with the person, `__direct_api__` and the key), the
  * refusals in the chat lane's words — naming what would fit — and the
- * concurrency cap, the gateway key minted for this one model (and revoked if
- * it cannot be recorded), and the settlement: the gateway's figure and the
- * relay's counts booked under the person and the key, a whole answer that
- * may still be generating read only after its lifetime, a stream that ended
- * early booked at least at what the relay counted, a priced answer the
- * gateway has not booked yet retried rather than booked at nothing.
+ * concurrency cap, the relay key minted for this one model, and the
+ * settlement: what the relay booked on the op and the counts it booked the
+ * call at, into the ledger under the person and the key, at once — a call
+ * whose booking failed at the cost its close carried, a request a stale
+ * close ended read only after a whole answer's lifetime.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,7 +18,7 @@ const reserve = vi.hoisted(() => ({ reserveTurnBudget: vi.fn() }));
 vi.mock('../sandbox/turn-budget.ts', () => reserve);
 
 const provisioning = vi.hoisted(() => ({
-  provisionSessionGatewayKey: vi.fn(),
+  issueRelayKey: vi.fn(),
   gatewayProvisioningFailureStage: vi.fn(() => 'gateway'),
 }));
 vi.mock(
@@ -27,11 +26,10 @@ vi.mock(
   () => provisioning,
 );
 
+/** The sandbox LLM gateway's admin client: a relay key never reaches it. */
 const gatewayAdmin = vi.hoisted(() => ({
   readVirtualKeySpend: vi.fn(),
   revokeVirtualKey: vi.fn(),
-  gatewayRequestTimeoutSeconds: vi.fn(() => 600),
-  gatewayStreamIdleTimeoutSeconds: vi.fn(() => 600),
 }));
 vi.mock(
   '../../core/node_only/sandbox/llm_gateway_admin.ts',
@@ -136,26 +134,32 @@ const LEASE = {
   organizationId: 'org-1',
   sessionId: 'model-api:key-1',
   execId: 'req-1',
-  token: 'sk-bf-1',
-  keyId: 'vk-1',
-  gatewayModel: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
-  startedAtMs: 1_700_000_000_000,
+  keyId: 'tr_1',
+  relayModel: {
+    providerSlug: 'deepseek',
+    modelId: 'deepseek-v4-flash',
+    anthropicLane: false,
+    ref: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
+  },
+  servingCredentials: { deepseek: 'cred-1' },
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  provisioning.provisionSessionGatewayKey.mockResolvedValue({
-    token: 'sk-bf-1',
-    keyId: 'vk-1',
+  provisioning.issueRelayKey.mockResolvedValue({
+    token: 'tale-rt-1',
+    keyId: 'tr_1',
     keyHash: 'h',
+    relayModels: [],
+    servingCredentials: { deepseek: 'cred-1' },
   });
   provisioning.gatewayProvisioningFailureStage.mockReturnValue('gateway');
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe('modelApiWorstCase', () => {
@@ -192,7 +196,7 @@ describe('modelApiWorstCase', () => {
 });
 
 describe('openModelApiLease', () => {
-  it('reserves the whole worst case under the key holder with the key, capped in concurrency, and mints a key for this model and this request', async () => {
+  it('reserves the whole worst case under the key holder with the key, capped in concurrency, and mints a relay key for this model and this request', async () => {
     reserve.reserveTurnBudget.mockResolvedValue({
       allowed: true,
       budgetCents: 4,
@@ -216,36 +220,29 @@ describe('openModelApiLease', () => {
       whole: { prospectiveTokens: WORST_CASE.tokens },
       concurrencyLimit: MODEL_API_CONCURRENCY_LIMIT,
     });
-    expect(provisioning.provisionSessionGatewayKey).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        organizationId: 'org-1',
-        sessionId: 'model-api:key-1',
-        allowedModels: [
-          {
-            providerSlug: 'deepseek',
-            modelId: 'deepseek-v4-flash',
-            anthropicHarnessLane: false,
-          },
-        ],
-        budgetCents: 4,
-        requestScoped: true,
-        requestId: 'req-1',
-        surface: 'model-api',
-        actor: { id: 'user-1', type: 'api' },
-      },
-    );
-    const stamp = statements.find((s) => s.text.includes('minted_key_id ='));
-    expect(stamp?.values).toEqual(['vk-1', 'model-api:key-1', 'req-1']);
-    expect(lease).toEqual({
+    expect(provisioning.issueRelayKey).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
       sessionId: 'model-api:key-1',
-      execId: 'req-1',
-      token: 'sk-bf-1',
-      keyId: 'vk-1',
-      gatewayModel: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
-      startedAtMs: expect.any(Number),
+      allowedModels: [
+        {
+          providerSlug: 'deepseek',
+          modelId: 'deepseek-v4-flash',
+          anthropicHarnessLane: false,
+        },
+      ],
+      budgetCents: 4,
+      requestScoped: true,
+      requestId: 'req-1',
+      surface: 'model-api',
+      actor: { id: 'user-1', type: 'api' },
     });
+    const stamp = statements.find((s) => s.text.includes('minted_key_id ='));
+    expect(stamp?.values).toEqual(['tr_1', 'model-api:key-1', 'req-1']);
+    // Nothing outside the process presents the key: no token row.
+    expect(
+      statements.some((s) => s.text.includes('sandbox_session_tokens')),
+    ).toBe(false);
+    expect(lease).toEqual(LEASE);
   });
 
   it('rides the connector’s native Anthropic endpoint on the Anthropic wire', async () => {
@@ -257,8 +254,23 @@ describe('openModelApiLease', () => {
       ...LEASE_ARGS,
       wire: 'anthropic',
     });
-    expect(lease.gatewayModel).toBe(
-      'org-1__deepseek__deepseek-v4-flash__anthropic/deepseek-v4-flash',
+    expect(lease.relayModel).toEqual({
+      providerSlug: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      anthropicLane: true,
+      ref: 'org-1__deepseek__deepseek-v4-flash__anthropic/deepseek-v4-flash',
+    });
+    expect(provisioning.issueRelayKey).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        allowedModels: [
+          {
+            providerSlug: 'deepseek',
+            modelId: 'deepseek-v4-flash',
+            anthropicHarnessLane: true,
+          },
+        ],
+      }),
     );
   });
 
@@ -288,7 +300,7 @@ describe('openModelApiLease', () => {
       /^Usage limit reached\. This API key's daily cost limit is used up until /,
     );
     expect(Number(refusal.headers['retry-after'])).toBeGreaterThan(3_500);
-    expect(provisioning.provisionSessionGatewayKey).not.toHaveBeenCalled();
+    expect(provisioning.issueRelayKey).not.toHaveBeenCalled();
   });
 
   it('refuses a worst case that does not fit, naming the output cap that would', async () => {
@@ -385,20 +397,20 @@ describe('openModelApiLease', () => {
       'retry-after': '2',
     });
     expect((refusal as Error).message).toContain('This API key already has 8');
-    expect(provisioning.provisionSessionGatewayKey).not.toHaveBeenCalled();
+    expect(provisioning.issueRelayKey).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['gateway', /model gateway cannot serve/],
+    ['gateway', /model endpoints cannot serve/],
     ['credential', /provider credential .* cannot be used/],
   ] as const)(
-    'releases the hold at once when the %s fails, and says which',
+    'releases the hold at once when the mint fails at the %s stage, and says which',
     async (stage, wording) => {
       reserve.reserveTurnBudget.mockResolvedValue({
         allowed: true,
         budgetCents: 4,
       });
-      provisioning.provisionSessionGatewayKey.mockRejectedValue(
+      provisioning.issueRelayKey.mockRejectedValue(
         new Error('Provider "deepseek" cannot serve this session'),
       );
       provisioning.gatewayProvisioningFailureStage.mockReturnValue(stage);
@@ -426,7 +438,7 @@ describe('openModelApiLease', () => {
     });
     const message =
       'This organization processes prompts only in the EU/EEA, and api.deepseek.com is not an endpoint known to process there, so the call was not sent.';
-    provisioning.provisionSessionGatewayKey.mockRejectedValue(
+    provisioning.issueRelayKey.mockRejectedValue(
       new ModelEndpointRefusal({
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message,
@@ -450,12 +462,11 @@ describe('openModelApiLease', () => {
     expect(close?.values).toContain('failed');
   });
 
-  it('revokes a key it cannot record, and releases the hold', async () => {
+  it('refuses a request whose key it cannot record, and releases the hold', async () => {
     reserve.reserveTurnBudget.mockResolvedValue({
       allowed: true,
       budgetCents: 4,
     });
-    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
     const { sql, statements } = fakeSql([
       { match: 'SET minted_key_id', fail: new Error('connection reset') },
     ]);
@@ -463,7 +474,8 @@ describe('openModelApiLease', () => {
       (caught: unknown) => caught,
     );
     expect(error).toMatchObject({ status: 503, code: 'MODEL_API_UNAVAILABLE' });
-    expect(gatewayAdmin.revokeVirtualKey).toHaveBeenCalledWith('vk-1');
+    // The key lives nowhere but on the op row it never reached.
+    expect(gatewayAdmin.revokeVirtualKey).not.toHaveBeenCalled();
     expect(
       statements.some((s) => s.text.includes('spend_settled_at_ms = ?')),
     ).toBe(true);
@@ -471,155 +483,46 @@ describe('openModelApiLease', () => {
 });
 
 describe('spendFactsOf', () => {
-  const ending = {
-    model: MODEL,
-    promptTokens: 2_000,
-  };
-
-  it('records a finished answer’s reported usage and its catalog price', () => {
+  it('records the counts the relay booked the call at, and no floor: the figure is on the op already', () => {
     expect(
       spendFactsOf({
-        ...ending,
-        outcome: {
-          status: 'completed',
-          usage: { inputTokens: 1_000_000, outputTokens: 100_000 },
-        },
+        status: 'completed',
+        usage: { inputTokens: 1_000_000, outputTokens: 100_000 },
       }),
     ).toEqual({
       floorCents: null,
-      // 30c + 12c.
-      expectedCents: 42,
       inputTokens: 1_000_000,
       outputTokens: 100_000,
     });
   });
 
-  it('prices a cache read at the cache rate', () => {
-    const cached = spendFactsOf({
-      model: {
-        ...MODEL,
-        pricing: { ...MODEL.pricing, cacheReadCentsPerMillion: 3 },
-      },
-      promptTokens: 0,
-      outcome: {
-        status: 'completed',
-        usage: {
-          inputTokens: 1_000_000,
-          outputTokens: 0,
-          cachedInputTokens: 1_000_000,
-        },
-      },
-    });
-    expect(cached.expectedCents).toBe(3);
-  });
-
-  it('records nothing for a finished answer that reported no usage', () => {
-    expect(
-      spendFactsOf({ ...ending, outcome: { status: 'completed' } }),
-    ).toEqual({
-      floorCents: null,
-      expectedCents: null,
-      inputTokens: null,
-      outputTokens: null,
-    });
-  });
-
-  it('floors a whole answer that ended early at its prompt: the gateway cancelled it and booked none of it', () => {
-    // The prompt estimate: 1M at 30c/M = 30c; a whole answer relays no output
-    // before it is complete.
+  it('records the cost of a call the relay could not book as the floor the settlement books', () => {
     expect(
       spendFactsOf({
-        ...ending,
-        promptTokens: 1_000_000,
-        outcome: { status: 'cancelled', countedOutputTokens: 0 },
+        status: 'cancelled',
+        usage: { inputTokens: 20_000, outputTokens: 500 },
+        unbookedCents: 0.66,
       }),
-    ).toEqual({
-      floorCents: 30,
-      expectedCents: null,
-      inputTokens: 1_000_000,
-      outputTokens: 0,
-    });
+    ).toEqual({ floorCents: 0.66, inputTokens: 20_000, outputTokens: 500 });
   });
 
-  it('floors a stream that ended early at its prompt and the output counted', () => {
-    // The prompt estimate: 1M at 30c/M = 30c; 50k counted at 120c/M = 6c.
-    expect(
-      spendFactsOf({
-        ...ending,
-        promptTokens: 1_000_000,
-        outcome: { status: 'cancelled', countedOutputTokens: 50_000 },
-      }),
-    ).toMatchObject({
-      floorCents: 36,
-      inputTokens: 1_000_000,
-      outputTokens: 50_000,
-    });
-    // The vendor's own prompt count wins over the estimate.
-    expect(
-      spendFactsOf({
-        ...ending,
-        promptTokens: 1_000_000,
-        outcome: {
-          status: 'failed',
-          usage: { inputTokens: 500_000, outputTokens: 0 },
-          countedOutputTokens: 0,
-        },
-      }).floorCents,
-    ).toBe(15);
-    // A prompt the vendor served from its cache floors at the cache rate:
-    // 500k at 3c/M plus 500k at 30c/M = 1.5c + 15c.
-    expect(
-      spendFactsOf({
-        ...ending,
-        model: {
-          ...MODEL,
-          pricing: { ...MODEL.pricing, cacheReadCentsPerMillion: 3 },
-        },
-        promptTokens: 1_000_000,
-        outcome: {
-          status: 'cancelled',
-          usage: {
-            inputTokens: 1_000_000,
-            outputTokens: 0,
-            cachedInputTokens: 500_000,
-          },
-          countedOutputTokens: 0,
-        },
-      }).floorCents,
-    ).toBe(16.5);
-  });
-
-  it('records nothing for a refusal the gateway answered', () => {
-    expect(
-      spendFactsOf({ ...ending, outcome: { status: 'failed' } }).floorCents,
-    ).toBeNull();
-  });
-
-  it('records nothing for a request the caller left before it was sent', () => {
-    // The relay reports a request that never left the process without an
-    // output count; the same 1M-token prompt ended early after it was sent
-    // floors at 30c (above).
-    expect(
-      spendFactsOf({
-        ...ending,
-        promptTokens: 1_000_000,
-        outcome: { status: 'cancelled' },
-      }),
-    ).toEqual({
-      floorCents: null,
-      expectedCents: null,
-      inputTokens: null,
-      outputTokens: null,
-    });
+  it('records nothing for a call that used nothing — refused, or left before it was sent', () => {
+    for (const status of ['failed', 'cancelled'] as const) {
+      expect(spendFactsOf({ status })).toEqual({
+        floorCents: null,
+        inputTokens: null,
+        outputTokens: null,
+      });
+    }
   });
 });
 
-/** The rows a settlement reads, as the op row carries them. */
-function settlingSql(hints: {
+/** The rows a settlement reads, as the op row carries them: the facts its
+ * close wrote, and what the relay booked on it. */
+function settlingSql(op: {
+  relaySpentCents?: number;
   settleAfter?: number | null;
   floorCents?: number | null;
-  expectedCents?: number | null;
-  finalizedAt?: number | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
 }) {
@@ -630,15 +533,19 @@ function settlingSql(hints: {
         {
           organizationId: 'org-1',
           kind: 'model-api',
-          mintedKeyId: 'vk-1',
-          finalizedAt: hints.finalizedAt ?? Date.now(),
+          mintedKeyId: 'tr_1',
+          finalizedAt: Date.now(),
           spendSettledAt: null,
           keyRevokedAt: null,
-          settleAfter: hints.settleAfter ?? null,
-          floorCents: hints.floorCents ?? null,
-          expectedCents: hints.expectedCents ?? null,
+          settleAfter: op.settleAfter ?? null,
+          floorCents: op.floorCents ?? null,
+          expectedCents: null,
         },
       ],
+    },
+    {
+      match: 'relay_spent_cents::float8 AS cents',
+      rows: [{ cents: op.relaySpentCents ?? 0 }],
     },
     {
       match: 'RETURNING org_id AS "organizationId", kind, model_ref',
@@ -648,8 +555,8 @@ function settlingSql(hints: {
           kind: 'model-api',
           modelRef:
             'deepseek/org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
-          inputTokens: hints.inputTokens ?? null,
-          outputTokens: hints.outputTokens ?? null,
+          inputTokens: op.inputTokens ?? null,
+          outputTokens: op.outputTokens ?? null,
         },
       ],
     },
@@ -668,22 +575,24 @@ function ledgerRows(statements: Statement[]) {
   );
 }
 
+/** Whether the settlement closed the key: its token rows revoked (it has
+ * none) and the op stamped. */
+function keyClosed(statements: Statement[]): boolean {
+  return statements.some((s) => s.text.includes('SET key_revoked_at_ms = ?'));
+}
+
 describe('settleModelApiOp', () => {
-  it('books the gateway’s figure and the relay’s counts under the person, __direct_api__ and the key, then deletes the key [MAPI-R8]', async () => {
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'ok',
-      cents: 3.25,
-    });
-    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
+  it('books what the relay booked on the op, with its counts, under the person, __direct_api__ and the key, then closes the key [MAPI-R8]', async () => {
     const { sql, statements } = settlingSql({
-      expectedCents: 3,
+      relaySpentCents: 3.25,
       inputTokens: 1_200,
       outputTokens: 300,
     });
 
     await settleModelApiOp(sql, LEASE);
 
-    expect(gatewayAdmin.readVirtualKeySpend).toHaveBeenCalledWith('vk-1');
+    const read = statements.find((s) => s.text.includes('relay_spent_cents'));
+    expect(read?.values).toEqual(['tr_1']);
     const ledger = ledgerRows(statements);
     // One increment per period bucket.
     expect(ledger).toHaveLength(3);
@@ -701,17 +610,16 @@ describe('settleModelApiOp', () => {
         3.25,
       ]),
     );
-    expect(gatewayAdmin.revokeVirtualKey).toHaveBeenCalledWith('vk-1');
+    expect(keyClosed(statements)).toBe(true);
+    // A relay key never reaches the sandbox LLM gateway.
+    expect(gatewayAdmin.readVirtualKeySpend).not.toHaveBeenCalled();
+    expect(gatewayAdmin.revokeVirtualKey).not.toHaveBeenCalled();
     expect(jobs.addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('books at least the floor a stream that ended early counted [MAPI-R8]', async () => {
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'ok',
-      cents: 0,
-    });
-    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
+  it('books a call the relay could not book at the cost its close carried [MAPI-R8]', async () => {
     const { sql, statements } = settlingSql({
+      relaySpentCents: 0,
       floorCents: 7.5,
       inputTokens: 20_000,
       outputTokens: 500,
@@ -722,24 +630,20 @@ describe('settleModelApiOp', () => {
     expect(ledgerRows(statements)[0]?.values).toEqual(
       expect.arrayContaining([20_000, 500, 7.5]),
     );
-    expect(gatewayAdmin.revokeVirtualKey).toHaveBeenCalledWith('vk-1');
+    expect(keyClosed(statements)).toBe(true);
   });
 
-  it('keeps the key and retries when a priced answer reads 0 inside the grace', async () => {
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'ok',
-      cents: 0,
-    });
+  it('does not read the spend before the moment the op row names (a stale close waits out a whole answer)', async () => {
     const { sql, statements } = settlingSql({
-      expectedCents: 2,
-      inputTokens: 100,
-      outputTokens: 10,
+      settleAfter: Date.now() + 60_000,
     });
 
     await settleModelApiOp(sql, LEASE);
 
-    expect(ledgerRows(statements)).toHaveLength(0);
-    expect(gatewayAdmin.revokeVirtualKey).not.toHaveBeenCalled();
+    expect(statements.some((s) => s.text.includes('relay_spent_cents'))).toBe(
+      false,
+    );
+    expect(keyClosed(statements)).toBe(false);
     expect(jobs.addJobInTx).toHaveBeenCalledWith(
       sql,
       'sandbox.gateway_key_reconcile',
@@ -752,110 +656,97 @@ describe('settleModelApiOp', () => {
     );
   });
 
-  it('books the relay’s figure once the grace has passed and the gateway still reads 0', async () => {
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'ok',
-      cents: 0,
-    });
-    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
-    const { sql, statements } = settlingSql({
-      expectedCents: 2,
-      finalizedAt: Date.now() - 11 * 60_000,
-      inputTokens: 100,
-      outputTokens: 10,
-    });
+  it('hands a settlement whose spend could not be read to the reconcile job', async () => {
+    const { sql, statements } = fakeSql([
+      {
+        match: 'settle_after_ms::float8 AS "settleAfter"',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'model-api',
+            mintedKeyId: 'tr_1',
+            finalizedAt: Date.now(),
+            spendSettledAt: null,
+            keyRevokedAt: null,
+            settleAfter: null,
+            floorCents: null,
+            expectedCents: null,
+          },
+        ],
+      },
+      {
+        match: 'relay_spent_cents::float8 AS cents',
+        fail: new Error('connection reset'),
+      },
+    ]);
 
     await settleModelApiOp(sql, LEASE);
 
-    expect(ledgerRows(statements)[0]?.values).toEqual(
-      expect.arrayContaining([100, 10, 2]),
-    );
-  });
-
-  it('does not read the spend before the moment the op row names (a stale close waits out a whole answer)', async () => {
-    const { sql } = settlingSql({ settleAfter: Date.now() + 60_000 });
-
-    await settleModelApiOp(sql, LEASE);
-
-    expect(gatewayAdmin.readVirtualKeySpend).not.toHaveBeenCalled();
-    expect(gatewayAdmin.revokeVirtualKey).not.toHaveBeenCalled();
-    expect(jobs.addJobInTx).toHaveBeenCalled();
-  });
-
-  it('hands a settlement the gateway could not answer to the reconcile job', async () => {
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'unavailable',
-    });
-    const { sql } = settlingSql({});
-
-    await settleModelApiOp(sql, LEASE);
-
-    expect(gatewayAdmin.revokeVirtualKey).not.toHaveBeenCalled();
+    expect(ledgerRows(statements)).toHaveLength(0);
+    expect(keyClosed(statements)).toBe(false);
     expect(jobs.addJobInTx).toHaveBeenCalled();
   });
 });
 
 describe('closeModelApiLease', () => {
-  it('closes a finished answer with its facts and settles it shortly after', async () => {
-    vi.useFakeTimers();
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'ok',
-      cents: 1,
+  it('closes a booked call with its counts and settles it at once', async () => {
+    const { sql, statements } = settlingSql({
+      relaySpentCents: 1,
+      inputTokens: 10,
+      outputTokens: 5,
     });
-    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
-    const { sql, statements } = settlingSql({ inputTokens: 10 });
 
     closeModelApiLease(sql, LEASE, {
-      model: MODEL,
-      promptTokens: 10,
-      outcome: {
-        status: 'completed',
-        usage: { inputTokens: 10, outputTokens: 5 },
-      },
+      status: 'completed',
+      usage: { inputTokens: 10, outputTokens: 5 },
     });
-    await vi.advanceTimersByTimeAsync(0);
-    const close = statements.find((s) => s.text.includes('floor_cents = ?'));
-    expect(close?.values).toEqual(expect.arrayContaining(['completed', 10, 5]));
-    expect(close?.text).not.toContain('settle_after_ms');
-    expect(gatewayAdmin.readVirtualKeySpend).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect(gatewayAdmin.readVirtualKeySpend).toHaveBeenCalledWith('vk-1');
+    await vi.waitFor(() => expect(ledgerRows(statements)).toHaveLength(3));
+    const close = statements.find((s) => s.text.includes('floor_cents = ?'));
+    expect(close?.values).toEqual([
+      'completed',
+      expect.any(Number),
+      expect.any(Number),
+      null,
+      10,
+      5,
+      'model-api:key-1',
+      'req-1',
+    ]);
+    expect(close?.text).not.toContain('settle_after_ms');
+    expect(close?.text).not.toContain('expected_cents');
+    expect(ledgerRows(statements)[0]?.values).toEqual(
+      expect.arrayContaining([10, 5, 1]),
+    );
   });
 
-  it('settles a whole answer the caller abandoned just as soon, at its floor: the gateway cancelled the vendor call', async () => {
-    vi.useFakeTimers();
-    gatewayAdmin.readVirtualKeySpend.mockResolvedValue({
-      status: 'ok',
-      cents: 0,
+  it('closes a call the relay could not book with its cost as the floor, which the settlement books', async () => {
+    const { sql, statements } = settlingSql({
+      relaySpentCents: 0,
+      floorCents: 30,
     });
-    gatewayAdmin.revokeVirtualKey.mockResolvedValue(undefined);
-    const { sql, statements } = settlingSql({ floorCents: 30 });
 
     closeModelApiLease(sql, LEASE, {
-      model: MODEL,
-      promptTokens: 1_000_000,
-      outcome: { status: 'cancelled', countedOutputTokens: 0 },
+      status: 'cancelled',
+      usage: { inputTokens: 1_000_000, outputTokens: 0 },
+      unbookedCents: 30,
     });
-    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.waitFor(() => expect(ledgerRows(statements)).toHaveLength(3));
     const close = statements.find((s) => s.text.includes('floor_cents = ?'));
-    // 1M prompt tokens at 30c/M, no output relayed.
     expect(close?.values).toEqual(
       expect.arrayContaining(['cancelled', 30, 1_000_000, 0]),
     );
-
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect(gatewayAdmin.readVirtualKeySpend).toHaveBeenCalledWith('vk-1');
-    // The gateway read 0; the floor is what lands in the ledger.
     expect(ledgerRows(statements)[0]?.values).toEqual(
       expect.arrayContaining([30]),
     );
     expect(jobs.addJobInTx).not.toHaveBeenCalled();
   });
 });
-
 describe('closeStaleModelApiOps', () => {
   it('closes only running model-endpoint ops silent past the staleness window, reading their spend no sooner than a whole answer’s lifetime', async () => {
+    // The relay's default budgets: a whole answer 600 s plus its margin.
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS', '');
     const { sql, statements } = fakeSql([
       { match: 'RETURNING exec_id', rows: [{ execId: 'req-9' }] },
     ]);

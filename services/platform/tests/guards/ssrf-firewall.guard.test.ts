@@ -74,6 +74,8 @@ interface HarnessResult {
 function runFirewall(options: {
   withIp: boolean;
   routes: string;
+  /** The deployment's TALE_ALLOW_PRIVATE_PROVIDER_HOSTS. */
+  allowPrivateProviders?: string;
   /** Exit status of the stub for the conntrack match (kernel without it). */
   conntrackExit?: number;
 }): HarnessResult {
@@ -128,7 +130,13 @@ function runFirewall(options: {
   );
 
   const result = spawnSync('/bin/bash', [driver], {
-    env: { PATH: dir, IPTABLES_LOG: log },
+    env: {
+      PATH: dir,
+      IPTABLES_LOG: log,
+      ...(options.allowPrivateProviders !== undefined
+        ? { TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: options.allowPrivateProviders }
+        : {}),
+    },
     encoding: 'utf8',
   });
   const calls = existsSync(log)
@@ -178,6 +186,31 @@ describe('install_ssrf_firewall rule program', () => {
       );
       expect(reject, `REJECT for ${cidr}`).toBeGreaterThan(lastAccept);
     }
+  });
+
+  it('admits private networks where the operator admits private providers, never IMDS or link-local', () => {
+    const { rules, stderr } = runFirewall({
+      withIp: true,
+      routes: LINK_ROUTES,
+      allowPrivateProviders: '1',
+    });
+    expect(rules.some((rule) => rule.includes('10.0.0.0/8'))).toBe(false);
+    expect(rules.some((rule) => rule.includes('172.16.0.0/12'))).toBe(false);
+    expect(rules.some((rule) => rule.includes('192.168.0.0/16'))).toBe(false);
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('169.254.169.254/32'),
+        expect.stringContaining('169.254.0.0/16'),
+      ]),
+    );
+    expect(stderr).toContain('private provider hosts admitted');
+    // Any other value keeps the fence.
+    const kept = runFirewall({
+      withIp: true,
+      routes: LINK_ROUTES,
+      allowPrivateProviders: 'true',
+    });
+    expect(kept.rules.some((rule) => rule.includes('10.0.0.0/8'))).toBe(true);
   });
 
   it('skips the RFC1918 fence when the scope-link table is empty', () => {

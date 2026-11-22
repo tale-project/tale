@@ -55,9 +55,10 @@ left out; GOV-F48 covers a rule on such a key).
 type **API key** or **Environment variable** serves — in mode A, the
 `e2e-mock` provider's environment credential, wired per
 [SETUP.md](../setup.md) §1.A. Every refusal those boxes judge
-is answered before the model gateway is reached, so they run in mode A; a
-successful answer needs mode B with the sandbox model gateway running (mode A
-ends such a call in 503 `MODEL_API_UNAVAILABLE`).
+is answered before a model is called, so they run in mode A. The model relay
+in the backend calls the provider itself: in mode A a call that gets past
+every check is answered by the mock provider, and a real vendor's answer needs
+mode B.
 
 **GOV-F50–GOV-F52 and GOV-B18–GOV-B19 (the standard agent)** need a project
 without agents of its own (the docs demo seed's **Customer onboarding
@@ -775,8 +776,8 @@ agent.
   With that account's key, `GET /api/v1/openai/models` no longer lists M's id;
   a chat completion naming it answers 403 `MODEL_API_MODEL_FORBIDDEN` (`param`
   is `model`) and a message on the Anthropic path the same, in its shape,
-  while a model the rule leaves alone gets past this check (mode A: 503
-  `MODEL_API_UNAVAILABLE` from the gateway step; mode B: 200); a made-up id
+  while a model the rule leaves alone gets past this check and answers 200
+  (in mode A, the mock provider's reply); a made-up id
   such as `openrouter/no-such-model` answers 404 `MODEL_API_MODEL_UNKNOWN`, and
   so does a listed model's bare catalog id without its provider prefix. The
   owner's key still lists M. Remove the rule afterwards.
@@ -835,13 +836,12 @@ agent.
   **Recent events** shows the mask, and a model asked to repeat the message
   word for word repeats the placeholder, not the word; a category that checks
   only model output leaves the answer untouched. Restore the guardrails.
-- [ ] `GOV-F47` · **A call you break off ends at the gateway and is still
+- [ ] `GOV-F47` · **A call you break off ends at the vendor and is still
   booked** — Mode B, on a model with a catalog price. With a Developer's key,
   start `POST /api/v1/openai/chat/completions` without `stream` on a model that
   takes a while to answer (ask for a long essay) and stop the client after a
   few seconds (Ctrl-C on `curl`); repeat with `"stream": true` once the first
-  chunks have arrived → Within about a second the gateway's log (`docker logs`
-  on the `sandbox-llm-gateway` container) records each call as `499`; a
+  chunks have arrived → The model relay cancels each vendor call at once: a
   self-hosted upstream's own log shows the request cancelled, not finished.
   Within a minute both calls sit on the Developer's **Direct API**
   row in `usage` (GOV-F45): the whole answer costs about its prompt, the stream

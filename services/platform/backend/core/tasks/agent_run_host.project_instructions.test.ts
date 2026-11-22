@@ -114,7 +114,7 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  issueRelayKey: async () => ({
     token: 'vk-turn',
     keyId: 'id-vk-turn',
     keyHash: createHash('sha256').update('vk-turn').digest('hex'),
