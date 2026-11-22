@@ -84,6 +84,8 @@ const DATA_VOLUMES = [
   'tale_proxy-data',
   'tale_db-data',
   'tale_db-backup',
+  // The blob store's volume, and MinIO's from before it.
+  'tale_blob-data',
   'tale_object-store-data',
   'tale_llm-gateway-data',
 ];

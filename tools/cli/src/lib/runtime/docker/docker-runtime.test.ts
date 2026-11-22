@@ -165,6 +165,11 @@ function seedLiveBlue(fake: FakeRuntime): void {
 /** The stateful tier and the sidecar, at `LIVE`. */
 function seedStateful(fake: FakeRuntime): void {
   for (const name of REQUIRED_VOLUMES) fake.seedVolume(`${PROJECT}_${name}`);
+  // A deployment of today: its blobs are in MinIO's volume, in MinIO's
+  // format, and versitygw's exists and holds nothing.
+  fake.seedVolume(`${PROJECT}_object-store-data`, {
+    '.minio.sys/format.json': '{}',
+  });
   fake.seedNetwork(`${PROJECT}_internal`);
   fake.seedNetwork('tale-sandbox-net', { internal: true, ipv6: false });
   const stateful: Array<[string, string, InstanceMount[], HealthState]> = [
@@ -335,6 +340,13 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker volume inspect demo-abc123_db-data',
   'docker volume inspect demo-abc123_knowledge-db-data',
   'docker volume inspect demo-abc123_config-data',
+  // Which volume the blobs are in (backup/live-blob-volume.ts): versitygw's
+  // holds nothing and MinIO's does, so the snapshot archives MinIO's, as it
+  // did.
+  'docker volume inspect demo-abc123_blob-data',
+  'docker run --rm -v demo-abc123_blob-data:/data:ro alpine:3.22 sh -c find /data -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit',
+  'docker volume inspect demo-abc123_object-store-data',
+  'docker run --rm -v demo-abc123_object-store-data:/data:ro alpine:3.22 sh -c find /data -mindepth 1 -maxdepth 1 ! -name lost+found -print -quit',
   'docker volume inspect demo-abc123_object-store-data',
   'docker volume inspect demo-abc123_caddy-data',
   'docker volume inspect demo-abc123_caddy-config',
@@ -421,6 +433,7 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker volume inspect demo-abc123_proxy-data',
   'docker volume inspect demo-abc123_db-data',
   'docker volume inspect demo-abc123_db-backup',
+  'docker volume inspect demo-abc123_blob-data',
   'docker volume inspect demo-abc123_object-store-data',
   'docker volume inspect demo-abc123_llm-gateway-data',
   'docker network inspect demo-abc123_internal',

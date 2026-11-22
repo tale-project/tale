@@ -35,6 +35,7 @@ const getContainerStateMock = mock();
 const listComposeContainersMock = mock();
 const stopContainerMock = mock();
 const ensureVolumesMock = mock();
+const volumeExistsMock = mock();
 const execMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
@@ -54,7 +55,7 @@ const loggerTableMock = mock();
 const { mockModule } = createModuleMocks(import.meta.dir);
 await mockModule('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
-  volumeExists: mock(),
+  volumeExists: volumeExistsMock,
 }));
 await mockModule('../docker/exec', () => ({ exec: execMock }));
 await mockModule('../../utils/prompt', () => ({ confirm: confirmMock }));
@@ -181,6 +182,7 @@ afterEach(() => {
   ensureVolumesMock.mockReset();
   execMock.mockReset();
   confirmMock.mockReset();
+  volumeExistsMock.mockReset();
   loggerInfoMock.mockReset();
   loggerNoticeMock.mockReset();
   loggerWarnMock.mockReset();
@@ -652,8 +654,132 @@ describe('restore', () => {
         String(call[0]),
       );
       expect(notices).toHaveLength(1);
-      expect(notices[0]).toContain('no object-store-data archive');
+      expect(notices[0]).toContain('no blob-data archive');
       expect(notices[0]).toContain('left untouched');
+    });
+
+    const restoreReady = () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      getContainerStateMock.mockResolvedValue(null);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+    /** A snapshot of a deployment on versitygw: its blobs are `blob-data`. */
+    const MANIFEST_ON_VERSITYGW = {
+      ...MANIFEST,
+      id: '20261122-090000-manual',
+      volumes: {
+        ...MANIFEST.volumes,
+        'blob-data': { sha256: 'd'.repeat(64), sizeBytes: 8192 },
+      },
+    };
+
+    // versitygw keeps an object's content type and ETag in the file's
+    // extended attributes: they come back only from a tar that knows of them.
+    test("gets its extended attributes back, from the tar that archived versitygw's volume", async () => {
+      restoreReady();
+      listSnapshotsMock.mockResolvedValue([MANIFEST_ON_VERSITYGW]);
+
+      await run({
+        env,
+        snapshotId: MANIFEST_ON_VERSITYGW.id,
+        assumeYes: true,
+      });
+
+      const blob = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('blob-data.tar.gz'),
+      );
+      expect(blob?.[1]).toContain('tale_blob-data:/data');
+      expect(blob?.[1]).toContain(
+        'debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587',
+      );
+      expect(String(blob?.[1].at(-1))).toContain(
+        "tar xzf /backup/20261122-090000-manual/blob-data.tar.gz --xattrs --xattrs-include='user.*' -C /data",
+      );
+      expect(blob?.[2]?.timeout).toBeGreaterThan(1800);
+      // The other volumes as before.
+      const db = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('db-data.tar.gz'),
+      );
+      expect(db?.[1]).toContain('alpine:3.22');
+      expect(String(db?.[1].at(-1))).not.toContain('--xattrs');
+      expect(loggerNoticeMock).not.toHaveBeenCalled();
+    });
+
+    // The blobs of a snapshot from MinIO's time come back in MinIO's volume.
+    // What a later store wrote into `blob-data` would be taken for the live
+    // store by the next deploy, beside a database that knows other blobs.
+    test("empties versitygw's volume when the snapshot's blobs are MinIO's, and says so before it asks", async () => {
+      restoreReady();
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS]);
+      volumeExistsMock.mockImplementation(
+        async (name: string) => name === 'tale_blob-data',
+      );
+      confirmMock.mockResolvedValue(true);
+
+      await run({ env, snapshotId: MANIFEST_WITH_BLOBS.id });
+
+      const warned = loggerWarnMock.mock.calls.map((call) => String(call[0]));
+      expect(warned.find((line) => line.startsWith('This wipes'))).toContain(
+        'tale_object-store-data, tale_blob-data',
+      );
+      const scripts = execMock.mock.calls.map((call) => ({
+        argv: call[1] as string[],
+        script: String(call[1][call[1].length - 1]),
+      }));
+      const emptied = scripts.at(-1);
+      expect(emptied?.script).toBe('find /data -mindepth 1 -delete');
+      expect(emptied?.argv).toContain('tale_blob-data:/data');
+      // After the blobs are back where MinIO reads them, never before.
+      expect(
+        scripts.findIndex((entry) =>
+          entry.script.includes('object-store-data.tar.gz'),
+        ),
+      ).toBeLessThan(scripts.length - 1);
+    });
+
+    test("leaves versitygw's volume alone when the snapshot carries its blobs, or none", async () => {
+      restoreReady();
+      volumeExistsMock.mockResolvedValue(true);
+      for (const manifest of [MANIFEST_ON_VERSITYGW, MANIFEST]) {
+        execMock.mockClear();
+        listSnapshotsMock.mockResolvedValue([manifest]);
+
+        await run({ env, snapshotId: manifest.id, assumeYes: true });
+
+        expect(
+          execMock.mock.calls.some(
+            (call) =>
+              String(call[1][call[1].length - 1]) ===
+              'find /data -mindepth 1 -delete',
+          ),
+        ).toBe(false);
+      }
+    });
+
+    test('says what to do when the emptying fails: the next deploy would pass the restored blobs over', async () => {
+      restoreReady();
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS]);
+      volumeExistsMock.mockResolvedValue(true);
+      execMock.mockImplementation((_cmd: string, args: string[]) =>
+        Promise.resolve(
+          String(args[args.length - 1]) === 'find /data -mindepth 1 -delete'
+            ? { success: false, stdout: '', stderr: 'device busy', exitCode: 1 }
+            : { success: true, stdout: '', stderr: '', exitCode: 0 },
+        ),
+      );
+
+      await expect(
+        run({ env, snapshotId: MANIFEST_WITH_BLOBS.id, assumeYes: true }),
+      ).rejects.toThrow(
+        /Emptying tale_blob-data failed: device busy[\s\S]*re-run the restore before starting the stack/,
+      );
     });
 
     test('is visible in the listing: snapshots without one are marked', async () => {
@@ -666,6 +792,18 @@ describe('restore', () => {
       const byId = new Map(rows);
       expect(byId.get(MANIFEST_WITH_BLOBS.id)).not.toContain('without blobs');
       expect(byId.get(MANIFEST.id)).toContain('without blobs');
+    });
+
+    test("in the listing, versitygw's blobs count as blobs too", async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_ON_VERSITYGW]);
+
+      await run({ env });
+
+      const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
+      expect(new Map(rows).get(MANIFEST_ON_VERSITYGW.id)).not.toContain(
+        'without blobs',
+      );
     });
   });
 

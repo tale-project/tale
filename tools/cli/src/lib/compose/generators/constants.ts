@@ -21,6 +21,10 @@ export const DEV_VOLUME_NAMES = [
   'config-data',
   // The BLOB store's data. Separate from the config store on purpose:
   // config is small, text and diffable; blobs are large and opaque.
+  'blob-data',
+  // The blob store's volume while MinIO was the store, in MinIO's format: a
+  // deployment that still runs MinIO has its blobs here, and one that was
+  // moved keeps it until its operator removes it (backup/constants.ts).
   'object-store-data',
   'caddy-data',
   'caddy-config',
@@ -43,6 +47,9 @@ export const REQUIRED_VOLUMES = [
   'proxy-data',
   'db-data',
   'db-backup',
+  // The blob store's volume, and what it was called while MinIO was the
+  // store (see DEV_VOLUME_NAMES).
+  'blob-data',
   'object-store-data',
   'llm-gateway-data',
 ] as const;

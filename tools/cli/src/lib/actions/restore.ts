@@ -12,10 +12,12 @@ import {
   BLOB_VOLUME,
   CONFIG_VOLUME,
   GATEWAY_VOLUME,
+  LEGACY_BLOB_VOLUME,
   LEGACY_CONFIG_VOLUME,
   RESTORABLE_ARCHIVES,
   isValidSnapshotId,
   restoreTargetVolume,
+  tarHelper,
 } from '../backup/constants';
 import { listSnapshots } from '../backup/list-snapshots';
 import { manifestSizeBytes, type SnapshotManifest } from '../backup/manifest';
@@ -190,7 +192,9 @@ function kindOf(manifest: SnapshotManifest): string {
 }
 
 function hasBlobArchive(manifest: SnapshotManifest): boolean {
-  return BLOB_VOLUME in manifest.volumes;
+  return (
+    BLOB_VOLUME in manifest.volumes || LEGACY_BLOB_VOLUME in manifest.volumes
+  );
 }
 
 function hasGatewayArchive(manifest: SnapshotManifest): boolean {
@@ -392,11 +396,26 @@ export async function restore(
     // Snapshots from before blobs were captured — and snapshots of a
     // deployment whose blobs live in external S3 — carry no blob archive.
     // Restore what the snapshot has; say what it does not touch.
-    if (!volumes.includes(BLOB_VOLUME)) {
+    if (
+      !volumes.includes(BLOB_VOLUME) &&
+      !volumes.includes(LEGACY_BLOB_VOLUME)
+    ) {
       logger.notice(
         `Snapshot ${snapshotId} has no ${BLOB_VOLUME} archive (taken before blobs were captured, or with an external blob store) — the blob volume is left untouched.`,
       );
     }
+    // A snapshot from MinIO's time holds the blobs in MinIO's format, under
+    // the volume name of that time. Restored, they are the deployment's
+    // blobs again. What a later store wrote into `blob-data` belongs to the
+    // state this restore replaces: left there, the next deploy would find
+    // it, take that volume for the live one, and serve its blobs beside a
+    // database that knows other ones. So it is emptied with the rest, and
+    // the next deploy finds the blobs in MinIO's volume.
+    const emptiedBlobStore =
+      store === null &&
+      volumes.includes(LEGACY_BLOB_VOLUME) &&
+      !volumes.includes(BLOB_VOLUME) &&
+      (await runtime.volumeExists(`${prefix}${BLOB_VOLUME}`));
     // The config store has no such excuse: every snapshot the CLI has ever
     // written captured it, so a manifest without one is a torn snapshot and
     // restoring it would leave the deployment with no organization config.
@@ -422,7 +441,7 @@ export async function restore(
         );
       else
         logger.warn(
-          `This wipes the current contents of: ${volumes.map((volume) => `${prefix}${volume}`).join(', ')}`,
+          `This wipes the current contents of: ${[...volumes, ...(emptiedBlobStore ? [BLOB_VOLUME] : [])].map((volume) => `${prefix}${volume}`).join(', ')}`,
         );
       logger.warn(
         `and replaces them with snapshot ${snapshotId} (created ${manifest.createdAt}, platform ${manifest.platformVersion ?? 'unknown'}).`,
@@ -462,8 +481,11 @@ export async function restore(
       logger.step(
         `Restoring ${prefix}${volume}${archive === volume ? '' : ` (from ${archive}.tar.gz)`}...`,
       );
+      // The blob store's files get their extended attributes back from a
+      // tar that knows of them, as they were archived.
+      const tar = tarHelper(volume);
       const result = await runtime.oneShot({
-        image: BACKUP_HELPER_IMAGE,
+        image: tar.image,
         mounts: [
           { volume: `${prefix}${volume}`, target: '/data' },
           {
@@ -478,7 +500,7 @@ export async function restore(
           // Never wipe the live volume for an archive that is not there:
           // the existence check runs BEFORE the delete, inside the same
           // helper container that will extract.
-          `test -f /backup/${snapshotId}/${archive}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${archive}.tar.gz -C /data`,
+          `test -f /backup/${snapshotId}/${archive}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${archive}.tar.gz${tar.flags} -C /data`,
         ],
         timeoutS: archiveTimeoutSeconds(volume),
       });
@@ -486,6 +508,23 @@ export async function restore(
         throw new Error(
           `Restore of ${prefix}${volume} failed: ${result.stderr || result.stdout}\n` +
             '  The volume may be partially restored — re-run the restore before starting the stack.',
+        );
+      }
+    }
+    if (emptiedBlobStore) {
+      logger.step(
+        `Emptying ${prefix}${BLOB_VOLUME} (the snapshot's blobs are in ${prefix}${LEGACY_BLOB_VOLUME})...`,
+      );
+      const emptied = await runtime.oneShot({
+        image: BACKUP_HELPER_IMAGE,
+        mounts: [{ volume: `${prefix}${BLOB_VOLUME}`, target: '/data' }],
+        argv: ['sh', '-c', 'find /data -mindepth 1 -delete'],
+        timeoutS: archiveTimeoutSeconds(BLOB_VOLUME),
+      });
+      if (!emptied.success) {
+        throw new Error(
+          `Emptying ${prefix}${BLOB_VOLUME} failed: ${emptied.stderr || emptied.stdout}\n` +
+            `  The snapshot's blobs are restored in ${prefix}${LEGACY_BLOB_VOLUME}, and the next deploy would pass them over for what is left in ${prefix}${BLOB_VOLUME} — re-run the restore before starting the stack.`,
         );
       }
     }

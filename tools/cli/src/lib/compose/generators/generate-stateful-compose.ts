@@ -70,6 +70,7 @@ export function buildStatefulCompose(
       'caddy-config': { external: true, name: `${prefix}caddy-config` },
       'proxy-data': { external: true, name: `${prefix}proxy-data` },
       'config-data': { external: true, name: `${prefix}config-data` },
+      'blob-data': { external: true, name: `${prefix}blob-data` },
       'object-store-data': {
         external: true,
         name: `${prefix}object-store-data`,
