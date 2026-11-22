@@ -15331,6 +15331,12 @@ async function checkAutomationRunLifecycle(
   const settledOp = opHandler
     ? await opHandler({ organizationId: orgId, runId: opRunId })
     : 'no-handler';
+  // Leave nothing behind: a settled op that names its harness is a turn of
+  // that harness to the org's harness-health read, which a later lane counts.
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id = ${opSessionId}
+  `;
   await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
