@@ -32,11 +32,9 @@ import {
   sessionContainerName,
 } from './session-naming.ts';
 import {
-  DEFAULT_SESSION_PROFILE,
-  isAgentSessionProfile,
   SESSION_NO_PROXY,
-  sessionAgentProfile,
   sessionDindEnabled,
+  sessionLimits,
   sessionSharesPackageCaches,
 } from './session-profile.ts';
 
@@ -45,6 +43,8 @@ interface DockerSessionRunInput {
   organizationId: string;
   profile: SandboxSessionProfile;
   docker?: boolean;
+  /** The per-file cap a `default` session's creator asked for. */
+  maxFileBytes?: number;
   /** Internal ownership fence for failed-create cleanup; never caller supplied. */
   createAttemptId?: string;
   /** Host dir bind-mounted 1:1 at /agent (survives container death). */
@@ -141,9 +141,12 @@ export function buildDockerSessionRunArgs(
   }
 
   const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
-  const profile = isAgentSessionProfile(inp.profile)
-    ? sessionAgentProfile(cfg, dind)
-    : DEFAULT_SESSION_PROFILE;
+  const profile = sessionLimits(cfg, inp.profile, dind, inp.maxFileBytes);
+  if (!Number.isSafeInteger(profile.fsizeBytes) || profile.fsizeBytes < 1) {
+    throw new Error(
+      `docker-session-args: per-file size rejected by safety check: ${JSON.stringify(profile.fsizeBytes)}`,
+    );
+  }
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);

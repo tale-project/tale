@@ -1218,6 +1218,19 @@ These estimates are admission headroom, not memory limits. The actual
 capability is returned as `session.docker` and recorded on the container or Pod
 so a spawner restart preserves that session's behavior.
 
+The create body also accepts `maxFileBytes` for a `default` session: the most
+one file of the session may weigh, a whole number of bytes from 1 to
+2147483648 (2 GiB, the platform's largest media upload). Omitting it keeps the
+profile's own 100 MiB. The platform asks for more where it runs a download in
+a session: a video's sound, which several platforms serve in fragments of no
+declared length, so that nothing can refuse the download before it starts. A
+value that is no such number is refused with `400 bad_request`. An `agent`
+session keeps the deployment's configured cap (`SANDBOX_AGENT_FSIZE_BYTES`)
+and ignores the field. Docker and Incus apply the value as the session's
+file-size limit (`RLIMIT_FSIZE`): a write past it fails with `EFBIG`.
+Kubernetes sets no per-file limit for any session and bounds a session's files
+by the size of its workspace alone (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`).
+
 `default` uses uid 65534 with the hardened code/render profile. Because it runs
 untrusted code, it mounts none of the shared per-organization dependency caches
 (pip, npm, bun): a cache that code could write and an agent session later reads

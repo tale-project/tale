@@ -308,6 +308,9 @@ export class IncusSessionBackend implements SessionBackend {
       organizationId: spec.organizationId,
       profile: spec.profile,
       ...(spec.docker === undefined ? {} : { docker: spec.docker }),
+      ...(spec.maxFileBytes === undefined
+        ? {}
+        : { maxFileBytes: spec.maxFileBytes }),
       createdAtMs: spec.createdAtMs,
       createAttemptId: attemptId,
       runnerdToken: token,

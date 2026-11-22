@@ -153,6 +153,22 @@ describe('a cold create', () => {
       'default',
     );
     expect(f.fake.instances.get(NAME)?.config[LABEL.profile]).toBe('default');
+    // One file of it may weigh the profile's own 100 MiB.
+    expect(f.fake.instances.get(NAME)?.config['limits.kernel.fsize']).toBe(
+      '104857600',
+    );
+  });
+
+  // A download the platform runs in a render-profile session may come to
+  // more than that: the create's own number reaches the instance.
+  test('a render session is made with the per-file size its create asked for', async () => {
+    const f = sessionFixture();
+    await f.backend.createSession(
+      specOf(ID, { profile: 'default', maxFileBytes: 1_073_741_824 }),
+    );
+    expect(f.fake.instances.get(NAME)?.config['limits.kernel.fsize']).toBe(
+      '1073741824',
+    );
   });
 });
 

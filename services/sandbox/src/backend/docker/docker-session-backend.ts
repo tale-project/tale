@@ -611,6 +611,9 @@ export class DockerSessionBackend implements SessionBackend {
       organizationId: spec.organizationId,
       profile: spec.profile,
       docker: spec.docker,
+      ...(spec.maxFileBytes === undefined
+        ? {}
+        : { maxFileBytes: spec.maxFileBytes }),
       createAttemptId,
       workspaceHostDir,
       pipCacheVolume: pip,

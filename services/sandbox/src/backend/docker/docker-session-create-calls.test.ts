@@ -12,6 +12,8 @@ async function createTwo(plant: {
   /** Turns transparent egress on, with the egress proxy at this address on
    * the sandbox network; `unreadable` fails its lookup. */
   egress?: string;
+  /** What the sessions are created as, where not as plain agents. */
+  spec?: { profile: 'default' | 'agent'; maxFileBytes?: number };
 }): Promise<{
   calls: string[][][];
   error: string | null;
@@ -74,7 +76,7 @@ let error = null;
 try {
   for (const sessionId of ['calls-a','calls-b']) {
     calls = [];
-    results.push(await backend.createSession({sessionId,organizationId:'org-calls',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000}));
+    results.push(await backend.createSession({sessionId,organizationId:'org-calls',profile:'agent',...(planted.spec ?? {}),env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000}));
     perCreate.push(calls);
   }
 } catch (e) { error = e.message; }
@@ -118,6 +120,30 @@ describe('what a session create asks the docker daemon', () => {
     const unnamed = await createTwo({});
     expect(unnamed.error).toBeNull();
     expect(unnamed.results).toEqual([{ resumed: false }, { resumed: false }]);
+  });
+  // A download the platform runs in a default session may come to more than
+  // the profile's 100 MiB a file: the create's own number reaches the run.
+  test('a default session is run with the per-file size its create asked for', async () => {
+    const fsizeOf = (calls: string[][]) => {
+      const run = calls.find((args) => args[0] === 'run') ?? [];
+      return run.filter(
+        (arg, i) => run[i - 1] === '--ulimit' && arg.startsWith('fsize='),
+      );
+    };
+    const asked = await createTwo({
+      spec: { profile: 'default', maxFileBytes: 1_073_741_824 },
+    });
+    expect(asked.error).toBeNull();
+    expect(asked.calls.map(fsizeOf)).toEqual([
+      ['fsize=1073741824'],
+      ['fsize=1073741824'],
+    ]);
+    const plain = await createTwo({ spec: { profile: 'default' } });
+    expect(plain.error).toBeNull();
+    expect(plain.calls.map(fsizeOf)).toEqual([
+      ['fsize=104857600'],
+      ['fsize=104857600'],
+    ]);
   });
   test('a session that pins the egress proxy records its address: one lookup, then one inspect per create', async () => {
     const { calls, error, results } = await createTwo({ egress: '172.30.0.3' });

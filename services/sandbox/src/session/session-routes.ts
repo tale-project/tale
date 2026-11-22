@@ -2726,6 +2726,9 @@ export class SessionRoutes {
           organizationId: req.organizationId,
           profile: req.profile,
           docker: req.docker,
+          ...(req.maxFileBytes === undefined
+            ? {}
+            : { maxFileBytes: req.maxFileBytes }),
           ttlMs: req.ttlMs,
           idleTimeoutMs: req.idleTimeoutMs,
           env: req.env,

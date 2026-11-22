@@ -15,13 +15,18 @@ import {
   RUNNERD_ENV_MAX_VALUE_BYTES,
   isDeniedEnvName,
 } from './runnerd-protocol.ts';
-import { sessionDockerCapability } from './session-profile.ts';
+import {
+  SESSION_MAX_FILE_BYTES_CEILING,
+  sessionDockerCapability,
+} from './session-profile.ts';
 
 interface CreateSessionRequest {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
   docker: boolean;
+  /** Set only for a `default` session whose creator named one. */
+  maxFileBytes?: number;
   ttlMs: number;
   idleTimeoutMs: number;
   env: Record<string, string>;
@@ -118,6 +123,25 @@ export function validateCreateSession(
   ) {
     return { ok: false, error: 'workload must be project|workflow' };
   }
+  // The per-file cap a `default` session's creator asks for: a download the
+  // platform runs there may come to more than the profile's own. A number
+  // that is none, or past the ceiling, is the caller's mistake and is said;
+  // an agent session keeps the deployment's configured cap, so the field
+  // means nothing there and is dropped.
+  const rawMaxFileBytes = raw.maxFileBytes;
+  if (
+    rawMaxFileBytes !== undefined &&
+    (typeof rawMaxFileBytes !== 'number' ||
+      !Number.isSafeInteger(rawMaxFileBytes) ||
+      rawMaxFileBytes < 1 ||
+      rawMaxFileBytes > SESSION_MAX_FILE_BYTES_CEILING)
+  ) {
+    return {
+      ok: false,
+      error: `maxFileBytes must be a whole number of bytes from 1 to ${SESSION_MAX_FILE_BYTES_CEILING}`,
+    };
+  }
+  const maxFileBytes = profile === 'default' ? rawMaxFileBytes : undefined;
   // ttl/idle clamped to the configured ceilings (a caller may request less).
   const ttlMs = clampPositive(
     raw.ttlMs,
@@ -138,6 +162,7 @@ export function validateCreateSession(
       organizationId: raw.organizationId,
       profile,
       docker: sessionDockerCapability(cfg, profile, workload, raw.docker),
+      ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
       ttlMs,
       idleTimeoutMs,
       env: env.value,

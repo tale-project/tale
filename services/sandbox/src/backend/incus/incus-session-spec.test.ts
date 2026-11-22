@@ -324,6 +324,41 @@ describe('a session started cold', () => {
     expect(body.config['environment.TALE_SHM_SIZE']).toBeUndefined();
   });
 
+  // A download the platform runs in a render-profile session may come to
+  // more than the profile's 100 MiB: its creator says how much.
+  test('the render profile takes the per-file size its creator asked for, and nothing else with it', () => {
+    const plain = buildSessionInstance(incusTestConfig(), {
+      ...input,
+      profile: 'default',
+    });
+    const asked = buildSessionInstance(incusTestConfig(), {
+      ...input,
+      profile: 'default',
+      maxFileBytes: 1_073_741_824,
+    });
+    expect(asked.config['limits.kernel.fsize']).toBe('1073741824');
+    expect(plain.config['limits.kernel.fsize']).toBe('104857600');
+    const besidesTheFileSize = (config: typeof plain.config) =>
+      Object.entries(config).filter(([key]) => key !== 'limits.kernel.fsize');
+    expect(besidesTheFileSize(asked.config)).toEqual(
+      besidesTheFileSize(plain.config),
+    );
+    expect({ ...asked, config: null }).toEqual({ ...plain, config: null });
+  });
+
+  test('an agent keeps the configured per-file cap whatever its creator asked', () => {
+    const plain = buildSessionInstance(incusTestConfig(), input);
+    expect(
+      buildSessionInstance(incusTestConfig(), {
+        ...input,
+        maxFileBytes: 1_073_741_824,
+      }),
+    ).toEqual(plain);
+    expect(plain.config['limits.kernel.fsize']).toBe(
+      String(TEST_SESSION_CONFIG.agentProfile.fsizeBytes),
+    );
+  });
+
   test("without transparent egress and with the image's /dev/shm the session boots as its own user", () => {
     const cfg = incusTestConfig(
       {},

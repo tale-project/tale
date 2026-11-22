@@ -77,6 +77,8 @@ let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
 let largeReplayCancelled = false;
 const created = new Set<string>();
+// What the backend was asked to launch, by session.
+const createdSpecs = new Map<string, SessionSpec>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
@@ -711,6 +713,7 @@ const fakeBackend: SessionBackend = {
   kind: 'docker',
   async createSession(spec: SessionSpec) {
     created.add(spec.sessionId);
+    createdSpecs.set(spec.sessionId, spec);
     stopped.delete(spec.sessionId);
     return { resumed: resumedSessions.has(spec.sessionId) };
   },
@@ -799,6 +802,7 @@ async function readSse(res: Response): Promise<{ events: SseEvent[] }> {
 // into another test's assertions). fakeServer/fakeBaseUrl stay (beforeAll-owned).
 beforeEach(() => {
   created.clear();
+  createdSpecs.clear();
   backendStopThrows.clear();
   destroyed.clear();
   stopped.clear();
@@ -1175,6 +1179,94 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(created.size).toBe(0);
     },
   );
+
+  // A download the platform runs in a default session may come to more than
+  // the profile's 100 MiB a file: the create says how much, and the launcher
+  // is told.
+  test('a default session is launched with the per-file size its creator asked for', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    const asked = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-asked',
+        organizationId: 'org_files',
+        maxFileBytes: 1_073_741_824,
+      }),
+    );
+    expect(asked.status).toBe(201);
+    expect(createdSpecs.get('file-size-asked')?.maxFileBytes).toBe(
+      1_073_741_824,
+    );
+
+    const plain = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-plain',
+        organizationId: 'org_files',
+      }),
+    );
+    expect(plain.status).toBe(201);
+    const spec = createdSpecs.get('file-size-plain');
+    expect(spec).toBeDefined();
+    expect(spec !== undefined && 'maxFileBytes' in spec).toBe(false);
+  });
+
+  test('an agent session is launched without the per-file size its creator asked for', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    const response = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-agent',
+        organizationId: 'org_files',
+        profile: 'agent',
+        maxFileBytes: 1_073_741_824,
+      }),
+    );
+    expect(response.status).toBe(201);
+    const spec = createdSpecs.get('file-size-agent');
+    expect(spec?.profile).toBe('agent');
+    expect(spec !== undefined && 'maxFileBytes' in spec).toBe(false);
+  });
+
+  test.each([
+    { maxFileBytes: 0 },
+    { maxFileBytes: -5 },
+    { maxFileBytes: 1.5 },
+    { maxFileBytes: '1073741824' },
+    { maxFileBytes: null },
+    { maxFileBytes: 2 * 1024 * 1024 * 1024 + 1 },
+  ])(
+    'rejects a per-file size that is none, or past the ceiling: %j',
+    async (invalid) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      const response = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'file-size-bad',
+          organizationId: 'org_files',
+          ...invalid,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: 'bad_request',
+        message:
+          'maxFileBytes must be a whole number of bytes from 1 to 2147483648',
+      });
+      expect(created.size).toBe(0);
+    },
+  );
+
+  test('takes the ceiling itself as a per-file size', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    const response = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-ceiling',
+        organizationId: 'org_files',
+        maxFileBytes: 2 * 1024 * 1024 * 1024,
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(createdSpecs.get('file-size-ceiling')?.maxFileBytes).toBe(
+      2_147_483_648,
+    );
+  });
 
   test('staging preserves only a safe admission refusal as retryable busy', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
