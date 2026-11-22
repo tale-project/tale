@@ -63,6 +63,7 @@ import {
   admitTagAutomationImage,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
+import { readSandboxNetworkSubnet } from '../docker/ensure-network';
 import { migrateBlobStore } from '../docker/migrate-blob-store';
 import {
   minioNotice,
@@ -844,6 +845,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // services.
       await checkInstalledWriter();
       await ensureInfrastructure(prefix, dryRun, runtime);
+      // The model relay in the app tier binds its address in the sandbox
+      // network alone, which exists from here on.
+      if (!dryRun) {
+        const subnet = await readSandboxNetworkSubnet();
+        if (subnet !== undefined) serviceConfig.sandboxNetworkSubnet = subnet;
+      }
 
       // The move of the blobs from MinIO to versitygw, with both volumes
       // there now and before the stateful services converge

@@ -217,6 +217,15 @@ function oneHeavySlotEnvironment(): Record<string, string> {
   };
 }
 
+/** Where the model relay of a process that serves HTTP listens: the
+ * sandbox network's subnet the deploy read, else what `.env` says. */
+function relayEnvironment(config: ServiceConfig): Record<string, string> {
+  return {
+    SANDBOX_NETWORK_SUBNET:
+      config.sandboxNetworkSubnet ?? '${SANDBOX_NETWORK_SUBNET:-}',
+  };
+}
+
 /** Env every backend role shares, plus the colour when it has one. */
 function roleEnvironment(
   role: 'api' | 'worker' | 'all',
@@ -297,6 +306,7 @@ export function createBackendApiService(
     labels: backendApiLabels(options.colour),
     environment: {
       ...roleEnvironment('api', options),
+      ...relayEnvironment(config),
       PORT: String(BACKEND_API_PORT),
     },
     // `docker stop` waits this long before SIGKILL: the api closes HTTP/SSE
@@ -366,6 +376,7 @@ export function createPlatformBackendService(
     volumes: ['config-data:/app/data', 'static-assets:/app/static-assets'],
     environment: {
       ...roleEnvironment(role, { colour }),
+      ...relayEnvironment(config),
       // The whole application in one process is the deployment a small host
       // runs. With the jobs apart it is a replica among others, on the
       // backend's own pool sizes and its own cap for one file.

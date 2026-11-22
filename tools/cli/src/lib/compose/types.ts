@@ -118,6 +118,15 @@ export interface ServiceConfig {
    * build the store a new install gets.
    */
   objectStore?: ObjectStoreEngine;
+  /**
+   * The sandbox network's IPv4 subnet (`tale-sandbox-net`), as Docker
+   * reports it at the deploy: the model relay in the app tier binds this
+   * container's address in it alone (services/platform/backend/domains/
+   * llm_relay/listener.ts). Left out, the backend reads
+   * `SANDBOX_NETWORK_SUBNET` from `.env`, and without it listens beside the
+   * API.
+   */
+  sandboxNetworkSubnet?: string;
 }
 
 /**

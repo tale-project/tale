@@ -501,6 +501,10 @@ services:
       # Where a sandbox CONTAINER reaches this backend: the in-sandbox
       # connectors bridge and the live-body host-call door are served here.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
+      # The sandbox network's subnet: the model relay (port 8080, in place of
+      # the sandbox LLM gateway) binds this container's address in it alone.
+      # Unset, it listens beside the API; `tale deploy` fills it in itself.
+      SANDBOX_NETWORK_SUBNET: ${SANDBOX_NETWORK_SUBNET:-}
       # The bundled blob store the backend seeds the deployment default
       # against at boot. Internal address: presigned URLs are signed here and
       # forwarded by the proxy, so the store is never published directly.

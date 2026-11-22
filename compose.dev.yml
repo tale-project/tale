@@ -113,13 +113,16 @@ services:
   # ignores the egress proxy — it can only reach hosts ON that network. This
   # socat bridge carries the `backend-api` alias there and forwards to the
   # host's api port, so the in-container tool + connector bridges reach the
-  # same doors they reach in production.
+  # same doors they reach in production. Its 8080 is the model relay's, which
+  # the host backend serves on 3008 (the dev gateway holds the host's 8080),
+  # so a harness reaches its models at `backend-api:8080` as in production.
   backend-relay:
     image: alpine/socat
     entrypoint: ['/bin/sh', '-c']
     command:
       - >-
         socat TCP-LISTEN:3005,fork,reuseaddr TCP:host.docker.internal:3005 &
+        socat TCP-LISTEN:8080,fork,reuseaddr TCP:host.docker.internal:3008 &
         wait
     extra_hosts:
       - 'host.docker.internal:host-gateway'

@@ -35,6 +35,7 @@ import {
   tagDatabaseId,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
+import { readSandboxNetworkSubnet } from '../docker/ensure-network';
 import type { pullImage } from '../docker/pull-image';
 import { resolveObjectStore } from '../docker/resolve-object-store';
 import { probeCgroupVersion } from '../docker/setup-checks';
@@ -271,6 +272,12 @@ export async function rollback(
       // back: a rollback never changes the server under them.
       objectStore: await resolveObjectStore(`${getProjectId()}_`, runtime),
     };
+    // The model relay binds its address in the sandbox network alone, on
+    // Docker; an Incus stack has no such network to read.
+    if (incus === null) {
+      const subnet = await readSandboxNetworkSubnet();
+      if (subnet !== undefined) serviceConfig.sandboxNetworkSubnet = subnet;
+    }
     const reservationNotice = memoryReservationNotice(serviceConfig);
     if (reservationNotice) logger.warn(reservationNotice);
     // A shape named by a word that is none is refused before the pull, and

@@ -446,6 +446,7 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker network inspect demo-abc123_internal',
   'docker network inspect tale-sandbox-net',
   'docker network inspect --format {{.Internal}}|{{.EnableIPv6}} tale-sandbox-net',
+  'docker network inspect --format {{range .IPAM.Config}}{{.Subnet}} {{end}} tale-sandbox-net',
   'docker container inspect --format \u00ab981aa748b02d\u00bb demo-abc123-sandbox',
   'docker container inspect --format {{.State.Running}} demo-abc123-sandbox',
   'docker exec demo-abc123-sandbox sh -c \u00ab5bbd5d50106f\u00bb',
