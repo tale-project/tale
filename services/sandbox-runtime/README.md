@@ -504,8 +504,12 @@ wrapper cancelled before its CLI starts removes what it staged itself. The
 Pi wrapper hands Pi the platform's instructions as a file it stages beside
 that config directory and names on Pi's command line
 (`--append-system-prompt`), so the text stays off argv and Pi reads no other
-append file. The Qwen, Hermes and OpenClaw wrappers run their CLI as a child
-and wait for it.
+append file. With `--rpc` it drives Pi's RPC mode, which the platform can
+steer: it reads only the first line of stdin, the staging envelope, a byte at
+a time, and leaves the rest of the pipe to Pi (the prompt command, then the
+steer commands while the turn runs, until EOF ends it). RPC mode prints no
+session header, so the wrapper prints one for the session it names. The Qwen,
+Hermes and OpenClaw wrappers run their CLI as a child and wait for it.
 
 ### Built-in skills
 

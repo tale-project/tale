@@ -39,6 +39,14 @@ parse as a flag). `--approve` trusts the workspace's project-local files for
 the run: the container is the safety boundary (parity with Claude Code
 bypassPermissions / Gemini yolo).
 
+With --rpc the wrapper drives Pi's RPC mode (`pi --mode rpc`), the one Tale
+can steer: the object above, without its prompt, is the FIRST LINE of stdin,
+read a byte at a time so nothing after it leaves the pipe. The rest of stdin
+is Pi's own: the prompt as its RPC prompt command, then the platform's steer
+commands while the turn runs, until EOF ends the process. RPC mode prints no
+session header, so the wrapper prints one ({"type": "session", "id"}) for the
+session it names: the resumed one, else a new id it gives Pi.
+
 The wrapper then becomes the CLI (exec, same pid) instead of waiting for it,
 so no Python process stays resident for the turn: the CLI's exit status and
 signals are the exec's own. Nothing is left to remove the per-exec config dir
@@ -57,6 +65,7 @@ import shutil
 import signal
 import sys
 import tempfile
+import uuid
 from typing import NoReturn
 
 # tale-pi-<pid of the exec that staged it>-<mkdtemp suffix>
@@ -73,6 +82,43 @@ def emit(event: dict) -> None:
 def fail(message: str, code: int = 1) -> int:
     emit({"type": "wrapper_error", "message": message})
     return code
+
+
+# The most a staging envelope may take: far above any real one (instructions,
+# models, settings, servers), bounded so a pipe that never sends a newline
+# cannot grow the wrapper without end.
+MAX_ENVELOPE_BYTES = 16 * 1024 * 1024
+
+
+def read_first_line() -> bytes | None:
+    """The first line of fd 0, without its newline, read a byte at a time:
+    what follows it stays in the pipe for the CLI that takes this process
+    over. None at EOF before a newline, or past MAX_ENVELOPE_BYTES."""
+    line = bytearray()
+    while True:
+        byte = os.read(0, 1)
+        if not byte:
+            return None
+        if byte == b"\n":
+            return bytes(line)
+        line += byte
+        if len(line) > MAX_ENVELOPE_BYTES:
+            return None
+
+
+def read_rpc_envelope() -> dict | None:
+    """The staging envelope of an RPC run: one JSON object on the first line,
+    with no prompt (Pi reads it as its RPC prompt command)."""
+    line = read_first_line()
+    if line is None:
+        return None
+    try:
+        payload = json.loads(line)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict) or "prompt" in payload:
+        return None
+    return payload
 
 
 def read_stdin_payload() -> dict | None:
@@ -159,15 +205,30 @@ def main() -> int:
     parser.add_argument("--model")
     parser.add_argument("--provider")
     parser.add_argument("--resume")
+    parser.add_argument(
+        "--rpc",
+        action="store_true",
+        help="drive Pi's RPC mode: the envelope is stdin's first line",
+    )
     args = parser.parse_args()
 
-    payload = read_stdin_payload()
-    if payload is None:
-        return fail(
-            'stdin must carry {"prompt": ..., "system_prompt"?: ..., '
-            '"models"?: ..., "settings"?: ..., "mcp"?: ...} as JSON'
-        )
-    prompt = payload["prompt"]
+    if args.rpc:
+        payload = read_rpc_envelope()
+        if payload is None:
+            return fail(
+                'stdin\'s first line must carry {"system_prompt"?: ..., '
+                '"models"?: ..., "settings"?: ..., "mcp"?: ...} as JSON, '
+                "and no prompt"
+            )
+        prompt = None
+    else:
+        payload = read_stdin_payload()
+        if payload is None:
+            return fail(
+                'stdin must carry {"prompt": ..., "system_prompt"?: ..., '
+                '"models"?: ..., "settings"?: ..., "mcp"?: ...} as JSON'
+            )
+        prompt = payload["prompt"]
     system_prompt = payload.get("system_prompt")
     if not isinstance(system_prompt, str) or not system_prompt.strip():
         system_prompt = None
@@ -223,15 +284,20 @@ def main() -> int:
         cmd = [
             "pi",
             "--mode",
-            "json",
+            "rpc" if args.rpc else "json",
             "--approve",
         ]
         if args.provider:
             cmd += ["--provider", args.provider]
         if args.model:
             cmd += ["--model", args.model]
+        session = args.resume
         if args.resume:
             cmd += ["--session", args.resume]
+        elif args.rpc:
+            # A new session under an id the wrapper chose, so it can name it.
+            session = str(uuid.uuid4())
+            cmd += ["--session-id", session]
         # Only a file that was written: Pi would append a path that does
         # not exist as literal text.
         if instructions is not None:
@@ -241,7 +307,11 @@ def main() -> int:
         # straight to the platform's stdout reader; human noise stays on
         # stderr. Once `become` succeeds the CLI runs in this process, and
         # nothing below happens.
-        stdin_from(prompt)
+        if args.rpc:
+            # RPC mode prints no session header; the rest of stdin is Pi's.
+            emit({"type": "session", "id": session})
+        else:
+            stdin_from(prompt)
         become(cmd, args.workdir, env)
     except FileNotFoundError as exc:
         return fail(f"pi not installed or file missing: {exc}")

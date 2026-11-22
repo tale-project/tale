@@ -412,3 +412,109 @@ describe("tale-pi-run hands Pi the platform's instructions", () => {
     20_000,
   );
 });
+
+describe('tale-pi-run --rpc hands Pi the rest of stdin', () => {
+  const pi = WRAPPERS[1];
+
+  /** Run the wrapper in RPC mode with `input` on stdin, then EOF. */
+  function rpcRun(
+    run: string,
+    input: string,
+    extra: string[] = [],
+  ): Promise<{ code: number | null; stdout: string }> {
+    installCli(pi);
+    const child = spawn(
+      PYTHON ?? 'python3',
+      [
+        wrapperPath(pi),
+        '--rpc',
+        '--workdir',
+        join(root, 'workspace'),
+        ...extra,
+      ],
+      {
+        stdio: ['pipe', 'pipe', 'ignore'],
+        env: {
+          ...process.env,
+          PATH: `${join(root, 'cli')}:/usr/bin:/bin`,
+          HOME: join(root, 'home'),
+          TMPDIR: join(root, 'tmp'),
+          FAKE_RECORD: join(root, 'records', run),
+          FAKE_WAIT: '',
+          FAKE_EXIT: '0',
+        },
+      },
+    );
+    let stdout = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8');
+    });
+    child.stdin?.end(input);
+    return new Promise((done) =>
+      child.on('close', (code) => done({ code, stdout })),
+    );
+  }
+
+  const ENVELOPE = JSON.stringify({
+    system_prompt: 'Be brief.',
+    settings: { enableInstallTelemetry: false },
+  });
+  const PROMPT = '{"type":"prompt","message":"Write the report."}\n';
+  const STEER = '{"type":"steer","message":"Use the new figures."}\n';
+
+  pyTest(
+    'stages the first line, names a new session and leaves the commands after it to Pi',
+    async () => {
+      const done = await rpcRun('a', `${ENVELOPE}\n${PROMPT}${STEER}`);
+      expect(done.code).toBe(0);
+      // Pi reads exactly what followed the envelope, byte for byte.
+      expect(record('a', 'stdin')).toBe(`${PROMPT}${STEER}`);
+      const argv = record('a', 'argv').split('\n');
+      expect(argv.slice(0, 3)).toEqual(['--mode', 'rpc', '--approve']);
+      const id = argv[argv.indexOf('--session-id') + 1] ?? '';
+      expect(id).toMatch(/^[0-9a-f-]{36}$/);
+      // RPC mode prints no session header: the wrapper names the session.
+      expect(JSON.parse(done.stdout.split('\n')[0] ?? '')).toEqual({
+        type: 'session',
+        id,
+      });
+      expect(record('a', 'append')).toBe('Be brief.');
+    },
+    20_000,
+  );
+
+  pyTest(
+    'resumes the session it is given, and names it',
+    async () => {
+      const done = await rpcRun('r', `${ENVELOPE}\n${PROMPT}`, [
+        '--resume',
+        'conv-1',
+      ]);
+      expect(done.code).toBe(0);
+      const argv = record('r', 'argv').split('\n');
+      expect(argv[argv.indexOf('--session') + 1]).toBe('conv-1');
+      expect(argv).not.toContain('--session-id');
+      expect(JSON.parse(done.stdout.split('\n')[0] ?? '')).toEqual({
+        type: 'session',
+        id: 'conv-1',
+      });
+    },
+    20_000,
+  );
+
+  pyTest(
+    'refuses an envelope that carries the prompt, before Pi starts',
+    async () => {
+      const done = await rpcRun(
+        'x',
+        `${JSON.stringify({ prompt: 'p' })}\n${PROMPT}`,
+      );
+      expect(done.code).toBe(1);
+      expect(JSON.parse(done.stdout.split('\n')[0] ?? '')).toMatchObject({
+        type: 'wrapper_error',
+      });
+      expect(existsSync(join(root, 'records', 'x.started'))).toBe(false);
+    },
+    20_000,
+  );
+});
