@@ -7,6 +7,7 @@ import {
 } from '../../../lib/shared/model-relay-budget.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
+import { providerLookup } from './dial.ts';
 import {
   type UpstreamEndpoint,
   upstreamHeaders,
@@ -80,7 +81,8 @@ let dispatcher: Agent | undefined;
 
 /** The connection pool to the upstreams, with the relay's budgets: undici
  * would otherwise give up after 300 s without headers or between two chunks,
- * while a slow model's prefill legitimately takes longer. */
+ * while a slow model's prefill legitimately takes longer. Each dial resolves
+ * the provider's name under the provider host policy (`dial.ts`). */
 function relayDispatcher(): Agent {
   if (dispatcher === undefined) {
     const lifetime = relayLifetime();
@@ -88,6 +90,7 @@ function relayDispatcher(): Agent {
       connectTimeout: 10_000,
       headersTimeout: lifetime.wholeMs,
       bodyTimeout: lifetime.streamIdleMs,
+      connect: { lookup: providerLookup },
     });
   }
   return dispatcher;

@@ -96,6 +96,17 @@ it, with a status that does not tell the agent to sign in again.
 - **Example**: An admin revoked the organization's OpenAI key at the vendor. Lena's agent calls a
   GPT model → told that the provider refused the organization's credential.
 
+### RELAY-R10 · A provider is called only at an address the provider host policy admits
+
+The relay checks a provider's URL before it calls, and the address the provider's name resolves
+to when it connects: never a cloud metadata address, and a private, loopback or link-local one
+only where the operator admitted private provider hosts. A refused address is never connected,
+and the agent is told the provider could not be reached.
+
+- **Example**: A custom provider's name `models.example.com` resolves to `10.0.0.5` on a
+  deployment that admits no private provider hosts → Kai's agent is told the provider could not be
+  reached, and nothing is sent to that address.
+
 ## Not yet
 
 - **Images a tool returns, on a provider that takes only text from tools**: they reach the model
