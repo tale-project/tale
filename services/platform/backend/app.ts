@@ -29,6 +29,7 @@ import {
 } from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { getClientIp, nodePeerAddress } from './core/lib/utils/client_ip.ts';
+import { RELAY_POT_PATH } from './core/video_links/relay.ts';
 import { runWithSwallowedDatabaseErrors } from './db/unavailable.ts';
 import { createAgentConnectionRoutes } from './domains/agent_connections/routes.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
@@ -108,6 +109,7 @@ import { createTtsRoutes } from './domains/tts/routes.ts';
 import { createTwoFactorRoutes } from './domains/two_factor/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
+import { createVideoPotRelayRoutes } from './domains/video_links/pot-relay-routes.ts';
 import { createVideoLinkRoutes } from './domains/video_links/routes.ts';
 import {
   createWebdavAdminRoutes,
@@ -421,6 +423,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Org-bucket blob staging for sandbox sessions (HMAC stage-token gated,
   // not session auth) — the container-facing twin of the bridge above.
   app.route('/api/sandbox-blob', createSandboxBlobRoutes({ sql: deps.sql }));
+  // The PO-token provider, for a yt-dlp that runs in a sandbox session; its
+  // proxy relay answers the listener's CONNECT requests (main.ts).
+  app.route(RELAY_POT_PATH, createVideoPotRelayRoutes());
   // Connected sandbox devices (`tale sandbox connect`): the join token or the
   // device secret is the credential, never a browser session.
   app.route(

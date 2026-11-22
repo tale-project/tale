@@ -41,6 +41,7 @@ import {
   isVideoProxyScheme,
   videoIngestProxyRotation,
 } from '../../../lib/net/video-ingest-proxies';
+import { RELAY_PROXY_UNREACHABLE_STATUS } from './relay';
 
 const YTDLP_BIN = 'yt-dlp';
 
@@ -257,6 +258,23 @@ function ytdlpProxyList(env: NodeJS.ProcessEnv): YtdlpProxyList {
 }
 
 /**
+ * Every proxy a video's yt-dlp could be sent through, as its entry is
+ * written: the single one video ingestion may be given, its own list, and
+ * the outbound list. The platform's relay dials these and no other host
+ * (`domains/video_links/proxy-relay.ts`).
+ */
+export function configuredYtdlpProxyUrls(
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const override = videoIngestProxyOverride(env);
+  return [
+    ...(override === null ? [] : [override]),
+    ...VIDEO_PROXIES.rotation.proxies(env).map((proxy) => proxy.url),
+    ...OUTBOUND_PROXIES.rotation.proxies(env).map((proxy) => proxy.url),
+  ];
+}
+
+/**
  * The proxy a video's yt-dlp runs start on — the single highest-leverage
  * mitigation: routing extraction through a residential/ISP egress moves it
  * off the deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins
@@ -301,10 +319,20 @@ const PROXY_UNREACHABLE_STDERR =
  * does: the proxy could not be reached, or refused its credentials for the
  * tunnel (407). A tunnel refused with another status (a 502 for a
  * destination the proxy could not reach) says nothing against the proxy.
+ *
+ * A yt-dlp that runs in a session reaches its proxy through the platform's
+ * relay, which it can always reach: there a proxy that could not be used is
+ * the relay's own answer to the tunnel request, a status no proxy sends
+ * (`RELAY_PROXY_UNREACHABLE_STATUS`), and a refused credential is the
+ * proxy's 407 passed on.
  */
 export function proxyFailedRun(stderr: string): boolean {
   const status = TUNNEL_STATUS_STDERR.exec(stderr)?.[1];
-  if (status !== undefined) return status === '407';
+  if (status !== undefined) {
+    return (
+      status === '407' || status === String(RELAY_PROXY_UNREACHABLE_STATUS)
+    );
+  }
   return PROXY_UNREACHABLE_STDERR.test(stderr);
 }
 

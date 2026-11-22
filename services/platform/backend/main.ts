@@ -75,6 +75,7 @@ async function loadHttpSurface() {
     { startAuthRequestCache, stopAuthRequestCache },
     { seedDevUser },
     { BACKEND_SERVER_OPTIONS, installClientErrorEnvelope },
+    { installVideoProxyRelay },
     { startWebServer, webPort },
   ] = await Promise.all([
     import('@hono/node-server'),
@@ -84,6 +85,7 @@ async function loadHttpSurface() {
     import('./auth/request-cache.ts'),
     import('./domains/provisioning/dev-seed.ts'),
     import('./lib/http-hygiene.ts'),
+    import('./domains/video_links/proxy-relay.ts'),
     import('../server.ts'),
   ]);
   return {
@@ -97,6 +99,7 @@ async function loadHttpSurface() {
     seedDevUser,
     BACKEND_SERVER_OPTIONS,
     installClientErrorEnvelope,
+    installVideoProxyRelay,
     startWebServer,
     webPort,
   };
@@ -357,6 +360,12 @@ async function main(): Promise<void> {
   // (408), a header block past the budget (431), bytes that are not HTTP
   // (400) — in the JSON envelope the doors speak (lib/http-hygiene.ts).
   if (http !== null && server !== null) http.installClientErrorEnvelope(server);
+  // The tunnels a sandbox session's yt-dlp asks this listener for, to one of
+  // video ingestion's proxies (domains/video_links/proxy-relay.ts).
+  const endVideoProxyRelay =
+    http !== null && server !== null
+      ? http.installVideoProxyRelay(server)
+      : null;
 
   // The web tier, in this process and on a port of its own: the built app,
   // its shell, the status page and the other doors of `../server.ts`. It
@@ -425,6 +434,10 @@ async function main(): Promise<void> {
       closeServer: server
         ? async () => {
             await web?.close();
+            // A tunnel is a connection the server neither waits for as a
+            // request nor closes when forced: left open, it keeps the close
+            // below from ever finishing.
+            endVideoProxyRelay?.();
             await closeServerGracefully(server);
           }
         : null,

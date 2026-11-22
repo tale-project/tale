@@ -35,6 +35,7 @@ import {
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
+  configuredYtdlpProxyUrls,
   proxyFailedRun,
   resetServingProxiesForTests,
   YtDlpError,
@@ -256,6 +257,10 @@ describe('proxyFailedRun', () => {
     "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Proxy Authentication Required'))",
     'curl: (56) CONNECT tunnel failed, response 407',
     'curl: (5) Could not resolve proxy: p.example',
+    // The platform's relay, for a yt-dlp in a sandbox session: its own
+    // status for a proxy that could not be used.
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 530 Video Proxy Unreachable'))",
+    'curl: (56) CONNECT tunnel failed, response 530',
   ])('holds the proxy to blame for %j', (stderr) => {
     expect(proxyFailedRun(stderr)).toBe(true);
   });
@@ -263,11 +268,44 @@ describe('proxyFailedRun', () => {
   it.each([
     "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 502 Bad Gateway'))",
     'curl: (56) CONNECT tunnel failed, response 403',
+    // The relay's refusal of a token says nothing against the proxy either.
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden'))",
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 503 Service Unavailable'))",
     'ERROR: [youtube] x: Sign in to confirm you are not a bot',
     'ERROR: HTTP Error 407: Proxy Authentication Required',
     'ERROR: [generic] Unable to extract title: the page says unable to connect to proxy',
   ])('does not for %j', (stderr) => {
     expect(proxyFailedRun(stderr)).toBe(false);
+  });
+});
+
+describe('configuredYtdlpProxyUrls — every proxy the relay may dial', () => {
+  it('names the single proxy, the video list and the outbound list, as written', () => {
+    expect(
+      configuredYtdlpProxyUrls({
+        VIDEO_INGEST_PROXY_URL: 'socks5h://one.example:1080',
+        VIDEO_INGEST_PROXY_URLS:
+          'http://u:p@v1.example:80, socks5://v2.example',
+        OUTBOUND_PROXY_URLS: 'http://o1.example:8080',
+      }),
+    ).toEqual([
+      'socks5h://one.example:1080',
+      'http://u:p@v1.example:80',
+      'socks5://v2.example',
+      'http://o1.example:8080',
+    ]);
+  });
+
+  it('names none where none is configured, and none for a single proxy that is no proxy', () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(configuredYtdlpProxyUrls({})).toEqual([]);
+      expect(
+        configuredYtdlpProxyUrls({ VIDEO_INGEST_PROXY_URL: 'ftp://x.example' }),
+      ).toEqual([]);
+    } finally {
+      warned.mockRestore();
+    }
   });
 });
 

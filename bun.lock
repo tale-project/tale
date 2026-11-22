@@ -375,6 +375,7 @@
         "remark-math": "6.0.0",
         "safe-regex2": "5.1.1",
         "saxes": "6.0.0",
+        "socks": "2.8.9",
         "striptags": "3.2.0",
         "swagger-ui-react": "5.32.15",
         "tailwindcss": "4.2.2",
