@@ -31,6 +31,9 @@
     "pwa:icons": "bunx pwa-assets-generator --preset minimal-2023 public/assets/logo-black.svg"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.107",
+    "@ai-sdk/openai-compatible": "3.0.94",
+    "@ai-sdk/provider": "4.0.39",
     "@better-auth/api-key": "1.7.7",
     "@better-auth/cimd": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
