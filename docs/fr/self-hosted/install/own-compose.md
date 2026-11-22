@@ -13,7 +13,7 @@ Cette page décrit le contrat de déploiement avec un exemple de couche applicat
 | --- | --- | --- |
 | Application réplicable | `platform`, `backend-api`, `backend-worker` | Même image et release ; conserver des interfaces compatibles pendant le remplacement. |
 | Stockages persistants et entrée | `db`, `object-store`, `proxy` | Préserver volumes, identifiants, certificats et noms réseau stables lors du remplacement. |
-| Exécution partagée | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Coordonner les sessions actives avant remplacement ; le spawner demande le daemon Docker et des chemins de workspace correspondants. |
+| Exécution partagée | `sandbox`, `sandbox-egress` | Coordonner les sessions actives avant remplacement ; le spawner demande le daemon Docker et des chemins de workspace correspondants. |
 | Vidéo facultative | `bgutil-provider` | Fournisseur de jetons démarré au mieux ; sa panne peut affecter les récupérations vidéo. Le backend ne l’interroge qu’avec `VIDEO_INGEST_POT_PROVIDER=true`, que la pile de référence définit pour ses propres services. |
 
 Le montage fourni conserve `tale_app` et `tale_knowledge` dans un service Postgres avec l’alias `knowledge-db`. Des bases séparées ou gérées sont aussi possibles ; configure explicitement connexions et sauvegardes. Recréer un conteneur persistant ne détruit pas automatiquement ses données, mais retirer ou remplacer son volume peut le faire.
@@ -29,7 +29,6 @@ Définis `VERSION` dans le `.env` de Compose avec la release Tale examinée et t
 | `db` | `ghcr.io/tale-project/tale/tale-db:<version>` |
 | `sandbox` | `ghcr.io/tale-project/tale/tale-sandbox:<version>` |
 | `sandbox-egress` | `ghcr.io/tale-project/tale/tale-sandbox-egress:<version>` |
-| `sandbox-llm-gateway` | `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:<version>` |
 | `object-store` | `ghcr.io/versity/versitygw:v1.11.0` |
 | `bgutil-provider` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` |
 
@@ -47,12 +46,11 @@ Génère des valeurs uniques avant le premier démarrage et conserve-les dans to
 | `ENCRYPTION_SECRET_HEX` | Valeur hexadécimale de 32 octets, par exemple via `openssl rand -hex 32` ; la conserver pour les valeurs déjà chiffrées en base. |
 | `DB_PASSWORD` ou identifiants de base externe | Correspondre au rôle réellement utilisé par le backend. |
 | `SANDBOX_TOKEN` | Même jeton aléatoire dans le backend et le spawner. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Même secret stable dans le backend et la passerelle ; une passerelle sans compte d’administration n’en crée un que pour un appelant qui présente ce secret. Le nom d’utilisateur vaut `admin` par défaut. |
 | `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Identifiants valides pour le stockage. Le versitygw fourni les reçoit dans `ROOT_ACCESS_KEY` et `ROOT_SECRET_KEY`, et `OBJECT_STORE_REGION` dans `VGW_REGION` : il refuse une requête signée pour une autre région. MinIO les reçoit dans `MINIO_ROOT_USER` et `MINIO_ROOT_PASSWORD`. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | Point d’accès joignable par le navigateur, généralement `SITE_URL` lorsque le proxy relaie le stockage fourni. |
 | Identité age SOPS | Nécessaire aux fichiers de configuration chiffrés ; voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops). |
 
-Le backend synchronise au démarrage la connexion objet par défaut gérée par l’environnement. Il laisse volontairement intact un fichier `managedBy: operator`. Changer les identifiants ne déplace pas les objets et ne les rend pas intrinsèquement orphelins, mais backend et stockage doivent être d’accord. La passerelle conserve son hash de mot de passe établi ; retrouve le secret correspondant ou suis sa procédure de rotation au lieu de supprimer le volume comme dépannage courant.
+Le backend synchronise au démarrage la connexion objet par défaut gérée par l’environnement. Il laisse volontairement intact un fichier `managedBy: operator`. Changer les identifiants ne déplace pas les objets et ne les rend pas intrinsèquement orphelins, mais backend et stockage doivent être d’accord.
 
 Définis `HOST`, `SITE_URL` et `TLS_MODE` pour l’accès public. [TLS et domaines](/fr/self-hosted/configuration/tls-and-domains) traite les certificats, origines supplémentaires et sous-chemins.
 
@@ -142,17 +140,18 @@ Les entrées `environment` remplacent `env_file`. Le fragment conserve donc les 
 | Adresse | Destination et exigence réseau |
 | --- | --- |
 | `platform` | Réplicas web sur le réseau applicatif interne. Ils atteignent le backend via `TALE_BACKEND_URL`, `http://backend-api:3005` si tu ne la définis pas. |
-| `backend-api` | Réplicas API sur les réseaux applicatif et sandbox, port 3005. |
+| `backend-api` | Réplicas API sur les réseaux applicatif et sandbox, port 3005. Les sessions sandbox appellent le [relais de modèles](/fr/self-hosted/configuration/environment-reference#model-relay) des mêmes réplicas sur le port 8080. |
 | `knowledge-db` | Postgres de connaissances, ou une cible définie par `KNOWLEDGE_DATABASE_URL`. |
 | `object-store` | versitygw fourni, ou MinIO jusqu’au déplacement de ses fichiers, sur le réseau applicatif. |
 | `sandbox` | Spawner accessible au backend sur le port 8003. |
 | `sandbox-egress` | Proxy de sortie accessible aux sessions sur le port 3128. |
-| `sandbox-llm-gateway` / `llm-gateway` | Passerelle accessible au backend et aux sessions sur le port 8080. |
-| `bgutil-provider` | Fournisseur de jetons accessible au backend sur le port 4416. La session sandbox d’une vidéo l’interroge par l’intermédiaire de `backend-api`. |
+| `bgutil-provider` | Fournisseur de jetons accessible au backend sur le port 4416. La session sandbox d’une vidéo l’interroge par le port du relais de modèles de `backend-api`. |
 
 Le réseau sandbox doit être isolé des sorties directes. Le stack généré le nomme `tale-sandbox-net` ; si tu choisis un autre nom, garde `SANDBOX_EGRESS_NETWORK` cohérent avec le réseau réel. La sortie doit toujours passer par `sandbox-egress`.
 
-Configure `BACKEND_UPSTREAM=backend-api:3005` sur le proxy. Pour le stockage fourni, définis `OBJECT_STORE_UPSTREAM=object-store:9000` et le même `OBJECT_STORE_BUCKET` dans le proxy et le backend. Publie les ports 80/443 du proxy ; garde bases, administration du stockage, passerelle et API sandbox privées. Préserve un transfert fiable des informations client si un autre proxy se trouve en amont.
+Les sessions joignent le relais de modèles à `http://backend-api:8080` par ce réseau. Sans autre réglage, le relais écoute sur chaque réseau du conteneur, comme l’API. Pour qu’il n’écoute que sur le réseau sandbox, comme le prévoit `tale deploy`, donne à `SANDBOX_NETWORK_SUBNET`, dans le `.env`, le sous-réseau de ce réseau, qu’affiche `docker network inspect tale-sandbox-net --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}'` une fois le réseau créé. Relis-le chaque fois que le réseau est recréé : un backend sans adresse dans ce sous-réseau ne démarre pas.
+
+Configure `BACKEND_UPSTREAM=backend-api:3005` sur le proxy. Pour le stockage fourni, définis `OBJECT_STORE_UPSTREAM=object-store:9000` et le même `OBJECT_STORE_BUCKET` dans le proxy et le backend. Publie les ports 80/443 du proxy ; garde bases, administration du stockage, relais de modèles et API sandbox privés. Préserve un transfert fiable des informations client si un autre proxy se trouve en amont.
 
 ## Monter l’état persistant et les capacités requises
 
@@ -162,15 +161,12 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` sur le proxy. Pour le stockage fou
 | Données applicatives et connaissances fournies | `db-data:/var/lib/postgresql/data` ; un service de connaissances séparé demande son propre volume persistant. |
 | Stockage objet fourni | `blob-data:/data` et la commande de versitygw, `command: --port :9000 --health /_health --quiet posix --fsync /data`, avec laquelle un envoi est écrit sur le disque avant que versitygw ne le confirme. Le système de fichiers du volume doit conserver les attributs étendus : versitygw y stocke le type de contenu et l’ETag de chaque objet. Un stack encore sous MinIO garde `object-store-data:/data` et `command: server /data`. |
 | Certificats et état du proxy | `caddy-data:/data`, `caddy-config:/config`. |
-| État de passerelle | `llm-gateway-data:/app/data`. |
 | Spawner | `/var/run/docker.sock` et `/var/lib/tale-sandbox` montés aux mêmes chemins hôte/conteneur. Le socket Docker donne le contrôle du daemon de l’hôte. |
 | Rôles backend | `cap_add: [NET_ADMIN]` pour le filtrage réseau du point d’entrée fourni. |
 | Service de sortie | Après retrait de toutes les autres capacités : `NET_ADMIN`, `DAC_OVERRIDE`, `CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE` et `KILL`. Sans `KILL`, le superviseur root ne peut plus signaler tinyproxy une fois passé à `nobody` : un arrêt attend la fin du délai de grâce et se termine en exit 137 au lieu de se vider proprement. |
 | IPv6 de sortie | `sysctls` avec `net.ipv6.conf.all.disable_ipv6: '1'` et `net.ipv6.conf.default.disable_ipv6: '1'`, comme dans le stack fourni. Le pare-feu egress fonctionne en fail-closed : il exige un pare-feu IPv6 fonctionnel ou IPv6 désactivé pour la valeur par défaut et chaque interface, et un conteneur ne peut pas écrire ces sysctls lui-même à travers un `/proc/sys` en lecture seule. Sans elles, le proxy refuse de démarrer sur un noyau sans le module `ip6_tables` ; voir [Infrastructure sandbox](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Arrêt Postgres | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` dans la référence. |
 | Arrêt web, backend et spawner | Délais de grâce de 45 secondes pour le web, 30 pour `backend-api`, 120 pour `backend-worker` et 30 pour le spawner. Un worker transmet ses exécutions d’automatisation pendant ce délai (`SHUTDOWN_DRAIN_MS`) ; coordonner le reste du travail actif avant l’arrêt. |
-| Arrêt de la passerelle | `stop_grace_period: 90s`. Une passerelle qui s’arrête n’accepte plus de nouvel appel de modèle, laisse se terminer les appels en cours, réponses en flux comprises, et n’enregistre ses compteurs de dépenses à la fin que si cela se termine dans les 30 secondes qui suivent l’arrêt. Le délai par défaut de Docker, 10 secondes, coupe les réponses plus longues. |
-| Mémoire de la passerelle | `mem_limit` tiré de `SANDBOX_LLM_GATEWAY_MEMORY` dans le stack fourni, `3328m` si la variable n’est pas définie. La mémoire de la passerelle croît avec les sessions d’agent qui tournent en même temps : dimensionne sa limite selon la règle que décrit [`SANDBOX_LLM_GATEWAY_MEMORY`](/fr/self-hosted/configuration/environment-reference#sandbox-agent-turns), soit `4096m` pour 320 sessions. Une passerelle qui atteint sa limite est arrêtée puis redémarre, et sa sonde réussit entre deux redémarrages. |
 | Réservations de mémoire | `mem_reservation` (cgroup v2 `memory.low`) dans la pile fournie, par conteneur : `db` `512m`, `platform` `128m`, `backend-api` et `backend-worker` `256m` chacun. `DB_MEMORY_RESERVATION`, `PLATFORM_MEMORY_RESERVATION`, `BACKEND_API_MEMORY_RESERVATION` et `BACKEND_WORKER_MEMORY_RESERVATION` les remplacent ; `0` ne réserve rien, toute autre valeur vaut au moins `6m`, et celle d’un rôle backend au plus `12g`, sa limite de mémoire. Tant que les sessions d’agent pèsent sur la mémoire de l’hôte, la récupération de mémoire épargne cette quantité à chaque service. Cela ne tient que si le cgroup parent de Docker reçoit lui aussi au moins leur somme, ce qu’aucun réglage par défaut ne fait : avec le pilote cgroup systemd, exécute `systemctl set-property system.slice MemoryLow=1152M` (la somme des valeurs par défaut). Sur un hôte en cgroup v1, Docker fait d’une réservation une limite souple, qui reprend d’abord la mémoire d’un service au-delà : mets-y les quatre à `0` dans ton propre fichier Compose. `tale deploy` demande à Docker sa version de cgroup et laisse de lui-même les réservations de côté en cgroup v1, et là où Docker n’en signale aucune, avec un avertissement. Donne leur somme au spawner dans [`SANDBOX_RESERVED_MEMORY`](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure) ; `tale deploy` le fait lui-même. |
 
 Conserve `db-backup` si tes outils écrivent dans `/var/lib/postgresql/backup` ; un montage seul ne programme aucune sauvegarde. Les anciens volumes de configuration `convex-data` demandent un transfert délibéré vers `config-data`, pas leur suppression. Garde l’ancienne copie jusqu’à vérification.
@@ -188,7 +184,6 @@ Conserve `db-backup` si tes outils écrivent dans `/var/lib/postgresql/backup` 
 | `object-store` | `wget -q -O /dev/null http://127.0.0.1:9000/_health` | versitygw répond sur sa route de santé. La sonde de MinIO est `mc ready local`. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner prêt après préparation de l’image d’exécution. |
 | `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | Le proxy répond lui-même à une requête non proxy (page 400) : cela prouve qu’il sert, sans dépendance à un site tiers. Puis dnsmasq répond à un nom tiré de sa propre configuration : cela prouve que le relais DNS des conteneurs imbriqués et des builds répond, sans interroger de résolveur en amont. Ne sonde pas le port par une simple connexion TCP : tinyproxy journalise chaque connexion-fermeture comme une erreur, une ligne par intervalle. |
-| `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Utiliser le client présent dans l’image ; elle ne contient pas `curl`. |
 
 Prévois assez de temps pour un démarrage à froid : le téléchargement de l’environnement sandbox peut dépasser un délai adapté à un hôte déjà préparé. Une sonde réussie ne prouve ni accès aux fichiers, ni identifiants de modèle, ni parcours utilisateur complet. Vérifie-les séparément.
 

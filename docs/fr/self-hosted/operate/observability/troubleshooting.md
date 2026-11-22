@@ -79,7 +79,7 @@ Cette commande non concurrente peut bloquer du travail. Coordonne-la avec l’ex
 
 Lis l’erreur du chat ou de l’exécution et les journaux API/worker correspondants. Un `429` fournisseur, un refus d’identifiants, un timeout, une attente d’approbation et une déconnexion du flux navigateur sont des états différents. Une approbation attend une décision, pas un redémarrage. Un flux coupé peut masquer une opération toujours active ; lis son résultat enregistré avant de relancer.
 
-Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
+Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, les lignes `[llm-relay]` du relais de modèles dans le journal de `backend-api`, l’image d’exécution et les journaux de session. Une session appelle son modèle par le relais à `http://backend-api:8080`. Un backend qui s’arrête au démarrage avec `[llm-relay] cannot start` en donne la raison : `SANDBOX_NETWORK_SUBNET` n’est pas un CIDR IPv4, ou le conteneur n’a pas d’adresse dans ce réseau. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference#model-relay) décrit où le relais écoute.
 
 ## Un agent ne joint pas le service de sandbox
 

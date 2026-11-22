@@ -1128,7 +1128,7 @@ On the Anthropic route, which also sets a `request-id` header:
 | **413** | `MODEL_API_TEXT_TOO_LARGE` | A guardrail is on, and the request carries more than 2 MB of text. |
 | **429** | `BUDGET_EXCEEDED` | A budget cap that binds the key holder or the key is reached, or the request's worst case, its prompt and output cap at the model's price, does not fit what is left; a lower `max_tokens` fits more. The message names the cap, `Retry-After` names the time until a reached cap resets, and `x-should-retry: false` tells the SDKs not to retry. |
 | **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | The key holder, or the key, already has eight requests running. `Retry-After` asks for a two-second wait. |
-| **503** | `MODEL_API_UNAVAILABLE` | Tale cannot serve the request right now, for example because the model gateway cannot serve the model. Retry shortly. |
+| **503** | `MODEL_API_UNAVAILABLE` | Tale cannot serve the request right now, for example because the provider credential that serves the model cannot be used. Retry shortly. |
 | **400**, **413**, **422**, **429**, **503**, **529**, or **502** | `MODEL_API_UPSTREAM_ERROR` | The model vendor refused the request. The first six keep the vendor's status; any other refusal is answered as **502**. |
 | **400** | `INVALID_BODY` | The body is not a request the route can relay, such as audio input or output, a role it does not relay, an image URL that is neither `data:` nor `https:`, more than eight answers (`n`), a file stored in the vendor account (`file_id`, a `file` source), a `service_tier` other than the default, or `store: true`. The message names the field, and so does `param` on the OpenAI shape. |
 | **413** | `BODY_TOO_LARGE` | The body is over 32 MiB. |

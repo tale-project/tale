@@ -20,7 +20,6 @@ Dockerfiles use the repository root as their build context. Open the relevant Do
 | `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-based execution environment with agent runtimes, Node, Bun, browsers and document tools. |
 | `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine-based outbound proxy and DNS support. |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit with the sandbox’s networking and startup configuration. |
-| `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Model gateway built from Bifrost. |
 
 Object storage and the video-ingestion sidecar use upstream images directly. They are not built from a Tale Dockerfile. Sandbox runtime and BuildKit images are launched on demand; do not assume that building only the services in a Compose file also builds them.
 

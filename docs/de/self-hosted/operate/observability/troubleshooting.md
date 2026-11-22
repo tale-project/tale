@@ -79,7 +79,7 @@ Dieser nicht nebenläufige Befehl kann Arbeit blockieren. Stimme ihn mit dem Dat
 
 Prüfe den Chat- oder Lauf-Fehler und die zuständigen API-/Worker-Protokolle. Anbieter-`429`, verweigerte Zugangsdaten, Ausführungs-Timeout, ausstehende Freigabe und unterbrochener Browser-Stream sind verschiedene Zustände. Eine Freigabe braucht eine Entscheidung, keinen Neustart. Hinter einem getrennten Stream kann die Operation weiterlaufen; prüfe ihr gespeichertes Ergebnis vor einer Wiederholung.
 
-Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Agent-Laufzeit-Fehlern `sandbox`, `sandbox-llm-gateway`, Laufzeit-Image und Sitzungsprotokolle.
+Kontrolliere bei Anbieterfehlern Kontingent und Rechte der gewählten Zugangsdaten sowie den Anbieterstatus. Wechsle Modelle nur, wenn der Ersatz erlaubt und für die Aufgabe geeignet ist. Prüfe bei Agent-Laufzeit-Fehlern `sandbox`, die Zeilen `[llm-relay]` des Modell-Relays im Log von `backend-api`, Laufzeit-Image und Sitzungsprotokolle. Eine Sitzung ruft ihr Modell über das Relay unter `http://backend-api:8080` auf. Bricht ein Backend seinen Start mit `[llm-relay] cannot start` ab, nennt es den Grund: `SANDBOX_NETWORK_SUBNET` ist kein IPv4-CIDR, oder der Container hat keine Adresse in diesem Netzwerk. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#model-relay) beschreibt, wo das Relay lauscht.
 
 ## Ein Agent erreicht den Sandbox-Dienst nicht
 

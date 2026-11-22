@@ -3,14 +3,14 @@ title: Deploy on Kubernetes
 description: Apply a complete set of Kubernetes manifests for Tale, run the sandbox spawner on its native backend, and verify isolation, session lifecycle, and rollouts before you admit users.
 ---
 
-Tale runs on Kubernetes when you translate the [service contract](/self-hosted/install/own-compose) into Deployments, Services, and volumes and switch the sandbox spawner to `SANDBOX_BACKEND=kubernetes`. There is no official Helm chart. This guide carries a complete manifest set for one namespace, verified end to end with Tale 0.5.31 on a single-node cluster, together with the checks that prove the result. You own the cluster, its storage, its public entry point, and the rollout procedure.
+Tale runs on Kubernetes when you translate the [service contract](/self-hosted/install/own-compose) into Deployments, Services, and volumes and switch the sandbox spawner to `SANDBOX_BACKEND=kubernetes`. There is no official Helm chart. This guide carries a complete manifest set for one namespace, verified end to end with Tale 0.5.31 on a single-node cluster apart from the later changes [Verified scope](#verified-scope) lists, together with the checks that prove the result. You own the cluster, its storage, its public entry point, and the rollout procedure.
 
 ## Check the prerequisites
 
 | Requirement | Why it matters |
 | --- | --- |
 | A CNI that enforces NetworkPolicy, such as Calico, Cilium, or kube-network-policies | The sandbox egress fence and the backend fence are NetworkPolicy objects. Every API server accepts them; only the CNI makes them block traffic. |
-| A default StorageClass whose `ReadWriteOnce` volumes re-bind where a Pod is scheduled | The database, the object store, the proxy certificates, the gateway state, and every sandbox workspace live on PersistentVolumeClaims. A deleted sandbox workspace's volume follows the StorageClass's `reclaimPolicy`: with `Delete`, its files go with it; with `Retain`, they stay until you remove the volume. |
+| A default StorageClass whose `ReadWriteOnce` volumes re-bind where a Pod is scheduled | The database, the object store, the proxy certificates, and every sandbox workspace live on PersistentVolumeClaims. A deleted sandbox workspace's volume follows the StorageClass's `reclaimPolicy`: with `Delete`, its files go with it; with `Retain`, they stay until you remove the volume. |
 | `ReadWriteMany` storage, or a single node, for the organization configuration | The backend roles write `config-data`; the web tier and the spawner read it. `ReadWriteOnce` is enough on one node. Several nodes need `ReadWriteMany` or a node pin for those Pods. |
 | Nodes that grant `NET_ADMIN` and provide ip6tables, or allow the IPv6 sysctls | The egress proxy installs its firewall at start and refuses to start without it. |
 | Ports 80 and 443 reachable at the public address | Caddy obtains certificates itself in `selfsigned` and `letsencrypt` mode. Behind an Ingress that terminates TLS, set `TLS_MODE=external`. |
@@ -23,7 +23,7 @@ Reserve memory for the application roles plus one agent session per concurrent t
 
 ## Lay out the namespace
 
-Every service runs in one namespace, `tale`. Session Pods must reach `backend-api` and `sandbox-llm-gateway` directly, and the egress fence the spawner installs allows only the namespace it runs in, so the application roles belong there too. The Service names equal the Compose service names: the images resolve `db`, `knowledge-db`, `object-store`, `backend-api`, `platform`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` with its `llm-gateway` alias, and `bgutil-provider` by name.
+Every service runs in one namespace, `tale`. Session Pods must reach `backend-api` directly, on port 3005 for the API and on port 8080 for the [model relay](/self-hosted/configuration/environment-reference#model-relay) their agents call their models through, and the egress fence the spawner installs allows only the namespace it runs in, so the application roles belong there too. A session Pod's `NO_PROXY` names `backend-api`, so those calls bypass the egress proxy. The Service names equal the Compose service names: the images resolve `db`, `knowledge-db`, `object-store`, `backend-api`, `platform`, `sandbox`, `sandbox-egress`, and `bgutil-provider` by name.
 
 <Warning>
 
@@ -36,12 +36,11 @@ Every Pod below sets `enableServiceLinks: false`. Kubernetes otherwise injects D
 | `db` with the `knowledge-db` alias | StatefulSet `db`; Services `db` and `knowledge-db` selecting the same Pod | `TALE_DB_ROLE` stays unset: the image creates both databases and applies the knowledge migrations, and the backend migrates the application schema at boot. An in-memory `emptyDir` of 256 MiB serves `/dev/shm`. The image stops on `SIGINT` within 60 seconds of grace. |
 | `object-store` | Deployment with strategy `Recreate`, PVC at `/data`, Service on 9000 | The backend creates the bucket at boot. |
 | `platform` | Deployment; Service on 3000 | `config-data` read-only, `TALE_BACKEND_URL=http://backend-api:3005`. |
-| `backend-api` | Deployment with two replicas; Service on 3005 | `config-data` read-write. Two replicas give a rollout without a gap. |
+| `backend-api` | Deployment with two replicas; Service on 3005 and 8080 | `config-data` read-write. Two replicas give a rollout without a gap. Port 8080 is the model relay, which session Pods call. |
 | `backend-worker` | Deployment | No Service and no HTTP probe. |
 | `proxy` | Deployment with strategy `Recreate`; `hostPort` 80 and 443; PVC for `/data` | The certificate store survives restarts on the PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment; Service on 8003 | `SANDBOX_BACKEND=kubernetes`; `config-data` read-only at `/app/platform-config`. No Docker socket. |
 | `sandbox-egress` | Deployment; Service on 3128 | The shipped capability set, no sysctls. |
-| `sandbox-llm-gateway` | Deployment with strategy `Recreate`, PVC at `/app/data`; Services `sandbox-llm-gateway` and `llm-gateway` on 8080 | The image runs as uid 1000; `fsGroup: 1000` lets it write its state. It reads `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` from `tale-env`: until it has an admin account, it creates one only for a caller that presents that secret. With `terminationGracePeriodSeconds: 90`, a rollout gives the old Pod up to 90 seconds to finish the model calls in flight, streamed answers included; it saves its spend counters at the end only when they finish within 30 seconds of the stop. It takes no new call meanwhile, and the new Pod starts once it has exited. Its memory grows with the agent sessions that run at once: `limits.memory`, `512Mi` in the manifest below, holds the default of 8 sessions. When you raise `SANDBOX_MAX_SESSIONS`, raise it by the rule [`SANDBOX_LLM_GATEWAY_MEMORY`](/self-hosted/configuration/environment-reference#sandbox-agent-turns) describes, `4Gi` for 320 sessions; that variable itself has no effect here. |
 | `bgutil-provider` | Deployment; Service on 4416 | Optional video-token provider. Where you apply it, set `VIDEO_INGEST_POT_PROVIDER=true` for `backend-api` and `backend-worker`, which ask no provider otherwise. |
 
 The probes translate the Compose health checks:
@@ -55,22 +54,21 @@ The probes translate the Compose health checks:
 | `proxy` | none | `GET /health` on 2020 | none |
 | `sandbox` | `GET /health` on 8003 | `GET /health` on 8003 | none |
 | `sandbox-egress` | none | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | none |
-| `sandbox-llm-gateway` | none | `GET /health` on 8080 | none |
 
 Kubernetes has no `depends_on`. A backend role that starts before Postgres answers exits once with `ECONNREFUSED`, and the restart policy heals it.
 
 ## Prepare the manifests
 
-Save each YAML block in the following sections as the file named in its first line, in one directory. Edit the Secret: replace every `<...>` placeholder and set `HOST`, `SITE_URL`, `TLS_MODE`, and `OBJECT_STORE_PUBLIC_ENDPOINT` for your address. If that address carries a non-standard port, also set it as the proxy's `containerPort` and `hostPort` in `30-proxy.yaml`; Caddy listens on the port in `SITE_URL`. Then pin one release for every Tale image, `0.5.31` at the time of writing, and apply the files in order:
+Save each YAML block in the following sections as the file named in its first line, in one directory. Edit the Secret: replace every `<...>` placeholder and set `HOST`, `SITE_URL`, `TLS_MODE`, and `OBJECT_STORE_PUBLIC_ENDPOINT` for your address. If that address carries a non-standard port, also set it as the proxy's `containerPort` and `hostPort` in `30-proxy.yaml`; Caddy listens on the port in `SITE_URL`. Then pin one release for every Tale image and apply the files in order. These manifests run no model gateway: pin a release whose backend serves the [model relay](/self-hosted/configuration/environment-reference#model-relay) itself.
 
 ```bash
-export VERSION=0.5.31
+export VERSION=<version>
 for f in 00-namespace.yaml 10-stores.yaml 20-application.yaml 30-proxy.yaml 40-sandbox.yaml; do
   envsubst '${VERSION}' < "$f" | kubectl apply -f -
 done
 ```
 
-`envsubst` replaces only `${VERSION}`; every other value in the files is literal. The same loop applies an upgrade: change `VERSION`, run it again, and the Deployments roll to the new image.
+`envsubst` replaces only `${VERSION}`; every other value in the files is literal. The same loop applies an upgrade: change `VERSION`, run it again, and the Deployments roll to the new image. It removes nothing: on an upgrade from manifests that still carry the model gateway, its Deployment, Services and claim stay until you delete them, as [Upgrades](/self-hosted/operate/upgrades#model-relay) describes.
 
 ## Create the shared environment
 
@@ -100,7 +98,6 @@ stringData:
   ENCRYPTION_SECRET_HEX: <openssl rand -hex 32>
   TALE_AUDIT_PEPPER: <openssl rand -hex 32>
   SANDBOX_TOKEN: <openssl rand -hex 32>
-  SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: <generated>
   OBJECT_STORE_ACCESS_KEY: tale
   OBJECT_STORE_SECRET_KEY: <generated>
   OBJECT_STORE_BUCKET: tale-blobs
@@ -249,7 +246,9 @@ kind: Service
 metadata: { name: backend-api, namespace: tale }
 spec:
   selector: { app: backend-api }
-  ports: [{ name: http, port: 3005, targetPort: 3005 }]
+  ports:
+    - { name: http, port: 3005, targetPort: 3005 }
+    - { name: relay, port: 8080, targetPort: 8080 }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -273,7 +272,9 @@ spec:
             - { name: SANDBOX_URL, value: http://sandbox:8003 }
             - { name: SANDBOX_HTTP_API_BASE_URL, value: http://backend-api:3005 }
             - { name: TALE_SKIP_SSRF_FIREWALL, value: '1' }
-          ports: [{ name: http, containerPort: 3005 }]
+          ports:
+            - { name: http, containerPort: 3005 }
+            - { name: relay, containerPort: 8080 }
           volumeMounts: [{ name: config-data, mountPath: /app/data }]
           startupProbe:
             httpGet: { path: /ping, port: 3005 }
@@ -519,57 +520,6 @@ spec:
             limits: { memory: 512Mi }
 ---
 apiVersion: v1
-kind: PersistentVolumeClaim
-metadata: { name: llm-gateway-data, namespace: tale }
-spec:
-  accessModes: [ReadWriteOnce]
-  resources: { requests: { storage: 1Gi } }
----
-apiVersion: v1
-kind: Service
-metadata: { name: sandbox-llm-gateway, namespace: tale }
-spec:
-  selector: { app: sandbox-llm-gateway }
-  ports: [{ name: http, port: 8080, targetPort: 8080 }]
----
-apiVersion: v1
-kind: Service
-metadata: { name: llm-gateway, namespace: tale }
-spec:
-  selector: { app: sandbox-llm-gateway }
-  ports: [{ name: http, port: 8080, targetPort: 8080 }]
----
-apiVersion: apps/v1
-kind: Deployment
-metadata: { name: sandbox-llm-gateway, namespace: tale }
-spec:
-  replicas: 1
-  strategy: { type: Recreate }
-  selector: { matchLabels: { app: sandbox-llm-gateway } }
-  template:
-    metadata: { labels: { app: sandbox-llm-gateway } }
-    spec:
-      enableServiceLinks: false
-      automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 90
-      securityContext: { fsGroup: 1000 }
-      containers:
-        - name: gateway
-          image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION}
-          envFrom: [{ secretRef: { name: tale-env } }]
-          ports: [{ name: http, containerPort: 8080 }]
-          volumeMounts: [{ name: data, mountPath: /app/data }]
-          readinessProbe:
-            httpGet: { path: /health, port: 8080 }
-            periodSeconds: 10
-          resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 512Mi }
-      volumes:
-        - name: data
-          persistentVolumeClaim: { claimName: llm-gateway-data }
----
-apiVersion: v1
 kind: ServiceAccount
 metadata: { name: tale-sandbox-spawner, namespace: tale }
 ---
@@ -730,11 +680,6 @@ spec:
           command: [sh, -c, 'exit 0']
           resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
-        - name: gateway
-          image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION}
-          command: [sh, -c, 'exit 0']
-          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
-          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.10
@@ -742,7 +687,7 @@ spec:
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
 ```
 
-The runtime image is the one that matters: every session Pod and its egress sidecar start from it. The egress and gateway images spare a pull when those Deployments move to another node; remove their init containers when sessions run on dedicated nodes those Deployments never use. If you set `SANDBOX_K8S_NODE_SELECTOR` and `SANDBOX_K8S_TOLERATIONS`, give the DaemonSet the same values so it runs on exactly the session nodes.
+The runtime image is the one that matters: every session Pod and its egress sidecar start from it. The egress image spares a pull when its Deployment moves to another node; remove its init container when sessions run on dedicated nodes that Deployment never uses. If you set `SANDBOX_K8S_NODE_SELECTOR` and `SANDBOX_K8S_TOLERATIONS`, give the DaemonSet the same values so it runs on exactly the session nodes.
 
 The image tags follow `${VERSION}` like every other file. Apply this file on its own, before the loop, and wait until every node has pulled the images; on an upgrade, the new runtime image is then in place before the spawner rolls to it and creates sessions from it. The first command creates the namespace on a first install and changes nothing on an upgrade:
 
@@ -782,7 +727,7 @@ kubectl -n tale get networkpolicy tale-sandbox-session-egress tale-backend-egres
 curl -s https://tale.example.com/api/health
 ```
 
-Whichever backend role boots first applies the migrations under an advisory lock, so the count comes from both roles together and the API log ends with `api listening on :3005`; the health endpoint answers `{"status":"ok","version":"0.5.31"}`. Then open the site, [create the first owner](/self-hosted/install/first-admin), and connect a provider.
+Whichever backend role boots first applies the migrations under an advisory lock, so the count comes from both roles together, and the API log shows `api listening on :3005` and `model relay listening on :8080`; the health endpoint answers `{"status":"ok","version":"<version>"}` with the release you pinned. Then open the site, [create the first owner](/self-hosted/install/first-admin), and connect a provider.
 
 Under **Settings > Sandboxes**, the deployment card carries the namespace scope in its title and shows no host CPU or memory figures; that is expected on this backend. Assign a task to an agent and wait for its deliverable: the run creates a session Pod named `tale-sbx-ses-<hash>` in the namespace, together with a `-spec` Secret and a `-ws` claim.
 
@@ -807,6 +752,6 @@ Migrations run at boot under an advisory lock while the previous image keeps ser
 
 The CLI's snapshots, blue-green flips, and rollback checks do not run on Kubernetes. Back up the claims with your storage provider's snapshots and keep the Secret, the encryption key, and the organization configuration with them; [Backups and restore](/self-hosted/operate/backups-and-restore) lists what a restore needs.
 
-## Verified scope
+## Verified scope {#verified-scope}
 
-These five files were applied unchanged, apart from the Secret values, to a fresh single-node kind cluster with Kubernetes 1.36, kube-network-policies, the local-path StorageClass, and Tale 0.5.31: boot and migrations, the public edge, the first-owner setup and the Sandboxes card, an agent task with a deliverable, the session lifecycle including idle stop, resume, and cross-replica access, the fence probes above, and a rolling restart of the API with two replicas. Multi-node scheduling with `ReadWriteMany` configuration storage, Docker inside sessions on a sysbox or kata RuntimeClass, an Ingress with `TLS_MODE=external`, and highly available stores were not part of that run. The node-disk limits and placement settings of session Pods and the optional pre-pull DaemonSet came later and were not part of it either.
+These five files were applied unchanged, apart from the Secret values, to a fresh single-node kind cluster with Kubernetes 1.36, kube-network-policies, the local-path StorageClass, and Tale 0.5.31: boot and migrations, the public edge, the first-owner setup and the Sandboxes card, an agent task with a deliverable, the session lifecycle including idle stop, resume, and cross-replica access, the fence probes above, and a rolling restart of the API with two replicas. Multi-node scheduling with `ReadWriteMany` configuration storage, Docker inside sessions on a sysbox or kata RuntimeClass, an Ingress with `TLS_MODE=external`, and highly available stores were not part of that run. The node-disk limits and placement settings of session Pods, the optional pre-pull DaemonSet, and the model relay on port 8080 of `backend-api`, which replaced the gateway's Deployment, Services and claim, came later and were not part of it either.

@@ -20,7 +20,6 @@ Die Dockerfiles verwenden das Repository-Stammverzeichnis als Build-Kontext. Exa
 | `tale-sandbox-runtime` | `services/sandbox-runtime/` | Python-basierte Ausführungsumgebung mit Agent-Laufzeiten, Node, Bun, Browsern und Dokumentwerkzeugen. |
 | `tale-sandbox-egress` | `services/sandbox-egress/` | Alpine-basierter ausgehender Proxy mit DNS-Unterstützung. |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit mit Netzwerk- und Startkonfiguration der Sandbox. |
-| `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Modell-Gateway auf Bifrost-Basis. |
 
 Objektspeicher und Sidecar für Videoverarbeitung verwenden direkt bereitgestellte Upstream-Images. Dafür gibt es kein Tale-Dockerfile. Sandbox-Runtime und BuildKit werden bei Bedarf gestartet. Ein Build der Compose-Dienste baut diese Images daher nicht automatisch mit.
 

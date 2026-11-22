@@ -42,7 +42,7 @@ A version-changing deployment or host-config override takes a local snapshot bef
 | Service group | Ordinary deployment | When to plan extra interruption |
 | --- | --- | --- |
 | `platform`, with `backend-api` and `backend-worker` where they run apart | Roll together as the new application colour. | Old and new replicas overlap, and draining can refuse new turns. |
-| `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` | Replace in place after draining relevant work. | These are shared execution dependencies, not a second blue-green application group. |
+| `sandbox`, `sandbox-egress` | Replace in place after draining relevant work. | These are shared execution dependencies, not a second blue-green application group. |
 | `db`, `object-store`, `proxy` | Keep the running services; the CLI reports skipped updates. | Add `--stop` when these services need replacement. |
 
 ```bash
@@ -60,8 +60,6 @@ The CLI starts the idle colour and waits for its replicas to pass health checks 
 The old API is drained before removal: new chat turns can receive a drain refusal while existing turns get time to finish. The chat drain waits up to three minutes; the web drain uses `DRAIN_TIMEOUT`, which defaults to 30 seconds. The web health route stays healthy while its alias is still shared. Disconnecting the old containers from serving networks removes them from DNS and can sever remaining connections, so it follows the drains.
 
 The drain covers automations too. Workers of the old colour start no new job and hand each automation run on at its next step, so the run continues on the new colour; the CLI waits for those steps within the same three minutes. When the old containers stop, each worker gets 120 seconds to hand on what it still holds (more when you raise `SHUTDOWN_DRAIN_MS`: the CLI keeps this grace 15 seconds above it), and a step still working 20 seconds into its stop is interrupted and runs again on the new colour. A step that was sending something to an outside service is the exception, because the service may already have received it: that run waits for a person to choose how it continues, as [Read automation runs and recover from failures](/platform/automations/execution-logs) describes. The first upgrade to automation writer protocol 2 is different: the migration holds all older queued, running and waiting runs, preserving their previous state and unknown external outcomes. They do not resume automatically. Work already admitted or sent by an old worker may still finish; an explicit stop request records the operator and requests cancellation of the owned session, but proves neither termination nor the outcome of an external write. It does not release the held task or its evidence. Review the actual outcome before planning any replacement work.
-
-The model gateway is replaced in place before the new colour starts. When its container stops, the gateway takes no new model call and gives the calls in flight, streamed answers included, up to 90 seconds to finish. It saves its spend counters at the end only when that drain ends within 30 seconds of the stop, since the gateway's own cleanup window counts from the stop signal. A call still streaming after that is answered in full, but its spend, and that of the seconds before it, may not be booked. Until the new gateway answers, a new model call fails, and an answer still streaming after 90 seconds is cut. A deployment can therefore wait up to 90 seconds for the gateway.
 
 Both colours mount the deployment's `static-assets` volume. Before a web replica becomes ready, it publishes the build's immutable scripts, styles, fonts and images there. Either colour can then serve assets referenced by the other colour's HTML. Running replicas refresh their artifacts hourly; retired artifacts remain available for seven days after their last refresh. Mount this shared volume on every web replica in your own Compose setup too. During the first upgrade from a release without this support, the old replicas still lack the shared fallback.
 
@@ -88,7 +86,7 @@ On Incus the stop-gated tier is larger: besides `db`, `object-store` and `proxy`
 
 ### Follow the colour flip {#incus-flip}
 
-The traffic switch is an instance of the proxy image that stands in front of the `platform` and `backend-api` replicas. It lists every replica address of both colours from the start and is never reloaded during a flip, a rolling replacement or a rollback. Each replica of the new colour takes traffic once it passes the switch's admission probe, which a replica answers only once it is ready, and the CLI waits until every replica is healthy.
+The traffic switch is an instance of the proxy image that stands in front of the `platform` and `backend-api` replicas, and of the model relay that the `backend-api` replicas serve on port 8080. It lists every replica address of both colours from the start and is never reloaded during a flip, a rolling replacement or a rollback. Each replica of the new colour takes traffic once it passes the switch's admission probe, which a replica answers only once it is ready, and the CLI waits until every replica is healthy.
 
 The CLI then withdraws the old colour: it marks each old replica so that its admission probe fails, and within seconds the switch sends it no new request. The replica's `/api/health` keeps its meaning and fails only after its stop signal, so the edge's own health check is not disturbed. Open streams, such as a page's live updates, stay open on the old colour. Then the drains run as described above, each old replica stops within its grace period and is deleted, and its streams end there: the clients reconnect to the new colour. On Docker the order differs, because the old containers leave the serving networks only after the drains.
 
@@ -125,7 +123,42 @@ tale rollback
 
 `--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
 
-`tale rollback` swaps the application's images only: those of `platform`, and of `backend-api` and `backend-worker` where they run apart. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
+`tale rollback` swaps the application's images only: those of `platform`, and of `backend-api` and `backend-worker` where they run apart. It restores no volume, leaves the database, the stores, the proxy and the sandbox services as they are, and never starts the model gateway again, as [The model relay replaces the model gateway](#model-relay) explains. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
+
+## The model relay replaces the model gateway {#model-relay}
+
+Until this release, a service of its own, `sandbox-llm-gateway`, stood between a coding agent in a sandbox and the model provider, and served the [model endpoints for API keys](/platform/admin/governance/content-models#model-endpoints). The backend now does that job in its [model relay](/self-hosted/configuration/environment-reference#model-relay). Every model call of an agent's turn and every call of the model endpoints goes through the relay, which calls each provider with the organization's credential at the endpoint the provider's definition names. The relay runs in the process that serves the API, so a deployment runs one container fewer, and the gateway's memory limit, from 512 MiB to several GiB, is gone.
+
+With **Process prompts only in the EU/EEA** on, the model of a coding agent or of a model endpoint is now judged at the endpoint the relay calls, as in chat. A catalog provider such as OpenRouter pointed at `eu.openrouter.ai` now passes, where the gateway refused it; [Process prompts only in the EU/EEA](/platform/admin/governance/content-models#eu-processing) lists what counts.
+
+A new deployment runs no gateway, and `tale init` and `tale deploy` no longer generate `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`. A deployment that runs a gateway keeps it while keys the gateway minted are still open: the keys of agent turns that started before the upgrade and have not settled yet. The backend reads the spend of those turns from the gateway and revokes their keys with the admin password, so leave the password in `.env` as it is while the gateway is kept. On Docker, each `tale deploy` asks the running backend how many such keys are open. `<id>` is the `id` in `tale.json`:
+
+- **None:** the deploy removes the `<id>-sandbox-llm-gateway` container, never its volume, and prints how to remove the volume.
+- **Some:** the deploy leaves the container as it is and says how many keys the gateway minted are still open: those of turns that started before the upgrade, of sessions that still run, and of an organization being deleted. A later `tale deploy` asks again.
+- **No answer:** the deploy keeps the container and says why. On the first deploy of this release, the backend it asks is still the earlier release's, which cannot answer. The next `tale deploy` asks again.
+
+`tale deploy --dry-run` asks the same question and says which of these the deploy would do.
+
+The volume `<id>_llm-gateway-data` stays when the container goes. It holds the keys of the providers the gateway reached, in the gateway's SQLite database, and the spend of the keys it minted. Remove it once no turn needs it, with the command the deploy printed:
+
+```bash
+docker volume rm <id>_llm-gateway-data
+```
+
+The other commands treat the gateway and its volume as follows:
+
+- Snapshots from this release on no longer archive the volume. Restoring an older snapshot that holds it still restores it.
+- `tale reset --all` removes a kept gateway's container and its volume with the other data volumes, never the `backups` volume.
+- `tale restore` stops a kept gateway that is running, like the other stateful containers.
+- `tale runtime migrate --finish` removes the volume with the other Docker data volumes: the Incus stack has no use for it.
+- `tale rollback` never starts the gateway again. A release from before the relay runs agent turns and the model endpoints through the gateway, so after a rollback to such a release, they work only while the gateway's container still runs. `tale deploy` removes the container only while a release with the relay runs, and `tale rollback` returns to the release that ran before the last deploy, so a rollback after the removal returns to a release with the relay.
+
+On your own Compose files or on Kubernetes, nothing asks the backend for you. Sessions reach the relay on the backend API's port 8080: on Kubernetes, the `backend-api` Service must expose it and session Pods must be allowed to reach it, as [Deploy on Kubernetes](/self-hosted/install/kubernetes) shows, and `kubectl apply` leaves the gateway's Deployment, Services and claim in place. Remove the gateway's service once no key it minted is open, and its volume or claim once no turn needs it. With [`TALE_CONTROL_TOKEN`](/self-hosted/configuration/environment-reference) set on the backend, ask it as `tale deploy` does; it answers `{"open":0}` once none is:
+
+```bash
+docker compose exec backend-api sh -c 'curl -fsS -H "Authorization: Bearer $TALE_CONTROL_TOKEN" http://localhost:3005/api/control/gateway-keys'
+kubectl -n tale exec deploy/backend-api -- sh -c 'curl -fsS -H "Authorization: Bearer $TALE_CONTROL_TOKEN" http://localhost:3005/api/control/gateway-keys'
+```
 
 ## The application as one process {#one-process}
 
@@ -286,6 +319,8 @@ Check free space before deploying. The default floor is a twentieth of that disk
 
 ## Bifrost 1.6 → 2.2: the model gateway's store is migrated
 
+This concerns the releases that still run the model gateway. From the release that replaces it with the [model relay](#model-relay), `tale deploy` no longer updates the gateway: it keeps or removes it as that section describes.
+
 A release after 0.5.64 moves the model gateway (`sandbox-llm-gateway`) from Bifrost 1.6 to Bifrost 2.2; its release notes list the move. On its first start, the new gateway migrates its store in `llm-gateway-data` in place and keeps its providers, keys, budgets and admin account; nothing needs to be done by hand. The migration also indexes the gateway's request log, so that start can take longer on an instance with a long request history.
 
 `tale deploy` replaces the gateway before it starts the new application colour, so a deployment that fails later can leave the store already migrated. The snapshot that a version-changing `tale deploy` takes first holds `llm-gateway-data` with the other volumes, so it is the gateway's recovery point too. Snapshots taken before the CLI captured the gateway's store have no such archive; `tale restore` lists them as `without gateway`. If you deploy with `--skip-backup`, copy the volume yourself first: stop the gateway, which ends running agent turns and model calls, copy the volume, then deploy. `<id>` is the `id` in `tale.json`:
@@ -318,4 +353,4 @@ The CLI refuses the unsupported cutover by default. Its expert `--accept-data-lo
 
 From 0.2.10 through 0.3, Tale served an OpenAI-compatible layer under `/api/v1`: `POST /api/v1/chat/completions` and `POST /api/v1/images/generations` in the OpenAI request and response shapes, and an OpenAI-shaped `GET /api/v1/models`. Its `model` field could name an agent. The 0.4 rebuild removed this layer. Callers of these routes, including OpenAI SDKs pointed at the instance, stop working, because 0.4 serves none of the three routes, and later releases keep them removed. A current release answers chat completions and image generations with `404 NOT_FOUND`, or with `400 ORG_SLUG_REQUIRED` when the key holder belongs to several organizations and the request carries no `X-Organization-Slug`, which an OpenAI SDK does not send by default. Its `GET /api/v1/models` is Tale's own listing of models and agent runtimes, which an OpenAI client cannot read.
 
-Find those callers before the upgrade and plan their replacement. A caller that needs a model's answer can move to the governed model endpoints that releases with API contract 3.7.0 or later offer. They differ from the 0.3 layer: the base URL is `/api/v1/openai`, or `/api/v1/anthropic` for Anthropic clients, rather than `/api/v1`; `model` names a model as `<providerSlug>/<modelId>`, never an agent; image generation is not served; and the endpoints are off until an Admin turns on **Model endpoints for API keys** under **Settings > Governance > Models**. From then on, every call passes model access, the input guardrails, and the budgets. The model endpoints reach the models through the same model gateway as managed agents. Scripted questions for the workspace assistant move to the asynchronous REST chat API, which answers as the assistant rather than as a bare model. Editor integrations that want Tale's knowledge use the MCP endpoint, and work that should run inside Tale, in a sandbox and with a person's review, goes to a project agent on a task. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) describes each path.
+Find those callers before the upgrade and plan their replacement. A caller that needs a model's answer can move to the governed model endpoints that releases with API contract 3.7.0 or later offer. They differ from the 0.3 layer: the base URL is `/api/v1/openai`, or `/api/v1/anthropic` for Anthropic clients, rather than `/api/v1`; `model` names a model as `<providerSlug>/<modelId>`, never an agent; image generation is not served; and the endpoints are off until an Admin turns on **Model endpoints for API keys** under **Settings > Governance > Models**. From then on, every call passes model access, the input guardrails, and the budgets. The model endpoints reach the models through the same model relay as managed agents. Scripted questions for the workspace assistant move to the asynchronous REST chat API, which answers as the assistant rather than as a bare model. Editor integrations that want Tale's knowledge use the MCP endpoint, and work that should run inside Tale, in a sandbox and with a person's review, goes to a project agent on a task. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) describes each path.

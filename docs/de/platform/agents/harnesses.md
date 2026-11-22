@@ -13,7 +13,7 @@ Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform
 
 ## Unterstützte Laufzeiten vergleichen
 
-„Verwaltet“ bedeutet, dass die Laufzeit Tale über das Modell-Gateway aufruft. „Direkt“ bedeutet, dass die Sitzung Zugangsdaten für die Werkzeuge des Providers erhält. Die mitgelieferten Definitionen unterstützen die folgenden Kombinationen; tatsächlich verfügbar ist, was Deployment und Zugangsdaten erlauben.
+„Verwaltet“ bedeutet, dass die Laufzeit ihre Modelle über Tale aufruft, das den Anbieter für sie aufruft. „Direkt“ bedeutet, dass die Sitzung Zugangsdaten für die Werkzeuge des Anbieters erhält. Die mitgelieferten Definitionen unterstützen die folgenden Kombinationen; tatsächlich verfügbar ist, was Deployment und Zugangsdaten erlauben.
 
 | Agent-Laufzeit | Zugangsweg | Neue Anweisungen im laufenden Prozess | MCP-Kanal von Tale |
 | --- | --- | --- | --- |
@@ -35,9 +35,9 @@ Gemini CLI ist die Ausnahme: Tale setzt eine seiner Unterhaltungen nie fort. Ein
 
 ## Zugangsdaten und Kosten verstehen
 
-Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable stellt Tale einen sitzungsgebundenen Gateway-Schlüssel bereit. Der ursprüngliche Modell-Provider-Schlüssel bleibt bei der Plattform. Gateway-Aufrufe werden gemessen und unterliegen den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt.
+Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable gibt Tale jedem Durchlauf einen eigenen Schlüssel, der für die Modelle des Durchlaufs und seinen Ausgabenrahmen gilt, Bilder eingeschlossen. Der ursprüngliche Schlüssel des Modellanbieters bleibt bei der Plattform: Tale ruft den Anbieter damit an dem Endpunkt auf, den die Definition des Anbieters nennt, für Claude Code an dem Endpunkt für Coding-Agenten, wo die Definition einen festlegt. Jeder Aufruf wird gemessen und unterliegt den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt. Ein Aufruf, der vorzeitig endet, wird mit dem verbucht, was bis dahin gesendet und weitergereicht wurde: dem Prompt, in dem jedes Bild und jedes Dokument als ein Bild zählt, und der Ausgabe.
 
-Provider-Abonnements verwenden ihre unterstützte Agent-Laufzeit und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Gemini ist die Ausnahme: Seine Google-Anmeldung wird für den Durchlauf als Datei im Home-Ordner der Sitzung abgelegt und am Ende des Durchlaufs wieder entfernt. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Agent-Laufzeiten, weil die Anbieter Abo-Tokens nur in ihrer eigenen Laufzeit erlauben; mehr dazu unter [KI-Anbieter](/de/platform/admin/providers#abos-in-aufgaben-nutzen-nicht-im-chat). Ihre direkten Aufrufe umgehen die Kostenmessung und Ausgabengrenzen des Tale-Gateways. Prüfe die Nutzung beim Abonnement-Provider.
+Provider-Abonnements verwenden ihre unterstützte Agent-Laufzeit und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Gemini ist die Ausnahme: Seine Google-Anmeldung wird für den Durchlauf als Datei im Home-Ordner der Sitzung abgelegt und am Ende des Durchlaufs wieder entfernt. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Agent-Laufzeiten, weil die Anbieter Abo-Tokens nur in ihrer eigenen Laufzeit erlauben; mehr dazu unter [KI-Anbieter](/de/platform/admin/providers#abos-in-aufgaben-nutzen-nicht-im-chat). Deren direkte Aufrufe umgehen die Kostenmessung und die Ausgabengrenzen von Tale. Prüfe die Nutzung beim Abonnement-Provider.
 
 Diese Regeln für Modellzugänge bedeuten nicht, dass die Sandbox keinerlei Geheimnisse enthält. Ausdrücklich vergebene **Secrets** sowie der Git-Zugriff eines zugeordneten GitHub- oder Forgejo-Zugangs können darin verfügbar sein. Vergib nur den für die Aufgabe nötigen Zugriff.
 

@@ -13,7 +13,7 @@ Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platfor
 
 ## Comparer les environnements pris en charge
 
-« Géré » signifie que le programme appelle le modèle via la passerelle de Tale. « Direct » signifie que la session reçoit les identifiants destinés aux outils du fournisseur. Les définitions livrées prennent en charge les combinaisons suivantes ; leur disponibilité dépend du déploiement et des identifiants.
+« Géré » signifie que le programme appelle ses modèles par Tale, qui appelle le fournisseur pour lui. « Direct » signifie que la session reçoit les identifiants destinés aux outils du fournisseur. Les définitions livrées prennent en charge les combinaisons suivantes ; leur disponibilité dépend du déploiement et des identifiants.
 
 | Environnement d’agent | Voie d’accès | Nouvelles instructions dans le processus actif | Canal MCP de Tale |
 | --- | --- | --- | --- |
@@ -35,9 +35,9 @@ Gemini CLI fait exception : Tale ne poursuit jamais une de ses conversations. Un
 
 ## Comprendre les identifiants et les coûts
 
-Avec une clé API stockée ou fournie par l’environnement du déploiement, Tale remet une clé de passerelle limitée à la session. La clé d’origine du fournisseur de modèle reste dans la plateforme. Les appels de passerelle sont mesurés et soumis aux règles de dépense applicables, en tenant compte des montants déjà attribués aux autres échanges en cours.
+Avec une clé API stockée ou fournie par l’environnement du déploiement, Tale remet à chaque échange une clé qui lui est propre, valable pour les modèles de l’échange et son enveloppe de dépense, images comprises. La clé d’origine du fournisseur de modèle reste dans la plateforme : Tale appelle le fournisseur avec elle, à l’endpoint que nomme la définition du fournisseur, ou, pour Claude Code, à l’endpoint pour agents de programmation quand la définition en déclare un. Chaque appel est mesuré et soumis aux règles de dépense applicables, en tenant compte des montants déjà attribués aux autres échanges en cours. Un appel qui s’arrête avant la fin est imputé à ce qui avait été envoyé et transmis jusque-là : le prompt, où chaque image ou document compte pour une image, et la sortie.
 
-Les abonnements fournisseurs utilisent leur environnement d’agent compatible et reçoivent les identifiants d’abonnement dans l’environnement de la session. Gemini fait exception : sa connexion Google est écrite dans un fichier du dossier personnel de la session pour l’échange, puis supprimée à la fin de l’échange. Ils ne servent pas d’identifiants de chat ordinaire et ne fonctionnent pas avec un environnement d’agent incompatible, car les fournisseurs n’autorisent les jetons d’abonnement que dans leur propre environnement ; la page [Fournisseurs IA](/fr/platform/admin/providers#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat) l’explique. Leurs appels directs échappent à la mesure et aux plafonds de la passerelle Tale. Examine la consommation auprès du fournisseur d’abonnement.
+Les abonnements fournisseurs utilisent leur environnement d’agent compatible et reçoivent les identifiants d’abonnement dans l’environnement de la session. Gemini fait exception : sa connexion Google est écrite dans un fichier du dossier personnel de la session pour l’échange, puis supprimée à la fin de l’échange. Ils ne servent pas d’identifiants de chat ordinaire et ne fonctionnent pas avec un environnement d’agent incompatible, car les fournisseurs n’autorisent les jetons d’abonnement que dans leur propre environnement ; la page [Fournisseurs IA](/fr/platform/admin/providers#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat) l’explique. Leurs appels directs échappent à la mesure et aux plafonds de dépense de Tale. Examine la consommation auprès du fournisseur d’abonnement.
 
 Ces règles sur les identifiants de modèle ne signifient pas que la sandbox ne contient aucun secret. Les **Secrets** explicitement accordés et l’accès Git d’une connexion GitHub ou Forgejo équipée peuvent y être disponibles. Limite ces accès aux besoins de la tâche.
 

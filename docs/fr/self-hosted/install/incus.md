@@ -139,10 +139,10 @@ Les deux bridges rejettent dans les deux sens ce qu’aucune règle n’autorise
 | `names-to-gateway-udp`, `names-to-gateway-tcp` | Le résolveur de la stack transmet chaque nom qu’il ne connaît pas au DNS du bridge sur le port 53 | Il passe lui aussi sans règle : `check` demande un nom public et juge la réponse |
 | `spawner-to-incus` | Le spawner atteint l’API Incus à `runtime.incus.endpoint` | Sondée |
 | `spawner-to-sessions` | Le spawner appelle le runner de chaque session sur le port 8200 | Sondée |
-| `public-egress` | Le backend, la plateforme, le proxy egress des sessions, la passerelle de modèles, le proxy (pour ACME) et le fournisseur bgutil atteignent Internet | Sondée |
+| `public-egress` | Le backend avec son relais de modèles, la plateforme, le proxy egress des sessions, le proxy (pour ACME) et le fournisseur bgutil atteignent Internet | Sondée |
 | `operator-reach-1`, … | Chaque destination que la déclaration nomme dans `runtime.incus.operatorReach`, comme un routeur d’inférence | Sondée en TCP, listée en UDP |
 | `public-to-proxy` | Le public atteint le proxy par l’entrée choisie | Listée |
-| `sessions-to-*`, `stack-from-sessions-*`, `sessions-from-spawner` | Une session atteint l’API backend par le switch, la passerelle de modèles, le proxy egress et son résolveur, et rien d’autre ; le spawner atteint les sessions | Listées : le côté de la stack ne peut pas émettre de trafic depuis les sessions |
+| `sessions-to-*`, `stack-from-sessions-*`, `sessions-from-spawner` | Une session atteint l’API backend et son relais de modèles par le switch, ainsi que le proxy egress et son résolveur, et rien d’autre ; le spawner atteint les sessions | Listées : le côté de la stack ne peut pas émettre de trafic depuis les sessions |
 
 ## Choisir l’entrée {#ingress}
 
@@ -216,7 +216,7 @@ Quand l’hôte s’arrête, Incus arrête un groupe `boot.stop.priority` après
 | Priorité | Services | Arrêtés |
 | --- | --- | --- |
 | 90 | `proxy`, `switch`, `platform`, `backend-api`, `backend-worker` | En premier |
-| 50 | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway`, `bgutil-provider` | En deuxième |
+| 50 | `sandbox`, `sandbox-egress`, `bgutil-provider` | En deuxième |
 | 10 | `db`, `knowledge-db`, `object-store`, `names`, `names-sessions` | En dernier |
 
 Sur un hôte qui ne fait tourner que Tale, les bases de données reçoivent leur signal d’arrêt en 60 secondes environ. Les priorités 10 à 90 forment la plage réservée de Tale : toute autre instance de l’hôte qui s’arrête dans cette plage ajoute jusqu’à 30 secondes par groupe, et les bases de données peuvent être tuées avant leur signal. Le bootstrap avertit quand un autre projet utilise une priorité de cette plage. La limite de 30 secondes écourte aussi la vidange d’un worker (`SHUTDOWN_DRAIN_MS`, 90 secondes par défaut).
@@ -315,7 +315,7 @@ Les smoke checks joignent le nouvel edge à `SITE_URL`. Les périphériques prox
 
 Les suites de bout en bout de la CLI pour Incus exécutent la CLI compilée, construite à partir de la modification, contre un vrai nœud Incus 7.6 avec un pool ZFS, l’entrée `routed` et `tlsMode: "external"`, avec les images de la stack construites depuis le même checkout.
 
-Pour un déploiement géré, elles couvrent le bootstrap, un deuxième bootstrap qui ne change rien et la vérification avec ses sondes ; `deploy prepare` sans Docker, le plan du premier déploiement et le déploiement lui-même, la stack répondant par son edge ; un plan vide et un deuxième déploiement qui ne change rien ; le refus d’une mise à niveau sans snapshot de reprise ; des logs lus une seule fois, des boucles de plantage signalées avec leur console, un arrêt propre de Postgres et un arrêt du worker qui vide sa file ; une session qui atteint l’API backend et la passerelle de modèles, et rien d’autre ; et aucun secret dans aucune sortie.
+Pour un déploiement géré, elles couvrent le bootstrap, un deuxième bootstrap qui ne change rien et la vérification avec ses sondes ; `deploy prepare` sans Docker, le plan du premier déploiement et le déploiement lui-même, la stack répondant par son edge ; un plan vide et un deuxième déploiement qui ne change rien ; le refus d’une mise à niveau sans snapshot de reprise ; des logs lus une seule fois, des boucles de plantage signalées avec leur console, un arrêt propre de Postgres et un arrêt du worker qui vide sa file ; une session qui atteint l’API backend et son relais de modèles, et rien d’autre ; et aucun secret dans aucune sortie.
 
 Pour un workspace avec deux répliques de `platform` et de `backend-api`, elles couvrent 20 bascules de couleur entre deux releases sous un trafic continu passant par l’edge, sans aucune requête en échec ; des flux d’événements ouverts qui le restent pendant le retrait et se reconnectent à la nouvelle couleur ; un switch et des résolveurs de l’ancienne release qui continuent de tourner jusqu’à ce que `--stop` les remplace ; un remplacement progressif avec `--services` et un rollback ; une bascule interrompue que le déploiement suivant termine ; un snapshot natif, son archive, un export et un import, une restauration et son historique ; une restauration interrompue à chaque étape, refusée par `tale deploy` et `tale start` jusqu’à ce que `--resume` ou `--abort` la termine ; un `reset --all` qui garde les snapshots ; et une réplique redémarrée pendant qu’elle est retirée.
 

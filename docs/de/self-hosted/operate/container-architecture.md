@@ -15,7 +15,7 @@ Grenze eine Störung anhand der Dienstzuständigkeit ein, bevor du Container än
 | Jobs, geplante Automatisierungen oder Importe kommen nicht weiter | `backend-worker` | Warteschlange, Job-Fehler, Zugangsdaten und benötigte Speicher. |
 | Lesen oder Schreiben scheitert an vielen Stellen | `db` oder die externe Anwendungsdatenbank | Verbindung, Plattenplatz, Sperren und Datenbankprotokolle. |
 | Dateien lassen sich nicht hoch- oder herunterladen | `backend-api`, danach `object-store` oder externer Bucket | Aufgelöste Organisationsverbindung, Zugangsdaten, öffentlicher Endpunkt und Browser-CORS. |
-| Eine Agent-Laufzeit startet nicht oder erreicht ihr Modell nicht | `sandbox`, `sandbox-llm-gateway` | Sitzungserstellung, Gateway-Anmeldung, Modellverfügbarkeit und Laufzeit-Image. |
+| Eine Agent-Laufzeit startet nicht oder erreicht ihr Modell nicht | `sandbox`, `backend-api` | Sitzungserstellung, die Zeilen `[llm-relay]` des Modell-Relays im Log von `backend-api`, Modellverfügbarkeit und Laufzeit-Image. |
 | Sandbox-Netzzugriff oder Seitenrendering scheitert | `sandbox-egress`, `sandbox` | Zielhost, erlaubte Ports, Egress-Regeln und Sitzungsprotokolle. |
 | Videotranskript wird nicht abgerufen | `backend-worker`, `sandbox`, `sandbox-egress`, `bgutil-provider` | Videozugriff, Extraktionsfehler, eine freie Sandbox-Sitzung, Sandbox-Egress, konfigurierter Proxy und Browsersitzungsstatus. |
 
@@ -29,15 +29,15 @@ Ein Workspace führt Web-Ebene, API und Worker in einem `platform`-Prozess aus, 
 2. Die API prüft Sitzung und Organisation, ermittelt Modell und Zugangsdaten und führt den interaktiven Turn aus. Fortschritt wird in der Anwendungsdatenbank gespeichert.
 3. Der Browser liest Fortschritt über den Stream-Endpunkt des Chats. `/events` liefert Hinweise zum erneuten Laden von Daten und enthält nicht den Token-Stream.
 4. Wissenswerkzeuge verwenden die Wissensverbindung der anfragenden Organisation. Originaldateien werden über deren Speicherkonfiguration gelesen.
-5. Ein Turn mit einer Agent-Laufzeit benötigt eine Sandbox-Sitzung und das Modell-Gateway. Eingereihte Aufgaben, Workflow-Agent-Jobs und REST-Chat-Turns können außerdem Worker benötigen.
+5. Ein Turn mit einer Agent-Laufzeit benötigt eine Sandbox-Sitzung, deren Agent sein Modell über das Modell-Relay in `backend-api` aufruft. Eingereihte Aufgaben, Workflow-Agent-Jobs und REST-Chat-Turns können außerdem Worker benötigen.
 
 Ein Worker-Ausfall hat daher einen anderen Umfang als ein API-Ausfall, wo beide getrennte Prozesse sind. Daraus folgt aber nicht, dass sämtliche Chat- oder Agentenarbeit weiterläuft. Ein Prozess, der beides ist, fällt als Ganzes aus. Prüfe Einstiegspunkt und Ausführungstyp des betroffenen Ablaufs. Sichere den ursprünglichen Fehler, bevor du einen Turn wiederholst, der Tokens verbrauchen oder externe Aktionen ausführen könnte.
 
 ## Abhängigkeiten der Sandbox verstehen
 
-`sandbox` ist ein Spawner mit Zugriff auf den Docker-Daemon des Hosts. Er erstellt vorübergehende Container aus dem festgelegten Sandbox-Runtime-Image und bindet deren Arbeitsverzeichnisse ein. Diese Sitzungen verwenden ein isoliertes Netzwerk: Webanfragen laufen über `sandbox-egress`, Modellaufrufe über den begrenzten Sitzungszugriff des Gateways.
+`sandbox` ist ein Spawner mit Zugriff auf den Docker-Daemon des Hosts. Er erstellt vorübergehende Container aus dem festgelegten Sandbox-Runtime-Image und bindet deren Arbeitsverzeichnisse ein. Diese Sitzungen verwenden ein isoliertes Netzwerk: Webanfragen laufen über `sandbox-egress`, Modellaufrufe an das [Modell-Relay](/de/self-hosted/configuration/environment-reference#model-relay) auf Port 8080 von `backend-api`, mit einem Schlüssel, der dem Turn gehört.
 
-Die Laufzeit stellt auch Chromium und Playwright für Seitenrendering und Dokumenterzeugung bereit. Eine funktionierende Weboberfläche beweist daher nicht, dass die Ausführungsebene funktioniert. Prüfe Image-Verfügbarkeit, Workspace-Mounts, gemeinsames Sandbox-Token und Gateway-Zugangsdaten, bevor du ein einzelnes Skript untersuchst.
+Die Laufzeit stellt auch Chromium und Playwright für Seitenrendering und Dokumenterzeugung bereit. Eine funktionierende Weboberfläche beweist daher nicht, dass die Ausführungsebene funktioniert. Prüfe Image-Verfügbarkeit, Workspace-Mounts, gemeinsames Sandbox-Token und ob Sitzungen das Modell-Relay erreichen, bevor du ein einzelnes Skript untersuchst.
 
 Der Egress-Dienst blockiert private Adressen und Metadatenziele und kann eine Hostnamen-Freigabeliste erzwingen. Ein ausgefallener Ausgang kann Verweigerungen oder Netzwerkfehler verursachen; die genaue Meldung hängt von der Operation ab. [Härtung](/de/self-hosted/operate/security/hardening) beschreibt die Regeln, [Compose selbst betreiben](/de/self-hosted/install/own-compose) die nötigen Rechte und Mounts.
 
@@ -63,11 +63,11 @@ Unter der experimentellen [Incus-Laufzeit](/de/self-hosted/install/incus) laufen
 | --- | --- | --- |
 | `names` | Der Resolver des Stacks: Er beantwortet die Namen der Dienste mit ihren festen Adressen auf der Bridge und leitet jeden anderen Namen an das eigene DNS der Bridge weiter. Jede Instanz des Stacks fragt ihn. | Das eingebaute DNS von Docker |
 | `names-sessions` | Der Resolver der Sessions: Er beantwortet nur die Namen, die eine Session erreichen darf. | Das DNS des Sandbox-Netzes |
-| `switch` | Eine zweite Instanz des Proxy-Images (`TALE_PROXY_ROLE=switch`). Die Namen `platform` und `backend-api` zeigen auf sie, und sie verteilt jeden über seine Repliken, die sie über eine eigene Probe zulässt (`/api/admission` auf der Plattform, `/admission` auf der Backend-API). Ein Ersetzen ändert deshalb nie eine Adresse. | Netzwerk-Aliasse, denen Repliken beitreten und die sie verlassen |
+| `switch` | Eine zweite Instanz des Proxy-Images (`TALE_PROXY_ROLE=switch`). Die Namen `platform` und `backend-api` zeigen auf sie, und sie verteilt jeden über seine Repliken, auch das Modell-Relay der Repliken der Backend-API auf Port 8080, und lässt sie über eine eigene Probe zu (`/api/admission` auf der Plattform, `/admission` auf der Backend-API). Ein Ersetzen ändert deshalb nie eine Adresse. | Netzwerk-Aliasse, denen Repliken beitreten und die sie verlassen |
 
 Eine Anfrage nimmt denselben Weg wie oben, mit dem Switch zwischen `proxy` und den Anwendungsrollen: Der Browser erreicht `proxy`, der Web-Assets an `platform` und Anwendungsanfragen an `backend-api` sendet, beide über `switch`. Den Dienst hinter einem Fehler findest du auf dieselbe Weise. Instanzen tragen den Namen ihres Dienstes, mit einer Replik-Nummer bei `platform-1`, `backend-api-1` und `backend-worker-1`, und ihre Konsolenausgabe liegt in Incus, nicht in Docker: [Logs und Abstürze lesen](/de/self-hosted/install/incus#logs).
 
-Die Vertrauensgrenze wandert vom Docker-Socket zu zwei eingeschränkten Zertifikaten. Das der CLI erreicht nur das Projekt des Stacks, das des Spawners nur das Projekt der Sessions; keines kann ein Projekt anlegen oder ein anderes berühren, und eine Session hält keines. Das Projekt lässt keine privilegierten, verschachtelten oder Low-Level-Container und keine Host-Datenträger zu, und Netzwerk-ACLs auf beiden Bridges verwerfen, was keine Regel erlaubt. Sessions erreichen die Backend-API über `switch`, das Modell-Gateway, den Egress-Proxy und `names-sessions` und sonst nichts. Die [Netzwerk-ACLs](/de/self-hosted/install/incus#network-acls) nennen jede Regel.
+Die Vertrauensgrenze wandert vom Docker-Socket zu zwei eingeschränkten Zertifikaten. Das der CLI erreicht nur das Projekt des Stacks, das des Spawners nur das Projekt der Sessions; keines kann ein Projekt anlegen oder ein anderes berühren, und eine Session hält keines. Das Projekt lässt keine privilegierten, verschachtelten oder Low-Level-Container und keine Host-Datenträger zu, und Netzwerk-ACLs auf beiden Bridges verwerfen, was keine Regel erlaubt. Sessions erreichen die Backend-API und ihr Modell-Relay über `switch`, dazu den Egress-Proxy und `names-sessions` und sonst nichts. Die [Netzwerk-ACLs](/de/self-hosted/install/incus#network-acls) nennen jede Regel.
 
 ## Reparaturen des Wissensindex erkennen
 
