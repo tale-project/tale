@@ -56,6 +56,7 @@ vi.mock('./service.ts', () => {
 
 import { ProjectError } from './service.ts';
 import {
+  agentHarnessChoice,
   chooseStandardAgentServing,
   ensureStandardAgent,
   readStandardAgentAvailability,
@@ -700,5 +701,49 @@ describe('ensureStandardAgent — the door a Member hands a project work through
     await expect(
       ensureStandardAgent(fakeTx(() => []).tx, auth, 'project-1'),
     ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED' });
+  });
+});
+
+describe('agentHarnessChoice — how a run got its runtime', () => {
+  const args = { organizationId: 'org-1', agentId: 'agent-1', harness: 'pi' };
+  const agentRow = (managed: boolean) => (query: string) =>
+    query.includes('FROM app.project_agents') ? [{ managed }] : [];
+
+  it('says an agent of the project’s own names its runtime', async () => {
+    await expect(
+      agentHarnessChoice(fakeTx(agentRow(false)).tx, args),
+    ).resolves.toBe('pinned');
+    // A deleted agent: nothing the platform chose.
+    await expect(agentHarnessChoice(fakeTx(() => []).tx, args)).resolves.toBe(
+      'pinned',
+    );
+    expect(readGovernancePolicyForOrg).not.toHaveBeenCalled();
+  });
+
+  it('says the standard agent runs on what its policy pins, when the policy pins that runtime', async () => {
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: true,
+      harness: 'pi',
+    });
+    await expect(
+      agentHarnessChoice(fakeTx(agentRow(true)).tx, args),
+    ).resolves.toBe('policy');
+  });
+
+  it('says the standard agent chose its runtime itself otherwise', async () => {
+    // No pin: Automatic.
+    readGovernancePolicyForOrg.mockResolvedValue({ enabled: true });
+    await expect(
+      agentHarnessChoice(fakeTx(agentRow(true)).tx, args),
+    ).resolves.toBe('automatic');
+    // An Admin pinned another runtime after the kick: the run's own runtime
+    // was not the policy's.
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: true,
+      harness: 'codex',
+    });
+    await expect(
+      agentHarnessChoice(fakeTx(agentRow(true)).tx, args),
+    ).resolves.toBe('automatic');
   });
 });

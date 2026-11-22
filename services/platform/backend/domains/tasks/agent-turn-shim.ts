@@ -7,6 +7,7 @@ import {
 } from '../../../lib/harnesses/timeline';
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import type { HarnessReason } from '../../../lib/shared/harness-reason';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
@@ -14,6 +15,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { orgAdapterShimHandlers } from '../../lib/org-config.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
+import { agentHarnessChoice } from '../projects/standard-agent.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
@@ -541,6 +543,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The harness the turn runs on — stamped by the open, read by the
          * harness-turn metrics ahead of the session's create-time stamp. */
         harness?: string;
+        /** Why the turn runs on that harness — the rule its host applied,
+         * which the run's details tell (migration 0240). */
+        harnessReason?: HarnessReason;
         agentSlug?: string;
         deadlineMs?: number;
         heartbeatAt?: number;
@@ -574,9 +579,10 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             org_id, session_id, thread_id, exec_id, kind, status,
             progress_text, live_timeline, agent_session_id, exit_code,
             agent_result_status, user_id, model_ref, vision_model_ref,
-            harness, agent_slug, deadline_ms, heartbeat_at_ms,
-            last_event_at_ms, last_seq, minted_key_id, spent_cents,
-            budget_cents, spend_settled_at_ms, started_at_ms, finished_at_ms
+            harness, harness_reason, agent_slug, deadline_ms,
+            heartbeat_at_ms, last_event_at_ms, last_seq, minted_key_id,
+            spent_cents, budget_cents, spend_settled_at_ms, started_at_ms,
+            finished_at_ms
           ) VALUES (
             ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
             ${args.execId}, ${args.kind}, ${args.status},
@@ -585,7 +591,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             ${args.agentSessionId ?? null}, ${args.exitCode ?? null},
             ${args.agentResultStatus ?? null}, ${args.userId ?? null},
             ${args.modelRef ?? null}, ${args.visionModelRef ?? null},
-            ${args.harness ?? null},
+            ${args.harness ?? null}, ${args.harnessReason ?? null},
             ${args.agentSlug ?? null}, ${args.deadlineMs ?? null},
             ${args.heartbeatAt ?? now}, ${args.lastEventAt ?? null},
             ${args.lastSeq ?? null}, ${args.mintedKeyId ?? null},
@@ -618,6 +624,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               app.sandbox_session_ops.vision_model_ref),
             harness = coalesce(EXCLUDED.harness,
               app.sandbox_session_ops.harness),
+            harness_reason = coalesce(EXCLUDED.harness_reason,
+              app.sandbox_session_ops.harness_reason),
             deadline_ms = coalesce(EXCLUDED.deadline_ms,
               app.sandbox_session_ops.deadline_ms),
             -- Delayed progress carries its callback time; it must not
@@ -934,6 +942,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { agentId: string; runId?: string };
       return readProjectAgentSkillScope(sql, args.agentId, args.runId);
+    },
+
+    // How the run got its runtime — the agent's own, the standard agent's
+    // policy, or its automatic choice — for the reason the turn's op keeps.
+    'projects/internal_queries:getAgentHarnessChoice': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        agentId: string;
+        harness: string;
+      };
+      return agentHarnessChoice(sql, args);
     },
 
     // Skill bundles for staging — the reused file layer.

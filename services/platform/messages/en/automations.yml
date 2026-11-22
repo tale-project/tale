@@ -997,6 +997,14 @@ runs:
     retry: Try again
     servedBy: 'This turn ran on {model}.'
     visionModel: 'Images in this run were read by {model}.'
+    # Why the turn ran on its agent runtime, as the host that opened it
+    # recorded (`lib/shared/harness-reason.ts`). `owner` is who names a
+    # runtime: an agent on a task, a step in an automation.
+    harnessReason:
+      pinned: 'This turn ran on {runtime}, the agent runtime {owner, select, agent {this agent} other {this step}} names.'
+      default: 'This turn ran on {runtime}, the default agent runtime.'
+      subscriptionBound: 'This turn ran on {runtime} because only a subscription serves its model, and that subscription works only in {runtime}.'
+      policy: "This turn ran on {runtime}, the agent runtime set for the organization's standard agent under Governance."
   approval:
     title: 'Waiting for your approval: {operation}'
     node: 'Requested by node "{node}" — approving lets it act right away; rejecting fails it.'

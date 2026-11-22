@@ -36,6 +36,10 @@ import {
   type AgentLanguageContext,
 } from '../../../lib/shared/agent-language';
 import {
+  agentHarnessReason,
+  type HarnessReason,
+} from '../../../lib/shared/harness-reason';
+import {
   type AllowedModelRef,
   resolveGatewayRouting,
 } from '../../../lib/shared/providers/gateway_routing';
@@ -1042,6 +1046,39 @@ interface PreparedServing {
  * meter, and nothing to revoke at settle. Shared by the fresh start and the
  * steer restart so the two lanes can never drift.
  */
+/**
+ * Why this turn runs on its harness, for its op (`harness_reason`): the
+ * agent's own runtime, the standard agent's policy, or its automatic choice
+ * — a model only a subscription serves runs on the runtime that
+ * subscription is bound to, any other on the default. A label, never a
+ * gate: a read that fails leaves the reason out and the turn starts.
+ */
+async function turnHarnessReason(
+  ctx: ActionCtx,
+  args: { organizationId: string; agentId: string; harness: string },
+  lane: TaskServing['lane'],
+): Promise<HarnessReason | undefined> {
+  try {
+    const choice: unknown = await ctx.runQuery(
+      internal.projects.internal_queries.getAgentHarnessChoice,
+      {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        harness: args.harness,
+      },
+    );
+    return choice === 'pinned' || choice === 'policy' || choice === 'automatic'
+      ? agentHarnessReason(choice, lane)
+      : undefined;
+  } catch (error) {
+    console.warn(
+      '[task-agent] could not read how the run got its harness — the turn records no reason:',
+      error,
+    );
+    return undefined;
+  }
+}
+
 async function mintTurnServing(
   ctx: ActionCtx,
   args: {
@@ -1050,6 +1087,9 @@ async function mintTurnServing(
     /** The exec the minted key serves — the reservation's op row. */
     execId: string;
     harness: string;
+    /** The run's agent: whose runtime it is decides why the turn runs on
+     * it ({@link turnHarnessReason}). */
+    agentId: string;
     /** Broker-token hashes the failure streak already burned — the vend
      * advances past them (`resolveProviderCredential`). */
     excludeBrokerTokenHashes?: string[];
@@ -1060,6 +1100,9 @@ async function mintTurnServing(
   resolved: TaskServing,
   brokerTransport?: BrokerTransportScope,
 ): Promise<PreparedServing> {
+  // The reservation opens the turn's op: it records why the turn runs on
+  // its harness beside the harness itself.
+  const harnessReason = await turnHarnessReason(ctx, args, resolved.lane);
   if (resolved.lane === 'gateway') {
     // Claude Code + a connector with a native Anthropic harness endpoint
     // (DeepSeek) rides that endpoint's distinct record; the flag must reach the
@@ -1110,6 +1153,7 @@ async function mintTurnServing(
           defaultBudgetCents: workflowAgentBudgetCents(),
           modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
           harness: args.harness,
+          ...(harnessReason !== undefined ? { harnessReason } : {}),
         },
       ),
     );
@@ -1155,6 +1199,7 @@ async function mintTurnServing(
         costFree: true,
         modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
         harness: args.harness,
+        ...(harnessReason !== undefined ? { harnessReason } : {}),
       },
     ),
     { allowZero: true },

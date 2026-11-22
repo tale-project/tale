@@ -15346,6 +15346,83 @@ async function checkAutomationRunLifecycle(
     `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel} on ${liveOpView.data.harness ?? 'no harness'}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
   );
 
+  // ---- #5a: why a turn runs on its harness (migration 0240). The host's
+  // open records the rule it applied, a later write of the same turn that
+  // names none keeps it, the step's agent-node read answers it with the
+  // harness's name, and the column refuses a rule it does not know.
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { getAgentNodeSandboxOp } =
+    await import('./domains/sandbox/sessions.ts');
+  const reasonRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      wake_at_ms, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'ops/lifecycle', 1, 'running', 'live', 'itest:reason',
+      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+      ${null}, 1, ${Date.now()}
+    ) RETURNING id
+  `;
+  });
+  const reasonRunId = reasonRun[0]?.id ?? '';
+  const reasonSessionId = naming.sessionIdForWorkflowExecution(reasonRunId);
+  const upsertOp =
+    agentTurnShimHandlers(sql)['sandbox/session_mutations:upsertSessionOp'];
+  const reasonOp = {
+    organizationId: orgId,
+    sessionId: reasonSessionId,
+    execId: 'exec-reason-1',
+    kind: 'workflow-agent',
+    status: 'running',
+    modelRef: 'anthropic/claude-sonnet-4-6',
+    harness: 'claude-code',
+  };
+  await upsertOp?.({ ...reasonOp, harnessReason: 'subscription_bound' });
+  // The start's merge and every progress flush write the turn again,
+  // naming no reason.
+  await upsertOp?.({ ...reasonOp, heartbeatAt: Date.now() });
+  const reasonView = z
+    .object({
+      harness: z.string(),
+      harnessLabel: z.string(),
+      harnessReason: z.string(),
+    })
+    .safeParse(
+      await getAgentNodeSandboxOp(sql, {
+        organizationId: orgId,
+        runId: reasonRunId,
+      }),
+    );
+  let unknownRule = 'accepted';
+  try {
+    await sql`
+      UPDATE app.sandbox_session_ops SET harness_reason = 'a-rule-nobody-wrote'
+      WHERE session_id = ${reasonSessionId} AND exec_id = 'exec-reason-1'
+    `;
+  } catch (error) {
+    unknownRule =
+      error instanceof Error && 'code' in error ? String(error.code) : 'threw';
+  }
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ${reasonSessionId}
+  `;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${reasonRunId}`;
+  });
+  record(
+    'a turn records why it runs on its harness: kept across later writes, read with the harness name, an unknown rule refused',
+    reasonView.success &&
+      reasonView.data.harness === 'claude-code' &&
+      reasonView.data.harnessLabel === 'Claude Code' &&
+      reasonView.data.harnessReason === 'subscription_bound' &&
+      unknownRule === '23514',
+    `read=${reasonView.success ? `${reasonView.data.harnessLabel}/${reasonView.data.harnessReason}` : 'ERR'} (want Claude Code/subscription_bound), unknown rule=${unknownRule} (want 23514)`,
+  );
+
   // ---- #5b: the agent node's folder mounts list through the run's shim —
   // recursive walk with subfolder-relative names, blob-backed live rows only,
   // hub path addressing, and null for a folder the org does not have.

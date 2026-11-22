@@ -14,6 +14,7 @@ import type {
   TaskOpsRun,
 } from '@/backend/domains/tasks/service';
 import type { AgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
+import type { HarnessReason } from '@/lib/shared/harness-reason';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
 /**
@@ -524,6 +525,11 @@ export interface TasksContract {
       startedAt: number;
       visionModelRef?: string;
       modelRef?: string;
+      /** The harness the turn ran on, its display name, and why it ran
+       * there (`lib/shared/harness-reason.ts`). */
+      harness?: string;
+      harnessLabel?: string;
+      harnessReason?: HarnessReason;
       liveTimeline?: Array<{
         text?: string;
         input?: unknown;

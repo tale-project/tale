@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 185 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 187 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -219,6 +219,19 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   the past tense once nothing moves; **Open the full run**
   (`tasks.run.openFull`) navigates to the run page under
   `…/projects/{projectId}/automations/…`
+- [ ] `TASK-F101` · **Why a run ran on its agent runtime** — Open the
+  execution log (TASK-F13) of a finished run of a project agent, and of a
+  run of the standard agent → Under the log, after the line that names the
+  model (`automations.runs.agentLog.servedBy`), one sentence says which agent
+  runtime ran the turn and why: the project agent's run ran on the runtime
+  the agent names (`automations.runs.agentLog.harnessReason.pinned`); the
+  standard agent's ran on the default agent runtime
+  (`automations.runs.agentLog.harnessReason.default`), on the runtime a
+  subscription works in when only that subscription serves its model
+  (`automations.runs.agentLog.harnessReason.subscriptionBound`), or on the
+  runtime its policy sets under Governance
+  (`automations.runs.agentLog.harnessReason.policy`). A run from before this
+  release shows no such sentence.
 - [ ] `TASK-F14` · **Outputs & settle** — Let a run finish → The Run row flips
   to **Finished** (`tasks.agentRun.status.settled`); the result is posted as
   an agent comment and the task parks at **In review** (agents never complete

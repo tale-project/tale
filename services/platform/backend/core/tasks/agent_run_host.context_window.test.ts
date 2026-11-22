@@ -64,6 +64,8 @@ const io = vi.hoisted(() => ({
     | { providerSlug: string; modelId: string; apiBaseUrl: string },
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
+  /** How the run got its runtime (`getAgentHarnessChoice`). */
+  harnessChoice: 'pinned' as 'pinned' | 'policy' | 'automatic',
   /** What the turn's budget reservation answers. */
   reservation: { allowed: true, budgetCents: 500 } as
     | { allowed: true; budgetCents: number }
@@ -302,6 +304,9 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
         }
         return { confined: run.confined ?? false };
       }
+      if (name === 'projects/internal_queries:getAgentHarnessChoice') {
+        return io.harnessChoice;
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -367,6 +372,7 @@ beforeEach(() => {
   io.subscription = undefined;
   io.sessionRefusal = undefined;
   io.reservation = { allowed: true, budgetCents: 500 };
+  io.harnessChoice = 'pinned';
   io.brokerRow = null;
   io.ensures = 0;
   io.endpointPolicy = { kind: 'open' };
@@ -711,6 +717,81 @@ describe('a task agent start', () => {
       costFree: true,
       modelRef: 'anthropic/claude-sonnet-4-6',
     });
+  });
+
+  it('records on the op it opens that an agent runs on the runtime it names', async () => {
+    const { ctx, mutations, queries } = makeCtx({
+      status: 'queued',
+      execId: 'exec-1',
+    });
+
+    await startTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.starts).toHaveLength(1);
+    expect(
+      queries.find(
+        (q) => q.name === 'projects/internal_queries:getAgentHarnessChoice',
+      )?.args,
+    ).toMatchObject({ agentId: KEYS.agentId, harness: KEYS.harness });
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({ kind: 'task-agent', harnessReason: 'pinned' });
+  });
+
+  it.each([
+    ['automatic', 'subscription_bound'],
+    ['policy', 'policy'],
+  ] as const)(
+    'records why the standard agent’s %s subscription turn runs on its runtime',
+    async (choice, reason) => {
+      io.harnessChoice = choice;
+      io.subscription = {
+        providerSlug: 'anthropic',
+        modelId: 'claude-sonnet-4-6',
+        apiBaseUrl: 'https://api.anthropic.com',
+      };
+      vi.mocked(resolveProviderCredential).mockResolvedValue({
+        authMethod: 'subscription-key',
+        credentialId: 'credential-1',
+        name: 'Team subscription',
+        secret: 'synthetic-subscription-key',
+      } as never);
+      io.reservation = { allowed: true, budgetCents: 0 };
+      const { ctx, mutations } = makeCtx({
+        status: 'queued',
+        execId: 'exec-1',
+      });
+
+      await startTaskAgentTurnImpl(ctx, {
+        ...KEYS,
+        harness: 'claude-code',
+        model: 'claude-sonnet-4-6',
+        modelProvider: 'anthropic',
+        sweep: true,
+      } as never);
+
+      expect(
+        mutations.find(
+          (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+        )?.args,
+      ).toMatchObject({ costFree: true, harnessReason: reason });
+    },
+  );
+
+  it('still starts, recording no reason, when how the run got its runtime cannot be read', async () => {
+    io.harnessChoice = 'unreadable' as never;
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.starts).toHaveLength(1);
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).not.toHaveProperty('harnessReason');
   });
 
   it('refuses a subscription start at a reached request cap, before any credential is vended [GOV-R16]', async () => {

@@ -36,6 +36,7 @@ import {
   type StandardAgentEngine,
 } from '../projects/standard-agent.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
+import { type OpRuntimeView, opRuntimeView } from '../sandbox/op-runtime.ts';
 import {
   countedAgentRunWake,
   countFailedAgentRun,
@@ -1752,7 +1753,7 @@ export async function listTaskAgentRunSummaries(
 }
 
 /** The 0.4 sandbox-op wire for one run's live transcript. */
-export interface TaskAgentRunSandboxOp {
+export interface TaskAgentRunSandboxOp extends OpRuntimeView {
   execId: string;
   status: string;
   progressText?: string;
@@ -1793,6 +1794,8 @@ export async function getAgentRunSandboxOp(
       liveTimeline: unknown;
       modelRef: string | null;
       visionModelRef: string | null;
+      harness: string | null;
+      harnessReason: string | null;
       startedAt: number;
       finishedAt: number | null;
       lastEventAt: number | null;
@@ -1800,7 +1803,8 @@ export async function getAgentRunSandboxOp(
   >`
     SELECT exec_id AS "execId", status, progress_text AS "progressText",
            live_timeline AS "liveTimeline", model_ref AS "modelRef",
-           vision_model_ref AS "visionModelRef",
+           vision_model_ref AS "visionModelRef", harness,
+           harness_reason AS "harnessReason",
            started_at_ms::float8 AS "startedAt",
            finished_at_ms::float8 AS "finishedAt",
            last_event_at_ms::float8 AS "lastEventAt"
@@ -1826,6 +1830,9 @@ export async function getAgentRunSandboxOp(
       ...(op.visionModelRef !== null
         ? { visionModelRef: op.visionModelRef }
         : {}),
+      // Where the turn ran, and why there (an agent's own runtime, the
+      // standard agent's policy or automatic choice), told on the details.
+      ...opRuntimeView(op),
       startedAt: op.startedAt,
       ...(op.finishedAt !== null ? { finishedAt: op.finishedAt } : {}),
       ...(op.lastEventAt !== null ? { lastEventAt: op.lastEventAt } : {}),

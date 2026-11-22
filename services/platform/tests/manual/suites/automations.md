@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 312 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 313 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -355,6 +355,19 @@ output:
       the sandbox turn; before output `automations.runs.agentLog.starting`; a
       logless run reads `automations.runs.agentLog.empty`; absent entirely for
       runs without an agent node.
+- [ ] `AUTO-F252` · **Why a step ran on its agent runtime** — (env-gated: a
+      run with agent steps) Run an automation with one agent step that names
+      an agent runtime and one on **Default**
+      (`automations.editor.agent.harnessDefault`), then open each step's
+      **Agent log** → Under the transcript, after the line that names the
+      model (`automations.runs.agentLog.servedBy`), one sentence says which
+      agent runtime ran the step and why: the step that names one ran on the
+      runtime it names (`automations.runs.agentLog.harnessReason.pinned`);
+      the step on **Default** ran on the default agent runtime
+      (`automations.runs.agentLog.harnessReason.default`), or, when only a
+      subscription serves its model, on the runtime that subscription works
+      in (`automations.runs.agentLog.harnessReason.subscriptionBound`). A
+      step that ran before this release shows no such sentence.
 - [ ] `AUTO-F24` · **Bounded run log** — Author a transform whose output is
       huge (e.g. a 100 KB string built in code) → Test run → inspect the node **In
       this run** → The run completes and its row persists (the write never dies on

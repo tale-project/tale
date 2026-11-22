@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { HarnessReason } from '../../../lib/shared/harness-reason.ts';
 import { loadAttributedBudgetSubject } from '../governance/attributed-subject.ts';
 import {
   resolveTurnAllowance,
@@ -60,6 +61,9 @@ export async function reserveTurnBudget(
     /** The harness this turn runs on — the op row's own record, which the
      * harness-turn metrics read ahead of the session's create-time stamp. */
     harness?: string;
+    /** Why the turn runs on that harness — the rule its host applied,
+     * which the run's details tell (migration 0240). */
+    harnessReason?: HarnessReason;
     /** The billing subject, when the caller authenticated it and there is
      * no run to derive it from — the model endpoints' key holder, under
      * `__direct_api__`, with the key. Stamped on the op row, where the
@@ -176,8 +180,9 @@ export async function reserveTurnBudget(
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        api_key_id, project_ids, model_ref, harness, budget_cents,
-        reserved_tokens, deadline_ms, heartbeat_at_ms, started_at_ms
+        api_key_id, project_ids, model_ref, harness, harness_reason,
+        budget_cents, reserved_tokens, deadline_ms, heartbeat_at_ms,
+        started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
@@ -185,6 +190,7 @@ export async function reserveTurnBudget(
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
         ${[...(subject.projectIds ?? [])]},
         ${args.modelRef ?? null}, ${args.harness ?? null},
+        ${args.harnessReason ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
         ${args.deadlineAtMs ?? null}, ${now}, ${now}
       )
@@ -199,7 +205,9 @@ export async function reserveTurnBudget(
           EXCLUDED.project_ids),
         model_ref = coalesce(EXCLUDED.model_ref,
           app.sandbox_session_ops.model_ref),
-        harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)
+        harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness),
+        harness_reason = coalesce(EXCLUDED.harness_reason,
+          app.sandbox_session_ops.harness_reason)
     `;
     return allowance;
   });

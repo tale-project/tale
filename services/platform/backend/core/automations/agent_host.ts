@@ -33,6 +33,7 @@ import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
+import { agentHarnessReason } from '../../../lib/shared/harness-reason';
 import {
   type AllowedModelRef,
   resolveGatewayRouting,
@@ -492,7 +493,10 @@ export function automationAgentHost(
       // lane's invariant): from this point, every death of the scheduled
       // start leaves a stale-heartbeat op the agent-turn watchdog settles,
       // instead of a turn no sweep can see or claim. The start's own upsert
-      // later merges the minted key onto this row.
+      // later merges the minted key onto this row. It records why the turn
+      // runs on its harness: the step names it, or the serving put it
+      // there — a model only a subscription serves runs on the runtime that
+      // subscription is bound to, any other on the default.
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -503,6 +507,10 @@ export function automationAgentHost(
           status: 'running',
           modelRef: `${serving.providerSlug}/${execModel}`,
           harness,
+          harnessReason: agentHarnessReason(
+            request.harness !== undefined ? 'pinned' : 'automatic',
+            serving.lane,
+          ),
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
         },
@@ -2511,6 +2519,11 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           status: 'running',
           modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
           harness: agent.harness,
+          // The asking turn's rule, read again for the serving resolved now.
+          harnessReason: agentHarnessReason(
+            typeof agent.input.harness === 'string' ? 'pinned' : 'automatic',
+            serving.lane,
+          ),
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
           ...(auth.mintedKeyId !== undefined

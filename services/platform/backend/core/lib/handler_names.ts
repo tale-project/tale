@@ -250,6 +250,7 @@ interface HandlerNames {
   projects: FunctionRef & {
     internal_queries: FunctionRef & {
       assertProjectAccessForChat: FunctionRef;
+      getAgentHarnessChoice: FunctionRef;
       getProjectAgentSkillScope: FunctionRef;
       getProjectForInjection: FunctionRef;
       getProjectIdForThread: FunctionRef;

@@ -4,6 +4,7 @@
  */
 
 import type { WaitingAgentRunCounts } from '@/backend/domains/sandbox/sessions';
+import type { HarnessReason } from '@/lib/shared/harness-reason';
 import type { SandboxDeploymentLimits } from '@/lib/shared/schemas/sandbox-capacity';
 
 export interface SandboxContract {
@@ -26,6 +27,11 @@ export interface SandboxContract {
       startedAt: number;
       visionModelRef?: string;
       modelRef?: string;
+      /** The harness the turn ran on, its display name, and why it ran
+       * there (`lib/shared/harness-reason.ts`). */
+      harness?: string;
+      harnessLabel?: string;
+      harnessReason?: HarnessReason;
       liveTimeline?: Array<{
         text?: string;
         input?: unknown;

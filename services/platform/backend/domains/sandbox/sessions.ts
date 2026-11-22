@@ -53,6 +53,7 @@ import {
   type IdleReleaseSession,
   type IdleReleaseTicketReader,
 } from './idle-release.ts';
+import { opRuntimeView } from './op-runtime.ts';
 
 /**
  * The sandbox session substrate over PG — the 0.5 twin of
@@ -1305,6 +1306,8 @@ export async function getAgentNodeSandboxOp(
       liveTimeline: unknown;
       modelRef: string | null;
       visionModelRef: string | null;
+      harness: string | null;
+      harnessReason: string | null;
       startedAt: number;
       finishedAt: number | null;
       lastEventAt: number | null;
@@ -1312,7 +1315,8 @@ export async function getAgentNodeSandboxOp(
   >`
     SELECT exec_id AS "execId", status, progress_text AS "progressText",
            live_timeline AS "liveTimeline", model_ref AS "modelRef",
-           vision_model_ref AS "visionModelRef",
+           vision_model_ref AS "visionModelRef", harness,
+           harness_reason AS "harnessReason",
            started_at_ms::float8 AS "startedAt",
            finished_at_ms::float8 AS "finishedAt",
            last_event_at_ms::float8 AS "lastEventAt"
@@ -1334,6 +1338,9 @@ export async function getAgentNodeSandboxOp(
     ...(op.visionModelRef !== null
       ? { visionModelRef: op.visionModelRef }
       : {}),
+    // Where the turn ran, and why there: the step on the default runs where
+    // the kick resolved it, which the details say in one sentence.
+    ...opRuntimeView(op),
     startedAt: op.startedAt,
     ...(op.finishedAt !== null ? { finishedAt: op.finishedAt } : {}),
     ...(op.lastEventAt !== null ? { lastEventAt: op.lastEventAt } : {}),

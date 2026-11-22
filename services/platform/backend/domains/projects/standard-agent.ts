@@ -585,6 +585,33 @@ export async function standardAgentServingForKick(
   };
 }
 
+/**
+ * How a run of this agent got its runtime, for the reason its turns record
+ * (`harness_reason`, `agentHarnessReason`): an agent of a project's own
+ * names it (`pinned`); the standard agent runs on what its policy pins
+ * (`policy`), or on what it chose automatically (`automatic`) — the turn's
+ * serving then tells a subscription's bound runtime from the default. Read
+ * when a turn opens: the run's harness is the one its kick resolved, so the
+ * policy counts only when it pins that very harness (an Admin's edit since
+ * the kick does not relabel the run).
+ */
+export async function agentHarnessChoice(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; agentId: string; harness: string },
+): Promise<'pinned' | 'policy' | 'automatic'> {
+  const rows = await sql<{ managed: boolean }[]>`
+    SELECT managed FROM app.project_agents
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  const managed = rows[0]?.managed ?? false;
+  if (!managed) return 'pinned';
+  const config = await readStandardAgentPolicy(sql, args.organizationId);
+  return config !== 'unreadable' && config.harness === args.harness
+    ? 'policy'
+    : 'automatic';
+}
+
 /** The codes a kick answers for a standard agent that cannot run — the
  * retry job retires a failed run on them instead of retrying forever. */
 export const STANDARD_AGENT_REFUSAL_CODES: ReadonlySet<string> = new Set([
