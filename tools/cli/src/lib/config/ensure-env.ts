@@ -373,8 +373,9 @@ export async function ensureEnv(
       // Root credential for the bundled object store — the deployment's blob
       // backend, and the only one there is (S3-compatible storage replaced
       // Convex `_storage`). Auto-generated so uploads work out of the box and
-      // the credential is STABLE across deploys: rotating it would orphan
-      // every blob already written under the old key.
+      // the credential is STABLE across deploys: the store and the backend
+      // both read it, so a change takes the two replaced together (`tale
+      // deploy --stop`). Its blobs stay readable under a new key.
       'OBJECT_STORE_SECRET_KEY',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
@@ -800,8 +801,9 @@ function generateEnvContent(config: EnvConfig): string {
     '# deployment without it refuses every upload. An organization can point its',
     '# own blobs at an external bucket in Settings > Data residency; that is',
     '# resolved BEFORE this default and is unaffected by these values.',
-    '#   - The key must stay STABLE across deploys: rotating it orphans every',
-    '#     blob already written under the old credential.',
+    '#   - The store and the backend both read the key. To rotate it, change',
+    '#     it here and run `tale deploy --stop`, which replaces the two',
+    '#     together; the blobs stay readable under the new key.',
     '#   - OBJECT_STORE_BUCKET defaults to tale-blobs and is created on first boot.',
     'OBJECT_STORE_ACCESS_KEY=tale',
     `OBJECT_STORE_SECRET_KEY=${config.objectStoreSecretKey}`,
