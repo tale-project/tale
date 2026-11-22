@@ -125,12 +125,14 @@ services:
       start_period: 120s
 
     # Memory reclaim spares while sandbox sessions press on host memory
-    # (cgroup v2 memory.low). Mirrors the CLI generator (memory-env.ts); it
-    # only holds where Docker's parent cgroup grants protection too (see the
-    # self-hosting docs). On cgroup v1 Docker makes a reservation a soft limit
-    # that reclaim takes from first: set this and the three below to 0 there.
-    # `tale deploy` asks the engine and leaves them out by itself.
-    mem_reservation: ${DB_MEMORY_RESERVATION:-512m}
+    # (cgroup v2 memory.low): each service's share of the host's memory
+    # budget, 476m for the eight that reserve. Mirrors the CLI generator
+    # (memory-env.ts); it only holds where Docker's parent cgroup grants
+    # protection too (see the self-hosting docs). On cgroup v1 Docker makes a
+    # reservation a soft limit that reclaim takes from first: set this and the
+    # seven below to 0 there. `tale deploy` asks the engine and leaves them
+    # out by itself.
+    mem_reservation: ${DB_MEMORY_RESERVATION:-120m}
 
     # Logging configuration
     logging:
@@ -324,9 +326,11 @@ services:
       proxy:
         condition: service_healthy
 
-    # Memory reclaim spares while sandbox sessions press on host memory.
-    # Mirrors the CLI generator (memory-env.ts); 0 on cgroup v1 (see db).
-    mem_reservation: ${PLATFORM_MEMORY_RESERVATION:-128m}
+    # Memory reclaim spares while sandbox sessions press on host memory: the
+    # web tier's part of the application's 256m, which the three services of
+    # this file divide. Mirrors the CLI generator (memory-env.ts); 0 on
+    # cgroup v1 (see db).
+    mem_reservation: ${PLATFORM_MEMORY_RESERVATION:-64m}
 
     # Logging configuration
     logging:
@@ -425,6 +429,20 @@ services:
       ROOT_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
       # The region a request is signed for; the backend reads the same setting.
       VGW_REGION: ${OBJECT_STORE_REGION:-us-east-1}
+      # versitygw's heap held near the store's share (see mem_reservation
+      # below): 80 % of it. Compose cannot compute that from the variable, so
+      # a changed OBJECT_STORE_MEMORY_RESERVATION wants this changed with it.
+      GOMEMLIMIT: 28MiB
+
+    # The store's share of the host's memory, spared by reclaim while sandbox
+    # sessions press on host memory (cgroup v2 memory.low; 0 on cgroup v1, see
+    # db), and a limit four times as large: a backstop against a runaway, not
+    # the budget, since GOMEMLIMIT bounds garbage and not memory a request
+    # holds. Mirrors the CLI generator (memory-env.ts), which derives both
+    # GOMEMLIMIT and the limit from the reservation; here a reservation above
+    # 140m needs mem_limit raised too, or Docker refuses to create the store.
+    mem_reservation: ${OBJECT_STORE_MEMORY_RESERVATION:-35m}
+    mem_limit: 140m
 
     # An object is a file under its bucket's directory, and what S3 says of it
     # (content type, ETag) is in the file's extended attributes. The volume's
@@ -476,9 +494,10 @@ services:
       dockerfile: services/platform/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
-    # Memory reclaim spares while sandbox sessions press on host memory.
-    # Mirrors the CLI generator (memory-env.ts); 0 on cgroup v1 (see db).
-    mem_reservation: ${BACKEND_API_MEMORY_RESERVATION:-256m}
+    # Memory reclaim spares while sandbox sessions press on host memory: the
+    # API's part of the application's 256m. Mirrors the CLI generator
+    # (memory-env.ts); 0 on cgroup v1 (see db).
+    mem_reservation: ${BACKEND_API_MEMORY_RESERVATION:-128m}
     environment:
       TALE_ROLE: api
       PORT: '3005'
@@ -587,9 +606,10 @@ services:
       dockerfile: services/platform/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
-    # Memory reclaim spares while sandbox sessions press on host memory.
-    # Mirrors the CLI generator (memory-env.ts); 0 on cgroup v1 (see db).
-    mem_reservation: ${BACKEND_WORKER_MEMORY_RESERVATION:-256m}
+    # Memory reclaim spares while sandbox sessions press on host memory: the
+    # job runner's part of the application's 256m. Mirrors the CLI generator
+    # (memory-env.ts); 0 on cgroup v1 (see db).
+    mem_reservation: ${BACKEND_WORKER_MEMORY_RESERVATION:-64m}
     environment:
       TALE_ROLE: worker
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}
@@ -715,6 +735,21 @@ services:
       # one alone, so a container of another project on the same host cannot
       # claim a route on this edge.
       TALE_PROXY_PROJECTS: ${COMPOSE_PROJECT_NAME:-tale}
+      # Traefik's heap held near the edge's share (see mem_reservation below):
+      # 80 % of it, since it grows with the garbage of a burst of requests.
+      # Compose cannot compute that from the variable, so a changed
+      # PROXY_MEMORY_RESERVATION wants this changed with it.
+      GOMEMLIMIT: 28MiB
+
+    # The edge's share of the host's memory, spared by reclaim while sandbox
+    # sessions press on host memory (cgroup v2 memory.low; 0 on cgroup v1, see
+    # db), and a limit four times as large: a backstop against a runaway, not
+    # the budget, since GOMEMLIMIT bounds garbage and not memory a request
+    # holds. Mirrors the CLI generator (memory-env.ts), which derives both
+    # GOMEMLIMIT and the limit from the reservation; here a reservation above
+    # 140m needs mem_limit raised too, or Docker refuses to create the proxy.
+    mem_reservation: ${PROXY_MEMORY_RESERVATION:-35m}
+    mem_limit: 140m
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -824,6 +859,10 @@ services:
     # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
     # against the pids limit. A raised connection limit needs these raised.
     mem_limit: 512m
+    # Its share of the host's memory, spared by reclaim while sandbox sessions
+    # press on host memory. Mirrors the CLI generator (memory-env.ts); 0 on
+    # cgroup v1 (see db).
+    mem_reservation: ${SANDBOX_EGRESS_MEMORY_RESERVATION:-10m}
     pids_limit: 4096
     ulimits:
       nofile:
@@ -957,11 +996,12 @@ services:
         required: false
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
-      # What db, platform, backend-api and backend-worker reserve at their
-      # defaults: the least memory admission leaves free unless
-      # SANDBOX_MIN_FREE_MEMORY is set. The CLI derives it from the
-      # reservations it generates; this file cannot add variables up.
-      SANDBOX_RESERVED_MEMORY: 1152m
+      # What the eight services that reserve memory in this file reserve at
+      # their defaults, this spawner and its egress proxy included: the least
+      # memory admission leaves free unless SANDBOX_MIN_FREE_MEMORY is set. The
+      # CLI derives it from the reservations it generates; this file cannot
+      # add variables up, so a changed reservation wants this changed with it.
+      SANDBOX_RESERVED_MEMORY: 476m
       # The device hub: organizations connect their own machines here to run
       # their sandboxes (Settings → Sandboxes → Devices). 0 turns it off.
       # Mirrors the CLI generator (create-sandbox-service.ts).
@@ -1011,6 +1051,10 @@ services:
     # operators running `docker compose up` directly got an uncapped
     # spawner — audit finding R2-B11.
     mem_limit: 1g
+    # Its share of the host's memory, spared by reclaim while the sessions it
+    # starts press on host memory. Mirrors the CLI generator (memory-env.ts);
+    # 0 on cgroup v1 (see db).
+    mem_reservation: ${SANDBOX_MEMORY_RESERVATION:-20m}
     pids_limit: 1024
     ulimits:
       nofile:

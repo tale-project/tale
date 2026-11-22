@@ -1,6 +1,11 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import {
+  composeSize,
+  memoryReservation,
+  SANDBOX_EGRESS_MEMORY_LIMIT_MIB,
+} from './memory-env';
 
 /**
  * The egress readiness probe, shared by both compose pipelines and kept
@@ -95,7 +100,11 @@ export function createSandboxEgressService(
     // tinyproxy runs a thread and holds two descriptors per connection
     // (SANDBOX_EGRESS_MAX_CLIENTS), and threads count against the pids
     // limit: both are sized for the default connection limit.
-    mem_limit: '512m',
+    mem_limit: composeSize(SANDBOX_EGRESS_MEMORY_LIMIT_MIB),
+    // Its share of the host's memory, spared by reclaim while sandbox
+    // sessions press on host memory, where the engine runs cgroup v2.
+    // Mirrored in compose.yml.
+    ...memoryReservation('sandbox-egress', config),
     pids_limit: 4096,
     ulimits: {
       nofile: { soft: 8192, hard: 16384 },

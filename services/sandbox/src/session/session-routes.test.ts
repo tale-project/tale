@@ -7802,8 +7802,8 @@ describe('memory-aware admission', () => {
   });
 
   test("the stack's reservations raise the reserve a create must leave", async () => {
-    // SANDBOX_MIN_FREE_MEMORY unset: the 4 GiB the database and the
-    // application tier reserve outweigh both a tenth of the host and 1 GiB.
+    // SANDBOX_MIN_FREE_MEMORY unset: the 4 GiB the stack's services reserve
+    // outweigh both a tenth of the host and 1 GiB.
     let available = 4.25;
     const routes = new SessionRoutes(
       { ...cfg, session: { ...cfg.session, reservedMemoryBytes: 4 * GIB } },

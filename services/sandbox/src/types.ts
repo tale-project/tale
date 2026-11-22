@@ -335,9 +335,9 @@ export interface SessionConfig {
    * unset is a tenth of the host, at least 1 GiB and at least
    * {@link reservedMemoryBytes}. */
   minFreeMemoryBytes?: number;
-  /** What the deployment's database and application tier reserve on this
-   * host (SANDBOX_RESERVED_MEMORY, which the CLI derives from their
-   * `mem_reservation`s). */
+  /** What the deployment's services reserve on this host, this spawner and
+   * its egress proxy included (SANDBOX_RESERVED_MEMORY, which the CLI derives
+   * from their `mem_reservation`s). */
   reservedMemoryBytes?: number;
   /** CPU pressure (the host's PSI `some avg10`, in percent, counted as far
    * as its CPUs are busy) at and above which admission lets sessions start

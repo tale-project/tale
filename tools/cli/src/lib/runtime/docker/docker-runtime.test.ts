@@ -647,6 +647,7 @@ async function isolatedSuite(): Promise<void> {
       'TALE_APP_TIER',
       'DB_PROFILE',
       'VIDEO_INGEST_POT_PROVIDER',
+      'PLATFORM_MEMORY_RESERVATION',
     ];
     let asked: Record<string, string | undefined> = {};
     beforeEach(() => {
@@ -740,10 +741,10 @@ async function isolatedSuite(): Promise<void> {
       // The drain aimed at blue is written by the colour that just came up,
       // through the one process that is its API.
       expect(drainedThrough()[0]).toBe(platform);
-      // The spawner leaves free what the new colour reserves: the database
-      // and one process, not three.
+      // The spawner leaves free what the stack reserves with the new colour:
+      // the application tier's share in one process, as in three.
       expect(environmentOf(`${PROJECT}-sandbox`).SANDBOX_RESERVED_MEMORY).toBe(
-        '768m',
+        '476m',
       );
 
       // Drained, then cut out of the serving names, then stopped: every
@@ -826,9 +827,10 @@ async function isolatedSuite(): Promise<void> {
       expect(environmentOf(`${PROJECT}-green-backend-worker-2`).TALE_ROLE).toBe(
         'worker',
       );
-      // The database, one process that is the API and two job runners.
+      // The services outside the application tier, one process that is the
+      // API and two job runners: 220 + 192 + 2 × 64.
       expect(environmentOf(`${PROJECT}-sandbox`).SANDBOX_RESERVED_MEMORY).toBe(
-        '1280m',
+        '540m',
       );
     });
 
@@ -1157,7 +1159,7 @@ async function isolatedSuite(): Promise<void> {
       expect(await servicesOf('blue')).toEqual([]);
       expect(drainedThrough()[0]).toBe(`${PROJECT}-green-backend-api-1`);
       expect(environmentOf(`${PROJECT}-sandbox`).SANDBOX_RESERVED_MEMORY).toBe(
-        '1152m',
+        '476m',
       );
     });
 
@@ -1243,11 +1245,15 @@ async function isolatedSuite(): Promise<void> {
       fake.seedImage(platformImage(LIVE), APP_IN_BACKEND);
       seedColour(fake, 'blue', LIVE, 'unified');
       await workspace('blue');
+      // Every shape divides the same share at the defaults; with a
+      // reservation of platform's own, one process reserves 520m with the
+      // rest of the stack where three services would reserve 712m.
+      process.env.PLATFORM_MEMORY_RESERVATION = '300m';
 
       await run(TARGET, { services: ['sandbox'] });
 
       expect(environmentOf(`${PROJECT}-sandbox`).SANDBOX_RESERVED_MEMORY).toBe(
-        '768m',
+        '520m',
       );
       expect(await fake.version(`${PROJECT}-blue-platform-1`)).toBe(LIVE);
     });

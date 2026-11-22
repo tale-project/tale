@@ -520,14 +520,22 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
 });
 
 describe('memory reservation parity', () => {
-  // `tale deploy` and `docker compose up` reserve the same memory for the
-  // database and the application tier, each overridden by the same variable,
-  // and hand the spawner the same sum at the defaults.
-  const VARS = [
+  // `tale deploy` and `docker compose up` reserve the same memory for every
+  // service of the memory budget, each overridden by the same variable, give
+  // the two Go services the same heap limit and backstop, and hand the
+  // spawner the same sum at the defaults.
+  const RESERVATION_VARS = [
     'DB_MEMORY_RESERVATION',
     'PLATFORM_MEMORY_RESERVATION',
     'BACKEND_API_MEMORY_RESERVATION',
     'BACKEND_WORKER_MEMORY_RESERVATION',
+    'OBJECT_STORE_MEMORY_RESERVATION',
+    'PROXY_MEMORY_RESERVATION',
+    'SANDBOX_MEMORY_RESERVATION',
+    'SANDBOX_EGRESS_MEMORY_RESERVATION',
+  ] as const;
+  const VARS = [
+    ...RESERVATION_VARS,
     'TALE_PLATFORM_REPLICAS',
     'TALE_BACKEND_API_REPLICAS',
     'TALE_BACKEND_WORKER_REPLICAS',
@@ -542,12 +550,13 @@ describe('memory reservation parity', () => {
     }
   });
 
-  test('compose.yml reserves what the CLI generates on cgroup v2, under the same variables', () => {
-    for (const name of VARS) delete process.env[name];
-    // compose.yml cannot ask the engine; `tale deploy` emits reservations
-    // where it reports cgroup v2 only (memory-env.ts).
-    const v2 = { ...config, cgroupVersion: 2 } satisfies ServiceConfig;
-    const generated = {
+  // compose.yml cannot ask the engine; `tale deploy` emits reservations where
+  // it reports cgroup v2 only (memory-env.ts). compose.yml runs the
+  // application as three services, the shape a generator gets that is named
+  // none.
+  const v2 = { ...config, cgroupVersion: 2 } satisfies ServiceConfig;
+  const generatedStack = () =>
+    ({
       db: [createDbService(v2), 'DB_MEMORY_RESERVATION'],
       platform: [
         createPlatformService(v2, 'blue'),
@@ -561,17 +570,77 @@ describe('memory reservation parity', () => {
         createBackendWorkerService(v2),
         'BACKEND_WORKER_MEMORY_RESERVATION',
       ],
-    } as const;
+      'object-store': [
+        createObjectStorageService(v2),
+        'OBJECT_STORE_MEMORY_RESERVATION',
+      ],
+      proxy: [
+        createProxyService(v2, 'localhost', ['tale']),
+        'PROXY_MEMORY_RESERVATION',
+      ],
+      sandbox: [createSandboxService(v2), 'SANDBOX_MEMORY_RESERVATION'],
+      'sandbox-egress': [
+        createSandboxEgressService(v2),
+        'SANDBOX_EGRESS_MEMORY_RESERVATION',
+      ],
+    }) as const;
+
+  test('compose.yml reserves what the CLI generates on cgroup v2, under the same variables', () => {
+    for (const name of VARS) delete process.env[name];
+    const generated = generatedStack();
     for (const [service, [generatedService, name]] of Object.entries(
       generated,
     )) {
-      expect(compose.services[service]?.mem_reservation).toBe(
+      expect(generatedService.mem_reservation, service).toBeDefined();
+      expect(compose.services[service]?.mem_reservation, service).toBe(
         `\${${name}:-${generatedService.mem_reservation}}`,
       );
     }
+    // And reserves for no service the CLI does not.
+    expect(
+      Object.entries(compose.services)
+        .filter(([, service]) => service.mem_reservation !== undefined)
+        .map(([name]) => name)
+        .sort(),
+    ).toEqual(Object.keys(generated).sort());
     expect(compose.services.sandbox?.environment?.SANDBOX_RESERVED_MEMORY).toBe(
       createSandboxService(config).environment?.SANDBOX_RESERVED_MEMORY,
     );
+  });
+
+  test("compose.yml hands the spawner the sum of its own reservations' defaults", () => {
+    const defaults = Object.values(compose.services).flatMap((service) => {
+      const reservation = /^\$\{[A-Z_]+:-(\d+)m\}$/.exec(
+        service.mem_reservation ?? '',
+      );
+      return reservation === null ? [] : [Number(reservation[1])];
+    });
+    expect(defaults).toHaveLength(RESERVATION_VARS.length);
+    expect(compose.services.sandbox?.environment?.SANDBOX_RESERVED_MEMORY).toBe(
+      `${defaults.reduce((sum, mib) => sum + mib, 0)}m`,
+    );
+  });
+
+  test('compose.yml gives the edge and versitygw the heap limit and the backstop the CLI derives at the defaults', () => {
+    for (const name of VARS) delete process.env[name];
+    const generated = generatedStack();
+    for (const service of ['object-store', 'proxy'] as const) {
+      const [generatedService] = generated[service];
+      expect(generatedService.environment?.GOMEMLIMIT, service).toBe('28MiB');
+      expect(generatedService.mem_limit, service).toBe('140m');
+      expect(compose.services[service]?.environment?.GOMEMLIMIT, service).toBe(
+        generatedService.environment?.GOMEMLIMIT,
+      );
+      expect(compose.services[service]?.mem_limit, service).toBe(
+        generatedService.mem_limit,
+      );
+    }
+    // The spawner and its egress proxy keep the fixed limits their
+    // reservations are held to.
+    for (const service of ['sandbox', 'sandbox-egress'] as const)
+      expect(compose.services[service]?.mem_limit, service).toBe(
+        generated[service][0].mem_limit,
+      );
   });
 
   test('Incus has no memory.low: its translator drops the reservation and bounds each instance with limits.memory', () => {
@@ -916,7 +985,10 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
         'http://127.0.0.1:9000/_health',
       ],
     });
+    // Its key, its region, and its heap limit (memory-env.ts): no secret of
+    // the deployment besides its own key.
     expect(Object.keys(generated.environment ?? {}).sort()).toEqual([
+      'GOMEMLIMIT',
       'ROOT_ACCESS_KEY',
       'ROOT_SECRET_KEY',
       'VGW_REGION',

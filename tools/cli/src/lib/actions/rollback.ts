@@ -454,7 +454,7 @@ export async function rollback(
     const reserved = reservedMemoryMib(tier);
     if (reservedBefore !== null && reservedBefore !== reserved)
       logger.warn(
-        `The application now runs as ${tier.services.join(', ')} and reserves ${reserved}m with the database, where the colour before it reserved ${reservedBefore}m. A rollback leaves the sandbox spawner as it is, so it still leaves ${reservedBefore}m free for them (SANDBOX_RESERVED_MEMORY). \`tale deploy --services sandbox\` gives it the new sum.`,
+        `The application now runs as ${tier.services.join(', ')}, and the stack reserves ${reserved}m in all, where it reserved ${reservedBefore}m with the colour before it. A rollback leaves the sandbox spawner as it is, so it still leaves ${reservedBefore}m free for them (SANDBOX_RESERVED_MEMORY). \`tale deploy --services sandbox\` gives it the new sum.`,
       );
   });
 }

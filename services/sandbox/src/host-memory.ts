@@ -70,9 +70,8 @@ export type MemoryReserveSettings = Pick<
 
 /** The memory admission always leaves free: the operator's, else a tenth of
  * the host and at least 1 GiB (the platform, its databases and the page cache
- * live on the same machine), and at least what the database and the
- * application tier reserve, so admission never hands sessions the memory that
- * reclaim spares for them. */
+ * live on the same machine), and at least what the stack's services reserve,
+ * so admission never hands sessions the memory that reclaim spares for them. */
 export function memoryReserveBytes(
   totalBytes: number,
   settings: MemoryReserveSettings,
@@ -201,8 +200,8 @@ export function hostSessionCapacity(
   cpus: number | null,
 ): { maxSessions: number; sized: boolean; warning: string | null } {
   const reserveBytes = memoryReserveBytes(totalBytes, cfg.session);
-  // What the database and the application tier reserve sets the reserve
-  // where it outweighs the default one, unless the operator set their own.
+  // What the stack's services reserve sets the reserve where it outweighs
+  // the default one, unless the operator set their own.
   const reserveSetting =
     cfg.session.minFreeMemoryBytes === undefined &&
     reserveBytes > memoryReserveBytes(totalBytes, {})

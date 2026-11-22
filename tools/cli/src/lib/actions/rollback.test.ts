@@ -768,13 +768,30 @@ describe('rollback confirmation', () => {
           (call[2] as { projectName?: string }).projectName ===
           `tale-${colour}`,
       )?.[1];
+    // At the defaults every shape divides the same share of the memory
+    // budget, so a rollback that changes the shape leaves the sum as it was.
+    // A reservation of platform's own makes the two shapes' sums differ:
+    // three services reserve 712m with it, one process 520m.
+    const withPlatformReservation = async (run: () => Promise<void>) => {
+      const before = process.env.PLATFORM_MEMORY_RESERVATION;
+      process.env.PLATFORM_MEMORY_RESERVATION = '300m';
+      try {
+        await run();
+      } finally {
+        if (before === undefined)
+          delete process.env.PLATFORM_MEMORY_RESERVATION;
+        else process.env.PLATFORM_MEMORY_RESERVATION = before;
+      }
+    };
 
     test('is one platform for a release that serves the app from its backend', async () => {
       arrangePatchRollback();
       protocolFloor = 2;
       targetProtocol = '2';
       targetServesApp = true;
-      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      await withPlatformReservation(() =>
+        rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+      );
       expect(upOf('green')).toEqual([
         'up',
         '-d',
@@ -790,7 +807,7 @@ describe('rollback confirmation', () => {
       // leaves it alone: the operator is told, with the way to update it.
       expect(reservedNotes()).toEqual([
         expect.stringContaining(
-          'now runs as platform and reserves 768m with the database, where the colour before it reserved 1152m',
+          'now runs as platform, and the stack reserves 520m in all, where it reserved 712m with the colour before it',
         ),
       ]);
       expect(reservedNotes()[0]).toContain('`tale deploy --services sandbox`');
@@ -798,8 +815,26 @@ describe('rollback confirmation', () => {
 
     test('says nothing about the spawner where the shape stays what it was', async () => {
       arrangePatchRollback();
-      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      await withPlatformReservation(() =>
+        rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+      );
       expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+      expect(reservedNotes()).toEqual([]);
+    });
+
+    test('says nothing about the spawner where the new shape reserves the same, as every shape does at the defaults', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      targetServesApp = true;
+      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      expect(upOf('green')).toEqual([
+        'up',
+        '-d',
+        '--scale',
+        'platform=1',
+        'platform',
+      ]);
       expect(reservedNotes()).toEqual([]);
     });
 
@@ -808,7 +843,9 @@ describe('rollback confirmation', () => {
       protocolFloor = 2;
       targetProtocol = '2';
       liveRole = 'all';
-      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+      await withPlatformReservation(() =>
+        rollback({ env, assumeYes: true }, { pullImage: pullImageMock }),
+      );
       expect(upOf('green')).toEqual([
         'up',
         '-d',
@@ -825,7 +862,7 @@ describe('rollback confirmation', () => {
       expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
       expect(reservedNotes()).toEqual([
         expect.stringContaining(
-          'now runs as platform, backend-api, backend-worker and reserves 1152m with the database, where the colour before it reserved 768m',
+          'now runs as platform, backend-api, backend-worker, and the stack reserves 712m in all, where it reserved 520m with the colour before it',
         ),
       ]);
       // The retiring colour's one process took the drain's questions.

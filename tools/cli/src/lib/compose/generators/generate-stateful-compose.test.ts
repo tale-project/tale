@@ -140,9 +140,11 @@ describe('generateStatefulCompose ↔ tale deploy --host', () => {
   test('without --host the proxy reads HOST and SITE_URL from .env', () => {
     const proxy = servicesOf().proxy;
     expect(proxy?.env_file).toEqual(['.env']);
-    // Only the Compose projects it routes: the stateful one and both colours.
+    // Only the Compose projects it routes (the stateful one and both
+    // colours) and Traefik's heap limit (memory-env.ts).
     expect(proxy?.environment).toEqual({
       TALE_PROXY_PROJECTS: 'tale tale-blue tale-green',
+      GOMEMLIMIT: '28MiB',
     });
   });
 });
