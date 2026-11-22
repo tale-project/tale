@@ -58,8 +58,10 @@ const SIZE_BUDGETS: Record<string, number> = {
   // inspect.Size can count compressed OCI content on containerd and would
   // accept a ~5.8 GB runtime as ~1.9 GB. Retained bytes in lower layers count
   // even when a later layer deletes them. Includes every managed harness,
-  // Chromium, document libraries, Office/PDF tools, XeTeX and inner Docker.
-  'sandbox-runtime': 6000,
+  // Chromium, document libraries, Office/PDF tools, XeTeX and inner Docker,
+  // and the video tools: yt-dlp (40 MiB) and deno (109 MiB), which moved
+  // here from the platform image and raised the budget by 200.
+  'sandbox-runtime': 6200,
 };
 
 const SERVICES = [

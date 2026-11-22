@@ -428,6 +428,17 @@ when the baked browser is present. Explicit browser, executable and configuratio
 overrides keep the real server's installation behavior. Office, PDF, CJK fonts,
 XeTeX, all managed harnesses and Docker tooling remain available offline.
 
+The video tools ride in the image as well. Video-link ingestion runs `yt-dlp`
+in a default-profile session, with `deno` for the JavaScript challenges a
+platform sets and the bgutil PO-token plugin under `/opt/yt-dlp/plugins`.
+Each is pinned in a build stage of its own and checked against its release's
+checksum; `/etc/yt-dlp-version`, `/etc/deno-version` and
+`/etc/bgutil-pot-version` say what an image was built from. Extractors stop
+working as the platforms change, so the yt-dlp pin is the one to move first
+when videos start to fail, and the plugin's version is the `bgutil-provider`
+image's. The image carries no ffmpeg: a session downloads a video's audio as
+it is served, and the platform's transcription lane does the one conversion.
+
 The runtime's image-validation budget measures the sum of unpacked image layers,
 including files superseded in later layers. It does not use packed OCI content
 size, which Docker's containerd store can report through `image inspect .Size`.

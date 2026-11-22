@@ -300,12 +300,12 @@ test.skipIf(process.platform === 'win32').each([
 );
 
 test.skipIf(process.platform === 'win32').each([
-  ['exact budget', `${6000 * 1024 * 1024}`, 0, '6000 MB ≤ 6000 MB budget'],
+  ['exact budget', `${6200 * 1024 * 1024}`, 0, '6200 MB ≤ 6200 MB budget'],
   [
     'one byte over budget',
-    `${6000 * 1024 * 1024}\n1`,
+    `${6200 * 1024 * 1024}\n1`,
     1,
-    '6001 MB exceeds 6000 MB budget',
+    '6201 MB exceeds 6200 MB budget',
   ],
   ['rounded bytes', '5.2GB', 1, 'Invalid unpacked image layer size'],
   ['missing history', '', 1, 'Invalid unpacked image layer size'],

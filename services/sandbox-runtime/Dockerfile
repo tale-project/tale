@@ -447,6 +447,78 @@ RUN set -eux; \
     rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
     gh --version
 
+# --- video tools -------------------------------------------------------------
+# Video-link ingestion runs in a session (the platform's video_links lane):
+# yt-dlp fetches a video's metadata, captions and audio there, never in the
+# application's own process. It runs deno for the JavaScript challenges a
+# platform sets, and loads the bgutil plugin when the deployment runs the
+# PO-token provider. Each is pinned in a stage of its own and checked against
+# its release's checksum. There is no ffmpeg here: a session downloads a
+# video's audio as the platform serves it, and the one conversion it needs is
+# the transcription lane's.
+
+# yt-dlp, as its standalone binary. Its extractors stop working as the
+# platforms change, within weeks: the platform warns about one older than
+# its MIN_YTDLP_VERSION (video_links/ytdlp.ts), which a test holds at or
+# under this pin.
+FROM harness-base AS ytdlp-build
+ARG YTDLP_VERSION=2026.10.26
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) YTDLP_ASSET=yt-dlp_linux ;; \
+      arm64) YTDLP_ASSET=yt-dlp_linux_aarch64 ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    release="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}"; \
+    mkdir -p /opt/tale-video; \
+    curl -fsSL -o /opt/tale-video/yt-dlp "${release}/${YTDLP_ASSET}"; \
+    curl -fsSL -o /tmp/yt-dlp.sums "${release}/SHA2-256SUMS"; \
+    (cd /opt/tale-video \
+      && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums \
+        | sed "s|  ${YTDLP_ASSET}$|  yt-dlp|" \
+        | sha256sum -c -); \
+    chmod 0755 /opt/tale-video/yt-dlp; \
+    echo "${YTDLP_VERSION}" > /opt/tale-video/yt-dlp-version; \
+    rm -f /tmp/yt-dlp.sums; \
+    /opt/tale-video/yt-dlp --version
+
+# deno, the JavaScript runtime yt-dlp looks for first. The release's
+# `.sha256sum` names the archive by its own file name, so it keeps it.
+FROM harness-base AS deno-build
+ARG DENO_VERSION=v2.5.4
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) DENO_ASSET=deno-x86_64-unknown-linux-gnu.zip ;; \
+      arm64) DENO_ASSET=deno-aarch64-unknown-linux-gnu.zip ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    release="https://github.com/denoland/deno/releases/download/${DENO_VERSION}"; \
+    curl -fsSL -o "/tmp/${DENO_ASSET}" "${release}/${DENO_ASSET}"; \
+    curl -fsSL -o /tmp/deno.sums "${release}/${DENO_ASSET}.sha256sum"; \
+    (cd /tmp && sha256sum -c deno.sums); \
+    mkdir -p /opt/tale-video; \
+    unzip -q "/tmp/${DENO_ASSET}" -d /opt/tale-video; \
+    chmod 0755 /opt/tale-video/deno; \
+    echo "${DENO_VERSION}" > /opt/tale-video/deno-version; \
+    rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums; \
+    /opt/tale-video/deno --version
+
+# The bgutil PO-token plugin, unzipped under a NAMED child of the plugin
+# root: yt-dlp lists that root and looks for `yt_dlp_plugins/` under each
+# child, so unzipped straight into the root it loads no provider. Its version
+# is the `bgutil-provider` image's: bump both together.
+FROM harness-base AS bgutil-build
+ARG BGUTIL_POT_VERSION=1.3.1
+RUN set -eux; \
+    curl -fsSL -o /tmp/bgutil-pot.zip \
+      "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip"; \
+    echo "b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38  /tmp/bgutil-pot.zip" | sha256sum -c -; \
+    mkdir -p /opt/yt-dlp/plugins/bgutil /opt/tale-video; \
+    unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil; \
+    test -d /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins; \
+    echo "${BGUTIL_POT_VERSION}" > /opt/tale-video/bgutil-pot-version; \
+    rm -f /tmp/bgutil-pot.zip
+
 # Hermes shares the locked document libraries: they sit in this stage's
 # /usr/local, so pip counts them installed (it does not count packages it
 # finds only through PYTHONPATH). A private install prefix contains only
@@ -643,6 +715,13 @@ COPY --link --from=playwright-build /opt/tale/playwright-mcp/browser.json /opt/t
 COPY --link --from=playwright-build /opt/tale/puppeteer/ /opt/tale/puppeteer/
 COPY --link --from=baked-skills-build /opt/agents/skills/ /opt/agents/skills/
 COPY --link --from=gh-build /usr/local/bin/gh /usr/local/bin/gh
+# The video tools, each with the version it was built from beside it.
+COPY --link --from=ytdlp-build /opt/tale-video/yt-dlp /usr/local/bin/yt-dlp
+COPY --link --from=ytdlp-build /opt/tale-video/yt-dlp-version /etc/yt-dlp-version
+COPY --link --from=deno-build /opt/tale-video/deno /usr/local/bin/deno
+COPY --link --from=deno-build /opt/tale-video/deno-version /etc/deno-version
+COPY --link --from=bgutil-build /opt/yt-dlp/plugins/ /opt/yt-dlp/plugins/
+COPY --link --from=bgutil-build /opt/tale-video/bgutil-pot-version /etc/bgutil-pot-version
 COPY --link --from=hermes-build /opt/tale-hermes/ /usr/local/
 COPY --link --from=vision-build /opt/tale-vision/ /opt/tale-vision/
 COPY --link --from=vision-build /usr/local/bin/tale-vision /usr/local/bin/tale-vision

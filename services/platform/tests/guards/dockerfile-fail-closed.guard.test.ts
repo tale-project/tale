@@ -876,6 +876,9 @@ describe('sandbox-runtime: independently cached toolchains', () => {
     ['qwen-build', 'QWEN_CODE_VERSION'],
     ['playwright-build', 'PLAYWRIGHT_MCP_VERSION'],
     ['gh-build', 'GH_VERSION'],
+    ['ytdlp-build', 'YTDLP_VERSION'],
+    ['deno-build', 'DENO_VERSION'],
+    ['bgutil-build', 'BGUTIL_POT_VERSION'],
     ['vision-build', 'PILLOW_VERSION'],
   ];
   const base = source.filter((item) => item.stage === 'tooling-base');
