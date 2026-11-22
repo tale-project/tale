@@ -183,7 +183,7 @@ Chaque couleur exécute les services que sa propre image prend en charge. `tale 
 
 `tale deploy` démarre la base fournie avec le profil `small` : 32 Mo de shared buffers au lieu de 256 Mo, 4 Mo pour un tri au lieu de 32 Mo, 40 connexions au lieu de 100, un seul worker d’autovacuum et aucune requête parallèle. La base occupe ainsi, sous la même charge, moins de la moitié de la mémoire qu’elle occupait, ce dont un déploiement a besoin sur un hôte d’un demi-gigaoctet. L’application ouvre moins de connexions en conséquence, [15 au plus depuis son unique processus](/fr/self-hosted/configuration/environment-reference#database).
 
-Le premier déploiement de cette version redémarre la base avec ces tailles. Rien ne change sur le disque, et la recherche fonctionne comme avant : au-delà de ses shared buffers, PostgreSQL lit à travers le cache de pages de l’hôte.
+Une base en cours d’exécution garde ses tailles à travers `tale deploy`, qui la laisse tourner. Elle prend celles-ci quand elle est recréée, par `tale deploy --services db` ou `tale deploy --stop`, ce qui interrompt brièvement l’application. Rien ne change sur le disque, et la recherche fonctionne comme avant : au-delà de ses shared buffers, PostgreSQL lit à travers le cache de pages de l’hôte.
 
 Si ton hôte a de la mémoire à revendre et une grande base de connaissances, les tailles précédentes te conviendront mieux. Avant de déployer, ajoute ceci au `.env` de l’espace de travail :
 

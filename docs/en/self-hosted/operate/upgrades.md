@@ -183,7 +183,7 @@ Each colour runs the services its own image supports, so `tale rollback` to a re
 
 `tale deploy` starts the bundled database with the `small` profile: 32 MB of shared buffers where it had 256 MB, 4 MB for a sort where it had 32 MB, 40 connections where it had 100, one autovacuum worker and no parallel query. With it the database holds less than half the memory it held under the same load, which a deployment on a host of half a gigabyte needs. The application opens fewer connections to match, [15 at most from its one process](/self-hosted/configuration/environment-reference#database).
 
-The first deploy of this release restarts the database with these sizes. Nothing on disk changes, and search works as before: past its shared buffers PostgreSQL reads through the host's page cache.
+A running database keeps its sizes through `tale deploy`, which leaves it running. It takes these when it is recreated, by `tale deploy --services db` or `tale deploy --stop`, which interrupt the application briefly. Nothing on disk changes, and search works as before: past its shared buffers PostgreSQL reads through the host's page cache.
 
 A host with memory to spare and a large knowledge base is better served by the earlier sizes. Before you deploy, set this in the workspace's `.env`:
 

@@ -74,12 +74,14 @@ gateway.**
 ## Size the database for the host · the workspace of the group above · 15 min
 
 The database the application shares its host with starts small, and a
-workspace says so where it wants the earlier sizes.
+workspace says so where it wants the earlier sizes. A running database keeps
+its sizes through a plain `tale deploy`; a deploy that recreates it gives it
+the profile.
 
-- [ ] `APP-F17` · **Run `docker exec <project>-db psql -U tale -d postgres -Atc "select name || '=' || current_setting(name) from unnest(array['shared_buffers','work_mem','maintenance_work_mem','max_connections','autovacuum_max_workers','max_parallel_workers_per_gather']) as name"`** → it prints `shared_buffers=32MB`, `work_mem=4MB`, `maintenance_work_mem=32MB`, `max_connections=40`, `autovacuum_max_workers=1` and `max_parallel_workers_per_gather=0`, and `docker logs <project>-db 2>&1 | grep '^Profile:'` prints `Profile: small`.
+- [ ] `APP-F17` · **Run `tale deploy --services db`, then `docker exec <project>-db psql -U tale -d postgres -Atc "select name || '=' || current_setting(name) from unnest(array['shared_buffers','work_mem','maintenance_work_mem','max_connections','autovacuum_max_workers','max_parallel_workers_per_gather']) as name"`** → the deploy exits `0` and recreates `<project>-db` alone; the command prints `shared_buffers=32MB`, `work_mem=4MB`, `maintenance_work_mem=32MB`, `max_connections=40`, `autovacuum_max_workers=1` and `max_parallel_workers_per_gather=0`, and `docker logs <project>-db 2>&1 | grep '^Profile:'` prints `Profile: small`.
 - [ ] `APP-F18` · **Search the knowledge base for a phrase from the document indexed in `APP-F5`, in the app's chat** → the answer cites the document: full-text and vector search work on the small database.
 - [ ] `APP-B3` · **Add `DB_PROFILE=tiny` to the workspace's `.env` and run `tale deploy`** → it exits `3` with `DB_PROFILE must be small, standard, or unset; got: "tiny"` before it pulls an image; `docker ps` lists the same containers as before, and the settings of `APP-F17` are unchanged.
-- [ ] `APP-F19` · **Change the line to `DB_PROFILE=standard`, add `DB_WORK_MEM=64MB`, run `tale deploy`, then run the command of `APP-F17` again** → the deploy exits `0` and recreates `<project>-db`; the command prints `shared_buffers=256MB`, `work_mem=64MB`, `maintenance_work_mem=128MB`, `max_connections=100`, `autovacuum_max_workers=3` and `max_parallel_workers_per_gather=2`, and the app signs in and answers a chat message. Remove both lines and deploy again to return to the small profile.
+- [ ] `APP-F19` · **Change the line to `DB_PROFILE=standard`, add `DB_WORK_MEM=64MB`, run `tale deploy --services db`, then run the `psql` command of `APP-F17` again** → the deploy exits `0` and recreates `<project>-db`; the command prints `shared_buffers=256MB`, `work_mem=64MB`, `maintenance_work_mem=128MB`, `max_connections=100`, `autovacuum_max_workers=3` and `max_parallel_workers_per_gather=2`, and the app signs in and answers a chat message. Remove both lines and run `tale deploy --services db` again to return to the small profile.
 
 ## Turn the token provider on and off · the workspace of the group above · 15 min
 

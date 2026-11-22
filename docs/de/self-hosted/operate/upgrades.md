@@ -187,7 +187,7 @@ Jede Farbe führt die Dienste aus, die ihr eigenes Image unterstützt. `tale rol
 
 `tale deploy` startet die mitgelieferte Datenbank mit dem Profil `small`: 32 MB Shared Buffers statt 256 MB, 4 MB für eine Sortierung statt 32 MB, 40 Verbindungen statt 100, ein Autovacuum-Worker und keine parallelen Abfragen. Damit belegt die Datenbank unter derselben Last weniger als die Hälfte des bisherigen Speichers, was eine Instanz auf einem Host mit einem halben Gigabyte braucht. Die Anwendung öffnet passend dazu weniger Verbindungen, [höchstens 15 aus ihrem einen Prozess](/de/self-hosted/configuration/environment-reference#database).
 
-Der erste Deploy dieser Version startet die Datenbank mit diesen Größen neu. Auf der Platte ändert sich nichts, und die Suche arbeitet wie zuvor: Was nicht in die Shared Buffers passt, liest PostgreSQL über den Seitencache des Hosts.
+Eine laufende Datenbank behält bei `tale deploy` ihre Größen, denn der Deploy lässt sie weiterlaufen. Diese Größen übernimmt sie, sobald sie neu erstellt wird: mit `tale deploy --services db` oder `tale deploy --stop`, was die Anwendung kurz unterbricht. Auf der Platte ändert sich nichts, und die Suche arbeitet wie zuvor: Was nicht in die Shared Buffers passt, liest PostgreSQL über den Seitencache des Hosts.
 
 Hat dein Host Speicher übrig und eine große Wissensdatenbank, bist du mit den bisherigen Größen besser bedient. Setz dafür vor dem Deploy in der `.env` des Workspace:
 
