@@ -38,10 +38,11 @@
  * done, so while the last document still carries a check's mark the worker
  * waits for the next one, within the page's own time.
  *
- * One session per batch, destroyed in `finally` — a session never spans
- * loop iterations or scan continuation links. A batch whose create failed
- * never had a session to destroy there: its row is left `failed` for the
- * sandbox watchdog to collect (`settleFailedCreate`).
+ * One session per batch, destroyed when the batch ends — a session never
+ * spans loop iterations or scan continuation links. A batch whose create
+ * failed never had a session to destroy there: its row is left `failed` for
+ * the sandbox watchdog to collect. The session's life is
+ * `throwaway_session.ts`, which the video lane shares.
  */
 
 import { z } from 'zod';
@@ -55,20 +56,14 @@ import {
 import { BOT_CHECK_HEADERS } from '../../../../lib/net/bot-check';
 import { crawlerUserAgent } from '../../knowledge/crawler_identity';
 import type { ActionCtx } from '../../lib/ctx';
-import { internal } from '../../lib/handler_names';
 import { sessionIdForRender } from '../../sandbox/session_naming';
-import {
-  SessionDuplicateError,
-  sessionCreate,
-  sessionDestroy,
-  sessionDestroyIfIdle,
-  sessionIsAlive,
-  sessionReadFile,
-  sessionStageFiles,
-  SpawnerBusyError,
-} from './helpers/session_client';
+import { sessionReadFile, sessionStageFiles } from './helpers/session_client';
 import { RENDERED_LAYOUT_SCRIPT } from './render_layout';
 import { runStepsInSession } from './session_exec';
+import {
+  SandboxLaneCapacityError,
+  withThrowawaySession,
+} from './throwaway_session';
 
 /** Per-page navigation budget inside the worker. */
 const RENDER_PAGE_TIMEOUT_MS = 20_000;
@@ -181,15 +176,6 @@ export function renderCapacityPollMs(
   );
 }
 
-/** Whether a slot-reservation failure is the quota refusal (the sessions
- * domain's `SandboxQuotaError`, which the crawl ctx shim passes through
- * as-is) rather than a store or transport fault. */
-function isSandboxQuotaRefusal(error: unknown): error is Error {
-  return (
-    error instanceof Error && 'code' in error && error.code === 'QUOTA_EXCEEDED'
-  );
-}
-
 /** The worker's output file is a boundary: validate, never trust. Records
  * that fail the schema are ignored (their URL stays `not_attempted`). */
 const renderRecordSchema = z.object({
@@ -279,249 +265,115 @@ export async function renderUrlsInSandbox(
   args: RenderBatchArgs,
 ): Promise<RenderBatchResult> {
   const sessionId = sessionIdForRender(args.batchKey);
-  let rowId: string;
   try {
-    rowId = await ctx.runMutation(
-      internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
+    return await withThrowawaySession(
+      ctx,
       {
         organizationId: args.organizationId,
         sessionId,
-        profile: 'default',
         ownerType: 'render',
-        ownerId: sessionId,
         createdBy: args.createdBy ?? 'system:crawler',
+        idleTimeoutMs: RENDER_SESSION_IDLE_MS,
+        lane: 'render',
+        unit: 'batch',
       },
+      () => renderInSession(sessionId, args),
     );
   } catch (error) {
-    if (isSandboxQuotaRefusal(error)) {
-      throw new RenderCapacityError(error.message);
+    // A spent render budget and a sandbox host at capacity or short of
+    // memory are waits: the scan polls for room instead of failing the
+    // batch.
+    if (error instanceof SandboxLaneCapacityError) {
+      throw new RenderCapacityError(
+        error.why === 'host'
+          ? 'the sandbox host is busy; the render waits for room'
+          : error.message,
+        error.retryAfterMs,
+      );
     }
     throw error;
   }
-
-  let created = false;
-  try {
-    try {
-      await sessionCreate({
-        sessionId,
-        organizationId: args.organizationId,
-        profile: 'default',
-        // Knowledge crawling is the deployment's own work: renders never
-        // leave the server for an organization's device.
-        placement: 'server',
-        idleTimeoutMs: RENDER_SESSION_IDLE_MS,
-      });
-      created = true;
-    } catch (error) {
-      await settleFailedCreate(ctx, { rowId, sessionId, error });
-      // A sandbox host at capacity or short of memory is a wait like a spent
-      // render budget: the scan polls for room instead of failing the batch.
-      if (error instanceof SpawnerBusyError) {
-        throw new RenderCapacityError(
-          'the sandbox host is busy; the render waits for room',
-          error.queue !== undefined ? error.retryAfterMs : undefined,
-        );
-      }
-      throw error;
-    }
-    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-      rowId,
-      status: 'active',
-    });
-
-    const workerInput = {
-      urls: args.urls,
-      perPageTimeoutMs: RENDER_PAGE_TIMEOUT_MS,
-      idleTimeoutMs: RENDER_IDLE_TIMEOUT_MS,
-      softBudgetMs: Math.max(
-        30_000,
-        args.execTimeoutMs - WORKER_EXIT_MARGIN_MS,
-      ),
-      // When the exec is cut: what tells a page that held the browser with
-      // its whole time ahead of it from one started too late to finish.
-      hardBudgetMs: args.execTimeoutMs,
-      maxHtmlBytes: RENDER_MAX_HTML_BYTES,
-      maxTotalBytes: RENDER_MAX_TOTAL_BYTES,
-      // The site's robots.txt `Crawl-delay` paces the render leg too, not
-      // just the probe leg (2026-09-18 evaluation, J6-8).
-      crawlDelayMs: args.crawlDelayMs ?? 0,
-      // The same identity the probe leg sends (2026-09-15 evaluation, i6).
-      userAgent: args.userAgent ?? crawlerUserAgent(process.env.TALE_VERSION),
-      // What is the lane's fault, not the page's — one definition, handed
-      // in because the worker cannot import it.
-      proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
-      crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
-      // What a bot check is marked with, kept of the document a page ends
-      // on: a caller tells a check the browser did not pass from the page.
-      botCheckHeaders: BOT_CHECK_HEADERS,
-    };
-    await sessionStageFiles(sessionId, [
-      {
-        path: 'code/render.mjs',
-        contentBase64: Buffer.from(RENDER_WORKER_SOURCE, 'utf8').toString(
-          'base64',
-        ),
-      },
-      {
-        path: 'code/urls.json',
-        contentBase64: Buffer.from(
-          JSON.stringify(workerInput),
-          'utf8',
-        ).toString('base64'),
-      },
-    ]);
-
-    const run = await runStepsInSession(sessionId, {
-      stepPaths: ['/agent/code/render.mjs'],
-      timeoutMs: args.execTimeoutMs,
-    });
-    const detail = (): string =>
-      [`status ${run.status}`, run.errorMessage ?? '', run.stderr.slice(-400)]
-        .filter((part) => part.length > 0)
-        .join(' — ');
-    // The worker rewrites its output after every page, so even a hard-killed
-    // exec leaves partial results behind; a MISSING file is an infra failure
-    // worth failing the scan over.
-    const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
-    if (!file) {
-      throw new Error(`render worker produced no output (${detail()})`);
-    }
-    const payload: unknown = JSON.parse(new TextDecoder().decode(file.bytes));
-    const result = parseRenderResults(payload, args.urls);
-    // So is a file on which no page was even attempted and that names no
-    // halt: the worker writes it before it launches the browser, so a
-    // Chromium that would not start leaves every URL `not_attempted`. Handed
-    // back as-is, the crawl would re-probe and re-render the same batch
-    // round after round, a session each, and end hours later blaming its
-    // continuation budget.
-    if (
-      result.halted === null &&
-      args.urls.length > 0 &&
-      [...result.outcomes.values()].every(
-        (outcome) => outcome.kind === 'not_attempted',
-      )
-    ) {
-      throw new Error(
-        `sandbox session rendered no page: the render worker stopped before its first one (${detail()})`,
-      );
-    }
-    return result;
-  } finally {
-    // Only a session this batch created is torn down here. A failed create's
-    // row already reads `failed`: settling it `destroyed` would hide it from
-    // the watchdog's COLLECT pass, the one pass that reaches what the create
-    // may have left behind.
-    if (created) {
-      let destroyed = false;
-      try {
-        await sessionDestroy(sessionId);
-        destroyed = true;
-      } catch (error) {
-        console.warn(
-          `[render] session ${sessionId} destroy failed (the watchdog's release pass reaps it):`,
-          error instanceof Error ? error.message : error,
-        );
-        // A destroy that answered badly (a timed-out request whose removal
-        // still finished, a passing 502) may still have taken the session:
-        // a definitive "gone" frees the org's render slot now, rather than
-        // after the release pass's ten-minute horizon.
-        destroyed = await sessionIsAlive(sessionId).then(
-          (alive) => !alive,
-          (probeError: unknown) => {
-            console.warn(
-              `[render] session ${sessionId} liveness after a failed destroy unknown:`,
-              probeError instanceof Error ? probeError.message : probeError,
-            );
-            return false;
-          },
-        );
-      }
-      // A session whose destroy failed may still run: its row stays live,
-      // the one state the watchdog's release pass reaches. Settled as
-      // destroyed, its container outlived every pass, outside the budget.
-      if (destroyed) {
-        try {
-          await ctx.runMutation(
-            internal.sandbox.session_mutations.markSessionRowDestroyed,
-            { organizationId: args.organizationId, sessionId },
-          );
-        } catch (error) {
-          console.warn(
-            `[render] session ${sessionId} row flip failed:`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }
-    }
-  }
 }
 
-/**
- * Settle the reserved row of a render create that failed: it reads `failed`
- * with `destroyed_at_ms` unset, which frees the batch's slot and leaves the
- * row to the sandbox watchdog's COLLECT pass — the only pass that reaches a
- * `failed` row. A create the spawner refused for want of room (429) made
- * nothing, so it destroys nothing and its row is settled as collected: a
- * host that stays full refuses each of a scan's polls, and each would
- * otherwise cost a destroy round trip now and a COLLECT visit later. A create cut short between Docker's create and start leaves a
- * container in state `created` that the spawner never adopts, and it pins its
- * runtime image through every later deploy until something destroys it.
- *
- * Before the flip, while the still-`creating` row holds the batch's one slot
- * (once it reads `failed`, a second run of the same batch may reserve the id
- * and create, and a later destroy would hit that run's session):
- *  - a DUPLICATE (409) destroys nothing. This create made nothing: the
- *    spawner already holds the id, or is creating it, for another run. The
- *    batch key is deterministic (domain, scan start, link, batch number), so
- *    a link that runs twice (a job retry, or a continuation enqueued twice)
- *    asks for the same id. And the spawner answers a probe with 404 while it
- *    is still creating a session, so the reconcile pass may already have
- *    settled the other run's row while that run renders in the session.
- *    Between its create and its exec that session is idle, so `if_idle`
- *    would not spare it. The COLLECT pass settles this row past its grace:
- *    without a spawner call while a newer or live row carries the id, and
- *    otherwise with the same idle-only destroy.
- *  - any other failure asks the spawner to destroy what it holds under the
- *    id, when idle, as the agent lane does. Best-effort: a busy answer or a
- *    failed destroy is logged and left to the COLLECT pass, and never masks
- *    the create's error.
- */
-async function settleFailedCreate(
-  ctx: ActionCtx,
-  args: { rowId: string; sessionId: string; error: unknown },
-): Promise<void> {
-  const { rowId, sessionId } = args;
-  if (args.error instanceof SpawnerBusyError) {
-    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-      rowId,
-      status: 'failed',
-      collected: true,
-    });
-    return;
-  }
-  if (args.error instanceof SessionDuplicateError) {
-    console.warn(
-      `[render] session ${sessionId} already exists spawner-side; this batch destroys nothing and the watchdog collects its failed row`,
-    );
-  } else {
-    await sessionDestroyIfIdle(sessionId)
-      .then(({ busy }) => {
-        if (busy)
-          console.warn(
-            `[render] session ${sessionId} runs an exec after this failed create; the watchdog collects it once idle`,
-          );
-      })
-      .catch((destroyError: unknown) => {
-        console.warn(
-          `[render] destroy after failed create of ${sessionId} failed (the watchdog collects it):`,
-          destroyError instanceof Error ? destroyError.message : destroyError,
-        );
-      });
-  }
-  await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
-    rowId,
-    status: 'failed',
+/** One batch in the session it was given: the worker staged, run, and its
+ * output read back. */
+async function renderInSession(
+  sessionId: string,
+  args: RenderBatchArgs,
+): Promise<RenderBatchResult> {
+  const workerInput = {
+    urls: args.urls,
+    perPageTimeoutMs: RENDER_PAGE_TIMEOUT_MS,
+    idleTimeoutMs: RENDER_IDLE_TIMEOUT_MS,
+    softBudgetMs: Math.max(30_000, args.execTimeoutMs - WORKER_EXIT_MARGIN_MS),
+    // When the exec is cut: what tells a page that held the browser with
+    // its whole time ahead of it from one started too late to finish.
+    hardBudgetMs: args.execTimeoutMs,
+    maxHtmlBytes: RENDER_MAX_HTML_BYTES,
+    maxTotalBytes: RENDER_MAX_TOTAL_BYTES,
+    // The site's robots.txt `Crawl-delay` paces the render leg too, not
+    // just the probe leg (2026-09-18 evaluation, J6-8).
+    crawlDelayMs: args.crawlDelayMs ?? 0,
+    // The same identity the probe leg sends (2026-09-15 evaluation, i6).
+    userAgent: args.userAgent ?? crawlerUserAgent(process.env.TALE_VERSION),
+    // What is the lane's fault, not the page's — one definition, handed
+    // in because the worker cannot import it.
+    proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
+    crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
+    // What a bot check is marked with, kept of the document a page ends
+    // on: a caller tells a check the browser did not pass from the page.
+    botCheckHeaders: BOT_CHECK_HEADERS,
+  };
+  await sessionStageFiles(sessionId, [
+    {
+      path: 'code/render.mjs',
+      contentBase64: Buffer.from(RENDER_WORKER_SOURCE, 'utf8').toString(
+        'base64',
+      ),
+    },
+    {
+      path: 'code/urls.json',
+      contentBase64: Buffer.from(JSON.stringify(workerInput), 'utf8').toString(
+        'base64',
+      ),
+    },
+  ]);
+
+  const run = await runStepsInSession(sessionId, {
+    stepPaths: ['/agent/code/render.mjs'],
+    timeoutMs: args.execTimeoutMs,
   });
+  const detail = (): string =>
+    [`status ${run.status}`, run.errorMessage ?? '', run.stderr.slice(-400)]
+      .filter((part) => part.length > 0)
+      .join(' — ');
+  // The worker rewrites its output after every page, so even a hard-killed
+  // exec leaves partial results behind; a MISSING file is an infra failure
+  // worth failing the scan over.
+  const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
+  if (!file) {
+    throw new Error(`render worker produced no output (${detail()})`);
+  }
+  const payload: unknown = JSON.parse(new TextDecoder().decode(file.bytes));
+  const result = parseRenderResults(payload, args.urls);
+  // So is a file on which no page was even attempted and that names no
+  // halt: the worker writes it before it launches the browser, so a
+  // Chromium that would not start leaves every URL `not_attempted`. Handed
+  // back as-is, the crawl would re-probe and re-render the same batch
+  // round after round, a session each, and end hours later blaming its
+  // continuation budget.
+  if (
+    result.halted === null &&
+    args.urls.length > 0 &&
+    [...result.outcomes.values()].every(
+      (outcome) => outcome.kind === 'not_attempted',
+    )
+  ) {
+    throw new Error(
+      `sandbox session rendered no page: the render worker stopped before its first one (${detail()})`,
+    );
+  }
+  return result;
 }
 
 /**
