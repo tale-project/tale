@@ -1,0 +1,345 @@
+name: Memory budget
+
+# Never part of the merge gate: the memory budget of tale-project/tale#4942,
+# read on a fresh hosted runner of each architecture it names (native Linux
+# amd64 and arm64), and failed above it. The budget is 500 MB for
+# everything `tale deploy` starts on one host by default, sandbox sessions
+# aside; the reading is each container's cgroup v2 memory.stat every 250 ms,
+# summed over the deployment at each instant, at its peak across the
+# reference workload (tools/load/README.md, "Memory budget").
+#
+# Each leg builds the stack's images from this checkout for its own
+# architecture into a registry on the runner's loopback
+# (tools/cli/e2e/incus/images.sh, reading the release's layer caches), builds
+# the CLI as that release, and deploys the default stack with `tale init`
+# and `tale deploy`, as an operator does: on https://localhost, its edge
+# terminating TLS with the certificate of its own local authority, whose
+# root the harness trusts (NODE_EXTRA_CA_CERTS). The load harness's mock
+# provider, on the runner, stands in for every model: the platform reaches
+# it at host.docker.internal. `tale-load seed` makes one organization of 18
+# people on it, and `tale-load budget` runs the reference workload while it
+# reads the deployment's containers: each person a browser of their own,
+# over HTTP/2 where the edge offers it, with a browser's Accept-Encoding.
+# After the workload it deploys again (`--flip-command`), which starts the
+# app tier's other colour beside the live one, drains the old one and stops
+# it: the blue/green overlap the budget bounds to one app-tier share is read
+# as it happens. The run writes its report and exits non-zero above the
+# budget (1), or when the reading is inconclusive (2).
+#
+# When it runs: GitHub starts a scheduled workflow, and offers a dispatched
+# one, only from the default branch's copy of this file, and the default
+# branch does not carry a release line's work. So a push to a release line
+# runs the line's own copy, on the code it measures, whenever the push
+# changes what the deployment or the benchmark is built from (the paths
+# below). A run in progress finishes; newer pushes to the same line wait in
+# one pending run, which measures the newest. The nightly schedule and the
+# dispatch stay for when the line has reached the default branch; each of
+# their runs is a group of its own, never cancelled.
+
+on:
+  push:
+    branches:
+      - 'release/**'
+    paths:
+      # The stack's images (tools/cli/e2e/incus/images.sh builds each from
+      # services/<service>/Dockerfile and copies the object store's image
+      # pinned in compose.yml) and the lab registry's script.
+      - 'services/**'
+      - 'packages/**'
+      - 'configs/platform/**'
+      - 'patches/**'
+      - 'compose.yml'
+      # The CLI that deploys them, and the benchmark.
+      - 'tools/cli/**'
+      - 'tools/load/**'
+      # The install and the build settings behind all of them, and this file.
+      - 'tools/**/package.json'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'tsconfig*.json'
+      - '.dockerignore'
+      - '.github/actions/setup-turbo/**'
+      - '.github/workflows/memory-budget.yml'
+  schedule:
+    - cron: '41 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Pushes to a line keep one run going and coalesce newer pushes into the
+# pending slot, as build.yml does for main: a reading takes hours, and a line
+# that takes several pushes a day would otherwise cancel every run before it
+# read anything. The pending run measures the newest push once the running
+# one has finished. A scheduled or dispatched run is keyed by its own id:
+# nothing cancels it, and it never waits behind another run.
+concurrency:
+  group: memory-budget-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  budget:
+    name: Memory budget (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      # The release's layer caches, read, never written.
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04, platform: linux/amd64 }
+          - { arch: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
+    env:
+      ARCH: ${{ matrix.arch }}
+      PLATFORM: ${{ matrix.platform }}
+      BUDGET_REGISTRY: 127.0.0.1:5000
+      # The release the CLI is built as and the images are labelled with: a
+      # workspace deploys the release its CLI was built as.
+      BUDGET_VERSION: 0.6.900
+      MOCK_PORT: '4199'
+      # The CLI built as that release never aligns itself to a published one.
+      TALE_ALIGNED: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      # The workspace, the report and the logs live apart from the checkout;
+      # the local registry keeps its images in the lab's directory.
+      - name: Name the run's files
+        run: |
+          set -euo pipefail
+          BUDGET_DIR="$RUNNER_TEMP/budget"
+          mkdir -p "$BUDGET_DIR/report" "$BUDGET_DIR/logs"
+          {
+            echo "BUDGET_DIR=$BUDGET_DIR"
+            echo "INCUS_E2E_DIR=$BUDGET_DIR/lab"
+          } >> "$GITHUB_ENV"
+
+      # Seven image builds and a deployment of them.
+      - name: Reclaim disk space
+        env:
+          MIN_FREE_GIB: '40'
+        run: |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
+          # Run as the job's user, like its Docker steps: sudo resets the
+          # environment and would lose a self-hosted runner's DOCKER_HOST.
+          docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # Swap goes off: a page swapped out leaves `anon`, and the budget would
+      # read less than the deployment holds.
+      - name: Prepare the host
+        run: |
+          set -euo pipefail
+          sudo swapoff -a
+          # images.sh copies the object store's image with skopeo; the CLI's
+          # build stamps its version with jq.
+          missing=()
+          for tool in skopeo jq; do
+            command -v "$tool" >/dev/null || missing+=("$tool")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q "${missing[@]}"
+          fi
+          echo "cpus: $(nproc)"
+          free -m
+          docker info --format 'Docker {{.ServerVersion}}, cgroup v{{.CgroupVersion}} ({{.CgroupDriver}} driver), {{.Architecture}}'
+
+      - name: Start the local registry
+        run: bash services/sandbox/e2e/incus/lab.sh registry
+
+      - name: Set up the Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
+          # The builder shares the host's network, so that it pushes to the
+          # registry on the loopback.
+          driver-opts: network=host
+
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the stack's images from this checkout
+        env:
+          OUTPUT: compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true,registry.insecure=true
+          CACHE_FROM: ghcr.io/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="$BUDGET_VERSION" bash tools/cli/e2e/incus/images.sh "$BUDGET_REGISTRY" "$(git rev-parse HEAD)" "$BUDGET_VERSION"
+
+      - name: Build the CLI as the release
+        working-directory: tools/cli
+        run: |
+          set -euo pipefail
+          bun run generate
+          jq --arg version "$BUDGET_VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          bun build --compile --define TALE_COMPILED=true --outfile="$RUNNER_TEMP/tale" src/index.ts
+          "$RUNNER_TEMP/tale" --version
+
+      # The models: the load harness's mock, shaped like finding 1's (a reply
+      # of about 1.5 KB streamed over about 2 s, no fault, no tool call it
+      # was not asked for). It listens on every interface so the platform
+      # reaches it at the Docker bridge's address; the runner's own interface
+      # drops what reaches its port.
+      - name: Start the mock provider
+        run: |
+          set -euo pipefail
+          iface="$(ip -o route show default | awk '{ print $5; exit }')"
+          sudo iptables -I INPUT -i "$iface" -p tcp --dport "$MOCK_PORT" -j DROP
+          nohup node tools/load/src/cli.ts mock --host 0.0.0.0 --port "$MOCK_PORT" --seed 4942 \
+            --ttft-median-ms 300 --ttft-p95-ms 600 --tokens-per-second-mean 200 --tokens-per-second-sd 20 \
+            --reply-tokens-median 375 --reply-tokens-p95 450 --tool-call-rate 0 \
+            --rate-429 0 --rate-5xx 0 --mid-stream-error-rate 0 \
+            > "$BUDGET_DIR/logs/mock.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 2 "http://127.0.0.1:$MOCK_PORT/health" >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$BUDGET_DIR/logs/mock.log"
+          echo '::error::the mock provider never answered'; exit 1
+
+      # The default stack, as an operator deploys it: `tale init` names the
+      # site https://localhost and lets the edge terminate TLS with a
+      # certificate of its own local authority (TLS_MODE=selfsigned), and
+      # nothing here changes that. The organization's provider key and the
+      # private address the mock answers on are the workspace's settings.
+      # The harness trusts the authority's root, and that root alone, as
+      # tools/cli/scripts/workspace-upgrade-check.ts does: read from the
+      # edge's data volume (/data/pki/root.crt, services/proxy/render/pki.js).
+      - name: Deploy the default stack
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          workspace="$BUDGET_DIR/workspace"
+          "$RUNNER_TEMP/tale" --yes --ci init "$workspace"
+          mock_key="$(openssl rand -hex 16)"
+          echo "::add-mask::$mock_key"
+          set_env() {
+            sed -i "/^$1=/d" "$workspace/.env"
+            printf '%s=%s\n' "$1" "$2" >> "$workspace/.env"
+          }
+          set_env GHCR_REGISTRY "$BUDGET_REGISTRY/tale-project/tale"
+          set_env TALE_ALLOW_OPEN_SIGN_UP true
+          set_env TALE_ALLOW_PRIVATE_PROVIDER_HOSTS 1
+          set_env TALE_PROVIDER_KEY_LOADMOCK "$mock_key"
+          grep -E '^(HOST|SITE_URL|TLS_MODE)=' "$workspace/.env"
+          (cd "$workspace" && "$RUNNER_TEMP/tale" --yes --ci deploy --skip-backup)
+          project="$(jq -r .id "$workspace/tale.json")"
+          if [[ ! "$project" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            echo "::error::the workspace names no project ($project)"; exit 1
+          fi
+          docker exec "$project-proxy" cat /data/pki/root.crt > "$BUDGET_DIR/root.crt"
+          if ! grep -q 'BEGIN CERTIFICATE' "$BUDGET_DIR/root.crt"; then
+            echo '::error::the edge wrote no root certificate'; exit 1
+          fi
+          {
+            echo "BUDGET_PROJECT=$project"
+            echo "BUDGET_WORKSPACE=$workspace"
+            echo "NODE_EXTRA_CA_CERTS=$BUDGET_DIR/root.crt"
+          } >> "$GITHUB_ENV"
+          # What a browser meets: the edge's protocol and its coding of the
+          # app's document.
+          curl -fsS --cacert "$BUDGET_DIR/root.crt" -o /dev/null \
+            -H 'Accept-Encoding: gzip, deflate, br, zstd' \
+            -w 'https://localhost/: HTTP/%{http_version} %{response_code}\n' https://localhost/
+          docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+
+      - name: Seed one organization on the mock
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          node tools/load/src/cli.ts seed --target https://localhost --users 18 --org-size 18 \
+            --provider-base-url "http://host.docker.internal:$MOCK_PORT/v1" \
+            --output "$BUDGET_DIR/report/plan.json"
+
+      # Its own exit code is the verdict: 1 above the budget or when the
+      # workload did not run to its end, 2 when the reading is inconclusive.
+      # The flip is the workspace's own `tale deploy` again: every deploy
+      # without `--services` starts the app tier's other colour
+      # (tools/cli/src/lib/actions/deploy.ts), the same release included.
+      - name: Read the budget under the reference workload
+        timeout-minutes: 60
+        env:
+          FLIP: cd "$BUDGET_WORKSPACE" && "$RUNNER_TEMP/tale" --yes --ci deploy --skip-backup
+        run: |
+          set -euo pipefail
+          node tools/load/src/cli.ts budget --plan "$BUDGET_DIR/report/plan.json" \
+            --project "$BUDGET_PROJECT" --flip-command "$FLIP" \
+            --report "$BUDGET_DIR/report/budget-$ARCH.json"
+
+      - name: Collect the deployment's logs
+        if: always()
+        run: |
+          for name in $(docker ps -a --format '{{.Names}}'); do
+            docker logs --timestamps "$name" > "$BUDGET_DIR/logs/$name.log" 2>&1 || true
+          done
+          docker ps -a > "$BUDGET_DIR/logs/containers.txt" 2>&1 || true
+          sudo dmesg > "$BUDGET_DIR/logs/dmesg.log" 2>&1 || true
+
+      - name: Summarize
+        if: always()
+        run: |
+          report="$BUDGET_DIR/report/budget-$ARCH.md"
+          if [ -f "$report" ]; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report was written ($ARCH); see the logs artifact." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the report and logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: memory-budget-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.BUDGET_DIR }}/report
+            ${{ env.BUDGET_DIR }}/logs
+          retention-days: 30
+          if-no-files-found: warn

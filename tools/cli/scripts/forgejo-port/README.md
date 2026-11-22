@@ -96,6 +96,7 @@ so its scope steps answer that it owes everything. Each pull request lands on it
 | `cli-incus-e2e.yml` | later | builds the same Incus node as the sandbox's lab, which needs a virtual machine |
 | `cli.yml` | port | ported without its manual `release` job and without the macOS and Windows rows |
 | `docs-screenshots.yml` | port | ported without its push to a `docs-screenshots/` branch, which proves a change to it on GitHub before the default branch holds it |
+| `memory-budget.yml` | port | ported without its push to a release line, which reads the budget on the line's own copy on GitHub while the default branch does not carry the line's work |
 
 `github` prints the two edits GitHub's own copies need: `publish-packages.yml` publishes
 nothing and `release-tag.yml` tags nothing while the repository variable `TALE_SOURCE` is

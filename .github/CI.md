@@ -72,8 +72,8 @@ capture runs the platform and a browser as those Playwright jobs do and takes th
 fork always runs on `ubuntu-latest`, so code from outside never reaches a self-hosted machine. Each self-hosted runner
 has a Docker daemon of its own that is emptied after every job, so jobs keep the fixed ports,
 container names and prune steps they use on hosted runners. The release and its tag, the Incus end-to-end
-suite, the load test, the workspace upgrade check and the macOS, Windows and arm64 legs stay on
-GitHub-hosted runners.
+suite, the load test, the workspace upgrade check, the memory budget and the macOS, Windows and
+arm64 legs stay on GitHub-hosted runners.
 
 ## Current execution graph
 
@@ -410,6 +410,31 @@ CLI under test, and requires the migrations, the account, the organization and a
 survive, a second deploy to succeed and, across the cutover, `tale rollback` to be refused.
 v0.5.79–v0.5.89 refused every v0.5.77 workspace at that cutover while no check ran an
 operator's upgrade. It is not a release-candidate receipt: check its newest run before tagging.
+
+**Memory budget** (`memory-budget.yml`) is informational as well, one leg per architecture the
+budget of tale-project/tale#4942 names: amd64 on `ubuntu-24.04`, arm64 on `ubuntu-24.04-arm`.
+Each leg builds the stack's images from the checkout for its own architecture into a registry on
+the runner's loopback (`tools/cli/e2e/incus/images.sh` with `PLATFORM`, reading the release's
+layer caches of that architecture), builds the CLI as that release, deploys the default stack
+with `tale init` and `tale deploy` on `https://localhost` (the edge terminating TLS with its own
+local authority, whose root the harness trusts), seeds one organization on the load harness's
+mock provider, and runs `tale-load budget`, which reads every container's cgroup v2 `memory.stat`
+every 250 ms under the reference workload (each person a browser of their own: the app's page and
+files, its startup reads, HTTP/2 where the edge offers it, a browser's `Accept-Encoding`), then
+deploys again to flip the app tier's colours while it reads, and exits 1 above 500,000,000 bytes,
+above the blue/green bound or when the workload fell short, 2 when the reading is inconclusive
+(`tools/load/README.md`, "Memory budget"). Its report, the readings as CSV and the containers'
+logs are uploaded for 30 days.
+
+It runs on every push to a release line (`release/**`) that changes what the deployment or the
+benchmark is built from (`services/`, `packages/`, `configs/platform/`, `patches/`,
+`compose.yml`, `tools/cli/`, `tools/load/`, the manifests and the lockfile, `bunfig.toml`,
+`tsconfig*.json`, `.dockerignore`, the setup action and the workflow itself), and nightly and
+manually. GitHub starts a scheduled workflow, and offers a dispatched one, only from the default
+branch's copy of the file, which does not carry a release line's work, so the push runs the
+line's own copy, on the code it measures. A run in progress finishes, and newer pushes to the
+same line wait in one pending run that measures the newest, as `build.yml` does for `main`;
+each scheduled or dispatched run is a concurrency group of its own and is never cancelled. The Forgejo port leaves the push out, as it does `docs-screenshots.yml`'s.
 
 Security's production Bun audit uses one registry response per attempt for both
 reporting and its blocking HIGH/CRITICAL threshold. Native JSON output retains all

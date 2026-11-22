@@ -17,7 +17,10 @@
 #   BUILDER     the buildx builder (default: the current one)
 #   OUTPUT      extra image output options for a docker-container builder,
 #               such as compression=zstd,oci-mediatypes=true,registry.insecure=true
-#   CACHE_FROM  a registry prefix holding <prefix>/tale-<service>-buildcache:amd64
+#   PLATFORM    the platform to build for: linux/amd64 (default) or
+#               linux/arm64, natively on a runner of that architecture
+#   CACHE_FROM  a registry prefix holding <prefix>/tale-<service>-buildcache:<arch>,
+#               the release's layer caches of that architecture
 #   SERVICES    the services to build (default: all eight)
 #   TAG         the tag to push (default: sha-<revision>); a workspace deploys
 #               a release by its version, so its releases are tagged <version>
@@ -42,6 +45,16 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
   exit 2
 }
 
+platform="${PLATFORM:-linux/amd64}"
+case "$platform" in
+  linux/amd64 | linux/arm64) ;;
+  *)
+    echo "images.sh: no image is built for $platform" >&2
+    exit 2
+    ;;
+esac
+arch="${platform#linux/}"
+
 read -ra services <<<"${SERVICES:-db platform proxy sandbox sandbox-egress sandbox-runtime sandbox-buildkitd}"
 protocol="$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' "$root/services/platform/lib/engine/core/protocol.ts")"
 case "$protocol" in 1 | 2) ;; *)
@@ -53,7 +66,7 @@ esac
 for service in "${services[@]}"; do
   tag="$registry/tale-project/tale/tale-$service:${TAG:-sha-$revision}"
   args=(
-    --platform linux/amd64
+    --platform "$platform"
     --file "$root/services/$service/Dockerfile"
     --build-arg "VERSION=$version"
     --label "org.opencontainers.image.revision=$revision"
@@ -68,13 +81,13 @@ for service in "${services[@]}"; do
     )
   fi
   [ -z "${BUILDER:-}" ] || args+=(--builder "$BUILDER")
-  [ -z "${CACHE_FROM:-}" ] || args+=(--cache-from "type=registry,ref=$CACHE_FROM/tale-$service-buildcache:amd64")
+  [ -z "${CACHE_FROM:-}" ] || args+=(--cache-from "type=registry,ref=$CACHE_FROM/tale-$service-buildcache:$arch")
   if [ -n "${OUTPUT:-}" ]; then
     args+=(--output "type=image,name=$tag,push=true,$OUTPUT")
   else
     args+=(--tag "$tag" --push)
   fi
-  echo "images.sh: building tale-$service for $revision"
+  echo "images.sh: building tale-$service ($platform) for $revision"
   started=$SECONDS
   docker buildx build "${args[@]}" "$root"
   echo "images.sh: tale-$service pushed in $((SECONDS - started)) s"

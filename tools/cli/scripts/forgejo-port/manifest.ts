@@ -129,6 +129,15 @@ export const MANIFEST: Manifest = {
         },
       ],
     },
+    'memory-budget.yml': {
+      kind: 'port',
+      dropEvents: [
+        {
+          name: 'push',
+          why: "a push to a release line reads the budget on the line's own copy on GitHub, which schedules and dispatches only a workflow its default branch holds while that branch does not carry the line's work; here a push is one to main and the workflow runs on its schedule",
+        },
+      ],
+    },
     'release.yml': { kind: 'github', why: RELEASE_LANE },
     'release-candidate-source.yml': {
       kind: 'github',
