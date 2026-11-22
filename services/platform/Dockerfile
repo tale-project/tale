@@ -296,9 +296,10 @@ RUN HUSKY=0 bun install --production \
 # One image, four roles (TALE_ROLE): the web tier alone (`web`), the API with
 # the web tier beside it (`api`), the job queues (`worker`), and the last two
 # in one process (`all`). Each is one node process running the built backend.
-# The image also carries the media pipeline the ingest lanes shell out to
-# (ffmpeg, yt-dlp + its Deno JS runtime, the bgutil PO-token plugin), which
-# used to live in the retired Convex image.
+# The image also carries ffmpeg, which the transcription lane shells out to.
+# yt-dlp, its JavaScript runtime and the PO-token plugin are not here: a video
+# link's yt-dlp runs in a sandbox session, and the sandbox runtime image
+# carries them (services/sandbox-runtime/Dockerfile).
 # ============================================================================
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS runner
 
@@ -329,85 +330,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
 
 # ----------------------------------------------------------------------------
-# Media toolchain (video ingest + transcription)
+# Media toolchain (transcription)
 # ----------------------------------------------------------------------------
-# The ingest lanes shell out to these, so they ship WITH the process that runs
-# them — they moved here from the retired Convex image, pins and checksum
-# verification unchanged:
-#   * ffmpeg      — audio extract/compress for the transcription pipeline.
-#   * yt-dlp      — metadata + caption + audio fetch. Pinned so two builds an
-#                   hour apart are byte-identical; ops rebuild ~monthly for
-#                   upstream player fixes. An empty ARG falls back to
-#                   `releases/latest` (handy in dev, discouraged in prod).
-#   * deno        — yt-dlp's JS runtime for the n-challenge solver (>= 2025.11).
-#   * bgutil      — PO-token provider plugin; dissolves YouTube's bot wall on
-#                   datacenter IPs. MUST match the `bgutil-provider` sidecar
-#                   image tag in compose.yml — bump both together.
-# Resolved versions land in /etc/yt-dlp-version + /etc/deno-version.
-ARG YTDLP_VERSION=2026.10.26
-ARG DENO_VERSION=v2.5.4
-ARG BGUTIL_POT_VERSION=1.3.1
+# ffmpeg cuts and compresses what the transcription lane hands a model: an
+# uploaded recording, and a video link's sound, which arrives as the platform
+# served it.
+#
+# A video link's yt-dlp does not run here. It fetches pages and streams from
+# whatever a member pastes and runs a platform's JavaScript to get at them, so
+# it runs in a sandbox session (tale-project/tale#4942). The pinned yt-dlp, its
+# JavaScript runtime and the PO-token plugin are in the sandbox runtime image
+# (services/sandbox-runtime/Dockerfile), which is where to bump them.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
-    && apt-get install -y --no-install-recommends unzip jq ffmpeg \
-    # yt-dlp: per-arch asset selection + SHA256 verification against the
-    # release's official SHA2-256SUMS. Asset names are yt-dlp's own, NOT
-    # dpkg arch names.
-    && YTDLP_DPKG_ARCH="$(dpkg --print-architecture)" \
-    && case "$YTDLP_DPKG_ARCH" in \
-        amd64) YTDLP_ASSET="yt-dlp_linux" ;; \
-        arm64) YTDLP_ASSET="yt-dlp_linux_aarch64" ;; \
-        *) echo "Unsupported arch for yt-dlp: $YTDLP_DPKG_ARCH" >&2; exit 1 ;; \
-       esac \
-    # Resolve the `latest` redirect to a concrete tag ONCE, then build asset +
-    # checksum URLs from it, so a release cut between curls cannot land a
-    # mismatched binary/sums pair.
-    && if [ -z "$YTDLP_VERSION" ]; then \
-        YTDLP_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/yt-dlp/yt-dlp/releases/latest | awk -F/ '{print $NF}'); \
-       else \
-        YTDLP_TAG="$YTDLP_VERSION"; \
-       fi \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
-    && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s|  ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
-    && chmod 0755 /usr/local/bin/yt-dlp \
-    && echo "$YTDLP_TAG" > /etc/yt-dlp-version \
-    && rm -f /tmp/yt-dlp.sums \
-    # Deno: per-arch zip + checksum verify against a single resolved tag. The
-    # upstream `.sha256sum` references the original asset filename, so keep it.
-    && DENO_DPKG_ARCH="$(dpkg --print-architecture)" \
-    && case "$DENO_DPKG_ARCH" in \
-        amd64) DENO_ASSET="deno-x86_64-unknown-linux-gnu.zip" ;; \
-        arm64) DENO_ASSET="deno-aarch64-unknown-linux-gnu.zip" ;; \
-        *) echo "Unsupported arch for deno: $DENO_DPKG_ARCH" >&2; exit 1 ;; \
-       esac \
-    && if [ -z "$DENO_VERSION" ]; then \
-        DENO_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/denoland/deno/releases/latest | awk -F/ '{print $NF}'); \
-       else \
-        DENO_TAG="$DENO_VERSION"; \
-       fi \
-    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}" -o "/tmp/${DENO_ASSET}" \
-    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
-    && (cd /tmp && sha256sum -c deno.sums) \
-    && unzip -q "/tmp/${DENO_ASSET}" -d /usr/local/bin \
-    && chmod 0755 /usr/local/bin/deno \
-    && echo "$DENO_TAG" > /etc/deno-version \
-    && rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums \
-    # bgutil plugin: unzipped under a NAMED child of the `--plugin-dirs` root.
-    # yt-dlp iterdir()s that root and looks for `yt_dlp_plugins/` under each
-    # child, so unzipping straight into the root loads ZERO providers.
-    # Presence of `/opt/yt-dlp/plugins` also flips the zero-config default in
-    # the ingest lane (HAS_BAKED_YTDLP_PLUGIN).
-    && mkdir -p /opt/yt-dlp/plugins/bgutil \
-    && curl -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip" -o /tmp/bgutil-pot.zip \
-    && echo "b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38  /tmp/bgutil-pot.zip" | sha256sum -c - \
-    && unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil \
-    && rm -f /tmp/bgutil-pot.zip \
-    && echo "${BGUTIL_POT_VERSION}" > /etc/bgutil-pot-version \
-    # unzip was only needed for the Deno + bgutil archives.
-    && apt-get purge -y unzip \
-    && apt-get autoremove -y \
+    && apt-get install -y --no-install-recommends jq ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # No PORT: it names the API's port (3005 unless set), and the web tier's own

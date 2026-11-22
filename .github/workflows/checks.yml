@@ -307,8 +307,8 @@ jobs:
       matrix:
         shard: [1, 2]
 
-    # bgutil PO-token provider — the zero-config anti-bot layer baked into the
-    # platform image. Runs as a service container so the live YouTube-ingestion
+    # bgutil PO-token provider — the anti-bot layer a deployment turns on, whose
+    # plugin the sandbox runtime image carries. Runs as a service container so the live YouTube-ingestion
     # suite can fetch GVS tokens at 127.0.0.1:4416, exactly like the
     # `bgutil-provider` compose sidecar in production.
     services:

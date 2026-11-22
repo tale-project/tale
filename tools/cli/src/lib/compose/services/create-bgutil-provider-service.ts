@@ -32,9 +32,10 @@ export function potProviderAsked(
 
 /**
  * bgutil PO-token provider — serves GVS proof-of-origin tokens to the yt-dlp
- * bgutil plugin baked into the platform image, so video-link ingestion survives
- * YouTube's "confirm you're not a bot" wall on datacenter/flagged IPs. Part
- * of a deployment only where it asked for it ({@link potProviderAsked}).
+ * bgutil plugin of a video's sandbox session, which asks it through the
+ * backend, so video-link ingestion survives YouTube's "confirm you're not a
+ * bot" wall on datacenter/flagged IPs. Part of a deployment only where it
+ * asked for it ({@link potProviderAsked}).
  *
  * Third-party image (not a `tale-*` build), so it is NOT part of the
  * always-roll stateful tier (whose deploy pulls `tale-<name>:<version>`).
@@ -42,7 +43,7 @@ export function potProviderAsked(
  * services are healthy, and video ingest degrades gracefully (no token) if it
  * never starts, so it can never fail a deploy. Reached only by the backend over the `internal` network (no published
  * ports). The image tag MUST match `BGUTIL_POT_VERSION` in
- * services/platform/Dockerfile — bump both together.
+ * services/sandbox-runtime/Dockerfile — bump both together.
  */
 export function createBgutilProviderService(
   _config: ServiceConfig,

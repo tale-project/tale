@@ -46,7 +46,7 @@ log_section() { echo; echo "═════════════════�
 # SSRF egress firewall (defense-in-depth) — installed while still root
 # ----------------------------------------------------------------------------
 # The backend roles below open sockets outside `safe_fetch.ts`'s pinned-IP
-# path (yt-dlp, ffmpeg, the crawler's fetch/render lane), and `url_safety.ts`
+# path (ffmpeg, the crawler's fetch lane), and `url_safety.ts`
 # resolves DNS once for validation without pinning the IP across a
 # re-resolution — a short-TTL rebind can flip a public-looking host to cloud
 # IMDS or RFC1918 between the two lookups. Fence the whole egress surface at

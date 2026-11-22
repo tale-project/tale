@@ -1888,10 +1888,11 @@ describe('the yt-dlp version floor', () => {
 
   it('never exceeds the version the image pins', () => {
     // The floor is what we warn a dev host about. If it ever rose above the
-    // Dockerfile pin, the shipped image would warn about itself — and the
-    // warning would stop meaning "your host is behind production".
+    // pin of the image a deployment's yt-dlp runs in, the warning would stop
+    // meaning "your host is behind production".
+    const here = dirname(fileURLToPath(import.meta.url));
     const dockerfile = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../../Dockerfile'),
+      join(here, '../../../../sandbox-runtime/Dockerfile'),
       'utf8',
     );
     const pinned = /^ARG YTDLP_VERSION=(\S+)$/m.exec(dockerfile)?.[1];
@@ -1899,6 +1900,30 @@ describe('the yt-dlp version floor', () => {
     expect(
       compareYtdlpVersions(MIN_YTDLP_VERSION, pinned as string),
     ).toBeLessThanOrEqual(0);
+  });
+
+  // A video link's yt-dlp runs in a sandbox session, never beside the
+  // application (tale-project/tale#4942): the application's image carries
+  // none of its tools, and so nothing to keep in step with the session's.
+  it("is pinned in the session's image alone: the application's carries no yt-dlp", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const platform = readFileSync(join(here, '../../../Dockerfile'), 'utf8');
+
+    for (const tool of [
+      'YTDLP_VERSION',
+      'DENO_VERSION',
+      'BGUTIL_POT_VERSION',
+      'yt-dlp/yt-dlp/releases',
+      'denoland/deno/releases',
+      'bgutil-ytdlp-pot-provider/releases',
+      '/usr/local/bin/yt-dlp',
+      '/usr/local/bin/deno',
+      '/opt/yt-dlp',
+    ]) {
+      expect(platform).not.toContain(tool);
+    }
+    // ffmpeg stays: the transcription lane converts a video's sound here.
+    expect(platform).toMatch(/apt-get install .*\bffmpeg\b/);
   });
 });
 

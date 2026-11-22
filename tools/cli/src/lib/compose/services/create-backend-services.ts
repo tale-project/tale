@@ -104,13 +104,15 @@ function backendBase(
     image: imageRef(config, service),
     // NET_ADMIN: the entrypoint installs the SSRF egress firewall (iptables
     // REJECT for IMDS + link-local + RFC1918) before dropping privileges.
-    // This tier opens sockets outside the pinned-IP fetch path (yt-dlp,
-    // ffmpeg, the crawler's fetch/render lane), so a DNS rebind would
-    // otherwise be an SSRF vector against the host's metadata service.
+    // This tier opens sockets outside the pinned-IP fetch path (ffmpeg, the
+    // crawler's fetch lane), so a DNS rebind would otherwise be an SSRF
+    // vector against the host's metadata service. A video link's yt-dlp is
+    // not among them: it runs in a sandbox session.
     cap_add: ['NET_ADMIN'],
-    // yt-dlp + ffmpeg subprocesses peak ~300-500 MB each and ingest runs
-    // concurrently; the cap bounds the blast radius, pids_limit defends
-    // against a fork-bomb regression, nofile covers concurrent sockets.
+    // The cap bounds the blast radius of what this tier starts beside
+    // itself (ffmpeg, the capped child that reads a file), pids_limit
+    // defends against a fork-bomb regression, nofile covers concurrent
+    // sockets.
     mem_limit: `${BACKEND_MEMORY_LIMIT_GIB}g`,
     // Spared by reclaim while sandbox sessions press on host memory, per
     // replica, where the engine runs cgroup v2. Mirrored in compose.yml.

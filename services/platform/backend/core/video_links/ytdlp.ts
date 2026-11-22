@@ -58,15 +58,19 @@ import { RELAY_PROXY_UNREACHABLE_STATUS } from './relay';
 const YTDLP_BIN = 'yt-dlp';
 
 /**
- * Where `services/platform/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
- * plugin, and the compose sidecar (`bgutil-provider`) that serves the tokens.
- * The plugin is in the self-hosted image; the sidecar runs only where a
- * deployment turned it on (`VIDEO_INGEST_POT_PROVIDER=true`), and there the
- * plugin path and the provider URL default to the pair, with nothing else
- * to set. `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL`
- * override.
- * Evaluated once at module load — cheap, and the image layout never changes at
- * runtime. Absent on a host `bun dev` (no baked dir) → defaults stay dormant.
+ * Where the sandbox runtime image carries the bgutil PO-token-provider yt-dlp
+ * plugin (`services/sandbox-runtime/Dockerfile`), and the compose sidecar
+ * (`bgutil-provider`) that serves the tokens. A session's yt-dlp is told
+ * where the plugin is and asks the sidecar through the platform's relay
+ * (`session_place.ts`). The sidecar runs only where a deployment turned it on
+ * (`VIDEO_INGEST_POT_PROVIDER=true`), with nothing else to set;
+ * `VIDEO_INGEST_POT_PROVIDER_URL` names another provider.
+ *
+ * A run on this machine (`VIDEO_INGEST_LANE=local`) finds the plugin here
+ * only where this path exists, which it does on no ordinary machine: `bun
+ * dev` and the live test name the directory of the toolchain they
+ * provisioned (`VIDEO_INGEST_YTDLP_PLUGIN_DIRS`). Looked at once, when the
+ * module loads.
  *
  * Layout under this root MUST be `bgutil/yt_dlp_plugins/…` (not a bare
  * `yt_dlp_plugins/`): yt-dlp `--plugin-dirs` iterates children of this path.
@@ -139,18 +143,18 @@ export const BASE_FLAGS: ReadonlyArray<string> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Spawn PATH + ffmpeg location — resolved from `process.env` on EVERY spawn so
-// the LIVE ingest test (`ytdlp_live.test.ts`) can inject a self-provisioned
-// toolchain (see `ytdlp_toolchain.ts`) AFTER this module is imported + cached.
-// Both keep the production defaults byte-for-byte, so an unset environment (the
-// baked convex image) behaves exactly as before.
+// Spawn PATH + ffmpeg location of a run on this machine — resolved from
+// `process.env` on EVERY spawn so `bun dev` and the LIVE ingest test
+// (`ytdlp_live.test.ts`) can name a self-provisioned toolchain (see
+// `ytdlp_toolchain.ts`) AFTER this module is imported + cached. A session's
+// run takes neither: its image has yt-dlp on its own PATH, and no ffmpeg.
 // ---------------------------------------------------------------------------
 
 /**
- * PATH for the yt-dlp/ffmpeg child. Production pins the minimal set the
- * Dockerfile installs into (`/usr/local/bin:/usr/bin:/bin`) — deliberately NOT
+ * PATH for a yt-dlp that runs as a child of this process: the minimal set a
+ * system installs into (`/usr/local/bin:/usr/bin:/bin`) — deliberately NOT
  * `process.env.PATH`, so a dev host's shell PATH can't leak arbitrary binaries
- * into the sandboxed child. `VIDEO_INGEST_BIN_DIR`, when set, is PREPENDED so a
+ * into the child. `VIDEO_INGEST_BIN_DIR`, when set, is PREPENDED so a
  * self-provisioned yt-dlp + deno (downloaded outside the pinned dirs, e.g. into
  * a per-user cache) is found first. Read per-spawn — never baked into a cache —
  * so the live test can set it after module load.
@@ -162,13 +166,15 @@ export function buildSpawnPath(env: NodeJS.ProcessEnv): string {
 }
 
 /**
- * `--ffmpeg-location` for yt-dlp's post-processing (subtitle convert + audio
- * extract). Passed EXPLICITLY rather than resolved via PATH, so it works even
- * when ffmpeg lives outside the pinned spawn PATH — e.g. Homebrew's
- * `/opt/homebrew/bin/ffmpeg` on a dev laptop. Defaults to the Dockerfile's
- * `/usr/bin/ffmpeg`; `VIDEO_INGEST_FFMPEG_LOCATION` overrides with an absolute
- * path. Built per-invocation (NOT in the cached `BASE_FLAGS`) so the live test
- * can point it at a self-provisioned ffmpeg after module load.
+ * `--ffmpeg-location` for a yt-dlp that runs on this machine. A run converts
+ * nothing, so yt-dlp starts no ffmpeg of its own accord; the flag only says
+ * where one is for a stream its own downloader hands on to ffmpeg, which a
+ * session's run, with no ffmpeg, cannot fetch. Passed EXPLICITLY rather than
+ * resolved via PATH, so it works even when ffmpeg lives outside the pinned
+ * spawn PATH — e.g. Homebrew's `/opt/homebrew/bin/ffmpeg` on a dev laptop.
+ * Defaults to `/usr/bin/ffmpeg`; `VIDEO_INGEST_FFMPEG_LOCATION` overrides with
+ * an absolute path. Built per-invocation (NOT in the cached `BASE_FLAGS`) so
+ * the live test can point it at a self-provisioned ffmpeg after module load.
  */
 export function ffmpegLocationFlags(env: NodeJS.ProcessEnv): string[] {
   return [
@@ -179,9 +185,10 @@ export function ffmpegLocationFlags(env: NodeJS.ProcessEnv): string[] {
 
 // Flags whose support depends on the installed yt-dlp version. Probed
 // once via `yt-dlp --help` at first invocation and cached for the
-// lifetime of the Node action runtime. Production runs the version
-// pinned by services/platform/Dockerfile and always has every flag; this
-// machinery is for dev hosts running older system-installed yt-dlp.
+// lifetime of the process. A deployment runs the version pinned by
+// services/sandbox-runtime/Dockerfile, which has every flag and is not
+// probed; this machinery is for dev hosts running an older system-installed
+// yt-dlp (a place of this machine).
 //
 // Each entry: a probe substring that must appear in `--help` output AND
 // the argv tokens to inject when present. The pair is contiguous in argv
@@ -727,11 +734,13 @@ export function cookiesFlagsFromEnv(
 
 /**
  * `--plugin-dirs <dir>` from `VIDEO_INGEST_YTDLP_PLUGIN_DIRS`. Points yt-dlp at
- * a plugins directory (e.g. where the bgutil PO-token-provider plugin is baked
- * into the image) — needed because the spawn sets `HOME` to the throwaway job
- * dir, so the default `~/.config/yt-dlp/plugins` never resolves. Falls back to
- * the baked plugin dir where a run has a provider to ask: loaded without one,
- * the plugin would look for a provider on the loopback that nobody runs.
+ * a plugins directory (where the toolchain of `bun dev` put the bgutil
+ * PO-token-provider plugin) — needed because the spawn sets `HOME` to the
+ * throwaway job dir, so the default `~/.config/yt-dlp/plugins` never resolves.
+ * Falls back to the baked plugin dir where a run has a provider to ask: loaded
+ * without one, the plugin would look for a provider on the loopback that
+ * nobody runs. A run somewhere else is told where its plugin is, or that it
+ * has none (`reach.pluginDir`), and the setting names nothing there.
  */
 export function pluginDirFlagsFromEnv(
   env: NodeJS.ProcessEnv,
@@ -751,8 +760,9 @@ export function pluginDirFlagsFromEnv(
 /**
  * `--impersonate <target>` (e.g. `safari`) from `VIDEO_INGEST_IMPERSONATE`.
  * Matches the TLS/JA3 fingerprint to a real browser for the web clients.
- * Requires `curl_cffi` in the image, so it stays opt-in — an unset default can
- * never break a build that lacks it.
+ * Requires `curl_cffi` where yt-dlp runs (its standalone binary, which the
+ * sandbox runtime image carries, bundles it), so it stays opt-in — an unset
+ * default can never break a yt-dlp that lacks it.
  */
 export function impersonateFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
   const target = env.VIDEO_INGEST_IMPERSONATE?.trim();
@@ -785,11 +795,11 @@ export function buildAntiBotFlags(
 
 /**
  * Oldest yt-dlp this lane is known to work against. Must never exceed the
- * `ARG YTDLP_VERSION` pin in `services/platform/Dockerfile` — the guard test
- * in `ytdlp.test.ts` reads the Dockerfile and enforces that, so the two
- * cannot drift apart.
+ * `ARG YTDLP_VERSION` pin in `services/sandbox-runtime/Dockerfile`, the image
+ * a deployment's yt-dlp runs in — the guard test in `ytdlp.test.ts` reads
+ * that Dockerfile and enforces it, so the two cannot drift apart.
  *
- * The image is pinned, so production always satisfies this. A dev host is
+ * The image is pinned, so a deployment always satisfies this. A dev host is
  * NOT: `buildSpawnPath` runs whatever `yt-dlp` sits on `/usr/local/bin`,
  * which is typically installed once and never touched again. Extractors are
  * the whole product here and they rot on a scale of weeks — on 2026-09-08 a
@@ -1044,8 +1054,8 @@ export class YtDlpError extends Error {
  *    [30s, 60s, 120s] retry — caller should use long jitter or fail
  *    fast. YouTube's per-IP rate limit is minutes; short retries
  *    just trigger harder blocks.
- *  - `jsRuntimeMissing` means the image is misconfigured (no Deno).
- *    Caller should alert loudly, not silently retry.
+ *  - `jsRuntimeMissing` means the place yt-dlp runs in is misconfigured
+ *    (no Deno). Caller should alert loudly, not silently retry.
  *  - Anything this function cannot name falls through to `transient`,
  *    which IS retried. So every terminal HTTP shape must be named here
  *    or it burns the full [30s, 60s, 120s] ladder and tells the user
@@ -1206,18 +1216,17 @@ function spawnYtdlp(
   return new Promise((resolve, reject) => {
     // `detached: true` puts the child in its own process group so we can
     // signal the whole group with `process.kill(-pid, ...)` on timeout.
-    // Without this, yt-dlp's ffmpeg grandchild orphans when the Convex
-    // action is hard-killed — the wrapper Node process terminates but
-    // ffmpeg continues to its natural exit, leaving disk/CPU usage that
-    // the entrypoint's 60-min tmpdir sweep can only partially reclaim.
+    // Without this, what yt-dlp started itself (its JavaScript runtime, an
+    // ffmpeg for a stream its downloader hands on) is orphaned when yt-dlp
+    // is killed, and runs on to its natural exit.
     const proc = spawn(YTDLP_BIN, argv, {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: jobDir,
       detached: true,
-      // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
-      // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
-      // tokens) would land in the child's environment. `buildSpawnPath`
-      // keeps the pinned production PATH unless `VIDEO_INGEST_BIN_DIR` is set.
+      // env stripped to the minimum yt-dlp needs. NEVER pass process.env:
+      // the backend's secrets (SOPS_AGE_KEY, db creds, provider tokens)
+      // would land in the child's environment. `buildSpawnPath` keeps the
+      // pinned PATH unless `VIDEO_INGEST_BIN_DIR` is set.
       env: {
         PATH: buildSpawnPath(process.env),
         HOME: jobDir,

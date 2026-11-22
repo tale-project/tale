@@ -12,8 +12,8 @@
  * appears — so a green CI run is the real proof that ingestion works from a
  * server, not just from a residential laptop.
  *
- * SELF-PROVISIONING: `yt-dlp`, `deno` (JS-challenge solver), `ffmpeg` (subtitle
- * conversion), and the bgutil PO-token plugin are NO LONGER installed by a
+ * SELF-PROVISIONING: `yt-dlp`, `deno` (JS-challenge solver), `ffmpeg` (for a
+ * stream yt-dlp hands on to it), and the bgutil PO-token plugin are NO LONGER installed by a
  * workflow step. The `beforeAll` below calls `ensureVideoToolchain()` to
  * download/resolve them into a per-user cache and points `ytdlp.ts` at them via
  * `VIDEO_INGEST_BIN_DIR` / `VIDEO_INGEST_FFMPEG_LOCATION` /

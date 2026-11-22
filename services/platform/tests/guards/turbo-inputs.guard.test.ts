@@ -205,11 +205,12 @@ const OUTSIDE_READS = [
     readers: 'lib/harnesses/gemini-settings-build.test.ts',
   },
   {
-    // Its engine install RUN, run under /bin/sh with recording doubles; and
-    // the path it installs the git credential helper at.
+    // Its engine install RUN, run under /bin/sh with recording doubles; the
+    // path it installs the git credential helper at; and its yt-dlp pin,
+    // which the lane's oldest supported yt-dlp must not pass.
     path: 'services/sandbox-runtime/Dockerfile',
     readers:
-      'tests/guards/dockerfile-fail-closed.guard.test.ts and backend/core/node_only/sandbox/session_credentials.test.ts',
+      'tests/guards/dockerfile-fail-closed.guard.test.ts, backend/core/node_only/sandbox/session_credentials.test.ts and backend/core/video_links/ytdlp.test.ts',
   },
   {
     // Run under /bin/sh, not imported: the git credential helper, on the

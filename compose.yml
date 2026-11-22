@@ -215,8 +215,9 @@ services:
   # ============================================================================
   # bgutil PO-token provider (YouTube ingestion anti-bot)
   # ============================================================================
-  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into
-  # the platform image (layout: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…),
+  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin of a video's
+  # sandbox session, which asks it through the backend (the sandbox runtime
+  # image carries the plugin: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…),
   # so video-link ingestion survives YouTube's "confirm you're not a bot" wall
   # on datacenter/flagged IPs. This stack starts it always, and its backend
   # services are told so (VIDEO_INGEST_POT_PROVIDER below); a `tale deploy`
@@ -224,7 +225,7 @@ services:
   # backend over the internal network (no published ports); video ingest
   # degrades gracefully (no token) if it's down, so nothing depends_on it. The
   # image tag MUST match BGUTIL_POT_VERSION in
-  # services/platform/Dockerfile — bump both together.
+  # services/sandbox-runtime/Dockerfile — bump both together.
   bgutil-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
     container_name: tale-bgutil-provider
@@ -527,7 +528,7 @@ services:
         condition: service_healthy
     # The entrypoint installs the SSRF egress firewall (REJECT IMDS +
     # link-local + RFC1918) before dropping privileges: this tier opens
-    # sockets outside the pinned-IP fetch path (yt-dlp, ffmpeg, the crawler).
+    # sockets outside the pinned-IP fetch path (ffmpeg, the crawler).
     cap_add:
       - NET_ADMIN
     # The org CONFIG STORE — the backend OWNS it (governance policies, SSO

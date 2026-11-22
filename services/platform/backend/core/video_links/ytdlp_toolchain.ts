@@ -1,17 +1,18 @@
 'use node';
 
 /**
- * Self-provisioning toolchain for the LIVE YouTube-ingest test
- * (`ytdlp_live.test.ts`). Production bakes yt-dlp + deno + ffmpeg + the bgutil
- * PO-token plugin into the platform image (`services/platform/Dockerfile`); this
- * module reproduces that set ON DEMAND so the live test runs on a bare laptop
- * or CI runner without a bespoke install step.
+ * Self-provisioning toolchain for `bun dev` and the LIVE YouTube-ingest test
+ * (`ytdlp_live.test.ts`), which run yt-dlp on the machine they run on. A
+ * deployment runs it in a sandbox session, whose image carries yt-dlp + deno
+ * + the bgutil PO-token plugin (`services/sandbox-runtime/Dockerfile`); this
+ * module provides that set, and an ffmpeg, ON DEMAND so the two run on a bare
+ * laptop or CI runner without a bespoke install step.
  *
  * What it guarantees — downloading only what's missing into a per-user cache
  * (`~/.cache/tale-video-toolchain/`, override `TALE_VIDEO_TOOLCHAIN_DIR`):
  *   - yt-dlp: platform standalone binary → `bin/yt-dlp`. Skipped when yt-dlp is
- *     already on a pinned system PATH dir (`/usr/local/bin`|`/usr/bin`), i.e.
- *     the production image, where `runYtdlp` finds it with no override.
+ *     already on a pinned system PATH dir (`/usr/local/bin`|`/usr/bin`),
+ *     where a run on this machine finds it with no override.
  *   - deno: yt-dlp's JS-challenge runtime (n-signature solver, yt-dlp ≥
  *     2025.11) → `bin/deno`. Same skip rule.
  *   - ffmpeg: SYSTEM-FIRST — resolved via `which` over the FULL inherited PATH
@@ -134,8 +135,9 @@ function timeoutDetail(deadline: StageDeadline, startedAt: number): string {
 
 /**
  * bgutil PO-token provider plugin version. Pinned to match the `bgutil` service
- * container in `.github/workflows/checks.yml` and the Dockerfile's baked copy —
- * plugin and provider must agree on the protocol version.
+ * container in `.github/workflows/checks.yml` and the copy the sandbox runtime
+ * image carries (`services/sandbox-runtime/Dockerfile`) — plugin and provider
+ * must agree on the protocol version.
  */
 const BGUTIL_POT_VERSION = '1.3.1';
 
@@ -144,7 +146,8 @@ const BGUTIL_POT_VERSION = '1.3.1';
  * yt-dlp's `candidate_plugin_paths` does `Path(dir).iterdir()` then looks for
  * `yt_dlp_plugins/` under each child — so the zip (which already contains
  * `yt_dlp_plugins/`) must land in `<plugin-dirs>/bgutil/`, not directly in
- * `<plugin-dirs>/`. Must stay in lockstep with `services/platform/Dockerfile`.
+ * `<plugin-dirs>/`. Must stay in lockstep with
+ * `services/sandbox-runtime/Dockerfile`.
  */
 export const BGUTIL_PLUGIN_NEST_DIR = 'bgutil';
 
