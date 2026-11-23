@@ -1884,4 +1884,124 @@ describe('ProvidersSettings', () => {
       );
     });
   });
+
+  describe('two providers with catalogs of their own [PROV-R6]', () => {
+    const openrouterListed = {
+      ...openrouterProvider,
+      catalogError: undefined,
+      models: [model('openai/gpt-or-1'), model('anthropic/claude-or-2')],
+    } as unknown as ProviderCatalog;
+    const gateway = {
+      name: 'company-gateway',
+      displayName: 'Company gateway',
+      origin: 'organization',
+      apiFormat: 'openai',
+      baseUrl: 'https://gateway.example.test/v1',
+      catalogSource: 'models-endpoint',
+      authMethods: ['api-key', 'env'],
+      models: [model('gateway-only/omega')],
+      definitionHash: 'h1',
+    } as unknown as ProviderCatalog;
+    /** The custom endpoint's listing failed to resolve: no models, a reason. */
+    const gatewayUnreachable = {
+      ...gateway,
+      models: [],
+      catalogError: 'getaddrinfo ENOTFOUND gateway.example.test',
+      catalogErrorCode: 'PROVIDER_CATALOG_UNREACHABLE',
+    } as unknown as ProviderCatalog;
+    const credentials = [
+      credential({
+        id: 'or-1',
+        name: 'OpenRouter key',
+        providerSlug: 'openrouter',
+        isDefault: true,
+      }),
+      credential({
+        id: 'gw-1',
+        name: 'Company gateway',
+        providerSlug: 'company-gateway',
+        isDefault: true,
+        hash: 'c1',
+      }),
+    ];
+
+    /** The model ids the allowlist dropdown of one credential's edit dialog
+     * offers. */
+    async function editDropdown(
+      user: Awaited<ReturnType<typeof render>>['user'],
+      credentialName: string,
+    ): Promise<string[]> {
+      await user.click(
+        screen.getByRole('button', { name: `Actions for ${credentialName}` }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      await user.click(
+        dialog.getByRole('combobox', { name: /^Model allowlist/ }),
+      );
+      const options = (await screen.findAllByRole('option')).map(
+        (option) => option.textContent ?? '',
+      );
+      await user.keyboard('{Escape}');
+      return options;
+    }
+
+    it('offers each credential the models of its own provider', async () => {
+      fixtures.catalogs = [anthropicProvider, openrouterListed, gateway];
+      fixtures.credentials = credentials;
+      const { user } = renderPage();
+      expect(await editDropdown(user, 'OpenRouter key')).toEqual([
+        'openai/gpt-or-1',
+        'anthropic/claude-or-2',
+      ]);
+    });
+
+    it('offers the custom provider only its own models', async () => {
+      fixtures.catalogs = [anthropicProvider, openrouterListed, gateway];
+      fixtures.credentials = credentials;
+      const { user } = renderPage();
+      expect(await editDropdown(user, 'Company gateway')).toEqual([
+        'gateway-only/omega',
+      ]);
+    });
+
+    it('keeps OpenRouter’s whole list when the custom provider’s listing failed', async () => {
+      fixtures.catalogs = [
+        anthropicProvider,
+        openrouterListed,
+        gatewayUnreachable,
+      ];
+      fixtures.credentials = credentials;
+      const { user } = renderPage();
+      expect(await editDropdown(user, 'OpenRouter key')).toEqual([
+        'openai/gpt-or-1',
+        'anthropic/claude-or-2',
+      ]);
+    });
+
+    it('offers a new OpenRouter credential its own models beside a configured custom provider', async () => {
+      fixtures.catalogs = [
+        anthropicProvider,
+        openrouterListed,
+        gatewayUnreachable,
+      ];
+      fixtures.credentials = credentials.slice(1);
+      const { user } = renderPage();
+      const form = await pickProvider(user, 'OpenRouter');
+      await user.click(
+        form.getByRole('combobox', { name: /^Model allowlist/ }),
+      );
+      expect(
+        (await screen.findAllByRole('option')).map(
+          (option) => option.textContent,
+        ),
+      ).toEqual(['openai/gpt-or-1', 'anthropic/claude-or-2']);
+    });
+  });
 });
