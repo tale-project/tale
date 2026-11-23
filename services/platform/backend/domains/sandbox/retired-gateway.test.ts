@@ -248,6 +248,48 @@ describe('a gateway away for a while keeps what it holds', () => {
   });
 });
 
+/**
+ * `tale deploy` starts the backend with SANDBOX_LLM_GATEWAY_URL empty once
+ * the gateway's container is gone. On a host whose resolver cannot answer
+ * at all, which reports every gone name as a lookup it could not finish,
+ * that is what still lets the deletion finish and the turns close.
+ */
+describe('a gateway the deployment says is retired, where no lookup can finish', () => {
+  beforeEach(() => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_URL', '');
+  });
+
+  it("lets a deleted organization's teardown finish without asking the network [SBX-R13]", async () => {
+    const fetch = gatewayFailsWith(lookupFailure('EAI_AGAIN'));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const spawner = spawnerAgainstTheGateway();
+
+    await retireOrganizationSandboxes(GONE_ORGANIZATION, {
+      spawner,
+      otherSlicesPending: async () => 0,
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+    expect(spawner.teardownOrganization).toHaveBeenCalledWith('org-gone');
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("closes a turn's settlement without a figure [SBX-R15]", async () => {
+    const fetch = gatewayFailsWith(lookupFailure('EAI_AGAIN'));
+    const { sql, statements } = fakeSql([OPEN_OP, STAMPED]);
+
+    await expect(reconcileSessionOpKey(sql, OP)).resolves.toEqual({
+      spendSettled: true,
+      keyRevoked: true,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    const stamp = statements.find((s) => s.text.includes(SPEND_STAMP));
+    expect(stamp?.values[0]).toBeNull();
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+});
+
 describe('a deployment that never ran the gateway: no admin password', () => {
   beforeEach(() => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);

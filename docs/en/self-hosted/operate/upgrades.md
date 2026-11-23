@@ -137,6 +137,8 @@ A new deployment runs no gateway, and `tale init` and `tale deploy` no longer ge
 - **Some:** the deploy leaves the container as it is and says how many keys the gateway minted are still open: those of turns that started before the upgrade, of sessions that still run, and of an organization being deleted. A later `tale deploy` asks again.
 - **No answer:** the deploy keeps the container and says why. On the first deploy of this release, the backend it asks is still the earlier release's, which cannot answer. The next `tale deploy` asks again.
 
+Once the container is gone, `tale deploy` and `tale rollback` start the backend with `SANDBOX_LLM_GATEWAY_URL` empty, which tells it that the gateway is retired: it asks nothing of the gateway any more, even on a host that cannot reach a DNS server.
+
 `tale deploy --dry-run` asks the same question and says which of these the deploy would do.
 
 The volume `<id>_llm-gateway-data` stays when the container goes. It holds the keys of the providers the gateway reached, in the gateway's SQLite database, and the spend of the keys it minted. Remove it once no turn needs it, with the command the deploy printed:
@@ -153,7 +155,7 @@ The other commands treat the gateway and its volume as follows:
 - `tale runtime migrate --finish` removes the volume with the other Docker data volumes: the Incus stack has no use for it.
 - `tale rollback` never starts the gateway again. A release from before the relay runs agent turns and the model endpoints through the gateway, so after a rollback to such a release, they work only while the gateway's container still runs. `tale deploy` removes the container only while a release with the relay runs, and `tale rollback` returns to the release that ran before the last deploy, so a rollback after the removal returns to a release with the relay.
 
-On your own Compose files or on Kubernetes, nothing asks the backend for you. Sessions reach the relay on the backend API's port 8080: on Kubernetes, the `backend-api` Service must expose it and session Pods must be allowed to reach it, as [Deploy on Kubernetes](/self-hosted/install/kubernetes) shows, and `kubectl apply` leaves the gateway's Deployment, Services and claim in place. Remove the gateway's service once no key it minted is open, and its volume or claim once no turn needs it. With [`TALE_CONTROL_TOKEN`](/self-hosted/configuration/environment-reference) set on the backend, ask it as `tale deploy` does; it answers `{"open":0}` once none is:
+On your own Compose files or on Kubernetes, nothing asks the backend for you. Sessions reach the relay on the backend API's port 8080: on Kubernetes, the `backend-api` Service must expose it and session Pods must be allowed to reach it, as [Deploy on Kubernetes](/self-hosted/install/kubernetes) shows, and `kubectl apply` leaves the gateway's Deployment, Services and claim in place. Remove the gateway's service once no key it minted is open, and its volume or claim once no turn needs it. Then set `SANDBOX_LLM_GATEWAY_URL` empty for the backend: on a host whose containers cannot reach a DNS server, the backend would otherwise take the removed gateway for one that is away for a while, and the deletion of an organization would wait for it. With [`TALE_CONTROL_TOKEN`](/self-hosted/configuration/environment-reference) set on the backend, ask it as `tale deploy` does; it answers `{"open":0}` once none is:
 
 ```bash
 docker compose exec backend-api sh -c 'curl -fsS -H "Authorization: Bearer $TALE_CONTROL_TOKEN" http://localhost:3005/api/control/gateway-keys'

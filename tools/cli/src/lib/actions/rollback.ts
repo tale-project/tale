@@ -64,6 +64,7 @@ import {
   startColor,
 } from './color-lifecycle';
 import { incusWorkspaceOf, rollbackOnIncus } from './incus-deploy';
+import { gatewayRetired } from './retire-gateway';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 interface RollbackOptions {
@@ -273,10 +274,12 @@ export async function rollback(
       objectStore: await resolveObjectStore(`${getProjectId()}_`, runtime),
     };
     // The model relay binds its address in the sandbox network alone, on
-    // Docker; an Incus stack has no such network to read.
+    // Docker; an Incus stack has no such network to read. The backend roles
+    // are told, too, whether the gateway an earlier release ran is retired.
     if (incus === null) {
       const subnet = await readSandboxNetworkSubnet();
       if (subnet !== undefined) serviceConfig.sandboxNetworkSubnet = subnet;
+      serviceConfig.gatewayRetired = await gatewayRetired(runtime);
     }
     const reservationNotice = memoryReservationNotice(serviceConfig);
     if (reservationNotice) logger.warn(reservationNotice);

@@ -110,7 +110,7 @@ import {
   type WorkspacePlan,
 } from './incus-deploy';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
-import { retireGateway } from './retire-gateway';
+import { gatewayRetired, retireGateway } from './retire-gateway';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 /** What a deploy says of the PO-token provider it does not run. */
@@ -1047,6 +1047,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             await retireGateway({ dryRun: false, runtime });
         }
       }
+
+      // Whether the gateway an earlier release ran is gone now, which every
+      // backend role this deploy starts is told: the step above may just
+      // have retired it.
+      if (!dryRun && rotatableToUpdate.length > 0)
+        serviceConfig.gatewayRetired = await gatewayRetired(runtime);
 
       // Deploy rotatable services
       if (rotatableToUpdate.length > 0) {

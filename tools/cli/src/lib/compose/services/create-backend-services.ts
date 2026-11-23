@@ -226,6 +226,14 @@ function relayEnvironment(config: ServiceConfig): Record<string, string> {
   };
 }
 
+/** What a backend role is told of the sandbox LLM gateway an earlier release
+ * ran: that it is retired, once its container is gone
+ * (`ServiceConfig.gatewayRetired`). Nothing while it runs, so that `.env`'s
+ * address or the gateway's own applies. */
+function gatewayEnvironment(config: ServiceConfig): Record<string, string> {
+  return config.gatewayRetired === true ? { SANDBOX_LLM_GATEWAY_URL: '' } : {};
+}
+
 /** Env every backend role shares, plus the colour when it has one. */
 function roleEnvironment(
   role: 'api' | 'worker' | 'all',
@@ -307,6 +315,7 @@ export function createBackendApiService(
     environment: {
       ...roleEnvironment('api', options),
       ...relayEnvironment(config),
+      ...gatewayEnvironment(config),
       PORT: String(BACKEND_API_PORT),
     },
     // `docker stop` waits this long before SIGKILL: the api closes HTTP/SSE
@@ -377,6 +386,7 @@ export function createPlatformBackendService(
     environment: {
       ...roleEnvironment(role, { colour }),
       ...relayEnvironment(config),
+      ...gatewayEnvironment(config),
       // The whole application in one process is the deployment a small host
       // runs. With the jobs apart it is a replica among others, on the
       // backend's own pool sizes and its own cap for one file.
@@ -432,7 +442,10 @@ export function createBackendWorkerService(
     ...(options.colour === undefined
       ? { container_name: `${getProjectId()}-backend-worker` }
       : {}),
-    environment: roleEnvironment('worker', options),
+    environment: {
+      ...roleEnvironment('worker', options),
+      ...gatewayEnvironment(config),
+    },
     healthcheck: { disable: true },
     // `docker stop` waits this long before SIGKILL: a stopping worker hands
     // its automation runs to another one and waits out its other jobs inside

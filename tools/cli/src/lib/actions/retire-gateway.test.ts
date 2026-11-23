@@ -23,7 +23,8 @@ await mockModule('../../utils/logger', () => ({
   blank: mock(),
 }));
 
-const { GATEWAY_KEYS_PATH, retireGateway } = await import('./retire-gateway');
+const { GATEWAY_KEYS_PATH, gatewayRetired, retireGateway } =
+  await import('./retire-gateway');
 
 /**
  * The model relay in the backend replaced the sandbox LLM gateway
@@ -273,5 +274,65 @@ describe('a dry run says which it would do, and changes nothing', () => {
     expect(fake.instances.get(GATEWAY)?.id).toBe(before);
     expect(fake.volumes.has(VOLUME)).toBe(true);
     expect(fake.journal.some((entry) => entry.includes(GATEWAY))).toBe(false);
+  });
+});
+
+/**
+ * What every colour a deploy or a rollback starts tells its backend roles:
+ * that the gateway is retired once its container is gone, so that the
+ * backend never has to guess it from a lookup of the gone name.
+ */
+describe('whether a colour hears that the gateway is retired', () => {
+  const NAMES = ['SANDBOX_LLM_GATEWAY_URL', 'LLM_GATEWAY_URL'] as const;
+  const saved = Object.fromEntries(
+    NAMES.map((name) => [name, process.env[name]]),
+  );
+  const setUrl = (name: (typeof NAMES)[number], value: string): void => {
+    process.env[name] = value;
+  };
+
+  beforeEach(() => {
+    for (const name of NAMES) delete process.env[name];
+  });
+
+  afterEach(() => {
+    for (const name of NAMES) {
+      const value = saved[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  test('not while its container is there, running or stopped', async () => {
+    expect(await gatewayRetired(fake)).toBe(false);
+    await fake.stop(GATEWAY);
+    expect(await gatewayRetired(fake)).toBe(false);
+  });
+
+  test('once its container is gone', async () => {
+    await fake.remove(GATEWAY);
+    expect(await gatewayRetired(fake)).toBe(true);
+  });
+
+  test.each([
+    'http://sandbox-llm-gateway:8080',
+    'http://llm-gateway:8080/',
+    '  ',
+  ])(
+    'once its container is gone, where .env names it by its own name (%p)',
+    async (url) => {
+      await fake.remove(GATEWAY);
+      setUrl('SANDBOX_LLM_GATEWAY_URL', url);
+      expect(await gatewayRetired(fake)).toBe(true);
+    },
+  );
+
+  test('never for a gateway .env names at an address of its own, which no deploy ran', async () => {
+    await fake.remove(GATEWAY);
+    setUrl('SANDBOX_LLM_GATEWAY_URL', 'http://10.0.0.7:9090');
+    expect(await gatewayRetired(fake)).toBe(false);
+    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    setUrl('LLM_GATEWAY_URL', 'http://gateway.internal:8080');
+    expect(await gatewayRetired(fake)).toBe(false);
   });
 });

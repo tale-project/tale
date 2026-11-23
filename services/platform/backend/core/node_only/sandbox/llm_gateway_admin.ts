@@ -13,13 +13,18 @@
 //   - removing a deleted organization's provider keys and records.
 //
 // A deploy retires the gateway's container once no key it minted is open
-// (`GET /api/control/gateway-keys`), and keeps its volume. A gateway whose
-// name no longer resolves (`getaddrinfo ENOTFOUND`) is that retired gateway:
-// a key's spend reads `gone`, so it closes without a figure, and a revoke, a
-// cap or an organization's removal finds nothing left to change. Any other
-// failure (a lookup the resolver could not finish, a refused connection, a
-// timeout, a 5xx) is a gateway away for a while, and the caller tries again
-// as before.
+// (`GET /api/control/gateway-keys`), and keeps its volume. A retired
+// gateway's key spend reads `gone`, so it closes without a figure, and a
+// revoke, a cap or an organization's removal finds nothing left to change.
+// `tale deploy` says the gateway is retired: once its container is gone,
+// every backend role is started with SANDBOX_LLM_GATEWAY_URL empty, and an
+// empty address is a retired gateway with no lookup and no call. Where
+// nothing says so (an operator's own compose files, Kubernetes), a gateway
+// whose name no longer resolves (`getaddrinfo ENOTFOUND`) is the retired
+// one. Any other failure (a lookup the resolver could not finish, which a
+// host without a reachable DNS server answers for any name it does not
+// know, a refused connection, a timeout, a 5xx) is a gateway away for a
+// while, and the caller tries again as before.
 //
 // The admin password is a Tier-0 secret: it lives only in the platform's
 // environment and in the gateway's store, never in the sandbox.
@@ -45,8 +50,15 @@ function gatewayEnv(suffix: string): string | undefined {
   );
 }
 
-function llmGatewayUrl(): string {
-  return gatewayEnv('URL') ?? 'http://sandbox-llm-gateway:8080';
+/** Where the gateway answers: SANDBOX_LLM_GATEWAY_URL, else its old
+ * address. Null where the deployment sets the address empty, which says that
+ * it runs no gateway any more (`tale deploy` does once the container is
+ * gone, and an operator may do the same). */
+function llmGatewayUrl(): string | null {
+  const configured = gatewayEnv('URL');
+  if (configured === undefined) return 'http://sandbox-llm-gateway:8080';
+  const url = configured.trim();
+  return url === '' ? null : url;
 }
 
 /** Admin username for the gateway management plane (auth_config). */
@@ -64,13 +76,16 @@ function adminPassword(): string | undefined {
   return password === undefined || password === '' ? undefined : password;
 }
 
-/** What a management call throws once the gateway's name no longer
- * resolves: its container was retired, and what it held can be neither read
- * nor changed any more. */
+/** What a management call throws once the gateway is retired — the
+ * deployment says so, or its name no longer resolves: what it held can be
+ * neither read nor changed any more. */
 class GatewayRetiredError extends Error {
   constructor(options?: ErrorOptions) {
+    const url = llmGatewayUrl();
     super(
-      `the sandbox LLM gateway at ${llmGatewayUrl()} no longer resolves: it is retired`,
+      url === null
+        ? 'the deployment runs no sandbox LLM gateway any more (SANDBOX_LLM_GATEWAY_URL is empty): it is retired'
+        : `the sandbox LLM gateway at ${url} no longer resolves: it is retired`,
       options,
     );
     this.name = 'GatewayRetiredError';
@@ -112,8 +127,8 @@ function retired(cause?: unknown): GatewayRetiredError {
  * holds no admin password: without the name there is no gateway to ask;
  * with it, the missing password is what keeps the call from being made. A
  * lookup that cannot finish throws, and the caller tries again later. */
-async function gatewayNameResolves(): Promise<boolean> {
-  const host = new URL(llmGatewayUrl()).hostname.replace(/^\[|\]$/g, '');
+async function gatewayNameResolves(url: string): Promise<boolean> {
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
   if (isIP(host) !== 0) return true;
   try {
     await lookup(host);
@@ -137,9 +152,10 @@ const MANAGEMENT_TIMEOUT_MS = 15_000;
 /**
  * One call to the gateway's management API: `path` under its base URL, with
  * the admin credentials as HTTP Basic and a 15 s bound per attempt, `json` as
- * the body. Throws {@link GatewayRetiredError} once the gateway's name no
- * longer resolves, and, on a deployment without the admin password, an
- * error that says so while the name still resolves.
+ * the body. Throws {@link GatewayRetiredError} where the deployment says the
+ * gateway is retired or its name no longer resolves, and, on a deployment
+ * without the admin password, an error that says so while the name still
+ * resolves.
  *
  * The gateway keeps its config in SQLite, which turns away a write that
  * collides with another one. It answers those with a 500 that names the
@@ -152,11 +168,14 @@ async function managementFetch(
   path: string,
   init: { method?: ManagementMethod; json?: unknown } = {},
 ): Promise<Response> {
+  const url = llmGatewayUrl();
+  // Said by the deployment: nothing to look up, and nobody to ask.
+  if (url === null) throw retired();
   const password = adminPassword();
   if (password === undefined) {
-    if (!(await gatewayNameResolves())) throw retired();
+    if (!(await gatewayNameResolves(url))) throw retired();
     throw new Error(
-      `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set, so the sandbox LLM gateway at ${llmGatewayUrl()} cannot be asked about the keys it minted: set it to the password the gateway was deployed with, or retire the gateway`,
+      `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set, so the sandbox LLM gateway at ${url} cannot be asked about the keys it minted: set it to the password the gateway was deployed with, or retire the gateway`,
     );
   }
   const method = init.method ?? 'GET';
@@ -165,7 +184,7 @@ async function managementFetch(
   ).toString('base64')}`;
   const request = async (): Promise<Response> => {
     try {
-      return await fetch(`${llmGatewayUrl()}${path}`, {
+      return await fetch(`${url}${path}`, {
         method,
         headers: { 'content-type': 'application/json', authorization },
         ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),

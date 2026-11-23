@@ -20,6 +20,12 @@
  * Never the volume: it holds the keys of the providers the gateway reached
  * and the spend of the keys it minted, a snapshot taken while the gateway ran
  * restores into it, and its operator removes it once nothing needs it.
+ *
+ * Once the container is gone, every colour a deploy or a rollback starts
+ * tells its backend roles that the gateway is retired ({@link
+ * gatewayRetired}), so that the backend never has to guess it from a lookup
+ * of the gone name: a host whose resolver cannot answer at all reports that
+ * lookup as unfinished, not as a name that does not exist.
  */
 
 import { z } from 'zod';
@@ -32,6 +38,31 @@ import type { StackRuntime } from '../runtime/types';
 
 /** The service the gateway ran as; its container is `<project>-<service>`. */
 const GATEWAY_SERVICE = 'sandbox-llm-gateway';
+
+/** The names the gateway's container answered to on the stack's networks:
+ * its service and the alias it kept from before its rename. */
+const GATEWAY_HOSTS: ReadonlySet<string> = new Set([
+  GATEWAY_SERVICE,
+  'llm-gateway',
+]);
+
+/**
+ * Whether the gateway an earlier release ran is retired here: its container
+ * is gone, and `.env` names no gateway at an address of its own, which no
+ * deploy ever ran or retires. Each backend role of a colour started now is
+ * told so (`ServiceConfig.gatewayRetired`).
+ */
+export async function gatewayRetired(runtime: StackRuntime): Promise<boolean> {
+  if (await runtime.exists(`${getProjectId()}-${GATEWAY_SERVICE}`))
+    return false;
+  const configured = (
+    process.env.SANDBOX_LLM_GATEWAY_URL ?? process.env.LLM_GATEWAY_URL
+  )?.trim();
+  if (configured === undefined || configured === '') return true;
+  return (
+    URL.canParse(configured) && GATEWAY_HOSTS.has(new URL(configured).hostname)
+  );
+}
 
 /** The control door that counts the keys the gateway minted which have not
  * settled yet: turns whose spend is unread or whose key is unrevoked, and

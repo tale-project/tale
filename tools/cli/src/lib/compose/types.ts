@@ -127,6 +127,16 @@ export interface ServiceConfig {
    * API.
    */
   sandboxNetworkSubnet?: string;
+  /**
+   * Whether the sandbox LLM gateway an earlier release ran is retired here:
+   * its container is gone (actions/retire-gateway.ts). True tells every
+   * backend role so, with `SANDBOX_LLM_GATEWAY_URL` empty, and the backend
+   * then looks no gone name up: a host whose resolver cannot answer at all
+   * would report that lookup as unfinished, which reads as a gateway away
+   * for a while. Left out, the backend asks the gateway at its address and
+   * reads a name that no longer resolves as a retired gateway.
+   */
+  gatewayRetired?: boolean;
 }
 
 /**

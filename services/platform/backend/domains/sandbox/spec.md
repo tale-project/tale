@@ -375,7 +375,7 @@ When a turn ends or its sandbox is torn down, what its gateway key spent is read
 first, and only then is the key deleted. If the spend cannot be read, the key is kept and
 both steps are tried again later. A later attempt books nothing a second time. A key that no
 longer exists when its spend is read is closed without an amount, and so is every key of a
-gateway a deploy retired, whose name no longer resolves.
+gateway a deploy retired: one the deployment says is gone, or whose name no longer resolves.
 
 - **Example**: A sandbox is destroyed while the gateway cannot be reached → its key is kept.
   Once the gateway answers, the spend is booked and the key is deleted.

@@ -9,6 +9,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { parse } from 'yaml';
+
 import type { DeploymentEnv } from '../../utils/load-env';
 import { createModuleMocks } from '../../utils/module-mock-fixture';
 import {
@@ -967,7 +969,8 @@ describe('rollback confirmation', () => {
 
   // The model relay replaced the sandbox LLM gateway (tale-project/tale#4942).
   // A rollback runs a release of the same minor, which runs none, so it never
-  // starts a gateway a deploy retired, nor makes its volume again.
+  // starts a gateway a deploy retired, nor makes its volume again. It reads
+  // only whether the gateway's container is still there.
   test('starts no model gateway and makes no volume for one', async () => {
     arrangePatchRollback();
 
@@ -976,11 +979,86 @@ describe('rollback confirmation', () => {
     expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
     const named = (calls: unknown[][]): boolean =>
       calls.some((call) => JSON.stringify(call).includes('llm-gateway'));
+    const readsWhetherItIsThere = (call: unknown[]): boolean =>
+      call[0] === 'container' &&
+      call[1] === 'inspect' &&
+      call[2] === '--format';
     expect(ensureVolumesMock).toHaveBeenCalled();
     expect(named(ensureVolumesMock.mock.calls)).toBe(false);
     expect(named(dockerComposeMock.mock.calls)).toBe(false);
-    expect(named(dockerMock.mock.calls)).toBe(false);
+    expect(
+      named(
+        dockerMock.mock.calls.filter((call) => !readsWhetherItIsThere(call)),
+      ),
+    ).toBe(false);
     expect(named(pullImageMock.mock.calls)).toBe(false);
+  });
+
+  // The colour a rollback starts hears, as a deploy's does, whether the
+  // gateway is retired, so that its backend looks no gone name up.
+  describe('what the colour a rollback starts is told of the gateway', () => {
+    /** What each backend role of the colour's document is told of the
+     * gateway's address, by service; the web tier alone is told nothing. */
+    const gatewayUrlOf = (colour: string): Record<string, string | null> => {
+      const document = dockerComposeMock.mock.calls.find(
+        (call) =>
+          (call[2] as { projectName?: string }).projectName ===
+          `${project}-${colour}`,
+      )?.[0];
+      const services = (
+        parse(String(document)) as {
+          services: Record<string, { environment?: Record<string, string> }>;
+        }
+      ).services;
+      return Object.fromEntries(
+        Object.entries(services).flatMap(([name, service]) =>
+          service.environment?.TALE_ROLE === undefined
+            ? []
+            : [[name, service.environment.SANDBOX_LLM_GATEWAY_URL ?? null]],
+        ),
+      );
+    };
+
+    test('that it is retired, once its container is gone', async () => {
+      arrangePatchRollback();
+      const answers = dockerMock.getMockImplementation();
+      dockerMock.mockImplementation((...args: string[]) =>
+        args[0] === 'container' &&
+        args.at(-1) === `${project}-sandbox-llm-gateway`
+          ? Promise.resolve({
+              success: false,
+              stdout: '',
+              stderr: `Error: No such container: ${project}-sandbox-llm-gateway`,
+              exitCode: 1,
+            })
+          : (answers?.(...args) ??
+            Promise.resolve({
+              success: true,
+              stdout: '',
+              stderr: '',
+              exitCode: 0,
+            })),
+      );
+
+      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+
+      expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
+      expect(gatewayUrlOf('green')).toEqual({
+        'backend-api': '',
+        'backend-worker': '',
+      });
+    });
+
+    test('nothing, while its container is there', async () => {
+      arrangePatchRollback();
+
+      await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+
+      expect(gatewayUrlOf('green')).toEqual({
+        'backend-api': null,
+        'backend-worker': null,
+      });
+    });
   });
 
   // What a deploy refuses before it pulls, a rollback refuses there too:

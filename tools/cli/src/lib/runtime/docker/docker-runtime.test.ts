@@ -465,6 +465,8 @@ const BLUE_GREEN_DEPLOY_ARGV: readonly string[] = [
   'docker exec demo-abc123-blue-backend-api-1 sh -c \u00ab8430a89baf50\u00bb',
   'docker rm -f demo-abc123-sandbox-llm-gateway',
   'docker volume inspect demo-abc123_llm-gateway-data',
+  // Gone, so the colour started below is told the gateway is retired.
+  'docker container inspect --format {{.Id}} demo-abc123-sandbox-llm-gateway',
   'docker ps -a --filter label=com.docker.compose.project=demo-abc123-blue --filter label=com.docker.compose.service=platform --format \u00ab4fc2b80a78e6\u00bb',
   'docker container inspect --format \u00ab981aa748b02d\u00bb demo-abc123-blue-platform-1',
   'docker ps -a --filter label=com.docker.compose.project=demo-abc123-green --format \u00ab4fc2b80a78e6\u00bb',
@@ -1031,6 +1033,12 @@ async function isolatedSuite(): Promise<void> {
         expect(question).toBeGreaterThan(tier);
         expect(question).toBeLessThan(colour);
         expect(await getCurrentColor(deployDir)).toBe('green');
+        // The colour started after the removal is told the gateway is
+        // retired, so its backend looks no gone name up.
+        expect(
+          fake.instances.get(`${PROJECT}-green-platform-1`)?.environment
+            .SANDBOX_LLM_GATEWAY_URL,
+        ).toBe('');
       });
 
       test('stays as it is while turns settle through it', async () => {
@@ -1057,6 +1065,10 @@ async function isolatedSuite(): Promise<void> {
           ),
         ).toBe(false);
         expect(await getCurrentColor(deployDir)).toBe('green');
+        // The gateway is there, so the colour is told nothing of it.
+        expect(
+          fake.instances.get(`${PROJECT}-green-platform-1`)?.environment,
+        ).not.toHaveProperty('SANDBOX_LLM_GATEWAY_URL');
       });
 
       // The first deploy of this release asks the live colour, which still

@@ -612,7 +612,7 @@ The sandbox LLM gateway, `sandbox-llm-gateway`, kept its store in the `llm-gatew
 | --- | --- | --- |
 | `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | unset | The gateway's admin password. `tale init` and `tale deploy` no longer generate it. Leave an existing value as it is while the gateway is kept. |
 | `SANDBOX_LLM_GATEWAY_ADMIN_USERNAME` | `admin` | The gateway's admin user name. |
-| `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | Where the backend reaches the gateway. A gateway whose name no longer resolves counts as gone. |
+| `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | Where the backend reaches the gateway. Empty says the gateway is retired, and nothing is asked of it any more: `tale deploy` starts the backend with it empty once the gateway's container is gone. Unset, a gateway whose name no longer resolves counts as gone. |
 
 `SANDBOX_LLM_GATEWAY_MEMORY`, `SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY`, `SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY` and `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS` configured the gateway and no longer have any effect. `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` now sets the relay's wait, as [Sandbox agent turns](#sandbox-agent-turns) describes.
 

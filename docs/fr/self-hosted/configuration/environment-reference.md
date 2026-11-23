@@ -612,7 +612,7 @@ La passerelle LLM de la sandbox, `sandbox-llm-gateway`, gardait ses données dan
 | --- | --- | --- |
 | `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | non défini | Le mot de passe administrateur de la passerelle. `tale init` et `tale deploy` ne le génèrent plus. Laisse une valeur existante telle quelle tant que la passerelle est gardée. |
 | `SANDBOX_LLM_GATEWAY_ADMIN_USERNAME` | `admin` | Le nom d’utilisateur administrateur de la passerelle. |
-| `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | L’adresse à laquelle le backend joint la passerelle. Une passerelle dont le nom ne se résout plus compte comme retirée. |
+| `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | L’adresse à laquelle le backend joint la passerelle. Vide, elle signifie que la passerelle est retirée et que plus rien ne lui est demandé : `tale deploy` démarre le backend avec une valeur vide dès que le conteneur de la passerelle a disparu. Sans valeur, une passerelle dont le nom ne se résout plus compte comme retirée. |
 
 `SANDBOX_LLM_GATEWAY_MEMORY`, `SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY`, `SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY` et `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS` configuraient la passerelle et n’ont plus aucun effet. `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` fixe désormais l’attente du relais, comme le décrit [Tours d’agent en sandbox](#sandbox-agent-turns).
 

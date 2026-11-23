@@ -522,6 +522,72 @@ describe('a gateway away for a while is not retired', () => {
 });
 
 /**
+ * `tale deploy` says the gateway is retired: once its container is gone it
+ * starts every backend role with SANDBOX_LLM_GATEWAY_URL empty. That holds
+ * where the resolver could never say a gone name does not exist, a host
+ * without a reachable DNS server answering every lookup it does not know
+ * with EAI_AGAIN.
+ */
+describe('a gateway the deployment says is retired: an empty address', () => {
+  beforeEach(() => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_URL', '');
+    lookup.mockRejectedValue(
+      Object.assign(new Error('getaddrinfo EAI_AGAIN sandbox-llm-gateway'), {
+        code: 'EAI_AGAIN',
+      }),
+    );
+  });
+
+  it('closes a key without a figure, with no lookup and no call [SBX-R15]', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const calls = stubFailure(nodeLookupFailure('EAI_AGAIN'));
+    const mod = await loadModule();
+    await expect(mod.readVirtualKeySpend('vk-1')).resolves.toEqual({
+      status: 'gone',
+    });
+    await expect(mod.revokeVirtualKey('vk-1')).resolves.toBeUndefined();
+    await expect(mod.setVirtualKeyBudget('vk-1', 100)).resolves.toBe('gone');
+    expect(calls).toHaveLength(0);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['with the admin password', DEFAULT_PW],
+    ['without it', undefined],
+  ])(
+    "has nothing of a deleted organization's to remove, %s [SBX-R13]",
+    async (_label, password) => {
+      vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', password);
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const calls = stubFailure(nodeLookupFailure('EAI_AGAIN'));
+      const mod = await loadModule();
+      await expect(mod.removeOrganizationFromGateway(ORG)).resolves.toEqual({
+        records: 0,
+        keys: 0,
+      });
+      expect(calls).toHaveLength(0);
+      expect(lookup).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    },
+  );
+
+  it('reads a blank address as an empty one, and says once that the deployment retired the gateway', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_URL', '  ');
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const calls = stubFailure(nodeLookupFailure('EAI_AGAIN'));
+    const mod = await loadModule();
+    await mod.readVirtualKeySpend('vk-1');
+    await mod.revokeVirtualKey('vk-2');
+    expect(calls).toHaveLength(0);
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(String(info.mock.calls[0]?.[0])).toContain(
+      'the deployment runs no sandbox LLM gateway any more (SANDBOX_LLM_GATEWAY_URL is empty): it is retired',
+    );
+  });
+});
+
+/**
  * A new install never ran the gateway and carries no admin password. A
  * deployment that did, and lost the password, still has a gateway that
  * answers to its name.
