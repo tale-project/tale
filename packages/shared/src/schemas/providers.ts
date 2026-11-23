@@ -893,6 +893,7 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //                       `contextWindow.below` gate (never an error: a CLI
 //                       reads the empty value as unset)
 //   ${workdir}          the session working directory
+//   ${workdir.toml}     the session working directory as a TOML string
 //   ${execId}           the platform exec id of the turn
 //   ${prompt}           the turn prompt
 //   ${vision.model}     the vision lane's gateway model (the in-image
@@ -1033,7 +1034,8 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *    them inside its code-mode scripts).
  *  - `instructionsRef`: when instructions are staged as a file
  *    (`stagedInstructions`), set `path` to `[prefix + stagedPath]` so the
- *    CLI discovers the staged file.
+ *    CLI discovers the staged file, followed by the `also` files (placeholder
+ *    templates), which are listed even when nothing is staged.
  */
 const docFragmentSchema = z.union([
   z
@@ -1071,7 +1073,11 @@ const docFragmentSchema = z.union([
   z
     .object({
       instructionsRef: z
-        .object({ path: docPathSchema, prefix: z.string().min(1).max(200) })
+        .object({
+          path: docPathSchema,
+          prefix: z.string().min(1).max(200),
+          also: z.array(z.string().min(1).max(200)).max(8).optional(),
+        })
         .strict(),
     })
     .strict(),
@@ -1178,7 +1184,9 @@ const argvSlotSchema = z.union([
         .object({
           flag: flagSchema,
           configKey: z.string().min(1).max(128).optional(),
-          transform: z.enum(['claude-house-rules']).optional(),
+          transform: z
+            .enum(['claude-house-rules', 'workspace-agents-md'])
+            .optional(),
         })
         .strict(),
     })

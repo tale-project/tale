@@ -61,6 +61,7 @@ describe('Gemini immutable system settings', () => {
       expect(name).toMatch(/^[a-f\d]{64}\.json$/);
       expect(policy).toMatchObject({
         model: { maxSessionTurns: 200 },
+        advanced: { ignoreLocalEnv: true },
         context: { fileName: ['GEMINI.md', '${TALE_GEMINI_CONTEXT_FILE}'] },
       });
     }
@@ -143,6 +144,31 @@ describe('Gemini immutable system settings', () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain('settings do not match this sandbox image');
     expect(result.stdout).not.toContain('"argv"');
+  });
+
+  pyTest.each([
+    ['the working directory', 'workspace'],
+    ['a directory above it', '.'],
+  ])(
+    "refuses a Gemini environment file of the workspace's own in %s",
+    (_where, dir) => {
+      mkdirSync(join(root, dir, '.gemini'), { recursive: true });
+      writeFileSync(join(root, dir, '.gemini/.env'), 'GEMINI_SYSTEM_MD=x\n');
+      const result = run(geminiPayload(root));
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('Gemini CLI environment file');
+      expect(result.stdout).not.toContain('"argv"');
+      expect(readdirSync(join(root, 'home'))).toEqual([]);
+    },
+  );
+
+  pyTest('starts beside a plain .env, which its settings leave unread', () => {
+    writeFileSync(join(root, 'workspace/.env'), 'GEMINI_SYSTEM_MD=x\n');
+    const result = run(geminiPayload(root));
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout).settings).toMatchObject({
+      advanced: { ignoreLocalEnv: true },
+    });
   });
 
   pyTest(

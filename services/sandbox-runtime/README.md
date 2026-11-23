@@ -449,10 +449,20 @@ text) still loads:
 | Harness | The workspace's own configuration | Still loaded |
 | ------- | --------------------------------- | ------------ |
 | Claude Code | `--setting-sources user`: no `.claude/settings.json` or `.claude/settings.local.json` (environment, hooks, helper commands, permission rules, output style, plugins), and no project skills, agents or commands; `.mcp.json` stays out through `--strict-mcp-config` | `CLAUDE.md` and `.claude/rules`, through `--add-dir` on the working directory with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; `.claude/skills`, through runnerd's links (see [Built-in skills](#built-in-skills)) |
+| Codex | `-c projects={"<workdir>"={trust_level="untrusted"}}`: no `.codex/config.toml` (MCP servers, instructions files, model settings, hooks) and no project exec policies; left without a trust level, `codex exec` would mark a directory it can write trusted on its own | `.agents/skills`; the repository's `AGENTS.md` is named in the instructions for the agent to read, since an untrusted project's docs are not loaded |
+| OpenCode | `OPENCODE_DISABLE_PROJECT_CONFIG=1`: no `opencode.json`/`opencode.jsonc` found up from the working directory (plugins, MCP servers, agents and their prompts, instructions) and none of its `.opencode` directories (plugins, tools, agents, commands) | the configuration in `OPENCODE_CONFIG_CONTENT`; skills; the repository's `AGENTS.md`, which the config's `instructions` names |
+| Gemini CLI | its settings come from the image's root-owned system file, read before `--skip-trust` marks the folder trusted, so a `.gemini/settings.json` does not apply; `advanced.ignoreLocalEnv` keeps a `.env` in the working directory and above it out of the CLI's environment, and the wrapper refuses to start where a `.gemini/.env` is (the CLI reads that file whatever the setting) | `GEMINI.md` and skills |
+| Qwen Code | the folder trust that keeps yolo also merges a `.qwen/settings.json` under the staged system settings, and some of what it sets (a model provider of its own) the system file cannot override, so `tale-qwen-run` refuses to start where one is in the working directory or above it; besides, hooks are off (`disableAllHooks`), no server command runs, only the staged MCP servers start (`--allowed-mcp-server-names`), no output style applies (`--output-style default`), and `QWEN_SYSTEM_MD`/`QWEN_WRITE_SYSTEM_MD` are set to 0 so a workspace `.env` cannot set them | `QWEN.md` and skills |
 
 The golden execs (`services/platform/lib/harnesses/fixtures/exec/`) hold the
-flags, and `daemon/src/baked-skills.test.ts` the skill links; each was observed
-against the pinned CLI with a workspace that carries such files.
+flags, `daemon/src/baked-skills.test.ts` the skill links, and
+`daemon/src/gemini-settings.test.ts` and `daemon/src/tale-qwen-run.test.ts` the
+wrappers' refusals; each was observed against the pinned CLI with a workspace
+that carries such files. Hermes reads no configuration of its own from the
+working directory (its config, plugins and hooks come from `HERMES_HOME`, and
+project plugins stay off), and OpenClaw ignores the credentials and runtime
+controls of a workspace `.env` and loads workspace plugins and hooks only when
+its config enables them, which Tale's does not.
 
 Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
 the SDK's artificial delay between tool calls. Provider retry and backoff stay

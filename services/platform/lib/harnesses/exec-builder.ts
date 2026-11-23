@@ -147,8 +147,23 @@ const PROMPT_TRANSFORMS = {
   'claude-ultrathink': withUltrathink,
 } as const;
 
+/** The repository's AGENTS.md as guidance to read, for a CLI that no longer
+ * loads it itself: Codex runs with its working directory untrusted, which
+ * keeps the workspace's own Codex configuration out and its project docs
+ * with it. Prepended like the house rules, and delivered alone when nothing
+ * was composed. */
+const WORKSPACE_AGENTS_MD =
+  'If the repository you are working in contains an AGENTS.md file, read it and follow its instructions.';
+
+function withWorkspaceAgentsMd(instructions: string | undefined): string {
+  const base = instructions ?? '';
+  if (base.includes(WORKSPACE_AGENTS_MD)) return base;
+  return base ? `${WORKSPACE_AGENTS_MD}\n\n${base}` : WORKSPACE_AGENTS_MD;
+}
+
 const INSTRUCTIONS_TRANSFORMS = {
   'claude-house-rules': withHouseRules,
+  'workspace-agents-md': withWorkspaceAgentsMd,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -230,12 +245,13 @@ interface Substitutions {
 }
 
 /** The closed placeholder set. `model.raw` and `model.contextWindow` are
- * listed before `model` so the longer name wins the alternation; unknown
+ * listed before `model`, and `workdir.toml` before `workdir`, so the longer
+ * name wins the alternation; unknown
  * `${…}` sequences fall outside the pattern and pass through
  * byte-identically (several CLIs resolve their own `${VAR}`/`{env:VAR}`/
  * `$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model|workdir\.toml|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
 
 /** `${model.contextWindow}`: the spec's window as a whole, positive token
  * count — below the exec's declared gate, when it declares one — else ''. */
@@ -492,6 +508,9 @@ export function buildHarnessExec(
       exec.contextWindow?.below,
     ),
     workdir: spec.workdir,
+    // The working directory as a TOML basic string (JSON.stringify is TOML
+    // basic-string encoding for a path), for a `-c` value that names it.
+    'workdir.toml': JSON.stringify(spec.workdir),
     execId: spec.execId,
     prompt: spec.prompt,
     'vision.model': spec.vision?.model,
@@ -607,11 +626,14 @@ export function buildHarnessExec(
         );
         if (servers) setPath(doc, f.path, servers);
       } else if ('instructionsRef' in fragment) {
-        if (stagedInstructionsPath !== undefined) {
-          setPath(doc, fragment.instructionsRef.path, [
-            `${fragment.instructionsRef.prefix}${stagedInstructionsPath}`,
-          ]);
-        }
+        const ref = fragment.instructionsRef;
+        const files = [
+          ...(stagedInstructionsPath === undefined
+            ? []
+            : [`${ref.prefix}${stagedInstructionsPath}`]),
+          ...(ref.also ?? []).map((file) => substitute(file, subs)),
+        ];
+        if (files.length > 0) setPath(doc, ref.path, files);
       }
     }
     return doc;
