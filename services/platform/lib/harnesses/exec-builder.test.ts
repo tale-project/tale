@@ -1116,3 +1116,17 @@ describe('operator reasoning effort', () => {
     },
   );
 });
+
+describe("a CLI starts without the workspace's own configuration", () => {
+  it('claude-code reads its user setting source and the CLAUDE.md of the working directory', () => {
+    const exec = buildHarnessExec(fact('claude-code'), managedSpec());
+    const at = exec.argv.indexOf('--setting-sources');
+    expect(exec.argv.slice(at, at + 4)).toEqual([
+      '--setting-sources',
+      'user',
+      '--add-dir',
+      '/agent/workspace',
+    ]);
+    expect(exec.env.CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD).toBe('1');
+  });
+});

@@ -54,6 +54,20 @@ exec:
         - stream-json
         - '--verbose'
         - '--include-partial-messages'
+    # The working directory's own Claude Code configuration stays out of the
+    # turn. With the user source alone the CLI reads no .claude/settings.json
+    # or .claude/settings.local.json there: none of their environment, hooks,
+    # helper commands, permission rules or output style applies, and no
+    # project skills, agents or commands load. The managed settings the image
+    # installs and this exec's own flags still apply, and the user source is
+    # the session's own config dir (CLAUDE_CONFIG_DIR), where the built-in
+    # skills are linked. The repository's CLAUDE.md and .claude/rules are
+    # guidance the agent keeps: the working directory named with --add-dir,
+    # with CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD below, loads them as
+    # before. Observed on 2.1.285 against a local stand-in for the Messages
+    # API: a workspace's settings files changed nothing in the turn, and its
+    # CLAUDE.md and rules reached the model.
+    - args: ['--setting-sources', 'user', '--add-dir', '${workdir}']
     # plan: read-only exploration; the CLI denies writes and the turn ends
     # with the proposed plan (ExitPlanMode carries it in input.plan). The
     # platform gates execution — approval starts a fresh act turn that
@@ -151,6 +165,9 @@ exec:
     base:
       CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+      # The CLAUDE.md files of the --add-dir directories load (see the
+      # setting sources above).
+      CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     # MANAGED: Anthropic Messages route on the platform gateway; the session
     # key is a bearer token (ANTHROPIC_AUTH_TOKEN takes precedence over
     # X-Api-Key). Blank the API key so it never conflicts with the bearer

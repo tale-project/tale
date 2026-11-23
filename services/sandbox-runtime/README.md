@@ -435,6 +435,25 @@ conversations rather than a year. A task resumed after its transcript is gone
 restarts fresh on its preserved files. `daemon/src/managed-settings.test.ts`
 holds the period.
 
+### A workspace's own agent configuration
+
+The workspace holds content Tale does not control: a member's repository, one
+an agent cloned, files an earlier step wrote. Each agent CLI looks for its own
+configuration in the working directory and above it, and such files could run
+commands when a turn starts, send the turn's model key to another address,
+replace or remove Tale's bridge, or change the instructions. So every harness
+starts its CLI on the configuration the platform stages, and the workspace's
+guidance (its `AGENTS.md`, `CLAUDE.md` and skills, which the agent reads as
+text) still loads:
+
+| Harness | The workspace's own configuration | Still loaded |
+| ------- | --------------------------------- | ------------ |
+| Claude Code | `--setting-sources user`: no `.claude/settings.json` or `.claude/settings.local.json` (environment, hooks, helper commands, permission rules, output style, plugins), and no project skills, agents or commands; `.mcp.json` stays out through `--strict-mcp-config` | `CLAUDE.md` and `.claude/rules`, through `--add-dir` on the working directory with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; `.claude/skills`, through runnerd's links (see [Built-in skills](#built-in-skills)) |
+
+The golden execs (`services/platform/lib/harnesses/fixtures/exec/`) hold the
+flags, and `daemon/src/baked-skills.test.ts` the skill links; each was observed
+against the pinned CLI with a workspace that carries such files.
+
 Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
 the SDK's artificial delay between tool calls. Provider retry and backoff stay
 enabled. OpenClaw's wrapper treats a structured error as a failed execution
@@ -479,15 +498,18 @@ Dockerfile pins:
 | `.hermes/skills` | Hermes (`HERMES_HOME`) |
 
 A skill the workspace repository ships wins over the baked one of the same
-name. The harnesses cannot settle that on their own — Claude Code ranks user
-skills above project skills, Codex lists both copies and OpenCode keeps
-whichever finishes loading last — so while
-`/agent/workspace/.claude/skills/<name>/SKILL.md` exists runnerd withdraws the
-`<name>` link from `.claude/skills` under HOME, and likewise for
-`.agents/skills`. It reconciles at boot and again before every exec, so a
-repository cloned during one turn decides the next, and a withdrawn link comes
-back once the repository no longer ships the skill. With the repository copy in
-both directories:
+name. The harnesses cannot settle that on their own — Codex lists both copies
+and OpenCode keeps whichever finishes loading last — so while
+`/agent/workspace/.agents/skills/<name>/SKILL.md` exists runnerd withdraws the
+`<name>` link from `.agents/skills` under HOME. Claude Code reads no
+project-level skills (it starts on its user setting source alone, see
+[A workspace's own agent configuration](#a-workspaces-own-agent-configuration)),
+so runnerd links each skill of `/agent/workspace/.claude/skills` into
+`.claude/skills` under HOME instead, in place of a baked one of its name, and
+removes the link once the repository no longer ships the skill. It reconciles
+at boot and again before every exec, so a repository cloned during one turn
+decides the next, and a withdrawn link comes back once the repository no longer
+ships the skill. With the repository copy in both directories:
 
 | Harness | Lists |
 | ------- | ----- |
