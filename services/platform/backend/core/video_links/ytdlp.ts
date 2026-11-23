@@ -873,7 +873,16 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
     // the platform refused an automated caller, and retrying on our own
     // schedule only hardens it.
     s.includes('http error 412') ||
-    s.includes('precondition failed')
+    s.includes('precondition failed') ||
+    // YouTube served no client a player response. yt-dlp asks each player
+    // client in turn and only warns when one is refused; `--no-warnings`
+    // hides those lines, leaving this error alone. From a server it means
+    // every request was refused (403/429 on the player API: yt-dlp issues
+    // #18073, #14277, #13336 — "your proxy's IP is likely blocked"), so
+    // retrying from the same address on a short timer only hardens the
+    // block; another proxy may well be served. Its sibling says so outright.
+    s.includes('failed to extract any player response') ||
+    s.includes('your ip is likely being blocked')
   ) {
     return 'botDetection';
   }
