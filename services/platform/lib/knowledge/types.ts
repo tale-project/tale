@@ -50,6 +50,9 @@ export interface EmbeddingModel {
   readonly dimensions: number;
   /** OpenAI-compatible base URL, when the provider is not the default one. */
   readonly baseUrl?: string;
+  /** OpenRouter endpoints (provider slugs) each request tells OpenRouter to
+   * skip, because they would refuse this width; absent, none are skipped. */
+  readonly ignoredEndpoints?: readonly string[];
   /** How many requests to this model may be in flight at once; absent means
    * the default bound. Stated by the operator, like the width. */
   readonly maxConcurrentRequests?: number;

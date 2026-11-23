@@ -14,7 +14,16 @@ const { constructed, resolveCredential, resolveProviders } = vi.hoisted(() => ({
   resolveCredential:
     vi.fn<(...args: unknown[]) => Promise<ResolvedProviderCredential>>(),
   resolveProviders: vi.fn(async () => [
-    { name: 'openai', baseUrl: 'https://provider.example/v1' },
+    {
+      name: 'openai',
+      baseUrl: 'https://provider.example/v1',
+      catalog: { source: 'static' },
+    },
+    {
+      name: 'openrouter',
+      baseUrl: 'https://openrouter.example/api/v1',
+      catalog: { source: 'openrouter-api' },
+    },
   ]),
 }));
 
@@ -251,5 +260,50 @@ describe('direct embedding credentials', () => {
     expect(caught).toBe(refusal);
     expect(classifyEmbeddingFailure(caught)).toBe('unresolved');
     expect(constructed).toEqual([]);
+  });
+});
+
+// OpenRouter balances a request across a model's endpoints; one that serves
+// a fixed set of widths (SiliconFlow for Qwen3 Embedding 8B) refuses a width
+// outside it, so the embedder of an organization at such a width routes
+// around it — the width the organization stored, not the catalog's pick.
+describe('OpenRouter endpoint routing', () => {
+  const OPENROUTER: KnowledgeEmbeddingConfig = {
+    providerSlug: 'openrouter',
+    model: 'qwen/qwen3-embedding-8b',
+    dimensions: 1536,
+  };
+
+  beforeEach(() => {
+    runQuery.mockResolvedValue({
+      ...BASE_ROW,
+      providerSlug: 'openrouter',
+      authMethod: 'api-key',
+    });
+    resolveCredential.mockResolvedValue(credential('env'));
+  });
+
+  it('skips the endpoints that would refuse the stored width', async () => {
+    const embedder = await resolve(OPENROUTER);
+
+    expect(embedder.model.ignoredEndpoints).toEqual(['siliconflow']);
+    expect(constructed[0]).toMatchObject({
+      baseURL: 'https://openrouter.example/api/v1',
+    });
+  });
+
+  it('keeps every endpoint when the stored width is one they all serve', async () => {
+    const embedder = await resolve({ ...OPENROUTER, dimensions: 1024 });
+
+    expect(embedder.model).not.toHaveProperty('ignoredEndpoints');
+  });
+
+  it('sends no OpenRouter routing to a provider that is not OpenRouter', async () => {
+    const embedder = await resolve({
+      ...OPENROUTER,
+      providerSlug: 'openai',
+    });
+
+    expect(embedder.model).not.toHaveProperty('ignoredEndpoints');
   });
 });

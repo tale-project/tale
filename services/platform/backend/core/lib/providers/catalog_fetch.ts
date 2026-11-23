@@ -812,6 +812,36 @@ export function knownModel(
 }
 
 /**
+ * The OpenRouter endpoints, by provider slug, that would refuse (or not
+ * honour) an embedding request for `id` at `width`: those Tale's shipped
+ * OpenRouter catalogs list in the model's `embedding.fixedWidthEndpoints`
+ * without that width. Exact ids only, like the curated widths. Empty when
+ * no shipped catalog knows of one — the request then goes unrouted.
+ */
+export function openRouterEndpointsRefusingWidth(
+  id: string,
+  width: number,
+  options: LoadSystemConfigOptions = {},
+): string[] {
+  const openRouterCatalogs = new Set(
+    loadProviderDefinitions(options)
+      .filter((provider) => provider.catalog.source === 'openrouter-api')
+      .map((provider) => provider.name),
+  );
+  const refusing = new Set<string>();
+  for (const [name, entries] of loadStaticCatalogs(options)) {
+    if (!openRouterCatalogs.has(name)) continue;
+    const fixed = entries.find((entry) => entry.id === id)?.embedding
+      ?.fixedWidthEndpoints;
+    if (fixed === undefined) continue;
+    for (const [slug, widths] of Object.entries(fixed)) {
+      if (!widths.includes(width)) refusing.add(slug);
+    }
+  }
+  return [...refusing].toSorted();
+}
+
+/**
  * The catalog for one provider, per its declared source. The exhaustive
  * switch is the case list: static file, OpenRouter API, own models endpoint,
  * or no shippable catalog at all.

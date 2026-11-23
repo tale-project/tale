@@ -765,6 +765,30 @@ describe('the request shape', () => {
       { timeout: EMBED_QUERY_TIMEOUT_MAX_MS, signal: expect.any(AbortSignal) },
     );
   });
+
+  it("tells OpenRouter to skip the endpoints that would refuse the model's width", async () => {
+    create.mockImplementation((args) =>
+      Promise.resolve({
+        data: args.input.map(() => ({ embedding: [1, 2, 3] })),
+      }),
+    );
+    const embedder = new Embedder(
+      { ...MODEL, ignoredEndpoints: ['siliconflow'] },
+      'sk-test',
+    );
+
+    await embedder.embed('hello');
+    expect(create).toHaveBeenCalledWith(
+      {
+        model: 'text-embedding-3-small',
+        input: ['hello'],
+        dimensions: 3,
+        encoding_format: 'float',
+        provider: { ignore: ['siliconflow'] },
+      },
+      { timeout: EMBED_QUERY_TIMEOUT_MAX_MS, signal: expect.any(AbortSignal) },
+    );
+  });
 });
 
 /**
