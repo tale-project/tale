@@ -86,11 +86,18 @@ type VideoToolchainDeadlines = typeof VIDEO_TOOLCHAIN_DEADLINES;
 /** A provisioning stage failed; `stage` names it (e.g. `yt-dlp download body`). */
 export class VideoToolchainError extends Error {
   readonly stage: string;
+  /** The child's exit status, when the stage failed by a child exiting non-zero. */
+  readonly exitCode?: number;
 
-  constructor(stage: string, detail: string, options?: ErrorOptions) {
+  constructor(
+    stage: string,
+    detail: string,
+    options?: ErrorOptions & { exitCode?: number },
+  ) {
     super(`[video-toolchain] ${stage}: ${detail}`, options);
     this.name = 'VideoToolchainError';
     this.stage = stage;
+    this.exitCode = options?.exitCode;
   }
 }
 
@@ -318,27 +325,8 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     console.info('[video-toolchain] installing ffmpeg via apt-get…');
     // Best-effort: the runner may lack sudo or network. A failure just surfaces
     // as the "still missing" error below, with full context for the operator.
-    // `sudo -n`: a password prompt is a wait with no deadline, and the bounded
-    // child runs without a terminal — it fails at once instead. `timeout`
-    // holds apt-get to the same bound on the privileged side: this process can
-    // stop sudo, but not the root apt-get it starts, which only sudo's relayed
-    // SIGTERM reaches — and nothing once sudo itself is gone.
-    const deadline = clock.stage(install);
     try {
-      await run(
-        'ffmpeg install (apt-get)',
-        'sudo',
-        [
-          '-n',
-          ...privilegedTimeout(deadline, clock.deadlines.killGraceMs),
-          'apt-get',
-          'install',
-          '-y',
-          'ffmpeg',
-        ],
-        deadline,
-        clock,
-      );
+      await aptInstallFfmpeg(clock);
     } catch (err) {
       installFailure = err;
       console.warn(
@@ -360,6 +348,58 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     );
   }
   return reResolved;
+}
+
+/** apt-get's exit status for a failed operation (a fetch, a resolve, dpkg). */
+const APT_FAILED = 100;
+
+/**
+ * `apt-get install -y ffmpeg` as root, once more after an `apt-get update`
+ * when APT itself failed. A hosted runner image carries the package lists of
+ * its build day; once the archive supersedes a pinned version (a security
+ * update), the install 404s on the stale URL and exits 100 — every run on that
+ * image, until the lists are refreshed. Installing first spends no update on
+ * a host whose lists still resolve; the one retry follows only APT's own
+ * failure, never a timeout (124: the budget is spent) or a sudo refusal (1),
+ * which an update cannot cure. Each phase is its own bounded stage.
+ *
+ * `sudo -n`: a password prompt is a wait with no deadline, and the bounded
+ * child runs without a terminal — it fails at once instead. `timeout` holds
+ * apt-get to the same bound on the privileged side: this process can stop
+ * sudo, but not the root apt-get it starts, which only sudo's relayed SIGTERM
+ * reaches — and nothing once sudo itself is gone.
+ */
+async function aptInstallFfmpeg(clock: ProvisioningClock): Promise<void> {
+  const apt = async (stage: string, args: string[]): Promise<void> => {
+    const deadline = clock.stage(clock.deadlines.packageInstallMs);
+    await run(
+      stage,
+      'sudo',
+      [
+        '-n',
+        ...privilegedTimeout(deadline, clock.deadlines.killGraceMs),
+        'apt-get',
+        ...args,
+      ],
+      deadline,
+      clock,
+    );
+  };
+  const install = (): Promise<void> =>
+    apt('ffmpeg install (apt-get)', ['install', '-y', 'ffmpeg']);
+  try {
+    await install();
+  } catch (err) {
+    if (!(err instanceof VideoToolchainError) || err.exitCode !== APT_FAILED) {
+      throw err;
+    }
+    console.warn(
+      '[video-toolchain] apt-get install ffmpeg failed; refreshing the package lists and retrying once:',
+      err.message,
+    );
+    await apt('ffmpeg package lists (apt-get update)', ['update']);
+    await install();
+  }
 }
 
 /**
@@ -538,7 +578,9 @@ export async function run(
       result.code === null
         ? `was killed by ${result.signal}`
         : `exited ${result.code}`;
-    throw new VideoToolchainError(stage, `'${cmd} ${args.join(' ')}' ${how}`);
+    throw new VideoToolchainError(stage, `'${cmd} ${args.join(' ')}' ${how}`, {
+      exitCode: result.code ?? undefined,
+    });
   }
 }
 

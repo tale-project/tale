@@ -888,6 +888,82 @@ describe('provisionToolchain bounds', () => {
     },
   );
 
+  describe.skipIf(!ON_LINUX)('apt-get install of a missing ffmpeg', () => {
+    /**
+     * A sudo that runs its command and an apt-get that writes each call to
+     * `apt.calls` and exits as `installExit` says (`update` always answers);
+     * `which` finds ffmpeg once an install has succeeded.
+     */
+    async function fakeApt(installExit: string): Promise<string> {
+      const calls = join(scratch, 'apt.calls');
+      const installed = join(scratch, 'ffmpeg.installed');
+      await fakeOnPath(
+        'which',
+        [
+          'case "$1" in',
+          `  ffmpeg) [ -e '${installed}' ] && echo /opt/fake/ffmpeg || exit 1 ;;`,
+          '  apt-get) echo /usr/bin/apt-get ;;',
+          '  *) exit 1 ;;',
+          'esac',
+        ].join('\n'),
+      );
+      await fakeOnPath(
+        'sudo',
+        ['[ "$1" = "-n" ] && shift', 'exec "$@"'].join('\n'),
+      );
+      await fakeOnPath(
+        'apt-get',
+        [
+          `echo "$*" >> '${calls}'`,
+          '[ "$1" = update ] && exit 0',
+          `n=$(grep -c '^install' '${calls}')`,
+          `code=$(${installExit})`,
+          `[ "$code" = 0 ] && touch '${installed}'`,
+          'exit "$code"',
+        ].join('\n'),
+      );
+      return calls;
+    }
+
+    it('refreshes stale package lists and retries once when APT fails', async () => {
+      const cacheDir = await warmCache();
+      // The first install 404s on a superseded version, as on a runner image
+      // whose lists predate a security update; the one after the update works.
+      const calls = await fakeApt('[ "$n" = 1 ] && echo 100 || echo 0');
+      await expect(
+        provisionToolchain({ cacheDir, deadlines: FAST }),
+      ).resolves.toMatchObject({ ffmpegLocation: '/opt/fake/ffmpeg' });
+      expect(await readFile(calls, 'utf8')).toBe(
+        'install -y ffmpeg\nupdate\ninstall -y ffmpeg\n',
+      );
+    });
+
+    it('retries only once', async () => {
+      const cacheDir = await warmCache();
+      const calls = await fakeApt('echo 100');
+      const err = await provisionToolchain({ cacheDir, deadlines: FAST }).catch(
+        (e: unknown) => e,
+      );
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(\[video-toolchain\] ffmpeg install \(apt-get\): '.*apt-get install -y ffmpeg' exited 100\)/,
+      );
+      expect(await readFile(calls, 'utf8')).toBe(
+        'install -y ffmpeg\nupdate\ninstall -y ffmpeg\n',
+      );
+    });
+
+    it('updates nothing after a failure an update cannot cure', async () => {
+      const cacheDir = await warmCache();
+      // sudo -n refusing (no passwordless sudo on a dev box) exits 1.
+      const calls = await fakeApt('echo 1');
+      const err = await provisionToolchain({ cacheDir, deadlines: FAST }).catch(
+        (e: unknown) => e,
+      );
+      expect((err as Error).message).toMatch(/exited 1\)/);
+      expect(await readFile(calls, 'utf8')).toBe('install -y ffmpeg\n');
+    });
+  });
+
   it('returns the resolved toolchain when every stage answers (control)', async () => {
     const cacheDir = await warmCache();
     await fakeOnPath('which', 'echo /opt/fake/ffmpeg');
