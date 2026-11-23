@@ -9,6 +9,7 @@ import {
   deriveDevSecrets,
   ensureKnowledgeDatabaseUrl,
   ensureModelRelayPort,
+  ensureObjectStoreEnv,
   ensureSandboxToken,
 } from './dev-secrets';
 
@@ -130,5 +131,31 @@ describe('ensureModelRelayPort', () => {
     const env: NodeJS.ProcessEnv = { SANDBOX_RELAY_PORT: '9090' };
     ensureModelRelayPort(env);
     expect(env.SANDBOX_RELAY_PORT).toBe('9090');
+  });
+});
+
+describe('ensureObjectStoreEnv', () => {
+  it('hands the browser the app’s own origin for the store, as a deployment does', () => {
+    const env: NodeJS.ProcessEnv = { SITE_URL: 'http://localhost:3000' };
+    ensureObjectStoreEnv(env);
+    expect(env.OBJECT_STORE_ENDPOINT).toBe('http://127.0.0.1:59000');
+    expect(env.OBJECT_STORE_PUBLIC_ENDPOINT).toBe('http://localhost:3000');
+  });
+
+  it('keeps a public endpoint that is set, an empty one included', () => {
+    for (const value of ['https://files.example.com', '']) {
+      const env: NodeJS.ProcessEnv = {
+        SITE_URL: 'http://localhost:3000',
+        OBJECT_STORE_PUBLIC_ENDPOINT: value,
+      };
+      ensureObjectStoreEnv(env);
+      expect(env.OBJECT_STORE_PUBLIC_ENDPOINT).toBe(value);
+    }
+  });
+
+  it('names no public endpoint while the site has no address', () => {
+    const env: NodeJS.ProcessEnv = {};
+    ensureObjectStoreEnv(env);
+    expect('OBJECT_STORE_PUBLIC_ENDPOINT' in env).toBe(false);
   });
 });

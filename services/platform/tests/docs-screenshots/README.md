@@ -66,7 +66,12 @@ rather than relying on `POSTGRES_DB` to name every database it creates.
 Configure a reachable S3-compatible object store before starting the backend. The dev orchestrator
 supplies local defaults for `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_BUCKET`,
 `OBJECT_STORE_ACCESS_KEY`, and `OBJECT_STORE_SECRET_KEY`; explicit environment values take
-precedence. Those values must match your store. If the backend started before storage was ready,
+precedence. Those values must match your store. The browser reaches the store through the app's own
+address, as it does behind a deployment's proxy: the orchestrator sets
+`OBJECT_STORE_PUBLIC_ENDPOINT` to `SITE_URL`, so upload and download links are signed for port 3000,
+and Vite forwards the bucket's path to the store. The store therefore needs no CORS rule. Set
+`OBJECT_STORE_PUBLIC_ENDPOINT` yourself only for a store the browser reaches at its own address.
+If the backend started before storage was ready,
 restart the task's dev process and retry the upload. Do not restart an unrelated checkout's stack.
 
 ## Capture and review

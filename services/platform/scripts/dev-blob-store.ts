@@ -5,7 +5,38 @@
  * nothing reads now: the files uploaded before the update stop downloading,
  * and the old volume sits on the disk. That is said once, on the bring-up
  * that creates `blob-data` beside it.
+ *
+ * The browser reaches the store on the app's own origin, where Vite
+ * forwards the bucket's path to it ({@link objectStoreProxy}).
  */
+
+import { resolveEnvObjectStore } from '../lib/utils/env-object-store';
+
+/**
+ * The blob store's route on the dev app's origin, for Vite's dev and preview
+ * servers (`vite.config.ts`): the bucket's path, forwarded to the store as
+ * the edge forwards it in a deployment (`compose.yml`, the object store's
+ * labels). The backend signs the browser's upload and download links for
+ * the app's origin (`ensureObjectStoreEnv` in ./dev-secrets), so they are
+ * same-origin requests and the store needs no CORS rule; versitygw refuses
+ * another origin's without one. `Host` goes on as the browser sent it, since
+ * the signature covers it. None for a store the environment does not
+ * configure, or one addressed by virtual host, which a path cannot reach.
+ */
+export function objectStoreProxy(
+  env: Record<string, string | undefined>,
+): Record<string, { target: string; changeOrigin: false }> {
+  const resolved = resolveEnvObjectStore(env);
+  if (!resolved.configured) return {};
+  const { bucket, endpoint, forcePathStyle } = resolved.store;
+  if (endpoint === undefined || !forcePathStyle) return {};
+  return {
+    [`/${encodeURIComponent(bucket)}/`]: {
+      target: endpoint,
+      changeOrigin: false,
+    },
+  };
+}
 
 /** What one `docker` call answered. */
 export interface DockerAnswer {

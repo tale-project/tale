@@ -38,9 +38,10 @@ export interface EnvObjectStore {
   /**
    * Where a BROWSER reaches the store, when the deployment publishes it
    * somewhere other than `endpoint`. Compose sets it to the site origin,
-   * behind which the proxy forwards `/<bucket>/*` to the store; `bun dev`
-   * leaves it unset because its endpoint is already a loopback address the
-   * browser can reach, and so does a public bucket.
+   * behind which the proxy forwards `/<bucket>/*` to the store, and `bun dev`
+   * does the same, where Vite forwards that path (`scripts/dev-blob-store.ts`).
+   * A public bucket, which the browser reaches at its own address, leaves it
+   * unset.
    */
   publicEndpoint?: string;
   bucket: string;

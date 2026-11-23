@@ -172,10 +172,22 @@ export function ensureAppDatabaseUrl(env: NodeJS.ProcessEnv): void {
  * The credentials mirror compose.yml's dev defaults so the two local modes
  * address the same bucket with the same keys — insecure by design, same
  * threat model as the rest of `x-dev-secrets`. An explicit value always wins.
+ *
+ * The browser reaches the store through the app's own origin, as it reaches
+ * the bundled store through the edge in a deployment: the links the backend
+ * hands it are signed for SITE_URL, as compose and `tale deploy` default
+ * OBJECT_STORE_PUBLIC_ENDPOINT, and Vite forwards the bucket's path to the
+ * store (`objectStoreProxy` in ./dev-blob-store). A link on the store's own
+ * address was a request to another origin, which versitygw answers only
+ * under a CORS rule the bucket does not have. An explicit value, an empty
+ * one included, hands the browser the store's own address instead.
  */
 export function ensureObjectStoreEnv(env: NodeJS.ProcessEnv): void {
   env.OBJECT_STORE_ENDPOINT ??= `http://127.0.0.1:${env.OBJECT_STORE_HOST_PORT ?? '59000'}`;
   env.OBJECT_STORE_BUCKET ??= 'tale-blobs';
   env.OBJECT_STORE_ACCESS_KEY ??= 'tale';
   env.OBJECT_STORE_SECRET_KEY ??= 'tale_dev_object_store';
+  if (env.OBJECT_STORE_PUBLIC_ENDPOINT === undefined && env.SITE_URL) {
+    env.OBJECT_STORE_PUBLIC_ENDPOINT = env.SITE_URL;
+  }
 }

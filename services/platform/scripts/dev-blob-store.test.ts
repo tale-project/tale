@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { minioDevBlobsNotice, type DockerAnswer } from './dev-blob-store';
+import {
+  browserFacing,
+  buildS3ObjectStore,
+  s3PresignPutUrl,
+} from '../backend/core/lib/storage/object_store';
+import { resolveEnvObjectStore } from '../lib/utils/env-object-store';
+import {
+  minioDevBlobsNotice,
+  objectStoreProxy,
+  type DockerAnswer,
+} from './dev-blob-store';
+import { ensureObjectStoreEnv } from './dev-secrets';
+
+vi.mock('@tale/shared/tux', () => ({ warnLine: vi.fn() }));
 
 const COMPOSE = ['compose', '-f', 'compose.yml', '-f', 'compose.dev.yml'];
 
@@ -83,5 +96,79 @@ describe('the notice about the dev stack’s earlier blob store', () => {
         ? { status: 0, stdout: 'tale_object-store-data' }
         : { status: 1, stdout: '' };
     expect(minioDevBlobsNotice(noCompose, COMPOSE)).toBeNull();
+  });
+});
+
+/** The store the backend builds from this environment, as the bootstrap
+ * writes it into the default connection. */
+function storeOf(env: NodeJS.ProcessEnv) {
+  const resolved = resolveEnvObjectStore(env);
+  if (!resolved.configured) throw new Error(resolved.reason);
+  const { accessKeyId, secretAccessKey, endpoint, publicEndpoint, ...rest } =
+    resolved.store;
+  return buildS3ObjectStore(
+    {
+      ...rest,
+      ...(endpoint === undefined ? {} : { endpoint }),
+      ...(publicEndpoint === undefined ? {} : { publicEndpoint }),
+    },
+    { accessKeyId, secretAccessKey },
+  );
+}
+
+describe('the dev stack’s blob store, as the browser reaches it', () => {
+  it('takes an upload on the app’s origin, where Vite forwards the bucket to the store', async () => {
+    const env: NodeJS.ProcessEnv = { SITE_URL: 'http://localhost:3000' };
+    ensureObjectStoreEnv(env);
+    // The link the upload lane hands the browser (domains/files/service.ts).
+    const link = new URL(
+      await s3PresignPutUrl(
+        browserFacing(storeOf(env), 'http://localhost:3000'),
+        'northlight-labs/document',
+        { contentType: 'text/plain' },
+      ),
+    );
+    // Same origin as the page: on the store's own address the PUT was
+    // another origin's, which versitygw refused for want of a CORS rule.
+    expect(link.origin).toBe('http://localhost:3000');
+    const routes = Object.entries(objectStoreProxy(env));
+    const route = routes.find(([path]) => link.pathname.startsWith(path));
+    expect(route?.[1]).toEqual({
+      target: 'http://127.0.0.1:59000',
+      // The Host the link was signed for reaches the store unchanged.
+      changeOrigin: false,
+    });
+  });
+
+  it('routes the bucket the environment names to the store it names', () => {
+    expect(
+      objectStoreProxy({
+        OBJECT_STORE_ENDPOINT: 'http://127.0.0.1:9000',
+        OBJECT_STORE_BUCKET: 'docs-blobs',
+        OBJECT_STORE_ACCESS_KEY: 'key',
+        OBJECT_STORE_SECRET_KEY: 'secret',
+      }),
+    ).toEqual({
+      '/docs-blobs/': { target: 'http://127.0.0.1:9000', changeOrigin: false },
+    });
+  });
+
+  it('routes nothing for a store the environment does not configure or a path cannot reach', () => {
+    expect(objectStoreProxy({})).toEqual({});
+    // AWS S3 proper: no endpoint, a bucket of its own host name.
+    expect(
+      objectStoreProxy({
+        OBJECT_STORE_ACCESS_KEY: 'key',
+        OBJECT_STORE_SECRET_KEY: 'secret',
+      }),
+    ).toEqual({});
+    expect(
+      objectStoreProxy({
+        OBJECT_STORE_ENDPOINT: 'https://s3.example.com',
+        OBJECT_STORE_FORCE_PATH_STYLE: 'false',
+        OBJECT_STORE_ACCESS_KEY: 'key',
+        OBJECT_STORE_SECRET_KEY: 'secret',
+      }),
+    ).toEqual({});
   });
 });
