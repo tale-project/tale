@@ -264,6 +264,49 @@ describe('catalogLabel', () => {
       ),
     ).toBe('Agent · OpenAI · GPT 5.6 Luna');
   });
+
+  it("names a subscription's pick on Default among what its bound runtime is offered, not the default's", () => {
+    // Two Claude subscriptions, each bound to Claude Code, serve a model of
+    // the same name. A step on Default runs the pick on Claude Code, where
+    // both are offered, so its box names the provider; Pi is offered
+    // neither, and would name it alone.
+    const claudeSubscription = (
+      providerSlug: string,
+      providerLabel: string,
+    ) => ({
+      id: 'claude-fable-5',
+      label: 'Claude Fable 5',
+      providerSlug,
+      providerLabel,
+      credential: {
+        authMethod: 'subscription-key' as const,
+        constraints: { harness: 'claude-code' },
+      },
+    });
+    const named = ctx('en', {
+      modelLabel: servedModelLabel({
+        models: [
+          claudeSubscription('anthropic', 'Anthropic'),
+          claudeSubscription('claude-team', 'Claude Team'),
+        ],
+        harnesses: [
+          { harness: 'claude-code', toolCallingWire: 'anthropic' },
+          { harness: 'pi', toolCallingWire: 'openai-chat' },
+        ],
+      }),
+    });
+    expect(
+      catalogLabel(
+        node({
+          id: 'x',
+          type: 'agent',
+          model: 'claude-fable-5',
+          modelProvider: 'anthropic',
+        }),
+        named,
+      ),
+    ).toBe('Agent · Anthropic · Claude Fable 5');
+  });
 });
 
 describe('nodeIcon', () => {

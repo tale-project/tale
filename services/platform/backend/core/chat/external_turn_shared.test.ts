@@ -629,6 +629,25 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     }
   });
 
+  it('parses the stream of a runtime this image does not know as the default runtime’s', async () => {
+    // A row a newer image wrote names a runtime this one does not ship: its
+    // turn is read with the default's parser, Pi's.
+    transport.stdout = PI_MID_TOOL;
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'newer-runtime',
+      harness: 'retired-cli',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('running');
+    if (result.kind === 'running') {
+      expect(result.timeline.map((part) => part.type)).toEqual(['tool-bash']);
+      expect(result.agentSessionId).toBe('pi-live-session');
+    }
+  });
+
   it('keeps a pi turn running when the window elapses mid-tool', async () => {
     transport.stdout = PI_MID_TOOL;
 

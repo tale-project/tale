@@ -10,6 +10,8 @@ const { rosterState } = vi.hoisted(() => ({
     modelsHiddenBy: undefined as 'eu' | undefined,
     // Rows a test adds after the two below.
     moreModels: [] as unknown[],
+    // Runtimes a test adds after Claude Code.
+    moreHarnesses: [] as unknown[],
   },
 }));
 
@@ -20,7 +22,10 @@ const { rosterState } = vi.hoisted(() => ({
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({
     data: {
-      harnesses: [{ harness: 'claude-code', label: 'Claude Code' }],
+      harnesses: [
+        { harness: 'claude-code', label: 'Claude Code' },
+        ...rosterState.moreHarnesses,
+      ],
       models: [
         {
           id: 'anthropic/claude-fable-5',
@@ -174,6 +179,42 @@ describe('AgentNodeFields model pin', () => {
       modelProvider: 'openrouter',
     });
     expect(screen.queryByText(BOUND_SENTENCE)).toBeNull();
+  });
+
+  it('keeps a subscription’s pick when the step moves to Default, and clears it for a runtime it does not work in', async () => {
+    previewState.data = undefined;
+    rosterState.moreHarnesses = [{ harness: 'codex', label: 'Codex' }];
+    try {
+      const { user, onChange } = renderFields({
+        id: 'agent',
+        type: 'agent',
+        harness: 'claude-code',
+        model: 'claude-fable-5',
+        modelProvider: 'anthropic',
+      });
+
+      await user.click(screen.getByRole('combobox', { name: /Agent runtime/ }));
+      await user.click(
+        await screen.findByRole('option', { name: 'Default (Pi)' }),
+      );
+      // A step on Default runs the subscription's model where the
+      // subscription works: the pick stays. Strict: a cleared pick is a call
+      // that names the model and its provider as undefined.
+      expect(onChange.mock.lastCall?.[0]).toStrictEqual({
+        harness: undefined,
+      });
+
+      await user.click(screen.getByRole('combobox', { name: /Agent runtime/ }));
+      await user.click(await screen.findByRole('option', { name: 'Codex' }));
+      // Codex cannot drive a Claude subscription: the pick goes.
+      expect(onChange.mock.lastCall?.[0]).toStrictEqual({
+        harness: 'codex',
+        model: undefined,
+        modelProvider: undefined,
+      });
+    } finally {
+      rosterState.moreHarnesses = [];
+    }
   });
 
   it('names a model two providers offer by its provider, and groups the list by provider', async () => {
