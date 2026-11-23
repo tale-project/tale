@@ -382,21 +382,31 @@ function ModelListing({
   >(null);
   const args = listingArgs(facts, value, secretArgs);
   const listingKey = args === null ? null : listingKeyOf(args);
-  // The listing whose answer counts — the latest one asked — and every
-  // endpoint and key already listed, so the automatic run asks each once.
-  const latest = useRef<string | null>(null);
+  // The endpoint and key the form holds now — an answer counts only for
+  // these — and every endpoint and key already listed, so the automatic run
+  // asks each once.
+  const current = useRef(listingKey);
+  current.current = listingKey;
   const listed = useRef(new Set<string>());
   // The latest render's closure, for the timer to call.
   const run = useRef<() => void>(() => {});
 
+  // An answer for an endpoint or key the form has moved on from is dropped,
+  // and those count as not listed: back on them, the listing runs again.
+  const stale = (asked: string): boolean => {
+    if (current.current === asked) return false;
+    listed.current.delete(asked);
+    return true;
+  };
+
   const handleList = () => {
     if (args === null || listingKey === null) return;
-    latest.current = listingKey;
-    listed.current.add(listingKey);
+    const asked = listingKey;
+    listed.current.add(asked);
     setOutcome(null);
     list.mutateAsync({ organizationId, ...args }).then(
       (models) => {
-        if (latest.current !== listingKey) return;
+        if (stale(asked)) return;
         onListed(models);
         setOutcome({ ok: true, count: models.length });
       },
@@ -405,7 +415,7 @@ function ModelListing({
           'providers: model listing with the dialog key failed',
           err,
         );
-        if (latest.current !== listingKey) return;
+        if (stale(asked)) return;
         onListed(null);
         setOutcome({
           ok: false,
@@ -426,18 +436,13 @@ function ModelListing({
       ? listingKey
       : null;
   useEffect(() => {
-    // A newer endpoint or key: an answer still out for an older one no
-    // longer counts.
-    if (latest.current !== null && latest.current !== listingKey) {
-      latest.current = null;
-    }
     if (autoKey === null || listed.current.has(autoKey)) return undefined;
     // A click in the meantime listed these already.
     const timer = setTimeout(() => {
       if (!listed.current.has(autoKey)) run.current();
     }, AUTO_LIST_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [autoKey, listingKey]);
+  }, [autoKey]);
 
   return (
     <Stack gap={2}>

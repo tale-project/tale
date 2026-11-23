@@ -1564,6 +1564,60 @@ describe('ProvidersSettings', () => {
       expect(createCredential).not.toHaveBeenCalled();
     }, 15_000);
 
+    it('drops an answer for a key the form moved on from, and lists that key again when it comes back', async () => {
+      let answerFirst: (models: ReturnType<typeof model>[]) => void = () => {};
+      listWithKey
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              answerFirst = resolve;
+            }),
+        )
+        .mockResolvedValueOnce([model('gpt-5.5')])
+        .mockResolvedValueOnce([model('a'), model('b'), model('c')]);
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://ai.gateway.example.test/v1');
+      const key = dialog.getByLabelText(/^API key/, { selector: 'input' });
+      await user.click(key);
+      await user.paste('sk-first');
+      await waitFor(() => expect(listWithKey).toHaveBeenCalledTimes(1), {
+        timeout: 3000,
+      });
+      // The key changes while the first listing is still out.
+      await user.clear(key);
+      await user.paste('sk-second');
+      expect(
+        await dialog.findByText(
+          'The endpoint lists 1 model.',
+          {},
+          { timeout: 3000 },
+        ),
+      ).toBeInTheDocument();
+      // The first key's late answer does not replace the second's.
+      answerFirst([model('x'), model('y')]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(dialog.queryByText('The endpoint lists 2 models.')).toBeNull();
+      expect(
+        dialog.getByText('The endpoint lists 1 model.'),
+      ).toBeInTheDocument();
+      // Back on the first key, whose answer was dropped: it lists again.
+      await user.clear(key);
+      await user.paste('sk-first');
+      expect(
+        await dialog.findByText(
+          'The endpoint lists 3 models.',
+          {},
+          { timeout: 3000 },
+        ),
+      ).toBeInTheDocument();
+      expect(listWithKey).toHaveBeenCalledTimes(3);
+      expect(listWithKey).toHaveBeenLastCalledWith(
+        expect.objectContaining({ secret: 'sk-first' }),
+      );
+    }, 15_000);
+
     it('lists nothing by itself without a typed key', async () => {
       const { user } = renderPage();
       const dialog = await pickCustom(user);
