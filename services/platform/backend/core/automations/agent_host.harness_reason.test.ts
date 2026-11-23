@@ -9,7 +9,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
-import type { AgentTurnServing } from '../lib/providers/agent_serving';
+import {
+  AgentServingRefusal,
+  type AgentTurnServing,
+} from '../lib/providers/agent_serving';
 
 vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
@@ -57,7 +60,7 @@ function kickCtx() {
 function walkFor(serving: AgentTurnServing) {
   return async (_ctx: unknown, args: { harness: string }) => {
     if (serving.lane === 'subscription' && args.harness !== 'claude-code') {
-      throw new Error(
+      throw new AgentServingRefusal(
         `no configured provider serves model "${serving.modelId}" for this agent turn`,
       );
     }

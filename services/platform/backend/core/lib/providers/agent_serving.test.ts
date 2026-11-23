@@ -35,6 +35,7 @@ vi.mock('./org_providers', () => ({
 vi.mock('./load_system_config', () => ({ loadHarnesses }));
 
 import {
+  AgentServingRefusal,
   type AgentTurnServing,
   resolveDefaultWorkflowServing,
   resolveWorkflowAgentServing,
@@ -642,13 +643,35 @@ describe('resolveWorkflowAgentServing — subscription pass', () => {
     credentials = { anthropic: BROKER };
     getProviderCatalog.mockRejectedValue(new Error('catalog fetch timed out'));
 
-    await expect(
-      resolveWorkflowAgentServing(ctx, {
-        organizationId: ORG,
-        model: 'claude-fable-5',
-        harness: 'claude-code',
-      }),
-    ).rejects.toThrow(/the catalog for "anthropic" was unreachable/);
+    const refusal = resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+    await expect(refusal).rejects.toThrow(
+      /the catalog for "anthropic" was unreachable/,
+    );
+    // A refusal that names what it could not read: the credentials may
+    // well serve the model once the catalog answers.
+    await expect(refusal).rejects.toBeInstanceOf(AgentServingRefusal);
+    await expect(refusal).rejects.toMatchObject({
+      unreachable: ['anthropic'],
+    });
+  });
+
+  it('refuses a model no credential serves on this runtime as a refusal read in full', async () => {
+    credentials = { anthropic: BROKER };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-haiku-4-5', tags: ['chat'] },
+    ]);
+
+    const refusal = resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+    await expect(refusal).rejects.toBeInstanceOf(AgentServingRefusal);
+    await expect(refusal).rejects.toMatchObject({ unreachable: [] });
   });
 });
 
@@ -1138,7 +1161,7 @@ describe('resolveDefaultWorkflowServing — a step that names no runtime', () =>
     const resolve = vi.fn(
       async (_ctx: ActionCtx, turn: { harness: string }) => {
         if (turn.harness !== 'claude-code') {
-          throw new Error(
+          throw new AgentServingRefusal(
             `no configured provider serves it on "${turn.harness}"`,
           );
         }
@@ -1158,7 +1181,7 @@ describe('resolveDefaultWorkflowServing — a step that names no runtime', () =>
 
   it('keeps the default’s refusal for a model another runtime serves directly', async () => {
     // A Responses-only model: Codex would run it, but nobody picked Codex.
-    const refusal = new Error(
+    const refusal = new AgentServingRefusal(
       'model "gpt-6.1-sol" takes tools only through the Responses API',
     );
     const resolve = vi.fn(
@@ -1173,7 +1196,7 @@ describe('resolveDefaultWorkflowServing — a step that names no runtime', () =>
   });
 
   it('keeps the default’s refusal when nothing serves the model', async () => {
-    const refusal = new Error(
+    const refusal = new AgentServingRefusal(
       'no configured provider serves model "claude-fable-5"',
     );
     const resolve = vi.fn(
@@ -1185,5 +1208,40 @@ describe('resolveDefaultWorkflowServing — a step that names no runtime', () =>
       resolveDefaultWorkflowServing(turnCtx, args, resolve),
     ).rejects.toBe(refusal);
     expect(console.warn).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the default’s failure while a catalog it needed did not answer, trying no subscription', async () => {
+    // Served directly and by a Claude subscription, with the direct
+    // provider's catalog briefly unreachable: Pi's walk could not read it,
+    // so its refusal says nothing about the credentials. The step must not
+    // run on Claude Code, billed to the subscription, for that outage.
+    const outage = new AgentServingRefusal(
+      'no configured provider serves model "claude-fable-5" (the catalog for "openrouter" was unreachable)',
+      ['openrouter'],
+    );
+    const resolve = vi.fn(
+      async (_ctx: ActionCtx, turn: { harness: string }) => {
+        if (turn.harness === 'pi') throw outage;
+        return SUBSCRIPTION;
+      },
+    );
+    await expect(
+      resolveDefaultWorkflowServing(turnCtx, args, resolve),
+    ).rejects.toBe(outage);
+    expect(resolve.mock.calls.map(([, turn]) => turn.harness)).toEqual(['pi']);
+  });
+
+  it('fails as before on any other error the default’s walk meets, trying no subscription', async () => {
+    const failure = new Error('connection terminated unexpectedly');
+    const resolve = vi.fn(
+      async (_ctx: ActionCtx, turn: { harness: string }) => {
+        if (turn.harness === 'pi') throw failure;
+        return SUBSCRIPTION;
+      },
+    );
+    await expect(
+      resolveDefaultWorkflowServing(turnCtx, args, resolve),
+    ).rejects.toBe(failure);
+    expect(resolve).toHaveBeenCalledOnce();
   });
 });
