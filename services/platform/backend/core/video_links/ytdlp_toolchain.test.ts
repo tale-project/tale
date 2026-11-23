@@ -896,7 +896,7 @@ describe('provisionToolchain bounds', () => {
       const pids = await startedIn(aptPid, 1, hidden);
       const err = await expire(pending, FAST.packageInstallMs);
       expect(await readFile(argv, 'utf8')).toBe(
-        'timeout -k 0.2s 2s apt-get install -y ffmpeg\n',
+        'timeout -k 0.2s 2s apt-get install -y --no-install-recommends ffmpeg\n',
       );
       expect((err as Error).message).toMatch(
         /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(\[video-toolchain\] ffmpeg install \(apt-get\): timed out after \d+ ms \(deadline 2000 ms\)\)/,
@@ -974,10 +974,10 @@ describe('provisionToolchain bounds', () => {
         provisionToolchain({ cacheDir, deadlines }),
       ).resolves.toMatchObject({ ffmpegLocation: '/opt/fake/ffmpeg' });
       expect(await commands(argv)).toEqual([
-        'timeout -k 0.2s 10s apt-get install -y ffmpeg',
+        'timeout -k 0.2s 10s apt-get install -y --no-install-recommends ffmpeg',
         expect.stringMatching(/^timeout -k 0\.2s [\d.]+s apt-get update$/),
         expect.stringMatching(
-          /^timeout -k 0\.2s [\d.]+s apt-get install -y ffmpeg$/,
+          /^timeout -k 0\.2s [\d.]+s apt-get install -y --no-install-recommends ffmpeg$/,
         ),
       ]);
     });
@@ -994,7 +994,7 @@ describe('provisionToolchain bounds', () => {
         failing: 'the second install',
         update: 'changes nothing',
         stage: 'ffmpeg install (apt-get, after update)',
-        command: 'apt-get install -y ffmpeg',
+        command: 'apt-get install -y --no-install-recommends ffmpeg',
         ran: 3,
       },
     ] as const)(
@@ -1037,7 +1037,7 @@ describe('provisionToolchain bounds', () => {
         exitCode: 1,
       });
       expect(await commands(argv)).toEqual([
-        '-n timeout -k 0.2s 10s apt-get install -y ffmpeg',
+        '-n timeout -k 0.2s 10s apt-get install -y --no-install-recommends ffmpeg',
       ]);
     });
 
@@ -1097,7 +1097,7 @@ describe('provisionToolchain bounds', () => {
       // What it left: 500 ms, on this side and on the privileged one.
       const err = await expire(pending, 500);
       expect(await commands(argv)).toEqual([
-        'timeout -k 0.2s 2s apt-get install -y ffmpeg',
+        'timeout -k 0.2s 2s apt-get install -y --no-install-recommends ffmpeg',
         'timeout -k 0.2s 0.5s apt-get update',
       ]);
       expect((err as Error).message).toMatch(

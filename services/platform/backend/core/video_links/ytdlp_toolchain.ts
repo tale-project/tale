@@ -350,7 +350,7 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     const startedAt = performance.now();
     installFailure = await aptGet(
       'ffmpeg install (apt-get)',
-      ['install', '-y', 'ffmpeg'],
+      APT_INSTALL_FFMPEG,
       deadline,
       clock,
     );
@@ -376,7 +376,7 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
       if (installFailure === undefined) {
         installFailure = await aptGet(
           'ffmpeg install (apt-get, after update)',
-          ['install', '-y', 'ffmpeg'],
+          APT_INSTALL_FFMPEG,
           rest,
           clock,
         );
@@ -403,6 +403,21 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
  * not sudo refusing (1), nor `timeout` stopping it (124).
  */
 const APT_GET_ERROR = 100;
+
+/**
+ * ffmpeg and what it depends on, none of what it recommends. On Ubuntu 24.04
+ * the Recommends are a third of a hosted runner's download and nothing this
+ * toolchain's ffmpeg is asked for: the VA-API/VDPAU drivers of hardware
+ * decoding (Mesa's, which a stale package list names in versions the archive
+ * no longer serves, and Intel's), pocketsphinx's English speech model and
+ * Blu-ray decryption among them.
+ */
+const APT_INSTALL_FFMPEG = [
+  'install',
+  '-y',
+  '--no-install-recommends',
+  'ffmpeg',
+];
 
 /**
  * Run `apt-get <args>` as root under `deadline`, best-effort: resolves to its
