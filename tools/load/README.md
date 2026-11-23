@@ -224,7 +224,9 @@ that size:
 - It builds the spawner, its egress proxy and the session runtime from the checkout and starts
   them as `bun dev` does beside a host backend: the `backend-relay` of `compose.dev.yml` carries
   the sessions' `backend-api` to the host's api, which therefore listens on port 3005, and its
-  model relay, where a session calls its models, on port 3008 (`SANDBOX_RELAY_PORT`).
+  model relay, where a session calls its models, on port 3008 (`SANDBOX_RELAY_PORT`). With more
+  than one api process, the first keeps that port and each next one serves its relay one port
+  higher; the sessions reach the first.
 - The api and the mock listen on every interface (`stack up --listen-host 0.0.0.0`) so the
   `backend-relay` reaches the api across the Docker bridge and the api reaches the mock at the
   bridge's address, while `SITE_URL` stays `http://127.0.0.1:3005`: the platform refuses plain
