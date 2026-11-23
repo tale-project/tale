@@ -829,9 +829,11 @@ describe('DataResidencySettings', () => {
     const { user, capture } = renderWithController();
 
     const section = sectionByHeading('Embedding model');
+    // The curated width is the one Tale asks for, not the model's full one:
+    // Qwen3 Embedding 8B answers 4096 dimensions unless asked for fewer.
     expect(
       within(section).getByText(
-        'Your openrouter credential can serve qwen/qwen3-embedding-8b (1536-dimensional vectors).',
+        'Your openrouter credential can serve qwen/qwen3-embedding-8b. Tale asks it for 1536-dimensional vectors.',
       ),
     ).toBeInTheDocument();
 
