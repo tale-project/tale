@@ -567,6 +567,15 @@ describe('parseImageReply', () => {
       data: [{ url: `data:image/png;base64,${b64(PNG)}` }],
     });
     expect(reply.images).toEqual([{ bytes: PNG, mediaType: 'image/png' }]);
+    // The scheme is case-insensitive, in either field.
+    for (const item of [
+      { url: `DATA:image/png;base64,${b64(PNG)}` },
+      { b64_json: `Data:image/png;base64,${b64(PNG)}` },
+    ]) {
+      expect(parseImageReply('openai-images', { data: [item] }).images).toEqual(
+        [{ bytes: PNG, mediaType: 'image/png' }],
+      );
+    }
   });
 
   it('says a link is not an image, and marks no answer that sent one', () => {

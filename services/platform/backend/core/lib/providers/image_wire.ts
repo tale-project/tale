@@ -528,7 +528,7 @@ function readChatTokenUsage(value: unknown): ImageTokenUsage | undefined {
 
 function decodeBase64Image(raw: string): Uint8Array | null {
   // The field is raw base64 in the image APIs; a data URL is tolerated.
-  const comma = raw.startsWith('data:') ? raw.indexOf(',') : -1;
+  const comma = /^data:/i.test(raw) ? raw.indexOf(',') : -1;
   const encoded = comma >= 0 ? raw.slice(comma + 1) : raw;
   const bytes = Buffer.from(encoded, 'base64');
   return bytes.length > 0 ? new Uint8Array(bytes) : null;
