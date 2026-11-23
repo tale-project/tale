@@ -65,6 +65,38 @@ describe('classifyYtDlpStderr', () => {
     expect(classifyYtDlpStderr('HTTP Error 403: Forbidden')).toBe('forbidden');
   });
 
+  // Verbatim stderr from the live test on 2026-11-23, against "Me at the
+  // zoo" (jNQXAC9IVRw), a video that is not gone: YouTube walled the
+  // datacenter session, and the old order read it as `unavailable`.
+  it("classifies YouTube's session wall as a rate limit, not a gone video", () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [youtube] jNQXAC9IVRw: Video unavailable. This content isn’t available.\n',
+      ),
+    ).toBe('rateLimited');
+    expect(
+      classifyYtDlpStderr(
+        "ERROR: [youtube] jNQXAC9IVRw: Video unavailable. This content isn't available, try again later. The current session has been rate-limited by YouTube for up to an hour. It is recommended to use `-t sleep` to add a delay between video requests to avoid exceeding the rate limit.",
+      ),
+    ).toBe('rateLimited');
+  });
+
+  it('keeps a removed video unavailable beside the session wall', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [youtube] abcdefghijk: Video unavailable. This video has been removed by the uploader',
+      ),
+    ).toBe('unavailable');
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [youtube] abcdefghijk: Video unavailable. This video is no longer available because the YouTube account associated with this video has been terminated.',
+      ),
+    ).toBe('unavailable');
+    expect(
+      classifyYtDlpStderr('ERROR: [youtube] abcdefghijk: Video unavailable'),
+    ).toBe('unavailable');
+  });
+
   it('classifies common terminal states', () => {
     expect(classifyYtDlpStderr('ERROR: Private video')).toBe(
       'privateOrAgeGated',
