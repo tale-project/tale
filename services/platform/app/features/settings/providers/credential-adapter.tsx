@@ -14,7 +14,7 @@ import { RadioGroup } from '@tale/ui/radio-group';
 import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   looseMutation,
@@ -328,6 +328,24 @@ function listingArgs(
   };
 }
 
+/** How long the add dialog waits after the last keystroke in the base URL or
+ * the key before it lists by itself: a listing goes when the typing stops,
+ * never per keystroke. */
+export const AUTO_LIST_DELAY_MS = 1000;
+
+/** What one listing is asked of: the endpoint and the key it goes with. A
+ * listing the dialog already ran for these is not run again by itself. */
+const listingKeyOf = (
+  args: NonNullable<ReturnType<typeof listingArgs>>,
+): string =>
+  JSON.stringify([
+    args.definition?.apiFormat,
+    args.definition?.baseUrl,
+    args.name,
+    args.secret,
+    args.credentialId,
+  ]);
+
 /**
  * **List models** under a custom provider's facts: the endpoint's `/models`
  * read with the key this dialog holds — typed beside the facts while the
@@ -335,6 +353,12 @@ function listingArgs(
  * anything is saved, so a key-gated gateway lists its models here instead
  * of refusing the organization's default key, or none. The result fills the
  * allowlist picker; a failure says, inline, whether a key went.
+ *
+ * While a provider is being added, the listing runs by itself once a base
+ * URL the schema takes and a typed key are both there: after the typing
+ * stops ({@link AUTO_LIST_DELAY_MS}), once per endpoint and key — a change
+ * of either before it goes cancels it, and an answer to an endpoint or key
+ * the form has moved on from is dropped. The button stays, for a retry.
  */
 function ModelListing({
   organizationId,
@@ -357,12 +381,22 @@ function ModelListing({
     { ok: true; count: number } | { ok: false; message: string } | null
   >(null);
   const args = listingArgs(facts, value, secretArgs);
+  const listingKey = args === null ? null : listingKeyOf(args);
+  // The listing whose answer counts — the latest one asked — and every
+  // endpoint and key already listed, so the automatic run asks each once.
+  const latest = useRef<string | null>(null);
+  const listed = useRef(new Set<string>());
+  // The latest render's closure, for the timer to call.
+  const run = useRef<() => void>(() => {});
 
   const handleList = () => {
-    if (args === null) return;
+    if (args === null || listingKey === null) return;
+    latest.current = listingKey;
+    listed.current.add(listingKey);
     setOutcome(null);
     list.mutateAsync({ organizationId, ...args }).then(
       (models) => {
+        if (latest.current !== listingKey) return;
         onListed(models);
         setOutcome({ ok: true, count: models.length });
       },
@@ -371,6 +405,7 @@ function ModelListing({
           'providers: model listing with the dialog key failed',
           err,
         );
+        if (latest.current !== listingKey) return;
         onListed(null);
         setOutcome({
           ok: false,
@@ -381,6 +416,28 @@ function ModelListing({
       },
     );
   };
+  run.current = handleList;
+
+  // Only while adding (an edit lists the saved credential's key on a
+  // click), and only with a typed key: a keyless listing of a key-gated
+  // endpoint is a refusal the reader did not ask for.
+  const autoKey =
+    value.saved === undefined && disabled !== true && args?.secret !== undefined
+      ? listingKey
+      : null;
+  useEffect(() => {
+    // A newer endpoint or key: an answer still out for an older one no
+    // longer counts.
+    if (latest.current !== null && latest.current !== listingKey) {
+      latest.current = null;
+    }
+    if (autoKey === null || listed.current.has(autoKey)) return undefined;
+    // A click in the meantime listed these already.
+    const timer = setTimeout(() => {
+      if (!listed.current.has(autoKey)) run.current();
+    }, AUTO_LIST_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [autoKey, listingKey]);
 
   return (
     <Stack gap={2}>

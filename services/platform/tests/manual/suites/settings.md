@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 155 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 156 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1630,6 +1630,18 @@ Restore any toggled setting after the run.
   `settings.credentials.errors.disabledDefault`. In DevTools, no
   request URL carries the key; the backend log's `[catalog]` lines name the
   status and whether a key went, never the key.
+- [ ] `SET-B53` · **A custom provider's models load by themselves** — Against
+  the same key-gated gateway as `SET-B52`: **Add credential** → **Custom
+  provider** → paste its **Base URL**, then type the valid **API key** →
+  about a second after the typing stops, with no click, the dialog reads
+  `settings.providers.custom.listModelsOk` and the **Model allowlist**
+  offers the key's models; DevTools shows ONE `POST
+  /api/app/providers/catalog-check` for that URL and key, none per
+  keystroke, and none again while neither changes. Change the key → one more
+  listing after the typing stops; **List models** still lists again on a
+  click. Add it → the dialog closes and, with no **Check models** and no
+  reload, the new row shows no `catalogUnavailable` line and a model picker
+  (e.g. a project's model setting) offers the gateway's models.
 
 ## Accessibility (WCAG 2.1 AA)
 

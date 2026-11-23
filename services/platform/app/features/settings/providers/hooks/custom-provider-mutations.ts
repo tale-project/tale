@@ -91,6 +91,10 @@ function useDefinitionWrites() {
     'lib/providers/definition_actions:deleteProviderDefinition',
     { errorToast: false },
   );
+  const check = useBackendAction(
+    'lib/providers/definition_actions:checkProviderDefinitionCatalog',
+    { errorToast: false },
+  );
   // Every provider key the organization can already see, shipped or its
   // own, from the listing the page holds: a new slug must be free of both.
   const takenNames = (organizationId: string): ReadonlySet<string> =>
@@ -119,13 +123,32 @@ function useDefinitionWrites() {
       ),
     });
   };
-  return { read, save, remove, takenNames, invalidate };
+  // A provider created a moment ago lists its models with the key created
+  // beside it — its first credential, so its default — read afresh, as the
+  // row's "Check models" reads it: the table shows them without that click.
+  // Not awaited: the dialog closes on the save, and the listing refetches
+  // when the read answers. A failure stays on the row, as the listing's
+  // error; the save it follows did succeed.
+  const listAfresh = (organizationId: string, name: string): void => {
+    check.mutateAsync({ organizationId, name }).then(
+      () => invalidate(organizationId),
+      (error: unknown) => {
+        console.warn(
+          `providers: listing ${name}'s models after its creation failed`,
+          error,
+        );
+        invalidate(organizationId);
+      },
+    );
+  };
+  return { read, save, remove, takenNames, invalidate, listAfresh };
 }
 
 /** Create one credential — and, for the custom entry, the provider it is for. */
 export function useCreateProviderCredential() {
   const create = useCreateCredential();
-  const { save, remove, takenNames, invalidate } = useDefinitionWrites();
+  const { save, remove, takenNames, invalidate, listAfresh } =
+    useDefinitionWrites();
   const isPending = create.isPending || save.isPending || remove.isPending;
 
   const mutateAsync = async (
@@ -133,7 +156,11 @@ export function useCreateProviderCredential() {
   ): Promise<ReturnsOf<'provider_credentials/actions:createCredential'>> => {
     const { customProvider, ...credentialArgs } = args;
     if (credentialArgs.providerSlug !== CUSTOM_VENDOR_KEY) {
-      return create.mutateAsync(credentialArgs);
+      const created = await create.mutateAsync(credentialArgs);
+      // A provider's listing is read with its default key: the first key
+      // a provider gets lists the models its anonymous read could not.
+      invalidate(credentialArgs.organizationId);
+      return created;
     }
     if (customProvider === undefined) {
       throw new AppError({
@@ -165,8 +192,9 @@ export function useCreateProviderCredential() {
       config: built.config,
       expectedHash: null,
     });
+    let created: ReturnsOf<'provider_credentials/actions:createCredential'>;
     try {
-      return await create.mutateAsync({
+      created = await create.mutateAsync({
         ...credentialArgs,
         providerSlug: name,
       });
@@ -181,10 +209,14 @@ export function useCreateProviderCredential() {
           rollbackError,
         );
       }
-      throw error;
-    } finally {
       invalidate(organizationId);
+      throw error;
     }
+    invalidate(organizationId);
+    if (customProvider.catalogSource === 'models-endpoint') {
+      listAfresh(organizationId, name);
+    }
+    return created;
   };
 
   return { mutateAsync, isPending };

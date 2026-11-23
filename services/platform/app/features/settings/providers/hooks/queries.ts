@@ -10,8 +10,9 @@ import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
  * provider-credential entity, as does every read derived from them: a
  * credential write invalidates that entity in this tab and the backend hints
  * it to every other session. The provider catalogs are read from the shipped
- * config files and the cached live catalogs — no credential changes them — so
- * only the explicit catalog refresh invalidates their key.
+ * config files and the cached live catalogs, listed with each provider's
+ * default key: the explicit catalog refresh invalidates their key, and so
+ * does a credential's creation, which may give a provider its first key.
  */
 
 /** One masked credential row as listed for the settings page. */

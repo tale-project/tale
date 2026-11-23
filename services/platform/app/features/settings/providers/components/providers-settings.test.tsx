@@ -1519,6 +1519,60 @@ describe('ProvidersSettings', () => {
       },
     );
 
+    it('lists by itself once the base URL and key are in, once per endpoint and key, never per keystroke', async () => {
+      listWithKey.mockResolvedValue([model('gpt-5.5'), model('gpt-5.5-mini')]);
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://ai.gateway.example.test/v1');
+      const key = dialog.getByLabelText(/^API key/, { selector: 'input' });
+      // Typed one keystroke at a time: no listing goes while typing.
+      await user.type(key, 'sk-typed');
+      expect(listWithKey).not.toHaveBeenCalled();
+      // The typing stopped: one listing, with the whole key — no click.
+      expect(
+        await dialog.findByText(
+          'The endpoint lists 2 models.',
+          {},
+          { timeout: 3000 },
+        ),
+      ).toBeInTheDocument();
+      expect(listWithKey).toHaveBeenCalledExactlyOnceWith({
+        organizationId: 'org-1',
+        definition: expect.objectContaining({
+          baseUrl: 'https://ai.gateway.example.test/v1',
+        }),
+        secret: 'sk-typed',
+      });
+      // The same endpoint and key are not listed again by themselves.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      expect(listWithKey).toHaveBeenCalledTimes(1);
+      // Another key is: once, after its typing stops.
+      await user.clear(key);
+      await user.type(key, 'sk-other');
+      await waitFor(
+        () =>
+          expect(listWithKey).toHaveBeenLastCalledWith(
+            expect.objectContaining({ secret: 'sk-other' }),
+          ),
+        { timeout: 3000 },
+      );
+      expect(listWithKey).toHaveBeenCalledTimes(2);
+      // The button stays, for a retry.
+      await user.click(dialog.getByRole('button', { name: 'List models' }));
+      await waitFor(() => expect(listWithKey).toHaveBeenCalledTimes(3));
+      expect(createCredential).not.toHaveBeenCalled();
+    }, 15_000);
+
+    it('lists nothing by itself without a typed key', async () => {
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://ai.gateway.example.test/v1');
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      expect(listWithKey).not.toHaveBeenCalled();
+    }, 10_000);
+
     it('checks a credential that is not the default with its own key', async () => {
       fixtures.catalogs = [anthropicProvider, customVendor];
       fixtures.credentials = [

@@ -966,7 +966,8 @@ providers:
     listModels: List models
     listModelsHelp: >-
       Reads the endpoint's /models with this credential's key (the one typed
-      above while you add it) before anything is saved.
+      above while you add it) before anything is saved. While you add it, the
+      list loads by itself once the base URL and the key are entered.
     listModelsOk: '{count, plural, =0 {The endpoint lists no models.} one {The endpoint lists # model.} other {The endpoint lists # models.}}'
     listModelsFailed: "Couldn't list the models: {error}"
     checkOk: '{name}: {count, plural, =0 {no models listed} one {# model listed} other {# models listed}}'
