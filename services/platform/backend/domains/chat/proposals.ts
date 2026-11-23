@@ -31,6 +31,10 @@ import type {
   ToolCallRequest,
 } from '../../../lib/chat/tools.ts';
 import { DOCUMENT_SKILL_SLUGS } from '../../../lib/shared/document-skills.ts';
+import {
+  defaultHarnessFor,
+  toModelOptions,
+} from '../../../lib/shared/harness-offer.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { findActingMember } from '../../auth/membership.ts';
 import type { ComposerModelOption } from '../../core/chat/composer.ts';
@@ -818,9 +822,16 @@ async function proposeCreateAgent(
       );
     }
   } else {
-    harness = harnesses.find((row) =>
-      harnessRunsOption(model, row.harness, harnesses),
-    );
+    // None named: the runtime a step on Default runs the model on — the
+    // default, or the one a subscription serving it is bound to
+    // (`defaultHarnessFor`) — where that runtime runs it; otherwise the first
+    // that does, such as Codex for a model whose tools need the Responses API.
+    const preferred = defaultHarnessFor(toModelOptions([model])[0]);
+    const runs = (row: ComposerHarnessRow) =>
+      harnessRunsOption(model, row.harness, harnesses);
+    harness =
+      harnesses.find((row) => row.harness === preferred && runs(row)) ??
+      harnesses.find(runs);
     if (harness === undefined) {
       return refused(`No agent runtime can run ${model.label}.`);
     }
