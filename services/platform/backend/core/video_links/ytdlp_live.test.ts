@@ -150,6 +150,15 @@ async function liveStep<T>(
 /** yt-dlp's words for a download whose body came back empty. */
 const EMPTY_BODY = 'Did not get any data blocks';
 
+/** A run's last `ERROR:` line — the failure yt-dlp ended on, not a warning
+ * or an earlier retry it got past. */
+function finalError(err: YtDlpError): string {
+  const errors = err.sanitizedStderr
+    .split('\n')
+    .filter((line) => line.startsWith('ERROR:'));
+  return errors.at(-1) ?? '';
+}
+
 /**
  * Why a subtitle step whose every run came back empty is environmental, or
  * `undefined` when it is not. On the CI runners YouTube's timedtext endpoint
@@ -168,8 +177,7 @@ function subtitleWallNote(
 ): string | undefined {
   if (captionTracks.length === 0 || failures.length === 0) return undefined;
   const allEmpty = failures.every(
-    (err) =>
-      err.reason === 'transient' && err.sanitizedStderr.includes(EMPTY_BODY),
+    (err) => err.reason === 'transient' && finalError(err).includes(EMPTY_BODY),
   );
   if (!allEmpty) return undefined;
   return `YouTube's subtitle endpoint returned an empty body on all ${failures.length} run(s) although the metadata listed ${captionTracks.length} caption track(s)`;
@@ -271,6 +279,15 @@ describe('subtitleWallNote', () => {
       'ERROR: Unable to download video subtitles for en',
     );
     expect(subtitleWallNote([emptyBody(), other], ['en'])).toBeUndefined();
+  });
+
+  it('fails a run that ended on another error after an empty block', () => {
+    const fragment = new YtDlpError(
+      'transient',
+      'yt-dlp exited 1',
+      'WARNING: Did not get any data blocks; retrying\nERROR: fragment 1 not found, unable to continue\n',
+    );
+    expect(subtitleWallNote([fragment], ['en'])).toBeUndefined();
   });
 
   it('fails an empty body the classifier named otherwise', () => {
