@@ -891,10 +891,13 @@ describe('provisionToolchain bounds', () => {
   describe.skipIf(!ON_LINUX)('apt-get install of a missing ffmpeg', () => {
     /**
      * A sudo that runs its command and an apt-get that writes each call to
-     * `apt.calls` and exits as `installExit` says (`update` always answers);
+     * `apt.calls` and exits as `installExit` says (`update` exits `updateExit`);
      * `which` finds ffmpeg once an install has succeeded.
      */
-    async function fakeApt(installExit: string): Promise<string> {
+    async function fakeApt(
+      installExit: string,
+      updateExit = 0,
+    ): Promise<string> {
       const calls = join(scratch, 'apt.calls');
       const installed = join(scratch, 'ffmpeg.installed');
       await fakeOnPath(
@@ -915,7 +918,7 @@ describe('provisionToolchain bounds', () => {
         'apt-get',
         [
           `echo "$*" >> '${calls}'`,
-          '[ "$1" = update ] && exit 0',
+          `[ "$1" = update ] && exit ${updateExit}`,
           `n=$(grep -c '^install' '${calls}')`,
           `code=$(${installExit})`,
           `[ "$code" = 0 ] && touch '${installed}'`,
@@ -930,6 +933,19 @@ describe('provisionToolchain bounds', () => {
       // The first install 404s on a superseded version, as on a runner image
       // whose lists predate a security update; the one after the update works.
       const calls = await fakeApt('[ "$n" = 1 ] && echo 100 || echo 0');
+      await expect(
+        provisionToolchain({ cacheDir, deadlines: FAST }),
+      ).resolves.toMatchObject({ ffmpegLocation: '/opt/fake/ffmpeg' });
+      expect(await readFile(calls, 'utf8')).toBe(
+        'install -y ffmpeg\nupdate\ninstall -y ffmpeg\n',
+      );
+    });
+
+    it('still retries the install when the update itself fails', async () => {
+      const cacheDir = await warmCache();
+      // One broken source fails the update (100) after the Ubuntu lists were
+      // refreshed; the retried install then resolves.
+      const calls = await fakeApt('[ "$n" = 1 ] && echo 100 || echo 0', 100);
       await expect(
         provisionToolchain({ cacheDir, deadlines: FAST }),
       ).resolves.toMatchObject({ ffmpegLocation: '/opt/fake/ffmpeg' });

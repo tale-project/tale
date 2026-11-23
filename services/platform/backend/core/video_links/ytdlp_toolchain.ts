@@ -361,7 +361,8 @@ const APT_FAILED = 100;
  * image, until the lists are refreshed. Installing first spends no update on
  * a host whose lists still resolve; the one retry follows only APT's own
  * failure, never a timeout (124: the budget is spent) or a sudo refusal (1),
- * which an update cannot cure. Each phase is its own bounded stage.
+ * which an update cannot cure. An update that itself exits 100 (one broken
+ * source) still lets the retry run. Each phase is its own bounded stage.
  *
  * `sudo -n`: a password prompt is a wait with no deadline, and the bounded
  * child runs without a terminal — it fails at once instead. `timeout` holds
@@ -397,7 +398,23 @@ async function aptInstallFfmpeg(clock: ProvisioningClock): Promise<void> {
       '[video-toolchain] apt-get install ffmpeg failed; refreshing the package lists and retrying once:',
       err.message,
     );
-    await apt('ffmpeg package lists (apt-get update)', ['update']);
+    try {
+      await apt('ffmpeg package lists (apt-get update)', ['update']);
+    } catch (updateErr) {
+      // An update exits 100 when any one source fails (say a broken
+      // third-party list on the image) while the Ubuntu lists may already be
+      // fresh: the install still deserves its retry. Anything else stands.
+      if (
+        !(updateErr instanceof VideoToolchainError) ||
+        updateErr.exitCode !== APT_FAILED
+      ) {
+        throw updateErr;
+      }
+      console.warn(
+        '[video-toolchain] apt-get update failed; retrying the install on whatever lists it refreshed:',
+        updateErr.message,
+      );
+    }
     await install();
   }
 }
