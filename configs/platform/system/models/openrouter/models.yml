@@ -381,9 +381,13 @@
 # Embedding models. OpenRouter serves these ONLY behind its
 # ?output_modalities=embeddings listing, which publishes no vector width —
 # the `embedding.dimensions` fact here is what makes one-click knowledge
-# setup possible. qwen3-embedding supports Matryoshka truncation; 1536 keeps
-# the corpus under pgvector's 2000-dim HNSW index limit and matches the
-# width most existing deployments' corpora are already pinned to.
+# setup possible. Qwen3 Embedding 8B produces 4096 dimensions natively and
+# supports Matryoshka truncation down to 32 (Qwen model card); 1536 is the
+# width the embedder REQUESTS (`dimensions`), not the model's native one. It
+# keeps the corpus under pgvector's 2000-dim HNSW index limit and matches the
+# width most existing deployments' corpora are already pinned to. Facts
+# checked 2026-11-23 against OpenRouter's embeddings listing: id, a 32768
+# top-provider context, and $0.01 per million input tokens.
 - id: qwen/qwen3-embedding-8b
   provider: openrouter
   tags:
