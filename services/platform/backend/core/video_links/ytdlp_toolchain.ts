@@ -75,7 +75,10 @@ export const VIDEO_TOOLCHAIN_DEADLINES = {
   lookupMs: 10_000,
   /** One `unzip`. */
   unzipMs: 60_000,
-  /** `brew install ffmpeg` / `apt-get install ffmpeg`. */
+  /**
+   * `brew install ffmpeg` / `apt-get install ffmpeg`, with the `apt-get
+   * update` and second install that may follow it.
+   */
   packageInstallMs: 420_000,
   /** SIGTERM → SIGKILL grace for a stopped child's process group. */
   killGraceMs: 5_000,
@@ -86,11 +89,18 @@ type VideoToolchainDeadlines = typeof VIDEO_TOOLCHAIN_DEADLINES;
 /** A provisioning stage failed; `stage` names it (e.g. `yt-dlp download body`). */
 export class VideoToolchainError extends Error {
   readonly stage: string;
+  /** Set when the stage's child exited nonzero: its exit code. */
+  readonly exitCode: number | undefined;
 
-  constructor(stage: string, detail: string, options?: ErrorOptions) {
+  constructor(
+    stage: string,
+    detail: string,
+    options?: ErrorOptions & { exitCode?: number },
+  ) {
     super(`[video-toolchain] ${stage}: ${detail}`, options);
     this.name = 'VideoToolchainError';
     this.stage = stage;
+    this.exitCode = options?.exitCode;
   }
 }
 
@@ -99,6 +109,22 @@ interface StageDeadline {
   ms: number;
   /** Set when the remaining provisioning budget, not the stage's own bound, set `ms`. */
   budgetMs?: number;
+  /**
+   * When the deadline began (a `performance.now()` reading), for a stage that
+   * runs one child after another under it: each gets what is left. Unset, it
+   * begins with the child.
+   */
+  startedAt?: number;
+}
+
+/** What is left of `deadline` now: all of it, unless it began earlier. */
+function msLeft(deadline: StageDeadline): number {
+  return deadline.startedAt === undefined
+    ? deadline.ms
+    : Math.max(
+        0,
+        Math.floor(deadline.ms - (performance.now() - deadline.startedAt)),
+      );
 }
 
 /**
@@ -295,9 +321,11 @@ export async function systemFfmpeg(
  * Resolve an absolute ffmpeg path (system-first). ffmpeg is passed to yt-dlp via
  * `--ffmpeg-location`, so it need NOT sit on the pinned spawn PATH — a Homebrew
  * `/opt/homebrew/bin/ffmpeg` is fine. If absent, install it with the platform
- * package manager (brew on macOS, apt on Debian/Ubuntu, best-effort) and
+ * package manager (brew on macOS, apt on Debian/Ubuntu, best-effort; an apt
+ * that fails on its own refreshes its package lists and tries once more) and
  * re-resolve. Throws a clear, actionable error if it still can't be found,
- * carrying the install stage's own failure (a timeout names its elapsed time).
+ * carrying the failure that ended the install (a timeout names its elapsed
+ * time).
  */
 async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
   const found = await systemFfmpeg(clock);
@@ -318,33 +346,41 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     console.info('[video-toolchain] installing ffmpeg via apt-get…');
     // Best-effort: the runner may lack sudo or network. A failure just surfaces
     // as the "still missing" error below, with full context for the operator.
-    // `sudo -n`: a password prompt is a wait with no deadline, and the bounded
-    // child runs without a terminal — it fails at once instead. `timeout`
-    // holds apt-get to the same bound on the privileged side: this process can
-    // stop sudo, but not the root apt-get it starts, which only sudo's relayed
-    // SIGTERM reaches — and nothing once sudo itself is gone.
     const deadline = clock.stage(install);
-    try {
-      await run(
-        'ffmpeg install (apt-get)',
-        'sudo',
-        [
-          '-n',
-          ...privilegedTimeout(deadline, clock.deadlines.killGraceMs),
-          'apt-get',
-          'install',
-          '-y',
-          'ffmpeg',
-        ],
-        deadline,
+    const startedAt = performance.now();
+    installFailure = await aptGet(
+      'ffmpeg install (apt-get)',
+      ['install', '-y', 'ffmpeg'],
+      deadline,
+      clock,
+    );
+    // apt's own failure: the package lists a hosted runner image was built
+    // with can name a version the archive no longer serves ("Unable to fetch
+    // some archives, maybe run apt-get update"). Refresh them and install once
+    // more, on what is left of the same deadline: a stalled apt still ends
+    // where the install alone did.
+    if (
+      installFailure instanceof VideoToolchainError &&
+      installFailure.exitCode === APT_GET_ERROR
+    ) {
+      console.info(
+        "[video-toolchain] refreshing apt's package lists, then installing ffmpeg once more…",
+      );
+      const rest = { ...deadline, startedAt };
+      installFailure = await aptGet(
+        'ffmpeg install (apt-get update)',
+        ['update'],
+        rest,
         clock,
       );
-    } catch (err) {
-      installFailure = err;
-      console.warn(
-        '[video-toolchain] apt-get install ffmpeg failed (best-effort):',
-        err instanceof Error ? err.message : err,
-      );
+      if (installFailure === undefined) {
+        installFailure = await aptGet(
+          'ffmpeg install (apt-get, after update)',
+          ['install', '-y', 'ffmpeg'],
+          rest,
+          clock,
+        );
+      }
     }
   }
 
@@ -363,10 +399,55 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
 }
 
 /**
- * GNU `timeout` argv bounding a command that sudo runs as root: SIGTERM at the
- * stage's `deadline`, SIGKILL `killGraceMs` later — the two steps
- * `spawnBounded` takes from this side, sent from that one. `timeout` reads `0`
- * as "no limit", so an exhausted budget still passes 1 ms.
+ * apt-get's exit status for an error of its own (apt-get(8), DIAGNOSTICS) —
+ * not sudo refusing (1), nor `timeout` stopping it (124).
+ */
+const APT_GET_ERROR = 100;
+
+/**
+ * Run `apt-get <args>` as root under `deadline`, best-effort: resolves to its
+ * failure, logged, or to undefined once it succeeded. `sudo -n`: a password
+ * prompt is a wait with no deadline, and the bounded child runs without a
+ * terminal — it fails at once instead. `timeout` holds apt-get to the same
+ * bound on the privileged side: this process can stop sudo, but not the root
+ * apt-get it starts, which only sudo's relayed SIGTERM reaches — and nothing
+ * once sudo itself is gone.
+ */
+async function aptGet(
+  stage: string,
+  args: string[],
+  deadline: StageDeadline,
+  clock: ProvisioningClock,
+): Promise<unknown> {
+  try {
+    await run(
+      stage,
+      'sudo',
+      [
+        '-n',
+        ...privilegedTimeout(deadline, clock.deadlines.killGraceMs),
+        'apt-get',
+        ...args,
+      ],
+      deadline,
+      clock,
+    );
+    return undefined;
+  } catch (err) {
+    console.warn(
+      `[video-toolchain] apt-get ${args.join(' ')} failed (best-effort):`,
+      err instanceof Error ? err.message : err,
+    );
+    return err;
+  }
+}
+
+/**
+ * GNU `timeout` argv bounding a command that sudo runs as root: SIGTERM once
+ * what is left of the stage's `deadline` has passed, SIGKILL `killGraceMs`
+ * later — the two steps `spawnBounded` takes from this side, sent from that
+ * one. `timeout` reads `0` as "no limit", so an exhausted budget still passes
+ * 1 ms.
  */
 function privilegedTimeout(
   deadline: StageDeadline,
@@ -374,7 +455,7 @@ function privilegedTimeout(
 ): string[] {
   const seconds = (ms: number): string =>
     `${Math.max(1, Math.ceil(ms)) / 1000}s`;
-  return ['timeout', '-k', seconds(killGraceMs), seconds(deadline.ms)];
+  return ['timeout', '-k', seconds(killGraceMs), seconds(msLeft(deadline))];
 }
 
 /**
@@ -538,7 +619,9 @@ export async function run(
       result.code === null
         ? `was killed by ${result.signal}`
         : `exited ${result.code}`;
-    throw new VideoToolchainError(stage, `'${cmd} ${args.join(' ')}' ${how}`);
+    throw new VideoToolchainError(stage, `'${cmd} ${args.join(' ')}' ${how}`, {
+      exitCode: result.code ?? undefined,
+    });
   }
 }
 
@@ -656,7 +739,8 @@ function startedOutsideGroup(pid: number): ProcEntry[] {
  * reject anyway and say what is left: a child that did not exit, a process
  * outside its group still running, or a holder of its stdout no listing
  * found. That pipe is then closed on this side and the child unref'd, so no
- * handle of the stage keeps the process alive: the run stays bounded.
+ * handle of the stage keeps the process alive: the run stays bounded. A
+ * deadline that began before the child (`startedAt`) gives it what is left.
  */
 function spawnBounded(
   stage: string,
@@ -667,7 +751,7 @@ function spawnBounded(
   captureStdout: boolean,
 ): Promise<BoundedChildResult> {
   return new Promise((resolve, reject) => {
-    const startedAt = performance.now();
+    const startedAt = deadline.startedAt ?? performance.now();
     const stdio: StdioOptions = captureStdout
       ? ['ignore', 'pipe', 'ignore']
       : ['ignore', 'inherit', 'inherit'];
@@ -800,7 +884,7 @@ function spawnBounded(
             timers.push(setTimeout(() => finish(detail), killGraceMs));
           }, killGraceMs),
         );
-      }, deadline.ms),
+      }, msLeft(deadline)),
     );
 
     child.on('error', (err) => {
