@@ -18,7 +18,10 @@ import { capture, projectRoot } from './exec';
 // checks the session key on every request. A model that never saw the tool,
 // a server Pi never reached or a call that never arrived each fail the probe.
 // Every request must also carry the exec's own instructions in its system
-// prompt, though the workspace holds a .pi/APPEND_SYSTEM.md of its own.
+// prompt, though the workspace holds a .pi/APPEND_SYSTEM.md of its own, and
+// none of the workspace's own Pi configuration may change the turn: its
+// settings and mcp.json would take the bridge away, its extension would run
+// and its SYSTEM.md would replace Pi's prompt. Its skill is still listed.
 const PROBE = String.raw`
 import http.server, json, os, signal, subprocess, sys, threading, time
 
@@ -101,6 +104,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             for message in body.get('messages', []) if message.get('role') in ('system', 'developer'))
         assert 'PI_TALE_INSTRUCTIONS_OK' in system, "the exec's instructions are not in the system prompt"
         assert 'WORKSPACE_APPEND_TEXT' not in system, "the workspace's APPEND_SYSTEM.md reached the system prompt"
+        assert 'WORKSPACE_SYSTEM_TEXT' not in system, "the workspace's SYSTEM.md reached the system prompt"
+        assert 'WORKSPACE_SKILL_TEXT' in system, "the workspace's skill is not listed"
         usage = dict(prompt_tokens=11, completion_tokens=7, total_tokens=18)
         if len(requests) == 1:
             names = [tool.get('function', {}).get('name', '') for tool in body.get('tools', [])]
@@ -141,9 +146,21 @@ local = lambda value: value.replace('http://127.0.0.1:0', origin)
 env = dict(PATH=os.environ['PATH'], HOME='/agent/.runtime/home', NO_PROXY='127.0.0.1',
            **{key: local(value) for key, value in spec['env'].items()})
 os.makedirs(env['HOME'], exist_ok=True)
-os.makedirs(os.path.join(spec['cwd'], '.pi'), exist_ok=True)
-with open(os.path.join(spec['cwd'], '.pi', 'APPEND_SYSTEM.md'), 'w') as handle:
-    handle.write('WORKSPACE_APPEND_TEXT')
+ran = os.path.join(spec['cwd'], '.probe-extension-ran')
+workspace = {
+    '.pi/APPEND_SYSTEM.md': 'WORKSPACE_APPEND_TEXT',
+    '.pi/SYSTEM.md': 'WORKSPACE_SYSTEM_TEXT',
+    '.pi/settings.json': json.dumps(dict(extensions=['-builtin:mcp'], defaultTools=['read'])),
+    '.pi/mcp.json': json.dumps(dict(mcpServers=dict(connectors=dict(url='http://127.0.0.1:9/mcp')))),
+    '.pi/extensions/probe.js': 'import { writeFileSync } from "node:fs";\n'
+        'export default function () { writeFileSync(' + json.dumps(ran) + ', "ran"); }\n',
+    '.agents/skills/probe-skill/SKILL.md': '---\nname: probe-skill\ndescription: WORKSPACE_SKILL_TEXT\n---\n\n# Probe\n',
+}
+for name, text in workspace.items():
+    path = os.path.join(spec['cwd'], name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as handle:
+        handle.write(text)
 proc = subprocess.Popen([local(arg) for arg in spec['argv']], cwd=spec['cwd'], env=env,
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         text=True, start_new_session=True)
@@ -173,6 +190,7 @@ try:
     assert not errors, errors
     assert len(requests) == 2, f'expected a tool round trip, got {len(requests)} model requests'
     assert len(platform_calls) == 1, f'expected one bridge call, got {len(platform_calls)}'
+    assert not os.path.exists(ran), "the workspace's extension ran"
 finally:
     try:
         os.killpg(proc.pid, signal.SIGKILL)
@@ -185,8 +203,9 @@ finally:
 /** Offline image proof: Pi, through the shipped exec builder, wrapper and
  * stream parser, calls a workspace tool over the platform's MCP server, which
  * it reaches over HTTP with no relay process, and reads its answer, with the
- * exec's own instructions in every request whatever the workspace holds,
- * bounded even if the CLI or the server stalls. */
+ * exec's own instructions in every request and none of the workspace's own
+ * Pi configuration in effect, whatever the workspace holds, bounded even if
+ * the CLI or the server stalls. */
 export async function checkPiBridgeRoundTrip(image: string): Promise<void> {
   const fact = harnessDefinitionSchema.parse(
     parseYaml(

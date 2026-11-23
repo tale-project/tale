@@ -48,9 +48,16 @@ wait is logged on stderr.
 
 The prompt itself rides the CLI's stdin — Pi's native headless prompt
 source — never argv (process lists leak argv, and a leading-dash prompt would
-parse as a flag). `--approve` trusts the workspace's project-local files for
-the run: the container is the safety boundary (parity with Claude Code
-bypassPermissions / Gemini yolo).
+parse as a flag).
+
+Pi runs with `--no-approve`, trusting none of the workspace's own Pi
+configuration: its .pi/settings.json, .pi/mcp.json, extensions and packages,
+prompt templates, themes, SYSTEM.md and APPEND_SYSTEM.md stay unread, and the
+turn runs on the configuration staged here. The workspace's skills are
+guidance the agent reads, as its AGENTS.md is (which Pi loads either way): the
+wrapper names the directories a trusted Pi searches for them — .pi/skills, and
+.agents/skills in the working directory and each parent up to the
+repository's root — with `--skill`, so they still load.
 
 With --rpc the wrapper drives Pi's RPC mode (`pi --mode rpc`), the one Tale
 can steer: the object above, without its prompt, is the FIRST LINE of stdin,
@@ -272,6 +279,34 @@ def wait_for_remote_servers(servers: dict) -> None:
             pause = min(pause * 2, 2.0)
 
 
+def workspace_skill_dirs(workdir: str, home: str) -> list[str]:
+    """The workspace's skill directories, the ones Pi searches in a project
+    it trusts (1.0.1 and 1.6.0 alike): .pi/skills in the working directory,
+    and .agents/skills in the working directory and each parent up to the
+    repository's root, the first that holds .git (up to / outside one). The
+    user's own ~/.agents/skills is none of them: Pi loads it whatever the
+    trust. Only directories that exist, nearest first."""
+    start = os.path.realpath(workdir)
+    root = start
+    while not os.path.exists(os.path.join(root, ".git")):
+        parent = os.path.dirname(root)
+        if parent == root:
+            break
+        root = parent
+    found = [os.path.join(start, ".pi", "skills")]
+    current = start
+    while True:
+        found.append(os.path.join(current, ".agents", "skills"))
+        parent = os.path.dirname(current)
+        if current == root or parent == current:
+            break
+        current = parent
+    user = os.path.realpath(os.path.join(home, ".agents", "skills"))
+    return [
+        path for path in found if os.path.isdir(path) and os.path.realpath(path) != user
+    ]
+
+
 def stdin_from(prompt: str) -> None:
     """Make the prompt this process's stdin, for the CLI to read to its end.
     An anonymous temporary file holds it: nothing named is left to remove,
@@ -385,8 +420,12 @@ def main() -> int:
             "pi",
             "--mode",
             "rpc" if args.rpc else "json",
-            "--approve",
+            # None of the workspace's own Pi configuration (module doc).
+            "--no-approve",
         ]
+        # The workspace's skills still load, named here.
+        for skills in workspace_skill_dirs(args.workdir, home):
+            cmd += ["--skill", skills]
         if args.provider:
             cmd += ["--provider", args.provider]
         if args.model:

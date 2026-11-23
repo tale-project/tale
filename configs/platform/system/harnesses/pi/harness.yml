@@ -16,7 +16,12 @@
 # project trust. Instructions are staged beside that dir and named with
 # --append-system-prompt <file>: APPENDED to Pi's default system prompt
 # without replacing it, and exactly the platform's (given on the command
-# line, Pi looks for no APPEND_SYSTEM.md file). Pi has NO native web tools
+# line, Pi looks for no APPEND_SYSTEM.md file). Pi runs with --no-approve: it
+# reads none of the workspace's own Pi configuration (.pi/settings.json,
+# .pi/mcp.json, extensions and packages, prompt templates, SYSTEM.md,
+# APPEND_SYSTEM.md), so what is staged here is the turn's whole
+# configuration; the wrapper names the workspace's skill directories with
+# --skill, so its skills still load. Pi has NO native web tools
 # (built-in tools: read, bash, edit, write, grep, find, ls) and no
 # interactive-question tool, so there is nothing to deny for managed runs;
 # additionalDirs needs no wiring either —

@@ -122,12 +122,18 @@ function start(
     body?: string;
     /** More of the exec's environment, as the platform sets it. */
     env?: Record<string, string>;
+    /** The exec's workdir, when not the workspace itself. */
+    workdir?: string;
   } = {},
 ) {
   if (PYTHON === null) throw new Error('python3 is missing');
   const child = spawn(
     PYTHON,
-    [wrapperPath(wrapper), '--workdir', join(root, 'workspace')],
+    [
+      wrapperPath(wrapper),
+      '--workdir',
+      options.workdir ?? join(root, 'workspace'),
+    ],
     {
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -568,6 +574,97 @@ describe("tale-pi-run hands Pi the platform's instructions", () => {
   );
 });
 
+describe("tale-pi-run trusts none of the workspace's own Pi configuration", () => {
+  const pi = WRAPPERS[1];
+
+  /** The directories the exec's `--skill` flags name, in order. */
+  function skills(run: string): string[] {
+    const argv = record(run, 'argv').split('\n');
+    return argv.flatMap((arg, at) => (argv[at - 1] === '--skill' ? [arg] : []));
+  }
+
+  function mkdirs(...paths: string[]): void {
+    for (const path of paths) mkdirSync(path, { recursive: true });
+  }
+
+  pyTest(
+    'starts Pi with --no-approve, and names no skill directory the workspace lacks',
+    async () => {
+      mkdirs(join(root, 'workspace', '.git'));
+      installCli(pi);
+      const run = start(pi, 'a');
+      expect((await run.exited).code).toBe(0);
+      const argv = record('a', 'argv').split('\n');
+      expect(argv.slice(0, 3)).toEqual(['--mode', 'json', '--no-approve']);
+      expect(argv).not.toContain('--approve');
+      expect(skills('a')).toEqual([]);
+    },
+    20_000,
+  );
+
+  pyTest(
+    'names the skill directories a trusted Pi searches, up to the repository root',
+    async () => {
+      const ws = join(root, 'workspace');
+      mkdirs(
+        join(ws, '.git'),
+        join(ws, '.pi', 'skills'),
+        join(ws, '.agents', 'skills'),
+        // Above the repository's root, where Pi stops searching.
+        join(root, '.agents', 'skills'),
+      );
+      installCli(pi);
+      const run = start(pi, 'a');
+      expect((await run.exited).code).toBe(0);
+      expect(skills('a')).toEqual([
+        join(ws, '.pi', 'skills'),
+        join(ws, '.agents', 'skills'),
+      ]);
+    },
+    20_000,
+  );
+
+  pyTest(
+    'from a directory inside the repository, each .agents/skills up to its root',
+    async () => {
+      const ws = join(root, 'workspace');
+      const sub = join(ws, 'packages', 'app');
+      mkdirs(
+        join(ws, '.git'),
+        join(sub, '.agents', 'skills'),
+        join(ws, '.agents', 'skills'),
+        // Pi reads .pi/skills in the working directory only.
+        join(ws, '.pi', 'skills'),
+      );
+      installCli(pi);
+      const run = start(pi, 'a', { workdir: sub });
+      expect((await run.exited).code).toBe(0);
+      expect(record('a', 'cwd').trim()).toBe(sub);
+      expect(skills('a')).toEqual([
+        join(sub, '.agents', 'skills'),
+        join(ws, '.agents', 'skills'),
+      ]);
+    },
+    20_000,
+  );
+
+  pyTest(
+    'leaves out the user skills directory, which Pi loads itself',
+    async () => {
+      // Outside a repository the search goes on up to /, past HOME.
+      const ws = join(root, 'workspace');
+      mkdirs(join(root, '.agents', 'skills'), join(ws, '.agents', 'skills'));
+      installCli(pi);
+      const run = start(pi, 'a', { env: { HOME: root } });
+      expect((await run.exited).code).toBe(0);
+      const named = skills('a');
+      expect(named[0]).toBe(join(ws, '.agents', 'skills'));
+      expect(named).not.toContain(join(root, '.agents', 'skills'));
+    },
+    20_000,
+  );
+});
+
 describe('tale-pi-run --rpc hands Pi the rest of stdin', () => {
   const pi = WRAPPERS[1];
 
@@ -625,7 +722,7 @@ describe('tale-pi-run --rpc hands Pi the rest of stdin', () => {
       // Pi reads exactly what followed the envelope, byte for byte.
       expect(record('a', 'stdin')).toBe(`${PROMPT}${STEER}`);
       const argv = record('a', 'argv').split('\n');
-      expect(argv.slice(0, 3)).toEqual(['--mode', 'rpc', '--approve']);
+      expect(argv.slice(0, 3)).toEqual(['--mode', 'rpc', '--no-approve']);
       const id = argv[argv.indexOf('--session-id') + 1] ?? '';
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
       // RPC mode prints no session header: the wrapper names the session.
