@@ -72,7 +72,7 @@ built app on port 3000. To run Vite there beside it, start it with
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
 | `SHUTDOWN_DRAIN_SECONDS` | How long a stopping process that serves the web tier keeps answering after `/api/health` turned to 503, default `6` (0–300); skipped when nothing has checked its health in the last 15 seconds |
-| `BACKEND_NODE_FLAGS` | Image only. The Node flags the built backend starts with, in place of the ones the entrypoint works out from the container's memory limit (`backend_node_flags` in `docker-entrypoint.sh`); empty starts Node with none |
+| `BACKEND_NODE_FLAGS` | Image only. The Node flags the built backend starts with, in place of the ones the entrypoint works out from the container's memory limit and reservation (`backend_node_flags` in `docker-entrypoint.sh`: a heap cap only from a limit of 512 MiB or less); empty starts Node with none |
 | `MALLOC_ARENA_MAX` | Image only. glibc arenas for the process, `2` unless set |
 | `SENTRY_DSN` | Optional error reporting |
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |

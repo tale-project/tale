@@ -29,7 +29,9 @@ import { afterEach, describe, expect, it } from 'vitest';
  * started the same way.
  *
  * Node sizes its heap for the machine, so the entrypoint works the flags out
- * from the container's own memory limit, which it reads from the cgroup.
+ * from the container's own memory limit and reservation, which it reads from
+ * the cgroup: a heap cap only from a limit, the collector's eagerness from the
+ * share a deployment reserved.
  *
  * The real entrypoint runs here as the app user (the `id` double answers
  * 1001, so the root phase is skipped) with a `node` double that records the
@@ -60,6 +62,9 @@ interface Start {
   memoryMax?: string;
   /** The container's limit as cgroup v1 writes it. */
   memoryLimitV1?: string;
+  /** The container's reservation as cgroup v2 writes it (`memory.low`, where
+   *  Docker puts `mem_reservation`): bytes, or `max`. */
+  memoryLow?: string;
 }
 
 function startBackend(start: Start = {}) {
@@ -71,6 +76,8 @@ function startBackend(start: Start = {}) {
   mkdirSync(cgroup);
   if (start.memoryMax !== undefined)
     writeFileSync(path.join(cgroup, 'memory.max'), `${start.memoryMax}\n`);
+  if (start.memoryLow !== undefined)
+    writeFileSync(path.join(cgroup, 'memory.low'), `${start.memoryLow}\n`);
   if (start.memoryLimitV1 !== undefined) {
     mkdirSync(path.join(cgroup, 'memory'));
     writeFileSync(
@@ -216,10 +223,16 @@ describe('how the image starts the backend', () => {
   });
 });
 
-describe("node's size, from the container's memory limit", () => {
-  it('leaves V8 to size itself where the container has no limit', () => {
+describe("node's size, from the container's memory limit and reservation", () => {
+  it('leaves V8 to size itself where the container has no limit and no reservation', () => {
     expect(startBackend().argv).toEqual([BUILT_ENTRY]);
     expect(startBackend({ memoryMax: 'max' }).argv).toEqual([BUILT_ENTRY]);
+    expect(startBackend({ memoryMax: 'max', memoryLow: '0' }).argv).toEqual([
+      BUILT_ENTRY,
+    ]);
+    expect(startBackend({ memoryMax: 'max', memoryLow: 'max' }).argv).toEqual([
+      BUILT_ENTRY,
+    ]);
   });
 
   it('caps the old space at 55 % of a 256 MiB limit, with a 4 MiB semi-space and code tuned for size', () => {
@@ -264,11 +277,86 @@ describe("node's size, from the container's memory limit", () => {
     ]);
   });
 
-  it('passes no flag above 1 GiB', () => {
+  it('passes no flag above 1 GiB when nothing is reserved', () => {
     expect(startBackend({ memoryMax: String(1025 * MIB) }).argv).toEqual([
       BUILT_ENTRY,
     ]);
     expect(startBackend({ memoryMax: String(12 * 1024 * MIB) }).argv).toEqual([
+      BUILT_ENTRY,
+    ]);
+    expect(
+      startBackend({ memoryMax: String(12 * 1024 * MIB), memoryLow: '0' }).argv,
+    ).toEqual([BUILT_ENTRY]);
+  });
+
+  it("sizes the young generation and the code from the share a deployment reserved, and never caps the heap from it: tale deploy's one process, 256 MiB under 12 GiB", () => {
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(256 * MIB),
+      }).argv,
+    ).toEqual(['--max-semi-space-size=4', '--optimize-for-size', BUILT_ENTRY]);
+    // A reservation and no limit at all: the same.
+    expect(
+      startBackend({ memoryMax: 'max', memoryLow: String(512 * MIB) }).argv,
+    ).toEqual(['--max-semi-space-size=4', '--optimize-for-size', BUILT_ENTRY]);
+    // The web tier alone (64 MiB in a colour of three services) as well.
+    expect(
+      startBackend({ role: 'web', env: WEB_ENV, memoryLow: String(64 * MIB) })
+        .argv,
+    ).toEqual([
+      '--max-semi-space-size=4',
+      '--optimize-for-size',
+      BUILT_WEB_ENTRY,
+    ]);
+  });
+
+  it('halves only the semi-space for a share between 512 MiB and 1 GiB, and passes none above', () => {
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(513 * MIB),
+      }).argv,
+    ).toEqual(['--max-semi-space-size=8', BUILT_ENTRY]);
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(1024 * MIB),
+      }).argv,
+    ).toEqual(['--max-semi-space-size=8', BUILT_ENTRY]);
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(1025 * MIB),
+      }).argv,
+    ).toEqual([BUILT_ENTRY]);
+  });
+
+  it('takes the share as the smaller of the reservation and the limit', () => {
+    expect(
+      startBackend({
+        memoryMax: String(1024 * MIB),
+        memoryLow: String(256 * MIB),
+      }).argv,
+    ).toEqual(['--max-semi-space-size=4', '--optimize-for-size', BUILT_ENTRY]);
+    expect(
+      startBackend({
+        memoryMax: String(768 * MIB),
+        memoryLow: String(2048 * MIB),
+      }).argv,
+    ).toEqual(['--max-semi-space-size=8', BUILT_ENTRY]);
+  });
+
+  it('caps the heap from a limit of 512 MiB or less whatever is reserved', () => {
+    expect(
+      startBackend({
+        memoryMax: String(512 * MIB),
+        memoryLow: String(256 * MIB),
+      }).argv,
+    ).toEqual([
+      '--max-old-space-size=281',
+      '--max-semi-space-size=4',
+      '--optimize-for-size',
       BUILT_ENTRY,
     ]);
   });
@@ -285,7 +373,7 @@ describe("node's size, from the container's memory limit", () => {
     );
   });
 
-  it("starts with the operator's flags in place of its own, whatever the limit", () => {
+  it("starts with the operator's flags in place of its own, whatever the limit and the reservation", () => {
     expect(
       startBackend({
         memoryMax: String(256 * MIB),
@@ -299,14 +387,29 @@ describe("node's size, from the container's memory limit", () => {
       '--max-semi-space-size=2',
       BUILT_ENTRY,
     ]);
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(256 * MIB),
+        env: { BACKEND_NODE_FLAGS: '--max-old-space-size=2048' },
+      }).argv,
+    ).toEqual(['--max-old-space-size=2048', BUILT_ENTRY]);
   });
 
-  it('says in its log which flags it starts with, and from which limit', () => {
+  it('says in its log which flags it starts with, and from which limit and reservation', () => {
     expect(startBackend({ memoryMax: String(256 * MIB) }).stdout).toContain(
-      'INFO  Node flags: --max-old-space-size=140 --max-semi-space-size=4 --optimize-for-size (container memory limit: 256 MiB)',
+      'INFO  Node flags: --max-old-space-size=140 --max-semi-space-size=4 --optimize-for-size (container memory limit: 256 MiB, memory reservation: none)',
+    );
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(256 * MIB),
+      }).stdout,
+    ).toContain(
+      'INFO  Node flags: --max-semi-space-size=4 --optimize-for-size (container memory limit: 12288 MiB, memory reservation: 256 MiB)',
     );
     expect(startBackend().stdout).toContain(
-      'INFO  Node flags: none (container memory limit: none)',
+      'INFO  Node flags: none (container memory limit: none, memory reservation: none)',
     );
   });
 
@@ -314,6 +417,13 @@ describe("node's size, from the container's memory limit", () => {
     expect(
       startBackend({
         memoryMax: String(256 * MIB),
+        env: { BACKEND_NODE_FLAGS: '' },
+      }).argv,
+    ).toEqual([BUILT_ENTRY]);
+    expect(
+      startBackend({
+        memoryMax: String(12 * 1024 * MIB),
+        memoryLow: String(256 * MIB),
         env: { BACKEND_NODE_FLAGS: '' },
       }).argv,
     ).toEqual([BUILT_ENTRY]);

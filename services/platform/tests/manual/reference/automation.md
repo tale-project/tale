@@ -22,8 +22,13 @@ own it end to end:
   role with a recording `node` in its place: the `api`, `worker` and `all` roles
   start `backend-dist/main.js` and the `web` role `backend-dist/web-main.js`,
   each as one plain `node` process with the size flags worked out from the
-  container's memory limit; the dev image starts the sources through the
-  loader; an unknown role exits 64 before anything starts.
+  container's cgroup: a heap cap only from a memory limit of 512 MiB or less,
+  and otherwise from the smaller of the limit and the reservation
+  (`memory.low`) a smaller young generation and code tuned for size up to
+  512 MiB, a smaller young generation alone up to 1 GiB and nothing above,
+  with `BACKEND_NODE_FLAGS` in their place when it is set, and the limit and
+  the reservation named in the log; the dev image starts the sources through
+  the loader; an unknown role exits 64 before anything starts.
 - `scripts/build-backend.test.ts` builds the backend and holds what a boot may
   read: what waits behind an `import()` for the backend, and that the web
   role's entry reads no database client, job queue or sign-in stack.
@@ -41,7 +46,10 @@ own it end to end:
   listeners of a process.
 
 What they cannot judge is the stop of a real container behind the edge:
-[`PERF-B14`](../suites/performance.md) asks a person for that.
+[`PERF-B14`](../suites/performance.md) asks a person for that. Nor can they
+judge an engine writing a deployment's reservation where the container reads
+it, its own `/sys/fs/cgroup/memory.low`: `APP-F39` of the CLI's
+`docker-app-tier` suite asks a person for that on a `tale deploy` host.
 
 ## What a walled YouTube link says (#4942)
 

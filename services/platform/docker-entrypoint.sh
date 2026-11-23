@@ -21,7 +21,8 @@ set -eo pipefail
 #   1. The SSRF egress firewall and the run markers, while still root
 #   2. Privilege drop (root → uid 1001 app)
 #   3. Env normalization (the web role: env.sh, incl. ensure_instance_secret)
-#   4. Node's size flags, worked out from the container's memory limit
+#   4. Node's size flags, worked out from the container's memory limit and
+#      reservation
 #   5. `exec node`: the process writes /tmp/platform-ready itself once it
 #      serves (the compose healthcheck's gate) and handles SIGTERM itself
 # ============================================================================
@@ -170,8 +171,14 @@ fi
 # Node sizes its heap for the machine, not for the container: under a 256 MiB
 # limit V8 still allows itself a 259 MiB heap and a 48 MiB young generation,
 # so the kernel kills the container before the collector ever feels short. The
-# backend therefore starts with flags worked out from the container's own
-# limit. Both functions use shell builtins only.
+# backend therefore starts with flags worked out from its own cgroup: the hard
+# limit (`memory.max`) and the reservation (`memory.low`, where Docker writes
+# `mem_reservation`: `tale deploy` gives each service its share of the memory
+# budget there). A hard heap limit only ever follows a hard container limit:
+# a heap that reaches it ends the process, and with it the whole application.
+# The reservation only makes the collector work harder for the share; a real
+# peak above it still finds the memory the host has. The functions use shell
+# builtins only.
 # ============================================================================
 
 # The memory this container may use, in MiB, from its cgroup (v2 `memory.max`,
@@ -191,28 +198,51 @@ container_memory_limit_mib() {
   echo $((raw / 1048576))
 }
 
+# The memory reserved for this container, in MiB, from its cgroup v2
+# `memory.low`; nothing when it reserves none. cgroup v1 has no such floor:
+# Docker makes a reservation a soft limit there, and `tale deploy` sets none.
+container_memory_reservation_mib() {
+  local root="${TALE_CGROUP_ROOT:-/sys/fs/cgroup}" raw=""
+  [ -r "$root/memory.low" ] || return 0
+  read -r raw < "$root/memory.low" || true
+  case "$raw" in
+    '' | *[!0-9]*) return 0 ;; # "max", or nothing readable
+  esac
+  [ "${#raw}" -le 15 ] || return 0
+  [ "$((raw / 1048576))" -gt 0 ] || return 0
+  echo $((raw / 1048576))
+}
+
 # The node flags the built backend starts with, one per word.
-#   BACKEND_NODE_FLAGS set (even empty): exactly those, whatever the limit.
-#   No limit, or more than 1 GiB:        none; V8 sizes itself.
-#   Up to 1 GiB:                         an 8 MiB semi-space (half the default).
-#   Up to 512 MiB:                       a 4 MiB semi-space, code tuned for size,
-#                                        and an old space of 55 % of the limit:
-#                                        the rest is for the young generation,
-#                                        memory outside the heap and the child
-#                                        processes that share the container.
+#   BACKEND_NODE_FLAGS set (even empty): exactly those, whatever the cgroup says.
+#   A limit of 512 MiB or less: a 4 MiB semi-space, code tuned for size, and
+#     an old space of 55 % of the limit: the rest is for the young generation,
+#     memory outside the heap and the child processes that share the container.
+#   Else the share, the smaller of the reservation and the limit:
+#     up to 512 MiB the same semi-space and code tuned for size, with no cap
+#     on the heap; up to 1 GiB an 8 MiB semi-space (half the default); above
+#     it, or with neither, none: V8 sizes itself.
 backend_node_flags() {
   if [ "${BACKEND_NODE_FLAGS+set}" = set ]; then
     echo "$BACKEND_NODE_FLAGS"
     return 0
   fi
-  local limit heap
+  local limit share heap
   limit="$(container_memory_limit_mib)"
-  [ -n "$limit" ] || return 0
-  if [ "$limit" -le 512 ]; then
+  if [ -n "$limit" ] && [ "$limit" -le 512 ]; then
     heap=$((limit * 55 / 100))
     [ "$heap" -ge 96 ] || heap=96
     echo "--max-old-space-size=${heap} --max-semi-space-size=4 --optimize-for-size"
-  elif [ "$limit" -le 1024 ]; then
+    return 0
+  fi
+  share="$(container_memory_reservation_mib)"
+  if [ -z "$share" ] || { [ -n "$limit" ] && [ "$limit" -lt "$share" ]; }; then
+    share="$limit"
+  fi
+  [ -n "$share" ] || return 0
+  if [ "$share" -le 512 ]; then
+    echo "--max-semi-space-size=4 --optimize-for-size"
+  elif [ "$share" -le 1024 ]; then
     echo "--max-semi-space-size=8"
   fi
 }
@@ -246,14 +276,11 @@ start_node() {
   # The production image runs the built backend (scripts/build-backend.ts):
   # plain node, no loader, no type transforming, and so none of the source
   # maps that transforming turns on for every module it reads.
-  local node_flags memory_limit_mib
+  local node_flags limit reservation
   node_flags="$(backend_node_flags)"
-  memory_limit_mib="$(container_memory_limit_mib)"
-  if [ -n "$memory_limit_mib" ]; then
-    log_info "Node flags: ${node_flags:-none} (container memory limit: ${memory_limit_mib} MiB)"
-  else
-    log_info "Node flags: ${node_flags:-none} (container memory limit: none)"
-  fi
+  limit="$(container_memory_limit_mib)"
+  reservation="$(container_memory_reservation_mib)"
+  log_info "Node flags: ${node_flags:-none} (container memory limit: ${limit:-none}${limit:+ MiB}, memory reservation: ${reservation:-none}${reservation:+ MiB})"
   # The flags are words on purpose: one flag each.
   # shellcheck disable=SC2086
   exec node $node_flags "/app/backend-dist/${entry}.js"
