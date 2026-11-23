@@ -156,7 +156,7 @@ const FINGERPRINT_KEY = randomBytes(32);
  * in-flight map: `anonymous` without one, else a keyed digest of it. Never
  * the bearer itself, never logged.
  */
-export function bearerFingerprint(bearerToken: string | undefined): string {
+function bearerFingerprint(bearerToken: string | undefined): string {
   if (bearerToken === undefined) return 'anonymous';
   return `key:${createHmac('sha256', FINGERPRINT_KEY).update(bearerToken).digest('hex').slice(0, 32)}`;
 }

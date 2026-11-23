@@ -331,7 +331,7 @@ function listingArgs(
 /** How long the add dialog waits after the last keystroke in the base URL or
  * the key before it lists by itself: a listing goes when the typing stops,
  * never per keystroke. */
-export const AUTO_LIST_DELAY_MS = 1000;
+const AUTO_LIST_DELAY_MS = 1000;
 
 /** What one listing is asked of: the endpoint and the key it goes with. A
  * listing the dialog already ran for these is not run again by itself. */
